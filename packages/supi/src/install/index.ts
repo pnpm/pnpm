@@ -195,7 +195,12 @@ export async function mutateModules (
       } else {
         logger.info({ message: 'Performing headless installation', prefix: opts.shrinkwrapDirectory })
         await headless({
+          currentEngine: {
+            nodeVersion: opts.nodeVersion,
+            pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+          },
           currentShrinkwrap: ctx.currentShrinkwrap,
+          engineStrict: opts.engineStrict,
           force: opts.force,
           ignoreScripts: opts.ignoreScripts,
           importers: ctx.importers as Array<{
@@ -220,6 +225,7 @@ export async function mutateModules (
           shrinkwrapDirectory: ctx.shrinkwrapDirectory,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+          skipped: ctx.skipped,
           store: opts.store,
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,

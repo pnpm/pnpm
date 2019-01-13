@@ -7,7 +7,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import filterShrinkwrap, {
-  filterByImporters as filterShrinkwrapByImporters,
+  filterByImportersAndEngine as filterShrinkwrapByImportersAndEngine,
 } from '@pnpm/filter-shrinkwrap'
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
@@ -58,6 +58,11 @@ export type ReporterFunction = (logObj: LogBase) => void
 export interface HeadlessOptions {
   childConcurrency?: number,
   currentShrinkwrap?: Shrinkwrap,
+  currentEngine: {
+    nodeVersion: string,
+    pnpmVersion: string,
+  },
+  engineStrict: boolean,
   ignoreScripts: boolean,
   include: IncludedDependencies,
   independentLeaves: boolean,
@@ -92,6 +97,7 @@ export interface HeadlessOptions {
   wantedShrinkwrap?: Shrinkwrap,
   ownLifecycleHooksStdio?: 'inherit' | 'pipe',
   pendingBuilds: string[],
+  skipped: Set<string>,
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -135,10 +141,11 @@ export default async (opts: HeadlessOptions) => {
     )
   }
 
+  const skipped = opts.skipped || new Set<string>()
   const filterOpts = {
     defaultRegistry: opts.registries.default,
     include: opts.include,
-    skipped: new Set<string>(),
+    skipped,
   }
   if (currentShrinkwrap) {
     await prune({
@@ -164,11 +171,12 @@ export default async (opts: HeadlessOptions) => {
     stage: 'importing_started',
   })
 
-  // migh be a good idea to move skipping to filterShrinkwrapByImporters
-  // or create a filterShrinkwrapByImportersAndEnvironment
-  const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
+  const filteredShrinkwrap = filterShrinkwrapByImportersAndEngine(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
     ...filterOpts,
+    currentEngine: opts.currentEngine,
+    engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
+    prefix: shrinkwrapDirectory,
   })
   const res = await shrinkwrapToDepGraph(
     filteredShrinkwrap,
@@ -286,7 +294,7 @@ export default async (opts: HeadlessOptions) => {
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
     registries: opts.registries,
-    skipped: [],
+    skipped: Array.from(skipped),
     store: opts.store,
   })
 

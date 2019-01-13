@@ -58,7 +58,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   t.deepEqual(shr.specifiers, { 'is-positive': '*' }, 'skipped optional dep not added to shrinkwrap.yaml')
 })
 
-testOnly('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
+test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
       'not-compatible-with-any-os': '*',
@@ -92,7 +92,6 @@ testOnly('skip optional dependency that does not support the current OS', async 
       name: 'not-compatible-with-any-os',
       version: '1.0.0',
     },
-    parents: [],
     reason: 'unsupported_platform',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
@@ -131,7 +130,6 @@ test('skip optional dependency that does not support the current Node version', 
       name: 'for-legacy-node',
       version: '1.0.0',
     },
-    parents: [],
     reason: 'unsupported_engine',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
@@ -157,7 +155,6 @@ test('skip optional dependency that does not support the current pnpm version', 
       name: 'for-legacy-pnpm',
       version: '1.0.0',
     },
-    parents: [],
     reason: 'unsupported_engine',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
@@ -195,13 +192,6 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
       name: 'not-compatible-with-any-os',
       version: '1.0.0',
     },
-    parents: [
-      {
-        id: 'localhost+4873/pkg-with-optional/1.0.0',
-        name: 'pkg-with-optional',
-        version: '1.0.0',
-      },
-    ],
     reason: 'unsupported_platform',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount

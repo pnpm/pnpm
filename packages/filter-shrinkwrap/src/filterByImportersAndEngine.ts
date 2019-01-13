@@ -53,6 +53,14 @@ export default function filterByImportersAndEngine (
 
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = filterImporter(shr.importers[importerId], opts.include)
+    if (acc[importerId].optionalDependencies) {
+      for (const depName of Object.keys(acc[importerId].optionalDependencies || {})) {
+        const relDepPath = dp.refToRelative(acc[importerId].optionalDependencies![depName], depName)
+        if (relDepPath && !packages[relDepPath]) {
+          delete acc[importerId].optionalDependencies![depName]
+        }
+      }
+    }
     return acc
   }, { ...shr.importers })
 

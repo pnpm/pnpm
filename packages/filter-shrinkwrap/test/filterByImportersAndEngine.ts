@@ -92,9 +92,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         devDependencies: {
           'dev-dep': '1.0.0',
         },
-        optionalDependencies: {
-          'optional-dep': '1.0.0',
-        },
+        optionalDependencies: {},
         specifiers: {
           'dev-dep': '^1.0.0',
           'optional-dep': '^1.0.0',
