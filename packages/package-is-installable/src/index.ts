@@ -3,36 +3,35 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import { PackageManifest } from '@pnpm/types'
-import installChecks = require('pnpm-install-checks')
+import checkEngine from './checkEngine'
+import checkPlatform from './checkPlatform'
 
-export default async function getIsInstallable (
+export default function getIsInstallable (
   pkgId: string,
   pkg: PackageManifest,
   options: {
     engineStrict: boolean,
-    nodeId: string,
     nodeVersion: string,
     optional: boolean,
     pnpmVersion: string,
     prefix: string,
   },
-): Promise<boolean> {
-  const warn = await installChecks.checkPlatform({
-    _id: pkgId,
-    cpu: pkg.cpu,
-    os: pkg.os,
-  }) ||
-    await installChecks.checkEngine({
-      _id: pkgId,
-      engines: pkg.engines,
-    }, {
-      nodeVersion: options.nodeVersion,
-      pnpmVersion: options.pnpmVersion,
-    })
+): boolean {
+  const warn = checkPlatform(pkgId, {
+    cpu: pkg.cpu || ['any'],
+    os: pkg.os || ['any'],
+  })
+  || pkg.engines && checkEngine(pkgId, pkg.engines, {
+    node: options.nodeVersion,
+    pnpm: options.pnpmVersion,
+  })
 
   if (!warn) return true
 
-  installCheckLogger.warn(warn)
+  installCheckLogger.warn({
+    message: warn.message,
+    prefix: options.prefix,
+  })
 
   if (options.optional) {
     skippedOptionalDependencyLogger.debug({
@@ -42,9 +41,8 @@ export default async function getIsInstallable (
         name: pkg.name,
         version: pkg.version,
       },
-      parents: undefined, // TODO: remove this field from the type
       prefix: options.prefix,
-      reason: warn.code === 'ENOTSUP' ? 'unsupported_engine' : 'unsupported_platform',
+      reason: warn.code === 'ERR_PNPM_UNSUPPORTED_ENGINE' ? 'unsupported_engine' : 'unsupported_platform',
     })
 
     return false

@@ -24,7 +24,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-is-installable#readme",
   "scripts": {
     "start": "npm run tsc -- --watch",
-    "test": "npm run tsc && npm run lint",
+    "test": "npm run tsc && npm run lint && ts-node test",
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
@@ -32,13 +32,18 @@
   "dependencies": {
     "@pnpm/core-loggers": "2.0.0",
     "@pnpm/types": "2.0.0",
-    "pnpm-install-checks": "1.1.0"
+    "@types/node": "10.12.18",
+    "@types/semver": "5.5.0",
+    "semver": "5.6.0"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/package-is-installable": "link:",
     "@pnpm/tslint-config": "0.0.0",
+    "@types/tape": "4.2.33",
     "rimraf": "2.6.3",
+    "tape": "4.9.2",
+    "ts-node": "7.0.1",
     "tslint": "5.12.0",
     "typescript": "3.2.2"
   }
