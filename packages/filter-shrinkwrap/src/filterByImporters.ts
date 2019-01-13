@@ -40,6 +40,7 @@ export default function filterByImporters (
     pickPkgsWithAllDeps(shr.packages, directDepPaths, {
       failOnMissingDependencies: opts.failOnMissingDependencies,
       include: opts.include,
+      skipped: opts.skipped,
     }) || {}
 
   const importers = importerIds.reduce((acc, importerId) => {
@@ -61,6 +62,7 @@ function pickPkgsWithAllDeps (
   opts: {
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
+    skipped: Set<string>,
   },
 ) {
   const pickedPackages = {} as PackageSnapshots
@@ -75,10 +77,11 @@ function pkgAllDeps (
   opts: {
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
+    skipped: Set<string>,
   },
 ) {
   for (const relDepPath of relDepPaths) {
-    if (pickedPackages[relDepPath]) continue
+    if (pickedPackages[relDepPath] || opts.skipped.has(relDepPath)) continue
     const pkgSnapshot = pkgSnapshots[relDepPath]
     if (!pkgSnapshot && !relDepPath.startsWith('link:')) {
       const message = `No entry for "${relDepPath}" in shrinkwrap.yaml`

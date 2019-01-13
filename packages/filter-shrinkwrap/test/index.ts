@@ -1,7 +1,7 @@
 import { filterByImporters } from '@pnpm/filter-shrinkwrap'
 import test = require('tape')
 
-test('filter: only prod dependencies of one importer', (t) => {
+test('filterByImporters(): only prod dependencies of one importer', (t) => {
   const filteredShr = filterByImporters(
     {
       importers: {
@@ -113,7 +113,7 @@ test('filter: only prod dependencies of one importer', (t) => {
 })
 
 // TODO: also fail when filterShrinkwrap() is used
-test('filter: fail on missing packages when failOnMissingDependencies is true', (t) => {
+test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', (t) => {
   let err!: Error
   try {
     filterByImporters(
@@ -163,7 +163,7 @@ test('filter: fail on missing packages when failOnMissingDependencies is true', 
   t.end()
 })
 
-test('filter: do not fail on missing packages when failOnMissingDependencies is false', (t) => {
+test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', (t) => {
   const filteredShr = filterByImporters(
     {
       importers: {
@@ -231,5 +231,124 @@ test('filter: do not fail on missing packages when failOnMissingDependencies is 
     shrinkwrapVersion: 4,
   })
 
+  t.end()
+})
+
+test('filterByImporters(): do not include skipped packages', (t) => {
+  const filteredShr = filterByImporters(
+    {
+      importers: {
+        'project-1': {
+          dependencies: {
+            'prod-dep': '1.0.0',
+          },
+          devDependencies: {
+            'dev-dep': '1.0.0',
+          },
+          optionalDependencies: {
+            'optional-dep': '1.0.0',
+          },
+          specifiers: {
+            'dev-dep': '^1.0.0',
+            'optional-dep': '^1.0.0',
+            'prod-dep': '^1.0.0',
+          },
+        },
+        'project-2': {
+          dependencies: {
+            'project-2-prod-dep': '1.0.0',
+          },
+          specifiers: {
+            'project-2-prod-dep': '^1.0.0',
+          }
+        }
+      },
+      packages: {
+        '/dev-dep/1.0.0': {
+          dev: true,
+          resolution: { integrity: '' },
+        },
+        '/optional-dep/1.0.0': {
+          optional: true,
+          resolution: { integrity: '' },
+        },
+        '/prod-dep-dep/1.0.0': {
+          resolution: { integrity: '' },
+        },
+        '/prod-dep/1.0.0': {
+          dependencies: {
+            'prod-dep-dep': '1.0.0',
+          },
+          optionalDependencies: {
+            'optional-dep': '1.0.0',
+          },
+          resolution: { integrity: '' },
+        },
+        '/project-2-prod-dep/1.0.0': {
+          resolution: { integrity: '' },
+        },
+      },
+      shrinkwrapVersion: 4,
+    },
+    ['project-1'],
+    {
+      defaultRegistry: 'https://registry.npmjs.org/',
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      skipped: new Set<string>(['/optional-dep/1.0.0']),
+    },
+  )
+
+  t.deepEqual(filteredShr, {
+    importers: {
+      'project-1': {
+        dependencies: {
+          'prod-dep': '1.0.0',
+        },
+        devDependencies: {
+          'dev-dep': '1.0.0',
+        },
+        optionalDependencies: {
+          'optional-dep': '1.0.0',
+        },
+        specifiers: {
+          'dev-dep': '^1.0.0',
+          'optional-dep': '^1.0.0',
+          'prod-dep': '^1.0.0',
+        },
+      },
+      'project-2': {
+        dependencies: {
+          'project-2-prod-dep': '1.0.0',
+        },
+        specifiers: {
+          'project-2-prod-dep': '^1.0.0',
+        }
+      }
+    },
+    packages: {
+      '/dev-dep/1.0.0': {
+        dev: true,
+        resolution: { integrity: '' },
+      },
+      '/prod-dep-dep/1.0.0': {
+        resolution: { integrity: '' },
+      },
+      '/prod-dep/1.0.0': {
+        dependencies: {
+          'prod-dep-dep': '1.0.0',
+        },
+        optionalDependencies: {
+          'optional-dep': '1.0.0',
+        },
+        resolution: { integrity: '' },
+      },
+    },
+    shrinkwrapVersion: 4,
+  })
   t.end()
 })
