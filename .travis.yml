@@ -17,8 +17,9 @@ install:
   - pnpm recursive install --no-lock
 script:
   - set -e # Fail on first error
-  - /bin/bash lint-commits.sh
-  - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
+  # TODO: fix commitlint
+  # - /bin/bash lint-commits.sh
+  # - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
   - npm t
   - set +e
 env:
