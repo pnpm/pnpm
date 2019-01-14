@@ -41,7 +41,7 @@
     "tape": "4.9.2",
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
-    "tslint": "5.12.0",
+    "tslint": "5.12.1",
     "typescript": "3.2.2",
     "write-yaml-file": "2.0.0",
     "yaml-tag": "1.1.0"
