@@ -103,12 +103,22 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   await project.has('dep-of-optional-pkg')
 
+  {
+    const modules = await project.loadModules()
+    t.deepEqual(modules && modules.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
+  }
+
   await rimraf('node_modules')
 
   await mutateModules([{ buildIndex: 0, mutation: 'install', prefix: process.cwd() }], await testDefaults({ frozenShrinkwrap: true }))
 
   await project.hasNot('not-compatible-with-any-os')
   await project.has('dep-of-optional-pkg')
+
+  {
+    const modules = await project.loadModules()
+    t.deepEqual(modules && modules.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
+  }
 })
 
 test('skip optional dependency that does not support the current Node version', async (t: tape.Test) => {

@@ -44,6 +44,7 @@ export default function filterByImportersAndEngine (
   const packages = shr.packages &&
     pickPkgsWithAllDeps(shr.packages, directDepPaths, {
       currentEngine: opts.currentEngine,
+      defaultRegistry: opts.defaultRegistry,
       engineStrict: opts.engineStrict,
       failOnMissingDependencies: opts.failOnMissingDependencies,
       include: opts.include,
@@ -80,6 +81,7 @@ function pickPkgsWithAllDeps (
       nodeVersion: string,
       pnpmVersion: string,
     },
+    defaultRegistry: string,
     engineStrict: boolean,
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
@@ -104,6 +106,7 @@ function pkgAllDeps (
       nodeVersion: string,
       pnpmVersion: string,
     },
+    defaultRegistry: string,
     engineStrict: boolean,
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
@@ -125,10 +128,11 @@ function pkgAllDeps (
       continue
     }
     let installable!: boolean
+    const depPath = dp.resolve(opts.defaultRegistry, relDepPath)
     if (!parentIsInstallable) {
       installable = false
       if (!ctx.pickedPackages[relDepPath]) {
-        opts.skipped.add(relDepPath)
+        opts.skipped.add(depPath)
       }
     } else {
       const pkg = {
@@ -147,10 +151,10 @@ function pkgAllDeps (
       })
       if (!installable) {
         if (!ctx.pickedPackages[relDepPath]) {
-          opts.skipped.add(relDepPath)
+          opts.skipped.add(depPath)
         }
       } else {
-        opts.skipped.delete(relDepPath)
+        opts.skipped.delete(depPath)
         ctx.pickedPackages[relDepPath] = pkgSnapshot
       }
     }

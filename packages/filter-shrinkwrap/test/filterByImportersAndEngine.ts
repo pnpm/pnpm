@@ -1,9 +1,6 @@
 import { filterByImportersAndEngine } from '@pnpm/filter-shrinkwrap'
 import test = require('tape')
 
-// TODO: what about previous list of skipped packages?
-// may be an issue on partial subsequent installation
-
 test('filterByImportersAndEngine(): skip packages that are not installable', (t) => {
   const skippedPackages = new Set<string>()
   const filteredShrinkwrap = filterByImportersAndEngine(
@@ -128,6 +125,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
     },
     shrinkwrapVersion: 4,
   })
-  t.deepEqual(Array.from(skippedPackages), ['/optional-dep/1.0.0'])
+  t.deepEqual(Array.from(skippedPackages), ['registry.npmjs.org/optional-dep/1.0.0'])
   t.end()
 })
