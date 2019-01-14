@@ -533,7 +533,7 @@ async function resolveDependency (
 
   const currentIsInstallable = (
       ctx.force ||
-      await packageIsInstallable(pkgResponse.body.id, pkg, {
+      packageIsInstallable(pkgResponse.body.id, pkg, {
         engineStrict: ctx.engineStrict,
         nodeVersion: ctx.nodeVersion,
         optional: wantedDependency.optional,
