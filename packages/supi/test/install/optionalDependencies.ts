@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
 import path = require('path')
 import exists = require('path-exists')
@@ -310,4 +310,66 @@ test('rebuild should not fail on incomplete shrinkwrap.yaml', async (t: tape.Tes
     message: 'No entry for "/not-compatible-with-any-os/1.0.0" in shrinkwrap.yaml',
     name: 'pnpm',
   }), 'missing package reported')
+})
+
+test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace packages', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project1',
+      version: '1.0.0',
+
+      optionalDependencies: {
+        'not-compatible-with-any-os': '*',
+      },
+    },
+    {
+      name: 'project2',
+      version: '1.0.0',
+
+      dependencies: {
+        'pkg-with-1-dep': '100.0.0',
+      },
+    }
+  ])
+  const reporter = sinon.spy()
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: path.resolve('project1'),
+      },
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: path.resolve('project2'),
+      },
+    ],
+    await testDefaults({
+      shrinkwrapDirectory: process.cwd(),
+      shrinkwrapOnly: true,
+    }),
+  )
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: path.resolve('project1'),
+      },
+    ],
+    await testDefaults({
+      frozenShrinkwrap: false,
+      preferFrozenShrinkwrap: false,
+      shrinkwrapDirectory: process.cwd(),
+    }),
+  )
+
+  const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
+  t.deepEquals(modulesInfo.skipped, [
+    'localhost+4873/dep-of-optional-pkg/1.0.0',
+    'localhost+4873/not-compatible-with-any-os/1.0.0',
+  ])
 })
