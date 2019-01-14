@@ -2,7 +2,7 @@ import { filterByImportersAndEngine } from '@pnpm/filter-shrinkwrap'
 import test = require('tape')
 
 test('filterByImportersAndEngine(): skip packages that are not installable', (t) => {
-  const skippedPackages = new Set<string>()
+  const skippedPackages = new Set<string>(['registry.npmjs.org/preserve-existing-skipped/1.0.0'])
   const filteredShrinkwrap = filterByImportersAndEngine(
     {
       importers: {
@@ -14,10 +14,12 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
             'dev-dep': '1.0.0',
           },
           optionalDependencies: {
+            'not-skipped-optional': '1.0.0',
             'optional-dep': '1.0.0',
           },
           specifiers: {
             'dev-dep': '^1.0.0',
+            'not-skipped-optional': '^1.0.0',
             'optional-dep': '^1.0.0',
             'prod-dep': '^1.0.0',
           },
@@ -32,11 +34,26 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         }
       },
       packages: {
+        '/bar/1.0.0': {
+          resolution: { integrity: '' },
+        },
         '/dev-dep/1.0.0': {
           dev: true,
           resolution: { integrity: '' },
         },
+        '/foo/1.0.0': {
+          optional: true,
+          resolution: { integrity: '' },
+        },
+        '/not-skipped-optional/1.0.0': {
+          optional: true,
+          resolution: { integrity: '' },
+        },
         '/optional-dep/1.0.0': {
+          dependencies: {
+            'bar': '1.0.0',
+            'foo': '1.0.0',
+          },
           engines: {
             node: '1000',
           },
@@ -48,6 +65,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         '/prod-dep/1.0.0': {
           dependencies: {
+            'bar': '1.0.0',
             'prod-dep-dep': '1.0.0',
           },
           optionalDependencies: {
@@ -89,9 +107,12 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         devDependencies: {
           'dev-dep': '1.0.0',
         },
-        optionalDependencies: {},
+        optionalDependencies: {
+          'not-skipped-optional': '1.0.0',
+        },
         specifiers: {
           'dev-dep': '^1.0.0',
+          'not-skipped-optional': '^1.0.0',
           'optional-dep': '^1.0.0',
           'prod-dep': '^1.0.0',
         },
@@ -106,8 +127,15 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
       }
     },
     packages: {
+      '/bar/1.0.0': {
+        resolution: { integrity: '' },
+      },
       '/dev-dep/1.0.0': {
         dev: true,
+        resolution: { integrity: '' },
+      },
+      '/not-skipped-optional/1.0.0': {
+        optional: true,
         resolution: { integrity: '' },
       },
       '/prod-dep-dep/1.0.0': {
@@ -115,6 +143,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
       },
       '/prod-dep/1.0.0': {
         dependencies: {
+          'bar': '1.0.0',
           'prod-dep-dep': '1.0.0',
         },
         optionalDependencies: {
@@ -125,6 +154,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
     },
     shrinkwrapVersion: 4,
   })
-  t.deepEqual(Array.from(skippedPackages), ['registry.npmjs.org/optional-dep/1.0.0'])
+  t.deepEqual(Array.from(skippedPackages), ['registry.npmjs.org/preserve-existing-skipped/1.0.0', 'registry.npmjs.org/optional-dep/1.0.0', 'registry.npmjs.org/foo/1.0.0'])
   t.end()
 })
