@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.29.2",
+  "version": "0.29.3",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,9 +21,9 @@
   "dependencies": {
     "@pnpm/check-package": "2.0.0",
     "@pnpm/core-loggers": "2.0.0",
-    "@pnpm/filter-shrinkwrap": "1.0.0",
+    "@pnpm/filter-shrinkwrap": "1.1.0",
     "@pnpm/fs-locker": "1.0.3",
-    "@pnpm/headless": "4.0.2",
+    "@pnpm/headless": "5.0.0",
     "@pnpm/lifecycle": "4.2.0",
     "@pnpm/link-bins": "3.0.2",
     "@pnpm/modules-cleaner": "2.0.6",
@@ -34,7 +34,7 @@
     "@pnpm/read-manifests": "1.0.5",
     "@pnpm/read-modules-dir": "1.0.0",
     "@pnpm/read-package-json": "1.1.1",
-    "@pnpm/resolve-dependencies": "4.0.3",
+    "@pnpm/resolve-dependencies": "4.0.4",
     "@pnpm/resolver-base": "2.1.0",
     "@pnpm/shamefully-flatten": "2.0.4",
     "@pnpm/shrinkwrap-file": "1.0.1",

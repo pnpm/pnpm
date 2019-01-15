@@ -113,11 +113,6 @@ declare module 'mem' {
   export = anything;
 }
 
-declare module 'pnpm-install-checks' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'bole' {
   const anything: any;
   export = anything;

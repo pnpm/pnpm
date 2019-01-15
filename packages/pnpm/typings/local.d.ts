@@ -118,11 +118,6 @@ declare module 'mem' {
   export = anything;
 }
 
-declare module 'pnpm-install-checks' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'is-windows' {
   function isWindows(): boolean;
   export = isWindows;

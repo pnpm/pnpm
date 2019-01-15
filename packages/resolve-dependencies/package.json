@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "2.0.0",
     "@pnpm/npm-resolver": "2.2.7",
-    "@pnpm/package-is-installable": "0.0.0",
+    "@pnpm/package-is-installable": "1.0.0",
     "@pnpm/resolver-base": "2.1.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/shrinkwrap-utils": "1.1.1",
@@ -44,7 +44,6 @@
     "@types/semver": "5.5.0",
     "dependency-path": "2.0.1",
     "path-exists": "3.0.0",
-    "pnpm-install-checks": "1.1.0",
     "ramda": "0.26.1",
     "replace-string": "2.0.0",
     "semver": "5.6.0",

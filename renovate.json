@@ -41,7 +41,6 @@
     "dependencies-hierarchy",
     "dependency-path",
     "pnpm-file-reporter",
-    "pnpm-install-checks",
     "pnpm-list",
     "pnpm-registry-mock",
     "remove-all-except-outer-links",

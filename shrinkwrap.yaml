@@ -308,7 +308,7 @@ importers:
     specifiers:
       '@pnpm/filter-shrinkwrap': 'link:'
       '@pnpm/logger': 2.1.0
-      '@pnpm/package-is-installable': 0.0.0
+      '@pnpm/package-is-installable': 1.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.1.1
       '@pnpm/tslint-config': 0.0.0
@@ -391,7 +391,7 @@ importers:
       '@pnpm/core-loggers': 2.0.0
       '@pnpm/default-fetcher': 2.0.7
       '@pnpm/default-resolver': 2.1.0
-      '@pnpm/filter-shrinkwrap': 1.0.0
+      '@pnpm/filter-shrinkwrap': 1.1.0
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 4.2.0
       '@pnpm/link-bins': 3.0.2
@@ -1077,7 +1077,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.29.2
+      supi: 0.29.3
       symlink-dir: 2.0.2
       tape: 4.9.2
       tape-promise: 4.0.0
@@ -1181,7 +1181,6 @@ importers:
       '@types/semver': 5.5.0
       dependency-path: 'link:../dependency-path'
       path-exists: 3.0.0
-      pnpm-install-checks: 1.1.0
       ramda: 0.26.1
       replace-string: 2.0.0
       semver: 5.6.0
@@ -1197,7 +1196,7 @@ importers:
       '@pnpm/core-loggers': 2.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
-      '@pnpm/package-is-installable': 0.0.0
+      '@pnpm/package-is-installable': 1.0.0
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/shrinkwrap-types': 1.0.0
@@ -1211,7 +1210,6 @@ importers:
       '@types/semver': 5.5.0
       dependency-path: 2.0.1
       path-exists: 3.0.0
-      pnpm-install-checks: 1.1.0
       ramda: 0.26.1
       replace-string: 2.0.0
       rimraf: 2.6.3
@@ -1556,9 +1554,9 @@ importers:
       '@pnpm/core-loggers': 2.0.0
       '@pnpm/default-fetcher': 2.0.7
       '@pnpm/default-resolver': 2.1.0
-      '@pnpm/filter-shrinkwrap': 1.0.0
+      '@pnpm/filter-shrinkwrap': 1.1.0
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 4.0.2
+      '@pnpm/headless': 5.0.0
       '@pnpm/lifecycle': 4.2.0
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
@@ -1572,7 +1570,7 @@ importers:
       '@pnpm/read-manifests': 1.0.5
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/read-package-json': 1.1.1
-      '@pnpm/resolve-dependencies': 4.0.3
+      '@pnpm/resolve-dependencies': 4.0.4
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/shamefully-flatten': 2.0.4
       '@pnpm/shrinkwrap-file': 1.0.1
@@ -1858,7 +1856,7 @@ packages:
   /@commitlint/cli/7.3.1:
     dependencies:
       '@commitlint/format': 7.3.1
-      '@commitlint/lint': 7.3.1
+      '@commitlint/lint': 7.3.2
       '@commitlint/load': 7.3.1
       '@commitlint/read': 7.3.1
       babel-polyfill: 6.26.0
@@ -1915,17 +1913,18 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-Fz7Of30YKVg+wCJZK9qqojJiD45a4P32LLvXCHEb4/TLSwlKp/K/H6VeWK8kN4uUZHCx60PsKc6829l2Fm28Sw==
-  /@commitlint/lint/7.3.1:
+  /@commitlint/lint/7.3.2:
     dependencies:
       '@commitlint/is-ignored': 7.3.1
       '@commitlint/parse': 7.3.1
       '@commitlint/rules': 7.3.1
       babel-runtime: 6.26.0
+      lodash: 4.17.11
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-aPfjqoOHhXDbA7pb+S7yGv8SsgCgfpOXybzO2NoiqVIvcuWXE+FuqVYDLjmzjvptYGYCB0oDFkewxoeHCzQOzg==
+      integrity: sha512-NInm96JP89lMNR77R4zJRj/vaQWc4Ie5vR/5G5auFFiHuwyKmRWfXbGMA7zVYpAylPRgewGaELhuRzNTUW0Log==
   /@commitlint/load/7.3.1:
     dependencies:
       '@commitlint/execute-rule': 7.3.1
@@ -7958,12 +7957,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-install-checks/1.1.0:
-    dependencies:
-      semver: 5.6.0
-    dev: false
-    resolution:
-      integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
   /pnpm-registry-mock/2.4.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
