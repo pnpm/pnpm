@@ -60,6 +60,11 @@ export default async function testDefaults (
     },
   )
   return {
+    currentEngine: {
+      nodeVersion: process.version,
+      pnpmVersion: '2.0.0',
+    },
+    engineStrict: false,
     force: false,
     importers: manifests.importers,
     include: manifests.include,
@@ -75,6 +80,7 @@ export default async function testDefaults (
     },
     shrinkwrapDirectory,
     sideEffectsCache: true,
+    skipped: new Set<string>(),
     store,
     storeController,
     unsafePerm: true,

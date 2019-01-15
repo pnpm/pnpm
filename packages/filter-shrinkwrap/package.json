@@ -39,6 +39,7 @@
     "@pnpm/filter-shrinkwrap": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "10.12.18",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "rimraf": "2.6.3",
@@ -51,7 +52,9 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
+    "@pnpm/package-is-installable": "0.0.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
+    "@pnpm/shrinkwrap-utils": "1.1.1",
     "@pnpm/types": "2.0.0",
     "@types/ramda": "0.25.39",
     "dependency-path": "2.0.1",

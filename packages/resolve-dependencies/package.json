@@ -32,6 +32,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "2.0.0",
     "@pnpm/npm-resolver": "2.2.7",
+    "@pnpm/package-is-installable": "0.0.0",
     "@pnpm/resolver-base": "2.1.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/shrinkwrap-utils": "1.1.1",
