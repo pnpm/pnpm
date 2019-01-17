@@ -46,7 +46,7 @@
     "tape": "^4.8.0",
     "ts-node": "^7.0.0",
     "tslint": "5.12.1",
-    "typescript": "3.2.2"
+    "typescript": "3.2.4"
   },
   "mos": {
     "plugins": [
