@@ -368,7 +368,7 @@ importers:
       '@types/node': 10.12.18
       '@types/path-exists': 3.0.0
       '@types/rimraf': 2.0.2
-      '@types/sinon': 7.0.3
+      '@types/sinon': 7.0.4
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       fs-extra: 7.0.1
@@ -419,7 +419,7 @@ importers:
       '@types/path-exists': 3.0.0
       '@types/ramda': 0.25.34
       '@types/rimraf': 2.0.2
-      '@types/sinon': 7.0.3
+      '@types/sinon': 7.0.4
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       dependency-path: 2.0.1
@@ -725,7 +725,7 @@ importers:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/ncp': 2.0.1
       '@types/nock': 9.3.0
-      '@types/sinon': 7.0.3
+      '@types/sinon': 7.0.4
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       delay: 4.1.0
@@ -761,7 +761,7 @@ importers:
       '@types/nock': 9.3.0
       '@types/node': 10.12.18
       '@types/p-queue': 3.0.0
-      '@types/sinon': 7.0.3
+      '@types/sinon': 7.0.4
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       delay: 4.1.0
@@ -1518,7 +1518,7 @@ importers:
       '@types/fs-extra': 5.0.4
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
-      '@types/sinon': 7.0.3
+      '@types/sinon': 7.0.4
       '@types/tape': 4.2.33
       anonymous-npm-registry-client: 0.1.2
       caw: 2.0.1
@@ -1595,7 +1595,7 @@ importers:
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
       '@types/semver': 5.5.0
-      '@types/sinon': 7.0.3
+      '@types/sinon': 7.0.4
       '@types/tape': 4.2.33
       '@zkochan/npm-package-arg': 1.0.1
       anonymous-npm-registry-client: 0.1.2
@@ -2477,10 +2477,10 @@ packages:
   /@types/semver/5.5.0:
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
-  /@types/sinon/7.0.3:
+  /@types/sinon/7.0.4:
     dev: true
     resolution:
-      integrity: sha512-cjmJQLx2B5Hp9SzO7rdSivipo3kBqRqeYkTW17nLST1tn5YLWBjTdnzdmeTJXA1+KrrBLsEuvKQ0fUPGrfazQg==
+      integrity: sha512-jTDIwFzEFAcEErkbvPeu0XC/6XCImqbLCZdlumwWSCE1eI9R8Y+3Dio3OR/8O1oM39oWZRR/n2AykAlWZPtRgA==
   /@types/strip-ansi/3.0.0:
     dev: false
     resolution:
