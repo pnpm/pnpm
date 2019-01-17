@@ -332,7 +332,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-shrinkwrap': 'link:../filter-shrinkwrap'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 3.0.2
+      '@pnpm/link-bins': 3.0.3
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -394,7 +394,7 @@ importers:
       '@pnpm/filter-shrinkwrap': 1.1.0
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 4.2.0
-      '@pnpm/link-bins': 3.0.2
+      '@pnpm/link-bins': 3.0.3
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 2.0.6
       '@pnpm/modules-yaml': 2.0.1
@@ -1444,7 +1444,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 3.0.2
+      '@pnpm/link-bins': 3.0.3
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -1558,7 +1558,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 5.0.0
       '@pnpm/lifecycle': 4.2.0
-      '@pnpm/link-bins': 3.0.2
+      '@pnpm/link-bins': 3.0.3
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 2.0.6
       '@pnpm/modules-yaml': 2.0.1
@@ -2114,7 +2114,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-bEdhn+Be2+2wYa50M3c7gU4qK5BcgfZ14x8sx9bduPjWwTEAqVDbLX9UBuUBE5jNPbrJkrpCC6ewJI78xWdlAQ==
-  /@pnpm/link-bins/3.0.2:
+  /@pnpm/link-bins/3.0.3:
     dependencies:
       '@pnpm/package-bins': 2.0.0
       '@pnpm/read-package-json': 1.1.1
@@ -2134,7 +2134,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-0SIZP+wsqc+/gbm52ehzHGPjI+DQgIuldyXPyKeqkQ8K7dZIu3+i9RTCYjI0/kjImcQ/+FHnbbCu5BnSNL+dGg==
+      integrity: sha512-AeAxhTVNNtB7u5hVyojTnFsJi/iE/w13t23aQ3wMdpIEIDFVO6nukk8eZShDWlRCTTHjvfON1LpwHqQDRsT0dA==
   /@pnpm/local-resolver/1.0.5:
     dependencies:
       '@pnpm/read-package-json': 1.1.1
