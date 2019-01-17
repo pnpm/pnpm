@@ -674,7 +674,7 @@ importers:
       rimraf: 2.6.3
       tape: 4.9.2
       ts-node: 7.0.1
-      tslint: /tslint/5.12.0/typescript@3.2.4
+      tslint: /tslint/5.12.1/typescript@3.2.4
       typescript: 3.2.4
     specifiers:
       '@pnpm/core-loggers': 2.0.0
@@ -689,7 +689,7 @@ importers:
       semver: 5.6.0
       tape: 4.9.2
       ts-node: 7.0.1
-      tslint: 5.12.0
+      tslint: 5.12.1
       typescript: 3.2.4
   packages/package-requester:
     dependencies:
@@ -9702,30 +9702,6 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/5.12.0/typescript@3.2.4:
-    dependencies:
-      babel-code-frame: 6.26.0
-      builtin-modules: 1.1.1
-      chalk: 2.4.2
-      commander: 2.19.0
-      diff: 3.5.0
-      glob: 7.1.3
-      js-yaml: 3.12.1
-      minimatch: 3.0.4
-      resolve: 1.9.0
-      semver: 5.6.0
-      tslib: 1.9.3
-      tsutils: /tsutils/2.29.0/typescript@3.2.4
-      typescript: 3.2.4
-    dev: true
-    engines:
-      node: '>=4.8.0'
-    hasBin: true
-    id: registry.npmjs.org/tslint/5.12.0
-    peerDependencies:
-      typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev'
-    resolution:
-      integrity: sha512-CKEcH1MHUBhoV43SA/Jmy1l24HJJgI0eyLbBNSRyFlsQvb9v6Zdq+Nz2vEOH00nC5SUx4SneJ59PZUS/ARcokQ==
   /tslint/5.12.1/typescript@3.2.4:
     dependencies:
       babel-code-frame: 6.26.0
