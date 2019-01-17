@@ -28,7 +28,7 @@ devDependencies:
   tempy: 0.2.1
   ts-node: 7.0.1
   tslint: 5.12.0
-  typescript: 3.2.2
+  typescript: 3.2.4
 packages:
   /@pnpm/exec/1.1.5:
     dependencies:
@@ -44,7 +44,7 @@ packages:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
   /@pnpm/fetcher-base/2.0.0:
     dependencies:
-      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/resolver-base': 2.1.0
     dev: false
     engines:
       node: '>=6'
@@ -60,14 +60,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/resolver-base/2.0.0:
+  /@pnpm/resolver-base/2.1.0:
     dependencies:
       '@pnpm/types': 2.0.0
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-+pYMLgBlp242xn0qEK3JsU2fNgMSejTflzu1NLXV8J9QTIxTILmxz5ayFcudtimKP0o49dnMysoWihQ/ven7wA==
+      integrity: sha512-qUVmS6RxWMnaBax6yzufmukp+p0CxeQcYeOYacOMy+A4qFEd81TjhXMCGTzwVT/eNsICxSz7C00R090MIrozpw==
   /@pnpm/self-installer/2.0.7:
     dev: true
     engines:
@@ -360,7 +360,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-qBFcVeSnAv5NFQq9OHKCKn4J/Jg=
-  /chalk/2.4.1:
+  /chalk/2.4.2:
     dependencies:
       ansi-styles: 3.2.1
       escape-string-regexp: 1.0.5
@@ -369,7 +369,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-ObN6h1v2fTJSmUXoS3nMQ92LbDK9be4TV+6G+omQlGJFdcUX5heKi1LZ1YnRMIgwTLEj3E24bT6tYni50rlCfQ==
+      integrity: sha512-Mti+f9lpJNcwF4tWV8/OrTTtF1gZi+f8FqlyAdouralcFWFQWF2+NgCHShjkCb+IFBLq9buZwE1xckQU4peSuQ==
   /check-error/1.0.2:
     dev: true
     resolution:
@@ -898,14 +898,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mGbfOVECEw449/mWvOtlRDIJwls=
-  /js-yaml/3.12.0:
+  /js-yaml/3.12.1:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.1
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
+      integrity: sha512-um46hB9wNOKlwkHgiuyEVAybXBjwFUV0Z/RaHJblRd9DXltue9FTYvzCr9ErQrK9Adz5MU4gHWVaNUfdmrC8qA==
   /json-parse-better-errors/1.0.2:
     resolution:
       integrity: sha512-mrqyZKfX5EhL7hvqcV6WG1yYjnjeuYDzDhhcAAUrq8Po85NBQBJP+ZDUT75qZQ98IkUoBqdkExkukOU7Ts2wrw==
@@ -1562,13 +1562,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-ZYU1WEhh7JfXMNbPQYIuH1ZoQSg=
-  /source-map-support/0.5.9:
+  /source-map-support/0.5.10:
     dependencies:
       buffer-from: 1.1.1
       source-map: 0.6.1
     dev: true
     resolution:
-      integrity: sha512-gR6Rw4MvUlYy83vP0vxoVNzM6t8MUXqNuRsuBmBHQDu1Fh6X015FrLdgoDKcNdkwGubozq0P4N0Q37UyFVr1EA==
+      integrity: sha512-YfQ3tQFTK/yzlGJuX8pTwa4tifQj4QS2Mj7UegOu8jAz59MqIiMGPXxQhVQiIMNzayuUSF/jEuVnfFF5JqybmQ==
   /source-map/0.6.1:
     dev: true
     engines:
@@ -1764,7 +1764,7 @@ packages:
       make-error: 1.3.5
       minimist: 1.2.0
       mkdirp: 0.5.1
-      source-map-support: 0.5.9
+      source-map-support: 0.5.10
       yn: 2.0.0
     dev: true
     engines:
@@ -1780,11 +1780,11 @@ packages:
     dependencies:
       babel-code-frame: 6.26.0
       builtin-modules: 1.1.1
-      chalk: 2.4.1
+      chalk: 2.4.2
       commander: 2.19.0
       diff: 3.5.0
       glob: 7.1.3
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       minimatch: 3.0.4
       resolve: 1.9.0
       semver: 5.6.0
@@ -1816,13 +1816,13 @@ packages:
     dev: false
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.2.2:
+  /typescript/3.2.4:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-VCj5UiSyHBjwfYacmDuc/NOk4QQixbE+Wn7MFJuS0nRuPQbof132Pw4u53dm264O8LPc2MVsc7RJNml5szurkg==
+      integrity: sha512-0RNDbSdEokBeEAkgNbxJ+BLwSManFy9TeXz8uW+48j/xhEXv1ePME60olyzw2XzUqUBNAYFeJadIqAgNqIACwg==
   /unbzip2-stream/1.3.1:
     dependencies:
       buffer: 3.6.0
@@ -1965,5 +1965,5 @@ specifiers:
   tempy: 0.2.1
   ts-node: 7.0.1
   tslint: 5.12.0
-  typescript: 3.2.2
+  typescript: 3.2.4
   unpack-stream: 4.0.0
