@@ -192,9 +192,13 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
 
-  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+  {
+    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
+  }
 
-  t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
+  t.ok(await exists('node_modules/.localhost+4873/pkg-with-optional/1.0.0'), 'regular dependency linked')
+  t.notOk(await exists('node_modules/.localhost+4873/not-compatible-with-any-os/1.0.0'), 'optional dependency not linked')
 
   const logMatcher = sinon.match({
     package: {
@@ -206,6 +210,25 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
+
+  // TODO: move next case to @pnpm/headless tests
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: process.cwd(),
+      },
+    ],
+    await testDefaults({ force: true, frozenShrinkwrap: true }),
+  )
+
+  t.ok(await exists('node_modules/.localhost+4873/not-compatible-with-any-os/1.0.0'), 'optional dependency linked after forced headless install')
+
+  {
+    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    t.deepEqual(modulesInfo.skipped, [], 'optional subdep removed from skipped list')
+  }
 })
 
 test('not installing optional dependencies when optional is false', async (t: tape.Test) => {

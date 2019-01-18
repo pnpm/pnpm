@@ -24,6 +24,7 @@ export default function filterByImportersAndEngine (
     engineStrict: boolean,
     defaultRegistry: string,
     include: { [dependenciesField in DependenciesField]: boolean },
+    includeIncompatiblePackages?: boolean,
     failOnMissingDependencies: boolean,
     prefix: string,
     skipped: Set<string>,
@@ -48,6 +49,7 @@ export default function filterByImportersAndEngine (
       engineStrict: opts.engineStrict,
       failOnMissingDependencies: opts.failOnMissingDependencies,
       include: opts.include,
+      includeIncompatiblePackages: opts.includeIncompatiblePackages === true,
       prefix: opts.prefix,
       skipped: opts.skipped,
     }) || {}
@@ -85,6 +87,7 @@ function pickPkgsWithAllDeps (
     engineStrict: boolean,
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
+    includeIncompatiblePackages: boolean,
     prefix: string,
     skipped: Set<string>,
   },
@@ -110,6 +113,7 @@ function pkgAllDeps (
     engineStrict: boolean,
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
+    includeIncompatiblePackages: boolean,
     prefix: string,
     skipped: Set<string>,
   },
@@ -142,7 +146,7 @@ function pkgAllDeps (
         os: pkgSnapshot.os,
       }
       // TODO: relDepPath is not the package ID. Should be fixed
-      installable = packageIsInstallable(pkgSnapshot.id || relDepPath, pkg, {
+      installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id || relDepPath, pkg, {
         engineStrict: opts.engineStrict,
         nodeVersion: opts.currentEngine.nodeVersion,
         optional: pkgSnapshot.optional === true,

@@ -176,6 +176,7 @@ export default async (opts: HeadlessOptions) => {
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
+    includeIncompatiblePackages: opts.force === true,
     prefix: shrinkwrapDirectory,
   })
   const res = await shrinkwrapToDepGraph(
