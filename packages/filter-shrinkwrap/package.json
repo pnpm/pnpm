@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-shrinkwrap",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Filters a shrinkwrap file",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
