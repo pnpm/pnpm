@@ -306,7 +306,7 @@ test('scoped peer dependency is linked', async (t: tape.Test) => {
   const project = prepare(t)
   await addDependenciesToPackage(['for-testing-scoped-peers'], await testDefaults())
 
-  const pkgVariation = path.join(NM, '.localhost+4873', '@having', 'scoped-peer', '1.0.0', '@scoped!peer@1.0.0', NM)
+  const pkgVariation = path.join(NM, '.localhost+4873', '@having', 'scoped-peer', '1.0.0', '@scoped+peer@1.0.0', NM)
   await okFile(t, path.join(pkgVariation, '@having', 'scoped-peer'))
   await okFile(t, path.join(pkgVariation, '@scoped', 'peer'))
 })

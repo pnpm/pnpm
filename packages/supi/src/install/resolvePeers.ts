@@ -400,7 +400,7 @@ function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: Depende
 }
 
 function createPeersFolderName (peers: Array<{name: string, version: string}>) {
-  const folderName = peers.map((peer) => `${peer.name.replace('/', '!')}@${peer.version}`).sort().join('+')
+  const folderName = peers.map((peer) => `${peer.name.replace('/', '+')}@${peer.version}`).sort().join('+')
 
   // We don't want the folder name to get too long.
   // Otherwise, an ENAMETOOLONG error might happen.
