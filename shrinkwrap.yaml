@@ -378,7 +378,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.4.0
+      pnpm-registry-mock: 2.5.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.2.2
@@ -433,7 +433,7 @@ importers:
       npm-run-all: 4.1.5
       p-limit: 2.1.0
       path-exists: 3.0.0
-      pnpm-registry-mock: 2.4.0
+      pnpm-registry-mock: 2.5.0
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -970,7 +970,7 @@ importers:
       p-any: 1.1.0
       path-exists: 3.0.0
       pnpm: 'link:'
-      pnpm-registry-mock: 2.4.0
+      pnpm-registry-mock: 2.5.0
       retry: 0.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1069,7 +1069,7 @@ importers:
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
       pnpm-list: 5.0.4
-      pnpm-registry-mock: 2.4.0
+      pnpm-registry-mock: 2.5.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1539,7 +1539,7 @@ importers:
       npm-scripts-info: 0.3.9
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.4.0
+      pnpm-registry-mock: 2.5.0
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
@@ -1637,7 +1637,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.4.0
+      pnpm-registry-mock: 2.5.0
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
@@ -7963,7 +7963,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-registry-mock/2.4.0:
+  /pnpm-registry-mock/2.5.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -7974,7 +7974,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-l6RD8tioFgZo2Ouvw+iE4FAtHaO0jiTqe5nQ9WA5lA/V8ESoA8HcPAqOfNTAKi+ij1OvNrTbMJwPRo/mmYEUcw==
+      integrity: sha512-viAyNVYyNeLsi51VTy0bRq02AtO7HV8kPhFMAE/Z5vwn3s5nobpPzw7A/3Ix6zQmXGYNurR0nqnsMxARxWsyCw==
   /posix-character-classes/0.1.1:
     dev: false
     engines:

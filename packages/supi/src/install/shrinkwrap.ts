@@ -8,12 +8,13 @@ export function absolutePathToRef (
   opts: {
     alias: string,
     realName: string,
+    registries: Registries,
     resolution: Resolution,
-  } & ({ registry: string } | { registries: Registries }),
+  },
 ) {
   if (opts.resolution.type) return absolutePath
 
-  const registryName = encodeRegistry(opts['registry'] || getRegistryByPackageName(opts['registries'], opts.realName))
+  const registryName = encodeRegistry(getRegistryByPackageName(opts.registries, opts.realName))
   if (absolutePath.startsWith(`${registryName}/`) && absolutePath.indexOf('/-/') === -1) {
     if (opts.alias === opts.realName) {
       const ref = absolutePath.replace(`${registryName}/${opts.realName}/`, '')

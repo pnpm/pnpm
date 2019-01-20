@@ -36,6 +36,7 @@ export default function (
       depGraph,
       depPath,
       prevSnapshot: shrinkwrap.packages[relDepPath],
+      registries,
       registry: dp.getRegistryByPackageName(registries, depNode.name),
       relDepPath,
       updatedDeps: result[1],
@@ -72,6 +73,7 @@ function toShrDependency (
     depPath: string,
     relDepPath: string,
     registry: string,
+    registries: Registries,
     updatedDeps: Array<{alias: string, depPath: string}>,
     updatedOptionalDeps: Array<{alias: string, depPath: string}>,
     depGraph: DependenciesGraph,
@@ -88,13 +90,13 @@ function toShrDependency (
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot && opts.prevSnapshot.dependencies || {},
     opts.updatedDeps,
-    opts.registry,
+    opts.registries,
     opts.depGraph,
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.prevSnapshot && opts.prevSnapshot.optionalDependencies || {},
     opts.updatedOptionalDeps,
-    opts.registry,
+    opts.registries,
     opts.depGraph,
   )
   const result = {
@@ -183,7 +185,7 @@ function toShrDependency (
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{alias: string, depPath: string}>,
-  registry: string,
+  registries: Registries,
   depGraph: DependenciesGraph,
 ) {
   const newResolvedDeps = R.fromPairs<string>(
@@ -195,7 +197,7 @@ function updateResolvedDeps (
           absolutePathToRef(depNode.absolutePath, {
             alias: dep.alias,
             realName: depNode.name,
-            registry,
+            registries,
             resolution: depNode.resolution,
           }),
         ]

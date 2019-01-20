@@ -484,8 +484,10 @@ test('scoped module from different registry', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults()
-  opts.registries!['@zkochan'] = 'https://registry.npmjs.org/' // tslint:disable-line
-  await addDependenciesToPackage(['@zkochan/foo', 'is-positive'], opts)
+  opts.registries!.default = 'https://registry.npmjs.org/' // tslint:disable-line
+  opts.registries!['@zkochan'] = 'http://localhost:4873' // tslint:disable-line
+  opts.registries!['@foo'] = 'http://localhost:4873' // tslint:disable-line
+  await addDependenciesToPackage(['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], opts)
 
   const m = project.requireModule('@zkochan/foo')
   t.ok(m, 'foo is available')
@@ -494,14 +496,40 @@ test('scoped module from different registry', async (t: tape.Test) => {
 
   t.deepEqual(shr, {
     dependencies: {
+      '@foo/has-dep-from-same-scope': '1.0.0',
       '@zkochan/foo': '1.0.0',
       'is-positive': '3.1.0',
     },
     packages: {
+      '/@foo/has-dep-from-same-scope/1.0.0': {
+        dependencies: {
+          '@foo/no-deps': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('@foo/has-dep-from-same-scope', '1.0.0'),
+        },
+      },
+      '/@foo/no-deps/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('@foo/no-deps', '1.0.0'),
+        },
+      },
       '/@zkochan/foo/1.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
+        },
+      },
+      '/is-negative/1.0.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
         },
       },
       '/is-positive/3.1.0': {
@@ -516,6 +544,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
     },
     shrinkwrapVersion: 5,
     specifiers: {
+      '@foo/has-dep-from-same-scope': '^1.0.0',
       '@zkochan/foo': '^1.0.0',
       'is-positive': '^3.1.0',
     },
