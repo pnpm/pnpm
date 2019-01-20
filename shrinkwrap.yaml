@@ -549,6 +549,7 @@ importers:
       '@pnpm/package-bins': 2.0.0
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/shrinkwrap-types': 'link:../shrinkwrap-types'
+      '@pnpm/shrinkwrap-utils': 'link:../shrinkwrap-utils'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
@@ -573,6 +574,7 @@ importers:
       '@pnpm/package-bins': 2.0.0
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
+      '@pnpm/shrinkwrap-utils': 1.1.1
       '@pnpm/store-controller-types': 2.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0

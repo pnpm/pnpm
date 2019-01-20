@@ -17,6 +17,7 @@ import {
 } from '@pnpm/shrinkwrap-types'
 import {
   nameVerFromPkgSnapshot,
+  packageIdFromSnapshot,
   pkgSnapshotToResolution,
 } from '@pnpm/shrinkwrap-utils'
 import {
@@ -232,7 +233,12 @@ export default async function resolveDependencies (
       reference = preferedDependencies[wantedDependency.alias]
     }
     const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, ctx.registries, reference, wantedDependency.alias)
-    if (infoFromShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap.id) {
+    if (
+      infoFromShrinkwrap &&
+      infoFromShrinkwrap.dependencyShrinkwrap &&
+      infoFromShrinkwrap.dependencyShrinkwrap.peerDependencies &&
+      Object.keys(infoFromShrinkwrap.dependencyShrinkwrap.peerDependencies).length
+    ) {
       proceedAll = true
     }
     extendedWantedDeps.push({
@@ -318,7 +324,7 @@ function getInfoFromShrinkwrap (
       dependencyShrinkwrap,
       depPath,
       optionalDependencyNames: R.keys(dependencyShrinkwrap.optionalDependencies),
-      pkgId: dependencyShrinkwrap.id || depPath,
+      pkgId: packageIdFromSnapshot(relDepPath, dependencyShrinkwrap, registries),
       relDepPath,
       resolvedDependencies: {
         ...dependencyShrinkwrap.dependencies,
@@ -328,7 +334,7 @@ function getInfoFromShrinkwrap (
     }
   } else {
     return {
-      pkgId: dp.resolve(registries, relDepPath),
+      pkgId: dp.tryGetPackageId(registries, relDepPath) || relDepPath, // Does it make sense to set pkgId when we're not sure?
       relDepPath,
     }
   }
@@ -616,8 +622,8 @@ async function resolveDependency (
         keypath: options.keypath.concat([ pkgResponse.body.id ]),
         optionalDependencyNames: options.optionalDependencyNames,
         parentDependsOnPeers: Boolean(
-          options.dependencyShrinkwrap && options.dependencyShrinkwrap.id ||
-          Object.keys(pkg.peerDependencies || {}).length),
+          Object.keys(options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies || pkg.peerDependencies || {}).length,
+        ),
         parentIsInstallable: installable,
         parentNodeId: nodeId,
         preferedDependencies: pkgResponse.body.updated

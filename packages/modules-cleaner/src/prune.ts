@@ -9,6 +9,7 @@ import {
   Shrinkwrap,
   ShrinkwrapImporter,
 } from '@pnpm/shrinkwrap-types'
+import { packageIdFromSnapshot } from '@pnpm/shrinkwrap-utils'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
@@ -168,9 +169,7 @@ function getPkgsDepPaths (
   const pkgIdsByDepPath = {}
   for (const relDepPath of Object.keys(packages)) {
     const depPath = dp.resolve(registries, relDepPath)
-    pkgIdsByDepPath[depPath] = packages[relDepPath].id
-      ? packages[relDepPath].id
-      : depPath
+    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
   }
   return pkgIdsByDepPath
 }

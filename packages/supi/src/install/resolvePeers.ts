@@ -220,6 +220,18 @@ function resolvePeersOfNode (
     const peripheralLocation = !independent
       ? path.join(modules, node.resolvedPackage.name)
       : centralLocation
+
+    const unknownPeers = Object.keys(unknownResolvedPeersOfChildren)
+    if (unknownPeers.length) {
+      if (!node.resolvedPackage.additionalInfo.peerDependencies) {
+        node.resolvedPackage.additionalInfo.peerDependencies = {}
+      }
+      for (const unknownPeer of unknownPeers) {
+        if (!node.resolvedPackage.additionalInfo.peerDependencies[unknownPeer]) {
+          node.resolvedPackage.additionalInfo.peerDependencies[unknownPeer] = '*'
+        }
+      }
+    }
     ctx.depGraph[absolutePath] = {
       absolutePath,
       additionalInfo: node.resolvedPackage.additionalInfo,

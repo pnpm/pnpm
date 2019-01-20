@@ -124,7 +124,7 @@ function toShrDependency (
   if (depNode.optional) {
     result['optional'] = true
   }
-  if (/*opts.relDepPath[0] !== '/' && */opts.depPath !== depNode.id) {
+  if (opts.relDepPath[0] !== '/' && opts.depPath !== depNode.id) {
     result['id'] = depNode.id
   }
   if (pkg.peerDependencies) {

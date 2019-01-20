@@ -24,6 +24,16 @@ export function resolve (
   return resolutionLocation
 }
 
+export function tryGetPackageId (registries: Registries, relDepPath: string) {
+  if (relDepPath[0] !== '/') {
+    return null
+  }
+  if (relDepPath[1] === '@') {
+    return resolve(registries, relDepPath.split('/').slice(0, 4).join('/'))
+  }
+  return resolve(registries, relDepPath.split('/').slice(0, 3).join('/'))
+}
+
 export function refToAbsolute (
   reference: string,
   pkgName: string,
