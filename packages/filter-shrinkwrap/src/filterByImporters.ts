@@ -3,7 +3,7 @@ import {
   PackageSnapshots,
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-types'
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
@@ -16,8 +16,8 @@ export default function filterByImporters (
   shr: Shrinkwrap,
   importerIds: string[],
   opts: {
-    defaultRegistry: string,
     include: { [dependenciesField in DependenciesField]: boolean },
+    registries: Registries,
     skipped: Set<string>,
     failOnMissingDependencies: boolean,
   },

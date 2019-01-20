@@ -5,7 +5,7 @@ import {
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/shrinkwrap-utils'
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
@@ -22,7 +22,7 @@ export default function filterByImportersAndEngine (
       pnpmVersion: string,
     },
     engineStrict: boolean,
-    defaultRegistry: string,
+    registries: Registries,
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages?: boolean,
     failOnMissingDependencies: boolean,
@@ -45,12 +45,12 @@ export default function filterByImportersAndEngine (
   const packages = shr.packages &&
     pickPkgsWithAllDeps(shr.packages, directDepPaths, {
       currentEngine: opts.currentEngine,
-      defaultRegistry: opts.defaultRegistry,
       engineStrict: opts.engineStrict,
       failOnMissingDependencies: opts.failOnMissingDependencies,
       include: opts.include,
       includeIncompatiblePackages: opts.includeIncompatiblePackages === true,
       prefix: opts.prefix,
+      registries: opts.registries,
       skipped: opts.skipped,
     }) || {}
 
@@ -83,12 +83,12 @@ function pickPkgsWithAllDeps (
       nodeVersion: string,
       pnpmVersion: string,
     },
-    defaultRegistry: string,
     engineStrict: boolean,
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages: boolean,
     prefix: string,
+    registries: Registries,
     skipped: Set<string>,
   },
 ) {
@@ -109,12 +109,12 @@ function pkgAllDeps (
       nodeVersion: string,
       pnpmVersion: string,
     },
-    defaultRegistry: string,
     engineStrict: boolean,
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages: boolean,
     prefix: string,
+    registries: Registries,
     skipped: Set<string>,
   },
 ) {
@@ -132,7 +132,7 @@ function pkgAllDeps (
       continue
     }
     let installable!: boolean
-    const depPath = dp.resolve(opts.defaultRegistry, relDepPath)
+    const depPath = dp.resolve(opts.registries, relDepPath)
     if (!parentIsInstallable) {
       installable = false
       if (!ctx.pickedPackages[relDepPath]) {

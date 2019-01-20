@@ -277,7 +277,7 @@ async function _rebuild (
   const groups = chunks.map((chunk) => chunk.filter((relDepPath) => pkgsToRebuild.has(relDepPath)).map((relDepPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[relDepPath]
-      const depPath = dp.resolve(opts.registries.default, relDepPath)
+      const depPath = dp.resolve(opts.registries, relDepPath)
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const pkgRoot = !independent

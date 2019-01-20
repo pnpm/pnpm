@@ -85,7 +85,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         nodeVersion: '10.0.0',
         pnpmVersion: '2.0.0',
       },
-      defaultRegistry: 'https://registry.npmjs.org/',
       engineStrict: true,
       failOnMissingDependencies: true,
       include: {
@@ -94,6 +93,9 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         optionalDependencies: true,
       },
       prefix: process.cwd(),
+      registries: {
+        default: 'https://registry.npmjs.org/',
+      },
       skipped: skippedPackages,
     },
   )

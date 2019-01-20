@@ -7,7 +7,7 @@ import {
   ShrinkwrapResolution,
 } from '@pnpm/prune-shrinkwrap'
 import { Resolution } from '@pnpm/resolver-base'
-import { Dependencies } from '@pnpm/types'
+import { Dependencies, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import R = require('ramda')
@@ -18,7 +18,7 @@ export default function (
   depGraph: DependenciesGraph,
   shrinkwrap: Shrinkwrap,
   prefix: string,
-  defaultRegistry: string,
+  registries: Registries,
 ): {
   newShrinkwrap: Shrinkwrap,
   pendingRequiresBuilds: PendingRequiresBuild[],
@@ -26,16 +26,17 @@ export default function (
   shrinkwrap.packages = shrinkwrap.packages || {}
   const pendingRequiresBuilds = [] as PendingRequiresBuild[]
   for (const depPath of R.keys(depGraph)) {
-    const relDepPath = dp.relative(defaultRegistry, depPath)
+    const depNode = depGraph[depPath]
+    const relDepPath = dp.relative(registries, depNode.name, depPath)
     const result = R.partition(
-      (child) => depGraph[depPath].optionalDependencies.has(depGraph[child.depPath].name),
-      R.keys(depGraph[depPath].children).map((alias) => ({ alias, depPath: depGraph[depPath].children[alias] })),
+      (child) => depNode.optionalDependencies.has(depGraph[child.depPath].name),
+      R.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
     )
-    shrinkwrap.packages[relDepPath] = toShrDependency(pendingRequiresBuilds, depGraph[depPath].additionalInfo, {
+    shrinkwrap.packages[relDepPath] = toShrDependency(pendingRequiresBuilds, depNode.additionalInfo, {
       depGraph,
       depPath,
       prevSnapshot: shrinkwrap.packages[relDepPath],
-      registry: defaultRegistry,
+      registry: dp.getRegistryByPackageName(registries, depNode.name),
       relDepPath,
       updatedDeps: result[1],
       updatedOptionalDeps: result[0],
@@ -43,7 +44,7 @@ export default function (
   }
   const warn = (message: string) => logger.warn({ message, prefix })
   return {
-    newShrinkwrap: pruneSharedShrinkwrap(shrinkwrap, { defaultRegistry, warn }),
+    newShrinkwrap: pruneSharedShrinkwrap(shrinkwrap, { defaultRegistry: registries.default, warn }),
     pendingRequiresBuilds,
   }
 }
@@ -123,7 +124,7 @@ function toShrDependency (
   if (depNode.optional) {
     result['optional'] = true
   }
-  if (opts.depPath !== depNode.id) {
+  if (/*opts.relDepPath[0] !== '/' && */opts.depPath !== depNode.id) {
     result['id'] = depNode.id
   }
   if (pkg.peerDependencies) {
@@ -194,8 +195,8 @@ function updateResolvedDeps (
           absolutePathToRef(depNode.absolutePath, {
             alias: dep.alias,
             realName: depNode.name,
+            registry,
             resolution: depNode.resolution,
-            standardRegistry: registry,
           }),
         ]
       }),

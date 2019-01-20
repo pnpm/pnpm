@@ -7,6 +7,7 @@ import {
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-utils'
 import symlinkDependency from '@pnpm/symlink-dependency'
+import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import path = require('path')
 import R = require('ramda')
@@ -15,10 +16,10 @@ export async function shamefullyFlattenByShrinkwrap (
   shr: Shrinkwrap,
   importerId: string,
   opts: {
-    defaultRegistry: string,
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     modulesDir: string,
     prefix: string, // TODO: rename to shrinkwrapDirectory
+    registries: Registries,
     virtualStoreDir: string,
   },
 ) {
@@ -36,7 +37,7 @@ export async function shamefullyFlattenByShrinkwrap (
 
   const deps = await getDependencies(shr.packages, entryNodes, new Set(), 0, {
     getIndependentPackageLocation: opts.getIndependentPackageLocation,
-    registry: opts.defaultRegistry,
+    registries: opts.registries,
     shrinkwrapDirectory: opts.prefix,
     virtualStoreDir: opts.virtualStoreDir,
   })
@@ -54,7 +55,7 @@ async function getDependencies (
   depth: number,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
-    registry: string,
+    registries: Registries,
     shrinkwrapDirectory: string,
     virtualStoreDir: string,
   },
@@ -77,7 +78,7 @@ async function getDependencies (
       continue
     }
 
-    const absolutePath = dp.resolve(opts.registry, depRelPath)
+    const absolutePath = dp.resolve(opts.registries, depRelPath)
     const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
     const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(absolutePath, opts.shrinkwrapDirectory)}`, 'node_modules')
     const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
@@ -88,7 +89,7 @@ async function getDependencies (
     deps.push({
       absolutePath,
       children: R.keys(allDeps).reduce((children, alias) => {
-        children[alias] = dp.refToAbsolute(allDeps[alias], alias, opts.registry)
+        children[alias] = dp.refToAbsolute(allDeps[alias], alias, opts.registries)
         return children
       }, {}),
       depth,

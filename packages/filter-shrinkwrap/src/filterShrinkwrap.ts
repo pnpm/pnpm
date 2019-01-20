@@ -1,5 +1,5 @@
 import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
@@ -8,13 +8,13 @@ import normalizeShrinkwrap from './normalizeShrinkwrap'
 export default function filterShrinkwrap (
   shr: Shrinkwrap,
   opts: {
-    defaultRegistry: string,
     include: { [dependenciesField in DependenciesField]: boolean },
+    registries: Registries,
     skipped: Set<string>,
   },
 ): Shrinkwrap {
   let pairs = R.toPairs(shr.packages || {})
-    .filter(([relDepPath, pkg]) => !opts.skipped.has(pkg.id || dp.resolve(opts.defaultRegistry, relDepPath)))
+    .filter(([relDepPath, pkg]) => !opts.skipped.has(dp.resolve(opts.registries, relDepPath)))
   if (!opts.include.dependencies) {
     pairs = pairs.filter(([relDepPath, pkg]) => pkg.dev !== false || pkg.optional)
   }

@@ -6,7 +6,7 @@ test('pkgSnapshotToResolution()', (t) => {
     resolution: {
       integrity: 'AAAA',
     },
-  }, 'https://registry.npmjs.org/'), {
+  }, { default: 'https://registry.npmjs.org/' }), {
     integrity: 'AAAA',
     registry: 'https://registry.npmjs.org/',
     tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',

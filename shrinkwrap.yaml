@@ -257,6 +257,7 @@ importers:
       typescript: 3.2.4
   packages/dependency-path:
     dependencies:
+      '@pnpm/types': 'link:../types'
       '@types/semver': 5.5.0
       encode-registry: 1.1.0
       semver: 5.6.0
@@ -271,6 +272,7 @@ importers:
       typescript: 3.2.4
     specifiers:
       '@pnpm/tslint-config': 0.0.0
+      '@pnpm/types': 2.0.0
       '@types/semver': ^5.4.0
       '@types/tape': ^4.2.30
       encode-registry: ^1.0.0
@@ -1283,6 +1285,7 @@ importers:
       '@pnpm/shrinkwrap-types': 'link:../shrinkwrap-types'
       '@pnpm/shrinkwrap-utils': 'link:../shrinkwrap-utils'
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
+      '@pnpm/types': 'link:../types'
       '@types/node': 10.12.18
       '@types/ramda': 0.25.34
       dependency-path: 'link:../dependency-path'
@@ -1301,6 +1304,7 @@ importers:
       '@pnpm/shrinkwrap-utils': 1.1.1
       '@pnpm/symlink-dependency': 1.1.3
       '@pnpm/tslint-config': 0.0.0
+      '@pnpm/types': 2.0.0
       '@types/node': 10.12.18
       '@types/ramda': 0.25.34
       dependency-path: 2.0.1
@@ -1754,7 +1758,7 @@ importers:
       typescript: 3.2.4
     specifiers:
       '@pnpm/assert-project': 'link:'
-      '@pnpm/assert-store': 'link:../assert-store'
+      '@pnpm/assert-store': 1.0.0
       '@pnpm/modules-yaml': 2.0.1
       '@types/mz': 0.0.32
       '@types/node': 10.12.18

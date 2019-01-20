@@ -1,3 +1,4 @@
+import { Registries } from '@pnpm/types'
 import encodeRegistry = require('encode-registry')
 import semver = require('semver')
 
@@ -6,10 +7,17 @@ export function isAbsolute (dependencyPath: string) {
 }
 
 export function resolve (
-  registryUrl: string,
+  registries: Registries,
   resolutionLocation: string
 ) {
   if (!isAbsolute(resolutionLocation)) {
+    let registryUrl!: string
+    if (resolutionLocation[1] === '@') {
+      const scope = resolutionLocation.substr(1, resolutionLocation.indexOf('/', 1) - 1)
+      registryUrl = registries[scope] || registries.default
+    } else {
+      registryUrl = registries.default
+    }
     const registryDirectory = encodeRegistry(registryUrl)
     return `${registryDirectory}${resolutionLocation}`
   }
@@ -19,25 +27,32 @@ export function resolve (
 export function refToAbsolute (
   reference: string,
   pkgName: string,
-  registry: string
+  registries: Registries,
 ) {
   if (reference.startsWith('link:')) {
     return null
   }
   if (reference.indexOf('/') === -1) {
-    const registryName = encodeRegistry(registry)
+    const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
     return `${registryName}/${pkgName}/${reference}`
   }
   if (reference[0] !== '/') return reference
-  const registryName = encodeRegistry(registry)
+  const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
   return `${registryName}${reference}`
 }
 
+export function getRegistryByPackageName (registries: Registries, packageName: string) {
+  if (packageName[0] !== '@') return registries.default
+  const scope = packageName.substr(0, packageName.indexOf('/'))
+  return registries[scope] || registries.default
+}
+
 export function relative (
-  standardRegistry: string,
+  registries: Registries,
+  packageName: string,
   absoluteResolutionLoc: string
 ) {
-  const registryName = encodeRegistry(standardRegistry)
+  const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
 
   if (absoluteResolutionLoc.startsWith(`${registryName}/`) && absoluteResolutionLoc.indexOf('/-/') === -1) {
     return absoluteResolutionLoc.substr(absoluteResolutionLoc.indexOf('/'))

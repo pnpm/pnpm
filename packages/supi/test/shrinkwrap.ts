@@ -501,10 +501,16 @@ test('scoped module from different registry', async (t: tape.Test) => {
 
   t.deepEqual(shr, {
     dependencies: {
-      '@zkochan/foo': 'registry.npmjs.org/@zkochan/foo/1.0.0',
+      '@zkochan/foo': '1.0.0',
       'is-positive': '3.1.0',
     },
     packages: {
+      '/@zkochan/foo/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
+        },
+      },
       '/is-positive/3.1.0': {
         dev: false,
         engines: {
@@ -513,16 +519,6 @@ test('scoped module from different registry', async (t: tape.Test) => {
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
         },
-      },
-      'registry.npmjs.org/@zkochan/foo/1.0.0': {
-        dev: false,
-        name: '@zkochan/foo',
-        resolution: {
-          integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
-          registry: 'https://registry.npmjs.org/',
-          tarball: 'https://registry.npmjs.org/@zkochan/foo/-/foo-1.0.0.tgz',
-        },
-        version: '1.0.0',
       },
     },
     registry: 'http://localhost:4873/',
@@ -870,25 +866,6 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
 
   t.equal(shr.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, '/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
-})
-
-test('when package registry differs from default one, save it to resolution field', async (t: tape.Test) => {
-  const project = prepare(t)
-
-  await addDependenciesToPackage(['@zkochan/git-config', 'is-positive'], await testDefaults({
-    rawNpmConfig: {
-      '@zkochan:registry': 'https://registry.yarnpkg.com/',
-      'registry': 'https://registry.npmjs.org/',
-    },
-    registries: {
-      '@zkochan': 'https://registry.yarnpkg.com/',
-      'default': 'https://registry.npmjs.org/',
-    },
-  }))
-
-  const shr = await project.loadShrinkwrap()
-
-  t.equal(shr.packages['/@zkochan/git-config/0.1.0'].resolution.registry, 'https://registry.yarnpkg.com/')
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {

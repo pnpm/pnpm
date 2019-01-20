@@ -231,7 +231,7 @@ export default async function resolveDependencies (
       proceed = true
       reference = preferedDependencies[wantedDependency.alias]
     }
-    const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, ctx.registries.default, reference, wantedDependency.alias)
+    const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, ctx.registries, reference, wantedDependency.alias)
     if (infoFromShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap.id) {
       proceedAll = true
     }
@@ -296,7 +296,7 @@ function preferedSatisfiesWanted (
 
 function getInfoFromShrinkwrap (
   shrinkwrap: Shrinkwrap,
-  defaultRegistry: string,
+  registries: Registries,
   reference: string | undefined,
   pkgName: string | undefined,
 ) {
@@ -313,7 +313,7 @@ function getInfoFromShrinkwrap (
   const dependencyShrinkwrap = shrinkwrap.packages && shrinkwrap.packages[relDepPath]
 
   if (dependencyShrinkwrap) {
-    const depPath = dp.resolve(defaultRegistry, relDepPath)
+    const depPath = dp.resolve(registries, relDepPath)
     return {
       dependencyShrinkwrap,
       depPath,
@@ -324,11 +324,11 @@ function getInfoFromShrinkwrap (
         ...dependencyShrinkwrap.dependencies,
         ...dependencyShrinkwrap.optionalDependencies,
       },
-      shrinkwrapResolution: pkgSnapshotToResolution(relDepPath, dependencyShrinkwrap, defaultRegistry),
+      shrinkwrapResolution: pkgSnapshotToResolution(relDepPath, dependencyShrinkwrap, registries),
     }
   } else {
     return {
-      pkgId: dp.resolve(defaultRegistry, relDepPath),
+      pkgId: dp.resolve(registries, relDepPath),
       relDepPath,
     }
   }

@@ -5,6 +5,7 @@ import {
   isAbsolute,
   parse,
   relative,
+  resolve,
 } from 'dependency-path'
 
 test('isAbsolute()', t => {
@@ -63,10 +64,16 @@ test('parse()', t => {
 })
 
 test('refToAbsolute()', t => {
-  t.equal(refToAbsolute('1.0.0', 'foo', 'https://registry.npmjs.org/'), 'registry.npmjs.org/foo/1.0.0')
-  t.equal(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', 'https://registry.npmjs.org/'), 'registry.npmjs.org/foo/1.0.0')
-  t.equal(refToAbsolute('/foo/1.0.0', 'foo', 'https://registry.npmjs.org/'), 'registry.npmjs.org/foo/1.0.0')
-  t.equal(refToAbsolute('link:../foo', 'foo', 'https://registry.npmjs.org/'), null, "linked dependencies don't have an absolute path")
+  const registries = {
+    'default': 'https://registry.npmjs.org/',
+    '@foo': 'http://foo.com/',
+  }
+  t.equal(refToAbsolute('1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
+  t.equal(refToAbsolute('1.0.0', '@foo/foo', registries), 'foo.com/@foo/foo/1.0.0')
+  t.equal(refToAbsolute('registry.npmjs.org/foo/1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
+  t.equal(refToAbsolute('/foo/1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
+  t.equal(refToAbsolute('/@foo/foo/1.0.0', '@foo/foo', registries), 'foo.com/@foo/foo/1.0.0')
+  t.equal(refToAbsolute('link:../foo', 'foo', registries), null, "linked dependencies don't have an absolute path")
   t.end()
 })
 
@@ -78,9 +85,25 @@ test('refToRelative()', t => {
 })
 
 test('relative()', t => {
-  t.equal(relative('https://registry.npmjs.org/', 'registry.npmjs.org/foo/1.0.0'), '/foo/1.0.0')
-  t.equal(relative('http://localhost:4873/', 'localhost+4873/foo/1.0.0'), '/foo/1.0.0')
-  t.equal(relative('https://registry.npmjs.org/', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw'), '/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
-  t.equal(relative('https://registry.npmjs.org/', 'registry.npmjs.org/foo/-/foo-1.0.0'), 'registry.npmjs.org/foo/-/foo-1.0.0', 'a tarball ID should remain absolute')
+  const registries = {
+    'default': 'https://registry.npmjs.org/',
+    '@foo': 'http://localhost:4873/',
+  }
+  t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0'), '/foo/1.0.0')
+  t.equal(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0'), '/@foo/foo/1.0.0')
+  t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw'), '/foo/1.0.0/PeLdniYiO858gXNY39o5wISKyw')
+  t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/-/foo-1.0.0'), 'registry.npmjs.org/foo/-/foo-1.0.0', 'a tarball ID should remain absolute')
+  t.end()
+})
+
+test('resolve()', (t) => {
+  const registries = {
+    'default': 'htts://foo.com/',
+    '@bar': 'https://bar.com/',
+  }
+  t.equal(resolve(registries, '/foo/1.0.0'), 'foo.com/foo/1.0.0')
+  t.equal(resolve(registries, '/@bar/bar/1.0.0'), 'bar.com/@bar/bar/1.0.0')
+  t.equal(resolve(registries, '/@qar/qar/1.0.0'), 'foo.com/@qar/qar/1.0.0')
+  t.equal(resolve(registries, 'qar.com/foo/1.0.0'), 'qar.com/foo/1.0.0')
   t.end()
 })
