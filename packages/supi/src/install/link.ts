@@ -21,10 +21,7 @@ import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
-import {
-  SHRINKWRAP_NEXT_VERSION,
-  SHRINKWRAP_VERSION,
-} from '../constants'
+import { SHRINKWRAP_VERSION } from '../constants'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -221,13 +218,7 @@ export default async function linkPackages (
   }))
 
   if (opts.updateShrinkwrapMinorVersion) {
-    // Setting `shrinkwrapMinorVersion` is a temporary solution to
-    // have new backward-compatible versions of `shrinkwrap.yaml`
-    // w/o changing `shrinkwrapVersion`. From version 4, the
-    // `shrinkwrapVersion` field allows numbers like 4.1
-    newWantedShrinkwrap.shrinkwrapVersion = Math.floor(newWantedShrinkwrap.shrinkwrapVersion) === Math.floor(SHRINKWRAP_VERSION)
-      ? SHRINKWRAP_VERSION
-      : SHRINKWRAP_NEXT_VERSION
+    newWantedShrinkwrap.shrinkwrapVersion = SHRINKWRAP_VERSION
   }
 
   await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {

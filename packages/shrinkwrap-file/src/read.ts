@@ -69,14 +69,6 @@ async function _read (
     }
   }
   if (shrinkwrap) {
-    // for backward compatibility
-    if (shrinkwrap['version'] && !shrinkwrap.shrinkwrapVersion) {
-      shrinkwrap.shrinkwrapVersion = shrinkwrap['version']
-      delete shrinkwrap['version']
-    }
-    if (typeof shrinkwrap['shrinkwrapMinorVersion'] === 'number') {
-      shrinkwrap.shrinkwrapVersion = +`${shrinkwrap.shrinkwrapVersion}.${shrinkwrap['shrinkwrapMinorVersion']}`
-    }
     // tslint:enable:no-string-literal
     if (typeof opts.wantedVersion !== 'number' || Math.floor(shrinkwrap.shrinkwrapVersion) === Math.floor(opts.wantedVersion)) {
       if (typeof opts.wantedVersion === 'number' && shrinkwrap.shrinkwrapVersion > opts.wantedVersion) {
@@ -100,7 +92,6 @@ async function _read (
 }
 
 export function create (
-  registry: string,
   importerIds: string[],
   opts: {
     shrinkwrapVersion: number,
@@ -115,7 +106,6 @@ export function create (
   }, {})
   return {
     importers,
-    registry,
     shrinkwrapVersion: opts.shrinkwrapVersion || SHRINKWRAP_VERSION,
   }
 }

@@ -53,7 +53,6 @@ import semver = require('semver')
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
-  SHRINKWRAP_NEXT_VERSION,
   SHRINKWRAP_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
@@ -178,10 +177,7 @@ export async function mutateModules (
         opts.preferFrozenShrinkwrap &&
         (!opts.pruneShrinkwrapImporters || Object.keys(ctx.wantedShrinkwrap.importers).length === ctx.importers.length) &&
         ctx.existsWantedShrinkwrap &&
-        (
-          ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION ||
-          ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_NEXT_VERSION
-        ) &&
+        ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION &&
         await pEvery(ctx.importers, async (importer) =>
           !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
           satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&

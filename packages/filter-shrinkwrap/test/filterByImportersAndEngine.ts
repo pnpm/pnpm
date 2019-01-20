@@ -77,7 +77,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 4,
+      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -154,7 +154,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
   t.deepEqual(Array.from(skippedPackages), ['registry.npmjs.org/preserve-existing-skipped/1.0.0', 'registry.npmjs.org/optional-dep/1.0.0', 'registry.npmjs.org/foo/1.0.0'])
   t.end()

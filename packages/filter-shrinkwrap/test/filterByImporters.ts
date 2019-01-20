@@ -55,7 +55,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 4,
+      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -109,7 +109,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
   t.end()
 })
@@ -143,7 +143,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
             },
           },
         },
-        shrinkwrapVersion: 4,
+        shrinkwrapVersion: 5,
       },
       ['project-1'],
       {
@@ -193,7 +193,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
           },
         },
       },
-      shrinkwrapVersion: 4,
+      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -234,7 +234,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -294,7 +294,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 4,
+      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -356,7 +356,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
   t.end()
 })

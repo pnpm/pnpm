@@ -54,9 +54,7 @@ test('shrinkwrap file has correct format', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.shrinkwrapVersion, 3, 'correct shrinkwrap version')
-
-  t.ok(shr.registry, 'has registry field')
+  t.equal(shr.shrinkwrapVersion, 5, 'correct shrinkwrap version')
 
   t.ok(shr.specifiers, 'has specifiers field')
   t.ok(shr.dependencies, 'has dependencies field')
@@ -114,8 +112,7 @@ test('shrinkwrap with scoped package', async (t: tape.Test) => {
         },
       },
     },
-    registry: 'http://localhost:4873',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       '@types/semver': '^5.3.31',
     },
@@ -143,8 +140,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
         },
       },
     },
-    registry: 'http://localhost:4873',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       'is-negative': '2.1.0',
     },
@@ -200,8 +196,7 @@ test('shrinkwrap removed when no deps in package.json', async (t: tape.Test) => 
         },
       },
     },
-    registry: 'http://localhost:4873',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       'is-negative': '2.1.0',
     },
@@ -245,8 +240,7 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
         },
       },
     },
-    registry: 'http://localhost:4873',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
@@ -303,8 +297,7 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
         },
       },
     },
-    registry: 'http://localhost:4873',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
@@ -521,9 +514,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
         },
       },
     },
-    registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 9,
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       '@zkochan/foo': '^1.0.0',
       'is-positive': '^3.1.0',
@@ -572,9 +563,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
         },
       },
     },
-    registry: 'https://npm-registry.compass.com/',
-    shrinkwrapMinorVersion: 9,
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       'is-positive': '^3.1.0',
     },
@@ -644,68 +633,6 @@ test('updating package that has deps with peers', async (t: tape.Test) => {
   await addDependenciesToPackage(['abc-grand-parent-with-c@1'], await testDefaults())
 
   t.pass('installation of latest did not fail')
-})
-
-test('updating shrinkwrap version 3 to 3.5', async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      'abc-grand-parent-with-c': '^1.0.0',
-    },
-  })
-
-  const shrV3Content = stripIndent`
-    dependencies:
-      abc-grand-parent-with-c: 1.0.0
-    packages:
-      /abc-grand-parent-with-c/1.0.0:
-        dependencies:
-          abc-parent-with-ab: /abc-parent-with-ab/1.0.0/peer-c@1.0.0
-          peer-c: 1.0.0
-        resolution:
-          integrity: ${getIntegrity('abc-grand-parent-with-c', '1.0.0')}
-      /abc-parent-with-ab/1.0.0/peer-c@1.0.0:
-        dependencies:
-          abc: /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660
-          peer-a: 1.0.0
-          peer-b: 1.0.0
-        id: localhost+4873/abc-parent-with-ab/1.0.0
-        resolution:
-          integrity: ${getIntegrity('abc-parent-with-ab', '1.0.0')}
-      /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660:
-        dependencies:
-          dep-of-pkg-with-1-dep: 100.0.0
-          peer-a: 1.0.0
-          peer-b: 1.0.0
-          peer-c: 1.0.0
-        id: localhost+4873/abc/1.0.0
-        resolution:
-          integrity: ${getIntegrity('abc', '1.0.0')}
-      /dep-of-pkg-with-1-dep/100.0.0:
-        resolution:
-          integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}
-      /peer-a/1.0.0:
-        resolution:
-          integrity: ${getIntegrity('peer-a', '1.0.0')}
-      /peer-b/1.0.0:
-        resolution:
-          integrity: ${getIntegrity('peer-b', '1.0.0')}
-      /peer-c/1.0.0:
-        resolution:
-          integrity: ${getIntegrity('peer-c', '1.0.0')}
-    registry: 'http://localhost:4873/'
-    shrinkwrapVersion: 3
-    specifiers:
-      abc-grand-parent-with-c: ^1.0.0
-  `
-
-  await fs.writeFile('shrinkwrap.yaml', shrV3Content, 'utf8')
-
-  await install(await testDefaults())
-
-  const shr = await project.loadShrinkwrap()
-
-  t.equal(shr.shrinkwrapMinorVersion, 9)
-  t.ok(shr.packages['/abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660'].peerDependencies)
 })
 
 test('pendingBuilds gets updated if install removes packages', async (t: tape.Test) => {
@@ -795,8 +722,7 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
         },
       },
     },
-    registry: 'http://localhost:4873',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       'is-negative': '2.1.0',
     },
@@ -909,9 +835,7 @@ test('packages installed via tarball URL from the default registry are normalize
         version: '1.0.0',
       },
     },
-    registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 9,
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
     specifiers: {
       'is-positive': 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       'pkg-with-tarball-dep-from-registry': 'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
@@ -939,9 +863,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
     const shr = await readYamlFile('shrinkwrap.yaml') as Shrinkwrap
     const id = '/pkg-with-1-dep/100.0.0'
 
-    t.equal(shr.shrinkwrapVersion, 4, 'correct shrinkwrap version')
-
-    t.notOk(shr.registry, 'has no registry field')
+    t.equal(shr.shrinkwrapVersion, 5, 'correct shrinkwrap version')
 
     t.ok(shr.importers)
     t.ok(shr.importers.project)
@@ -1052,7 +974,7 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
         },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
 
   await addDependenciesToPackage(

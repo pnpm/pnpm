@@ -1,6 +1,4 @@
 dependencies:
   bar: 'link:../bar'
-registry: 'http://localhost:4873/'
-shrinkwrapMinorVersion: 9
-shrinkwrapVersion: 3
+shrinkwrapVersion: 5
 specifiers: {}

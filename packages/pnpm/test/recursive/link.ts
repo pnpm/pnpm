@@ -43,13 +43,13 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
 
   {
     const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.registry, 'http://localhost:4873/', 'project-1 has correct registry specified in shrinkwrap.yaml')
+    t.equal(project1Shr.shrinkwrapVersion, 5, 'project-1 has correct shrinkwrapVersion specified in shrinkwrap.yaml')
     t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Shr.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.registry, 'http://localhost:4873/', 'is-positive has correct registry specified in shrinkwrap.yaml')
+  t.equal(isPositiveShr.shrinkwrapVersion, 5, 'is-positive has correct shrinkwrapVersion specified in shrinkwrap.yaml')
 })
 
 test('recursive unlink specific package', async (t: tape.Test) => {
@@ -89,11 +89,11 @@ test('recursive unlink specific package', async (t: tape.Test) => {
 
   {
     const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.registry, 'http://localhost:4873/', 'project-1 has correct registry specified in shrinkwrap.yaml')
+    t.equal(project1Shr.shrinkwrapVersion, 5, 'project-1 has correct shrinkwrapVersion specified in shrinkwrap.yaml')
     t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Shr.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.registry, 'http://localhost:4873/', 'is-positive has correct registry specified in shrinkwrap.yaml')
+  t.equal(isPositiveShr.shrinkwrapVersion, 5, 'is-positive has correct shrinkwrapVersion specified in shrinkwrap.yaml')
 })

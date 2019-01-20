@@ -3,7 +3,6 @@ import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
-import normalizeShrinkwrap from './normalizeShrinkwrap'
 
 export default function filterShrinkwrap (
   shr: Shrinkwrap,
@@ -24,13 +23,12 @@ export default function filterShrinkwrap (
   if (!opts.include.optionalDependencies) {
     pairs = pairs.filter(([relDepPath, pkg]) => !pkg.optional)
   }
-  return normalizeShrinkwrap({
+  return {
     importers: Object.keys(shr.importers).reduce((acc, importerId) => {
       acc[importerId] = filterImporter(shr.importers[importerId], opts.include)
       return acc
     }, {}),
     packages: R.fromPairs(pairs),
-    registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion,
-  } as Shrinkwrap)
+  }
 }

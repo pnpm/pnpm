@@ -9,7 +9,6 @@ import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
-import normalizeShrinkwrap from './normalizeShrinkwrap'
 
 const logger = pnpmLogger('shrinkwrap')
 
@@ -67,12 +66,11 @@ export default function filterByImportersAndEngine (
     return acc
   }, { ...shr.importers })
 
-  return normalizeShrinkwrap({
+  return {
     importers,
     packages,
-    registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion,
-  } as Shrinkwrap)
+  }
 }
 
 function pickPkgsWithAllDeps (
