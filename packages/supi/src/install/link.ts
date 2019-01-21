@@ -26,6 +26,7 @@ import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
 } from './resolvePeers'
+import { absolutePathToRef } from './shrinkwrap'
 import updateShrinkwrap from './updateShrinkwrap'
 
 export { DependenciesGraph }
@@ -95,10 +96,16 @@ export default async function linkPackages (
     for (const alias of R.keys(directAbsolutePathsByAlias)) {
       const depPath = directAbsolutePathsByAlias[alias]
 
-      if (depGraph[depPath].isPure) continue
+      const depNode = depGraph[depPath]
+      if (depNode.isPure) continue
 
       const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
-      const ref = dp.relative(opts.registries, depGraph[depPath].name, depPath)
+      const ref = absolutePathToRef(depPath, {
+        alias,
+        realName: depNode.name,
+        registries: opts.registries,
+        resolution: depNode.resolution,
+      })
       if (shrImporter.dependencies && shrImporter.dependencies[alias]) {
         shrImporter.dependencies[alias] = ref
       } else if (shrImporter.devDependencies && shrImporter.devDependencies[alias]) {

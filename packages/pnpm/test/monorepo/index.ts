@@ -878,7 +878,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv': '4.10.4',
-        'ajv-keywords': '/ajv-keywords/1.5.0/ajv@4.10.4',
+        'ajv-keywords': '1.5.0_ajv@4.10.4',
         'bar': 'link:../bar',
       },
       specifiers: {

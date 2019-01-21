@@ -40,7 +40,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
 
   t.ok(shr.packages)
-  t.ok(shr.packages['/abc-parent-with-ab/1.0.0/peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
+  t.ok(shr.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
   t.ok(shr.packages['/foobarqar/1.0.1'])
   t.deepEqual(shr.packages['/foobarqar/1.0.1'].dependencies, {
     bar: '100.0.0',
