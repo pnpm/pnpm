@@ -204,13 +204,13 @@ function resolvePeersOfNode (
       ctx.purePkgs.add(node.resolvedPackage.id)
     }
   } else {
-    const peersFolder = createPeersFolderName(
+    const peersFolderSuffix = createPeersFolderSuffix(
       R.keys(allResolvedPeers).map((alias) => ({
         name: alias,
         version: ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage.version,
       })))
-    modules = path.join(localLocation, peersFolder, 'node_modules')
-    absolutePath = `${node.resolvedPackage.id}/${peersFolder}`
+    modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
+    absolutePath = `${node.resolvedPackage.id}${peersFolderSuffix}`
   }
 
   ctx.absolutePathsByNodeId[nodeId] = absolutePath
@@ -220,6 +220,18 @@ function resolvePeersOfNode (
     const peripheralLocation = !independent
       ? path.join(modules, node.resolvedPackage.name)
       : centralLocation
+
+    const unknownPeers = Object.keys(unknownResolvedPeersOfChildren)
+    if (unknownPeers.length) {
+      if (!node.resolvedPackage.additionalInfo.peerDependencies) {
+        node.resolvedPackage.additionalInfo.peerDependencies = {}
+      }
+      for (const unknownPeer of unknownPeers) {
+        if (!node.resolvedPackage.additionalInfo.peerDependencies[unknownPeer]) {
+          node.resolvedPackage.additionalInfo.peerDependencies[unknownPeer] = '*'
+        }
+      }
+    }
     ctx.depGraph[absolutePath] = {
       absolutePath,
       additionalInfo: node.resolvedPackage.additionalInfo,
@@ -387,8 +399,8 @@ function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: Depende
   return pkgsByName
 }
 
-function createPeersFolderName (peers: Array<{name: string, version: string}>) {
-  const folderName = peers.map((peer) => `${peer.name.replace('/', '!')}@${peer.version}`).sort().join('+')
+function createPeersFolderSuffix (peers: Array<{name: string, version: string}>) {
+  const folderName = peers.map((peer) => `${peer.name.replace('/', '+')}@${peer.version}`).sort().join('+')
 
   // We don't want the folder name to get too long.
   // Otherwise, an ENAMETOOLONG error might happen.
@@ -397,7 +409,7 @@ function createPeersFolderName (peers: Array<{name: string, version: string}>) {
   // A bigger limit might be fine but the md5 hash will be 32 symbols,
   // so for consistency's sake, we go with 32.
   if (folderName.length > 32) {
-    return crypto.createHash('md5').update(folderName).digest('hex')
+    return `_${crypto.createHash('md5').update(folderName).digest('hex')}`
   }
-  return folderName
+  return `_${folderName}`
 }

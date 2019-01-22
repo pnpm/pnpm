@@ -4,7 +4,6 @@ export interface Shrinkwrap {
   },
   shrinkwrapVersion: number,
   packages?: PackageSnapshots,
-  registry?: string, // TODO: remove this field in v4
 }
 
 export interface ShrinkwrapImporter {

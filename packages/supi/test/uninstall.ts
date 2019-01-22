@@ -297,7 +297,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
         },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
 })
 

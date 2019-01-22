@@ -100,12 +100,12 @@ async function dependenciesHierarchy (
     maxDepth: opts.depth,
     modulesDir,
     prod: opts.only === 'prod',
-    registry: registries.default,
+    registries,
     searched,
   }, shrinkwrap.packages)
   const result: PackageNode[] = []
   Object.keys(topDeps).forEach((depName) => {
-    const pkgPath = refToAbsolute(topDeps[depName], depName, registries.default)
+    const pkgPath = refToAbsolute(topDeps[depName], depName, registries)
     const pkg = {
       name: depName,
       path: pkgPath && path.join(modulesDir, `.${pkgPath}`) || path.join(modulesDir, '..', topDeps[depName].substr(5)),
@@ -200,7 +200,7 @@ function getTree (
     modulesDir: string,
     prod: boolean,
     searched: PackageSelector[],
-    registry: string,
+    registries: Registries,
   },
   packages: PackageSnapshots,
   keypath: string[],
@@ -224,7 +224,7 @@ function getTree (
 
   const result: PackageNode[] = []
   Object.keys(deps).forEach((depName) => {
-    const pkgPath = refToAbsolute(deps[depName], depName, opts.registry)
+    const pkgPath = refToAbsolute(deps[depName], depName, opts.registries)
     const pkg = {
       name: depName,
       path: pkgPath && path.join(opts.modulesDir, `.${pkgPath}`) || path.join(opts.modulesDir, '..', deps[depName].substr(5)),

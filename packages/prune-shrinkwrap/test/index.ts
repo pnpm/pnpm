@@ -39,8 +39,7 @@ test('remove one redundant package', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -67,8 +66,7 @@ test('remove one redundant package', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -87,8 +85,7 @@ test('remove redundant linked package', t => {
       },
     },
     packages: {},
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -100,8 +97,7 @@ test('remove redundant linked package', t => {
         specifiers: {},
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -144,8 +140,7 @@ test('keep all', t => {
         }
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -190,8 +185,7 @@ test('keep all', t => {
         }
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -257,8 +251,7 @@ test('optional dependency should have optional = true', t => {
         }
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -330,8 +323,7 @@ test('optional dependency should have optional = true', t => {
         }
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -368,8 +360,7 @@ test('optional dependency should not have optional = true if used not only as op
         }
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -408,8 +399,7 @@ test('optional dependency should not have optional = true if used not only as op
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -444,8 +434,7 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -485,8 +474,7 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -524,8 +512,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -567,8 +554,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -593,8 +579,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -621,8 +606,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -657,8 +641,7 @@ test('subdependency is both optional and dev', t => {
       /subdep2/1.0.0:
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
-    registry: 'http://localhost:4873/'
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 5
   `, {
     name: 'foo',
     version: '1.0.0',
@@ -701,8 +684,7 @@ test('subdependency is both optional and dev', t => {
       /subdep2/1.0.0:
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
-    registry: 'http://localhost:4873/'
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 5
   `)
 
   t.end()
@@ -737,8 +719,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
         dev: true
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    registry: 'http://localhost:4873/'
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 5
   `, {
     name: 'foo',
     version: '1.0.0',
@@ -774,8 +755,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
       /wrappy/1.0.2:
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    registry: 'http://localhost:4873/'
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 5
   `)
 
   t.end()
@@ -810,8 +790,7 @@ test('optional = true is removed if dependency is used both as optional and prod
         optional: true
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    registry: 'http://localhost:4873/'
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 5
   `, {
     name: 'foo',
     version: '1.0.0',
@@ -850,8 +829,7 @@ test('optional = true is removed if dependency is used both as optional and prod
         dev: false
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    registry: 'http://localhost:4873/'
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 5
   `)
 
   t.end()
@@ -894,8 +872,7 @@ test('remove dependencies that are not in the package', t => {
         }
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -905,8 +882,7 @@ test('remove dependencies that are not in the package', t => {
         specifiers: {},
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -932,8 +908,7 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -961,8 +936,7 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -989,8 +963,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3.2,
+    shrinkwrapVersion: 5.2,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -1017,8 +990,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3.2,
+    shrinkwrapVersion: 5.2,
   })
 
   t.end()
@@ -1045,8 +1017,7 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -1074,8 +1045,7 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -1121,8 +1091,7 @@ test("prune: don't remove package used by another importer", t => {
         }
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, {
     name: 'project-2',
     version: '1.0.0',
@@ -1161,8 +1130,7 @@ test("prune: don't remove package used by another importer", t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -1194,8 +1162,7 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }, DEFAULT_OPTS), {
     importers: {
       'packages/package-1': {
@@ -1215,8 +1182,7 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
 
   t.end()

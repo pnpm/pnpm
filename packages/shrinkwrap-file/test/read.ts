@@ -8,14 +8,10 @@ import {
   writeCurrentOnly,
   writeWantedOnly,
 } from '@pnpm/shrinkwrap-file'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import fs = require('fs')
-import mkdirp = require('mkdirp-promise')
 import path = require('path')
-import readYamlFile from 'read-yaml-file'
 import test = require('tape')
 import tempy = require('tempy')
-import writeYamlFile = require('write-yaml-file')
 import yaml = require('yaml-tag')
 
 process.chdir(__dirname)
@@ -27,12 +23,6 @@ test('backward compatibility', t => {
 })
 
 test('readWanted()', async t => {
-  {
-    const shr = await readWanted(path.join('fixtures', '1'), {
-      ignoreIncompatible: false,
-    })
-    t.equal(shr!.shrinkwrapVersion, 3, 'converted version to shrinkwrapVersion')
-  }
   {
     const shr = await readWanted(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
@@ -53,12 +43,6 @@ test('readWanted()', async t => {
 })
 
 test('readCurrent()', async t => {
-  {
-    const shr = await readCurrent(path.join('fixtures', '1'), {
-      ignoreIncompatible: false,
-    })
-    t.equal(shr!.shrinkwrapVersion, 3, 'converted version to shrinkwrapVersion')
-  }
   {
     const shr = await readCurrent(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
@@ -192,8 +176,7 @@ test('existsWanted()', async t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   })
   t.ok(await existsWanted(projectPath))
   t.end()
@@ -234,8 +217,7 @@ test('write()', async t => {
         },
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
@@ -254,8 +236,7 @@ test('write() when no specifiers but dependencies present', async t => {
         specifiers: {},
       },
     },
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
@@ -309,8 +290,7 @@ test('write does not use yaml anchors/aliases', async t => {
         resolution:
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
     `,
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 5,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
 
@@ -318,49 +298,5 @@ test('write does not use yaml anchors/aliases', async t => {
   t.ok(shrContent.indexOf('&') === -1, 'shrinkwrap contains no anchors')
   t.ok(shrContent.indexOf('*') === -1, 'shrinkwrap contains no aliases')
 
-  t.end()
-})
-
-test('read merges minor and major shrinkwrap versions', async t => {
-  const projectPath = tempy.directory()
-  const wantedShrinkwrap = {
-    registry: 'https://registry.npmjs.org',
-    shrinkwrapMinorVersion: 11,
-    shrinkwrapVersion: 3,
-  }
-  await writeYamlFile(path.join(projectPath, 'shrinkwrap.yaml'), wantedShrinkwrap)
-
-  const shr = await readWanted(projectPath, { ignoreIncompatible: true })
-  t.equals(shr && shr.shrinkwrapVersion, 3.11)
-
-  t.end()
-})
-
-test('write saves shrinkwrap version in correct fields', async t => {
-  const projectPath = tempy.directory()
-  await writeWantedOnly(projectPath, {
-    importers: {
-      '.': {
-        dependencies: {
-          foo: '1.0.0',
-        },
-        specifiers: {
-          foo: '1.0.0',
-        },
-      },
-    },
-    packages: {
-      '/foo/1.0.0': {
-        resolution: {
-          integrity: 'aaa',
-        },
-      },
-    },
-    registry: 'https://registry.npmjs.org/',
-    shrinkwrapVersion: 3.11,
-  })
-  const shr = await readYamlFile<Shrinkwrap>(path.join(projectPath, 'shrinkwrap.yaml'))
-  t.equal(shr['shrinkwrapVersion'], 3)
-  t.equal(shr['shrinkwrapMinorVersion'], 11)
   t.end()
 })

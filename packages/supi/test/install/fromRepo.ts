@@ -112,14 +112,14 @@ test('a subdependency is from a github repo with different name', async (t: tape
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(shr.packages['/has-aliased-git-dependency/1.0.0'].dependencies, {
-    'has-say-hi-peer': '/has-say-hi-peer/1.0.0/say-hi@1.0.0',
+    'has-say-hi-peer': '1.0.0_say-hi@1.0.0',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   }, 'the aliased name added to shrinkwrap.yaml')
 
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/hi')
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/szia')
 
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'has-say-hi-peer', '1.0.0', 'say-hi@1.0.0', 'node_modules', 'has-say-hi-peer')),
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'has-say-hi-peer', '1.0.0_say-hi@1.0.0', 'node_modules', 'has-say-hi-peer')),
     'aliased name used to resolve a peer dependency')
 })
 

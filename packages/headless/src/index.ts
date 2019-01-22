@@ -143,8 +143,8 @@ export default async (opts: HeadlessOptions) => {
 
   const skipped = opts.skipped || new Set<string>()
   const filterOpts = {
-    defaultRegistry: opts.registries.default,
     include: opts.include,
+    registries: opts.registries,
     skipped,
   }
   if (currentShrinkwrap) {
@@ -184,7 +184,6 @@ export default async (opts: HeadlessOptions) => {
     opts.force ? null : currentShrinkwrap,
     {
       ...opts,
-      defaultRegistry: opts.registries.default,
       importerIds: opts.importers.map((importer) => importer.id),
       prefix: shrinkwrapDirectory,
       virtualStoreDir,
@@ -219,7 +218,6 @@ export default async (opts: HeadlessOptions) => {
   await Promise.all(opts.importers.map(async (importer) => {
     if (importer.shamefullyFlatten) {
       importer.hoistedAliases = await shamefullyFlattenByShrinkwrap(filteredShrinkwrap, importer.id, {
-        defaultRegistry: opts.registries.default,
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -231,6 +229,7 @@ export default async (opts: HeadlessOptions) => {
           : undefined,
         modulesDir: importer.modulesDir,
         prefix: opts.shrinkwrapDirectory,
+        registries: opts.registries,
         virtualStoreDir,
       })
     } else {
@@ -240,10 +239,10 @@ export default async (opts: HeadlessOptions) => {
 
   await Promise.all(opts.importers.map(async (importer) => {
     await linkRootPackages(filteredShrinkwrap, {
-      defaultRegistry: opts.registries.default,
       importerId: importer.id,
       importerModulesDir: importer.modulesDir,
       prefix: importer.prefix,
+      registries: opts.registries,
       rootDependencies: res.directDependenciesByImporterId[importer.id],
     })
     const bin = path.join(importer.modulesDir, '.bin')
@@ -338,7 +337,7 @@ export default async (opts: HeadlessOptions) => {
 async function linkRootPackages (
   shr: Shrinkwrap,
   opts: {
-    defaultRegistry: string,
+    registries: Registries,
     importerId: string,
     importerModulesDir: string,
     prefix: string,
@@ -368,7 +367,7 @@ async function linkRootPackages (
           })
           return
         }
-        const depPath = dp.refToAbsolute(allDeps[alias], alias, opts.defaultRegistry)
+        const depPath = dp.refToAbsolute(allDeps[alias], alias, opts.registries)
         const peripheralLocation = opts.rootDependencies[alias]
         // Skipping linked packages
         if (!peripheralLocation) {
@@ -402,7 +401,6 @@ async function linkRootPackages (
 }
 
 interface ShrinkwrapToDepGraphOptions {
-  defaultRegistry: string,
   force: boolean,
   independentLeaves: boolean,
   importerIds: string[],
@@ -410,6 +408,7 @@ interface ShrinkwrapToDepGraphOptions {
   storeController: StoreController,
   store: string,
   prefix: string,
+  registries: Registries,
   sideEffectsCacheRead: boolean,
   verifyStoreIntegrity: boolean,
   virtualStoreDir: string,
@@ -430,9 +429,9 @@ async function shrinkwrapToDepGraph (
         R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
         continue
       }
-      const depPath = dp.resolve(opts.defaultRegistry, relDepPath)
+      const depPath = dp.resolve(opts.registries, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
-      const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.defaultRegistry)
+      const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
       const packageId = pkgSnapshot.id || depPath
@@ -494,7 +493,7 @@ async function shrinkwrapToDepGraph (
       independentLeaves: opts.independentLeaves,
       pkgSnapshotsByRelDepPaths: shr.packages,
       prefix: opts.prefix,
-      registry: opts.defaultRegistry,
+      registries: opts.registries,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       store: opts.store,
@@ -520,7 +519,7 @@ async function getChildrenPaths (
   ctx: {
     graph: DependenciesGraph,
     force: boolean,
-    registry: string,
+    registries: Registries,
     virtualStoreDir: string,
     independentLeaves: boolean,
     store: string,
@@ -534,12 +533,12 @@ async function getChildrenPaths (
 ) {
   const children: {[alias: string]: string} = {}
   for (const alias of R.keys(allDeps)) {
-    const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registry)
+    const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
       continue
     }
-    const childRelDepPath = dp.relative(ctx.registry, childDepPath)
+    const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
     const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
     if (ctx.graph[childDepPath]) {
       children[alias] = ctx.graph[childDepPath].peripheralLocation
@@ -552,8 +551,7 @@ async function getChildrenPaths (
       })
       children[alias] = pkgLocation.directory
     } else if (childPkgSnapshot) {
-      const relDepPath = dp.relative(ctx.registry, childDepPath)
-      const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
+      const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.shrinkwrapDirectory)}`, 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))

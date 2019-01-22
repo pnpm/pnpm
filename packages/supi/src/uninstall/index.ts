@@ -91,7 +91,7 @@ export async function uninstallInContext (
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })
-  ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(ctx.registries.default, pkgId)))
+  ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(ctx.registries, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
@@ -105,7 +105,6 @@ export async function uninstallInContext (
 
   if (opts.shamefullyFlatten) {
     ctx.hoistedAliases = await shamefullyFlattenByShrinkwrap(currentShrinkwrap, ctx.importerId, {
-      defaultRegistry: ctx.registries.default,
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -117,6 +116,7 @@ export async function uninstallInContext (
         : undefined,
       modulesDir: ctx.modulesDir,
       prefix: opts.shrinkwrapDirectory,
+      registries: ctx.registries,
       virtualStoreDir: ctx.virtualStoreDir,
     }) || {}
   }

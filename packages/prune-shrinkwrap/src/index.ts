@@ -90,14 +90,8 @@ export function prune (
       [importerId]: updatedImporter,
     },
     packages: shr.packages,
-    registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion || SHRINKWRAP_VERSION,
   }
-  // tslint:disable:no-string-literal
-  if (typeof shr['shrinkwrapMinorVersion'] === 'number') {
-    prunnedShrinkwrap['shrinkwrapMinorVersion'] = shr['shrinkwrapMinorVersion']
-  }
-  // tslint:enable:no-string-literal
   if (!R.isEmpty(packages)) {
     prunnedShrinkwrap.packages = packages
   }

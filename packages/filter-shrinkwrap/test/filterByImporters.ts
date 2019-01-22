@@ -55,16 +55,18 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 4,
+      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
-      defaultRegistry: 'https://registry.npmjs.org/',
       failOnMissingDependencies: true,
       include: {
         dependencies: true,
         devDependencies: false,
         optionalDependencies: false,
+      },
+      registries: {
+        default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(),
     },
@@ -107,7 +109,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
   t.end()
 })
@@ -141,16 +143,18 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
             },
           },
         },
-        shrinkwrapVersion: 4,
+        shrinkwrapVersion: 5,
       },
       ['project-1'],
       {
-        defaultRegistry: 'https://registry.npmjs.org/',
         failOnMissingDependencies: true,
         include: {
           dependencies: true,
           devDependencies: false,
           optionalDependencies: false,
+        },
+        registries: {
+          default: 'https://registry.npmjs.org/',
         },
         skipped: new Set<string>(),
       },
@@ -189,16 +193,18 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
           },
         },
       },
-      shrinkwrapVersion: 4,
+      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
-      defaultRegistry: 'https://registry.npmjs.org/',
       failOnMissingDependencies: false,
       include: {
         dependencies: true,
         devDependencies: false,
         optionalDependencies: false,
+      },
+      registries: {
+        default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(),
     },
@@ -228,7 +234,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -288,16 +294,18 @@ test('filterByImporters(): do not include skipped packages', (t) => {
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 4,
+      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
-      defaultRegistry: 'https://registry.npmjs.org/',
       failOnMissingDependencies: true,
       include: {
         dependencies: true,
         devDependencies: true,
         optionalDependencies: true,
+      },
+      registries: {
+        default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(['/optional-dep/1.0.0']),
     },
@@ -348,7 +356,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   })
   t.end()
 })

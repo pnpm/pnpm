@@ -673,7 +673,7 @@ test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
   const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
 
   t.ok(shr['importers'] && shr['importers']['.'], 'correct shrinkwrap.yaml format')
-  t.equal(shr['shrinkwrapVersion'], 4, 'correct shrinkwrap.yaml version')
+  t.equal(shr['shrinkwrapVersion'], 5, 'correct shrinkwrap.yaml version')
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
@@ -741,7 +741,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
         },
       },
     },
-    shrinkwrapVersion: 4,
+    shrinkwrapVersion: 5,
   }, 'correct shrinkwrap.yaml created')
 })
 
@@ -878,7 +878,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv': '4.10.4',
-        'ajv-keywords': '/ajv-keywords/1.5.0/ajv@4.10.4',
+        'ajv-keywords': '1.5.0_ajv@4.10.4',
         'bar': 'link:../bar',
       },
       specifiers: {

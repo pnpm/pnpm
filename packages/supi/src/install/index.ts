@@ -31,6 +31,7 @@ import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
   PackageJson,
+  Registries,
 } from '@pnpm/types'
 import {
   getAllDependenciesFromPackage,
@@ -52,7 +53,6 @@ import semver = require('semver')
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
-  SHRINKWRAP_NEXT_VERSION,
   SHRINKWRAP_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
@@ -177,10 +177,7 @@ export async function mutateModules (
         opts.preferFrozenShrinkwrap &&
         (!opts.pruneShrinkwrapImporters || Object.keys(ctx.wantedShrinkwrap.importers).length === ctx.importers.length) &&
         ctx.existsWantedShrinkwrap &&
-        (
-          ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION ||
-          ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_NEXT_VERSION
-        ) &&
+        ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION &&
         await pEvery(ctx.importers, async (importer) =>
           !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
           satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
@@ -740,7 +737,7 @@ async function installInContext (
         shrImporter,
         importer.linkedPackages,
         resolvedImporter.directDependencies,
-        ctx.registries.default,
+        ctx.registries,
       )
     }
 
@@ -798,7 +795,7 @@ async function installInContext (
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds
-    .filter((relDepPath) => !result.removedDepPaths.has(dp.resolve(ctx.registries.default, relDepPath)))
+    .filter((relDepPath) => !result.removedDepPaths.has(dp.resolve(ctx.registries, relDepPath)))
 
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
@@ -806,7 +803,7 @@ async function installInContext (
       .concat(
         result.newDepPaths
           .filter((depPath) => result.depGraph[depPath].requiresBuild)
-          .map((depPath) => dp.relative(ctx.registries.default, depPath)),
+          .map((depPath) => dp.relative(ctx.registries, result.depGraph[depPath].name, depPath)),
       )
   }
 
@@ -949,7 +946,7 @@ function modulesIsUpToDate (
 ) {
   const currentWithSkipped = [
     ...R.keys(opts.currentShrinkwrap.packages),
-    ...opts.skippedPkgIds.map((skippedPkgId) => dp.relative(opts.defaultRegistry, skippedPkgId))
+    ...opts.skippedPkgIds,
   ]
   currentWithSkipped.sort()
   return R.equals(R.keys(opts.wantedShrinkwrap.packages), currentWithSkipped)
@@ -993,7 +990,7 @@ function addDirectDependenciesToShrinkwrap (
     specRaw: string,
     normalizedPref?: string,
   }>,
-  standardRegistry: string,
+  registries: Registries,
 ): ShrinkwrapImporter {
   const newShrImporter = {
     dependencies: {},
@@ -1022,8 +1019,8 @@ function addDirectDependenciesToShrinkwrap (
       const ref = absolutePathToRef(dep.id, {
         alias: dep.alias,
         realName: dep.name,
+        registries,
         resolution: dep.resolution,
-        standardRegistry,
       })
       if (dep.dev) {
         newShrImporter.devDependencies[dep.alias] = ref

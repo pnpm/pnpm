@@ -3,12 +3,11 @@ import {
   PackageSnapshots,
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-types'
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
 import filterShrinkwrap from './filterShrinkwrap'
-import normalizeShrinkwrap from './normalizeShrinkwrap'
 
 const logger = pnpmLogger('shrinkwrap')
 
@@ -16,8 +15,8 @@ export default function filterByImporters (
   shr: Shrinkwrap,
   importerIds: string[],
   opts: {
-    defaultRegistry: string,
     include: { [dependenciesField in DependenciesField]: boolean },
+    registries: Registries,
     skipped: Set<string>,
     failOnMissingDependencies: boolean,
   },
@@ -48,12 +47,11 @@ export default function filterByImporters (
     return acc
   }, { ...shr.importers })
 
-  return normalizeShrinkwrap({
+  return {
     importers,
     packages,
-    registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion,
-  } as Shrinkwrap)
+  }
 }
 
 function pickPkgsWithAllDeps (

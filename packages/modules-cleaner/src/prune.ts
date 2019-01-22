@@ -9,6 +9,7 @@ import {
   Shrinkwrap,
   ShrinkwrapImporter,
 } from '@pnpm/shrinkwrap-types'
+import { packageIdFromSnapshot } from '@pnpm/shrinkwrap-utils'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
@@ -85,8 +86,8 @@ export default async function prune (
     }))
   }))
 
-  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.registries.default, opts.oldShrinkwrap.packages || {})
-  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries.default, opts.newShrinkwrap.packages || {})
+  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.oldShrinkwrap.packages || {})
+  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.newShrinkwrap.packages || {})
 
   const oldDepPaths = Object.keys(oldPkgIdsByDepPaths)
   const newDepPaths = Object.keys(newPkgIdsByDepPaths)
@@ -162,15 +163,13 @@ function mergeDependencies (shrImporter: ShrinkwrapImporter): { [depName: string
 }
 
 function getPkgsDepPaths (
-  registry: string,
+  registries: Registries,
   packages: PackageSnapshots,
 ): {[depPath: string]: string} {
   const pkgIdsByDepPath = {}
   for (const relDepPath of Object.keys(packages)) {
-    const depPath = dp.resolve(registry, relDepPath)
-    pkgIdsByDepPath[depPath] = packages[relDepPath].id
-      ? packages[relDepPath].id
-      : depPath
+    const depPath = dp.resolve(registries, relDepPath)
+    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
   }
   return pkgIdsByDepPath
 }

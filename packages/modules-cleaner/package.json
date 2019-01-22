@@ -34,6 +34,7 @@
     "@pnpm/package-bins": "2.0.0",
     "@pnpm/read-modules-dir": "1.0.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
+    "@pnpm/shrinkwrap-utils": "1.1.1",
     "@pnpm/store-controller-types": "2.1.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
