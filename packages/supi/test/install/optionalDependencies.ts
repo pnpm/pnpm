@@ -82,8 +82,8 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
   t.deepEquals(modulesInfo.skipped, [
-    'localhost+4873/dep-of-optional-pkg/1.0.0',
-    'localhost+4873/not-compatible-with-any-os/1.0.0',
+    '/dep-of-optional-pkg/1.0.0',
+    '/not-compatible-with-any-os/1.0.0',
   ])
 
   const logMatcher = sinon.match({
@@ -105,7 +105,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   {
     const modules = await project.loadModules()
-    t.deepEqual(modules && modules.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
+    t.deepEqual(modules && modules.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
   }
 
   await rimraf('node_modules')
@@ -117,7 +117,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   {
     const modules = await project.loadModules()
-    t.deepEqual(modules && modules.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
+    t.deepEqual(modules && modules.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
   }
 })
 
@@ -194,7 +194,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
-    t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
+    t.deepEqual(modulesInfo.skipped, ['/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
   }
 
   t.ok(await exists('node_modules/.localhost+4873/pkg-with-optional/1.0.0'), 'regular dependency linked')
@@ -228,6 +228,38 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
     t.deepEqual(modulesInfo.skipped, [], 'optional subdep removed from skipped list')
+  }
+})
+
+test('only that package is skipped which is an optional dependency only and not installable', async (t) => {
+  const project = prepare(t)
+  const reporter = sinon.spy()
+
+  await addDependenciesToPackage(['peer-c@1.0.1', 'has-optional-dep-with-peer', 'not-compatible-with-any-os-and-has-peer'], await testDefaults({ reporter }))
+
+  {
+    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    t.deepEqual(modulesInfo.skipped, ['/not-compatible-with-any-os-and-has-peer/1.0.0_peer-c@1.0.0'])
+  }
+
+  await rimraf('node_modules')
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: process.cwd(),
+      },
+    ],
+    await testDefaults({
+      frozenShrinkwrap: true,
+    }),
+  )
+
+  {
+    const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
+    t.deepEqual(modulesInfo.skipped, ['/not-compatible-with-any-os-and-has-peer/1.0.0_peer-c@1.0.0'])
   }
 })
 
@@ -392,7 +424,7 @@ test('skip optional dependency that does not support the current OS, when doing 
 
   const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
   t.deepEquals(modulesInfo.skipped, [
-    'localhost+4873/dep-of-optional-pkg/1.0.0',
-    'localhost+4873/not-compatible-with-any-os/1.0.0',
+    '/dep-of-optional-pkg/1.0.0',
+    '/not-compatible-with-any-os/1.0.0',
   ])
 })

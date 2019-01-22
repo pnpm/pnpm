@@ -378,7 +378,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.5.0
+      pnpm-registry-mock: 2.6.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.2.2
@@ -433,7 +433,7 @@ importers:
       npm-run-all: 4.1.5
       p-limit: 2.1.0
       path-exists: 3.0.0
-      pnpm-registry-mock: 2.5.0
+      pnpm-registry-mock: 2.6.0
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -970,7 +970,7 @@ importers:
       p-any: 1.1.0
       path-exists: 3.0.0
       pnpm: 'link:'
-      pnpm-registry-mock: 2.5.0
+      pnpm-registry-mock: 2.6.0
       retry: 0.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1069,7 +1069,7 @@ importers:
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
       pnpm-list: 5.0.4
-      pnpm-registry-mock: 2.5.0
+      pnpm-registry-mock: 2.6.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1539,7 +1539,7 @@ importers:
       npm-scripts-info: 0.3.9
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.5.0
+      pnpm-registry-mock: 2.6.0
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
@@ -1637,7 +1637,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.5.0
+      pnpm-registry-mock: 2.6.0
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
@@ -3378,7 +3378,7 @@ packages:
     hasBin: true
     optionalDependencies:
       dtrace-provider: 0.8.7
-      moment: 2.23.0
+      moment: 2.24.0
       mv: 2.1.1
       safe-json-stringify: 1.2.0
     resolution:
@@ -6849,11 +6849,11 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
-  /moment/2.23.0:
+  /moment/2.24.0:
     dev: true
     optional: true
     resolution:
-      integrity: sha512-3IE39bHVqFbWWaPOMHZF98Q9c3LDKGTmypMiTM2QygGXXElkFWIH7GxfmlwmY2vwa+wmNsoYZmG2iusf1ZjJoA==
+      integrity: sha512-bV7f+6l2QigeBBZSM/6yTNq4P2fNpSWj/0e7jQcy87A8e7o2nAfP/34/2ky5Vw4B9S446EtIhodAzkFCcR4dQg==
   /months/1.2.0:
     dev: false
     engines:
@@ -7963,18 +7963,18 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-registry-mock/2.5.0:
+  /pnpm-registry-mock/2.6.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.3
-      verdaccio: 3.10.1
+      verdaccio: 3.10.2
     dev: true
     engines:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-viAyNVYyNeLsi51VTy0bRq02AtO7HV8kPhFMAE/Z5vwn3s5nobpPzw7A/3Ix6zQmXGYNurR0nqnsMxARxWsyCw==
+      integrity: sha512-qjh0zZ/K/S5dfzpJ7/W0TZq7M1jWuVrY0NYthRjjbzZelVqALfc8sR5gD7NncNuH7Vpo8DwSjb5ADQewniB3ug==
   /posix-character-classes/0.1.1:
     dev: false
     engines:
@@ -10068,7 +10068,7 @@ packages:
       node: '>=6.12.0'
     resolution:
       integrity: sha512-60R1AEAjKmIGms7gSfotWmUhw0JOPdeyx6DOATtCuOJNfgameiDm2gPlAGJ/XKHoXn96EaVfuhg2ruDmq1AQug==
-  /verdaccio/3.10.1:
+  /verdaccio/3.10.2:
     dependencies:
       '@verdaccio/file-locking': 0.0.7
       '@verdaccio/local-storage': 1.1.3
@@ -10110,7 +10110,7 @@ packages:
       npm: '>=3'
     hasBin: true
     resolution:
-      integrity: sha512-+vP2a0aDDPU90dU0Mj/wH8GLsuUl53ZY8XP/TXTTnXSRz73TRZkj8o6782r+S/OCv98z+TgrrbCGqVSLivna8A==
+      integrity: sha512-V6ig7iHWweV8W35R8Jl3GjZyxuvkbT8Sv3O0GCrUrsMFQVYSLuynkvkOXQ4JvJN45Iw47FrBU+M1kXwb7Cel6w==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0

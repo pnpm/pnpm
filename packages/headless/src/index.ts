@@ -186,6 +186,7 @@ export default async (opts: HeadlessOptions) => {
       ...opts,
       importerIds: opts.importers.map((importer) => importer.id),
       prefix: shrinkwrapDirectory,
+      skipped,
       virtualStoreDir,
     } as ShrinkwrapToDepGraphOptions,
   )
@@ -405,6 +406,7 @@ interface ShrinkwrapToDepGraphOptions {
   independentLeaves: boolean,
   importerIds: string[],
   shrinkwrapDirectory: string,
+  skipped: Set<string>,
   storeController: StoreController,
   store: string,
   prefix: string,
@@ -496,6 +498,7 @@ async function shrinkwrapToDepGraph (
       registries: opts.registries,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      skipped: opts.skipped,
       store: opts.store,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
@@ -523,6 +526,7 @@ async function getChildrenPaths (
     virtualStoreDir: string,
     independentLeaves: boolean,
     store: string,
+    skipped: Set<string>,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
     prefix: string,
     shrinkwrapDirectory: string,
@@ -555,7 +559,7 @@ async function getChildrenPaths (
       children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.shrinkwrapDirectory)}`, 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
-    } else {
+    } else if (!ctx.skipped.has(childRelDepPath)) {
       throw new Error(`${childRelDepPath} not found in shrinkwrap.yaml`)
     }
   }
