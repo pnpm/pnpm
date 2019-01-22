@@ -50,7 +50,6 @@ export default async function (
         type: 'version' | 'range' | 'tag',
       },
     },
-    skipped: Set<string>,
     storeController: StoreController,
     tag: string,
     verifyStoreIntegrity: boolean,
@@ -64,6 +63,7 @@ export default async function (
   const directNonLinkedDepsByImporterId = {} as {[id: string]: PkgAddress[]}
   const linkedDependenciesByImporterId = {}
 
+  const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
     childrenByParentId: {} as ChildrenByParentId,
     currentShrinkwrap: opts.currentShrinkwrap,
@@ -79,7 +79,7 @@ export default async function (
     registries: opts.registries,
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
-    skipped: opts.skipped,
+    skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
@@ -209,6 +209,7 @@ export default async function (
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedImporters,
     resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
+    wantedToBeSkippedPackageIds,
   }
 }
 

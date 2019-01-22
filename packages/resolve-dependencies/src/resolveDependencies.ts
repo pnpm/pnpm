@@ -541,11 +541,11 @@ async function resolveDependency (
         prefix: ctx.prefix,
       })
     )
-  const installable = parentIsInstallable && currentIsInstallable
-
-  if (installable) {
-    ctx.skipped.delete(pkgResponse.body.id)
+  if (currentIsInstallable !== true || !parentIsInstallable) {
+    ctx.skipped.add(pkgResponse.body.id)
   }
+  const installable = parentIsInstallable && currentIsInstallable !== false
+
   if (!ctx.resolvedPackagesByPackageId[pkgResponse.body.id]) {
     progressLogger.debug({
       packageId: pkgResponse.body.id,
@@ -565,12 +565,6 @@ async function resolveDependency (
         })
     }
     // tslint:enable:no-string-literal
-
-    if (!installable) {
-      // optional dependencies are resolved for consistent shrinkwrap.yaml files
-      // but installed only on machines that are supported by the package
-      ctx.skipped.add(pkgResponse.body.id)
-    }
 
     const peerDependencies = peerDependenciesWithoutOwn(pkg)
 

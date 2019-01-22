@@ -132,11 +132,10 @@ function pkgAllDeps (
       continue
     }
     let installable!: boolean
-    const depPath = dp.resolve(opts.defaultRegistry, relDepPath)
     if (!parentIsInstallable) {
       installable = false
       if (!ctx.pickedPackages[relDepPath]) {
-        opts.skipped.add(depPath)
+        opts.skipped.add(relDepPath)
       }
     } else {
       const pkg = {
@@ -152,13 +151,13 @@ function pkgAllDeps (
         optional: pkgSnapshot.optional === true,
         pnpmVersion: opts.currentEngine.pnpmVersion,
         prefix: opts.prefix,
-      })
+      }) !== false
       if (!installable) {
         if (!ctx.pickedPackages[relDepPath]) {
-          opts.skipped.add(depPath)
+          opts.skipped.add(relDepPath)
         }
       } else {
-        opts.skipped.delete(depPath)
+        opts.skipped.delete(relDepPath)
         ctx.pickedPackages[relDepPath] = pkgSnapshot
       }
     }
