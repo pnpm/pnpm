@@ -2,7 +2,7 @@ import { filterByImportersAndEngine } from '@pnpm/filter-shrinkwrap'
 import test = require('tape')
 
 test('filterByImportersAndEngine(): skip packages that are not installable', (t) => {
-  const skippedPackages = new Set<string>(['registry.npmjs.org/preserve-existing-skipped/1.0.0'])
+  const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
   const filteredShrinkwrap = filterByImportersAndEngine(
     {
       importers: {
@@ -156,6 +156,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
     },
     shrinkwrapVersion: 5,
   })
-  t.deepEqual(Array.from(skippedPackages), ['registry.npmjs.org/preserve-existing-skipped/1.0.0', 'registry.npmjs.org/optional-dep/1.0.0', 'registry.npmjs.org/foo/1.0.0'])
+  t.deepEqual(Array.from(skippedPackages), ['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
   t.end()
 })

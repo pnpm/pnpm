@@ -61,8 +61,9 @@ export default async function linkPackages (
     pruneStore: boolean,
     registries: Registries,
     shrinkwrapDirectory: string,
-    storeController: StoreController,
     skipped: Set<string>,
+    storeController: StoreController,
+    wantedToBeSkippedPackageIds: Set<string>,
     include: IncludedDependencies,
     independentLeaves: boolean,
     // This is only needed till shrinkwrap v4
@@ -123,10 +124,15 @@ export default async function linkPackages (
   let depNodes = R.values(depGraph).filter((depNode) => {
     const relDepPath = dp.relative(opts.registries, depNode.name, depNode.absolutePath)
     if (newWantedShrinkwrap.packages && newWantedShrinkwrap.packages[relDepPath] && !newWantedShrinkwrap.packages[relDepPath].optional) {
-      opts.skipped.delete(depNode.id)
+      opts.skipped.delete(relDepPath)
       return true
     }
-    return !opts.skipped.has(depNode.id)
+    if (opts.wantedToBeSkippedPackageIds.has(depNode.id)) {
+      opts.skipped.add(relDepPath)
+      return false
+    }
+    opts.skipped.delete(relDepPath)
+    return true
   })
   if (!opts.include.dependencies) {
     depNodes = depNodes.filter((depNode) => depNode.dev !== false || depNode.optional)

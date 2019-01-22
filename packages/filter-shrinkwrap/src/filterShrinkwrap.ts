@@ -13,7 +13,7 @@ export default function filterShrinkwrap (
   },
 ): Shrinkwrap {
   let pairs = R.toPairs(shr.packages || {})
-    .filter(([relDepPath, pkg]) => !opts.skipped.has(dp.resolve(opts.registries, relDepPath)))
+    .filter(([relDepPath, pkg]) => !opts.skipped.has(relDepPath))
   if (!opts.include.dependencies) {
     pairs = pairs.filter(([relDepPath, pkg]) => pkg.dev !== false || pkg.optional)
   }

@@ -24,7 +24,7 @@ export default function packageIsInstallable (
     pnpmVersion: string,
     prefix: string,
   },
-): boolean {
+): boolean | null {
   const warn = checkPlatform(pkgId, {
     cpu: pkg.cpu || ['any'],
     os: pkg.os || ['any'],
@@ -58,5 +58,5 @@ export default function packageIsInstallable (
 
   if (options.engineStrict) throw warn
 
-  return true
+  return null
 }

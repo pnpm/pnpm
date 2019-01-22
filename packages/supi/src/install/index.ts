@@ -643,6 +643,7 @@ async function installInContext (
     outdatedDependencies,
     resolvedImporters,
     resolvedPackagesByPackageId,
+    wantedToBeSkippedPackageIds,
   } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
     dryRun: opts.shrinkwrapOnly,
@@ -658,7 +659,6 @@ async function installInContext (
     registries: opts.registries,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
     sideEffectsCache: opts.sideEffectsCacheRead,
-    skipped: ctx.skipped,
     storeController: opts.storeController,
     tag: opts.tag,
     updateDepth: (() => {
@@ -675,7 +675,7 @@ async function installInContext (
         modulesIsUpToDate({
           currentShrinkwrap: ctx.currentShrinkwrap,
           defaultRegistry: ctx.registries.default,
-          skippedPkgIds: Array.from(ctx.skipped),
+          skippedRelDepPaths: Array.from(ctx.skipped),
           wantedShrinkwrap: ctx.wantedShrinkwrap,
         })
       ) {
@@ -791,6 +791,7 @@ async function installInContext (
       updateShrinkwrapMinorVersion: opts.updateShrinkwrapMinorVersion,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedShrinkwrap: ctx.wantedShrinkwrap,
+      wantedToBeSkippedPackageIds,
     },
   )
 
@@ -941,12 +942,12 @@ function modulesIsUpToDate (
     defaultRegistry: string,
     currentShrinkwrap: Shrinkwrap,
     wantedShrinkwrap: Shrinkwrap,
-    skippedPkgIds: string[],
+    skippedRelDepPaths: string[],
   }
 ) {
   const currentWithSkipped = [
     ...R.keys(opts.currentShrinkwrap.packages),
-    ...opts.skippedPkgIds,
+    ...opts.skippedRelDepPaths,
   ]
   currentWithSkipped.sort()
   return R.equals(R.keys(opts.wantedShrinkwrap.packages), currentWithSkipped)
