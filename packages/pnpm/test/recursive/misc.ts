@@ -178,29 +178,36 @@ test('recursive installation with package-specific .npmrc', async t => {
 test('workspace .npmrc is always read', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
-      name: 'project-1',
-      version: '1.0.0',
+      location: 'workspace/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
 
-      dependencies: {
-        'is-positive': '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
       },
     },
     {
-      name: 'project-2',
-      version: '1.0.0',
+      location: 'workspace/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
 
-      dependencies: {
-        'is-negative': '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
       },
     },
   ])
 
+  const storeDir = path.resolve('../store')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'shamefully-flatten = true', 'utf8')
+  await fs.writeFile('.npmrc', 'shamefully-flatten = true\nshared-workspace-shrinkwrap=false', 'utf8')
   await fs.writeFile('project-2/.npmrc', 'shamefully-flatten = false', 'utf8')
 
   process.chdir('project-1')
-  await execPnpm('install')
+  await execPnpm('install', '--store', storeDir)
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
@@ -210,7 +217,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   process.chdir('..')
   process.chdir('project-2')
 
-  await execPnpm('install')
+  await execPnpm('install', '--store', storeDir)
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
@@ -451,7 +458,7 @@ test('recursive installation fails when installation in one of the packages fail
   }
 })
 
-test('second run of `recursive link` after package.json has been edited manually', async t => {
+test('second run of `recursive install` after package.json has been edited manually', async t => {
   const projects = preparePackages(t, [
     {
       name: 'is-negative',
@@ -467,7 +474,7 @@ test('second run of `recursive link` after package.json has been edited manually
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   await writeJsonFile('is-negative/package.json', {
     name: 'is-negative',
@@ -478,7 +485,7 @@ test('second run of `recursive link` after package.json has been edited manually
     },
   })
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   t.ok(projects['is-negative'].requireModule('is-positive/package.json'))
 })
@@ -512,7 +519,7 @@ test('recursive --scope', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link', '--scope', 'project-1')
+  await execPnpm('recursive', 'install', '--scope', 'project-1')
 
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
@@ -555,7 +562,7 @@ test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
     ],
   })
 
-  await execPnpm('recursive', 'link', '--scope', 'project-1')
+  await execPnpm('recursive', 'install', '--scope', 'project-1')
 
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].hasNot('is-negative')
@@ -591,7 +598,7 @@ test('recursive filter package with dependencies', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link', '--filter', 'project-1...')
+  await execPnpm('recursive', 'install', '--filter', 'project-1...')
 
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
@@ -636,7 +643,7 @@ test('recursive filter package with dependents', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link', '--filter', '...project-2')
+  await execPnpm('recursive', 'install', '--filter', '...project-2')
 
   projects['project-0'].has('is-positive')
   projects['project-1'].has('is-positive')
@@ -691,7 +698,7 @@ test('recursive filter package with dependents and filter with dependencies', as
     },
   ])
 
-  await execPnpm('recursive', 'link', '--filter', '...project-2', '--filter', 'project-1...')
+  await execPnpm('recursive', 'install', '--filter', '...project-2', '--filter', 'project-1...')
 
   projects['project-0'].has('is-positive')
   projects['project-1'].has('is-positive')
@@ -747,7 +754,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     },
   ])
 
-  await execPnpm('recursive', 'link', '--', '...project-2', 'project-1...')
+  await execPnpm('recursive', 'install', '--', '...project-2', 'project-1...')
 
   projects['project-0'].has('is-positive')
   projects['project-1'].has('is-positive')
@@ -841,7 +848,7 @@ test('recursive filter multiple times', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link', '--filter', 'project-1', '--filter', 'project-2')
+  await execPnpm('recursive', 'install', '--filter', 'project-1', '--filter', 'project-2')
 
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
@@ -877,7 +884,7 @@ test('recursive filter package without dependencies', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link', '--filter', 'project-1')
+  await execPnpm('recursive', 'install', '--filter', 'project-1')
 
   projects['project-1'].has('is-positive')
   projects['project-2'].hasNot('is-negative')
@@ -919,7 +926,7 @@ test('recursive filter by location', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link', '--filter', './packages')
+  await execPnpm('recursive', 'install', '--filter', './packages')
 
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
@@ -986,7 +993,7 @@ test('recursive command with filter from config', async (t: tape.Test) => {
   ])
 
   await fs.writeFile('.npmrc', 'filter=project-1 project-2', 'utf8')
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')

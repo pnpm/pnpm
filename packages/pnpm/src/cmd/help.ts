@@ -306,10 +306,6 @@ function getHelpText (command: string) {
           uninstall [<@scope>/]<pkg>...
             Uninstall a dependency from each package
 
-          link
-            Deprecated. Use the install command with the link-workspace-packages config.
-            runs installation in each package. If a package is available locally, the local version is linked.
-
           unlink
             Removes links to local packages and reinstalls them from the registry.
 
@@ -398,7 +394,6 @@ function getHelpText (command: string) {
           - rebuild
           - import
 
-          - recursive link
           - recursive unlink
           - recursive install
           - recursive update

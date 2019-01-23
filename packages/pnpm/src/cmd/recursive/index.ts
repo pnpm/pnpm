@@ -45,7 +45,6 @@ const supportedRecursiveCommands = new Set([
   'install',
   'uninstall',
   'update',
-  'link',
   'unlink',
   'list',
   'outdated',
@@ -181,12 +180,7 @@ export async function recursive (
     saveState: async () => undefined,
   }
 
-  if (cmdFullName === 'link' && opts.linkWorkspacePackages) {
-    const err = new Error('"pnpm recursive link" is deprecated with link-workspace-packages = true. Please use "pnpm recursive install" instead')
-    err['code'] = 'ERR_PNPM_RECURSIVE_LINK_DEPRECATED' // tslint:disable-line:no-string-literal
-    throw err
-  }
-  const localPackages = cmdFullName === 'link' || opts.linkWorkspacePackages
+  const localPackages = opts.linkWorkspacePackages && cmdFullName !== 'unlink'
     ? arrayOfLocalPackagesToMap(allPkgs)
     : {}
   const installOpts = Object.assign(opts, {

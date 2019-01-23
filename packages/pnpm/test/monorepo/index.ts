@@ -139,7 +139,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     },
   ])
 
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
+  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-shrinkwrap=false', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
@@ -629,7 +629,7 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
   await projects['project-1'].hasNot('project-1')
 })
 
-test('local packages should be preferred when running "pnpm link" inside a workspace', async (t) => {
+test('local packages should be preferred when running "pnpm install" inside a workspace', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -646,7 +646,7 @@ test('local packages should be preferred when running "pnpm link" inside a works
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
+  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-shrinkwrap=false', 'utf8')
 
   process.chdir('project-1')
 
