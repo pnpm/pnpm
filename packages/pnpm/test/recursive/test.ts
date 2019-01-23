@@ -53,7 +53,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
   await execPnpm('recursive', 'test')
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -93,7 +93,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   await execPnpm('recursive', 'test')
 

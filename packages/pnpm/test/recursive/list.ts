@@ -125,7 +125,7 @@ test('recursive list --scope', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   const result = execPnpmSync('recursive', 'list', '--scope', 'project-1')
 

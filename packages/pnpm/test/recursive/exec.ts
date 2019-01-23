@@ -49,7 +49,7 @@ test('pnpm recursive exec', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
   await execPnpm('recursive', 'exec', 'npm', 'run', 'build')
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -111,7 +111,7 @@ test('testing the bail config with "pnpm recursive exec"', async (t: tape.Test) 
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   let failed = false
   try {

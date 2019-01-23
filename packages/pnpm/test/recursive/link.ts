@@ -26,7 +26,7 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
@@ -72,7 +72,7 @@ test('recursive unlink specific package', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')

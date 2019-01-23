@@ -55,7 +55,7 @@ test('pnpm recursive run', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
   await execPnpm('recursive', 'run', 'build')
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -145,7 +145,7 @@ test('`pnpm recursive run` fails if none of the packaegs has the desired command
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   try {
     await execPnpm('recursive', 'run', 'this-command-does-not-exist')
@@ -194,7 +194,7 @@ test('testing the bail config with "pnpm recursive run"', async (t: tape.Test) =
     },
   ])
 
-  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'install')
 
   let failed = false
   try {
