@@ -5,7 +5,7 @@ importers:
       '@types/camelcase': 4.1.0
       '@types/node': 10.12.18
       '@types/which': 1.3.1
-      '@zkochan/npm-conf': 1.2.1
+      '@zkochan/npm-conf': 1.2.2
       camelcase: 5.0.0
       find-up: 3.0.0
       which: 1.3.1
@@ -34,7 +34,7 @@ importers:
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       '@types/which': 1.3.1
-      '@zkochan/npm-conf': 1.2.1
+      '@zkochan/npm-conf': 1.2.2
       camelcase: 5.0.0
       find-up: 3.0.0
       mos: 2.0.0-alpha.3
@@ -2583,7 +2583,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-0Cp9jV5vUdau9QfET88rOkJ0H9OGri46UM0bdFnDkc6nq2B0nGg76xhr8+kfScSwsBd+kCE0b39bI+9fNk0SWw==
-  /@zkochan/npm-conf/1.2.1:
+  /@zkochan/npm-conf/1.2.2:
     dependencies:
       config-chain: 1.1.12
       pify: 3.0.0
@@ -2591,7 +2591,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-gOi/DytLOuWECjzwcVqiDzGqe4nPmRtxhiIl+PBdv61p+DJBHPKUwqIt/lkxgwhSM/EfuhcMFd3r8q+grNkwsw==
+      integrity: sha512-Fj40JnigzyPGnmj5SX5LQ/R8EKTlrMCYQ8L2ZuRcgNBHVeBLaV6I+JsW37346aPEj0UD6Dq6EiQzWtN7qPHYYA==
   /@zkochan/npm-lifecycle/2.2.0:
     dependencies:
       byline: 5.0.0
