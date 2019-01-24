@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-shrinkwrap",
-  "version": "1.2.0",
+  "version": "2.0.0-0",
   "description": "Filters a shrinkwrap file",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -52,12 +52,12 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/package-is-installable": "1.0.0",
-    "@pnpm/shrinkwrap-types": "1.0.0",
-    "@pnpm/shrinkwrap-utils": "1.1.1",
+    "@pnpm/package-is-installable": "2.0.0-0",
+    "@pnpm/shrinkwrap-types": "2.0.0-0",
+    "@pnpm/shrinkwrap-utils": "2.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/ramda": "0.25.39",
-    "dependency-path": "2.0.1",
+    "dependency-path": "3.0.0-0",
     "ramda": "0.26.1"
   }
 }

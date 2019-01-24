@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "4.0.5",
+  "version": "5.0.0-0",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,12 +39,12 @@
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/read-modules-dir": "1.0.0",
-    "@pnpm/shrinkwrap-file": "1.0.1",
+    "@pnpm/shrinkwrap-file": "2.0.0-0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/node": "10.12.18",
     "@types/semver": "5.5.0",
-    "dependency-path": "2.0.1",
+    "dependency-path": "3.0.0-0",
     "normalize-path": "3.0.0",
     "resolve-link-target": "1.0.1",
     "semver": "5.6.0"

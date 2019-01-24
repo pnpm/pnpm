@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/shrinkwrap-utils",
-  "version": "1.1.1",
+  "version": "2.0.0-0",
   "description": "Utils for dealing with shrinkwrap.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -48,12 +48,12 @@
   },
   "dependencies": {
     "@pnpm/resolver-base": "2.1.0",
-    "@pnpm/shrinkwrap-types": "1.0.0",
+    "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/js-yaml": "3.11.4",
     "@types/node": "10.12.18",
     "@types/ramda": "0.25.39",
-    "dependency-path": "2.0.1",
+    "dependency-path": "3.0.0-0",
     "get-npm-tarball-url": "2.0.1",
     "ramda": "0.26.1"
   }
