@@ -63,6 +63,6 @@
     "read-yaml-file": "1.1.0",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0",
-    "write-file-atomic": "2.3.0"
+    "write-file-atomic": "2.4.2"
   }
 }
