@@ -42,7 +42,7 @@
     "package-preview": "^2.0.0",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
-    "ts-node": "^7.0.0",
+    "ts-node": "^8.0.2",
     "tslint": "^5.8.0",
     "typescript": "^3.0.0"
   },
