@@ -21,7 +21,7 @@
     "config"
   ],
   "engines": {
-    "node": ">=6"
+    "node": ">=8"
   },
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",

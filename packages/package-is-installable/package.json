@@ -15,7 +15,7 @@
   "keywords": [],
   "license": "MIT",
   "engines": {
-    "node": ">=6"
+    "node": ">=8"
   },
   "peerDependencies": {
     "@pnpm/logger": "^2.1.0"

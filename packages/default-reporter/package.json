@@ -27,7 +27,7 @@
     "twitter": "ZoltanKochan"
   },
   "engines": {
-    "node": ">=6"
+    "node": ">=8"
   },
   "license": "MIT",
   "bugs": {

@@ -9,7 +9,7 @@
     "suppressImplicitAnyIndexErrors": true,
     "allowSyntheticDefaultImports": true,
     "strictNullChecks": true,
-    "target": "es6",
+    "target": "es2017",
     "outDir": "lib",
     "module": "commonjs",
     "moduleResolution": "node"
