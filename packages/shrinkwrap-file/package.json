@@ -53,7 +53,7 @@
   "dependencies": {
     "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/types": "2.0.0",
-    "@types/js-yaml": "3.11.4",
+    "@types/js-yaml": "3.12.0",
     "@types/node": "10.12.18",
     "@types/ramda": "0.25.39",
     "js-yaml": "3.12.1",
@@ -63,6 +63,6 @@
     "read-yaml-file": "1.1.0",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0",
-    "write-file-atomic": "2.3.0"
+    "write-file-atomic": "2.4.2"
   }
 }
