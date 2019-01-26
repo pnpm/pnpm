@@ -89,7 +89,7 @@ export default async function run (argv: string[]) {
     'ddd': ['--loglevel', 'silly'],
     'noreg': ['--no-registry'],
     'N': ['--no-registry'],
-    'reg': ['--registry'],
+    'r': ['--recursive'],
     'no-reg': ['--no-registry'],
     'silent': ['--loglevel', 'silent'],
     'verbose': ['--loglevel', 'verbose'],
@@ -216,7 +216,7 @@ export default async function run (argv: string[]) {
       // `pnpm install ""` is going to be just `pnpm install`
       const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
 
-      if (cmd !== 'recursive' && (dashDashFilterUsed || argv.indexOf('--filter') !== -1)) {
+      if (cmd !== 'recursive' && (dashDashFilterUsed || argv.indexOf('--filter') !== -1 || cliConf['recursive'] === true)) {
         subCmd = cmd
         cmd = 'recursive'
         cliArgs.unshift(subCmd)

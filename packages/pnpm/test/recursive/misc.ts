@@ -54,6 +54,58 @@ test('recursive install/uninstall', async (t: tape.Test) => {
   await projects['project-2'].hasNot('is-negative')
 })
 
+test('recursive install using "install -r"', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await execPnpm('install', '-r')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
+test('recursive install using "install --recursive"', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await execPnpm('install', '--recursive')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
 test('recursive install should install in whole workspace even when executed in a subdirectory', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
