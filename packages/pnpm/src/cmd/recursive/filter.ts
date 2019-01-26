@@ -82,32 +82,6 @@ function matchPackagesByPath (
   return R.keys(graph).filter((location) => isSubdir(pathStartsWith, location))
 }
 
-export function filterGraphByScope (
-  graph: PackageGraph,
-  scope: string,
-): PackageGraph {
-  const root = matchPackages(graph, scope)
-  if (!root.length) return {}
-
-  const subgraphNodeIds = new Set()
-  pickSubPkgGraph(graph, root, subgraphNodeIds)
-
-  return R.pick(Array.from(subgraphNodeIds), graph)
-}
-
-function pickSubPkgGraph (
-  graph: PackageGraph,
-  nextNodeIds: string[],
-  walked: Set<string>,
-) {
-  for (const nextNodeId of nextNodeIds) {
-    if (!walked.has(nextNodeId)) {
-      walked.add(nextNodeId)
-      pickSubPkgGraph(graph, graph[nextNodeId].dependencies, walked)
-    }
-  }
-}
-
 function pickSubgraph (
   graph: Graph,
   nextNodeIds: string[],

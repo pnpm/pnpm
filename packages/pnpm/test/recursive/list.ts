@@ -95,7 +95,7 @@ test('recursive list with shared-workspace-shrinkwrap', async (t: tape.Test) => 
   ` + '\n')
 })
 
-test('recursive list --scope', async (t: tape.Test) => {
+test('recursive list --filter', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -127,7 +127,7 @@ test('recursive list --scope', async (t: tape.Test) => {
 
   await execPnpm('recursive', 'install')
 
-  const result = execPnpmSync('recursive', 'list', '--scope', 'project-1')
+  const result = execPnpmSync('recursive', 'list', '--filter', 'project-1...')
 
   t.equal(result.status, 0)
 

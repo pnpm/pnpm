@@ -32,10 +32,7 @@ import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
 import help from '../help'
 import exec from './exec'
-import {
-  filterGraph,
-  filterGraphByScope,
-} from './filter'
+import { filterGraph } from './filter'
 import list from './list'
 import outdated from './outdated'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
@@ -118,10 +115,7 @@ export async function recursive (
 
   const pkgGraphResult = createPkgGraph(allPkgs)
   let pkgs: Array<{path: string, manifest: PackageJson}>
-  if (opts.scope) {
-    pkgGraphResult.graph = filterGraphByScope(pkgGraphResult.graph, opts.scope)
-    pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
-  } else if (opts.packageSelectors && opts.packageSelectors.length) {
+  if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   } else {

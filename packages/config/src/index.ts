@@ -45,7 +45,6 @@ export const types = Object.assign({
   'production': [null, true],
   'protocol': ['auto', 'tcp', 'ipc'],
   'reporter': String,
-  'scope': String,
   'shamefully-flatten': Boolean,
   'shared-workspace-shrinkwrap': Boolean,
   'shrinkwrap-directory': path,

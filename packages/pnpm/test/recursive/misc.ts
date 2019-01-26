@@ -490,7 +490,7 @@ test('second run of `recursive install` after package.json has been edited manua
   t.ok(projects['is-negative'].requireModule('is-positive/package.json'))
 })
 
-test('recursive --scope', async (t: tape.Test) => {
+test('recursive --filter', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -519,14 +519,14 @@ test('recursive --scope', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install', '--scope', 'project-1')
+  await execPnpm('recursive', 'install', '--filter', 'project-1...')
 
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
   projects['project-3'].hasNot('minimatch')
 })
 
-test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
+test('recursive --filter ignore excluded packages', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -562,7 +562,7 @@ test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
     ],
   })
 
-  await execPnpm('recursive', 'install', '--scope', 'project-1')
+  await execPnpm('recursive', 'install', '--filter', 'project-1...')
 
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].hasNot('is-negative')
