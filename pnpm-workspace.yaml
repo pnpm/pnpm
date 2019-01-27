@@ -1,11 +1,10 @@
 packages:
-  - tools/**
   - packages/**
   - privatePackages/**
+  - tools/**
   - utils/**
-  - "!**/test/**"
   - "!**/__package_previews__/**"
-  - "!packages/dependencies-hierarchy/example/**"
+  - "!**/example/**"
+  - "!**/test/**"
   - "!packages/dependencies-hierarchy/fixtures/**"
   - "!packages/dependencies-hierarchy/fixtureWithLinks/**"
-  - "!packages/list/example/**"
