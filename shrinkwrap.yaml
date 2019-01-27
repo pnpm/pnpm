@@ -19,7 +19,7 @@ dependencies:
   unpack-stream: 4.0.0
 devDependencies:
   '@pnpm/logger': 2.1.0
-  '@types/nock': 9.3.0
+  '@types/nock': 9.3.1
   '@types/tape': 4.2.33
   '@types/tempy': 0.2.0
   nock: 10.0.6
@@ -123,12 +123,12 @@ packages:
       '@types/node': 10.12.18
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/nock/9.3.0:
+  /@types/nock/9.3.1:
     dependencies:
       '@types/node': 10.12.18
     dev: true
     resolution:
-      integrity: sha512-ZHf/X8rTQ5Tb1rHjxIJYqm55uO265agE3G7NoSXVa2ep+EcJXgB2fsme+zBvK7MhrxTwkC/xkB6THyv50u0MGw==
+      integrity: sha512-eOVHXS5RnWOjTVhu3deCM/ruy9E6JCgeix2g7wpFiekQh3AaEAK1cz43tZDukKmtSmQnwvSySq7ubijCA32I7Q==
   /@types/node/10.12.18:
     resolution:
       integrity: sha512-fh+pAqt4xRzPfqA6eh3Z2y6fyZavRIumvjhaCL753+TVkGKGhpPeyrJG2JftD0T9q4GF00KjefsQ+PQNDdWQaQ==
@@ -1946,7 +1946,7 @@ specifiers:
   '@types/graceful-fs': ^4.1.2
   '@types/mem': ^1.1.2
   '@types/mz': ^0.0.32
-  '@types/nock': 9.3.0
+  '@types/nock': 9.3.1
   '@types/node': ^9.3.0 || 10
   '@types/retry': ^0.12.0
   '@types/rimraf': ^2.0.2
