@@ -286,7 +286,7 @@ importers:
   packages/fetch-from-npm-registry:
     dependencies:
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       '@zeit/fetch-retry': /@zeit/fetch-retry/3.0.0/node-fetch@2.3.0
       node-fetch: 2.3.0
     devDependencies:
@@ -697,7 +697,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/load-json-file': 2.0.7
       '@types/mem': 1.1.2
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       '@types/semver': 5.5.0
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
@@ -1838,7 +1838,7 @@ importers:
       '@types/graceful-fs': 4.1.2
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       '@types/retry': 0.12.0
       '@types/rimraf': 2.0.2
       credentials-by-uri: 1.0.0
@@ -2039,12 +2039,12 @@ importers:
       write-pkg: 3.2.0
   tools:
     devDependencies:
-      '@commitlint/cli': 7.3.2
+      '@commitlint/cli': 7.4.0
       '@commitlint/config-conventional': 7.3.1
       '@commitlint/prompt-cli': 7.3.1
       husky: 1.3.1
     specifiers:
-      '@commitlint/cli': 7.3.2
+      '@commitlint/cli': 7.4.0
       '@commitlint/config-conventional': 7.3.1
       '@commitlint/prompt-cli': 7.3.1
       husky: 1.3.1
@@ -2061,7 +2061,7 @@ importers:
       tslint-eslint-rules: 5.4.0
       typescript: 3.2.4
 packages:
-  /@commitlint/cli/7.3.2:
+  /@commitlint/cli/7.4.0:
     dependencies:
       '@commitlint/format': 7.4.0
       '@commitlint/lint': 7.4.0
@@ -2079,7 +2079,7 @@ packages:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-QoVayW3kr6/pkWObaCmI6k8O02l/rOJmQIgy5785f6AVbUeHbLOVnh661XMunzAvDX2Cdz4mN+LenhsrLGsaug==
+      integrity: sha512-wwjLX+8dkqgiQgIDcKpwSoYC+vWp/njw+Q0f+TPtSB3KCARmb9A4EWmDzFocYzK1goJT+j472ZG87GqUOHmChg==
   /@commitlint/config-conventional/7.3.1:
     dev: true
     resolution:
@@ -2298,7 +2298,7 @@ packages:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
   /@pnpm/git-fetcher/1.0.1:
     dependencies:
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       dint: 3.0.2
       execa: 1.0.0
       path-temp: 1.0.0
@@ -2311,7 +2311,7 @@ packages:
   /@pnpm/git-resolver/1.0.1:
     dependencies:
       '@pnpm/resolver-base': 2.1.0
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       '@types/semver': 5.5.0
       got: 8.3.2
       graceful-git: 2.0.0
@@ -2350,7 +2350,7 @@ packages:
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/types': 2.0.0
       '@types/graceful-fs': 4.1.2
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       graceful-fs: 4.1.15
       normalize-path: 3.0.0
       ssri: 6.0.1
@@ -2360,7 +2360,7 @@ packages:
       integrity: sha512-I8aRPY//PnFAGF+ndj/UE9iox9zdKv7T4F7wrh3AH19w7JFC2FhHbTRB2AvJaTEygvCzjsamvXNGPLVTe8zfpA==
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       bole: 3.0.2
       ndjson: 1.5.0
     engines:
@@ -2508,7 +2508,7 @@ packages:
       integrity: sha512-0AbIQzpqQafYPFg26nwg5PfNgPLYwHeTP6z5F1u+5oypLIdpx34o5r8wYTTj3X3YYF2yPHtZPO/KYwlI8Nu/hQ==
   /@types/graceful-fs/4.1.2:
     dependencies:
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
     resolution:
       integrity: sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
   /@types/http-proxy-agent/2.0.1:
@@ -2557,13 +2557,16 @@ packages:
       integrity: sha512-TeiJ7uvv/92ugSqZ0v9l0eNXzutlki0aK+R1K5bfA5SYUil46ITlxLW4iNTCf55P4L5weCmaOdtxGeGWvudwPg==
   /@types/nock/9.3.1:
     dependencies:
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
     dev: true
     resolution:
       integrity: sha512-eOVHXS5RnWOjTVhu3deCM/ruy9E6JCgeix2g7wpFiekQh3AaEAK1cz43tZDukKmtSmQnwvSySq7ubijCA32I7Q==
   /@types/node/10.12.18:
     resolution:
       integrity: sha512-fh+pAqt4xRzPfqA6eh3Z2y6fyZavRIumvjhaCL753+TVkGKGhpPeyrJG2JftD0T9q4GF00KjefsQ+PQNDdWQaQ==
+  /@types/node/10.12.19:
+    resolution:
+      integrity: sha512-2NVovndCjJQj6fUUn9jCgpP4WSqr+u1SoUZMZyJkhGeBFsm6dE46l31S7lPUYt9uQ28XI+ibrJA1f5XyH5HNtA==
   /@types/node/8.10.39:
     dev: false
     resolution:
@@ -2901,7 +2904,7 @@ packages:
     dependencies:
       concat-stream: 1.6.2
       graceful-fs: 4.1.15
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       npm-package-arg: 4.2.1
       once: 1.4.0
       request: 2.88.0
@@ -3554,6 +3557,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-Jw8HbFpywC9bZaR9+Uxf46J4iS8=
+  /builtin-modules/3.0.0:
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-hMIeU4K2ilbXV6Uv93ZZ0Avg/M91RaKXucQ+4me2Do1txxBDyDZWCBa5bJSLqoNTRpXTLwEzIk1KmloenDDjhg==
   /builtins/1.0.3:
     dev: false
     resolution:
@@ -5892,10 +5900,18 @@ packages:
   /is-builtin-module/1.0.0:
     dependencies:
       builtin-modules: 1.1.1
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
+  /is-builtin-module/3.0.0:
+    dependencies:
+      builtin-modules: 3.0.0
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-/93sDihsAD652hrMEbJGbMAVBf1qc96kyThHQ0CAOONHaE3aROLpTjDe4WQ5aoC5ITHFxEq1z8XqSU7km+8amw==
   /is-bzip2/1.0.0:
     dev: false
     engines:
@@ -6804,7 +6820,7 @@ packages:
       loud-rejection: 1.6.0
       map-obj: 1.0.1
       minimist: 1.2.0
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       object-assign: 4.1.1
       read-pkg-up: 1.0.1
       redent: 1.0.0
@@ -6821,7 +6837,7 @@ packages:
       loud-rejection: 1.6.0
       minimist: 1.2.0
       minimist-options: 3.0.2
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       read-pkg-up: 3.0.0
       redent: 2.0.0
       trim-newlines: 2.0.0
@@ -6836,7 +6852,7 @@ packages:
       decamelize-keys: 1.1.0
       loud-rejection: 1.6.0
       minimist-options: 3.0.2
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       read-pkg-up: 3.0.0
       redent: 2.0.0
       trim-newlines: 2.0.0
@@ -7426,14 +7442,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-HL6oBKukNgAfg5OKsh7AOdaa6dM=
-  /normalize-package-data/2.4.0:
+  /normalize-package-data/2.4.1:
     dependencies:
       hosted-git-info: 2.7.1
-      is-builtin-module: 1.0.0
+      is-builtin-module: 3.0.0
       semver: 5.6.0
       validate-npm-package-license: 3.0.4
     resolution:
-      integrity: sha512-9jjUFbTPfEy3R/ad/2oNbKtW9Hgovl5O1FvFWKkKblNXoN/Oou6+9+KKohPK13Yc3/TyunyWhJp6gvRNR/PPAw==
+      integrity: sha512-ZVuHxWJv1bopjv/SD5uPhgwUhLqxdJ+SsdUQbGR9HWlXrvnd/C08Cn9Bq48PbvX3y5V97GIpAHpL5Bk9BwChGg==
   /normalize-path/2.0.1:
     dev: true
     engines:
@@ -7871,7 +7887,7 @@ packages:
       integrity: sha1-VjRtR0nXjyNDDKDHE4UK75GqNh0=
   /parse-npm-tarball-url/2.0.0:
     dependencies:
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       semver-regex: 2.0.0
     dev: false
     engines:
@@ -8369,7 +8385,7 @@ packages:
     dependencies:
       glob: 7.1.3
       json-parse-better-errors: 1.0.2
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       slash: 1.0.0
     optionalDependencies:
       graceful-fs: 4.1.15
@@ -8396,7 +8412,7 @@ packages:
   /read-pkg/1.1.0:
     dependencies:
       load-json-file: 1.1.0
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       path-type: 1.1.0
     dev: true
     engines:
@@ -8406,7 +8422,7 @@ packages:
   /read-pkg/3.0.0:
     dependencies:
       load-json-file: 4.0.0
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       path-type: 3.0.0
     dev: true
     engines:
@@ -8415,7 +8431,7 @@ packages:
       integrity: sha1-nLxoaXj+5l0WwA4rGcI3/Pbjg4k=
   /read-pkg/4.0.1:
     dependencies:
-      normalize-package-data: 2.4.0
+      normalize-package-data: 2.4.1
       parse-json: 4.0.0
       pify: 3.0.0
     engines:
@@ -10024,7 +10040,7 @@ packages:
       integrity: sha1-HAgkFQSBvHoB1J6Y8exmjYJBLzs=
   /unpack-stream/4.0.0:
     dependencies:
-      '@types/node': 10.12.18
+      '@types/node': 10.12.19
       decompress-maybe: 1.0.0
       ssri: 6.0.1
       tar-fs: 1.16.3
