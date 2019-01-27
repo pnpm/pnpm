@@ -26,7 +26,7 @@ devDependencies:
   package-preview: 2.0.0
   tape: 4.9.2
   tempy: 0.2.1
-  ts-node: 7.0.1
+  ts-node: 8.0.2
   tslint: 5.12.0
   typescript: 3.2.4
 packages:
@@ -196,6 +196,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Y9J6ZjXtoYh8RnXVCMOU/ttDmk1aBjunq9vO0ta5x85WDQiQfUF9sIPBITdbiiIVcBo03Hi3jMxigBtsddlXRw==
+  /arg/4.1.0:
+    dev: true
+    resolution:
+      integrity: sha512-ZWc51jO3qegGkVh8Hwpv636EkbesNV5ZNQPCtRa+0qytRYPEs9IYT9qITY9buezqUH5uqyzlWLcufrzU2rffdg==
   /argparse/1.0.10:
     dependencies:
       sprintf-js: 1.0.3
@@ -1756,22 +1760,21 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/7.0.1:
+  /ts-node/8.0.2:
     dependencies:
-      arrify: 1.0.1
-      buffer-from: 1.1.1
+      arg: 4.1.0
       diff: 3.5.0
       make-error: 1.3.5
-      minimist: 1.2.0
-      mkdirp: 0.5.1
       source-map-support: 0.5.10
-      yn: 2.0.0
+      yn: 3.0.0
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
+    peerDependencies:
+      typescript: '>=2.0'
     resolution:
-      integrity: sha512-BVwVbPJRspzNh2yfslyT1PSbl5uIk03EZlb493RKHN4qej/D06n1cEhjlOJG69oFsE7OT8XjpTUcYf6pKTLMhw==
+      integrity: sha512-MosTrinKmaAcWgO8tqMjMJB22h+sp3Rd1i4fdoWY4mhBDekOwIAKI/bzmRi7IcbCmjquccYg2gcF6NBkLgr0Tw==
   /tslib/1.9.3:
     dev: true
     resolution:
@@ -1928,12 +1931,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-VCIyR1wJoEBZUqk5PA+oOBF6ypbwh5aNB3I50guxAL/quggdfs4TtNHQrSazFA3fYZ+tEqfs0zIGlv0c/rgjbQ==
-  /yn/2.0.0:
+  /yn/3.0.0:
     dev: true
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
+      integrity: sha512-+Wo/p5VRfxUgBUGy2j/6KX2mj9AYJWOHuhMjMcbBFc3y54o9/4buK1ksBvuiK01C3kby8DH9lSmJdSxw+4G/2Q==
 registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
@@ -1963,7 +1966,7 @@ specifiers:
   ssri: 6.0.1
   tape: 4.9.2
   tempy: 0.2.1
-  ts-node: 7.0.1
+  ts-node: ^8.0.2
   tslint: 5.12.0
   typescript: 3.2.4
   unpack-stream: 4.0.0
