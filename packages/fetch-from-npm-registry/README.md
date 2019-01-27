@@ -2,8 +2,8 @@
 
 > A fetch lib specifically for using with the npm registry
 
-<!--@shields('npm', 'travis')-->
-[![npm version](https://img.shields.io/npm/v/fetch-from-npm-registry.svg)](https://www.npmjs.com/package/fetch-from-npm-registry) [![Build Status](https://img.shields.io/travis/pnpm/fetch-from-npm-registry/master.svg)](https://travis-ci.org/pnpm/fetch-from-npm-registry)
+<!--@shields('npm')-->
+[![npm version](https://img.shields.io/npm/v/fetch-from-npm-registry.svg)](https://www.npmjs.com/package/fetch-from-npm-registry)
 <!--/@-->
 
 ## Installation

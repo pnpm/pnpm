@@ -283,6 +283,32 @@ importers:
       ts-node: ^7.0.0
       tslint: 5.12.1
       typescript: 3.2.4
+  packages/fetch-from-npm-registry:
+    dependencies:
+      '@types/node': 10.12.18
+      make-fetch-happen: 4.0.1
+    devDependencies:
+      '@types/tape': 4.2.33
+      fetch-from-npm-registry: 'link:'
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.3
+      tape: 4.9.2
+      ts-node: /ts-node/8.0.2/typescript@3.2.4
+      tslint: /tslint/5.12.1/typescript@3.2.4
+      typescript: 3.2.4
+    specifiers:
+      '@types/node': ^9.4.4 || 10
+      '@types/tape': ^4.2.31
+      fetch-from-npm-registry: 'link:'
+      make-fetch-happen: ^4.0.0
+      mos: ^2.0.0-alpha.3
+      mos-plugin-readme: ^1.0.4
+      rimraf: ^2.6.2
+      tape: ^4.8.0
+      ts-node: ^8.0.2
+      tslint: ^5.8.0
+      typescript: ^3.0.0
   packages/filter-shrinkwrap:
     dependencies:
       '@pnpm/package-is-installable': 'link:../package-is-installable'
@@ -633,7 +659,7 @@ importers:
       '@types/semver': 5.5.0
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
-      fetch-from-npm-registry: 1.0.0
+      fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       load-json-file: 5.1.0
       mem: 4.0.0
       normalize-path: 3.0.0
@@ -1774,7 +1800,7 @@ importers:
       '@types/retry': 0.12.0
       '@types/rimraf': 2.0.2
       credentials-by-uri: 1.0.0
-      fetch-from-npm-registry: 1.0.0
+      fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       graceful-fs: 4.1.15
       mem: 4.0.0
       mkdirp-promise: 5.0.1
@@ -4902,15 +4928,6 @@ packages:
   /fast-safe-stringify/1.1.13:
     resolution:
       integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
-  /fetch-from-npm-registry/1.0.0:
-    dependencies:
-      '@types/node': 10.12.18
-      make-fetch-happen: 4.0.1
-    dev: false
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-OE2YP41olwhvjOFxaAPzMOK+ZBoMIMqZfyqdmQ7Jaxk9CgKnnDcMr/wcNozumtZzUjavYUhKkI5lD6JK/+ATFg==
   /figgy-pudding/3.5.1:
     resolution:
       integrity: sha512-vNKxJHTEKNThjfrdJwHc7brvM6eVevuO5nTj6ez8ZQ1qbXTvGthucRF7S4vf2cr71QVnT70V34v0S1DyQsti0w==
