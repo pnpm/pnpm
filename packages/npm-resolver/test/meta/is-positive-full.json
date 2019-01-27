@@ -1,0 +1,282 @@
+{
+  "_id": "is-positive",
+  "_rev": "5-5a3199d72f6643f3535f0c300f5050ea",
+  "name": "is-positive",
+  "description": "Check if something is a positive number",
+  "dist-tags": {
+    "latest": "3.1.0"
+  },
+  "versions": {
+    "1.0.0": {
+      "name": "is-positive",
+      "version": "1.0.0",
+      "description": "Test if a number is positive",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kevva/is-positive.git"
+      },
+      "author": {
+        "name": "Kevin Martensson",
+        "email": "kevinmartensson@gmail.com",
+        "url": "github.com/kevva"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "scripts": {
+        "test": "node test.js"
+      },
+      "files": [
+        "index.js"
+      ],
+      "keywords": [
+        "number",
+        "positive",
+        "test"
+      ],
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "gitHead": "1187a61f2e18cf7c11c23d61a1bd52b9fa6a5fdf",
+      "bugs": {
+        "url": "https://github.com/kevva/is-positive/issues"
+      },
+      "homepage": "https://github.com/kevva/is-positive#readme",
+      "_id": "is-positive@1.0.0",
+      "_shasum": "88009856b64a2f1eb7d8bb0179418424ae0452cb",
+      "_from": ".",
+      "_npmVersion": "2.11.1",
+      "_nodeVersion": "2.0.1",
+      "_npmUser": {
+        "name": "kevva",
+        "email": "kevinmartensson@gmail.com"
+      },
+      "maintainers": [
+        {
+          "name": "kevva",
+          "email": "kevinmartensson@gmail.com"
+        }
+      ],
+      "dist": {
+        "shasum": "88009856b64a2f1eb7d8bb0179418424ae0452cb",
+        "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz"
+      },
+      "directories": {}
+    },
+    "2.0.0": {
+      "name": "is-positive",
+      "version": "2.0.0",
+      "description": "Test if a number is positive",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kevva/is-positive.git"
+      },
+      "author": {
+        "name": "Kevin Martensson",
+        "email": "kevinmartensson@gmail.com",
+        "url": "github.com/kevva"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "scripts": {
+        "test": "node test.js"
+      },
+      "files": [
+        "index.js"
+      ],
+      "keywords": [
+        "number",
+        "positive",
+        "test"
+      ],
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "gitHead": "75dd3a181375162eda014984f2decc663199b09e",
+      "bugs": {
+        "url": "https://github.com/kevva/is-positive/issues"
+      },
+      "homepage": "https://github.com/kevva/is-positive#readme",
+      "_id": "is-positive@2.0.0",
+      "_shasum": "b14f06bd2db810ae6c8b12741d136bfaef0d87bd",
+      "_from": ".",
+      "_npmVersion": "2.11.3",
+      "_nodeVersion": "2.3.0",
+      "_npmUser": {
+        "name": "kevva",
+        "email": "kevinmartensson@gmail.com"
+      },
+      "maintainers": [
+        {
+          "name": "kevva",
+          "email": "kevinmartensson@gmail.com"
+        }
+      ],
+      "dist": {
+        "shasum": "b14f06bd2db810ae6c8b12741d136bfaef0d87bd",
+        "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz"
+      },
+      "directories": {}
+    },
+    "3.0.0": {
+      "name": "is-positive",
+      "version": "3.0.0",
+      "description": "Check if something is a positive number",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kevva/is-positive.git"
+      },
+      "author": {
+        "name": "Kevin Martensson",
+        "email": "kevinmartensson@gmail.com",
+        "url": "github.com/kevva"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "scripts": {
+        "test": "node test.js"
+      },
+      "files": [
+        "index.js"
+      ],
+      "keywords": [
+        "number",
+        "positive",
+        "test",
+        "check"
+      ],
+      "devDependencies": {
+        "ava": "^0.0.4"
+      },
+      "gitHead": "16fd36fe96106175d02d066171c44e2ff83bc055",
+      "bugs": {
+        "url": "https://github.com/kevva/is-positive/issues"
+      },
+      "homepage": "https://github.com/kevva/is-positive#readme",
+      "_id": "is-positive@3.0.0",
+      "_shasum": "8ef0ee22f7ce24f7633f8908030ec48b62acf4a3",
+      "_from": ".",
+      "_npmVersion": "3.1.0",
+      "_nodeVersion": "2.3.0",
+      "_npmUser": {
+        "name": "kevva",
+        "email": "kevinmartensson@gmail.com"
+      },
+      "maintainers": [
+        {
+          "name": "kevva",
+          "email": "kevinmartensson@gmail.com"
+        }
+      ],
+      "dist": {
+        "shasum": "8ef0ee22f7ce24f7633f8908030ec48b62acf4a3",
+        "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-3.0.0.tgz"
+      },
+      "directories": {}
+    },
+    "3.1.0": {
+      "name": "is-positive",
+      "version": "3.1.0",
+      "description": "Check if something is a positive number",
+      "license": "MIT",
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kevva/is-positive.git"
+      },
+      "author": {
+        "name": "Kevin Martensson",
+        "email": "kevinmartensson@gmail.com",
+        "url": "github.com/kevva"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      },
+      "scripts": {
+        "test": "xo && ava"
+      },
+      "files": [
+        "index.js"
+      ],
+      "keywords": [
+        "number",
+        "positive",
+        "test",
+        "check"
+      ],
+      "devDependencies": {
+        "ava": "*",
+        "xo": "*"
+      },
+      "gitHead": "c9b30e71d704cd30fa71f2edd1ecc7dcc4985493",
+      "bugs": {
+        "url": "https://github.com/kevva/is-positive/issues"
+      },
+      "homepage": "https://github.com/kevva/is-positive#readme",
+      "_id": "is-positive@3.1.0",
+      "_shasum": "857db584a1ba5d1cb2980527fc3b6c435d37b0fd",
+      "_from": ".",
+      "_npmVersion": "3.3.10",
+      "_nodeVersion": "5.4.0",
+      "_npmUser": {
+        "name": "kevva",
+        "email": "kevinmartensson@gmail.com"
+      },
+      "dist": {
+        "shasum": "857db584a1ba5d1cb2980527fc3b6c435d37b0fd",
+        "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz"
+      },
+      "maintainers": [
+        {
+          "name": "kevva",
+          "email": "kevinmartensson@gmail.com"
+        }
+      ],
+      "directories": {}
+    }
+  },
+  "readme": "# is-positive [![Build Status](https://travis-ci.org/kevva/is-positive.svg?branch=master)](https://travis-ci.org/kevva/is-positive)\n\n> Check if something is a positive number\n\n\n## Install\n\n```\n$ npm install --save is-positive\n```\n\n\n## Usage\n\n```js\nconst isPositive = require('is-positive');\n\nisPositive(1);\n//=> true\n\nisPositive(0);\n//=> false\n\nisPositive(-1);\n//=> false\n\nisPositive('1');\n//=> false\n\nisPositive(Number(1))\n//=> true\n```\n\n_Note: This module doesn't consider `0` to be a positive number and doesn't distinguish between `-0` and `0`. If you want to detect `0`, use the [`positive-zero`](https://github.com/sindresorhus/positive-zero) module._\n\n\n## Related\n\n- [is-negative](https://github.com/kevva/is-negative) - Check if something is a negative number\n\n\n## License\n\nMIT © [Kevin Martensson](http://github.com/kevva)\n",
+  "maintainers": [
+    {
+      "name": "kevva",
+      "email": "kevinmartensson@gmail.com"
+    }
+  ],
+  "time": {
+    "modified": "2017-08-17T19:26:00.508Z",
+    "created": "2015-06-02T12:03:51.069Z",
+    "1.0.0": "2015-06-02T12:03:51.069Z",
+    "2.0.0": "2015-06-17T15:07:34.034Z",
+    "3.0.0": "2015-07-10T09:34:13.029Z",
+    "3.1.0": "2016-01-11T14:34:31.892Z"
+  },
+  "homepage": "https://github.com/kevva/is-positive#readme",
+  "keywords": [
+    "number",
+    "positive",
+    "test",
+    "check"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kevva/is-positive.git"
+  },
+  "author": {
+    "name": "Kevin Martensson",
+    "email": "kevinmartensson@gmail.com",
+    "url": "github.com/kevva"
+  },
+  "bugs": {
+    "url": "https://github.com/kevva/is-positive/issues"
+  },
+  "license": "MIT",
+  "readmeFilename": "readme.md",
+  "users": {
+    "rocket0191": true
+  },
+  "_attachments": {}
+}
