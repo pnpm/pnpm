@@ -10,26 +10,23 @@
   "scripts": {
     "prepublishOnly": "npm run tsc",
     "tsc": "rimraf lib && tsc",
-    "test": "preview && ts-node test && node example"
+    "test": "pnpm run tsc && ts-node test && node example"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/tarball-fetcher.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/tarball-fetcher",
   "keywords": [
     "pnpm",
     "fetcher",
     "tarball"
   ],
   "engines": {
-    "node": ">=6"
+    "node": ">=8"
   },
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/tarball-fetcher/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/tarball-fetcher#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/tarball-fetcher#readme",
   "peerDependencies": {
     "@pnpm/logger": "^2.1.0"
   },
@@ -55,11 +52,11 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
+    "@pnpm/tarball-fetcher": "link:",
     "@types/nock": "9.3.1",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "nock": "10.0.6",
-    "package-preview": "2.0.0",
     "tape": "4.9.2",
     "tempy": "0.2.1",
     "ts-node": "8.0.2",
