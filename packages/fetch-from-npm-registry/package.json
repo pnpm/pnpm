@@ -29,8 +29,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch-from-npm-registry#readme",
   "dependencies": {
+    "@pnpm/npm-registry-agent": "0.0.0",
     "@types/node": "^9.4.4 || 10",
-    "make-fetch-happen": "^4.0.0"
+    "@zeit/fetch-retry": "3.0.0",
+    "node-fetch": "2.3.0"
   },
   "devDependencies": {
     "@types/tape": "^4.2.31",

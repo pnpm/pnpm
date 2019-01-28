@@ -1,4 +1,10 @@
-import makeFetchHappen = require('make-fetch-happen')
+import npmRegistryAgent from '@pnpm/npm-registry-agent'
+import createFetchRetry = require('@zeit/fetch-retry')
+import nodeFetch = require('node-fetch')
+
+const USER_AGENT = 'pnpm' // `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
+
+const fetch = createFetchRetry(nodeFetch)
 
 const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'
@@ -36,26 +42,29 @@ export default function (
     userAgent?: string,
   },
 ) {
-  const fetch = makeFetchHappen.defaults({
-    ca: defaultOpts.ca,
-    cacheManager: null,
-    cert: defaultOpts.cert,
-    key: defaultOpts.key,
-    localAddress: defaultOpts.localAddress,
-    proxy: defaultOpts.proxy,
-    retry: defaultOpts.retry,
-    strictSSL: defaultOpts.strictSSL,
-  })
-
   return (url: string, opts?: {auth?: Auth}) => {
-    const fetchOpts = {
-      headers: getHeaders({
+    const agent = npmRegistryAgent(url, {
+      ...defaultOpts,
+      ...opts,
+    } as any) // tslint:disable-line
+    const headers = {
+      'connection': agent ? 'keep-alive' : 'close',
+      'user-agent': USER_AGENT,
+      ...getHeaders({
         auth: opts && opts.auth,
         fullMetadata: defaultOpts.fullMetadata,
         userAgent: defaultOpts.userAgent,
       }),
     }
-    return fetch(url, fetchOpts)
+
+    return fetch(url, {
+      agent,
+      // if verifying integrity, node-fetch must not decompress
+      compress: false,
+      headers,
+      redirect: 'follow',
+      retry: defaultOpts.retry,
+    })
   }
 }
 
