@@ -655,18 +655,42 @@ importers:
       write-yaml-file: 2.0.0
   packages/npm-registry-agent:
     dependencies:
+      '@types/http-proxy-agent': 2.0.1
+      '@types/lru-cache': 4.1.1
+      '@types/node': 10.12.18
       agentkeepalive: 4.0.0
+      http-proxy-agent: 2.1.0
       https-proxy-agent: 2.2.1
       lru-cache: 5.1.1
+      socks-proxy-agent: 4.0.1
     devDependencies:
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/proxyquire': 1.3.28
+      '@types/tape': 4.2.33
       proxyquire: 2.1.0
+      rimraf: 2.6.3
       tape: 4.9.2
+      ts-node: /ts-node/8.0.2/typescript@3.2.4
+      tslint: /tslint/5.12.1/typescript@3.2.4
+      typescript: 3.2.4
     specifiers:
-      agentkeepalive: ^4.0.0
-      https-proxy-agent: ^2.2.1
-      lru-cache: ^5.1.1
+      '@pnpm/tslint-config': 0.0.0
+      '@types/http-proxy-agent': 2.0.1
+      '@types/lru-cache': 4.1.1
+      '@types/node': 10.12.18
+      '@types/proxyquire': 1.3.28
+      '@types/tape': 4.2.33
+      agentkeepalive: 4.0.0
+      http-proxy-agent: 2.1.0
+      https-proxy-agent: 2.2.1
+      lru-cache: 5.1.1
       proxyquire: 2.1.0
-      tape: ^4.9.2
+      rimraf: 2.6.3
+      socks-proxy-agent: 4.0.1
+      tape: 4.9.2
+      ts-node: 8.0.2
+      tslint: 5.12.1
+      typescript: 3.2.4
   packages/npm-resolver:
     dependencies:
       '@pnpm/resolver-base': 2.1.0
@@ -2487,6 +2511,12 @@ packages:
       '@types/node': 10.12.18
     resolution:
       integrity: sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
+  /@types/http-proxy-agent/2.0.1:
+    dependencies:
+      '@types/node': 10.12.18
+    dev: false
+    resolution:
+      integrity: sha512-dgsgbsgI3t+ZkdzF9H19uBaLsurIZJJjJsVpj4mCLp8B6YghQ7jVwyqhaL0PcVtuC3nOi0ZBhAi2Dd9jCUwdFA==
   /@types/is-windows/0.2.0:
     dev: true
     resolution:
@@ -2576,6 +2606,10 @@ packages:
   /@types/path-exists/3.0.0:
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
+  /@types/proxyquire/1.3.28:
+    dev: true
+    resolution:
+      integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.25.34:
     resolution:
       integrity: sha512-KWyRl3qPe2NILs0s5sNHaHVB8zzSvw57JMKF1AzWTMuPZ7MM7MdVNr10UBCRzFWf7wvq7H9tygmjdSzymaq1jA==
@@ -4341,6 +4375,12 @@ packages:
       ms: 2.0.0
     resolution:
       integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==
+  /debug/3.1.0:
+    dependencies:
+      ms: 2.0.0
+    dev: false
+    resolution:
+      integrity: sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
   /debug/3.2.6:
     dependencies:
       ms: 2.1.1
@@ -5617,6 +5657,15 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-i1VoC7S+KDoLW/TqLjhYC+HZMg0=
+  /http-proxy-agent/2.1.0:
+    dependencies:
+      agent-base: 4.2.1
+      debug: 3.1.0
+    dev: false
+    engines:
+      node: '>= 4.5.0'
+    resolution:
+      integrity: sha512-qwHbBLV7WviBl0rQsOzH6o5lwyOIvwp/BdFnvVxXORldu5TmjFfjzBcWUWS5kWAZhmv+JtiDhSuQCp4sBfbIgg==
   /http-signature/1.2.0:
     dependencies:
       assert-plus: 1.0.0
@@ -5797,6 +5846,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-wPVv/y/QQ/Uiirj/vh3oP+1Ww+AWehmi1g5fFWGPF6IpCBCDVrhgHRMvrLfdYcwDh3QJbGXDW4JAuzxElLSqKA==
+  /ip/1.1.5:
+    dev: false
+    resolution:
+      integrity: sha1-vd7XARQpCCjAoDnnLvJfWq7ENUo=
   /ipaddr.js/1.8.0:
     dev: true
     engines:
@@ -9003,6 +9056,13 @@ packages:
   /slide/1.1.6:
     resolution:
       integrity: sha1-VusCfWW00tzmyy4tMsTUr8nh1wc=
+  /smart-buffer/4.0.2:
+    dev: false
+    engines:
+      node: '>= 4.0.0'
+      npm: '>= 3.0.0'
+    resolution:
+      integrity: sha512-JDhEpTKzXusOqXZ0BUIdH+CjFdO/CR3tLlf5CN34IypI+xMmXW1uB16OOY8z3cICbJlDAVJzNbwBhNO0wt9OAw==
   /snapdragon-node/2.1.1:
     dependencies:
       define-property: 1.0.0
@@ -9036,6 +9096,25 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-FtyOnWN/wCHTVXOMwvSv26d+ko5vWlIDD6zoUJ7LW8vh+ZBC8QdljveRP+crNrtBwioEUWy/4dMtbBjA4ioNlg==
+  /socks-proxy-agent/4.0.1:
+    dependencies:
+      agent-base: 4.2.1
+      socks: 2.2.3
+    dev: false
+    engines:
+      node: '>= 6'
+    resolution:
+      integrity: sha512-Kezx6/VBguXOsEe5oU3lXYyKMi4+gva72TwJ7pQY5JfqUx2nMk7NXA6z/mpNqIlfQjWYVfeuNvQjexiTaTn6Nw==
+  /socks/2.2.3:
+    dependencies:
+      ip: 1.1.5
+      smart-buffer: 4.0.2
+    dev: false
+    engines:
+      node: '>= 6.0.0'
+      npm: '>= 3.0.0'
+    resolution:
+      integrity: sha512-+2r83WaRT3PXYoO/1z+RDEBE7Z2f9YcdQnJ0K/ncXXbV5gJ6wYfNAebYFYiiUjM6E4JyXnPY8cimwyvFYHVUUA==
   /sort-keys/1.1.2:
     dependencies:
       is-plain-obj: 1.1.0
