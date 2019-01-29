@@ -2,7 +2,7 @@ import npmRegistryAgent from '@pnpm/npm-registry-agent'
 import createFetchRetry = require('@zeit/fetch-retry')
 import nodeFetch = require('node-fetch')
 
-const USER_AGENT = 'pnpm' // `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
+const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
 const fetch = createFetchRetry(nodeFetch)
 
