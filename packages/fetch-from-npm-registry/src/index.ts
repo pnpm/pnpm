@@ -14,11 +14,11 @@ export type Auth = (
   {username: string, password: string} |
   {_auth: string}
 ) & {
-    token?: string,
-    username?: string,
-    password?: string,
-    _auth?: string,
-  }
+  token?: string,
+  username?: string,
+  password?: string,
+  _auth?: string,
+}
 
 export default function (
   defaultOpts: {

@@ -1,5 +1,5 @@
-import test = require('tape')
 import createRegClient from 'fetch-from-npm-registry'
+import test = require('tape')
 
 test('fetchFromNpmRegistry', async t => {
   const fetchFromNpmRegistry = createRegClient({})
@@ -11,7 +11,7 @@ test('fetchFromNpmRegistry', async t => {
 })
 
 test('fetchFromNpmRegistry fullMetadata', async t => {
-  const fetchFromNpmRegistry = createRegClient({fullMetadata: true})
+  const fetchFromNpmRegistry = createRegClient({ fullMetadata: true })
   const res = await fetchFromNpmRegistry('https://registry.npmjs.org/is-positive')
   const metadata = await res.json()
   t.equal(metadata.name, 'is-positive')

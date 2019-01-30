@@ -2,7 +2,7 @@ import {
   LocalPackages,
   ResolveResult,
 } from '@pnpm/resolver-base'
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
@@ -54,16 +54,16 @@ export default function createResolver (
     fetchRetryMaxtimeout?: number,
   },
 ) {
-  if (typeof opts.rawNpmConfig !== 'object') {
+  if (typeof opts.rawNpmConfig !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.rawNpmConfig` is required and needs to be an object')
   }
   if (typeof opts.rawNpmConfig['registry'] !== 'string') { // tslint:disable-line
     throw new TypeError('`opts.rawNpmConfig.registry` is required and needs to be a string')
   }
-  if (typeof opts.metaCache !== 'object') {
+  if (typeof opts.metaCache !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.metaCache` is required and needs to be an object')
   }
-  if (typeof opts.store !== 'string') {
+  if (typeof opts.store !== 'string') { // tslint:disable-line
     throw new TypeError('`opts.store` is required and needs to be a string')
   }
   const fetch = createRegFetcher({

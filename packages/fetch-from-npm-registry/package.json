@@ -11,7 +11,7 @@
     "node": ">=8"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "test": "npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "md": "mos",
@@ -35,6 +35,7 @@
     "node-fetch": "2.3.0"
   },
   "devDependencies": {
+    "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "^4.2.31",
     "fetch-from-npm-registry": "link:",
     "mos": "^2.0.0-alpha.3",

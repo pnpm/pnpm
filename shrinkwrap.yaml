@@ -290,6 +290,7 @@ importers:
       '@zeit/fetch-retry': /@zeit/fetch-retry/3.0.0/node-fetch@2.3.0
       node-fetch: 2.3.0
     devDependencies:
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       fetch-from-npm-registry: 'link:'
       mos: 2.0.0-alpha.3
@@ -301,6 +302,7 @@ importers:
       typescript: 3.2.4
     specifiers:
       '@pnpm/npm-registry-agent': 0.0.0
+      '@pnpm/tslint-config': 0.0.0
       '@types/node': ^9.4.4 || 10
       '@types/tape': ^4.2.31
       '@zeit/fetch-retry': 3.0.0
@@ -714,6 +716,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:'
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/nock': 9.3.1
       '@types/path-exists': 3.0.0
       '@types/tape': 4.2.33
@@ -732,6 +735,7 @@ importers:
       '@pnpm/logger': ^2.0.1
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolver-base': ^2.0.0
+      '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': ^2.0.0
       '@types/load-json-file': ^2.0.7
       '@types/mem': ^1.1.2
@@ -1855,6 +1859,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/tarball-fetcher': 'link:'
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/nock': 9.3.1
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
@@ -1868,6 +1873,7 @@ importers:
       '@pnpm/fetcher-base': ^2.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/tarball-fetcher': 'link:'
+      '@pnpm/tslint-config': 0.0.0
       '@types/graceful-fs': ^4.1.2
       '@types/mem': ^1.1.2
       '@types/mz': ^0.0.32

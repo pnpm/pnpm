@@ -1,6 +1,6 @@
 import semver = require('semver')
 import { RegistryPackageSpec } from './parsePref'
-import {PackageInRegistry, PackageMeta} from './pickPackage'
+import { PackageInRegistry, PackageMeta } from './pickPackage'
 
 export default function (
   spec: RegistryPackageSpec,

@@ -1,12 +1,12 @@
 import logger from '@pnpm/logger'
-import {PackageManifest} from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
 import loadJsonFile from 'load-json-file'
 import pLimit = require('p-limit')
 import path = require('path')
 import url = require('url')
 import writeJsonFile from 'write-json-file'
-import {RegistryPackageSpec} from './parsePref'
+import { RegistryPackageSpec } from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
 
@@ -130,7 +130,7 @@ export default async (
     const meta = await loadMeta(pkgMirror, ctx.metaFileName) // TODO: add test for this usecase
     if (!meta) throw err
     logger.error(err)
-    logger.debug({message: `Using cached meta from ${pkgMirror}`})
+    logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {
       meta,
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
@@ -145,7 +145,7 @@ async function fromRegistry (
   auth: object,
 ) {
   const uri = toUri(pkgName, registry)
-  const res = await fetch(uri, {auth}) as {
+  const res = await fetch(uri, { auth }) as {
     status: number,
     statusText: string,
     json: () => Promise<PackageMeta>,
@@ -160,7 +160,7 @@ async function fromRegistry (
     // tslint:enable
     throw err
   }
-  return await res.json()
+  return res.json()
 }
 
 async function loadMeta (pkgMirror: string, metaFileName: string): Promise<PackageMeta | null> {

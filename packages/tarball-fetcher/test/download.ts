@@ -1,26 +1,26 @@
 ///<reference path="../typings/index.d.ts" />
+import { LogBase, streamParser } from '@pnpm/logger'
+import createFetcher from '@pnpm/tarball-fetcher'
 import { existsSync } from 'fs'
 import fs = require('mz/fs')
-import test = require('tape')
 import nock = require('nock')
-import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
-import tempy = require('tempy')
-import { streamParser, LogBase } from '@pnpm/logger'
 import ssri = require('ssri')
+import test = require('tape')
+import tempy = require('tempy')
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com/'
 const fetch = createFetcher({
-  registry,
+  fetchRetries: 1,
+  fetchRetryMaxtimeout: 100,
+  fetchRetryMintimeout: 0,
   rawNpmConfig: {
     registry,
   },
-  fetchRetries: 1,
-  fetchRetryMintimeout: 0,
-  fetchRetryMaxtimeout: 100,
+  registry,
 })
 
 test('fail when tarball size does not match content-length', async t => {
@@ -48,8 +48,8 @@ test('fail when tarball size does not match content-length', async t => {
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
       pkgId: 'registry.npmjs.org/foo/1.0.0',
+      prefix: process.cwd(),
     })
     t.fail('should have failed')
   } catch (err) {
@@ -88,8 +88,8 @@ test('retry when tarball size does not match content-length', async t => {
 
   const result = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
     pkgId: 'registry.npmjs.org/foo/1.0.0',
+    prefix: process.cwd(),
   })
 
   t.equal(typeof result.tempLocation, 'string')
@@ -134,8 +134,8 @@ test('redownload incomplete cached tarballs', async t => {
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
       pkgId: 'registry.npmjs.org/foo/1.0.0',
+      prefix: process.cwd(),
     })
   } catch (err) {
     nock.cleanAll()
@@ -161,15 +161,15 @@ test('fail when integrity check fails two times in a row', async t => {
   const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
-    tarball: 'http://example.com/foo.tgz',
     integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
   }
 
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
       pkgId: 'registry.npmjs.org/foo/1.0.0',
+      prefix: process.cwd(),
     })
     t.fail('should have failed')
   } catch (err) {
@@ -201,15 +201,15 @@ test('retry when integrity check fails', async t => {
   const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
-    tarball: 'http://example.com/foo.tgz',
     integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
   }
 
-  const params: any = []
+  const params: Array<[number | null, number]> = []
   await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
     pkgId: 'registry.npmjs.org/foo/1.0.0',
+    prefix: process.cwd(),
     onStart (size, attempts) {
       params.push([size, attempts])
     },
@@ -231,16 +231,16 @@ test('fail when integrity check of local file fails', async (t) => {
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
   const resolution = {
-    tarball: `file:${tarball}`,
     integrity: tarballIntegrity,
+    tarball: `file:${tarball}`,
   }
 
   let err: Error | null = null
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
       pkgId: `file:${tarball}`,
+      prefix: process.cwd(),
     })
   } catch (_err) {
     err = _err
@@ -265,14 +265,14 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
   const resolution = {
-    tarball: `file:${tarball}`,
     integrity: await getFileIntegrity(tarballAbsoluteLocation),
+    tarball: `file:${tarball}`,
   }
 
   const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
     pkgId: `file:${tarball}`,
+    prefix: process.cwd(),
   })
 
   t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
@@ -296,14 +296,14 @@ test('retry on server error', async t => {
   const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
-    tarball: 'http://example.com/foo.tgz',
     integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
   }
 
   const index = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
     pkgId: 'registry.npmjs.org/foo/1.0.0',
+    prefix: process.cwd(),
   })
 
   t.ok(index)
@@ -323,15 +323,15 @@ test('throw error when accessing private package w/o authorization', async t => 
   const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
-    tarball: 'http://example.com/foo.tgz',
     integrity: tarballIntegrity,
+    tarball: 'http://example.com/foo.tgz',
   }
 
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
       pkgId: 'registry.npmjs.org/foo/1.0.0',
+      prefix: process.cwd(),
     })
     t.fail('should have failed')
   } catch (err) {
@@ -363,28 +363,28 @@ test('accessing private packages', async t => {
 
   const fetch = createFetcher({
     alwaysAuth: true,
-    registry,
-    rawNpmConfig: {
-      registry,
-      '//example.com/:_authToken': 'ofjergrg349gj3f2',
-    },
     fetchRetries: 1,
-    fetchRetryMintimeout: 0,
     fetchRetryMaxtimeout: 100,
+    fetchRetryMintimeout: 0,
+    rawNpmConfig: {
+      '//example.com/:_authToken': 'ofjergrg349gj3f2',
+      registry,
+    },
+    registry,
   })
 
   const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
+    integrity: tarballIntegrity,
     registry,
     tarball: 'http://example.com/foo.tgz',
-    integrity: tarballIntegrity,
   }
 
   const index = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
     pkgId: 'registry.npmjs.org/foo/1.0.0',
+    prefix: process.cwd(),
   })
 
   t.ok(index)

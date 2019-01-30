@@ -11,7 +11,7 @@
     "node": ">=8"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "test": "rimraf .store && npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "md": "mos",
@@ -53,8 +53,9 @@
     "write-json-file": "3.0.2"
   },
   "devDependencies": {
-    "@pnpm/npm-resolver": "link:",
     "@pnpm/logger": "^2.0.1",
+    "@pnpm/npm-resolver": "link:",
+    "@pnpm/tslint-config": "0.0.0",
     "@types/nock": "^9.1.1",
     "@types/path-exists": "^3.0.0",
     "@types/tape": "^4.2.31",
