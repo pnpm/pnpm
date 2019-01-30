@@ -187,7 +187,7 @@ test('adding a new dev dependency to project that uses a shared shrinkwrap', asy
   const pkg = await readPkg({ cwd: 'project-1' })
 
   t.deepEqual(pkg.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
-  t.deepEqual(pkg.devDependencies, { 'is-negative': '^1.0.0' }, 'dev deps have a new dependency in package.json')
+  t.deepEqual(pkg.devDependencies, { 'is-negative': '1.0.0' }, 'dev deps have a new dependency in package.json')
 })
 
 test('headless install is used when package link to another package in the workspace', async (t) => {

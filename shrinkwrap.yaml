@@ -1654,6 +1654,7 @@ importers:
       symlink-dir: 2.0.2
       util.promisify: 1.0.0
       validate-npm-package-name: 3.0.0
+      version-selector-type: 2.0.0
       write-pkg: 3.2.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1803,6 +1804,7 @@ importers:
       typescript: 3.2.4
       util.promisify: 1.0.0
       validate-npm-package-name: 3.0.0
+      version-selector-type: 2.0.0
       write-json-file: 3.0.2
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0

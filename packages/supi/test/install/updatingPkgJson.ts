@@ -17,7 +17,7 @@ const testOnly = promisifyTape(tape.only)
 
 test('save to package.json (rimraf@2.5.1)', async (t) => {
   const project = prepare(t)
-  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['rimraf@^2.5.1'], await testDefaults({ save: true }))
 
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
@@ -214,8 +214,8 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 
 test('save to package.json with save prefix ~', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ pinnedVersion: 'minor' }))
+  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, { rimraf: '~2.5.1' }, 'rimraf have been added to dependencies')
+  t.deepEqual(pkgJson.dependencies, { 'pkg-with-1-dep': '~100.0.0' }, 'rimraf have been added to dependencies')
 })

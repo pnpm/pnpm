@@ -121,3 +121,15 @@ test('install --save-exact', async (t: tape.Test) => {
 
   t.deepEqual(pkg.devDependencies, { 'is-positive': '3.1.0' })
 })
+
+test('install save new dep with the specified spec', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive@~3.1.0')
+
+  await project.has('is-positive')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+
+  t.deepEqual(pkg.dependencies, { 'is-positive': '~3.1.0' })
+})

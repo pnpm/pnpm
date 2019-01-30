@@ -43,7 +43,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   t.ok(reporter.calledWithMatch({
     initial: {
       dependencies: {
-        'is-negative': '^2.1.0',
+        'is-negative': '2.1.0',
       },
       name: 'project',
       version: '0.0.0',
@@ -148,14 +148,14 @@ test('uninstall package with dependencies and do not touch other deps', async (t
   await project.has('is-negative')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, { 'is-negative': '^2.1.0' }, 'camelcase-keys has been removed from dependencies')
+  t.deepEqual(pkgJson.dependencies, { 'is-negative': '2.1.0' }, 'camelcase-keys has been removed from dependencies')
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(shr.dependencies, {
     'is-negative': '2.1.0',
   }, 'camelcase-keys removed from shrinkwrap dependencies')
   t.deepEqual(shr.specifiers, {
-    'is-negative': '^2.1.0',
+    'is-negative': '2.1.0',
   }, 'camelcase-keys removed from shrinkwrap specifiers')
 })
 
