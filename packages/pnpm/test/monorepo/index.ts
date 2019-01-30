@@ -445,7 +445,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   const storeJson = await loadJsonFile<object>(path.resolve('store', '2', 'store.json'))
   t.deepEqual(storeJson['localhost+4873/is-negative/1.0.0'].length, 1, 'new connections saved in store.json')
 
-  await execPnpm('recursive', 'install', 'pkg-with-1-dep@100.0.0', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
+  await execPnpm('recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('is-positive'))
@@ -882,8 +882,8 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
         'bar': 'link:../bar',
       },
       specifiers: {
-        'ajv': '^4.10.4',
-        'ajv-keywords': '^1.5.0',
+        'ajv': '4.10.4',
+        'ajv-keywords': '1.5.0',
         'bar': '1.0.0',
       },
     })
@@ -899,7 +899,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
         'bar': 'link:../bar',
       },
       specifiers: {
-        'ajv-keywords': '^1.5.0',
+        'ajv-keywords': '1.5.0',
         'bar': '1.0.0',
       },
     })

@@ -707,6 +707,7 @@ async function installInContext (
             name: dep.alias,
             pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
               pinnedVersion: importer.pinnedVersion,
+              rawSpec: dep.specRaw,
             }),
             saveType: importer.targetDependenciesField,
           }

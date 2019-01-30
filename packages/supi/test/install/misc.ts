@@ -150,7 +150,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     name: 'pnpm:package-json',
     updated: {
       dependencies: {
-        lodash: '^4.0.0',
+        lodash: '4.0.0',
       },
       name: 'project',
       version: '0.0.0',
@@ -877,7 +877,7 @@ test('create a package.json if there is none', async (t: tape.Test) => {
 
   t.deepEqual(await readPkg({ normalize: false }), {
     dependencies: {
-      'dep-of-pkg-with-1-dep': '^100.1.0',
+      'dep-of-pkg-with-1-dep': '100.1.0',
     },
   }, 'package.json created')
 })

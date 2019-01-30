@@ -46,7 +46,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
     },
     shrinkwrapVersion: 5,
     specifiers: {
-      negative: 'npm:is-negative@^1.0.0',
+      negative: 'npm:is-negative@1.0.0',
       positive: 'npm:is-positive@^3.1.0',
     },
   }, 'correct shrinkwrap.yaml')
