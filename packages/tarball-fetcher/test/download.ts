@@ -83,7 +83,7 @@ test('retry when tarball size does not match content-length', async t => {
   t.comment(`testing in ${process.cwd()}`)
 
   const unpackTo = path.resolve('unpacked')
-  const cachedTarballLocation = path.resolve('cached')
+  const cachedTarballLocation = path.resolve('cached.tgz')
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
   const result = await fetch.tarball(resolution, unpackTo, {
@@ -93,9 +93,14 @@ test('retry when tarball size does not match content-length', async t => {
   })
 
   t.equal(typeof result.tempLocation, 'string')
-  t.ok(existsSync(cachedTarballLocation), 'tarball saved') // it is actually not a big issue if the tarball is not there
-  t.ok(nock.isDone())
-  t.end()
+
+  // fetch.tarball() doesn't wait till the cached tarball is renamed.
+  // So this may happen a bit later
+  setTimeout(() => {
+    t.ok(existsSync(cachedTarballLocation), 'tarball saved') // it is actually not a big issue if the tarball is not there
+    t.ok(nock.isDone())
+    t.end()
+  }, 100)
 })
 
 test('redownload incomplete cached tarballs', async t => {
