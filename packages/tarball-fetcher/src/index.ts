@@ -1,18 +1,18 @@
-import { storeLogger } from '@pnpm/logger'
 import {
   FetchFunction,
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
+import { storeLogger } from '@pnpm/logger'
 import getCredentialsByURI = require('credentials-by-uri')
 import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')
+import pathTemp = require('path-temp')
+import ssri = require('ssri')
 import * as unpackStream from 'unpack-stream'
 import createDownloader, { DownloadFunction } from './createDownloader'
-import pathTemp = require('path-temp')
 import { PnpmError } from './errorTypes'
-import ssri = require('ssri')
 
 export type IgnoreFunction = (filename: string) => boolean
 
@@ -39,12 +39,12 @@ export default function (
 ): { tarball: FetchFunction } {
   const download = createDownloader({
     alwaysAuth: opts.alwaysAuth || false,
-    registry: opts.registry,
     ca: opts.ca,
     cert: opts.cert,
     key: opts.key,
     localAddress: opts.localAddress,
     proxy: opts.httpsProxy || opts.proxy,
+    registry: opts.registry,
     retry: {
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
@@ -62,9 +62,9 @@ export default function (
     tarball: fetchFromTarball.bind(null, {
       fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
         download,
+        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
         ignoreFile: opts.ignoreFile,
         offline: opts.offline,
-        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
       }),
       ignore: opts.ignoreFile,
     }),
@@ -133,7 +133,7 @@ async function fetchFromRemoteTarball (
     // ignore errors for missing files or broken/partial archives
     switch (err.code) {
       case 'Z_BUF_ERROR':
-        storeLogger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`);
+        storeLogger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`)
         break
       case 'ENOENT':
         break
@@ -145,7 +145,7 @@ async function fetchFromRemoteTarball (
       throw new PnpmError('ERR_PNPM_NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
     }
     const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
-    return await ctx.download(dist.tarball, opts.cachedTarballLocation, {
+    return ctx.download(dist.tarball, opts.cachedTarballLocation, {
       auth,
       ignore: ctx.ignoreFile,
       integrity: dist.integrity,
@@ -178,7 +178,7 @@ async function fetchFromLocalTarball (
       ),
       opts.integrity && ssri.checkStream(tarballStream, opts.integrity),
     ]))[0]
-    return {filesIndex, tempLocation}
+    return { filesIndex, tempLocation }
   } catch (err) {
     err.attempts = 1
     err.resource = tarball

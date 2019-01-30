@@ -1,7 +1,7 @@
-import {FetchResult} from '@pnpm/fetcher-base'
+import { FetchResult } from '@pnpm/fetcher-base'
 import createFetcher from 'fetch-from-npm-registry'
 import fs = require('graceful-fs')
-import {IncomingMessage} from 'http'
+import { IncomingMessage } from 'http'
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import pathTemp = require('path-temp')
@@ -10,7 +10,7 @@ import rimraf = require('rimraf')
 import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
 import urlLib = require('url')
-import {BadTarballError} from './errorTypes'
+import { BadTarballError } from './errorTypes'
 
 export interface HttpResponse {
   body: string
@@ -66,10 +66,10 @@ export default (
   const fetchFromNpmRegistry = createFetcher(gotOpts)
 
   const retryOpts = {
-    retries: 2,
     factor: 10,
-    minTimeout: 1e4, // 10 seconds
     maxTimeout: 6e4, // 1 minute
+    minTimeout: 1e4, // 10 seconds
+    retries: 2,
     ...gotOpts.retry
   }
 
@@ -158,34 +158,34 @@ export default (
             .pipe(writeStream)
             .on('error', reject)
 
-            const tempLocation = pathTemp(opts.unpackTo)
-            Promise.all([
-              opts.integrity && safeCheckStream(res.body, opts.integrity) || true,
-              unpackStream.local(res.body, tempLocation, {
-                generateIntegrity: opts.generatePackageIntegrity,
-                ignore: opts.ignore,
-              }),
-              waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
-            ])
-            .then(([integrityCheckResult, filesIndex]) => {
-              if (integrityCheckResult !== true) {
-                throw integrityCheckResult
-              }
-              fs.rename(tempTarballLocation, saveto, (err) => {
-                // ignore
-              })
-              resolve({ tempLocation, filesIndex })
+          const tempLocation = pathTemp(opts.unpackTo)
+          Promise.all([
+            opts.integrity && safeCheckStream(res.body, opts.integrity) || true,
+            unpackStream.local(res.body, tempLocation, {
+              generateIntegrity: opts.generatePackageIntegrity,
+              ignore: opts.ignore,
+            }),
+            waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
+          ])
+          .then(([integrityCheckResult, filesIndex]) => {
+            if (integrityCheckResult !== true) {
+              throw integrityCheckResult
+            }
+            fs.rename(tempTarballLocation, saveto, () => {
+              // ignore errors
             })
-            .catch((err) => {
-              rimraf(tempTarballLocation, (err) => {
-                // ignore
-              })
-              rimraf(tempLocation, (err) => {
-                // Just ignoring this error
-                // A redundant stage folder won't break anything
-              })
-              reject(err)
+            resolve({ tempLocation, filesIndex })
+          })
+          .catch((err) => {
+            rimraf(tempTarballLocation, () => {
+              // ignore errors
             })
+            rimraf(tempLocation, () => {
+              // Just ignoring this error
+              // A redundant stage folder won't break anything
+            })
+            reject(err)
+          })
         })
       } catch (err) {
         err.attempts = currentAttempt
@@ -196,7 +196,7 @@ export default (
   }
 }
 
-async function safeCheckStream (stream: any, integrity: string): Promise<true | Error> { // tslint:disable-line:any
+async function safeCheckStream (stream: any, integrity: string): Promise<true | Error> { // tslint:disable-line:no-any
   try {
     await ssri.checkStream(stream, integrity)
     return true
