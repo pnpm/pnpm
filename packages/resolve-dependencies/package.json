@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "5.0.0-0",
+  "version": "5.0.0-1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "2.0.0",
-    "@pnpm/npm-resolver": "2.2.7",
+    "@pnpm/npm-resolver": "3.0.0-0",
     "@pnpm/package-is-installable": "2.0.0-0",
     "@pnpm/resolver-base": "2.1.0",
     "@pnpm/shrinkwrap-types": "2.0.0-0",

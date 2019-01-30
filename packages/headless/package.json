@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only shrinkwrap.yaml",
-  "version": "6.0.0-0",
+  "version": "6.0.0-1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -20,12 +20,12 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
-    "@pnpm/default-fetcher": "2.0.7",
-    "@pnpm/default-resolver": "2.1.0",
+    "@pnpm/default-fetcher": "3.0.0-0",
+    "@pnpm/default-resolver": "3.0.0-0",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/package-store": "3.1.0",
-    "@pnpm/read-manifests": "1.0.5",
+    "@pnpm/read-manifests": "2.0.0-0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/tslint-config": "0.0.0",
     "@types/fs-extra": "5.0.4",
@@ -93,7 +93,7 @@
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/shamefully-flatten": "3.0.0-0",
-    "@pnpm/shrinkwrap-file": "2.0.0-0",
+    "@pnpm/shrinkwrap-file": "2.0.0-1",
     "@pnpm/shrinkwrap-utils": "2.0.0-0",
     "@pnpm/store-controller-types": "2.1.0",
     "@pnpm/symlink-dependency": "1.1.3",

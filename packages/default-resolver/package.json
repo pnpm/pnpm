@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "2.1.0",
+  "version": "3.0.0-0",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/git-resolver": "1.0.1",
     "@pnpm/local-resolver": "1.0.5",
-    "@pnpm/npm-resolver": "2.2.7",
+    "@pnpm/npm-resolver": "3.0.0-0",
     "@pnpm/tarball-resolver": "1.0.1"
   },
   "devDependencies": {

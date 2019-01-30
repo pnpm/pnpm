@@ -61,9 +61,9 @@
   "devDependencies": {
     "@pnpm/local-resolver": "1.0.5",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/npm-resolver": "2.2.7",
+    "@pnpm/npm-resolver": "3.0.0-0",
     "@pnpm/package-requester": "link:",
-    "@pnpm/tarball-fetcher": "2.0.10",
+    "@pnpm/tarball-fetcher": "3.0.0-0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/ncp": "2.0.1",
     "@types/nock": "9.3.1",
