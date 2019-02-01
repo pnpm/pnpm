@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "mz": "2.7.0"
   },
   "devDependencies": {
