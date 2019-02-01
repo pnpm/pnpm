@@ -20,7 +20,7 @@
     "tslint": "5.12.1",
     "tslint-config-standard": "8.0.1",
     "tslint-eslint-rules": "5.4.0",
-    "typescript": "3.2.4"
+    "typescript": "3.3.1"
   },
   "scripts": {
     "lint": "tslint -c tslint.json --project .",

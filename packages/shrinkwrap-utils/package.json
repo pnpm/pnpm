@@ -42,7 +42,7 @@
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",
-    "typescript": "3.2.4",
+    "typescript": "3.3.1",
     "write-yaml-file": "2.0.0",
     "yaml-tag": "1.1.0"
   },
