@@ -28,7 +28,7 @@
     "@pnpm/store-controller-types": "2.1.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "@types/ramda": "0.25.39",
     "load-json-file": "5.1.0",
     "mkdirp-promise": "5.0.1",
@@ -58,7 +58,7 @@
     "tempy": "0.2.1",
     "ts-node": "7.0.1",
     "tslint": "5.12.1",
-    "typescript": "3.2.4"
+    "typescript": "3.3.1"
   },
   "directories": {
     "test": "test"

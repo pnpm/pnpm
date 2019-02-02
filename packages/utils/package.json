@@ -24,7 +24,7 @@
     "@pnpm/utils": "link:",
     "rimraf": "2.6.3",
     "tslint": "5.12.1",
-    "typescript": "3.2.4"
+    "typescript": "3.3.1"
   },
   "directories": {
     "test": "test"
@@ -46,7 +46,7 @@
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "mz": "2.7.0",
     "normalize-registry-url": "1.0.0"
   }

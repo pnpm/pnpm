@@ -39,7 +39,7 @@
     "@pnpm/filter-shrinkwrap": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "rimraf": "2.6.3",
@@ -47,7 +47,7 @@
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",
-    "typescript": "3.2.4",
+    "typescript": "3.3.1",
     "write-yaml-file": "2.0.0",
     "yaml-tag": "1.1.0"
   },

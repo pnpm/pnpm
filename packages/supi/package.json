@@ -46,7 +46,7 @@
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.8.0",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "@types/nopt": "3.0.29",
     "@types/npm": "2.0.29",
     "@types/p-every": "1.0.0",
@@ -127,7 +127,7 @@
     "tape-promise": "4.0.0",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",
-    "typescript": "3.2.4",
+    "typescript": "3.3.1",
     "write-json-file": "3.0.2",
     "write-yaml-file": "2.0.0"
   },

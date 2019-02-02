@@ -42,7 +42,7 @@
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",
-    "typescript": "3.2.4",
+    "typescript": "3.3.1",
     "write-yaml-file": "2.0.0",
     "yaml-tag": "1.1.0"
   },
@@ -51,7 +51,7 @@
     "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/js-yaml": "3.12.0",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "@types/ramda": "0.25.39",
     "dependency-path": "3.0.0-0",
     "get-npm-tarball-url": "2.0.1",

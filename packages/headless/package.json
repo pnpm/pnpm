@@ -30,7 +30,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/fs-extra": "5.0.4",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
     "@types/sinon": "7.0.5",
@@ -50,7 +50,7 @@
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",
-    "typescript": "3.2.4"
+    "typescript": "3.3.1"
   },
   "directories": {
     "test": "test"

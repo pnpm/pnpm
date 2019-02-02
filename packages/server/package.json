@@ -50,7 +50,7 @@
     "tape": "4.9.2",
     "ts-node": "7.0.1",
     "tslint": "5.12.1",
-    "typescript": "3.2.4"
+    "typescript": "3.3.1"
   },
   "mos": {
     "plugins": [
@@ -64,7 +64,7 @@
     "@pnpm/store-controller-types": "2.1.0",
     "@pnpm/types": "2.0.0",
     "@types/got": "8.3.4",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "@types/p-limit": "2.0.0",
     "@types/uuid": "3.4.4",
     "got": "8.3.2",

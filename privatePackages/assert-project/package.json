@@ -21,7 +21,7 @@
     "rimraf": "2.6.3",
     "ts-node": "7.0.1",
     "tslint": "5.12.1",
-    "typescript": "3.2.4"
+    "typescript": "3.3.1"
   },
   "directories": {
     "test": "test"
@@ -47,7 +47,7 @@
     "@pnpm/assert-store": "1.0.0",
     "@pnpm/modules-yaml": "2.0.1",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.18",
+    "@types/node": "10.12.21",
     "@types/path-exists": "3.0.0",
     "@types/tape": "4.2.33",
     "@types/write-pkg": "3.1.0",
