@@ -47,7 +47,7 @@ export default async (
             rawNpmConfig: opts.rawNpmConfig,
             rootNodeModulesDir: await realNodeModulesDir(prefix),
             stdio,
-            unsafePerm: opts.unsafePerm || false,
+            unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }
           if (pkg.manifest.scripts[`pre${scriptName}`]) {
             await runLifecycleHooks(`pre${scriptName}`, pkg.manifest, lifecycleOpts)

@@ -255,3 +255,29 @@ test('pnpm recursive run with filtering', async (t: tape.Test) => {
 
   t.deepEqual(outputs, ['project-1'])
 })
+
+test('`pnpm recursive run` should always trust the scripts', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project')" | json-append ../output.json`,
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+
+  process.env['npm_config_unsafe_perm'] = 'false'
+  await execPnpm('recursive', 'run', 'build')
+  delete process.env['npm_config_unsafe_perm']
+
+  const outputs = await import(path.resolve('output.json')) as string[]
+
+  t.deepEqual(outputs, ['project'])
+})
