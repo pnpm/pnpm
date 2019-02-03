@@ -86,6 +86,9 @@ async function dependenciesHierarchy (
     ...maybeOpts,
   }
   const importerId = getImporterId(shrinkwrapDirectory, projectPath)
+
+  if (!shrinkwrap.importers[importerId]) return []
+
   const topDeps = getFilteredDependencies(shrinkwrap.importers[importerId], opts) || {}
   const modulesDir = path.join(projectPath, 'node_modules')
 
