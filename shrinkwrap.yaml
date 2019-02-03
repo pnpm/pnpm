@@ -531,7 +531,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.2
       common-tags: 1.8.0
-      dependencies-hierarchy: 4.0.5
+      dependencies-hierarchy: 4.0.6
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       p-limit: 2.1.0
@@ -1064,7 +1064,7 @@ importers:
       pkgs-graph: 2.0.2
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 5.0.4
+      pnpm-list: 5.0.5
       pnpm-registry-mock: 2.6.0
       process-exists: 3.1.0
       ramda: 0.26.1
