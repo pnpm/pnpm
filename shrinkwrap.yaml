@@ -565,7 +565,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.2
       common-tags: 1.8.0
-      dependencies-hierarchy: 5.0.0-1
+      dependencies-hierarchy: 5.0.0-2
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       p-limit: 2.1.0
@@ -1212,7 +1212,7 @@ importers:
       pkgs-graph: 2.0.2
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 6.0.0-1
+      pnpm-list: 6.0.0-2
       pnpm-registry-mock: 2.6.0
       process-exists: 3.1.0
       ramda: 0.26.1
@@ -1225,7 +1225,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.30.0-1
+      supi: 0.30.0-2
       symlink-dir: 2.0.2
       tape: 4.9.2
       tape-promise: 4.0.0
