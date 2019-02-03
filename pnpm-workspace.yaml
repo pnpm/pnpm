@@ -7,4 +7,5 @@ packages:
   - "!**/example/**"
   - "!**/test/**"
   - "!packages/dependencies-hierarchy/fixtures/**"
+  - "!packages/dependencies-hierarchy/fixtureMonorepo/**"
   - "!packages/dependencies-hierarchy/fixtureWithLinks/**"

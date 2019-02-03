@@ -8,6 +8,7 @@ const circularFixture = path.join(fixtures, 'circular')
 const withFileDepFixture = path.join(fixtures, 'with-file-dep')
 const withLinksOnlyFixture = path.join(__dirname, '..', 'fixtureWithLinks', 'with-links-only')
 const withUnsavedDepsFixture = path.join(fixtures, 'with-unsaved-deps')
+const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
 
 test('one package depth 0', async t => {
   const tree = await dh(generalFixture, { depth: 0 })
@@ -376,5 +377,11 @@ test('unsaved dependencies are listed and filtered', async t => {
       searched: true,
     },
   ])
+  t.end()
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1549
+test('do not fail on importers that are not in current shrinkwrap.yaml', async t => {
+  t.deepEqual(await dh(fixtureMonorepo), [])
   t.end()
 })
