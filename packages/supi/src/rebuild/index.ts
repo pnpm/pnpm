@@ -285,7 +285,7 @@ async function _rebuild (
         : await (
           async () => {
             const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
-              importerPrefix: opts.shrinkwrapDirectory,
+              shrinkwrapDirectory: opts.shrinkwrapDirectory,
               targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
             })
             return directory

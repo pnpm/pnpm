@@ -119,7 +119,7 @@ test('fetchPackage', async t => {
 
   t.deepEqual(
     await storeCtrl.getPackageLocation(pkgId, 'is-positive', {
-      importerPrefix: process.cwd(),
+      shrinkwrapDirectory: process.cwd(),
     }),
     {
       directory: path.join(store, pkgId, 'node_modules', 'is-positive'),

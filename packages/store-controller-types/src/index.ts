@@ -16,7 +16,7 @@ export interface StoreController {
     packageId: string,
     packageName: string,
     opts: {
-      importerPrefix: string, // TODO: rename this option to shrinkwrapDirectory
+      shrinkwrapDirectory: string,
       targetEngine?: string,
     },
   ): Promise<{ directory: string, isBuilt: boolean }>,

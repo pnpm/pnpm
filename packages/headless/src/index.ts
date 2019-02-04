@@ -222,7 +222,7 @@ export default async (opts: HeadlessOptions) => {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-              importerPrefix: opts.shrinkwrapDirectory,
+              shrinkwrapDirectory: opts.shrinkwrapDirectory,
               targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
             })
             return directory
@@ -460,7 +460,7 @@ async function shrinkwrapToDepGraph (
           })
         })
       const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-        importerPrefix: opts.shrinkwrapDirectory,
+        shrinkwrapDirectory: opts.shrinkwrapDirectory,
         targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
       })
 
@@ -550,7 +550,7 @@ async function getChildrenPaths (
       const pkgId = childPkgSnapshot.id || childDepPath
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-        importerPrefix: ctx.shrinkwrapDirectory,
+        shrinkwrapDirectory: ctx.shrinkwrapDirectory,
         targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
       })
       children[alias] = pkgLocation.directory

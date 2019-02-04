@@ -108,7 +108,7 @@ export async function uninstallInContext (
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            importerPrefix: ctx.shrinkwrapDirectory,
+            shrinkwrapDirectory: ctx.shrinkwrapDirectory,
             targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
           })
           return directory
