@@ -6,6 +6,7 @@ export default async function (
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     development: boolean,
+    global?: boolean,
     long?: boolean,
     parseable?: boolean,
     prefix: string,
@@ -14,6 +15,12 @@ export default async function (
   },
   command: string,
 ) {
+  if (opts.global && !('depth' in opts)) {
+    // Copy opts as they're effectively frozen
+    opts = JSON.parse(JSON.stringify(opts))
+    opts.depth = 0
+  }
+
   const output = await render(args, opts, command)
 
   if (output) console.log(output)
