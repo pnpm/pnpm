@@ -69,7 +69,7 @@
     "tempy": "^0.2.1",
     "ts-node": "^8.0.1",
     "tslint": "^5.8.0",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   },
   "mos": {
     "plugins": [
