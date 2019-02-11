@@ -2049,14 +2049,14 @@ importers:
       write-pkg: 3.2.0
   tools:
     devDependencies:
-      '@commitlint/cli': 7.4.0
-      '@commitlint/config-conventional': 7.3.1
-      '@commitlint/prompt-cli': 7.3.1
+      '@commitlint/cli': 7.5.2
+      '@commitlint/config-conventional': 7.5.0
+      '@commitlint/prompt-cli': 7.5.0
       husky: 1.3.1
     specifiers:
-      '@commitlint/cli': 7.4.0
-      '@commitlint/config-conventional': 7.3.1
-      '@commitlint/prompt-cli': 7.3.1
+      '@commitlint/cli': 7.5.2
+      '@commitlint/config-conventional': 7.5.0
+      '@commitlint/prompt-cli': 7.5.0
       husky: 1.3.1
   utils/tslint-config:
     dependencies:
@@ -2071,7 +2071,7 @@ importers:
       tslint-eslint-rules: 5.4.0
       typescript: 3.3.3333
 packages:
-  /@commitlint/cli/7.4.0:
+  /@commitlint/cli/7.5.2:
     dependencies:
       '@commitlint/format': 7.5.0
       '@commitlint/lint': 7.5.2
@@ -2089,11 +2089,11 @@ packages:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-wwjLX+8dkqgiQgIDcKpwSoYC+vWp/njw+Q0f+TPtSB3KCARmb9A4EWmDzFocYzK1goJT+j472ZG87GqUOHmChg==
-  /@commitlint/config-conventional/7.3.1:
+      integrity: sha512-UQdW/wNb+XeANoYYLyuKEDIfWKSzdhJkPQZ8ie/IjfMNnsP+B23bkX4Ati+6U8zgz0yyngoxWl+3lfExiIL4hQ==
+  /@commitlint/config-conventional/7.5.0:
     dev: true
     resolution:
-      integrity: sha512-KPgL+wvXReqi0tvmjV0NQI+d4QwK125K1qimJtM+/uArR7P4AAlQxdXGnZ5kBtsTIzg9O9FhUS49UwqffmxijA==
+      integrity: sha512-odLgBfQ5xntFAmMfAmDY2C4EWhW+cSTbvbsRS7seb55DCa3IaxxSHHC9eXrR+hN/BdUT5vqAxdX1PkR996sq9Q==
   /@commitlint/ensure/7.1.2:
     dependencies:
       lodash.camelcase: 4.3.0
@@ -2172,16 +2172,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-hWASM8SBFTBtlFkKrEtD1qW6yTe2BsfoRiMKuYyRCTd+739TUF17og5vgQVuWttbGP0gXaciW44NygS2YjZmfA==
-  /@commitlint/prompt-cli/7.3.1:
+  /@commitlint/prompt-cli/7.5.0:
     dependencies:
       '@commitlint/prompt': 7.5.0
       execa: 0.9.0
-      meow: 3.7.0
       string-to-stream: 1.1.1
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-F9GT+41FDTR1kpzzsSNAlSaKfFhoem0yE3XIUlGJf7DSvq78PZG05gkpbMi73nKlK2BSS6lCzel6WxTWWd9NZg==
+      integrity: sha512-uTk/p6PUjFO2hyLsKsU4f1de2q33OtJyqEYk7LTkLMx2oyio+BYjNc4s3RgB7sUm6Mjbpmyn0COuNOe08AEA2A==
   /@commitlint/prompt/7.5.0:
     dependencies:
       '@commitlint/load': 7.5.0
