@@ -124,7 +124,7 @@
     "semver": "5.6.0",
     "sepia": "2.0.2",
     "symlink-dir": "2.0.2",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "tape-promise": "4.0.0",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",

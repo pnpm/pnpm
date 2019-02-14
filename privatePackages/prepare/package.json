@@ -12,7 +12,7 @@
     "@types/tape": "4.2.33",
     "@types/write-pkg": "3.1.0",
     "mkdirp": "0.5.1",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "write-pkg": "3.2.0"
   },
   "devDependencies": {

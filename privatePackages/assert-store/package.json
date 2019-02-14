@@ -54,6 +54,6 @@
     "@types/path-exists": "3.0.0",
     "@types/tape": "4.2.33",
     "path-exists": "3.0.0",
-    "tape": "4.9.2"
+    "tape": "4.10.1"
   }
 }

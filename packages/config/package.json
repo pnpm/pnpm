@@ -49,7 +49,7 @@
     "mos-plugin-readme": "1.0.4",
     "mz": "2.7.0",
     "rimraf": "2.6.3",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",

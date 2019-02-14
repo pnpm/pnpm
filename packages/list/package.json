@@ -57,7 +57,7 @@
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "pnpm-list": "link:",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "ts-node": "7.0.1",
     "tslint": "5.12.1",
     "typescript": "3.3.1"

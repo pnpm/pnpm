@@ -45,7 +45,7 @@
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
     "sinon": "7.2.3",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "tape-promise": "4.0.0",
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
