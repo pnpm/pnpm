@@ -98,7 +98,7 @@
     "@pnpm/prepare": "0.0.0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/fs-extra": "5.0.4",
+    "@types/fs-extra": "5.0.5",
     "@types/is-windows": "0.2.0",
     "@types/mkdirp": "0.5.2",
     "@types/sinon": "7.0.5",

@@ -28,7 +28,7 @@
     "@pnpm/read-manifests": "2.0.0-0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/fs-extra": "5.0.4",
+    "@types/fs-extra": "5.0.5",
     "@types/mz": "0.0.32",
     "@types/node": "10.12.21",
     "@types/path-exists": "3.0.0",
