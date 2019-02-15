@@ -129,7 +129,7 @@
     "ts-node": "6.2.0",
     "tslint": "5.12.1",
     "typescript": "3.3.1",
-    "write-json-file": "3.0.2",
+    "write-json-file": "3.1.0",
     "write-pkg": "3.2.0",
     "write-yaml-file": "2.0.0"
   },
