@@ -30,7 +30,7 @@
     "@types/mz": "0.0.32",
     "@types/node": "10.12.21",
     "@types/ramda": "0.25.39",
-    "load-json-file": "5.1.0",
+    "load-json-file": "5.2.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "ncp": "2.0.0",

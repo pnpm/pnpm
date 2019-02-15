@@ -42,7 +42,7 @@
     "credentials-by-uri": "1.0.0",
     "encode-registry": "1.1.0",
     "fetch-from-npm-registry": "2.0.0-0",
-    "load-json-file": "5.1.0",
+    "load-json-file": "5.2.0",
     "mem": "4.1.0",
     "normalize-path": "3.0.0",
     "p-limit": "2.1.0",

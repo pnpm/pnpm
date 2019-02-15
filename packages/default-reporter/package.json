@@ -65,7 +65,7 @@
     "@types/tape": "4.2.33",
     "delay": "4.1.0",
     "ghooks": "2.0.4",
-    "load-json-file": "5.1.0",
+    "load-json-file": "5.2.0",
     "mos-tap-diff": "1.0.0",
     "normalize-newline": "3.0.0",
     "rimraf": "2.6.3",

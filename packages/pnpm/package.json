@@ -58,7 +58,7 @@
     "is-ci": "2.0.0",
     "is-subdir": "1.0.2",
     "is-windows": "1.0.2",
-    "load-json-file": "5.1.0",
+    "load-json-file": "5.2.0",
     "loud-rejection": "1.6.0",
     "lru-cache": "5.1.1",
     "mem": "4.1.0",
