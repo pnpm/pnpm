@@ -145,6 +145,9 @@ test('outdated() on package that has one outdated dev dependency', async (t) => 
 test('outdated() on a package that has external shrinkwrap file and direct dependencies with resolved peers', async (t) => {
   const outdatedPkgs = await outdated('package-with-external-shrinkwrap/package', {
     ...outdatedOpts,
+    registries: {
+      default: 'http://localhost:4873',
+    },
     shrinkwrapDirectory: path.resolve('package-with-external-shrinkwrap'),
   })
   t.deepEqual(outdatedPkgs, [])

@@ -2,7 +2,6 @@
   "name": "package",
   "version": "0.0.0",
   "dependencies": {
-    "ajv-keywords": "3.3.0",
-    "ajv": "6.7.0"
+    "pkg-with-1-dep": "100.0.0"
   }
 }
