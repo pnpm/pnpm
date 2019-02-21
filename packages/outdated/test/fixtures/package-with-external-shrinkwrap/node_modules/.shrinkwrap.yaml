@@ -1,52 +1,18 @@
 importers:
   package:
     dependencies:
-      ajv: 6.8.1
-      ajv-keywords: /ajv-keywords/3.3.0/ajv@6.8.1
+      pkg-with-1-dep: 100.0.0
     specifiers:
-      ajv: 6.8.1
-      ajv-keywords: 3.3.0
+      pkg-with-1-dep: 100.0.0
 packages:
-  /ajv-keywords/3.3.0/ajv@6.8.1:
+  /dep-of-pkg-with-1-dep/100.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-NrDz2149fygGT7uMe8Jj6rsgxZWuJQJqXfWk/gj5KWoxfRxmXkQZnPgOdoLnxCEq3RrKOotVcgUJtlM8fNRgvA==
+  /pkg-with-1-dep/100.0.0:
     dependencies:
-      ajv: 6.8.1
-    dev: false
-    id: registry.npmjs.org/ajv-keywords/3.2.0
-    peerDependencies:
-      ajv: ^6.0.0
-    resolution:
-      integrity: sha512-CMzN9S62ZOO4sA/mJZIO4S++ZM7KFWzH3PPWkveLhy4OZ9i1/VatgwWMD46w/XbGCBy7Ye0gCk+Za6mmyfKK7g==
-  /ajv/6.8.1:
-    dependencies:
-      fast-deep-equal: 2.0.1
-      fast-json-stable-stringify: 2.0.0
-      json-schema-traverse: 0.4.1
-      uri-js: 4.2.2
+      dep-of-pkg-with-1-dep: 100.1.0
     dev: false
     resolution:
-      integrity: sha512-eqxCp82P+JfqL683wwsL73XmFs1eG6qjw+RD3YHx+Jll1r0jNd4dh8QG9NYAeNGA/hnZjeEDgtTskgJULbxpWQ==
-  /fast-deep-equal/2.0.1:
-    dev: false
-    resolution:
-      integrity: sha1-ewUhjd+WZ79/Nwv3/bLLFf3Qqkk=
-  /fast-json-stable-stringify/2.0.0:
-    dev: false
-    resolution:
-      integrity: sha1-1RQsDK7msRifh9OnYREGT4bIu/I=
-  /json-schema-traverse/0.4.1:
-    dev: false
-    resolution:
-      integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==
-  /punycode/2.1.1:
-    dev: false
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-XRsRjdf+j5ml+y/6GKHPZbrF/8p2Yga0JPtdqTIY2Xe5ohJPD9saDJJLPvp9+NSBprVvevdXZybnj2cv8OEd0A==
-  /uri-js/4.2.2:
-    dependencies:
-      punycode: 2.1.1
-    dev: false
-    resolution:
-      integrity: sha512-KY9Frmirql91X2Qgjry0Wd4Y+YTdrdZheS8TFwvkbLWf/G5KNJDCh6pKL5OZctEW4+0Baa5idK2ZQuELRwPznQ==
-shrinkwrapVersion: 4
+      integrity: sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA==
+shrinkwrapVersion: 5
