@@ -36,7 +36,7 @@
     "@types/graceful-fs": "^4.1.2",
     "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
-    "@types/node": "10.12.21",
+    "@types/node": "11.9.4",
     "@types/retry": "^0.12.0",
     "@types/rimraf": "^2.0.2",
     "credentials-by-uri": "1.0.0",
@@ -59,10 +59,10 @@
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "nock": "10.0.6",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "tempy": "0.2.1",
     "ts-node": "8.0.2",
     "tslint": "5.12.1",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   }
 }

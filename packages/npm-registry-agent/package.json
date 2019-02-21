@@ -22,15 +22,15 @@
     "@types/tape": "4.2.33",
     "proxyquire": "2.1.0",
     "rimraf": "2.6.3",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "ts-node": "8.0.2",
     "tslint": "5.12.1",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   },
   "dependencies": {
     "@types/http-proxy-agent": "2.0.1",
     "@types/lru-cache": "4.1.1",
-    "@types/node": "10.12.21",
+    "@types/node": "11.9.4",
     "agentkeepalive": "4.0.0",
     "http-proxy-agent": "2.1.0",
     "https-proxy-agent": "2.2.1",

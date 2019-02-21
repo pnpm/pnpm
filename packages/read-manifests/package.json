@@ -34,13 +34,13 @@
     "@pnpm/shrinkwrap-file": "2.0.0-1",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
-    "@types/node": "10.12.21"
+    "@types/node": "11.9.4"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
     "rimraf": "2.6.3",
     "tslint": "5.12.1",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   }
 }

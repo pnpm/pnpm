@@ -44,10 +44,10 @@
     "@types/tape": "^4.2.30",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
-    "tape": "^4.8.0",
+    "tape": "4.10.1",
     "ts-node": "^7.0.0",
     "tslint": "5.12.1",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   },
   "mos": {
     "plugins": [

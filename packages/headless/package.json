@@ -28,12 +28,12 @@
     "@pnpm/read-manifests": "2.0.0-0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/fs-extra": "5.0.4",
+    "@types/fs-extra": "5.0.5",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.21",
+    "@types/node": "11.9.4",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
-    "@types/sinon": "7.0.5",
+    "@types/sinon": "7.0.6",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "fs-extra": "7.0.1",
@@ -45,12 +45,12 @@
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
     "sinon": "7.2.3",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "tape-promise": "4.0.0",
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
     "tslint": "5.12.1",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   },
   "directories": {
     "test": "test"

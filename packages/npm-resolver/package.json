@@ -37,12 +37,12 @@
     "@pnpm/types": "^2.0.0",
     "@types/load-json-file": "^2.0.7",
     "@types/mem": "^1.1.2",
-    "@types/node": "10.12.21",
+    "@types/node": "11.9.4",
     "@types/semver": "^5.4.0",
     "credentials-by-uri": "1.0.0",
     "encode-registry": "1.1.0",
     "fetch-from-npm-registry": "2.0.0-0",
-    "load-json-file": "5.1.0",
+    "load-json-file": "5.2.0",
     "mem": "4.1.0",
     "normalize-path": "3.0.0",
     "p-limit": "2.1.0",
@@ -50,7 +50,7 @@
     "semver": "5.6.0",
     "ssri": "6.0.1",
     "version-selector-type": "2.0.0",
-    "write-json-file": "3.0.2"
+    "write-json-file": "3.1.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.1",
@@ -65,11 +65,11 @@
     "nock": "^10.0.0",
     "path-exists": "^3.0.0",
     "rimraf": "^2.6.2",
-    "tape": "^4.8.0",
+    "tape": "4.10.1",
     "tempy": "^0.2.1",
     "ts-node": "^8.0.1",
     "tslint": "^5.8.0",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   },
   "mos": {
     "plugins": [

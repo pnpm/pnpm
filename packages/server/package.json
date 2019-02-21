@@ -47,10 +47,10 @@
     "mz": "2.7.0",
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
-    "tape": "4.9.2",
+    "tape": "4.10.1",
     "ts-node": "7.0.1",
     "tslint": "5.12.1",
-    "typescript": "3.3.1"
+    "typescript": "3.3.3"
   },
   "mos": {
     "plugins": [
@@ -64,7 +64,7 @@
     "@pnpm/store-controller-types": "2.1.0",
     "@pnpm/types": "2.0.0",
     "@types/got": "8.3.4",
-    "@types/node": "10.12.21",
+    "@types/node": "11.9.4",
     "@types/p-limit": "2.0.0",
     "@types/uuid": "3.4.4",
     "got": "8.3.2",
