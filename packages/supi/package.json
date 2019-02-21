@@ -121,7 +121,7 @@
     "read-yaml-file": "1.1.0",
     "rimraf": "2.6.3",
     "sepia": "2.0.2",
-    "sinon": "7.2.3",
+    "sinon": "7.2.4",
     "supi": "link:",
     "tape": "4.10.1",
     "tape-promise": "4.0.0",
