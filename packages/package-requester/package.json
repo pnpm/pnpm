@@ -43,7 +43,7 @@
     "@pnpm/store-controller-types": "2.1.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
-    "@types/node": "11.9.4",
+    "@types/node": "11.9.5",
     "@types/p-queue": "3.0.0",
     "load-json-file": "5.2.0",
     "mkdirp-promise": "5.0.1",

@@ -39,7 +39,7 @@
     "@pnpm/filter-shrinkwrap": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/node": "11.9.4",
+    "@types/node": "11.9.5",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "rimraf": "2.6.3",

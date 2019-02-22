@@ -34,7 +34,7 @@
     "@pnpm/shrinkwrap-file": "2.0.0-1",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
-    "@types/node": "11.9.4"
+    "@types/node": "11.9.5"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
