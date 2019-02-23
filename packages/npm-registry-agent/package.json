@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@types/http-proxy-agent": "2.0.1",
-    "@types/lru-cache": "4.1.1",
+    "@types/lru-cache": "5.1.0",
     "@types/node": "11.9.4",
     "agentkeepalive": "4.0.0",
     "http-proxy-agent": "2.1.0",
