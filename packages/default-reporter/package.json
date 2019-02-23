@@ -71,7 +71,7 @@
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "ts-node": "6.2.0",
-    "tslint": "5.12.1",
+    "tslint": "5.13.0",
     "typescript": "3.3.3"
   }
 }

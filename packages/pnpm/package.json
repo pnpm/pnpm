@@ -127,7 +127,7 @@
     "tape": "4.10.1",
     "tape-promise": "4.0.0",
     "ts-node": "6.2.0",
-    "tslint": "5.12.1",
+    "tslint": "5.13.0",
     "typescript": "3.3.3",
     "write-json-file": "3.1.0",
     "write-pkg": "3.2.0",

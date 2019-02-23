@@ -54,7 +54,7 @@
     "@pnpm/resolve-dependencies": "link:",
     "@pnpm/tslint-config": "0.0.0",
     "rimraf": "2.6.3",
-    "tslint": "5.12.1",
+    "tslint": "5.13.0",
     "typescript": "3.3.3"
   }
 }
