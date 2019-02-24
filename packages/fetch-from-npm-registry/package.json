@@ -30,7 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch-from-npm-registry#readme",
   "dependencies": {
     "@pnpm/npm-registry-agent": "1.0.0-0",
-    "@types/node": "11.9.4",
+    "@types/node": "11.9.5",
     "@zeit/fetch-retry": "3.0.0",
     "node-fetch": "2.3.0"
   },
@@ -43,8 +43,8 @@
     "rimraf": "^2.6.2",
     "tape": "4.10.1",
     "ts-node": "^8.0.2",
-    "tslint": "^5.8.0",
-    "typescript": "3.3.3"
+    "tslint": "5.13.0",
+    "typescript": "3.3.3333"
   },
   "mos": {
     "plugins": [

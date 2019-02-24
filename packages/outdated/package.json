@@ -46,7 +46,7 @@
     "@pnpm/store-path": "1.0.4",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
-    "@types/node": "11.9.4",
+    "@types/node": "11.9.5",
     "dependency-path": "3.0.0-0"
   },
   "devDependencies": {
@@ -60,8 +60,8 @@
     "pnpm-registry-mock": "2.6.0",
     "tape": "4.10.1",
     "ts-node": "7.0.1",
-    "tslint": "5.12.1",
-    "typescript": "3.3.3"
+    "tslint": "5.13.0",
+    "typescript": "3.3.3333"
   },
   "mos": {
     "plugins": [

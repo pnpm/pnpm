@@ -24,13 +24,13 @@
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "ts-node": "8.0.2",
-    "tslint": "5.12.1",
-    "typescript": "3.3.3"
+    "tslint": "5.13.0",
+    "typescript": "3.3.3333"
   },
   "dependencies": {
     "@types/http-proxy-agent": "2.0.1",
-    "@types/lru-cache": "4.1.1",
-    "@types/node": "11.9.4",
+    "@types/lru-cache": "5.1.0",
+    "@types/node": "11.9.5",
     "agentkeepalive": "4.0.0",
     "http-proxy-agent": "2.1.0",
     "https-proxy-agent": "2.2.1",

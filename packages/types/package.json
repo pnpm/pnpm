@@ -31,8 +31,8 @@
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "rimraf": "2.6.3",
-    "tslint": "5.12.1",
-    "typescript": "3.3.3"
+    "tslint": "5.13.0",
+    "typescript": "3.3.3333"
   },
   "mos": {
     "plugins": [

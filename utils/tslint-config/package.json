@@ -20,8 +20,8 @@
     "tslint-eslint-rules": "5.4.0"
   },
   "devDependencies": {
-    "tslint": "5.12.1",
-    "typescript": "3.3.3"
+    "tslint": "5.13.0",
+    "typescript": "3.3.3333"
   },
   "directories": {
     "test": "test"

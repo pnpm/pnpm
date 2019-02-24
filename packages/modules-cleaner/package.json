@@ -38,7 +38,7 @@
     "@pnpm/store-controller-types": "2.1.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
-    "@types/node": "11.9.4",
+    "@types/node": "11.9.5",
     "@types/ramda": "0.25.38",
     "dependency-path": "3.0.0-0",
     "fs-vacuum": "1.2.10",
@@ -51,7 +51,7 @@
     "@pnpm/modules-cleaner": "link:",
     "@pnpm/tslint-config": "0.0.0",
     "rimraf": "2.6.3",
-    "tslint": "5.12.1",
-    "typescript": "3.3.3"
+    "tslint": "5.13.0",
+    "typescript": "3.3.3333"
   }
 }

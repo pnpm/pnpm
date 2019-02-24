@@ -39,7 +39,7 @@
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/types": "2.0.0",
     "@types/archy": "0.0.31",
-    "@types/node": "11.9.4",
+    "@types/node": "11.9.5",
     "@types/ramda": "0.25.39",
     "@zkochan/npm-package-arg": "1.0.1",
     "archy": "1.0.0",
@@ -59,8 +59,8 @@
     "pnpm-list": "link:",
     "tape": "4.10.1",
     "ts-node": "7.0.1",
-    "tslint": "5.12.1",
-    "typescript": "3.3.3"
+    "tslint": "5.13.0",
+    "typescript": "3.3.3333"
   },
   "mos": {
     "plugins": [
