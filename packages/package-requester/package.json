@@ -54,7 +54,7 @@
     "read-package-json": "2.0.13",
     "rename-overwrite": "1.0.3",
     "rimraf-then": "1.0.1",
-    "symlink-dir": "2.0.2",
+    "symlink-dir": "3.0.0",
     "util.promisify": "1.0.0",
     "write-json-file": "3.1.0"
   },

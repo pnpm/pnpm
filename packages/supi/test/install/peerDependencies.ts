@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile from 'load-json-file'
@@ -577,4 +577,46 @@ test('regular dependencies are not removed on update from transitive packages th
   await install(await testDefaults({ shrinkwrapDirectory, update: true, depth: 2 }))
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc-parent-with-ab', '1.0.1_peer-c@1.0.1', NM, 'is-positive')))
+})
+
+test('peer dependency is resolved from parent package', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'pkg',
+    }
+  ])
+  await mutateModules([
+    {
+      dependencySelectors: ['tango@1.0.0'],
+      mutation: 'installSome',
+      prefix: path.resolve('pkg'),
+    },
+  ], await testDefaults())
+
+  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  t.deepEqual(Object.keys(shr.packages || {}), [
+    '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
+    '/tango/1.0.0_tango@1.0.0',
+  ])
+})
+
+test('peer dependency is resolved from parent package via its alias', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'pkg',
+    }
+  ])
+  await mutateModules([
+    {
+      dependencySelectors: ['tango@npm:tango-tango@1.0.0'],
+      mutation: 'installSome',
+      prefix: path.resolve('pkg'),
+    },
+  ], await testDefaults())
+
+  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  t.deepEqual(Object.keys(shr.packages || {}), [
+    '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
+    '/tango-tango/1.0.0_tango@1.0.0',
+  ])
 })

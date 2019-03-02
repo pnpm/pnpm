@@ -198,7 +198,10 @@ export default async (opts: HeadlessOptions) => {
   })
 
   await Promise.all([
-    linkAllModules(depGraph, { optional: opts.include.optionalDependencies }),
+    linkAllModules(depGraph, {
+      optional: opts.include.optionalDependencies,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
+    }),
     linkAllPkgs(opts.storeController, R.values(depGraph), opts),
   ])
 
@@ -479,6 +482,7 @@ async function shrinkwrapToDepGraph (
         independent,
         isBuilt: pkgLocation.isBuilt,
         modules,
+        name: pkgName,
         optional: !!pkgSnapshot.optional,
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
@@ -570,6 +574,7 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean,
   centralLocation: string,
   modules: string,
+  name: string,
   fetchingFiles: Promise<PackageFilesResponse>,
   finishing: Promise<void>,
   peripheralLocation: string,
@@ -664,6 +669,7 @@ async function linkAllModules (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
+    shrinkwrapDirectory: string,
   },
 ) {
   return Promise.all(
@@ -684,6 +690,13 @@ async function linkAllModules (
           R.keys(childrenToLink)
             .map(async (alias) => {
               // if (!pkg.installable && pkg.optional) return
+              if (alias === depNode.name) {
+                logger.warn({
+                  message: `Cannot link dependency with name ${alias} to ${depNode.modules}. Dependency's name should differ from the parent's name.`,
+                  prefix: opts.shrinkwrapDirectory,
+                })
+                return
+              }
               await symlinkDependency(childrenToLink[alias], depNode.modules, alias)
             }),
         )

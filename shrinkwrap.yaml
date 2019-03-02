@@ -410,7 +410,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.2.6
@@ -465,7 +465,7 @@ importers:
       npm-run-all: 4.1.5
       p-limit: 2.1.0
       path-exists: 3.0.0
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -785,7 +785,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       tape: 4.10.1
       ts-node: 7.0.1
       tslint: /tslint/5.13.1/typescript@3.3.3333
@@ -806,7 +806,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       tape: 4.10.1
       ts-node: 7.0.1
       tslint: 5.13.1
@@ -865,7 +865,7 @@ importers:
       read-package-json: 2.0.13
       rename-overwrite: 1.0.3
       rimraf-then: 1.0.1
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
       util.promisify: 1.0.0
       write-json-file: 3.1.0
     devDependencies:
@@ -933,7 +933,7 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.2.6
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
       tape: 4.10.1
       tempy: 0.2.1
       ts-node: 7.0.1
@@ -1118,13 +1118,13 @@ importers:
       p-any: 1.1.0
       path-exists: 3.0.0
       pnpm: 'link:'
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       retry: 0.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       semver: 5.6.0
       sepia: 2.0.2
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 6.2.0
@@ -1217,7 +1217,7 @@ importers:
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
       pnpm-list: 6.0.0-2
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1230,7 +1230,7 @@ importers:
       signal-exit: 3.0.2
       strip-color: 0.1.0
       supi: 0.30.0-2
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
       tape: 4.10.1
       tape-promise: 4.0.0
       text-table: 0.2.0
@@ -1654,7 +1654,7 @@ importers:
       rimraf-then: 1.0.1
       run-groups: 1.0.0
       semver: 5.6.0
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
       util.promisify: 1.0.0
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.0
@@ -1687,7 +1687,7 @@ importers:
       npm-scripts-info: 0.3.9
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
@@ -1784,7 +1784,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.6.0
+      pnpm-registry-mock: 2.7.0
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
@@ -1798,7 +1798,7 @@ importers:
       sepia: 2.0.2
       sinon: 7.2.6
       supi: 'link:'
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 6.2.0
@@ -1818,7 +1818,7 @@ importers:
       '@types/node': 11.9.5
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -1836,7 +1836,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       rimraf: 2.6.3
-      symlink-dir: 2.0.2
+      symlink-dir: 3.0.0
       ts-node: 6.2.0
       tslint: 5.13.1
       typescript: 3.3.3333
@@ -3382,7 +3382,6 @@ packages:
   /better-path-resolve/1.0.0:
     dependencies:
       is-windows: 1.0.2
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -7983,7 +7982,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-registry-mock/2.6.0:
+  /pnpm-registry-mock/2.7.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -7994,7 +7993,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-qjh0zZ/K/S5dfzpJ7/W0TZq7M1jWuVrY0NYthRjjbzZelVqALfc8sR5gD7NncNuH7Vpo8DwSjb5ADQewniB3ug==
+      integrity: sha512-GKBdlJYmv+3NjlWd1+BMwOvtvV7RlI6CLFlax4730DYcikyE6f1BTUdG2O4Ypj7iLqGrPumDFtvPhjRJh5hwfA==
   /posix-character-classes/0.1.1:
     dev: false
     engines:
@@ -9319,20 +9318,21 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-e900nM8RRtGhlV36KGEU9k65K3mPb1WV70OdjfxlG2EAuM1noi/E/BaW/uMhL7bPEssK8QV57vN3esixjUvcXQ==
-  /symlink-dir/2.0.2:
+  /symlink-dir/3.0.0:
     dependencies:
       '@types/mz': 0.0.32
       '@types/node': 10.12.29
+      better-path-resolve: 1.0.0
       graceful-fs: 4.1.15
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       rename-overwrite: 1.0.3
     engines:
-      node: '>=6'
+      node: '>=8'
     hasBin: true
     resolution:
-      integrity: sha512-jMqXkCcBVvpdyJKt8BLCp7FVIywe4sfEOL6Ugm1LpUGiwJzdj9q3ld/ECYV+seT/ly6duG0koT6d6jZbcSQ9mg==
+      integrity: sha512-CDS0WxzMprRn5kQoCsK1+2fAHq0FUogqAy44iCeQ5MG8Q7l6lpnjU/942GufMw+T/UQbfo7wW1krtVopdp28FQ==
   /tap-parser/1.3.2:
     dependencies:
       events-to-array: 1.1.2

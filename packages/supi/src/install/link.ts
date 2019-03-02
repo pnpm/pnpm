@@ -422,8 +422,14 @@ async function linkNewPackages (
   const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
   await Promise.all([
-    linkAllModules(newPkgs, depGraph, { optional: opts.optional }),
-    linkAllModules(existingWithUpdatedDeps, depGraph, { optional: opts.optional }),
+    linkAllModules(newPkgs, depGraph, {
+      optional: opts.optional,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
+    }),
+    linkAllModules(existingWithUpdatedDeps, depGraph, {
+      optional: opts.optional,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
+    }),
     linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
@@ -506,6 +512,7 @@ async function linkAllModules (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
+    shrinkwrapDirectory: string,
   },
 ) {
   return Promise.all(
@@ -527,6 +534,13 @@ async function linkAllModules (
             .map(async (alias) => {
               const pkg = depGraph[childrenToLink[alias]]
               if (!pkg.installable && pkg.optional) return
+              if (alias === depNode.name) {
+                logger.warn({
+                  message: `Cannot link dependency with name ${alias} to ${depNode.modules}. Dependency's name should differ from the parent's name.`,
+                  prefix: opts.shrinkwrapDirectory,
+                })
+                return
+              }
               await symlinkDependency(pkg.peripheralLocation, depNode.modules, alias)
             }),
         )
