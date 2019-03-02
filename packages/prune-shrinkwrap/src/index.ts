@@ -1,3 +1,4 @@
+import { SHRINKWRAP_VERSION } from '@pnpm/constants'
 import {
   PackageSnapshots,
   ResolvedDependencies,
@@ -7,7 +8,6 @@ import {
 import { PackageJson } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
 import R = require('ramda')
-import { SHRINKWRAP_VERSION } from './constants'
 
 export * from '@pnpm/shrinkwrap-types'
 

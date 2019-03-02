@@ -1,8 +1,6 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import fs = require('fs')
 import path = require('path')
-import {
-  WANTED_SHRINKWRAP_FILENAME,
-} from './constants'
 
 export default (pkgPath: string) => new Promise((resolve, reject) => {
   fs.access(path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME), (err) => {

@@ -1,3 +1,4 @@
+import { SHRINKWRAP_VERSION } from '@pnpm/constants'
 import {
   rootLogger,
   stageLogger,
@@ -21,7 +22,6 @@ import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
-import { SHRINKWRAP_VERSION } from '../constants'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,

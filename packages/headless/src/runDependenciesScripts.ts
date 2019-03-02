@@ -1,5 +1,6 @@
 // TODO: move to separate package. It is used in supi/lib/install.ts as well
 
+import { ENGINE_NAME } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
@@ -10,7 +11,6 @@ import path = require('path')
 import R = require('ramda')
 import runGroups from 'run-groups'
 import { DependenciesGraph } from '.'
-import { ENGINE_NAME } from './constants'
 
 export default async (
   depGraph: DependenciesGraph,

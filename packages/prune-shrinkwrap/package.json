@@ -44,6 +44,7 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
+    "@pnpm/constants": "0.0.0",
     "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/ramda": "0.25.39",

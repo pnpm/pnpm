@@ -1,3 +1,7 @@
+import {
+  ENGINE_NAME,
+  LAYOUT_VERSION,
+} from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import {
   runLifecycleHooksConcurrently,
@@ -19,10 +23,6 @@ import path = require('path')
 import R = require('ramda')
 import runGroups from 'run-groups'
 import semver = require('semver')
-import {
-  ENGINE_NAME,
-  LAYOUT_VERSION,
-} from '../constants'
 import getContext from '../getContext'
 import extendOptions, {
   RebuildOptions,

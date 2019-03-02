@@ -1,6 +1,6 @@
+import { LAYOUT_VERSION } from '@pnpm/constants'
 import { Modules } from '@pnpm/modules-yaml'
 import path = require('path')
-import { LAYOUT_VERSION } from '../../constants'
 import ModulesBreakingChangeError from './ModulesBreakingChangeError'
 import UnexpectedStoreError from './UnexpectedStoreError'
 

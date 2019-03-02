@@ -1,12 +1,13 @@
-import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import path = require('path')
-import readYamlFile from 'read-yaml-file'
+
 import {
   CURRENT_SHRINKWRAP_FILENAME,
   SHRINKWRAP_VERSION,
   WANTED_SHRINKWRAP_FILENAME,
-} from './constants'
+} from '@pnpm/constants'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import { ShrinkwrapBreakingChangeError } from './errors'
 import logger from './logger'
 

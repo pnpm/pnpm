@@ -1,3 +1,4 @@
+import { SHRINKWRAP_VERSION } from '@pnpm/constants'
 import logger from '@pnpm/logger'
 import {
   create as createShrinkwrap,
@@ -8,7 +9,6 @@ import {
 } from '@pnpm/shrinkwrap-file'
 import isCI = require('is-ci')
 import R = require('ramda')
-import { SHRINKWRAP_VERSION } from '../constants'
 
 export interface PnpmContext {
   currentShrinkwrap: Shrinkwrap,

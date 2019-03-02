@@ -1,4 +1,9 @@
 import {
+  ENGINE_NAME,
+  LAYOUT_VERSION,
+  SHRINKWRAP_VERSION,
+} from '@pnpm/constants'
+import {
   packageJsonLogger,
   skippedOptionalDependencyLogger,
   stageLogger,
@@ -50,11 +55,6 @@ import R = require('ramda')
 import rimraf = require('rimraf-then')
 import runGroups from 'run-groups'
 import semver = require('semver')
-import {
-  ENGINE_NAME,
-  LAYOUT_VERSION,
-  SHRINKWRAP_VERSION,
-} from '../constants'
 import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'

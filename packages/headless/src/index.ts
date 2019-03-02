@@ -1,4 +1,8 @@
 import {
+  ENGINE_NAME,
+  LAYOUT_VERSION,
+} from '@pnpm/constants'
+import {
   packageJsonLogger,
   progressLogger,
   rootLogger,
@@ -47,10 +51,6 @@ import dp = require('dependency-path')
 import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
-import {
-  ENGINE_NAME,
-  LAYOUT_VERSION,
-} from './constants'
 import runDependenciesScripts from './runDependenciesScripts'
 
 export type ReporterFunction = (logObj: LogBase) => void

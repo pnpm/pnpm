@@ -1,3 +1,4 @@
+import { ENGINE_NAME, LAYOUT_VERSION } from '@pnpm/constants'
 import { summaryLogger } from '@pnpm/core-loggers'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
@@ -11,7 +12,6 @@ import {
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
-import { ENGINE_NAME, LAYOUT_VERSION } from '../constants'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
 import shrinkwrapsEqual from '../shrinkwrapsEqual'

@@ -1,3 +1,7 @@
+import {
+  CURRENT_SHRINKWRAP_FILENAME,
+  WANTED_SHRINKWRAP_FILENAME,
+} from '@pnpm/constants'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import yaml = require('js-yaml')
@@ -7,10 +11,6 @@ import R = require('ramda')
 import rimraf = require('rimraf-then')
 import promisify = require('util.promisify')
 import writeFileAtomicCB = require('write-file-atomic')
-import {
-  CURRENT_SHRINKWRAP_FILENAME,
-  WANTED_SHRINKWRAP_FILENAME,
-} from './constants'
 import logger from './logger'
 
 const writeFileAtomic = promisify(writeFileAtomicCB)
