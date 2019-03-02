@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
@@ -360,7 +361,7 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
     t.equal(shr!.importers!.project!.dependencies!['is-positive'], '2.0.0')
     t.equal(shr!.importers!.project!.dependencies!['negative'], '/is-negative/1.0.0')
   }
@@ -378,7 +379,7 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
     t.equal(shr.importers!.project!.dependencies!['is-positive'], 'link:../is-positive')
     t.equal(shr.importers!.project!.dependencies!['negative'], 'link:../is-negative')
   }
@@ -436,7 +437,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   t.ok(projects['is-positive'].requireModule('concat-stream'), 'dependencies flattened in is-positive')
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
-  const sharedShr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  const sharedShr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
   t.equal(sharedShr.importers['project-1']!.devDependencies!['is-positive'], 'link:../is-positive')
 
   const outputs = await import(path.resolve('output.json')) as string[]
@@ -621,7 +622,7 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
 
   await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store')
 
-  const shr = await readYamlFile<Shrinkwrap>('./shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>(`./${WANTED_SHRINKWRAP_FILENAME}`)
   t.ok(shr.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 
   await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store', '--', 'project-1')
@@ -670,10 +671,10 @@ test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
 
   await execPnpm('install', '--store', 'store')
 
-  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
 
-  t.ok(shr['importers'] && shr['importers']['.'], 'correct shrinkwrap.yaml format')
-  t.equal(shr['shrinkwrapVersion'], 5, 'correct shrinkwrap.yaml version')
+  t.ok(shr['importers'] && shr['importers']['.'], `correct ${WANTED_SHRINKWRAP_FILENAME} format`)
+  t.equal(shr['shrinkwrapVersion'], 5, `correct ${WANTED_SHRINKWRAP_FILENAME} version`)
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
@@ -715,7 +716,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
 
   await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
-  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
 
   t.deepEqual(shr, {
     importers: {
@@ -742,7 +743,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
       },
     },
     shrinkwrapVersion: 5,
-  }, 'correct shrinkwrap.yaml created')
+  }, `correct ${WANTED_SHRINKWRAP_FILENAME} created`)
 })
 
 test('shared-workspace-shrinkwrap: entries of removed projects should be removed from shared shrinkwrap', async (t) => {
@@ -770,7 +771,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
   await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
     t.deepEqual(Object.keys(shr.importers), ['package-1', 'package-2'])
   }
 
@@ -779,7 +780,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
   await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
     t.deepEqual(Object.keys(shr.importers), ['package-1'])
   }
 })
@@ -844,9 +845,9 @@ test('shared-workspace-shrinkwrap: uninstalling a package recursively', async (t
     t.deepEqual(pkg.dependencies, { 'is-negative': '1.0.0' }, 'is-positive removed from project2')
   }
 
-  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
 
-  t.deepEqual(Object.keys(shr.packages || {}), ['/is-negative/1.0.0'], 'is-positive removed from shrinkwrap.yaml')
+  t.deepEqual(Object.keys(shr.packages || {}), ['/is-negative/1.0.0'], `is-positive removed from ${WANTED_SHRINKWRAP_FILENAME}`)
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
@@ -874,7 +875,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await execPnpm('install', 'ajv@4.10.4', 'ajv-keywords@1.5.0')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
     t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -892,7 +893,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await execPnpm('uninstall', 'ajv')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
     t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv-keywords': '1.5.0',

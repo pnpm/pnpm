@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import { LifecycleLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'
@@ -273,5 +274,5 @@ test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
   t.equal(scripts[3], 'prepare')
 
   const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, 'prepare field added to shrinkwrap.yaml')
+  t.ok(shr.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, `prepare field added to ${WANTED_SHRINKWRAP_FILENAME}`)
 })

@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import sinon = require('sinon')
@@ -14,7 +15,7 @@ import { testDefaults } from '../utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test("frozen-shrinkwrap: installation fails if specs in package.json don't match the ones in shrinkwrap.yaml", async (t) => {
+test(`frozen-shrinkwrap: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -33,11 +34,11 @@ test("frozen-shrinkwrap: installation fails if specs in package.json don't match
     await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, 'Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
+    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
   }
 })
 
-test("frozen-shrinkwrap+shamefully-flatten: installation fails if specs in package.json don't match the ones in shrinkwrap.yaml", async (t) => {
+test(`frozen-shrinkwrap+shamefully-flatten: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -56,11 +57,11 @@ test("frozen-shrinkwrap+shamefully-flatten: installation fails if specs in packa
     await install(await testDefaults({ frozenShrinkwrap: true, shamefullyFlatten: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, 'Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
+    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
   }
 })
 
-test('frozen-shrinkwrap: fail on a shared shrinkwrap.yaml that does not satisfy one of the package.json files', async (t) => {
+test(`frozen-shrinkwrap: fail on a shared ${WANTED_SHRINKWRAP_FILENAME} that does not satisfy one of the package.json files`, async (t) => {
   const project = preparePackages(t, [
     {
       name: 'p1',
@@ -102,11 +103,11 @@ test('frozen-shrinkwrap: fail on a shared shrinkwrap.yaml that does not satisfy 
     await mutateModules(importers, await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with p1${path.sep}package.json`)
+    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with p1${path.sep}package.json`)
   }
 })
 
-test('frozen-shrinkwrap: should successfully install when shrinkwrap.yaml is available', async (t) => {
+test(`frozen-shrinkwrap: should successfully install when ${WANTED_SHRINKWRAP_FILENAME} is available`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -122,7 +123,7 @@ test('frozen-shrinkwrap: should successfully install when shrinkwrap.yaml is ava
   await project.has('is-positive')
 })
 
-test('frozen-shrinkwrap: should fail if no shrinkwrap.yaml is present', async (t) => {
+test(`frozen-shrinkwrap: should fail if no ${WANTED_SHRINKWRAP_FILENAME} is present`, async (t) => {
   prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -133,11 +134,11 @@ test('frozen-shrinkwrap: should fail if no shrinkwrap.yaml is present', async (t
     await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equals(err.message, 'Headless installation requires a shrinkwrap.yaml file')
+    t.equals(err.message, `Headless installation requires a ${WANTED_SHRINKWRAP_FILENAME} file`)
   }
 })
 
-test('prefer-frozen-shrinkwrap: should prefer headless installation when shrinkwrap.yaml satisfies package.json', async (t) => {
+test(`prefer-frozen-shrinkwrap: should prefer headless installation when ${WANTED_SHRINKWRAP_FILENAME} satisfies package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -160,7 +161,7 @@ test('prefer-frozen-shrinkwrap: should prefer headless installation when shrinkw
   await project.has('is-positive')
 })
 
-test('prefer-frozen-shrinkwrap: should not prefer headless installation when shrinkwrap.yaml does not satisfy package.json', async (t) => {
+test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${WANTED_SHRINKWRAP_FILENAME} does not satisfy package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -189,19 +190,19 @@ test('prefer-frozen-shrinkwrap: should not prefer headless installation when shr
   await project.has('is-negative')
 })
 
-test('prefer-frozen-shrinkwrap: should not fail if no shrinkwrap.yaml is present and project has no deps', async (t) => {
+test(`prefer-frozen-shrinkwrap: should not fail if no ${WANTED_SHRINKWRAP_FILENAME} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
   await install(await testDefaults({ preferFrozenShrinkwrap: true }))
 })
 
-test('frozen-shrinkwrap: should not fail if no shrinkwrap.yaml is present and project has no deps', async (t) => {
+test(`frozen-shrinkwrap: should not fail if no ${WANTED_SHRINKWRAP_FILENAME} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
   await install(await testDefaults({ frozenShrinkwrap: true }))
 })
 
-test('prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless installation when shrinkwrap.yaml satisfies package.json', async (t) => {
+test(`prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless installation when ${WANTED_SHRINKWRAP_FILENAME} satisfies package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'pkg-with-1-dep': '100.0.0',

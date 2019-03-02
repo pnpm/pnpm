@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import dh, { forPackages as dhForPackages, PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import test = require('tape')
@@ -381,7 +382,7 @@ test('unsaved dependencies are listed and filtered', async t => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1549
-test('do not fail on importers that are not in current shrinkwrap.yaml', async t => {
+test(`do not fail on importers that are not in current ${WANTED_SHRINKWRAP_FILENAME}`, async t => {
   t.deepEqual(await dh(fixtureMonorepo), [])
   t.end()
 })

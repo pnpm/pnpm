@@ -50,6 +50,7 @@
     "semver": "5.6.0"
   },
   "devDependencies": {
+    "@pnpm/constants": "0.0.0",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.33",

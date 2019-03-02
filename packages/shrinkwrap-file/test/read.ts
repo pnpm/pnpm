@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import {
   existsWanted,
   read,
@@ -294,7 +295,7 @@ test('write does not use yaml anchors/aliases', async t => {
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
 
-  const shrContent = fs.readFileSync(path.join(projectPath, 'shrinkwrap.yaml'), 'utf8')
+  const shrContent = fs.readFileSync(path.join(projectPath, WANTED_SHRINKWRAP_FILENAME), 'utf8')
   t.ok(shrContent.indexOf('&') === -1, 'shrinkwrap contains no anchors')
   t.ok(shrContent.indexOf('*') === -1, 'shrinkwrap contains no aliases')
 

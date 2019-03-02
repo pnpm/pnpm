@@ -13,7 +13,7 @@ const fixtureWithNoPkgVersion = path.join(__dirname, 'fixture-with-no-pkg-versio
 const fixtureWithExternalShrinkwrap = path.join(__dirname, 'fixture-with-external-shrinkwrap', 'pkg')
 const emptyFixture = path.join(__dirname, 'empty')
 
-test('list all deps of a package that has an external shrinkwrap.yaml', async (t) => {
+test('list all deps of a package that has an external lockfile', async (t) => {
   t.equal(await list(fixtureWithExternalShrinkwrap, {
     shrinkwrapDirectory: path.join(fixtureWithExternalShrinkwrap, '..'),
   }), stripIndent`

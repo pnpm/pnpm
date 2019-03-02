@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
 import isCI = require('is-ci')
@@ -56,7 +57,7 @@ test('from a github repo with different name via named installation', async (t: 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(shr.dependencies, {
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-  }, 'the aliased name added to shrinkwrap.yaml')
+  }, `the aliased name added to ${WANTED_SHRINKWRAP_FILENAME}`)
 
   await project.isExecutable('.bin/hi')
   await project.isExecutable('.bin/szia')
@@ -95,7 +96,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
   t.deepEqual(shr.dependencies, {
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-  }, 'the aliased name added to shrinkwrap.yaml')
+  }, `the aliased name added to ${WANTED_SHRINKWRAP_FILENAME}`)
 
   await project.isExecutable('.bin/hi')
   await project.isExecutable('.bin/szia')
@@ -114,7 +115,7 @@ test('a subdependency is from a github repo with different name', async (t: tape
   t.deepEqual(shr.packages['/has-aliased-git-dependency/1.0.0'].dependencies, {
     'has-say-hi-peer': '1.0.0_say-hi@1.0.0',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-  }, 'the aliased name added to shrinkwrap.yaml')
+  }, `the aliased name added to ${WANTED_SHRINKWRAP_FILENAME}`)
 
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/hi')
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/szia')

@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import isCI = require('is-ci')
 import mkdirp = require('mkdirp-promise')
@@ -69,14 +70,14 @@ async function saveModulesYaml (pnpmVersion: string, storePath: string) {
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storePath}\nindependentLeaves: false`)
 }
 
-test('fail on non-compatible shrinkwrap.yaml', async (t: tape.Test) => {
+test(`fail on non-compatible ${WANTED_SHRINKWRAP_FILENAME}`, async (t: tape.Test) => {
   if (isCI) {
     t.skip('this test will always fail on CI servers')
     return
   }
 
   const project = prepare(t)
-  await fs.writeFile('shrinkwrap.yaml', '')
+  await fs.writeFile(WANTED_SHRINKWRAP_FILENAME, '')
 
   try {
     await addDependenciesToPackage(['is-negative'], await testDefaults())
@@ -86,9 +87,9 @@ test('fail on non-compatible shrinkwrap.yaml', async (t: tape.Test) => {
   }
 })
 
-test("don't fail on non-compatible shrinkwrap.yaml when forced", async (t: tape.Test) => {
+test(`don't fail on non-compatible ${WANTED_SHRINKWRAP_FILENAME} when forced`, async (t: tape.Test) => {
   const project = prepare(t)
-  await fs.writeFile('shrinkwrap.yaml', '')
+  await fs.writeFile(WANTED_SHRINKWRAP_FILENAME, '')
 
   await addDependenciesToPackage(['is-negative'], await testDefaults({ force: true }))
 

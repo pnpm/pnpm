@@ -143,7 +143,7 @@ export default function write (
   }
 
   logger.debug({
-    message: '`shrinkwrap.yaml` differs from `node_modules/.shrinkwrap.yaml`',
+    message: `\`${WANTED_SHRINKWRAP_FILENAME}\` differs from \`${CURRENT_SHRINKWRAP_FILENAME}\``,
     prefix: pkgPath,
   })
 

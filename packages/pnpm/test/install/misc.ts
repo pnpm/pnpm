@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
@@ -70,7 +71,7 @@ test('install --no-shrinkwrap', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
+  t.notOk(await project.loadShrinkwrap(), `${WANTED_SHRINKWRAP_FILENAME} not created`)
 })
 
 test('install --no-package-lock', async (t: tape.Test) => {
@@ -80,7 +81,7 @@ test('install --no-package-lock', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
+  t.notOk(await project.loadShrinkwrap(), `${WANTED_SHRINKWRAP_FILENAME} not created`)
 })
 
 test('install from any location via the --prefix flag', async (t: tape.Test) => {
@@ -105,7 +106,7 @@ test('install with external shrinkwrap directory', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
 
   t.deepEqual(Object.keys(shr.importers), ['project'], 'shrinkwrap created in correct location')
 })

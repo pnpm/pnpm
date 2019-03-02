@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import test = require('tape')
 import assertProject from '@pnpm/assert-project'
 import path = require('path')
@@ -20,8 +21,8 @@ test('assertProject() store functions', async (t) => {
   await project.storeHas('is-positive', '3.1.0')
   t.equal(typeof await project.resolve('is-positive', '3.1.0'), 'string')
   await project.storeHasNot('is-positive', '3.100.0')
-  t.ok(await project.loadShrinkwrap(), 'loads wanted shrinkwrap.yaml')
-  t.ok(await project.loadCurrentShrinkwrap(), 'loads current shrinkwrap.yaml')
+  t.ok(await project.loadShrinkwrap(), `loads wanted ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.ok(await project.loadCurrentShrinkwrap(), `loads current ${WANTED_SHRINKWRAP_FILENAME}`)
   t.ok(await project.loadModules(), 'loads .modules.yaml')
 
   t.end()

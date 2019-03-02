@@ -1,4 +1,7 @@
-import { SHRINKWRAP_VERSION } from '@pnpm/constants'
+import {
+  SHRINKWRAP_VERSION,
+  WANTED_SHRINKWRAP_FILENAME,
+} from '@pnpm/constants'
 import logger from '@pnpm/logger'
 import {
   create as createShrinkwrap,
@@ -45,7 +48,7 @@ export default async function (
     opts.shrinkwrap && readWantedShrinkwrap(opts.shrinkwrapDirectory, shrOpts)
       || await existsWantedShrinkwrap(opts.shrinkwrapDirectory) &&
         logger.warn({
-          message: 'A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file',
+          message: `A ${WANTED_SHRINKWRAP_FILENAME} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
           prefix: opts.shrinkwrapDirectory,
         }),
     readCurrentShrinkwrap(opts.shrinkwrapDirectory, shrOpts),

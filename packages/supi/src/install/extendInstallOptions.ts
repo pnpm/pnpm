@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
@@ -180,7 +181,7 @@ export default async (
     store: defaultOpts.store,
   }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
-    throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
+    throw new Error(`Cannot generate a ${WANTED_SHRINKWRAP_FILENAME} because shrinkwrap is set to false`)
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`

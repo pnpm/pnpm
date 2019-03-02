@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import ncpCB = require('ncp')
@@ -22,7 +23,7 @@ testSkip('subsequent installation uses same shrinkwrap directory by default', as
 
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
 
   t.deepEqual(Object.keys(shr['packages'] || {}), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
 })
@@ -44,7 +45,7 @@ testSkip('subsequent installation fails if a different shrinkwrap directory is s
   t.equal(err.code, 'ERR_PNPM_SHRINKWRAP_DIRECTORY_MISMATCH', 'failed with correct error code')
 })
 
-test('tarball location is correctly saved to shrinkwrap.yaml when a shared shrinkwrap.yaml is used', async (t: tape.Test) => {
+test(`tarball location is correctly saved to ${WANTED_SHRINKWRAP_FILENAME} when a shared ${WANTED_SHRINKWRAP_FILENAME} is used`, async (t: tape.Test) => {
   const project = prepare(t)
 
   await ncp(path.join(pathToLocalPkg('tar-pkg-with-dep-2'), 'tar-pkg-with-dep-1.0.0.tgz'), 'pkg.tgz')
@@ -62,7 +63,7 @@ test('tarball location is correctly saved to shrinkwrap.yaml when a shared shrin
     await testDefaults({ shrinkwrapDirectory }),
   )
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
   t.ok(shr.packages!['file:project/pkg.tgz'])
   t.equal(shr.packages!['file:project/pkg.tgz'].resolution['tarball'], 'file:project/pkg.tgz')
 

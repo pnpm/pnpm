@@ -1,3 +1,7 @@
+import {
+  CURRENT_SHRINKWRAP_FILENAME,
+  WANTED_SHRINKWRAP_FILENAME,
+} from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -33,7 +37,7 @@ test['skip'] = promisifyTape(tape.skip) // tslint:disable-line:no-string-literal
 
 const SHRINKWRAP_WARN_LOG = {
   level: 'warn',
-  message: 'A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file',
+  message: `A ${WANTED_SHRINKWRAP_FILENAME} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
   name: 'pnpm',
 }
 
@@ -101,7 +105,7 @@ test('shrinkwrap with scoped package', async (t: tape.Test) => {
     },
   })
 
-  await writeYamlFile('shrinkwrap.yaml', {
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, {
     dependencies: {
       '@types/semver': '5.3.31',
     },
@@ -128,7 +132,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
     },
   })
 
-  await writeYamlFile('shrinkwrap.yaml', {
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, {
     dependencies: {
       'is-negative': '2.1.0',
     },
@@ -185,7 +189,7 @@ test('shrinkwrap not created when no deps in package.json', async (t: tape.Test)
 test('shrinkwrap removed when no deps in package.json', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await writeYamlFile('shrinkwrap.yaml', {
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, {
     dependencies: {
       'is-negative': '2.1.0',
     },
@@ -217,7 +221,7 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
     },
   })
 
-  await writeYamlFile('shrinkwrap.yaml', {
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, {
     dependencies: {
       '@types/semver': '5.3.31',
       'is-negative': '2.1.0',
@@ -259,13 +263,13 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.devDependencies['is-negative'], '2.1.0', 'is-negative moved to devDependencies in shrinkwrap.yaml')
-  t.equal(shr.optionalDependencies['is-positive'], '3.1.0', 'is-positive moved to optionalDependencies in shrinkwrap.yaml')
+  t.equal(shr.devDependencies['is-negative'], '2.1.0', `is-negative moved to devDependencies in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(shr.optionalDependencies['is-positive'], '3.1.0', `is-positive moved to optionalDependencies in ${WANTED_SHRINKWRAP_FILENAME}`)
   t.notOk(shr.dependencies, 'empty dependencies property removed')
   t.notOk(shr.packages['/@types/semver/5.3.31'], 'package not referenced in package.json removed')
 })
 
-test('doing named installation when shrinkwrap.yaml exists already', async (t: tape.Test) => {
+test(`doing named installation when ${WANTED_SHRINKWRAP_FILENAME} exists already`, async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       '@types/semver': '5.3.31',
@@ -274,7 +278,7 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
     },
   })
 
-  await writeYamlFile('shrinkwrap.yaml', {
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, {
     dependencies: {
       '@types/semver': '5.3.31',
       'is-negative': '2.1.0',
@@ -310,12 +314,12 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
   await addDependenciesToPackage(['is-positive'], await testDefaults({ reporter }))
   await install(await testDefaults({ reporter }))
 
-  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
+  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `no warning about ignoring ${WANTED_SHRINKWRAP_FILENAME}`)
 
   await project.has('is-negative')
 })
 
-test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
+test(`respects ${WANTED_SHRINKWRAP_FILENAME} for top dependencies`, async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
   // const fooProgress = sinon.match({
@@ -368,7 +372,7 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
 })
 
-test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not match the inner one', async (t: tape.Test) => {
+test(`subdeps are updated on repeat install if outer ${WANTED_SHRINKWRAP_FILENAME} does not match the inner one`, async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -391,7 +395,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   shr.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
 
-  await writeYamlFile('shrinkwrap.yaml', shr)
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, shr)
 
   await install(await testDefaults())
 
@@ -438,7 +442,7 @@ test('repeat install with shrinkwrap should not mutate shrinkwrap when dependenc
 
   const shr1 = await project.loadShrinkwrap()
 
-  t.equal(shr1.dependencies['highmaps-release'], '5.0.11', 'dependency added correctly to shrinkwrap.yaml')
+  t.equal(shr1.dependencies['highmaps-release'], '5.0.11', `dependency added correctly to ${WANTED_SHRINKWRAP_FILENAME}`)
 
   await rimraf('node_modules')
 
@@ -556,7 +560,7 @@ test('repeat install with no inner shrinkwrap should not rewrite packages in nod
 
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
 
-  await rimraf('node_modules/.shrinkwrap.yaml')
+  await rimraf(CURRENT_SHRINKWRAP_FILENAME)
 
   await install(await testDefaults())
 
@@ -696,7 +700,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   await addDependenciesToPackage(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const shr = await project.loadShrinkwrap()
-  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], 'there are 0 packages with dev property in shrinkwrap.yaml')
+  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], `there are 0 packages with dev property in ${WANTED_SHRINKWRAP_FILENAME}`)
 })
 
 test('optional properties are correctly updated on named install', async (t: tape.Test) => {
@@ -706,7 +710,7 @@ test('optional properties are correctly updated on named install', async (t: tap
   await addDependenciesToPackage(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const shr = await project.loadShrinkwrap()
-  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], 'there are 0 packages with optional property in shrinkwrap.yaml')
+  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], `there are 0 packages with optional property in ${WANTED_SHRINKWRAP_FILENAME}`)
 })
 
 test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async (t: tape.Test) => {
@@ -725,11 +729,11 @@ test('no shrinkwrap', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['is-positive'], await testDefaults({ shrinkwrap: false, reporter }))
 
-  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
+  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `no warning about ignoring ${WANTED_SHRINKWRAP_FILENAME}`)
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
+  t.notOk(await project.loadShrinkwrap(), `${WANTED_SHRINKWRAP_FILENAME} not created`)
 })
 
 test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
@@ -739,7 +743,7 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
     },
   })
 
-  await writeYamlFile('shrinkwrap.yaml', {
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, {
     dependencies: {
       'is-negative': '2.1.0',
     },
@@ -761,14 +765,14 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
 
   await install(await testDefaults({ shrinkwrap: false, reporter }))
 
-  t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'warning about ignoring shrinkwrap.yaml')
+  t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `warning about ignoring ${WANTED_SHRINKWRAP_FILENAME}`)
 
   await project.has('is-negative')
 
-  t.ok(await project.loadShrinkwrap(), 'existing shrinkwrap.yaml not removed')
+  t.ok(await project.loadShrinkwrap(), `existing ${WANTED_SHRINKWRAP_FILENAME} not removed`)
 })
 
-test("don't update shrinkwrap.yaml during uninstall when shrinkwrap: false", async (t: tape.Test) => {
+test(`don't update ${WANTED_SHRINKWRAP_FILENAME} during uninstall when shrinkwrap: false`, async (t: tape.Test) => {
   const project = prepare(t)
 
   {
@@ -776,7 +780,7 @@ test("don't update shrinkwrap.yaml during uninstall when shrinkwrap: false", asy
 
     await addDependenciesToPackage(['is-positive'], await testDefaults({ reporter }))
 
-    t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
+    t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `no warning about ignoring ${WANTED_SHRINKWRAP_FILENAME}`)
   }
 
   {
@@ -784,12 +788,12 @@ test("don't update shrinkwrap.yaml during uninstall when shrinkwrap: false", asy
 
     await uninstall(['is-positive'], await testDefaults({ shrinkwrap: false, reporter }))
 
-    t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'warning about ignoring shrinkwrap.yaml')
+    t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `warning about ignoring ${WANTED_SHRINKWRAP_FILENAME}`)
   }
 
   await project.hasNot('is-positive')
 
-  t.ok(await project.loadShrinkwrap(), 'shrinkwrap.yaml not removed during uninstall')
+  t.ok(await project.loadShrinkwrap(), `${WANTED_SHRINKWRAP_FILENAME} not removed during uninstall`)
 })
 
 test('fail when installing with shrinkwrap: false and shrinkwrapOnly: true', async (t: tape.Test) => {
@@ -799,7 +803,7 @@ test('fail when installing with shrinkwrap: false and shrinkwrapOnly: true', asy
     await install(await testDefaults({ shrinkwrap: false, shrinkwrapOnly: true }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, 'Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
+    t.equal(err.message, `Cannot generate a ${WANTED_SHRINKWRAP_FILENAME} because shrinkwrap is set to false`)
   }
 })
 
@@ -889,7 +893,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   t.equal(modules['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
 
   {
-    const shr = await readYamlFile('shrinkwrap.yaml') as Shrinkwrap
+    const shr = await readYamlFile(WANTED_SHRINKWRAP_FILENAME) as Shrinkwrap
     const id = '/pkg-with-1-dep/100.0.0'
 
     t.equal(shr.shrinkwrapVersion, 5, 'correct shrinkwrap version')
@@ -922,7 +926,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..'), store }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.join('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_SHRINKWRAP_FILENAME))
 
     t.ok(shr.importers)
     t.ok(shr.importers['project-2'])
@@ -952,7 +956,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   }
 })
 
-test('doing named installation when shared shrinkwrap.yaml exists already', async (t: tape.Test) => {
+test(`doing named installation when shared ${WANTED_SHRINKWRAP_FILENAME} exists already`, async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'pkg1',
@@ -972,7 +976,7 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
     },
   ])
 
-  await writeYamlFile('shrinkwrap.yaml', {
+  await writeYamlFile(WANTED_SHRINKWRAP_FILENAME, {
     importers: {
       pkg1: {
         dependencies: {
@@ -1014,7 +1018,7 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
     }),
   )
 
-  const currentShr = await readYamlFile<Shrinkwrap>(path.resolve('node_modules', '.shrinkwrap.yaml'))
+  const currentShr = await readYamlFile<Shrinkwrap>(path.resolve(CURRENT_SHRINKWRAP_FILENAME))
 
   t.deepEqual(R.keys(currentShr['importers']), ['pkg2'], 'only pkg2 added to importers of current shrinkwrap')
 
@@ -1039,12 +1043,12 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1200
-test('use current shrinkwrap.yaml as initial wanted one, when wanted was removed', async (t) => {
+test(`use current ${WANTED_SHRINKWRAP_FILENAME} as initial wanted one, when wanted was removed`, async (t) => {
   const project = prepare(t)
 
   await addDependenciesToPackage(['lodash@4.17.11', 'underscore@1.9.0'], await testDefaults())
 
-  await rimraf('shrinkwrap.yaml')
+  await rimraf(WANTED_SHRINKWRAP_FILENAME)
 
   await addDependenciesToPackage(['underscore@1.9.1'], await testDefaults())
 

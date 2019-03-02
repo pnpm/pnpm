@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import { copy } from 'fs-extra'
 import fs = require('mz/fs')
@@ -139,7 +140,7 @@ test('tarball local package', async (t: tape.Test) => {
       tarball: `file:${normalizePath(path.relative(process.cwd(), pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')))}`,
     },
     version: '1.0.0',
-  }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')
+  }, `a snapshot of the local dep tarball added to ${WANTED_SHRINKWRAP_FILENAME}`)
 })
 
 test('tarball local package from project directory', async (t: tape.Test) => {
@@ -171,7 +172,7 @@ test('tarball local package from project directory', async (t: tape.Test) => {
       tarball: pkgSpec,
     },
     version: '1.0.0',
-  }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')
+  }, `a snapshot of the local dep tarball added to ${WANTED_SHRINKWRAP_FILENAME}`)
 })
 
 test('update tarball local package when its integrity changes', async (t) => {

@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
@@ -74,7 +75,7 @@ async function getDependencies (
 
       // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
       // However, the skipped list currently contains package IDs, not dep paths.
-      logger.debug({ message: `No entry for "${depRelPath}" in shrinkwrap.yaml` })
+      logger.debug({ message: `No entry for "${depRelPath}" in ${WANTED_SHRINKWRAP_FILENAME}` })
       continue
     }
 

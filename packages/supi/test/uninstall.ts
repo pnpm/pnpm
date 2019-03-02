@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import {
   PackageJsonLog,
   RootLog,
@@ -270,7 +271,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
   await projects['project-1'].hasNot('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
 
   t.deepEqual(shr, {
     importers: {

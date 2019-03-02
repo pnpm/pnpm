@@ -1,6 +1,7 @@
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
+  WANTED_SHRINKWRAP_FILENAME,
 } from '@pnpm/constants'
 import {
   packageJsonLogger,
@@ -110,7 +111,7 @@ export default async (opts: HeadlessOptions) => {
   const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(shrinkwrapDirectory, { ignoreIncompatible: false })
 
   if (!wantedShrinkwrap) {
-    throw new Error('Headless installation requires a shrinkwrap.yaml file')
+    throw new Error(`Headless installation requires a ${WANTED_SHRINKWRAP_FILENAME} file`)
   }
 
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
@@ -118,7 +119,7 @@ export default async (opts: HeadlessOptions) => {
 
   for (const importer of opts.importers) {
     if (!satisfiesPackageJson(wantedShrinkwrap, importer.pkg, importer.id)) {
-      const err = new Error('Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with ' +
+      const err = new Error(`Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with ` +
         path.relative(opts.shrinkwrapDirectory, path.join(importer.prefix, 'package.json')))
       err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
       throw err
@@ -564,7 +565,7 @@ async function getChildrenPaths (
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else if (!ctx.skipped.has(childRelDepPath)) {
-      throw new Error(`${childRelDepPath} not found in shrinkwrap.yaml`)
+      throw new Error(`${childRelDepPath} not found in ${WANTED_SHRINKWRAP_FILENAME}`)
     }
   }
   return children

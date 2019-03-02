@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import pnpmLogger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import {
@@ -120,7 +121,7 @@ function pkgAllDeps (
     if (ctx.pickedPackages[relDepPath]) continue
     const pkgSnapshot = ctx.pkgSnapshots[relDepPath]
     if (!pkgSnapshot && !relDepPath.startsWith('link:')) {
-      const message = `No entry for "${relDepPath}" in shrinkwrap.yaml`
+      const message = `No entry for "${relDepPath}" in ${WANTED_SHRINKWRAP_FILENAME}`
       if (opts.failOnMissingDependencies) {
         const err = new Error(message)
         err['code'] = 'ERR_PNPM_SHRINKWRAP_MISSING_DEPENDENCY' // tslint:disable-line:no-string-literal

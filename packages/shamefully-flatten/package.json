@@ -46,6 +46,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
+    "@pnpm/constants": "0.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/shrinkwrap-utils": "2.0.0-0",

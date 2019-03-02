@@ -1,4 +1,5 @@
 ///<reference path="../typings/local.d.ts"/>
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import {
   prune,
   pruneSharedShrinkwrap,
@@ -888,7 +889,7 @@ test('remove dependencies that are not in the package', t => {
   t.end()
 })
 
-test('ignore dependencies that are in package.json but are not in shrinkwrap.yaml', t => {
+test(`ignore dependencies that are in package.json but are not in ${WANTED_SHRINKWRAP_FILENAME}`, t => {
   t.deepEqual(prune({
     importers: {
       '.': {

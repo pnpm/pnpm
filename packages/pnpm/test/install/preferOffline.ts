@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import rimraf = require('rimraf-then')
 import tape = require('tape')
@@ -18,7 +19,7 @@ test('when prefer offline is used, meta from store is used, where latest might b
   await execPnpm('install', 'foo')
 
   await rimraf('node_modules')
-  await rimraf('shrinkwrap.yaml')
+  await rimraf(WANTED_SHRINKWRAP_FILENAME)
 
   await addDistTag('foo', '100.1.0', 'latest')
 

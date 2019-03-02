@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import fs = require('mz/fs')
@@ -35,7 +36,7 @@ test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   const currentShr = await project.loadCurrentShrinkwrap()
   t.notOk(currentShr, 'current shrinkwrap not created')
 
-  t.comment('doing repeat install when shrinkwrap.yaml is available already')
+  t.comment(`doing repeat install when ${WANTED_SHRINKWRAP_FILENAME} is available already`)
   await install(opts)
 
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])

@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import outdated, { forPackages as outdatedForPackages } from '@pnpm/outdated'
 import path = require('path')
 import test = require('tape')
@@ -22,7 +23,7 @@ const outdatedOpts = {
   userAgent: 'pnpm',
 }
 
-test('fail when there is no shrinkwrap.yaml file in the root of the project', async (t) => {
+test(`fail when there is no ${WANTED_SHRINKWRAP_FILENAME} file in the root of the project`, async (t) => {
   try {
     await outdated('no-shrinkwrap', outdatedOpts)
     t.fail('the call should have failed')
@@ -32,7 +33,7 @@ test('fail when there is no shrinkwrap.yaml file in the root of the project', as
   }
 })
 
-test('dont fail when there is no shrinkwrap.yaml file but no dependencies in package.json', async (t) => {
+test(`dont fail when there is no ${WANTED_SHRINKWRAP_FILENAME} file but no dependencies in package.json`, async (t) => {
   t.deepEqual(await outdated('no-deps', outdatedOpts), [])
   t.end()
 })

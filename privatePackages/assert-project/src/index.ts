@@ -1,4 +1,8 @@
 import assertStore from '@pnpm/assert-store'
+import {
+  CURRENT_SHRINKWRAP_FILENAME,
+  WANTED_SHRINKWRAP_FILENAME,
+} from '@pnpm/constants'
 import { read as readModules } from '@pnpm/modules-yaml'
 import path = require('path')
 import exists = require('path-exists')
@@ -73,7 +77,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     },
     async loadCurrentShrinkwrap () {
       try {
-        return await readYamlFile<any>(path.join(modules, '.shrinkwrap.yaml')) // tslint:disable-line
+        return await readYamlFile<any>(path.join(modules, '..', CURRENT_SHRINKWRAP_FILENAME)) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err
@@ -82,7 +86,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     loadModules: () => readModules(modules),
     async loadShrinkwrap () {
       try {
-        return await readYamlFile<any>(path.join(projectPath, 'shrinkwrap.yaml')) // tslint:disable-line
+        return await readYamlFile<any>(path.join(projectPath, WANTED_SHRINKWRAP_FILENAME)) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err

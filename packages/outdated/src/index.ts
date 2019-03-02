@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import createResolver from '@pnpm/npm-resolver'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import {
@@ -153,7 +154,7 @@ async function _outdated (
           const pkgSnapshot = wantedShrinkwrap.packages && wantedShrinkwrap.packages[relativeDepPath]
 
           if (!pkgSnapshot) {
-            throw new Error(`Invalid shrinkwrap.yaml file. ${relativeDepPath} not found in packages field`)
+            throw new Error(`Invalid ${WANTED_SHRINKWRAP_FILENAME} file. ${relativeDepPath} not found in packages field`)
           }
 
           const currentRef = currentShrinkwrap.importers[importerId][depType][packageName]

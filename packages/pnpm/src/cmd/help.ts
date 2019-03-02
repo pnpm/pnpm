@@ -1,3 +1,4 @@
+import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import { stripIndent } from 'common-tags'
 import getCommandFullName from '../getCommandFullName'
 
@@ -47,12 +48,12 @@ function getHelpText (command: string) {
           --[no-]lock
           --strict-peer-dependencies         fail on missing or invalid peer dependencies.
 
-          --no-shrinkwrap                    don't read or generate a \`shrinkwrap.yaml\` file
-          --shrinkwrap-only                  dependencies are not downloaded only \`shrinkwrap.yaml\` is updated
+          --no-shrinkwrap                    don't read or generate a \`${WANTED_SHRINKWRAP_FILENAME}\` file
+          --shrinkwrap-only                  dependencies are not downloaded only \`${WANTED_SHRINKWRAP_FILENAME}\` is updated
           --frozen-shrinkwrap                don't generate a shrinkwrap file and fail if an update is needed
-          --prefer-frozen-shrinkwrap         if the available \`shrinkwrap.yaml\` satisfies the \`package.json\`
+          --prefer-frozen-shrinkwrap         if the available \`${WANTED_SHRINKWRAP_FILENAME}\` satisfies the \`package.json\`
                                              then perform a headless installation.
-          --shrinkwrap-directory <path>      the directory in which the shrinkwrap.yaml of the package will be created.
+          --shrinkwrap-directory <path>      the directory in which the ${WANTED_SHRINKWRAP_FILENAME} of the package will be created.
                                              Several projects may share a single shrinkwrap file.
 
           --use-store-server                 starts a store server in the background.
@@ -107,7 +108,7 @@ function getHelpText (command: string) {
       return stripIndent`
         pnpm import
 
-        Generates shrinkwrap.yaml from an npm package-lock.json (or npm-shrinkwrap.json) file.
+        Generates ${WANTED_SHRINKWRAP_FILENAME} from an npm package-lock.json (or npm-shrinkwrap.json) file.
       `
 
     case 'uninstall':
@@ -368,7 +369,7 @@ function getHelpText (command: string) {
             Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
 
           --shared-workspace-shrinkwrap
-            Creates a single shrinkwrap.yaml file in the root of the workspace.
+            Creates a single ${WANTED_SHRINKWRAP_FILENAME} file in the root of the workspace.
             A shared shrinkwrap also means that all dependencies of all workspace packages will be in a single node_modules.
       `
 

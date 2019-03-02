@@ -1,6 +1,7 @@
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
+  WANTED_SHRINKWRAP_FILENAME,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import {
@@ -42,8 +43,8 @@ function findPackages (
       const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgShr)
       if (!pkgInfo.name) {
         logger.warn({
-          message: `Skipping ${relativeDepPath} because cannot get the package name from shrinkwrap.yaml.
-            Try to run run \`pnpm update --depth 100\` to create a new shrinkwrap.yaml with all the necessary info.`,
+          message: `Skipping ${relativeDepPath} because cannot get the package name from ${WANTED_SHRINKWRAP_FILENAME}.
+            Try to run run \`pnpm update --depth 100\` to create a new ${WANTED_SHRINKWRAP_FILENAME} with all the necessary info.`,
           prefix: opts.prefix,
         })
         return false
@@ -211,7 +212,7 @@ function getSubgraphToBuild (
 
       // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
       // However, the skipped list currently contains package IDs, not dep paths.
-      logger.debug({ message: `No entry for "${depPath}" in shrinkwrap.yaml` })
+      logger.debug({ message: `No entry for "${depPath}" in ${WANTED_SHRINKWRAP_FILENAME}` })
       continue
     }
     const nextEntryNodes = R.toPairs({

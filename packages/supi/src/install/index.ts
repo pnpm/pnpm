@@ -2,6 +2,7 @@ import {
   ENGINE_NAME,
   LAYOUT_VERSION,
   SHRINKWRAP_VERSION,
+  WANTED_SHRINKWRAP_FILENAME,
 } from '@pnpm/constants'
 import {
   packageJsonLogger,
@@ -187,7 +188,7 @@ export async function mutateModules (
     ) {
       if (!ctx.existsWantedShrinkwrap) {
         if (ctx.importers.some((importer) => pkgHasDependencies(importer.pkg))) {
-          throw new Error('Headless installation requires a shrinkwrap.yaml file')
+          throw new Error(`Headless installation requires a ${WANTED_SHRINKWRAP_FILENAME} file`)
         }
       } else {
         logger.info({ message: 'Performing headless installation', prefix: opts.shrinkwrapDirectory })

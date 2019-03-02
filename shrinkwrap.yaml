@@ -239,6 +239,7 @@ importers:
       resolve-link-target: 1.0.1
       semver: 5.6.0
     devDependencies:
+      '@pnpm/constants': 'link:../constants'
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
@@ -251,6 +252,7 @@ importers:
       tslint: /tslint/5.13.1/typescript@3.3.3333
       typescript: 3.3.3333
     specifiers:
+      '@pnpm/constants': 0.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.1
       '@pnpm/read-modules-dir': 1.0.0
@@ -335,6 +337,7 @@ importers:
       typescript: 3.3.3333
   packages/filter-shrinkwrap:
     dependencies:
+      '@pnpm/constants': 'link:../constants'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/shrinkwrap-types': 'link:../shrinkwrap-types'
       '@pnpm/shrinkwrap-utils': 'link:../shrinkwrap-utils'
@@ -358,6 +361,7 @@ importers:
       write-yaml-file: 2.0.0
       yaml-tag: 1.1.0
     specifiers:
+      '@pnpm/constants': 0.0.0
       '@pnpm/filter-shrinkwrap': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/package-is-installable': 2.0.0-0
@@ -789,6 +793,7 @@ importers:
       write-json-file: 3.1.0
   packages/outdated:
     dependencies:
+      '@pnpm/constants': 'link:../constants'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/read-package-json': 1.1.1
       '@pnpm/shrinkwrap-file': 'link:../shrinkwrap-file'
@@ -811,6 +816,7 @@ importers:
       tslint: /tslint/5.13.1/typescript@3.3.3333
       typescript: 3.3.3333
     specifiers:
+      '@pnpm/constants': 0.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 3.0.0-0
       '@pnpm/outdated': 'link:'
@@ -1455,6 +1461,7 @@ importers:
       uuid: 3.3.2
   packages/shamefully-flatten:
     dependencies:
+      '@pnpm/constants': 'link:../constants'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/shrinkwrap-types': 'link:../shrinkwrap-types'
       '@pnpm/shrinkwrap-utils': 'link:../shrinkwrap-utils'
@@ -1472,6 +1479,7 @@ importers:
       tslint: /tslint/5.13.1/typescript@3.3.3333
       typescript: 3.3.3333
     specifiers:
+      '@pnpm/constants': 0.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/shrinkwrap-types': 2.0.0-0
@@ -1978,6 +1986,7 @@ importers:
   privatePackages/assert-project:
     dependencies:
       '@pnpm/assert-store': 'link:../assert-store'
+      '@pnpm/constants': 'link:../../packages/constants'
       '@pnpm/modules-yaml': 'link:../../packages/modules-yaml'
       '@types/mz': 0.0.32
       '@types/node': 11.9.5
@@ -2001,6 +2010,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': 1.0.0
+      '@pnpm/constants': 0.0.0
       '@pnpm/modules-yaml': 2.0.1
       '@types/mz': 0.0.32
       '@types/node': 11.9.5
