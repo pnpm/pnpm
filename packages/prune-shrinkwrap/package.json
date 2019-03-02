@@ -39,7 +39,7 @@
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "ts-node": "6.2.0",
-    "tslint": "5.13.0",
+    "tslint": "5.13.1",
     "typescript": "3.3.3333",
     "yaml-tag": "1.1.0"
   },

@@ -44,7 +44,7 @@
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "11.9.5",
-    "@types/p-queue": "3.0.0",
+    "@types/p-queue": "3.1.0",
     "load-json-file": "5.2.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
@@ -67,7 +67,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/ncp": "2.0.1",
     "@types/nock": "9.3.1",
-    "@types/sinon": "7.0.6",
+    "@types/sinon": "7.0.8",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "delay": "4.1.0",
@@ -81,7 +81,7 @@
     "tape": "4.10.1",
     "tempy": "0.2.1",
     "ts-node": "7.0.1",
-    "tslint": "5.13.0",
+    "tslint": "5.13.1",
     "typescript": "3.3.3333"
   },
   "mos": {

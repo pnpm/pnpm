@@ -33,7 +33,7 @@
     "@types/node": "11.9.5",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
-    "@types/sinon": "7.0.6",
+    "@types/sinon": "7.0.8",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "fs-extra": "7.0.1",
@@ -49,7 +49,7 @@
     "tape-promise": "4.0.0",
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
-    "tslint": "5.13.0",
+    "tslint": "5.13.1",
     "typescript": "3.3.3333"
   },
   "directories": {
@@ -99,7 +99,7 @@
     "@pnpm/symlink-dependency": "1.1.3",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
-    "@types/p-limit": "2.0.0",
+    "@types/p-limit": "2.1.0",
     "@types/ramda": "0.25.34",
     "dependency-path": "3.0.0-0",
     "graph-sequencer": "2.0.0",
