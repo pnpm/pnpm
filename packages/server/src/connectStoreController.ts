@@ -10,7 +10,7 @@ import {
 import { PackageManifest } from '@pnpm/types'
 
 import got = require('got')
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {

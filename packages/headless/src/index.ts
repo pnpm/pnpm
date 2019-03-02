@@ -49,7 +49,7 @@ import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-de
 import { PackageJson, Registries } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
 import runDependenciesScripts from './runDependenciesScripts'
