@@ -234,7 +234,7 @@ export default async function linkPackages (
   }))
 
   if (opts.updateShrinkwrapMinorVersion) {
-    newWantedShrinkwrap.shrinkwrapVersion = SHRINKWRAP_VERSION
+    newWantedShrinkwrap.lockfileVersion = SHRINKWRAP_VERSION
   }
 
   await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {

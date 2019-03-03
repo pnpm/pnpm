@@ -2,7 +2,7 @@ export interface Shrinkwrap {
   importers: {
     [path: string]: ShrinkwrapImporter,
   },
-  shrinkwrapVersion: number,
+  lockfileVersion: number,
   packages?: PackageSnapshots,
 }
 

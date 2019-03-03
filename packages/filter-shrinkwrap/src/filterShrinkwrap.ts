@@ -28,7 +28,7 @@ export default function filterShrinkwrap (
       acc[importerId] = filterImporter(shr.importers[importerId], opts.include)
       return acc
     }, {}),
+    lockfileVersion: shr.lockfileVersion,
     packages: R.fromPairs(pairs),
-    shrinkwrapVersion: shr.shrinkwrapVersion,
   }
 }

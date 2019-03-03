@@ -31,6 +31,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
           }
         }
       },
+      lockfileVersion: 5,
       packages: {
         '/dev-dep/1.0.0': {
           dev: true,
@@ -56,7 +57,6 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -96,6 +96,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         }
       }
     },
+    lockfileVersion: 5,
     packages: {
       '/prod-dep-dep/1.0.0': {
         resolution: { integrity: '' },
@@ -110,7 +111,6 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 5,
   })
   t.end()
 })
@@ -134,6 +134,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
             specifiers: {},
           },
         },
+        lockfileVersion: 5,
         packages: {
           '/prod-dep/1.0.0': {
             dependencies: {
@@ -144,7 +145,6 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
             },
           },
         },
-        shrinkwrapVersion: 5,
       },
       ['project-1'],
       {
@@ -184,6 +184,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
           specifiers: {},
         },
       },
+      lockfileVersion: 5,
       packages: {
         '/prod-dep/1.0.0': {
           dependencies: {
@@ -194,7 +195,6 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
           },
         },
       },
-      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -227,6 +227,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         specifiers: {},
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/prod-dep/1.0.0': {
         dependencies: {
@@ -235,7 +236,6 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -270,6 +270,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
           }
         }
       },
+      lockfileVersion: 5,
       packages: {
         '/dev-dep/1.0.0': {
           dev: true,
@@ -295,7 +296,6 @@ test('filterByImporters(): do not include skipped packages', (t) => {
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -339,6 +339,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         }
       }
     },
+    lockfileVersion: 5,
     packages: {
       '/dev-dep/1.0.0': {
         dev: true,
@@ -357,7 +358,6 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 5,
   })
   t.end()
 })

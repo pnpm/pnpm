@@ -1,0 +1,5 @@
+dependencies:
+  general: 'link:../general'
+lockfileVersion: 5
+specifiers:
+  general: 0.0.0

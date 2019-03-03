@@ -2,8 +2,7 @@ import { satisfiesPackageJson } from '@pnpm/shrinkwrap-utils'
 import test = require('tape')
 
 const DEFAULT_SHR_FIELDS = {
-  registry: 'https://registry.npmjs.org/',
-  shrinkwrapVersion: 3,
+  lockfileVersion: 3,
 }
 
 const DEFAULT_PKG_FIELDS = {

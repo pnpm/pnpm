@@ -287,6 +287,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -298,7 +299,6 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 })
 

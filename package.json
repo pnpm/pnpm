@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "test": "pnpm recursive test --reporter append-only --workspace-concurrency 1",
+    "test": "pnpm m run tsc && pnpm m test --reporter append-only --workspace-concurrency 1",
     "build": "pnpm recursive run tsc"
   }
 }

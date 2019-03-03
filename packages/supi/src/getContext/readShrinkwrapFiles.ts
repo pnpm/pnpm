@@ -53,7 +53,7 @@ export default async function (
         }),
     readCurrentShrinkwrap(opts.shrinkwrapDirectory, shrOpts),
   ])
-  const sopts = { shrinkwrapVersion: SHRINKWRAP_VERSION }
+  const sopts = { lockfileVersion: SHRINKWRAP_VERSION }
   const importerIds = opts.importers.map((importer) => importer.id)
   const currentShrinkwrap = files[1] || createShrinkwrap(importerIds, sopts)
   for (const importerId of importerIds) {

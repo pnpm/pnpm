@@ -69,8 +69,8 @@ export default function filterByImportersAndEngine (
 
   return {
     importers,
+    lockfileVersion: shr.lockfileVersion,
     packages,
-    shrinkwrapVersion: shr.shrinkwrapVersion,
   }
 }
 
