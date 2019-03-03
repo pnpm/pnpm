@@ -178,7 +178,7 @@ export async function mutateModules (
         opts.preferFrozenShrinkwrap &&
         (!opts.pruneShrinkwrapImporters || Object.keys(ctx.wantedShrinkwrap.importers).length === ctx.importers.length) &&
         ctx.existsWantedShrinkwrap &&
-        ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION &&
+        ctx.wantedShrinkwrap.lockfileVersion === SHRINKWRAP_VERSION &&
         await pEvery(ctx.importers, async (importer) =>
           !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
           satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
@@ -605,7 +605,7 @@ async function installInContext (
   }
 
   // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
-  const hasManifestInShrinkwrap = ctx.wantedShrinkwrap.shrinkwrapVersion >= SHRINKWRAP_VERSION
+  const hasManifestInShrinkwrap = ctx.wantedShrinkwrap.lockfileVersion >= SHRINKWRAP_VERSION
 
   ctx.wantedShrinkwrap.importers = ctx.wantedShrinkwrap.importers || {}
   for (const importer of importers) {

@@ -1,0 +1,5 @@
+dependencies:
+  example: 'link:example'
+lockfileVersion: 5
+specifiers:
+  example: 'link:example'

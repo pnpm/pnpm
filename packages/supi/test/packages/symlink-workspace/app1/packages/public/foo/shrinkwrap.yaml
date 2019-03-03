@@ -1,4 +1,0 @@
-dependencies:
-  bar: 'link:../bar'
-shrinkwrapVersion: 5
-specifiers: {}

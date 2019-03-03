@@ -674,7 +674,7 @@ test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
   const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
 
   t.ok(shr['importers'] && shr['importers']['.'], `correct ${WANTED_SHRINKWRAP_FILENAME} format`)
-  t.equal(shr['shrinkwrapVersion'], 5, `correct ${WANTED_SHRINKWRAP_FILENAME} version`)
+  t.equal(shr['lockfileVersion'], 5, `correct ${WANTED_SHRINKWRAP_FILENAME} version`)
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
@@ -731,6 +731,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -742,7 +743,6 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, `correct ${WANTED_SHRINKWRAP_FILENAME} created`)
 })
 

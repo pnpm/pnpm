@@ -1,0 +1,4 @@
+dependencies:
+  bar: 'link:../bar'
+lockfileVersion: 5
+specifiers: {}

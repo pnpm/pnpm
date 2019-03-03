@@ -26,6 +26,7 @@ test('remove one redundant package', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -40,7 +41,6 @@ test('remove one redundant package', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -59,6 +59,7 @@ test('remove one redundant package', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -67,7 +68,6 @@ test('remove one redundant package', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -85,8 +85,8 @@ test('remove redundant linked package', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {},
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -98,7 +98,7 @@ test('remove redundant linked package', t => {
         specifiers: {},
       },
     },
-    shrinkwrapVersion: 5,
+    lockfileVersion: 5,
   })
 
   t.end()
@@ -118,6 +118,7 @@ test('keep all', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -141,7 +142,6 @@ test('keep all', t => {
         }
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -163,6 +163,7 @@ test('keep all', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -186,7 +187,6 @@ test('keep all', t => {
         }
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -210,6 +210,7 @@ test('optional dependency should have optional = true', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/foo-child/1.0.0': {
         optional: true,
@@ -252,7 +253,6 @@ test('optional dependency should have optional = true', t => {
         }
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -281,6 +281,7 @@ test('optional dependency should have optional = true', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/foo-child/1.0.0': {
         dev: false,
@@ -324,7 +325,6 @@ test('optional dependency should have optional = true', t => {
         }
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -344,6 +344,7 @@ test('optional dependency should not have optional = true if used not only as op
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -361,7 +362,6 @@ test('optional dependency should not have optional = true if used not only as op
         }
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -383,6 +383,7 @@ test('optional dependency should not have optional = true if used not only as op
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -400,7 +401,6 @@ test('optional dependency should not have optional = true if used not only as op
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -422,6 +422,7 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
@@ -435,7 +436,6 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -461,6 +461,7 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: true,
@@ -475,7 +476,6 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -497,6 +497,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
@@ -513,7 +514,6 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -539,6 +539,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
@@ -555,7 +556,6 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -573,6 +573,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/a/1.0.0': {
         resolution: {
@@ -580,7 +581,6 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -599,6 +599,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/a/1.0.0': {
         dev: false,
@@ -607,7 +608,6 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -624,6 +624,7 @@ test('subdependency is both optional and dev', t => {
         specifiers:
           parent: ^1.0.0
           prod-parent: ^1.0.0
+    lockfileVersion: 5
     packages:
       /parent/1.0.0:
         optionalDependencies:
@@ -642,7 +643,6 @@ test('subdependency is both optional and dev', t => {
       /subdep2/1.0.0:
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
-    shrinkwrapVersion: 5
   `, {
     name: 'foo',
     version: '1.0.0',
@@ -663,6 +663,7 @@ test('subdependency is both optional and dev', t => {
         specifiers:
           parent: ^1.0.0
           prod-parent: ^1.0.0
+    lockfileVersion: 5
     packages:
       /parent/1.0.0:
         dev: true
@@ -685,7 +686,6 @@ test('subdependency is both optional and dev', t => {
       /subdep2/1.0.0:
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
-    shrinkwrapVersion: 5
   `)
 
   t.end()
@@ -702,6 +702,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
         specifiers:
           foo: 'npm:inflight@^1.0.6'
           inflight: ^1.0.6
+    lockfileVersion: 5
     packages:
       /inflight/1.0.6:
         dev: true
@@ -720,7 +721,6 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
         dev: true
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    shrinkwrapVersion: 5
   `, {
     name: 'foo',
     version: '1.0.0',
@@ -741,6 +741,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
         specifiers:
           foo: 'npm:inflight@^1.0.6'
           inflight: ^1.0.6
+    lockfileVersion: 5
     packages:
       /inflight/1.0.6:
         dependencies:
@@ -756,7 +757,6 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
       /wrappy/1.0.2:
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    shrinkwrapVersion: 5
   `)
 
   t.end()
@@ -773,6 +773,7 @@ test('optional = true is removed if dependency is used both as optional and prod
         specifiers:
           foo: 'npm:inflight@^1.0.6'
           inflight: ^1.0.6
+    lockfileVersion: 5
     packages:
       /inflight/1.0.6:
         optional: true
@@ -791,7 +792,6 @@ test('optional = true is removed if dependency is used both as optional and prod
         optional: true
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    shrinkwrapVersion: 5
   `, {
     name: 'foo',
     version: '1.0.0',
@@ -812,6 +812,7 @@ test('optional = true is removed if dependency is used both as optional and prod
         specifiers:
           foo: 'npm:inflight@^1.0.6'
           inflight: ^1.0.6
+    lockfileVersion: 5
     packages:
       /inflight/1.0.6:
         dev: false
@@ -830,7 +831,6 @@ test('optional = true is removed if dependency is used both as optional and prod
         dev: false
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
-    shrinkwrapVersion: 5
   `)
 
   t.end()
@@ -856,6 +856,7 @@ test('remove dependencies that are not in the package', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/fsevents/1.0.0': {
         resolution: {
@@ -873,7 +874,6 @@ test('remove dependencies that are not in the package', t => {
         }
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -883,7 +883,7 @@ test('remove dependencies that are not in the package', t => {
         specifiers: {},
       },
     },
-    shrinkwrapVersion: 5,
+    lockfileVersion: 5,
   })
 
   t.end()
@@ -901,6 +901,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_SHRIN
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -909,7 +910,6 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_SHRIN
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -929,6 +929,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_SHRIN
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -937,7 +938,6 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_SHRIN
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -956,6 +956,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         },
       },
     },
+    lockfileVersion: 5.2,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -964,7 +965,6 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         },
       },
     },
-    shrinkwrapVersion: 5.2,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -983,6 +983,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         },
       },
     },
+    lockfileVersion: 5.2,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -991,7 +992,6 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         },
       },
     },
-    shrinkwrapVersion: 5.2,
   })
 
   t.end()
@@ -1010,6 +1010,7 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1018,7 +1019,6 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'foo',
     version: '1.0.0',
@@ -1038,6 +1038,7 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1046,7 +1047,6 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -1072,6 +1072,7 @@ test("prune: don't remove package used by another importer", t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1092,7 +1093,6 @@ test("prune: don't remove package used by another importer", t => {
         }
       },
     },
-    shrinkwrapVersion: 5,
   }, {
     name: 'project-2',
     version: '1.0.0',
@@ -1117,6 +1117,7 @@ test("prune: don't remove package used by another importer", t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1131,7 +1132,6 @@ test("prune: don't remove package used by another importer", t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()
@@ -1149,6 +1149,7 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -1163,7 +1164,6 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   }, DEFAULT_OPTS), {
     importers: {
       'packages/package-1': {
@@ -1175,6 +1175,7 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -1183,7 +1184,6 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   t.end()

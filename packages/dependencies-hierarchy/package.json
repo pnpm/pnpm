@@ -10,7 +10,7 @@
   "scripts": {
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "pretest": "cd fixtures && pnpm recursive install --frozen-shrinkwrap --no-shared-workspace-shrinkwrap --no-link-workspace-packages && cd ../fixtureWithLinks && pnpm recursive install --frozen-shrinkwrap --link-workspace-packages --no-shared-workspace-shrinkwrap && cd ..",
+    "pretest": "cd fixtures && node ../../pnpm/bin/pnpm recursive install --frozen-shrinkwrap --no-shared-workspace-shrinkwrap --no-link-workspace-packages && cd ../fixtureWithLinks && node ../../pnpm/bin/pnpm recursive install --frozen-shrinkwrap --link-workspace-packages --no-shared-workspace-shrinkwrap && cd ..",
     "test": "npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "prepublishOnly": "tsc",
     "tsc": "tsc",

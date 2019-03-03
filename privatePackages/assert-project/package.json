@@ -40,7 +40,7 @@
     "lint-test": "tslint -c tslint.json --project test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
-    "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-shrinkwrap && cd ../../..",
+    "pretest": "cd test/fixture/project && node ../../../../../packages/pnpm/bin/pnpm i --force --no-shared-workspace-shrinkwrap && cd ../../..",
     "test": "npm run lint && npm run lint-test && npm run tsc && ts-node test"
   },
   "dependencies": {

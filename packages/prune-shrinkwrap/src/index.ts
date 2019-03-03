@@ -89,8 +89,8 @@ export function prune (
       ...shr.importers,
       [importerId]: updatedImporter,
     },
+    lockfileVersion: shr.lockfileVersion || SHRINKWRAP_VERSION,
     packages: shr.packages,
-    shrinkwrapVersion: shr.shrinkwrapVersion || SHRINKWRAP_VERSION,
   }
   if (!R.isEmpty(packages)) {
     prunnedShrinkwrap.packages = packages

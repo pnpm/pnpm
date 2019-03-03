@@ -44,13 +44,13 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
 
   {
     const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.shrinkwrapVersion, 5, `project-1 has correct shrinkwrapVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
     t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Shr.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.shrinkwrapVersion, 5, `is-positive has correct shrinkwrapVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
 })
 
 test('recursive unlink specific package', async (t: tape.Test) => {
@@ -90,11 +90,11 @@ test('recursive unlink specific package', async (t: tape.Test) => {
 
   {
     const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.shrinkwrapVersion, 5, `project-1 has correct shrinkwrapVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
     t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Shr.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.shrinkwrapVersion, 5, `is-positive has correct shrinkwrapVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
 })

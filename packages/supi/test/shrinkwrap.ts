@@ -58,7 +58,7 @@ test('shrinkwrap file has correct format', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.shrinkwrapVersion, 5, 'correct shrinkwrap version')
+  t.equal(shr.lockfileVersion, 5, 'correct shrinkwrap version')
 
   t.ok(shr.specifiers, 'has specifiers field')
   t.ok(shr.dependencies, 'has dependencies field')
@@ -109,6 +109,7 @@ test('shrinkwrap with scoped package', async (t: tape.Test) => {
     dependencies: {
       '@types/semver': '5.3.31',
     },
+    lockfileVersion: 5,
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
@@ -116,7 +117,6 @@ test('shrinkwrap with scoped package', async (t: tape.Test) => {
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       '@types/semver': '^5.3.31',
     },
@@ -136,6 +136,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
     dependencies: {
       'is-negative': '2.1.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
@@ -144,7 +145,6 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       'is-negative': '2.1.0',
     },
@@ -193,6 +193,7 @@ test('shrinkwrap removed when no deps in package.json', async (t: tape.Test) => 
     dependencies: {
       'is-negative': '2.1.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
@@ -200,7 +201,6 @@ test('shrinkwrap removed when no deps in package.json', async (t: tape.Test) => 
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       'is-negative': '2.1.0',
     },
@@ -227,6 +227,7 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
       'is-negative': '2.1.0',
       'is-positive': '3.1.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
@@ -244,7 +245,6 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
@@ -284,6 +284,7 @@ test(`doing named installation when ${WANTED_SHRINKWRAP_FILENAME} exists already
       'is-negative': '2.1.0',
       'is-positive': '3.1.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
@@ -301,7 +302,6 @@ test(`doing named installation when ${WANTED_SHRINKWRAP_FILENAME} exists already
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
@@ -504,6 +504,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
       '@zkochan/foo': '1.0.0',
       'is-positive': '3.1.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/@foo/has-dep-from-same-scope/1.0.0': {
         dependencies: {
@@ -546,7 +547,6 @@ test('scoped module from different registry', async (t: tape.Test) => {
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       '@foo/has-dep-from-same-scope': '^1.0.0',
       '@zkochan/foo': '^1.0.0',
@@ -584,6 +584,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
     dependencies: {
       'is-positive': '3.1.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/is-positive/3.1.0': {
         dev: false,
@@ -596,7 +597,6 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       'is-positive': '^3.1.0',
     },
@@ -747,6 +747,7 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
     dependencies: {
       'is-negative': '2.1.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
@@ -755,7 +756,6 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
         },
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       'is-negative': '2.1.0',
     },
@@ -842,6 +842,7 @@ test('packages installed via tarball URL from the default registry are normalize
       'is-positive': 'registry.npmjs.org/is-positive/-/is-positive-1.0.0',
       'pkg-with-tarball-dep-from-registry': '1.0.0',
     },
+    lockfileVersion: 5,
     packages: {
       '/dep-of-pkg-with-1-dep/100.0.0': {
         dev: false,
@@ -868,7 +869,6 @@ test('packages installed via tarball URL from the default registry are normalize
         version: '1.0.0',
       },
     },
-    shrinkwrapVersion: 5,
     specifiers: {
       'is-positive': 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       'pkg-with-tarball-dep-from-registry': 'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
@@ -896,7 +896,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
     const shr = await readYamlFile(WANTED_SHRINKWRAP_FILENAME) as Shrinkwrap
     const id = '/pkg-with-1-dep/100.0.0'
 
-    t.equal(shr.shrinkwrapVersion, 5, 'correct shrinkwrap version')
+    t.equal(shr.lockfileVersion, 5, 'correct shrinkwrap version')
 
     t.ok(shr.importers)
     t.ok(shr.importers.project)
@@ -995,6 +995,7 @@ test(`doing named installation when shared ${WANTED_SHRINKWRAP_FILENAME} exists 
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
@@ -1007,7 +1008,6 @@ test(`doing named installation when shared ${WANTED_SHRINKWRAP_FILENAME} exists 
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
 
   await addDependenciesToPackage(

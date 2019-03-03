@@ -28,7 +28,7 @@ test('readWanted()', async t => {
     const shr = await readWanted(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
-    t.equal(shr!.shrinkwrapVersion, 3)
+    t.equal(shr!.lockfileVersion, 3)
   }
 
   try {
@@ -48,7 +48,7 @@ test('readCurrent()', async t => {
     const shr = await readCurrent(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
-    t.equal(shr!.shrinkwrapVersion, 3)
+    t.equal(shr!.lockfileVersion, 3)
   }
   t.end()
 })
@@ -68,6 +68,7 @@ test('writeWantedOnly()', async t => {
         },
       },
     },
+    lockfileVersion: 3,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -89,7 +90,6 @@ test('writeWantedOnly()', async t => {
       },
     },
     registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
   }
   await writeWantedOnly(projectPath, wantedShrinkwrap)
   t.equal(await readCurrent(projectPath, { ignoreIncompatible: false }), null, 'current shrinkwrap read')
@@ -112,6 +112,7 @@ test('writeCurrentOnly()', async t => {
         },
       },
     },
+    lockfileVersion: 3,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -133,7 +134,6 @@ test('writeCurrentOnly()', async t => {
       },
     },
     registry: 'https://registry.npmjs.org',
-    shrinkwrapVersion: 3,
   }
   await writeCurrentOnly(projectPath, wantedShrinkwrap)
   t.equal(await readWanted(projectPath, { ignoreIncompatible: false }), null)
@@ -157,6 +157,7 @@ test('existsWanted()', async t => {
         },
       },
     },
+    lockfileVersion: 3,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -177,7 +178,6 @@ test('existsWanted()', async t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   })
   t.ok(await existsWanted(projectPath))
   t.end()
@@ -198,6 +198,7 @@ test('write()', async t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -218,7 +219,6 @@ test('write()', async t => {
         },
       },
     },
-    shrinkwrapVersion: 5,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
@@ -237,7 +237,7 @@ test('write() when no specifiers but dependencies present', async t => {
         specifiers: {},
       },
     },
-    shrinkwrapVersion: 5,
+    lockfileVersion: 5,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
@@ -260,6 +260,7 @@ test('write does not use yaml anchors/aliases', async t => {
         },
       },
     },
+    lockfileVersion: 5,
     packages: yaml`
       /react-dnd/2.5.4/react@15.6.1:
         dependencies:
@@ -291,7 +292,6 @@ test('write does not use yaml anchors/aliases', async t => {
         resolution:
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
     `,
-    shrinkwrapVersion: 5,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
 

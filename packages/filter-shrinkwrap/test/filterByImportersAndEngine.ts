@@ -33,6 +33,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
           }
         }
       },
+      lockfileVersion: 5,
       packages: {
         '/bar/1.0.0': {
           resolution: { integrity: '' },
@@ -77,7 +78,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
           resolution: { integrity: '' },
         },
       },
-      shrinkwrapVersion: 5,
     },
     ['project-1'],
     {
@@ -128,6 +128,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         }
       }
     },
+    lockfileVersion: 5,
     packages: {
       '/bar/1.0.0': {
         resolution: { integrity: '' },
@@ -154,7 +155,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         resolution: { integrity: '' },
       },
     },
-    shrinkwrapVersion: 5,
   })
   t.deepEqual(Array.from(skippedPackages), ['/preserve-existing-skipped/1.0.0', '/optional-dep/1.0.0', '/foo/1.0.0'])
   t.end()

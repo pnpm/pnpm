@@ -1,0 +1,10 @@
+devDependencies:
+  is-negative: 1.0.0
+lockfileVersion: 5
+packages:
+  /is-negative/1.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
+specifiers:
+  is-negative: 1.0.0
