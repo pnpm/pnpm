@@ -140,7 +140,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     },
   ])
 
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-shrinkwrap=false', 'utf8')
+  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-lockfile=false', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
@@ -334,7 +334,7 @@ test('installation with --link-workspace-packages links packages even if they we
   }
 })
 
-test('shared-workspace-shrinkwrap: installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
+test('shared-workspace-lockfile: installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project',
@@ -356,7 +356,7 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true\nlink-workspace-packages = true', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
 
   await execPnpm('recursive', 'install')
 
@@ -385,7 +385,7 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
   }
 })
 
-test('recursive install with link-workspace-packages and shared-workspace-shrinkwrap', async (t: tape.Test) => {
+test('recursive install with link-workspace-packages and shared-workspace-lockfile', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'is-positive',
@@ -431,7 +431,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
     'utf8',
   )
 
-  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store', 'store')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
   t.ok(projects['is-positive'].requireModule('concat-stream'), 'dependencies flattened in is-positive')
@@ -446,7 +446,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   const storeJson = await loadJsonFile<object>(path.resolve('store', '2', 'store.json'))
   t.deepEqual(storeJson['localhost+4873/is-negative/1.0.0'].length, 1, 'new connections saved in store.json')
 
-  await execPnpm('recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
+  await execPnpm('recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store', 'store')
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('is-positive'))
@@ -464,7 +464,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   }
 })
 
-test('recursive install with shared-workspace-shrinkwrap builds workspace packages in correct order', async (t: tape.Test) => {
+test('recursive install with shared-workspace-lockfile builds workspace packages in correct order', async (t: tape.Test) => {
   const jsonAppend = (append: string, target: string) => `node -e "process.stdout.write('${append}')" | json-append ${target}`
   const projects = preparePackages(t, [
     {
@@ -515,7 +515,7 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store', 'store')
 
   {
     const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -554,7 +554,7 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
   await rimraf('output2.json')
 
   // TODO: duplicate this test in @pnpm/headless
-  await execPnpm('recursive', 'install', '--frozen-shrinkwrap', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true')
+  await execPnpm('recursive', 'install', '--frozen-lockfile', '--link-workspace-packages', '--shared-workspace-lockfile=true')
 
   {
     const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -589,7 +589,7 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
   }
 })
 
-test('recursive installation with shared-workspace-shrinkwrap and a readPackage hook', async (t) => {
+test('recursive installation with shared-workspace-lockfile and a readPackage hook', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -620,12 +620,12 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
   await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store')
+  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store')
 
   const shr = await readYamlFile<Shrinkwrap>(`./${WANTED_SHRINKWRAP_FILENAME}`)
   t.ok(shr.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 
-  await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store', '--', 'project-1')
+  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store', '--', 'project-1')
 
   await projects['project-1'].hasNot('project-1')
 })
@@ -647,7 +647,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-shrinkwrap=false', 'utf8')
+  await fs.writeFile('.npmrc', 'link-workspace-packages = true\nshared-workspace-lockfile=false', 'utf8')
 
   process.chdir('project-1')
 
@@ -659,7 +659,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1437
-test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installation is inside workspace', async (t) => {
+test('shared-workspace-lockfile: create shared lockfile format when installation is inside workspace', async (t) => {
   const projects = prepare(t, {
     dependencies: {
       'is-positive': '1.0.0',
@@ -667,7 +667,7 @@ test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
   })
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', 'project', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   await execPnpm('install', '--store', 'store')
 
@@ -678,7 +678,7 @@ test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
-test("shared-workspace-shrinkwrap: don't install dependencies in projects that are outside of the current workspace", async (t) => {
+test("shared-workspace-lockfile: don't install dependencies in projects that are outside of the current workspace", async (t) => {
   const projects = preparePackages(t, [
     {
       location: 'workspace-1/package-1',
@@ -714,7 +714,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
 
   process.chdir('workspace-1')
 
-  await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+  await execPnpm('install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
 
@@ -746,7 +746,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
   }, `correct ${WANTED_SHRINKWRAP_FILENAME} created`)
 })
 
-test('shared-workspace-shrinkwrap: entries of removed projects should be removed from shared shrinkwrap', async (t) => {
+test('shared-workspace-lockfile: entries of removed projects should be removed from shared lockfile', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'package-1',
@@ -768,7 +768,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
     const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
@@ -777,7 +777,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
 
   await rimraf('package-2')
 
-  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
     const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
@@ -786,14 +786,14 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1482
-test('shared-workspace-shrinkwrap config is ignored if no pnpm-workspace.yaml is found', async (t) => {
+test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is found', async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '1.0.0',
     },
   })
 
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap=true', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile=true', 'utf8')
 
   await execPnpm('install')
 
@@ -801,7 +801,7 @@ test('shared-workspace-shrinkwrap config is ignored if no pnpm-workspace.yaml is
   await project.has('is-positive')
 })
 
-test('shared-workspace-shrinkwrap: uninstalling a package recursively', async (t: tape.Test) => {
+test('shared-workspace-lockfile: uninstalling a package recursively', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project1',
@@ -827,7 +827,7 @@ test('shared-workspace-shrinkwrap: uninstalling a package recursively', async (t
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true\nlink-workspace-packages = true', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
 
   await execPnpm('recursive', 'install')
 
@@ -868,7 +868,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true\nlink-workspace-packages = true', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true\nlink-workspace-packages = true', 'utf8')
 
   process.chdir('foo')
 
@@ -919,11 +919,11 @@ test('dependencies of workspace packages are built during headless installation'
     },
   ])
 
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap=false', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile=false', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install', '--shrinkwrap-only')
-  await execPnpm('recursive', 'install', '--frozen-shrinkwrap')
+  await execPnpm('recursive', 'install', '--lockfile-only')
+  await execPnpm('recursive', 'install', '--frozen-lockfile')
 
   {
     const generatedByPreinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')

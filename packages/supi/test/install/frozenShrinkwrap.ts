@@ -15,7 +15,7 @@ import { testDefaults } from '../utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test(`frozen-shrinkwrap: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
+test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -34,11 +34,11 @@ test(`frozen-shrinkwrap: installation fails if specs in package.json don't match
     await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
   }
 })
 
-test(`frozen-shrinkwrap+shamefully-flatten: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
+test(`frozen-lockfile+shamefully-flatten: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -57,11 +57,11 @@ test(`frozen-shrinkwrap+shamefully-flatten: installation fails if specs in packa
     await install(await testDefaults({ frozenShrinkwrap: true, shamefullyFlatten: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
   }
 })
 
-test(`frozen-shrinkwrap: fail on a shared ${WANTED_SHRINKWRAP_FILENAME} that does not satisfy one of the package.json files`, async (t) => {
+test(`frozen-lockfile: fail on a shared ${WANTED_SHRINKWRAP_FILENAME} that does not satisfy one of the package.json files`, async (t) => {
   const project = preparePackages(t, [
     {
       name: 'p1',
@@ -103,7 +103,7 @@ test(`frozen-shrinkwrap: fail on a shared ${WANTED_SHRINKWRAP_FILENAME} that doe
     await mutateModules(importers, await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with p1${path.sep}package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with p1${path.sep}package.json`)
   }
 })
 

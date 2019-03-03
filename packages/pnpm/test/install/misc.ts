@@ -53,10 +53,10 @@ test('create a pnpm-debug.log file when the command fails', async function (t) {
   t.end()
 })
 
-test('install --shrinkwrap-only', async (t: tape.Test) => {
+test('install --lockfile-only', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'rimraf@2.5.1', '--shrinkwrap-only')
+  await execPnpm('install', 'rimraf@2.5.1', '--lockfile-only')
 
   await project.hasNot('rimraf')
 
@@ -64,10 +64,10 @@ test('install --shrinkwrap-only', async (t: tape.Test) => {
   t.ok(shr.packages['/rimraf/2.5.1'])
 })
 
-test('install --no-shrinkwrap', async (t: tape.Test) => {
+test('install --no-lockfile', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive', '--no-shrinkwrap')
+  await execPnpm('install', 'is-positive', '--no-lockfile')
 
   await project.has('is-positive')
 
@@ -99,16 +99,16 @@ test('install from any location via the --prefix flag', async (t: tape.Test) => 
   await project.isExecutable('.bin/rimraf')
 })
 
-test('install with external shrinkwrap directory', async (t: tape.Test) => {
+test('install with external lockfile directory', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive', '--shrinkwrap-directory', path.resolve('..'))
+  await execPnpm('install', 'is-positive', '--lockfile-directory', path.resolve('..'))
 
   await project.has('is-positive')
 
   const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
 
-  t.deepEqual(Object.keys(shr.importers), ['project'], 'shrinkwrap created in correct location')
+  t.deepEqual(Object.keys(shr.importers), ['project'], 'lockfile created in correct location')
 })
 
 test('install --save-exact', async (t: tape.Test) => {

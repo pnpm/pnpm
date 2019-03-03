@@ -427,7 +427,7 @@ test(`fail when ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.jso
     await headless(await testDefaults({ shrinkwrapDirectory: projectDir }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
   }
 
   t.end()

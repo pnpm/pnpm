@@ -24,6 +24,7 @@ export const types = Object.assign({
   'dev': [null, true],
   'fetching-concurrency': Number,
   'filter': [String, Array],
+  'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
   'global-path': path,
   'global-pnpmfile': String,
@@ -34,18 +35,23 @@ export const types = Object.assign({
   'link-workspace-packages': Boolean,
   'lock': Boolean,
   'lock-stale-duration': Number,
+  'lockfile': Boolean,
+  'lockfile-directory': path,
+  'lockfile-only': Boolean,
   'network-concurrency': Number,
   'offline': Boolean,
   'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
   'pending': Boolean,
   'pnpmfile': String,
   'port': Number,
+  'prefer-frozen-lockfile': Boolean,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
   'production': [null, true],
   'protocol': ['auto', 'tcp', 'ipc'],
   'reporter': String,
   'shamefully-flatten': Boolean,
+  'shared-workspace-lockfile': Boolean,
   'shared-workspace-shrinkwrap': Boolean,
   'shrinkwrap-directory': path,
   'shrinkwrap-only': Boolean,
@@ -139,6 +145,24 @@ export default async (
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
   pnpmConfig.globalPrefix = path.join(npmGlobalPrefix, 'pnpm-global')
+  pnpmConfig.shrinkwrapDirectory = typeof pnpmConfig['lockfileDirectory'] === 'undefined'
+    ? pnpmConfig.shrinkwrapDirectory
+    : pnpmConfig['lockfileDirectory']
+  pnpmConfig.shrinkwrap = typeof pnpmConfig['lockfile'] === 'undefined'
+    ? pnpmConfig.shrinkwrap
+    : pnpmConfig['lockfile']
+  pnpmConfig.shrinkwrapOnly = typeof pnpmConfig['lockfileOnly'] === 'undefined'
+    ? pnpmConfig.shrinkwrapOnly
+    : pnpmConfig['lockfileOnly']
+  pnpmConfig.frozenShrinkwrap = typeof pnpmConfig['frozenLockfile'] === 'undefined'
+    ? pnpmConfig.frozenShrinkwrap
+    : pnpmConfig['frozenLockfile']
+  pnpmConfig.preferFrozenShrinkwrap = typeof pnpmConfig['preferFrozenLockfile'] === 'undefined'
+    ? pnpmConfig.preferFrozenShrinkwrap
+    : pnpmConfig['preferFrozenLockfile']
+  pnpmConfig.sharedWorkspaceShrinkwrap = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
+    ? pnpmConfig.sharedWorkspaceShrinkwrap
+    : pnpmConfig['sharedWorkspaceLockfile']
 
   if (pnpmConfig.global) {
     const independentLeavesSuffix = pnpmConfig.independentLeaves ? '_independent_leaves' : ''
@@ -160,17 +184,17 @@ export default async (
       pnpmConfig.linkWorkspacePackages = false
     }
     if (pnpmConfig.sharedWorkspaceShrinkwrap) {
-      if (opts.cliArgs['shared-workspace-shrinkwrap']) {
-        const err = new Error('Configuration conflict. "shared-workspace-shrinkwrap" may not be used with "global"')
-        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_SHRINKWRAP_WITH_GLOBAL' // tslint:disable-line:no-string-literal
+      if (opts.cliArgs['shared-workspace-lockfile'] || opts.cliArgs['shared-workspace-shrinkwrap']) {
+        const err = new Error('Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
+        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL' // tslint:disable-line:no-string-literal
         throw err
       }
       pnpmConfig.sharedWorkspaceShrinkwrap = false
     }
     if (pnpmConfig.shrinkwrapDirectory) {
-      if (opts.cliArgs['shrinkwrap-directory']) {
-        const err = new Error('Configuration conflict. "shrinkwrap-directory" may not be used with "global"')
-        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_SHRINKWRAP_DIRECTORY_WITH_GLOBAL' // tslint:disable-line:no-string-literal
+      if (opts.cliArgs['lockfile-directory'] || opts.cliArgs['shrinkwrap-directory']) {
+        const err = new Error('Configuration conflict. "lockfile-directory" may not be used with "global"')
+        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL' // tslint:disable-line:no-string-literal
         throw err
       }
       delete pnpmConfig.shrinkwrapDirectory
