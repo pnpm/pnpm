@@ -28,6 +28,7 @@ interface ServerProcess {
 }
 const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 test['only'] = promisifyTape(tape.only)
 const kill = promisify(killcb)
 
@@ -63,9 +64,9 @@ test('store server: headless installation', async (t: tape.Test) => {
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
-  await execPnpm('install', 'is-positive@1.0.0', '--shrinkwrap-only')
+  await execPnpm('install', 'is-positive@1.0.0', '--lockfile-only')
 
-  await execPnpm('install', '--frozen-shrinkwrap')
+  await execPnpm('install', '--frozen-lockfile')
 
   t.ok(project.requireModule('is-positive'))
 

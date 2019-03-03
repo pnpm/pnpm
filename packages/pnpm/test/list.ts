@@ -143,7 +143,7 @@ test(`listing packages of a project that has an external ${WANTED_SHRINKWRAP_FIL
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   await execPnpm('recursive', 'install')
 

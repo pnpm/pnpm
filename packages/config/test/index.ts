@@ -52,8 +52,8 @@ test('throw error if --shared-workspace-shrinkwrap is used with --global', async
       },
     })
   } catch (err) {
-    t.equal(err.message, 'Configuration conflict. "shared-workspace-shrinkwrap" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_SHRINKWRAP_WITH_GLOBAL')
+    t.equal(err.message, 'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
     t.end()
   }
 })
@@ -71,8 +71,8 @@ test('throw error if --shrinkwrap-directory is used with --global', async (t) =>
       },
     })
   } catch (err) {
-    t.equal(err.message, 'Configuration conflict. "shrinkwrap-directory" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_SHRINKWRAP_DIRECTORY_WITH_GLOBAL')
+    t.equal(err.message, 'Configuration conflict. "lockfile-directory" may not be used with "global"')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL')
     t.end()
   }
 })

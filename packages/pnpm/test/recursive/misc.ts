@@ -255,7 +255,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
 
   const storeDir = path.resolve('../store')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'shamefully-flatten = true\nshared-workspace-shrinkwrap=false', 'utf8')
+  await fs.writeFile('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
   await fs.writeFile('project-2/.npmrc', 'shamefully-flatten = false', 'utf8')
 
   process.chdir('project-1')

@@ -48,13 +48,13 @@ function getHelpText (command: string) {
           --[no-]lock
           --strict-peer-dependencies         fail on missing or invalid peer dependencies.
 
-          --no-shrinkwrap                    don't read or generate a \`${WANTED_SHRINKWRAP_FILENAME}\` file
-          --shrinkwrap-only                  dependencies are not downloaded only \`${WANTED_SHRINKWRAP_FILENAME}\` is updated
-          --frozen-shrinkwrap                don't generate a shrinkwrap file and fail if an update is needed
-          --prefer-frozen-shrinkwrap         if the available \`${WANTED_SHRINKWRAP_FILENAME}\` satisfies the \`package.json\`
+          --no-lockfile                      don't read or generate a \`${WANTED_SHRINKWRAP_FILENAME}\` file
+          --lockfile-only                    dependencies are not downloaded only \`${WANTED_SHRINKWRAP_FILENAME}\` is updated
+          --frozen-lockfile                  don't generate a lockfile and fail if an update is needed
+          --prefer-frozen-lockfile           if the available \`${WANTED_SHRINKWRAP_FILENAME}\` satisfies the \`package.json\`
                                              then perform a headless installation.
-          --shrinkwrap-directory <path>      the directory in which the ${WANTED_SHRINKWRAP_FILENAME} of the package will be created.
-                                             Several projects may share a single shrinkwrap file.
+          --lockfile-directory <path>        the directory in which the ${WANTED_SHRINKWRAP_FILENAME} of the package will be created.
+                                             Several projects may share a single lockfile.
 
           --use-store-server                 starts a store server in the background.
                                              The store server will keep running after installation is done.
@@ -368,9 +368,9 @@ function getHelpText (command: string) {
           --sort
             Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
 
-          --shared-workspace-shrinkwrap
+          --shared-workspace-lockfile
             Creates a single ${WANTED_SHRINKWRAP_FILENAME} file in the root of the workspace.
-            A shared shrinkwrap also means that all dependencies of all workspace packages will be in a single node_modules.
+            A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.
       `
 
     default:

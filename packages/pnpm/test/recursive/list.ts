@@ -52,7 +52,7 @@ test('recursive list', async (t: tape.Test) => {
   ` + '\n')
 })
 
-test('recursive list with shared-workspace-shrinkwrap', async (t: tape.Test) => {
+test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -77,7 +77,7 @@ test('recursive list with shared-workspace-shrinkwrap', async (t: tape.Test) => 
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true', 'utf8')
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   await execPnpm('recursive', 'install', '--store', 'store')
 

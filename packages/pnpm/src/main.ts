@@ -119,6 +119,11 @@ export default async function run (argv: string[]) {
     'n': ['--no-yes'],
     'B': ['--save-bundle'],
     'C': ['--prefix'],
+    'lockfile-directory': ['--shrinkwrap-directory'],
+    'lockfile-only': ['--shrinkwrap-only'],
+    'shared-workspace-lockfile': ['--shared-workspace-shrinkwrap'],
+    'frozen-lockfile': ['--frozen-shrinkwrap'],
+    'prefer-frozen-lockfile': ['--prefer-frozen-shrinkwrap'],
   }
   // tslint:enable
   const cliConf = nopt(types, shortHands, argv, 0)

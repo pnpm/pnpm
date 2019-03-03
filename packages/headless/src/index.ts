@@ -119,7 +119,7 @@ export default async (opts: HeadlessOptions) => {
 
   for (const importer of opts.importers) {
     if (!satisfiesPackageJson(wantedShrinkwrap, importer.pkg, importer.id)) {
-      const err = new Error(`Cannot install with "frozen-shrinkwrap" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with ` +
+      const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with ` +
         path.relative(opts.shrinkwrapDirectory, path.join(importer.prefix, 'package.json')))
       err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
       throw err
