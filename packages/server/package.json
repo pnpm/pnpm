@@ -37,7 +37,7 @@
     "@pnpm/package-requester": "6.1.0",
     "@pnpm/package-store": "3.1.0",
     "@pnpm/server": "link:",
-    "@pnpm/tarball-fetcher": "2.0.10",
+    "@pnpm/tarball-fetcher": "2.0.11",
     "@pnpm/tslint-config": "0.0.0",
     "@types/mz": "0.0.32",
     "@types/tape": "4.2.33",
