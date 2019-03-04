@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "3.1.0",
+  "version": "4.0.0-0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -22,10 +22,10 @@
     "@pnpm/core-loggers": "2.0.0",
     "@pnpm/fetcher-base": "2.0.0",
     "@pnpm/fs-locker": "1.0.3",
-    "@pnpm/package-requester": "6.1.0",
+    "@pnpm/package-requester": "7.0.0-0",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/resolver-base": "2.1.0",
-    "@pnpm/store-controller-types": "2.1.0",
+    "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "11.9.5",
@@ -46,9 +46,9 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
-    "@pnpm/npm-resolver": "3.0.0-0",
+    "@pnpm/npm-resolver": "3.0.0-1",
     "@pnpm/package-store": "link:",
-    "@pnpm/tarball-fetcher": "3.0.0-0",
+    "@pnpm/tarball-fetcher": "3.0.0-1",
     "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",

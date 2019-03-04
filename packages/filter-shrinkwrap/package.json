@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-shrinkwrap",
-  "version": "2.0.0-0",
+  "version": "2.0.0-1",
   "description": "Filters a shrinkwrap file",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -52,7 +52,7 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "0.0.0",
+    "@pnpm/constants": "1.0.0-0",
     "@pnpm/package-is-installable": "2.0.0-0",
     "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/shrinkwrap-utils": "2.0.0-0",

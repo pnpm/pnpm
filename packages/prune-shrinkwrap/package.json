@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prune-shrinkwrap",
-  "version": "2.0.0-0",
+  "version": "2.0.0-1",
   "description": "Prune a shrinkwrap.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -44,7 +44,7 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "0.0.0",
+    "@pnpm/constants": "1.0.0-0",
     "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/ramda": "0.25.39",

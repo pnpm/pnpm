@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "3.0.0-0",
+  "version": "3.0.0-1",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -35,7 +35,7 @@
     "@pnpm/read-modules-dir": "1.0.0",
     "@pnpm/shrinkwrap-types": "2.0.0-0",
     "@pnpm/shrinkwrap-utils": "2.0.0-0",
-    "@pnpm/store-controller-types": "2.1.0",
+    "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/node": "11.9.5",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "6.1.0",
+  "version": "7.0.0-0",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -40,7 +40,7 @@
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/resolver-base": "2.1.0",
-    "@pnpm/store-controller-types": "2.1.0",
+    "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "11.9.5",
@@ -60,9 +60,9 @@
   "devDependencies": {
     "@pnpm/local-resolver": "1.0.5",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/npm-resolver": "3.0.0-0",
+    "@pnpm/npm-resolver": "3.0.0-1",
     "@pnpm/package-requester": "link:",
-    "@pnpm/tarball-fetcher": "3.0.0-0",
+    "@pnpm/tarball-fetcher": "3.0.0-1",
     "@pnpm/tslint-config": "0.0.0",
     "@types/ncp": "2.0.1",
     "@types/nock": "9.3.1",
