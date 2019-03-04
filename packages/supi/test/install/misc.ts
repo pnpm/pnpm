@@ -914,3 +914,12 @@ test('rewrites node_modules created by npm', async (t) => {
 
   await install(await testDefaults())
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1685
+test("don't fail on Windows when package has 2 files with same name", async (t) => {
+  const project = prepare(t)
+
+  await addDependenciesToPackage(['with-same-file-in-different-cases'], await testDefaults())
+
+  await project.has('with-same-file-in-different-cases')
+})

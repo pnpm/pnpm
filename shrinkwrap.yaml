@@ -432,7 +432,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.2.6
@@ -487,7 +487,7 @@ importers:
       npm-run-all: 4.1.5
       p-limit: 2.2.0
       path-exists: 3.0.0
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -808,7 +808,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       tape: 4.10.1
       ts-node: 7.0.1
       tslint: /tslint/5.13.1/typescript@3.3.3333
@@ -830,7 +830,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       tape: 4.10.1
       ts-node: 7.0.1
       tslint: 5.13.1
@@ -1140,7 +1140,7 @@ importers:
       p-any: 1.1.0
       path-exists: 3.0.0
       pnpm: 'link:'
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       retry: 0.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1239,7 +1239,7 @@ importers:
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
       pnpm-list: 6.0.0-3
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1714,7 +1714,7 @@ importers:
       npm-scripts-info: 0.3.9
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
@@ -1812,7 +1812,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.7.0
+      pnpm-registry-mock: 2.8.0
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
@@ -1887,7 +1887,7 @@ importers:
       retry: 0.12.0
       rimraf: 2.6.3
       ssri: 6.0.1
-      unpack-stream: 4.0.1
+      unpack-stream: 4.0.2
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/tarball-fetcher': 'link:'
@@ -1931,7 +1931,7 @@ importers:
       ts-node: 8.0.2
       tslint: 5.13.1
       typescript: 3.3.3333
-      unpack-stream: 4.0.1
+      unpack-stream: 4.0.2
   packages/types:
     devDependencies:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -2558,7 +2558,6 @@ packages:
     resolution:
       integrity: sha512-dgsgbsgI3t+ZkdzF9H19uBaLsurIZJJjJsVpj4mCLp8B6YghQ7jVwyqhaL0PcVtuC3nOi0ZBhAi2Dd9jCUwdFA==
   /@types/is-windows/0.2.0:
-    dev: true
     resolution:
       integrity: sha1-byTuSHMdMRaOpRBhDW3RXl/Jxv8=
   /@types/js-yaml/3.12.0:
@@ -8010,7 +8009,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-registry-mock/2.7.0:
+  /pnpm-registry-mock/2.8.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -8021,7 +8020,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-GKBdlJYmv+3NjlWd1+BMwOvtvV7RlI6CLFlax4730DYcikyE6f1BTUdG2O4Ypj7iLqGrPumDFtvPhjRJh5hwfA==
+      integrity: sha512-0RobA+n2Jp1+mb64nx2vDxk/vNwGh+/CegI5JqcWisiPp1e9VnJ7SOeYxtVrMC7qmCIuwbefEXRv5DbRj9vyng==
   /posix-character-classes/0.1.1:
     dev: false
     engines:
@@ -9868,17 +9867,19 @@ packages:
     dev: true
     resolution:
       integrity: sha1-HAgkFQSBvHoB1J6Y8exmjYJBLzs=
-  /unpack-stream/4.0.1:
+  /unpack-stream/4.0.2:
     dependencies:
+      '@types/is-windows': 0.2.0
       '@types/node': 10.12.29
       decompress-maybe: 1.0.0
+      is-windows: 1.0.2
       ssri: 6.0.1
       tar-fs: 2.0.0
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-TlkUGYprBFsWkrm1ifv3BHwrH6QpmhTSiUhe07OPsEaJ9cxA9F4yAdrkvyX0u8Q+XiqyrOMNFunuri9PuCMH/g==
+      integrity: sha512-9lsxZvzD52IZjUSCd3UKXQi6oErlqK6QCTkQuTE4I1SqO8lh5aoIAxmMgUbixQyWrWW4/DxYuXtbKKmgnXo+MQ==
   /unpipe/1.0.0:
     dev: true
     engines:
