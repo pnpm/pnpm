@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
-    "@pnpm/default-fetcher": "2.0.7",
+    "@pnpm/default-fetcher": "2.0.8",
     "@pnpm/default-resolver": "2.1.0",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "2.1.0",
