@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/resolver-base",
+  "version": "2.1.0",
+  "description": "Types for pnpm-compatible resolvers",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "start": "npm run tsc -- --watch",
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "rimraf lib && tsc --pretty",
+    "test": "npm run tsc && npm run lint && mos t",
+    "md": "mos",
+    "prepublishOnly": "npm run tsc"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/resolver-base",
+  "keywords": [
+    "pnpm",
+    "resolver"
+  ],
+  "engines": {
+    "node": ">=8"
+  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolver-base#readme",
+  "dependencies": {
+    "@pnpm/types": "^2.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/tslint-config": "0.0.0",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "rimraf": "^2.6.2",
+    "tslint": "^5.9.1",
+    "typescript": "^3.0.0"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}
