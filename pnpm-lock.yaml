@@ -196,7 +196,7 @@ importers:
       '@pnpm/git-resolver': 'link:../git-resolver'
       '@pnpm/local-resolver': 'link:../local-resolver'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
-      '@pnpm/tarball-resolver': 1.0.1
+      '@pnpm/tarball-resolver': 'link:../tarball-resolver'
     devDependencies:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/logger': 2.1.0
@@ -2032,6 +2032,32 @@ importers:
       tslint: 5.13.1
       typescript: 3.3.3333
       unpack-stream: 4.0.2
+  packages/tarball-resolver:
+    dependencies:
+      '@pnpm/resolver-base': 'link:../resolver-base'
+    devDependencies:
+      '@pnpm/tarball-resolver': 'link:'
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/tape': 4.2.33
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.3
+      tape: 4.10.1
+      ts-node: 8.0.2_typescript@3.3.3333
+      tslint: 5.13.1_typescript@3.3.3333
+      typescript: 3.3.3333
+    specifiers:
+      '@pnpm/resolver-base': ^2.0.0
+      '@pnpm/tarball-resolver': 'link:'
+      '@pnpm/tslint-config': 0.0.0
+      '@types/tape': ^4.2.31
+      mos: ^2.0.0-alpha.3
+      mos-plugin-readme: ^1.0.4
+      rimraf: ^2.6.2
+      tape: ^4.8.0
+      ts-node: ^8.0.2
+      tslint: ^5.8.0
+      typescript: ^3.0.0
   packages/types:
     devDependencies:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -2528,14 +2554,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-sGNnrjzNgzizIAiVIuXBQYWY8XvNBGUFbjEftIzKuXB/++Dr/JVinjLijm6iql7WDHolEf90pMNcBkL8Ni139w==
-  /@pnpm/tarball-resolver/1.0.1:
-    dependencies:
-      '@pnpm/resolver-base': 2.1.0
-    dev: false
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-OFe7/5RZ+/mEBpsH+gMMNIY73uEwCDdcCaSR2KzeNj+ydbthoIsSKzoXrfbCcMwEL8Nf4Ztk498VutR/qxp+yA==
   /@pnpm/types/2.0.0:
     engines:
       node: '>=6'
