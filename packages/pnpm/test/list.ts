@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { preparePackages, tempDir } from '@pnpm/prepare'
 import { stripIndent } from 'common-tags'
 import isWindows = require('is-windows')
@@ -130,7 +130,7 @@ test('listing packages', async (t: tape.Test) => {
   }
 })
 
-test(`listing packages of a project that has an external ${WANTED_SHRINKWRAP_FILENAME}`, async (t: tape.Test) => {
+test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'pkg',

@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { preparePackages } from '@pnpm/prepare'
 import exists = require('path-exists')
 import tape = require('tape')
@@ -44,13 +44,13 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
 
   {
     const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
     t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Shr.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })
 
 test('recursive unlink specific package', async (t: tape.Test) => {
@@ -90,11 +90,11 @@ test('recursive unlink specific package', async (t: tape.Test) => {
 
   {
     const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
     t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Shr.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })

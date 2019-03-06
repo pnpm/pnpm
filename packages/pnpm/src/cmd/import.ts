@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import loadJsonFile from 'load-json-file'
 import path = require('path')
 import rimraf = require('rimraf-then')
@@ -12,7 +12,7 @@ export default async function installCmd (
 ) {
   // Removing existing pnpm lockfile
   // it should not influence the new one
-  await rimraf(path.join(opts.prefix, WANTED_SHRINKWRAP_FILENAME))
+  await rimraf(path.join(opts.prefix, WANTED_LOCKFILE))
   const npmPackageLock = await readNpmLockfile(opts.prefix)
   const versionsByPackageNames = {}
   getAllVersionsByPackageNames(npmPackageLock, versionsByPackageNames)

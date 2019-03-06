@@ -1,6 +1,6 @@
 import {
   SHRINKWRAP_VERSION,
-  WANTED_SHRINKWRAP_FILENAME,
+  WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   rootLogger,
@@ -241,7 +241,7 @@ export default async function linkPackages (
     const depNode = depGraph[pendingRequiresBuild.absoluteDepPath]
     if (!depNode.fetchingRawManifest) {
       // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_SHRINKWRAP_FILENAME} because raw manifest (aka package.json) wasn't fetched for "${pendingRequiresBuild.absoluteDepPath}"`)
+      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${pendingRequiresBuild.absoluteDepPath}"`)
     }
     const filesResponse = await depNode.fetchingFiles
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts

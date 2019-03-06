@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageSnapshots,
   Shrinkwrap,
@@ -83,7 +83,7 @@ function pkgAllDeps (
     if (pickedPackages[relDepPath] || opts.skipped.has(relDepPath)) continue
     const pkgSnapshot = pkgSnapshots[relDepPath]
     if (!pkgSnapshot && !relDepPath.startsWith('link:')) {
-      const message = `No entry for "${relDepPath}" in ${WANTED_SHRINKWRAP_FILENAME}`
+      const message = `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`
       if (opts.failOnMissingDependencies) {
         const err = new Error(message)
         err['code'] = 'ERR_PNPM_SHRINKWRAP_MISSING_DEPENDENCY' // tslint:disable-line:no-string-literal

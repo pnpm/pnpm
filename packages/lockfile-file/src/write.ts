@@ -1,6 +1,6 @@
 import {
-  CURRENT_SHRINKWRAP_FILENAME,
-  WANTED_SHRINKWRAP_FILENAME,
+  CURRENT_LOCKFILE,
+  WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { Shrinkwrap } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
@@ -29,7 +29,7 @@ export function writeWantedOnly (
     forceSharedFormat?: boolean,
   },
 ) {
-  return writeShrinkwrap(WANTED_SHRINKWRAP_FILENAME, pkgPath, wantedShrinkwrap, opts)
+  return writeShrinkwrap(WANTED_LOCKFILE, pkgPath, wantedShrinkwrap, opts)
 }
 
 export async function writeCurrentOnly (
@@ -40,7 +40,7 @@ export async function writeCurrentOnly (
   },
 ) {
   await mkdirp(path.join(pkgPath, 'node_modules'))
-  return writeShrinkwrap(CURRENT_SHRINKWRAP_FILENAME, pkgPath, currentShrinkwrap, opts)
+  return writeShrinkwrap(CURRENT_LOCKFILE, pkgPath, currentShrinkwrap, opts)
 }
 
 function writeShrinkwrap (
@@ -115,8 +115,8 @@ export default function write (
     forceSharedFormat?: boolean,
   },
 ) {
-  const wantedShrinkwrapPath = path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME)
-  const currentShrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)
+  const wantedShrinkwrapPath = path.join(pkgPath, WANTED_LOCKFILE)
+  const currentShrinkwrapPath = path.join(pkgPath, CURRENT_LOCKFILE)
 
   // empty shrinkwrap is not saved
   if (isEmptyShrinkwrap(wantedShrinkwrap)) {
@@ -143,7 +143,7 @@ export default function write (
   }
 
   logger.debug({
-    message: `\`${WANTED_SHRINKWRAP_FILENAME}\` differs from \`${CURRENT_SHRINKWRAP_FILENAME}\``,
+    message: `\`${WANTED_LOCKFILE}\` differs from \`${CURRENT_LOCKFILE}\``,
     prefix: pkgPath,
   })
 

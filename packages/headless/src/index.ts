@@ -1,7 +1,7 @@
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
-  WANTED_SHRINKWRAP_FILENAME,
+  WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   packageJsonLogger,
@@ -111,7 +111,7 @@ export default async (opts: HeadlessOptions) => {
   const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(lockfileDirectory, { ignoreIncompatible: false })
 
   if (!wantedShrinkwrap) {
-    throw new Error(`Headless installation requires a ${WANTED_SHRINKWRAP_FILENAME} file`)
+    throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(lockfileDirectory, { ignoreIncompatible: false })
@@ -119,7 +119,7 @@ export default async (opts: HeadlessOptions) => {
 
   for (const importer of opts.importers) {
     if (!satisfiesPackageJson(wantedShrinkwrap, importer.pkg, importer.id)) {
-      const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with ` +
+      const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
         path.relative(opts.lockfileDirectory, path.join(importer.prefix, 'package.json')))
       err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
       throw err
@@ -565,7 +565,7 @@ async function getChildrenPaths (
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else if (!ctx.skipped.has(childRelDepPath)) {
-      throw new Error(`${childRelDepPath} not found in ${WANTED_SHRINKWRAP_FILENAME}`)
+      throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }
   }
   return children

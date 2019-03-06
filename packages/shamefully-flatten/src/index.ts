@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   nameVerFromPkgSnapshot,
   packageIsIndependent,
@@ -75,7 +75,7 @@ async function getDependencies (
 
       // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
       // However, the skipped list currently contains package IDs, not dep paths.
-      logger.debug({ message: `No entry for "${depRelPath}" in ${WANTED_SHRINKWRAP_FILENAME}` })
+      logger.debug({ message: `No entry for "${depRelPath}" in ${WANTED_LOCKFILE}` })
       continue
     }
 

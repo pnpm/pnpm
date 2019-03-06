@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { stripIndent } from 'common-tags'
 import getCommandFullName from '../getCommandFullName'
 
@@ -48,12 +48,12 @@ function getHelpText (command: string) {
           --[no-]lock
           --strict-peer-dependencies         fail on missing or invalid peer dependencies.
 
-          --no-lockfile                      don't read or generate a \`${WANTED_SHRINKWRAP_FILENAME}\` file
-          --lockfile-only                    dependencies are not downloaded only \`${WANTED_SHRINKWRAP_FILENAME}\` is updated
+          --no-lockfile                      don't read or generate a \`${WANTED_LOCKFILE}\` file
+          --lockfile-only                    dependencies are not downloaded only \`${WANTED_LOCKFILE}\` is updated
           --frozen-lockfile                  don't generate a lockfile and fail if an update is needed
-          --prefer-frozen-lockfile           if the available \`${WANTED_SHRINKWRAP_FILENAME}\` satisfies the \`package.json\`
+          --prefer-frozen-lockfile           if the available \`${WANTED_LOCKFILE}\` satisfies the \`package.json\`
                                              then perform a headless installation.
-          --lockfile-directory <path>        the directory in which the ${WANTED_SHRINKWRAP_FILENAME} of the package will be created.
+          --lockfile-directory <path>        the directory in which the ${WANTED_LOCKFILE} of the package will be created.
                                              Several projects may share a single lockfile.
 
           --use-store-server                 starts a store server in the background.
@@ -108,7 +108,7 @@ function getHelpText (command: string) {
       return stripIndent`
         pnpm import
 
-        Generates ${WANTED_SHRINKWRAP_FILENAME} from an npm package-lock.json (or npm-shrinkwrap.json) file.
+        Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json) file.
       `
 
     case 'uninstall':
@@ -369,7 +369,7 @@ function getHelpText (command: string) {
             Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
 
           --shared-workspace-lockfile
-            Creates a single ${WANTED_SHRINKWRAP_FILENAME} file in the root of the workspace.
+            Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
             A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.
       `
 

@@ -1,5 +1,5 @@
 import assertProject, { isExecutable } from '@pnpm/assert-project'
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
@@ -87,7 +87,7 @@ test('relative link', async (t: tape.Test) => {
 
   const wantedShrinkwrap = await project.loadShrinkwrap()
   t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
-  t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
 
   const currentShrinkwrap = await project.loadCurrentShrinkwrap()
   t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')

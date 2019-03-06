@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import isInnerLink = require('is-inner-link')
@@ -104,7 +104,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
 })
 
-test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_SHRINKWRAP_FILENAME}`, async (t: tape.Test) => {
+test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       foo: '^100.0.0',

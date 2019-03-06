@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
 import path = require('path')
@@ -72,7 +72,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
 
   {
     const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
   }
 
   // Repeat normal installation adds missing deps to node_modules
@@ -82,7 +82,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
 
   {
     const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
   }
 })
 

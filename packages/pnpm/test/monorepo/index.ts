@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Shrinkwrap } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -361,7 +361,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
     t.equal(shr!.importers!.project!.dependencies!['is-positive'], '2.0.0')
     t.equal(shr!.importers!.project!.dependencies!['negative'], '/is-negative/1.0.0')
   }
@@ -379,7 +379,7 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
     t.equal(shr.importers!.project!.dependencies!['is-positive'], 'link:../is-positive')
     t.equal(shr.importers!.project!.dependencies!['negative'], 'link:../is-negative')
   }
@@ -437,7 +437,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   t.ok(projects['is-positive'].requireModule('concat-stream'), 'dependencies flattened in is-positive')
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
-  const sharedShr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+  const sharedShr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
   t.equal(sharedShr.importers['project-1']!.devDependencies!['is-positive'], 'link:../is-positive')
 
   const outputs = await import(path.resolve('output.json')) as string[]
@@ -622,7 +622,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
 
   await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store')
 
-  const shr = await readYamlFile<Shrinkwrap>(`./${WANTED_SHRINKWRAP_FILENAME}`)
+  const shr = await readYamlFile<Shrinkwrap>(`./${WANTED_LOCKFILE}`)
   t.ok(shr.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 
   await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store', '--', 'project-1')
@@ -671,10 +671,10 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 
   await execPnpm('install', '--store', 'store')
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
 
-  t.ok(shr['importers'] && shr['importers']['.'], `correct ${WANTED_SHRINKWRAP_FILENAME} format`)
-  t.equal(shr['lockfileVersion'], 5, `correct ${WANTED_SHRINKWRAP_FILENAME} version`)
+  t.ok(shr['importers'] && shr['importers']['.'], `correct ${WANTED_LOCKFILE} format`)
+  t.equal(shr['lockfileVersion'], 5, `correct ${WANTED_LOCKFILE} version`)
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
@@ -716,7 +716,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
   await execPnpm('install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
 
   t.deepEqual(shr, {
     importers: {
@@ -743,7 +743,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
         },
       },
     },
-  }, `correct ${WANTED_SHRINKWRAP_FILENAME} created`)
+  }, `correct ${WANTED_LOCKFILE} created`)
 })
 
 test('shared-workspace-lockfile: entries of removed projects should be removed from shared lockfile', async (t) => {
@@ -771,7 +771,7 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
     t.deepEqual(Object.keys(shr.importers), ['package-1', 'package-2'])
   }
 
@@ -780,7 +780,7 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
     t.deepEqual(Object.keys(shr.importers), ['package-1'])
   }
 })
@@ -845,9 +845,9 @@ test('shared-workspace-lockfile: uninstalling a package recursively', async (t: 
     t.deepEqual(pkg.dependencies, { 'is-negative': '1.0.0' }, 'is-positive removed from project2')
   }
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
 
-  t.deepEqual(Object.keys(shr.packages || {}), ['/is-negative/1.0.0'], `is-positive removed from ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.deepEqual(Object.keys(shr.packages || {}), ['/is-negative/1.0.0'], `is-positive removed from ${WANTED_LOCKFILE}`)
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
@@ -875,7 +875,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await execPnpm('install', 'ajv@4.10.4', 'ajv-keywords@1.5.0')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -893,7 +893,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await execPnpm('uninstall', 'ajv')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv-keywords': '1.5.0',

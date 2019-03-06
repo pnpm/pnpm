@@ -1,6 +1,6 @@
 ///<reference path="../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageJsonLog,
   RootLog,
@@ -149,7 +149,7 @@ test('installing non-prod deps then all deps', async (t) => {
 
   {
     const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
   }
 
   const reporter = sinon.spy()
@@ -188,7 +188,7 @@ test('installing non-prod deps then all deps', async (t) => {
 
   {
     const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_SHRINKWRAP_FILENAME}`)
+    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
   }
 
   t.end()
@@ -297,19 +297,19 @@ test('orphan packages are removed', async (t) => {
   t.comment(projectDir)
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
-  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_SHRINKWRAP_FILENAME)
+  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
   const simpleDir = path.join(fixtures, 'simple')
   fse.copySync(path.join(simpleWithMoreDepsDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
+  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
 
   await headless(await testDefaults({
     lockfileDirectory: projectDir,
   }))
 
   fse.copySync(path.join(simpleDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(simpleDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
+  fse.copySync(path.join(simpleDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({
@@ -338,17 +338,17 @@ test('available packages are used when node_modules is not clean', async (t) => 
   t.comment(projectDir)
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
-  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_SHRINKWRAP_FILENAME)
+  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const hasGlobDir = path.join(fixtures, 'has-glob')
   const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
 
   await headless(await testDefaults({ lockfileDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({ lockfileDirectory: projectDir, reporter }))
@@ -378,17 +378,17 @@ test('available packages are relinked during forced install', async (t) => {
   t.comment(projectDir)
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
-  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_SHRINKWRAP_FILENAME)
+  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const hasGlobDir = path.join(fixtures, 'has-glob')
   const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
 
   await headless(await testDefaults({ lockfileDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({ lockfileDirectory: projectDir, reporter, force: true }))
@@ -413,7 +413,7 @@ test('available packages are relinked during forced install', async (t) => {
   t.end()
 })
 
-test(`fail when ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`, async (t) => {
+test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async (t) => {
   const projectDir = tempy.directory()
   t.comment(projectDir)
 
@@ -421,13 +421,13 @@ test(`fail when ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.jso
   fse.copySync(path.join(simpleDir, 'package.json'), path.join(projectDir, 'package.json'))
 
   const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
-  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_SHRINKWRAP_FILENAME), path.join(projectDir, WANTED_SHRINKWRAP_FILENAME))
+  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), path.join(projectDir, WANTED_LOCKFILE))
 
   try {
     await headless(await testDefaults({ lockfileDirectory: projectDir }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
   }
 
   t.end()
@@ -463,7 +463,7 @@ test('installing using passed in shrinkwrap files', async (t) => {
 
   const simplePkgPath = path.join(fixtures, 'simple')
   fse.copySync(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
-  fse.copySync(path.join(simplePkgPath, WANTED_SHRINKWRAP_FILENAME), path.join(prefix, WANTED_SHRINKWRAP_FILENAME))
+  fse.copySync(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
 
   const wantedShr = await readWanted(simplePkgPath, { ignoreIncompatible: false })
 
@@ -701,7 +701,7 @@ test('installing in a workspace', async (t) => {
   t.deepEqual(Object.keys(shr.packages), [
     '/is-negative/1.0.0',
     '/is-positive/1.0.0',
-  ], `packages of importer that was not selected by last installation are not removed from current ${WANTED_SHRINKWRAP_FILENAME}`)
+  ], `packages of importer that was not selected by last installation are not removed from current ${WANTED_LOCKFILE}`)
 
   t.end()
 })

@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
 import path = require('path')
@@ -56,7 +56,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
 
   const shr = await project.loadShrinkwrap()
 
-  t.deepEqual(shr.specifiers, { 'is-positive': '*' }, `skipped optional dep not added to ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.deepEqual(shr.specifiers, { 'is-positive': '*' }, `skipped optional dep not added to ${WANTED_LOCKFILE}`)
 })
 
 test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
@@ -342,7 +342,7 @@ test('only skip optional dependencies', async (t: tape.Test) => {
   t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'got', '3.3.1', 'node_modules', 'duplexify')), 'duplexify is linked into node_modules of got')
 })
 
-test(`rebuild should not fail on incomplete ${WANTED_SHRINKWRAP_FILENAME}`, async (t: tape.Test) => {
+test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       'pre-and-postinstall-scripts-example': '1.0.0',
@@ -363,7 +363,7 @@ test(`rebuild should not fail on incomplete ${WANTED_SHRINKWRAP_FILENAME}`, asyn
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: `No entry for "/not-compatible-with-any-os/1.0.0" in ${WANTED_SHRINKWRAP_FILENAME}`,
+    message: `No entry for "/not-compatible-with-any-os/1.0.0" in ${WANTED_LOCKFILE}`,
     name: 'pnpm',
   }), 'missing package reported')
 })

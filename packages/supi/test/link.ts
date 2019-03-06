@@ -1,5 +1,5 @@
 import { isExecutable } from '@pnpm/assert-project'
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { Shrinkwrap } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
@@ -48,7 +48,7 @@ test('relative link', async (t: tape.Test) => {
 
   const wantedShrinkwrap = await project.loadShrinkwrap()
   t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
-  t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
 
   const currentShrinkwrap = await project.loadCurrentShrinkwrap()
   t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
@@ -259,7 +259,7 @@ test['skip']('relative link when an external shrinkwrap is used', async (t: tape
   const opts = await testDefaults({ lockfileDirectory: path.join('..') })
   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
 
   t.deepEqual(shr && shr['importers'], {
     project: {

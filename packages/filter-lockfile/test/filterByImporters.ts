@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { filterByImporters } from '@pnpm/filter-lockfile'
 import test = require('tape')
 
@@ -164,7 +164,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
     err = _
   }
   t.ok(err)
-  t.equal(err.message, `No entry for "/prod-dep-dep/1.0.0" in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(err.message, `No entry for "/prod-dep-dep/1.0.0" in ${WANTED_LOCKFILE}`)
   t.end()
 })
 

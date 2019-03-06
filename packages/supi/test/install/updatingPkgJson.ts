@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import readPkg = require('read-pkg')
 import {
@@ -90,11 +90,11 @@ test('dependency should not be added to package.json if it is already there', as
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.devDependencies.foo, '100.0.0', `\`foo\` is in the devDependencies property of ${WANTED_SHRINKWRAP_FILENAME}`)
-  t.ok(shr.packages['/foo/100.0.0'].dev, `the \`foo\` package is marked as dev in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(shr.devDependencies.foo, '100.0.0', `\`foo\` is in the devDependencies property of ${WANTED_LOCKFILE}`)
+  t.ok(shr.packages['/foo/100.0.0'].dev, `the \`foo\` package is marked as dev in ${WANTED_LOCKFILE}`)
 
-  t.equal(shr.optionalDependencies.bar, '100.0.0', `\`bar\` is in the optionalDependencies property of ${WANTED_SHRINKWRAP_FILENAME}`)
-  t.ok(shr.packages['/bar/100.0.0'].optional, `the \`bar\` package is marked as optional in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.equal(shr.optionalDependencies.bar, '100.0.0', `\`bar\` is in the optionalDependencies property of ${WANTED_LOCKFILE}`)
+  t.ok(shr.packages['/bar/100.0.0'].optional, `the \`bar\` package is marked as optional in ${WANTED_LOCKFILE}`)
 })
 
 test('dependencies should be updated in the fields where they already are', async (t: tape.Test) => {
@@ -173,7 +173,7 @@ test('dependency should be removed from the old field when installing it as a di
       },
       name: 'project',
       version: '0.0.0',
-    }, `dependencies moved around correctly when installed with node_modules and ${WANTED_SHRINKWRAP_FILENAME} present`)
+    }, `dependencies moved around correctly when installed with node_modules and ${WANTED_LOCKFILE} present`)
     const shr = await project.loadCurrentShrinkwrap()
     t.deepEqual(Object.keys(shr.dependencies), ['bar', 'foo', 'qar'], 'shrinkwrap updated')
   }

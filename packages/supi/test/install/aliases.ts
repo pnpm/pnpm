@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import { getIntegrity } from 'pnpm-registry-mock'
 import { addDependenciesToPackage } from 'supi'
@@ -50,7 +50,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
       negative: 'npm:is-negative@1.0.0',
       positive: 'npm:is-positive@^3.1.0',
     },
-  }, `correct ${WANTED_SHRINKWRAP_FILENAME}`)
+  }, `correct ${WANTED_LOCKFILE}`)
 })
 
 test('aliased dependency w/o version spec, with custom tag config', async (t) => {
@@ -98,5 +98,5 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
     specifiers: {
       'pkg-with-1-aliased-dep': '^100.0.0',
     },
-  }, `correct ${WANTED_SHRINKWRAP_FILENAME}`)
+  }, `correct ${WANTED_LOCKFILE}`)
 })

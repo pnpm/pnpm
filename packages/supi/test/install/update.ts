@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Shrinkwrap } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
 import path = require('path')
@@ -83,7 +83,7 @@ test('update dependency when external shrinkwrap directory is used', async (t: t
 
   await install(await testDefaults({ update: true, depth: 0, lockfileDirectory }))
 
-  const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_SHRINKWRAP_FILENAME))
+  const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_LOCKFILE))
 
   t.ok(shr.packages && shr.packages['/foo/100.1.0']) // tslint:disable-line:no-string-literal
 })

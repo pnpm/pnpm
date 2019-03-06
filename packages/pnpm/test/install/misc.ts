@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Shrinkwrap } from '@pnpm/lockfile-types'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -71,7 +71,7 @@ test('install --no-lockfile', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), `${WANTED_SHRINKWRAP_FILENAME} not created`)
+  t.notOk(await project.loadShrinkwrap(), `${WANTED_LOCKFILE} not created`)
 })
 
 test('install --no-package-lock', async (t: tape.Test) => {
@@ -81,7 +81,7 @@ test('install --no-package-lock', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), `${WANTED_SHRINKWRAP_FILENAME} not created`)
+  t.notOk(await project.loadShrinkwrap(), `${WANTED_LOCKFILE} not created`)
 })
 
 test('install from any location via the --prefix flag', async (t: tape.Test) => {
@@ -106,7 +106,7 @@ test('install with external lockfile directory', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
 
   t.deepEqual(Object.keys(shr.importers), ['project'], 'lockfile created in correct location')
 })

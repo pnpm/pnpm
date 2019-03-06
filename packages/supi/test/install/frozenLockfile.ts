@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import sinon = require('sinon')
@@ -15,7 +15,7 @@ import { testDefaults } from '../utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
+test(`frozen-lockfile: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -34,11 +34,11 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
     await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
   }
 })
 
-test(`frozen-lockfile+shamefully-flatten: installation fails if specs in package.json don't match the ones in ${WANTED_SHRINKWRAP_FILENAME}`, async (t) => {
+test(`frozen-lockfile+shamefully-flatten: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -57,11 +57,11 @@ test(`frozen-lockfile+shamefully-flatten: installation fails if specs in package
     await install(await testDefaults({ frozenShrinkwrap: true, shamefullyFlatten: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
   }
 })
 
-test(`frozen-lockfile: fail on a shared ${WANTED_SHRINKWRAP_FILENAME} that does not satisfy one of the package.json files`, async (t) => {
+test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy one of the package.json files`, async (t) => {
   const project = preparePackages(t, [
     {
       name: 'p1',
@@ -103,11 +103,11 @@ test(`frozen-lockfile: fail on a shared ${WANTED_SHRINKWRAP_FILENAME} that does 
     await mutateModules(importers, await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with p1${path.sep}package.json`)
+    t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with p1${path.sep}package.json`)
   }
 })
 
-test(`frozen-shrinkwrap: should successfully install when ${WANTED_SHRINKWRAP_FILENAME} is available`, async (t) => {
+test(`frozen-shrinkwrap: should successfully install when ${WANTED_LOCKFILE} is available`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -123,7 +123,7 @@ test(`frozen-shrinkwrap: should successfully install when ${WANTED_SHRINKWRAP_FI
   await project.has('is-positive')
 })
 
-test(`frozen-shrinkwrap: should fail if no ${WANTED_SHRINKWRAP_FILENAME} is present`, async (t) => {
+test(`frozen-shrinkwrap: should fail if no ${WANTED_LOCKFILE} is present`, async (t) => {
   prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -134,11 +134,11 @@ test(`frozen-shrinkwrap: should fail if no ${WANTED_SHRINKWRAP_FILENAME} is pres
     await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equals(err.message, `Headless installation requires a ${WANTED_SHRINKWRAP_FILENAME} file`)
+    t.equals(err.message, `Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 })
 
-test(`prefer-frozen-shrinkwrap: should prefer headless installation when ${WANTED_SHRINKWRAP_FILENAME} satisfies package.json`, async (t) => {
+test(`prefer-frozen-shrinkwrap: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -161,7 +161,7 @@ test(`prefer-frozen-shrinkwrap: should prefer headless installation when ${WANTE
   await project.has('is-positive')
 })
 
-test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${WANTED_SHRINKWRAP_FILENAME} does not satisfy package.json`, async (t) => {
+test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${WANTED_LOCKFILE} does not satisfy package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -190,19 +190,19 @@ test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${W
   await project.has('is-negative')
 })
 
-test(`prefer-frozen-shrinkwrap: should not fail if no ${WANTED_SHRINKWRAP_FILENAME} is present and project has no deps`, async (t) => {
+test(`prefer-frozen-shrinkwrap: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
   await install(await testDefaults({ preferFrozenShrinkwrap: true }))
 })
 
-test(`frozen-shrinkwrap: should not fail if no ${WANTED_SHRINKWRAP_FILENAME} is present and project has no deps`, async (t) => {
+test(`frozen-shrinkwrap: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
   await install(await testDefaults({ frozenShrinkwrap: true }))
 })
 
-test(`prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless installation when ${WANTED_SHRINKWRAP_FILENAME} satisfies package.json`, async (t) => {
+test(`prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'pkg-with-1-dep': '100.0.0',

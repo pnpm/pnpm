@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Shrinkwrap } from '@pnpm/lockfile-file'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
@@ -56,7 +56,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   t.equal(
     shr.packages['/using-ajv/1.0.0'].dependencies['ajv-keywords'],
     '1.5.0_ajv@4.10.4',
-    `${WANTED_SHRINKWRAP_FILENAME}: correct reference is created to ajv-keywords from using-ajv`,
+    `${WANTED_LOCKFILE}: correct reference is created to ajv-keywords from using-ajv`,
   )
   // covers https://github.com/pnpm/pnpm/issues/1150
   t.ok(shr.packages['/ajv-keywords/1.5.0_ajv@4.10.4'])
@@ -300,7 +300,7 @@ test['skip']('peer dependencies are linked', async (t: tape.Test) => {
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
 
   const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/abc-parent-with-ab/1.0.0/peer-a@1.0.0+peer-b@1.0.0'].dev, `the dev resolution set is marked as dev in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.ok(shr.packages['/abc-parent-with-ab/1.0.0/peer-a@1.0.0+peer-b@1.0.0'].dev, `the dev resolution set is marked as dev in ${WANTED_LOCKFILE}`)
 })
 
 test('scoped peer dependency is linked', async (t: tape.Test) => {
@@ -389,7 +389,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv-keywords')))
 
-  const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_SHRINKWRAP_FILENAME))
+  const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_LOCKFILE))
 
   t.deepEqual(shr['importers']['project'], { // tslint:disable-line
     dependencies: {
@@ -400,7 +400,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
       'ajv': '4.10.4',
       'ajv-keywords': '1.5.0',
     },
-  }, `correct ${WANTED_SHRINKWRAP_FILENAME} created`)
+  }, `correct ${WANTED_LOCKFILE} created`)
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1483
@@ -429,7 +429,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -445,7 +445,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await install(await testDefaults({ lockfileDirectory }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -473,7 +473,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   )
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv-keywords': '1.5.0',
@@ -494,7 +494,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ lockfileDirectory }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -510,7 +510,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -533,7 +533,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ lockfileDirectory }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'abc-parent-with-ab': '1.0.0_peer-c@1.0.0',
@@ -549,7 +549,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['peer-c@2.0.0'], await testDefaults({ lockfileDirectory }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'abc-parent-with-ab': '1.0.0_peer-c@2.0.0',
@@ -594,7 +594,7 @@ test('peer dependency is resolved from parent package', async (t) => {
     },
   ], await testDefaults())
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
   t.deepEqual(Object.keys(shr.packages || {}), [
     '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
     '/tango/1.0.0_tango@1.0.0',
@@ -615,7 +615,7 @@ test('peer dependency is resolved from parent package via its alias', async (t) 
     },
   ], await testDefaults())
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_SHRINKWRAP_FILENAME)
+  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
   t.deepEqual(Object.keys(shr.packages || {}), [
     '/has-tango-as-peer-dep/1.0.0_tango@1.0.0',
     '/tango-tango/1.0.0_tango@1.0.0',

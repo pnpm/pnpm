@@ -1,5 +1,5 @@
 import assertProject from '@pnpm/assert-project'
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrent } from '@pnpm/lockfile-file'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
@@ -111,7 +111,7 @@ test('dependencies of other importers are not pruned when installing for a subse
   t.deepEqual(Object.keys(shr.packages), [
     '/is-negative/1.0.0',
     '/is-positive/2.0.0',
-  ], `packages of importer that was not selected by last installation are not removed from current ${WANTED_SHRINKWRAP_FILENAME}`)
+  ], `packages of importer that was not selected by last installation are not removed from current ${WANTED_LOCKFILE}`)
 })
 
 test('dependencies of other importers are not pruned when (headless) installing for a subset of importers', async (t) => {

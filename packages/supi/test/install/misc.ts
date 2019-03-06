@@ -1,4 +1,4 @@
-import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageJsonLog,
   ProgressLog,
@@ -54,7 +54,7 @@ test('small with dependencies (rimraf)', async (t: tape.Test) => {
   await project.isExecutable('.bin/rimraf')
 
   const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/rimraf/2.5.1'].hasBin, `package marked with "hasBin: true" in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.ok(shr.packages['/rimraf/2.5.1'].hasBin, `package marked with "hasBin: true" in ${WANTED_LOCKFILE}`)
 })
 
 test('spec not specified in package.json.dependencies', async (t: tape.Test) => {
@@ -67,7 +67,7 @@ test('spec not specified in package.json.dependencies', async (t: tape.Test) => 
   await install(await testDefaults())
 
   const shr = await project.loadShrinkwrap()
-  t.ok(shr.specifiers['is-positive'] === '', `spec saved properly in ${WANTED_SHRINKWRAP_FILENAME}`)
+  t.ok(shr.specifiers['is-positive'] === '', `spec saved properly in ${WANTED_LOCKFILE}`)
 })
 
 test('ignoring some files in the dependency', async (t: tape.Test) => {
@@ -518,7 +518,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape
   t.deepEqual(
     shr.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
-    `bundledDependencies added to ${WANTED_SHRINKWRAP_FILENAME}`,
+    `bundledDependencies added to ${WANTED_LOCKFILE}`,
   )
 })
 
@@ -533,7 +533,7 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.T
   t.deepEqual(
     shr.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
-    `bundledDependencies added to ${WANTED_SHRINKWRAP_FILENAME}`,
+    `bundledDependencies added to ${WANTED_LOCKFILE}`,
   )
 })
 
@@ -820,7 +820,7 @@ test('shrinkwrap locks npm dependencies', async (t: tape.Test) => {
 
   const m = project.requireModule('.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 
-  t.equal(m.version, '100.0.0', `dependency specified in ${WANTED_SHRINKWRAP_FILENAME} is installed`)
+  t.equal(m.version, '100.0.0', `dependency specified in ${WANTED_LOCKFILE} is installed`)
 })
 
 test('self-require should work', async (t) => {

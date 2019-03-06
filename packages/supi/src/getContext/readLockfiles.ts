@@ -1,6 +1,6 @@
 import {
   SHRINKWRAP_VERSION,
-  WANTED_SHRINKWRAP_FILENAME,
+  WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   create as createShrinkwrap,
@@ -48,7 +48,7 @@ export default async function (
     opts.shrinkwrap && readWantedShrinkwrap(opts.lockfileDirectory, shrOpts)
       || await existsWantedShrinkwrap(opts.lockfileDirectory) &&
         logger.warn({
-          message: `A ${WANTED_SHRINKWRAP_FILENAME} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
+          message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
           prefix: opts.lockfileDirectory,
         }),
     readCurrentShrinkwrap(opts.lockfileDirectory, shrOpts),
