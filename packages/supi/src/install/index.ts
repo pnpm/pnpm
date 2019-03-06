@@ -15,6 +15,14 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
+import {
+  Shrinkwrap,
+  ShrinkwrapImporter,
+  write as saveShrinkwrap,
+  writeCurrentOnly as saveCurrentShrinkwrapOnly,
+  writeWantedOnly as saveWantedShrinkwrapOnly,
+} from '@pnpm/lockfile-file'
+import { satisfiesPackageJson } from '@pnpm/lockfile-utils'
 import logger, {
   streamParser,
 } from '@pnpm/logger'
@@ -25,14 +33,6 @@ import {
   LocalPackages,
   Resolution,
 } from '@pnpm/resolver-base'
-import {
-  Shrinkwrap,
-  ShrinkwrapImporter,
-  write as saveShrinkwrap,
-  writeCurrentOnly as saveCurrentShrinkwrapOnly,
-  writeWantedOnly as saveWantedShrinkwrapOnly,
-} from '@pnpm/shrinkwrap-file'
-import { satisfiesPackageJson } from '@pnpm/shrinkwrap-utils'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,

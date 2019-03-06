@@ -43,7 +43,7 @@
     "@pnpm/constants": "1.0.0-0",
     "@pnpm/npm-resolver": "3.0.0-1",
     "@pnpm/read-package-json": "1.1.1",
-    "@pnpm/shrinkwrap-file": "2.0.0-2",
+    "@pnpm/lockfile-file": "1.0.0-0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",

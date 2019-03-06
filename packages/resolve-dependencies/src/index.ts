@@ -1,5 +1,5 @@
+import { Shrinkwrap } from '@pnpm/lockfile-types'
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   PackageJson,

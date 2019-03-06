@@ -1,11 +1,11 @@
 import { packageJsonLogger } from '@pnpm/core-loggers'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import {
   IncludedDependencies,
   Modules,
 } from '@pnpm/modules-yaml'
 import readManifests from '@pnpm/read-manifests'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import {
   DEPENDENCIES_FIELDS,
   PackageJson,

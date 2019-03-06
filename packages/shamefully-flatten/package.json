@@ -48,8 +48,8 @@
   "dependencies": {
     "@pnpm/constants": "1.0.0-0",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/shrinkwrap-types": "2.0.0-0",
-    "@pnpm/shrinkwrap-utils": "2.0.0-0",
+    "@pnpm/lockfile-types": "1.0.0-0",
+    "@pnpm/lockfile-utils": "1.0.0-0",
     "@pnpm/symlink-dependency": "2.0.0-0",
     "@pnpm/types": "2.0.0",
     "@types/node": "11.9.5",

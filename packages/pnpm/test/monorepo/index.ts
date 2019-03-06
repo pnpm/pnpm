@@ -1,7 +1,7 @@
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { Shrinkwrap } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import loadJsonFile from 'load-json-file'
 import fs = require('mz/fs')
 import path = require('path')

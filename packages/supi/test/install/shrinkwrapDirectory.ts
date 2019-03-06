@@ -1,6 +1,6 @@
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import ncpCB = require('ncp')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'

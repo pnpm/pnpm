@@ -10,7 +10,7 @@ import {
 import headless from '@pnpm/headless'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readManifests from '@pnpm/read-manifests'
-import { readWanted } from '@pnpm/shrinkwrap-file'
+import { readWanted } from '@pnpm/lockfile-file'
 import fse = require('fs-extra')
 import path = require('path')
 import exists = require('path-exists')

@@ -1,5 +1,5 @@
+import { getImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
-import { getImporterId } from '@pnpm/shrinkwrap-file'
 import { PackageJson, Registries } from '@pnpm/types'
 import {
   normalizeRegistries,

@@ -2,14 +2,14 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import logger from '@pnpm/logger'
-import readModulesDir from '@pnpm/read-modules-dir'
 import {
   PackageSnapshots,
   Shrinkwrap,
   ShrinkwrapImporter,
-} from '@pnpm/shrinkwrap-types'
-import { packageIdFromSnapshot } from '@pnpm/shrinkwrap-utils'
+} from '@pnpm/lockfile-types'
+import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
+import logger from '@pnpm/logger'
+import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'

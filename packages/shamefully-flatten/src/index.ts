@@ -1,12 +1,12 @@
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
-import logger from '@pnpm/logger'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   PackageSnapshots,
   Shrinkwrap,
-} from '@pnpm/shrinkwrap-utils'
+} from '@pnpm/lockfile-utils'
+import logger from '@pnpm/logger'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'

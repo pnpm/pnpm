@@ -2,15 +2,15 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
-import logger, { streamParser } from '@pnpm/logger'
-import { prune } from '@pnpm/modules-cleaner'
-import { pruneSharedShrinkwrap } from '@pnpm/prune-shrinkwrap'
 import {
   getImporterId,
   ShrinkwrapImporter,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
-} from '@pnpm/shrinkwrap-file'
+} from '@pnpm/lockfile-file'
+import logger, { streamParser } from '@pnpm/logger'
+import { prune } from '@pnpm/modules-cleaner'
+import { pruneSharedShrinkwrap } from '@pnpm/prune-lockfile'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,

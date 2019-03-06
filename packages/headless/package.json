@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/headless",
-  "description": "Fast installation using only shrinkwrap.yaml",
+  "description": "Fast installation using only pnpm-lock.yaml",
   "version": "6.0.0-2",
   "author": {
     "name": "Zoltan Kochan",
@@ -79,13 +79,13 @@
     "test": "npm run lint && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
-    "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js m i --shrinkwrap-only --registry http://localhost:4873/ --ignore-scripts --force",
+    "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js m i --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
     "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
     "@pnpm/constants": "1.0.0-0",
     "@pnpm/core-loggers": "2.0.0",
-    "@pnpm/filter-shrinkwrap": "2.0.0-1",
+    "@pnpm/filter-lockfile": "1.0.0-0",
     "@pnpm/lifecycle": "4.2.0",
     "@pnpm/link-bins": "3.0.3",
     "@pnpm/modules-cleaner": "3.0.0-1",
@@ -94,8 +94,8 @@
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/shamefully-flatten": "3.0.0-1",
-    "@pnpm/shrinkwrap-file": "2.0.0-2",
-    "@pnpm/shrinkwrap-utils": "2.0.0-0",
+    "@pnpm/lockfile-file": "1.0.0-0",
+    "@pnpm/lockfile-utils": "1.0.0-0",
     "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/symlink-dependency": "2.0.0-0",
     "@pnpm/types": "2.0.0",

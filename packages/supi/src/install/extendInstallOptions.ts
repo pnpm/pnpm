@@ -1,7 +1,7 @@
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   ReadPackageHook,

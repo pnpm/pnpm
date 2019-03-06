@@ -5,7 +5,7 @@ import {
   ResolvedDependencies,
   Shrinkwrap,
   ShrinkwrapResolution,
-} from '@pnpm/prune-shrinkwrap'
+} from '@pnpm/prune-lockfile'
 import { Resolution } from '@pnpm/resolver-base'
 import { Dependencies, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'

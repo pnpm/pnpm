@@ -9,15 +9,15 @@ import {
 } from '@pnpm/core-loggers'
 import filterShrinkwrap, {
   filterByImporters as filterShrinkwrapByImporters,
-} from '@pnpm/filter-shrinkwrap'
+} from '@pnpm/filter-lockfile'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import shamefullyFlattenGraph from '@pnpm/shamefully-flatten'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { PackageJson, Registries } from '@pnpm/types'

@@ -2,14 +2,14 @@ import {
   SHRINKWRAP_VERSION,
   WANTED_SHRINKWRAP_FILENAME,
 } from '@pnpm/constants'
-import logger from '@pnpm/logger'
 import {
   create as createShrinkwrap,
   existsWanted as existsWantedShrinkwrap,
   readCurrent as readCurrentShrinkwrap,
   readWanted as readWantedShrinkwrap,
   Shrinkwrap,
-} from '@pnpm/shrinkwrap-file'
+} from '@pnpm/lockfile-file'
+import logger from '@pnpm/logger'
 import isCI = require('is-ci')
 import R = require('ramda')
 

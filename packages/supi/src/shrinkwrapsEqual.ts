@@ -1,4 +1,4 @@
-import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import R = require('ramda')
 
 export default function shrinkwrapsEqual (shr1: Shrinkwrap, shr2: Shrinkwrap) {

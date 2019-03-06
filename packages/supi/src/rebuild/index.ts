@@ -8,15 +8,15 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
-import logger, { streamParser } from '@pnpm/logger'
-import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   PackageSnapshots,
   Shrinkwrap,
-} from '@pnpm/shrinkwrap-utils'
+} from '@pnpm/lockfile-utils'
+import logger, { streamParser } from '@pnpm/logger'
+import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')

@@ -1,11 +1,11 @@
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
-import createResolver from '@pnpm/npm-resolver'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import {
   getImporterId,
   readCurrent as readCurrentShrinkwrap,
   readWanted as readWantedShrinkwrap,
-} from '@pnpm/shrinkwrap-file'
+} from '@pnpm/lockfile-file'
+import createResolver from '@pnpm/npm-resolver'
+import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import resolveStore from '@pnpm/store-path'
 import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import { normalizeRegistries } from '@pnpm/utils'

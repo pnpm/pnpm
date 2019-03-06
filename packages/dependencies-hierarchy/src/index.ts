@@ -1,11 +1,11 @@
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
-import readModulesDir from '@pnpm/read-modules-dir'
 import {
   getImporterId,
   PackageSnapshots,
   readCurrent,
   ShrinkwrapImporter,
-} from '@pnpm/shrinkwrap-file'
+} from '@pnpm/lockfile-file'
+import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import readModulesDir from '@pnpm/read-modules-dir'
 import { Registries } from '@pnpm/types'
 import { normalizeRegistries, safeReadPackageFromDir } from '@pnpm/utils'
 import assert = require('assert')

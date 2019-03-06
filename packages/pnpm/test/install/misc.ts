@@ -1,7 +1,7 @@
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { Shrinkwrap } from '@pnpm/lockfile-types'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import caw = require('caw')
 import isWindows = require('is-windows')
 import path = require('path')

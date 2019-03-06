@@ -5,7 +5,7 @@ import {
 import { RootLog } from '@pnpm/core-loggers'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import { stripIndent } from 'common-tags'
 import mkdir = require('mkdirp-promise')
 import fs = require('mz/fs')

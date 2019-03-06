@@ -1,7 +1,7 @@
 import assertProject from '@pnpm/assert-project'
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { readCurrent } from '@pnpm/lockfile-file'
 import { preparePackages } from '@pnpm/prepare'
-import { readCurrent } from '@pnpm/shrinkwrap-file'
 import path = require('path')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')

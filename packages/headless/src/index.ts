@@ -13,9 +13,22 @@ import {
 } from '@pnpm/core-loggers'
 import filterShrinkwrap, {
   filterByImportersAndEngine as filterShrinkwrapByImportersAndEngine,
-} from '@pnpm/filter-shrinkwrap'
+} from '@pnpm/filter-lockfile'
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import {
+  PackageSnapshot,
+  readCurrent,
+  readWanted,
+  Shrinkwrap,
+  writeCurrentOnly as writeCurrentShrinkwrapOnly,
+} from '@pnpm/lockfile-file'
+import {
+  nameVerFromPkgSnapshot,
+  packageIsIndependent,
+  pkgSnapshotToResolution,
+  satisfiesPackageJson,
+} from '@pnpm/lockfile-utils'
 import logger, {
   LogBase,
   streamParser,
@@ -28,19 +41,6 @@ import {
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
-import {
-  PackageSnapshot,
-  readCurrent,
-  readWanted,
-  Shrinkwrap,
-  writeCurrentOnly as writeCurrentShrinkwrapOnly,
-} from '@pnpm/shrinkwrap-file'
-import {
-  nameVerFromPkgSnapshot,
-  packageIsIndependent,
-  pkgSnapshotToResolution,
-  satisfiesPackageJson,
-} from '@pnpm/shrinkwrap-utils'
 import {
   PackageFilesResponse,
   StoreController,

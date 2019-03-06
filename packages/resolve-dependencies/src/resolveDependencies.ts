@@ -3,6 +3,16 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
+import {
+  PackageSnapshot,
+  ResolvedDependencies,
+  Shrinkwrap,
+} from '@pnpm/lockfile-types'
+import {
+  nameVerFromPkgSnapshot,
+  packageIdFromSnapshot,
+  pkgSnapshotToResolution,
+} from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import {
@@ -10,16 +20,6 @@ import {
   LocalPackages,
   Resolution,
 } from '@pnpm/resolver-base'
-import {
-  PackageSnapshot,
-  ResolvedDependencies,
-  Shrinkwrap,
-} from '@pnpm/shrinkwrap-types'
-import {
-  nameVerFromPkgSnapshot,
-  packageIdFromSnapshot,
-  pkgSnapshotToResolution,
-} from '@pnpm/shrinkwrap-utils'
 import {
   PackageFilesResponse,
   PackageResponse,

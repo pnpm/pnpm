@@ -1,6 +1,6 @@
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import prepare, { preparePackages } from '@pnpm/prepare'
-import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile from 'load-json-file'
 import mkdir = require('mkdirp-promise')
