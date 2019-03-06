@@ -3,7 +3,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import mkdir = require('mkdirp-promise')
@@ -33,13 +33,13 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 test['skip'] = promisifyTape(tape.skip) // tslint:disable-line:no-string-literal
 
-const SHRINKWRAP_WARN_LOG = {
+const LOCKFILE_WARN_LOG = {
   level: 'warn',
-  message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
+  message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
   name: 'pnpm',
 }
 
-test('shrinkwrap file has correct format', async (t: tape.Test) => {
+test('lockfile has correct format', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDependenciesToPackage(
@@ -53,31 +53,31 @@ test('shrinkwrap file has correct format', async (t: tape.Test) => {
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
   const id = '/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.lockfileVersion, 5, 'correct shrinkwrap version')
+  t.equal(lockfile.lockfileVersion, 5, 'correct lockfile version')
 
-  t.ok(shr.specifiers, 'has specifiers field')
-  t.ok(shr.dependencies, 'has dependencies field')
-  t.equal(shr.dependencies['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
-  t.ok(shr.dependencies['@rstacruz/tap-spec'], 'has scoped dependency resolved')
-  t.ok(shr.dependencies['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+  t.ok(lockfile.specifiers, 'has specifiers field')
+  t.ok(lockfile.dependencies, 'has dependencies field')
+  t.equal(lockfile.dependencies['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
+  t.ok(lockfile.dependencies['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+  t.ok(lockfile.dependencies['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
 
-  t.ok(shr.packages, 'has packages field')
-  t.ok(shr.packages[id], `has resolution for ${id}`)
-  t.ok(shr.packages[id].dependencies, `has dependency resolutions for ${id}`)
-  t.ok(shr.packages[id].dependencies['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
-  t.ok(shr.packages[id].resolution, `has resolution for ${id}`)
-  t.ok(shr.packages[id].resolution.integrity, `has integrity for package in the default registry`)
-  t.notOk(shr.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
+  t.ok(lockfile.packages, 'has packages field')
+  t.ok(lockfile.packages[id], `has resolution for ${id}`)
+  t.ok(lockfile.packages[id].dependencies, `has dependency resolutions for ${id}`)
+  t.ok(lockfile.packages[id].dependencies['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
+  t.ok(lockfile.packages[id].resolution, `has resolution for ${id}`)
+  t.ok(lockfile.packages[id].resolution.integrity, `has integrity for package in the default registry`)
+  t.notOk(lockfile.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
 
   const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
-  t.ok(shr.packages[absDepPath])
-  t.ok(shr.packages[absDepPath].name, 'github-hosted package has name specified')
+  t.ok(lockfile.packages[absDepPath])
+  t.ok(lockfile.packages[absDepPath].name, 'github-hosted package has name specified')
 })
 
-test('shrinkwrap file has dev deps even when installing for prod only', async (t: tape.Test) => {
+test('lockfile has dev deps even when installing for prod only', async (t: tape.Test) => {
   const project = prepare(t, {
     devDependencies: {
       'is-negative': '2.1.0',
@@ -86,17 +86,17 @@ test('shrinkwrap file has dev deps even when installing for prod only', async (t
 
   await install(await testDefaults({ production: true }))
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
   const id = '/is-negative/2.1.0'
 
-  t.ok(shr.devDependencies, 'has devDependencies field')
+  t.ok(lockfile.devDependencies, 'has devDependencies field')
 
-  t.equal(shr.devDependencies['is-negative'], '2.1.0', 'has dev dependency resolved')
+  t.equal(lockfile.devDependencies['is-negative'], '2.1.0', 'has dev dependency resolved')
 
-  t.ok(shr.packages[id], `has resolution for ${id}`)
+  t.ok(lockfile.packages[id], `has resolution for ${id}`)
 })
 
-test('shrinkwrap with scoped package', async (t: tape.Test) => {
+test('lockfile with scoped package', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       '@types/semver': '^5.3.31',
@@ -123,7 +123,7 @@ test('shrinkwrap with scoped package', async (t: tape.Test) => {
   await install(await testDefaults({ frozenLockfile: true }))
 })
 
-test('fail when shasum from shrinkwrap does not match with the actual one', async (t: tape.Test) => {
+test('fail when shasum from lockfile does not match with the actual one', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       'is-negative': '2.1.0',
@@ -156,7 +156,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
   }
 })
 
-test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs", async (t: tape.Test) => {
+test("lockfile doesn't lock subdependencies that don't satisfy the new specs", async (t: tape.Test) => {
   const project = prepare(t)
 
   // dependends on react-onclickoutside@5.9.0
@@ -170,21 +170,21 @@ test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs",
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.equal(Object.keys(shr.dependencies).length, 1, 'resolutions not duplicated')
+  t.equal(Object.keys(lockfile.dependencies).length, 1, 'resolutions not duplicated')
 })
 
-test('shrinkwrap not created when no deps in package.json', async (t: tape.Test) => {
+test('lockfile not created when no deps in package.json', async (t: tape.Test) => {
   const project = prepare(t)
 
   await install(await testDefaults())
 
-  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap file not created')
+  t.notOk(await project.loadLockfile(), 'lockfile not created')
   t.notOk(await exists('node_modules'), 'empty node_modules not created')
 })
 
-test('shrinkwrap removed when no deps in package.json', async (t: tape.Test) => {
+test('lockfile removed when no deps in package.json', async (t: tape.Test) => {
   const project = prepare(t)
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -206,10 +206,10 @@ test('shrinkwrap removed when no deps in package.json', async (t: tape.Test) => 
 
   await install(await testDefaults())
 
-  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap file removed')
+  t.notOk(await project.loadLockfile(), 'lockfile removed')
 })
 
-test('shrinkwrap is fixed when it does not match package.json', async (t: tape.Test) => {
+test('lockfile is fixed when it does not match package.json', async (t: tape.Test) => {
   const project = prepare(t, {
     devDependencies: {
       'is-negative': '^2.1.0',
@@ -259,12 +259,12 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
   })
   t.equal(reporter.withArgs(progress).callCount, 0, 'resolving not reported')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.equal(shr.devDependencies['is-negative'], '2.1.0', `is-negative moved to devDependencies in ${WANTED_LOCKFILE}`)
-  t.equal(shr.optionalDependencies['is-positive'], '3.1.0', `is-positive moved to optionalDependencies in ${WANTED_LOCKFILE}`)
-  t.notOk(shr.dependencies, 'empty dependencies property removed')
-  t.notOk(shr.packages['/@types/semver/5.3.31'], 'package not referenced in package.json removed')
+  t.equal(lockfile.devDependencies['is-negative'], '2.1.0', `is-negative moved to devDependencies in ${WANTED_LOCKFILE}`)
+  t.equal(lockfile.optionalDependencies['is-positive'], '3.1.0', `is-positive moved to optionalDependencies in ${WANTED_LOCKFILE}`)
+  t.notOk(lockfile.dependencies, 'empty dependencies property removed')
+  t.notOk(lockfile.packages['/@types/semver/5.3.31'], 'package not referenced in package.json removed')
 })
 
 test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async (t: tape.Test) => {
@@ -312,7 +312,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async (t
   await addDependenciesToPackage(['is-positive'], await testDefaults({ reporter }))
   await install(await testDefaults({ reporter }))
 
-  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
+  t.notOk(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
 
   await project.has('is-negative')
 })
@@ -351,7 +351,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   reporter.resetHistory()
 
   // shouldn't care about what the registry in npmrc is
-  // the one in shrinkwrap should be used
+  // the one in lockfile should be used
   await install(await testDefaults({
     rawNpmConfig: {
       registry: 'https://registry.npmjs.org',
@@ -379,37 +379,37 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
 
-  delete shr.packages['/dep-of-pkg-with-1-dep/100.0.0']
+  delete lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0']
 
-  shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
+  lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
     resolution: {
       integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
     },
   }
 
-  shr.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+  lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
 
-  await writeYamlFile(WANTED_LOCKFILE, shr)
+  await writeYamlFile(WANTED_LOCKFILE, lockfile)
 
   await install(await testDefaults())
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test("recreates shrinkwrap file if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
+test("recreates lockfile if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
   await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))
   await addDependenciesToPackage(['map-obj@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))
 
-  const shr1 = await project.loadShrinkwrap()
-  t.equal(shr1.dependencies['is-negative'], '1.0.0')
-  t.equal(shr1.specifiers['is-negative'], '1.0.0')
+  const lockfile1 = await project.loadLockfile()
+  t.equal(lockfile1.dependencies['is-negative'], '1.0.0')
+  t.equal(lockfile1.specifiers['is-negative'], '1.0.0')
 
   const pkg = await readPackageJsonFromDir(process.cwd())
 
@@ -421,34 +421,34 @@ test("recreates shrinkwrap file if it doesn't match the dependencies in package.
 
   await install(await testDefaults())
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.equal(shr.dependencies['is-negative'], '2.1.0')
-  t.equal(shr.specifiers['is-negative'], '^2.1.0')
+  t.equal(lockfile.dependencies['is-negative'], '2.1.0')
+  t.equal(lockfile.specifiers['is-negative'], '^2.1.0')
 
-  t.equal(shr.devDependencies['is-positive'], '2.0.0')
-  t.equal(shr.specifiers['is-positive'], '^2.0.0')
+  t.equal(lockfile.devDependencies['is-positive'], '2.0.0')
+  t.equal(lockfile.specifiers['is-positive'], '^2.0.0')
 
-  t.equal(shr.optionalDependencies['map-obj'], '1.0.1')
-  t.equal(shr.specifiers['map-obj'], '1.0.1')
+  t.equal(lockfile.optionalDependencies['map-obj'], '1.0.1')
+  t.equal(lockfile.specifiers['map-obj'], '1.0.1')
 })
 
-test('repeat install with shrinkwrap should not mutate shrinkwrap when dependency has version specified with v prefix', async (t: tape.Test) => {
+test('repeat install with lockfile should not mutate lockfile when dependency has version specified with v prefix', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDependenciesToPackage(['highmaps-release@5.0.11'], await testDefaults())
 
-  const shr1 = await project.loadShrinkwrap()
+  const lockfile1 = await project.loadLockfile()
 
-  t.equal(shr1.dependencies['highmaps-release'], '5.0.11', `dependency added correctly to ${WANTED_LOCKFILE}`)
+  t.equal(lockfile1.dependencies['highmaps-release'], '5.0.11', `dependency added correctly to ${WANTED_LOCKFILE}`)
 
   await rimraf('node_modules')
 
   await install(await testDefaults())
 
-  const shr2 = await project.loadShrinkwrap()
+  const lockfile2 = await project.loadLockfile()
 
-  t.deepEqual(shr1, shr2, "shrinkwrap file hasn't been changed")
+  t.deepEqual(lockfile1, lockfile2, "lockfile hasn't been changed")
 })
 
 test('package is not marked dev if it is also a subdep of a regular dependency', async (t: tape.Test) => {
@@ -464,9 +464,9 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   t.pass('installed optional dependency which is also a dependency of pkg-with-1-dep')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'].dev, 'package is not marked as dev')
+  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].dev, 'package is not marked as dev')
 })
 
 test('package is not marked optional if it is also a subdep of a regular dependency', async (t: tape.Test) => {
@@ -477,9 +477,9 @@ test('package is not marked optional if it is also a subdep of a regular depende
   await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults())
   await addDependenciesToPackage(['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'].optional, 'package is not marked as optional')
+  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].optional, 'package is not marked as optional')
 })
 
 test('scoped module from different registry', async (t: tape.Test) => {
@@ -494,9 +494,9 @@ test('scoped module from different registry', async (t: tape.Test) => {
   const m = project.requireModule('@zkochan/foo')
   t.ok(m, 'foo is available')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     dependencies: {
       '@foo/has-dep-from-same-scope': '1.0.0',
       '@zkochan/foo': '1.0.0',
@@ -553,7 +553,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
   })
 })
 
-test('repeat install with no inner shrinkwrap should not rewrite packages in node_modules', async (t: tape.Test) => {
+test('repeat install with no inner lockfile should not rewrite packages in node_modules', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
@@ -569,16 +569,16 @@ test('repeat install with no inner shrinkwrap should not rewrite packages in nod
 // Skipped because the npm-registry.compass.com server was down
 // might be a good idea to mock it
 // tslint:disable-next-line:no-string-literal
-test['skip']('installing from shrinkwrap when using npm enterprise', async (t: tape.Test) => {
+test['skip']('installing from lockfile when using npm enterprise', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults({ registry: 'https://npm-registry.compass.com/' })
 
   await addDependenciesToPackage(['is-positive@3.1.0'], opts)
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     dependencies: {
       'is-positive': '3.1.0',
     },
@@ -621,10 +621,10 @@ test('packages are placed in devDependencies even if they are present as non-dev
   const reporter = sinon.spy()
   await install(await testDefaults({ reporter }))
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.ok(shr.devDependencies['dep-of-pkg-with-1-dep'])
-  t.ok(shr.devDependencies['pkg-with-1-dep'])
+  t.ok(lockfile.devDependencies['dep-of-pkg-with-1-dep'])
+  t.ok(lockfile.devDependencies['pkg-with-1-dep'])
 
   t.ok(reporter.calledWithMatch({
     added: {
@@ -697,8 +697,8 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   await addDependenciesToPackage(['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
   await addDependenciesToPackage(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], `there are 0 packages with dev property in ${WANTED_LOCKFILE}`)
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], `there are 0 packages with dev property in ${WANTED_LOCKFILE}`)
 })
 
 test('optional properties are correctly updated on named install', async (t: tape.Test) => {
@@ -707,8 +707,8 @@ test('optional properties are correctly updated on named install', async (t: tap
   await addDependenciesToPackage(['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   await addDependenciesToPackage(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], `there are 0 packages with optional property in ${WANTED_LOCKFILE}`)
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], `there are 0 packages with optional property in ${WANTED_LOCKFILE}`)
 })
 
 test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async (t: tape.Test) => {
@@ -717,24 +717,24 @@ test('dev property is correctly set for package that is duplicated to both the d
   // TODO: use a smaller package for testing
   await addDependenciesToPackage(['overlap@2.2.8'], await testDefaults())
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/couleurs/5.0.0'].dev === false)
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/couleurs/5.0.0'].dev === false)
 })
 
-test('no shrinkwrap', async (t: tape.Test) => {
+test('no lockfile', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({ shrinkwrap: false, reporter }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ lockfile: false, reporter }))
 
-  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
+  t.notOk(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), `${WANTED_LOCKFILE} not created`)
+  t.notOk(await project.loadLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
-test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
+test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       'is-negative': '2.1.0',
@@ -761,16 +761,16 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await install(await testDefaults({ shrinkwrap: false, reporter }))
+  await install(await testDefaults({ lockfile: false, reporter }))
 
-  t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
+  t.ok(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
 
   await project.has('is-negative')
 
-  t.ok(await project.loadShrinkwrap(), `existing ${WANTED_LOCKFILE} not removed`)
+  t.ok(await project.loadLockfile(), `existing ${WANTED_LOCKFILE} not removed`)
 })
 
-test(`don't update ${WANTED_LOCKFILE} during uninstall when shrinkwrap: false`, async (t: tape.Test) => {
+test(`don't update ${WANTED_LOCKFILE} during uninstall when lockfile: false`, async (t: tape.Test) => {
   const project = prepare(t)
 
   {
@@ -778,38 +778,38 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when shrinkwrap: false`, 
 
     await addDependenciesToPackage(['is-positive'], await testDefaults({ reporter }))
 
-    t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
+    t.notOk(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
   }
 
   {
     const reporter = sinon.spy()
 
-    await uninstall(['is-positive'], await testDefaults({ shrinkwrap: false, reporter }))
+    await uninstall(['is-positive'], await testDefaults({ lockfile: false, reporter }))
 
-    t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
+    t.ok(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
   }
 
   await project.hasNot('is-positive')
 
-  t.ok(await project.loadShrinkwrap(), `${WANTED_LOCKFILE} not removed during uninstall`)
+  t.ok(await project.loadLockfile(), `${WANTED_LOCKFILE} not removed during uninstall`)
 })
 
-test('fail when installing with shrinkwrap: false and lockfileOnly: true', async (t: tape.Test) => {
+test('fail when installing with lockfile: false and lockfileOnly: true', async (t: tape.Test) => {
   const project = prepare(t)
 
   try {
-    await install(await testDefaults({ shrinkwrap: false, lockfileOnly: true }))
+    await install(await testDefaults({ lockfile: false, lockfileOnly: true }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, `Cannot generate a ${WANTED_LOCKFILE} because shrinkwrap is set to false`)
+    t.equal(err.message, `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
 })
 
-test("don't remove packages during named install when shrinkwrap: false", async (t: tape.Test) => {
+test("don't remove packages during named install when lockfile: false", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({ shrinkwrap: false }))
-  await addDependenciesToPackage(['is-negative'], await testDefaults({ shrinkwrap: false }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ lockfile: false }))
+  await addDependenciesToPackage(['is-negative'], await testDefaults({ lockfile: false }))
 
   await project.has('is-positive')
   await project.has('is-negative')
@@ -820,9 +820,9 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults())
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.equal(shr.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, '/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
+  t.equal(lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, '/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {
@@ -833,9 +833,9 @@ test('packages installed via tarball URL from the default registry are normalize
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], await testDefaults())
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     dependencies: {
       'is-positive': 'registry.npmjs.org/is-positive/-/is-positive-1.0.0',
       'pkg-with-tarball-dep-from-registry': '1.0.0',
@@ -874,7 +874,7 @@ test('packages installed via tarball URL from the default registry are normalize
   })
 })
 
-test('shrinkwrap file has correct format when shrinkwrap directory does not equal the prefix directory', async (t: tape.Test) => {
+test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async (t: tape.Test) => {
   const project = prepare(t)
 
   const store = path.resolve('..', '.store')
@@ -891,30 +891,30 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   t.equal(modules['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
 
   {
-    const shr = await readYamlFile(WANTED_LOCKFILE) as Shrinkwrap
+    const lockfile = await readYamlFile(WANTED_LOCKFILE) as Lockfile
     const id = '/pkg-with-1-dep/100.0.0'
 
-    t.equal(shr.lockfileVersion, 5, 'correct shrinkwrap version')
+    t.equal(lockfile.lockfileVersion, 5, 'correct lockfile version')
 
-    t.ok(shr.importers)
-    t.ok(shr.importers.project)
-    t.ok(shr.importers.project.specifiers, 'has specifiers field')
-    t.ok(shr.importers.project.dependencies, 'has dependencies field')
-    t.equal(shr.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
-    t.ok(shr.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
-    t.ok(shr.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+    t.ok(lockfile.importers)
+    t.ok(lockfile.importers.project)
+    t.ok(lockfile.importers.project.specifiers, 'has specifiers field')
+    t.ok(lockfile.importers.project.dependencies, 'has dependencies field')
+    t.equal(lockfile.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
+    t.ok(lockfile.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+    t.ok(lockfile.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
 
-    t.ok(shr.packages, 'has packages field')
-    t.ok(shr.packages![id], `has resolution for ${id}`)
-    t.ok(shr.packages![id].dependencies, `has dependency resolutions for ${id}`)
-    t.ok(shr.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
-    t.ok(shr.packages![id].resolution, `has resolution for ${id}`)
-    t.ok(shr.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
-    t.notOk(shr.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
+    t.ok(lockfile.packages, 'has packages field')
+    t.ok(lockfile.packages![id], `has resolution for ${id}`)
+    t.ok(lockfile.packages![id].dependencies, `has dependency resolutions for ${id}`)
+    t.ok(lockfile.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
+    t.ok(lockfile.packages![id].resolution, `has resolution for ${id}`)
+    t.ok(lockfile.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
+    t.notOk(lockfile.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
 
     const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
-    t.ok(shr.packages![absDepPath])
-    t.ok(shr.packages![absDepPath].name, 'github-hosted package has name specified')
+    t.ok(lockfile.packages![absDepPath])
+    t.ok(lockfile.packages![absDepPath].name, 'github-hosted package has name specified')
   }
 
   await mkdir('project-2')
@@ -924,33 +924,33 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }))
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_LOCKFILE))
+    const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
-    t.ok(shr.importers)
-    t.ok(shr.importers['project-2'])
+    t.ok(lockfile.importers)
+    t.ok(lockfile.importers['project-2'])
 
     // previous entries are not removed
     const id = '/pkg-with-1-dep/100.0.0'
 
-    t.ok(shr.importers)
-    t.ok(shr.importers.project)
-    t.ok(shr.importers.project.specifiers, 'has specifiers field')
-    t.ok(shr.importers.project.dependencies, 'has dependencies field')
-    t.equal(shr.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
-    t.ok(shr.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
-    t.ok(shr.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+    t.ok(lockfile.importers)
+    t.ok(lockfile.importers.project)
+    t.ok(lockfile.importers.project.specifiers, 'has specifiers field')
+    t.ok(lockfile.importers.project.dependencies, 'has dependencies field')
+    t.equal(lockfile.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
+    t.ok(lockfile.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+    t.ok(lockfile.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
 
-    t.ok(shr.packages, 'has packages field')
-    t.ok(shr.packages![id], `has resolution for ${id}`)
-    t.ok(shr.packages![id].dependencies, `has dependency resolutions for ${id}`)
-    t.ok(shr.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
-    t.ok(shr.packages![id].resolution, `has resolution for ${id}`)
-    t.ok(shr.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
-    t.notOk(shr.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
+    t.ok(lockfile.packages, 'has packages field')
+    t.ok(lockfile.packages![id], `has resolution for ${id}`)
+    t.ok(lockfile.packages![id].dependencies, `has dependency resolutions for ${id}`)
+    t.ok(lockfile.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
+    t.ok(lockfile.packages![id].resolution, `has resolution for ${id}`)
+    t.ok(lockfile.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
+    t.notOk(lockfile.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
 
     const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
-    t.ok(shr.packages![absDepPath])
-    t.ok(shr.packages![absDepPath].name, 'github-hosted package has name specified')
+    t.ok(lockfile.packages![absDepPath])
+    t.ok(lockfile.packages![absDepPath].name, 'github-hosted package has name specified')
   }
 })
 
@@ -1011,14 +1011,14 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
   await addDependenciesToPackage(
     ['is-positive'],
     await testDefaults({
-      prefix: path.resolve('pkg2'),
       lockfileDirectory: process.cwd(),
+      prefix: path.resolve('pkg2'),
     }),
   )
 
-  const currentShr = await readYamlFile<Shrinkwrap>(path.resolve(CURRENT_LOCKFILE))
+  const currentLockfile = await readYamlFile<Lockfile>(path.resolve(CURRENT_LOCKFILE))
 
-  t.deepEqual(R.keys(currentShr['importers']), ['pkg2'], 'only pkg2 added to importers of current shrinkwrap')
+  t.deepEqual(R.keys(currentLockfile['importers']), ['pkg2'], 'only pkg2 added to importers of current lockfile')
 
   await mutateModules(
     [

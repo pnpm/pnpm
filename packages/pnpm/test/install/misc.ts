@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Shrinkwrap } from '@pnpm/lockfile-types'
+import { Lockfile } from '@pnpm/lockfile-types'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import caw = require('caw')
@@ -60,8 +60,8 @@ test('install --lockfile-only', async (t: tape.Test) => {
 
   await project.hasNot('rimraf')
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/rimraf/2.5.1'])
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/rimraf/2.5.1'])
 })
 
 test('install --no-lockfile', async (t: tape.Test) => {
@@ -71,7 +71,7 @@ test('install --no-lockfile', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), `${WANTED_LOCKFILE} not created`)
+  t.notOk(await project.loadLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
 test('install --no-package-lock', async (t: tape.Test) => {
@@ -81,7 +81,7 @@ test('install --no-package-lock', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadShrinkwrap(), `${WANTED_LOCKFILE} not created`)
+  t.notOk(await project.loadLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
 test('install from any location via the --prefix flag', async (t: tape.Test) => {
@@ -106,9 +106,9 @@ test('install with external lockfile directory', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
-  t.deepEqual(Object.keys(shr.importers), ['project'], 'lockfile created in correct location')
+  t.deepEqual(Object.keys(lockfile.importers), ['project'], 'lockfile created in correct location')
 })
 
 test('install --save-exact', async (t: tape.Test) => {

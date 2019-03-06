@@ -9,10 +9,10 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import {
+  Lockfile,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   PackageSnapshots,
-  Shrinkwrap,
 } from '@pnpm/lockfile-utils'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
@@ -39,8 +39,8 @@ function findPackages (
 ): string[] {
   return R.keys(packages)
     .filter((relativeDepPath) => {
-      const pkgShr = packages[relativeDepPath]
-      const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgShr)
+      const pkgLockfile = packages[relativeDepPath]
+      const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgLockfile)
       if (!pkgInfo.name) {
         logger.warn({
           message: `Skipping ${relativeDepPath} because cannot get the package name from ${WANTED_LOCKFILE}.
@@ -84,8 +84,8 @@ export async function rebuildPkgs (
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(importers, opts)
 
-  if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
-  const packages = ctx.currentShrinkwrap.packages
+  if (!ctx.currentLockfile || !ctx.currentLockfile.packages) return
+  const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
     const parsed = npa(arg)
@@ -112,7 +112,7 @@ export async function rebuildPkgs (
   await _rebuild(
     new Set(pkgs),
     ctx.virtualStoreDir,
-    ctx.currentShrinkwrap,
+    ctx.currentLockfile,
     ctx.importers.map((importer) => importer.id),
     opts,
   )
@@ -133,8 +133,8 @@ export async function rebuild (
 
   if (opts.pending) {
     idsToRebuild = ctx.pendingBuilds
-  } else if (ctx.currentShrinkwrap && ctx.currentShrinkwrap.packages) {
-    idsToRebuild = R.keys(ctx.currentShrinkwrap.packages)
+  } else if (ctx.currentLockfile && ctx.currentLockfile.packages) {
+    idsToRebuild = R.keys(ctx.currentLockfile.packages)
   } else {
     return
   }
@@ -143,7 +143,7 @@ export async function rebuild (
   const pkgsThatWereRebuilt = await _rebuild(
     new Set(idsToRebuild),
     ctx.virtualStoreDir,
-    ctx.currentShrinkwrap,
+    ctx.currentLockfile,
     ctx.importers.map((importer) => importer.id),
     opts,
   )
@@ -235,22 +235,22 @@ function getSubgraphToBuild (
 async function _rebuild (
   pkgsToRebuild: Set<string>,
   modules: string,
-  shr: Shrinkwrap,
+  lockfile: Lockfile,
   importerIds: string[],
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
   const graph = new Map()
-  const pkgSnapshots: PackageSnapshots = shr.packages || {}
+  const pkgSnapshots: PackageSnapshots = lockfile.packages || {}
 
   const entryNodes = [] as string[]
 
   importerIds.forEach((importerId) => {
-    const shrImporter = shr.importers[importerId]
+    const lockfileImporter = lockfile.importers[importerId]
     R.toPairs({
-      ...(opts.development && shrImporter.devDependencies || {}),
-      ...(opts.production && shrImporter.dependencies || {}),
-      ...(opts.optional && shrImporter.optionalDependencies || {}),
+      ...(opts.development && lockfileImporter.devDependencies || {}),
+      ...(opts.production && lockfileImporter.dependencies || {}),
+      ...(opts.optional && lockfileImporter.optionalDependencies || {}),
     })
     .map((pair) => dp.refToRelative(pair[1], pair[0]))
     .filter((nodeId) => nodeId !== null)

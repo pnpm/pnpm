@@ -1,7 +1,7 @@
-import ShrinkwrapBreakingChangeError from './LockfileBreakingChangeError'
+import LockfileBreakingChangeError from './LockfileBreakingChangeError'
 import PnpmError from './PnpmError'
 
 export {
   PnpmError,
-  ShrinkwrapBreakingChangeError,
+  LockfileBreakingChangeError,
 }

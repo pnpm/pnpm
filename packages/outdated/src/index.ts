@@ -105,14 +105,14 @@ async function _outdated (
   const lockfileDirectory = opts.lockfileDirectory || pkgPath
   const pkg = await readPackageFromDir(pkgPath)
   if (packageHasNoDeps(pkg)) return []
-  const wantedShrinkwrap = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
     || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
-  if (!wantedShrinkwrap) {
-    throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
+  if (!wantedLockfile) {
+    throw new Error('No lockfile in this directory. Run `pnpm install` to generate one.')
   }
   const storePath = await resolveStore(pkgPath, opts.store)
   const importerId = getLockfileImporterId(lockfileDirectory, pkgPath)
-  const currentShrinkwrap = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
+  const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
 
   const resolve = createResolver({
     fetchRetries: opts.fetchRetries,
@@ -129,9 +129,9 @@ async function _outdated (
 
   await Promise.all(
     DEPENDENCIES_FIELDS.map(async (depType) => {
-      if (!wantedShrinkwrap.importers[importerId][depType]) return
+      if (!wantedLockfile.importers[importerId][depType]) return
 
-      let pkgs = Object.keys(wantedShrinkwrap.importers[importerId][depType]!)
+      let pkgs = Object.keys(wantedLockfile.importers[importerId][depType]!)
 
       if (forPkgs.length) {
         pkgs = pkgs.filter((pkgName) => forPkgs.indexOf(pkgName) !== -1)
@@ -139,7 +139,7 @@ async function _outdated (
 
       await Promise.all(
         pkgs.map(async (packageName) => {
-          const ref = wantedShrinkwrap.importers[importerId][depType]![packageName]
+          const ref = wantedLockfile.importers[importerId][depType]![packageName]
 
           // ignoring linked packages. (For backward compatibility)
           if (ref.startsWith('file:')) {
@@ -151,13 +151,13 @@ async function _outdated (
           // ignoring linked packages
           if (relativeDepPath === null) return
 
-          const pkgSnapshot = wantedShrinkwrap.packages && wantedShrinkwrap.packages[relativeDepPath]
+          const pkgSnapshot = wantedLockfile.packages && wantedLockfile.packages[relativeDepPath]
 
           if (!pkgSnapshot) {
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
           }
 
-          const currentRef = currentShrinkwrap.importers[importerId][depType][packageName]
+          const currentRef = currentLockfile.importers[importerId][depType][packageName]
           const currentRelative = currentRef && dp.refToRelative(currentRef, packageName)
           const current = currentRelative && dp.parse(currentRelative).version || currentRef
           const wanted = dp.parse(relativeDepPath).version || ref

@@ -152,17 +152,17 @@ test('request package but skip fetching, when resolution is already available', 
     currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
     downloadPriority: 0,
     lockfileDirectory: prefix,
+    lockfileResolution: {
+      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+      registry: 'https://registry.npmjs.org/',
+      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    },
     loggedPkg: {
       rawSpec: 'is-positive@1.0.0',
     },
     preferredVersions: {},
     prefix,
     registry,
-    shrinkwrapResolution: {
-      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-      registry: 'https://registry.npmjs.org/',
-      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-    },
     skipFetch: true,
     update: false,
     verifyStoreIntegrity: true,
@@ -230,7 +230,7 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      shrinkwrapResolution: {
+      lockfileResolution: {
         integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
@@ -257,7 +257,7 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      shrinkwrapResolution: {
+      lockfileResolution: {
         integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
@@ -281,7 +281,7 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      shrinkwrapResolution: {
+      lockfileResolution: {
         integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
         tarball,
       },
@@ -600,17 +600,17 @@ test('always return a package manifest in the response', async t => {
       currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
       downloadPriority: 0,
       lockfileDirectory: prefix,
+      lockfileResolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
       loggedPkg: {
         rawSpec: 'is-positive@1.0.0',
       },
       preferredVersions: {},
       prefix,
       registry,
-      shrinkwrapResolution: {
-        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
-        registry: 'https://registry.npmjs.org/',
-        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-      },
       verifyStoreIntegrity: true,
     }) as PackageResponse & {fetchingRawManifest: Promise<PackageJson>}
 

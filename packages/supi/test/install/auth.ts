@@ -38,8 +38,8 @@ test('a package that need authentication', async (t: tape.Test) => {
 
   t.ok(typeof m === 'function', 'needs-auth() is available')
 
-  // should work when a shrinkwrap is available
-  // and the registry in .npmrc is not the same as the one in shrinkwrap
+  // should work when a lockfile is available
+  // and the registry in .npmrc is not the same as the one in lockfile
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
 
@@ -118,7 +118,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
 
   await project.has('@private/foo')
 
-  // should work when a shrinkwrap is available
+  // should work when a lockfile is available
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
 

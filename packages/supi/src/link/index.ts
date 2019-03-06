@@ -4,7 +4,7 @@ import {
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
-  ShrinkwrapImporter,
+  LockfileImporter,
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile-file'
@@ -50,7 +50,7 @@ export default async function link (
   const ctx = await getContextForSingleImporter(opts)
 
   const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
-  const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
+  const oldLockfile = R.clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
   const saveType = getSaveType(opts)
@@ -79,8 +79,8 @@ export default async function link (
       packagePath,
       pkg: ctx.pkg,
     }
-    addLinkToShrinkwrap(ctx.currentShrinkwrap.importers[importerId], addLinkOpts)
-    addLinkToShrinkwrap(ctx.wantedShrinkwrap.importers[importerId], addLinkOpts)
+    addLinkToLockfile(ctx.currentLockfile.importers[importerId], addLinkOpts)
+    addLinkToLockfile(ctx.wantedLockfile.importers[importerId], addLinkOpts)
 
     linkedPkgs.push({
       alias: linkFromAlias || linkedPkg.name,
@@ -89,10 +89,10 @@ export default async function link (
     })
   }
 
-  const updatedCurrentShrinkwrap = pruneSharedLockfile(ctx.currentShrinkwrap, { defaultRegistry: opts.registries.default })
+  const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile, { defaultRegistry: opts.registries.default })
 
   const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
-  const updatedWantedShrinkwrap = pruneSharedLockfile(ctx.wantedShrinkwrap, {
+  const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, {
     defaultRegistry: opts.registries.default,
     warn,
   })
@@ -109,8 +109,8 @@ export default async function link (
       },
     ],
     lockfileDirectory: opts.lockfileDirectory,
-    newShrinkwrap: updatedCurrentShrinkwrap,
-    oldShrinkwrap,
+    newLockfile: updatedCurrentLockfile,
+    oldLockfile,
     registries: ctx.registries,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
@@ -136,14 +136,14 @@ export default async function link (
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     const newPkg = await save(opts.prefix, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
-      updatedWantedShrinkwrap.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
+      updatedWantedLockfile.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
     }
   }
-  const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
-  if (opts.shrinkwrap) {
-    await writeLockfiles(ctx.lockfileDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap, shrinkwrapOpts)
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
+  if (opts.lockfile) {
+    await writeLockfiles(ctx.lockfileDirectory, updatedWantedLockfile, updatedCurrentLockfile, lockfileOpts)
   } else {
-    await writeCurrentLockfile(ctx.lockfileDirectory, updatedCurrentShrinkwrap, shrinkwrapOpts)
+    await writeCurrentLockfile(ctx.lockfileDirectory, updatedCurrentLockfile, lockfileOpts)
   }
 
   summaryLogger.debug({ prefix: opts.prefix })
@@ -153,8 +153,8 @@ export default async function link (
   }
 }
 
-function addLinkToShrinkwrap (
-  shrImporter: ShrinkwrapImporter,
+function addLinkToLockfile (
+  lockfileImporter: LockfileImporter,
   opts: {
     linkedPkgName: string,
     packagePath: string,
@@ -166,10 +166,10 @@ function addLinkToShrinkwrap (
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.pkg && opts.pkg[depType] && opts.pkg[depType]![opts.linkedPkgName]) {
       addedTo = depType
-      shrImporter[depType] = shrImporter[depType] || {}
-      shrImporter[depType]![opts.linkedPkgName] = id
-    } else if (shrImporter[depType]) {
-      delete shrImporter[depType]![opts.linkedPkgName]
+      lockfileImporter[depType] = lockfileImporter[depType] || {}
+      lockfileImporter[depType]![opts.linkedPkgName] = id
+    } else if (lockfileImporter[depType]) {
+      delete lockfileImporter[depType]![opts.linkedPkgName]
     }
   }
 
@@ -178,9 +178,9 @@ function addLinkToShrinkwrap (
 
   const availableSpec = getSpecFromPackageJson(opts.pkg, opts.linkedPkgName)
   if (availableSpec) {
-    shrImporter.specifiers[opts.linkedPkgName] = availableSpec
+    lockfileImporter.specifiers[opts.linkedPkgName] = availableSpec
   } else {
-    delete shrImporter.specifiers[opts.linkedPkgName]
+    delete lockfileImporter.specifiers[opts.linkedPkgName]
   }
 }
 

@@ -28,7 +28,7 @@ test(`fail when there is no ${WANTED_LOCKFILE} file in the root of the project`,
     await outdated('no-shrinkwrap', outdatedOpts)
     t.fail('the call should have failed')
   } catch (err) {
-    t.equal(err.message, 'No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
+    t.equal(err.message, 'No lockfile in this directory. Run `pnpm install` to generate one.')
     t.end()
   }
 })
@@ -82,7 +82,7 @@ test('forPackages()', async (t) => {
   t.end()
 })
 
-test('outdated() when only current shrinkwrap is present', async (t) => {
+test('outdated() when only current lockfile is present', async (t) => {
   const outdatedPkgs = await outdated('current-shrinkwrap-only', outdatedOpts)
   t.deepEqual(outdatedPkgs, [
     {
@@ -95,7 +95,7 @@ test('outdated() when only current shrinkwrap is present', async (t) => {
   t.end()
 })
 
-test('outdated() on package with external shrinkwrap', async (t) => {
+test('outdated() on package with external lockfile', async (t) => {
   const outdatedPkgs = await outdated('../external-wanted-shrinkwrap/pkg', {
     ...outdatedOpts,
     lockfileDirectory: path.resolve('../external-wanted-shrinkwrap'),
@@ -143,7 +143,7 @@ test('outdated() on package that has one outdated dev dependency', async (t) => 
 })
 
 // NOTE: this test is unstable. It will fail if a new version of ajv will be released!
-test('outdated() on a package that has external shrinkwrap file and direct dependencies with resolved peers', async (t) => {
+test('outdated() on a package that has external lockfile and direct dependencies with resolved peers', async (t) => {
   const outdatedPkgs = await outdated('package-with-external-shrinkwrap/package', {
     ...outdatedOpts,
     lockfileDirectory: path.resolve('package-with-external-shrinkwrap'),

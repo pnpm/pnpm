@@ -88,13 +88,13 @@ test('dependency should not be added to package.json if it is already there', as
     version: '0.0.0',
   }, 'package.json was not changed')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.equal(shr.devDependencies.foo, '100.0.0', `\`foo\` is in the devDependencies property of ${WANTED_LOCKFILE}`)
-  t.ok(shr.packages['/foo/100.0.0'].dev, `the \`foo\` package is marked as dev in ${WANTED_LOCKFILE}`)
+  t.equal(lockfile.devDependencies.foo, '100.0.0', `\`foo\` is in the devDependencies property of ${WANTED_LOCKFILE}`)
+  t.ok(lockfile.packages['/foo/100.0.0'].dev, `the \`foo\` package is marked as dev in ${WANTED_LOCKFILE}`)
 
-  t.equal(shr.optionalDependencies.bar, '100.0.0', `\`bar\` is in the optionalDependencies property of ${WANTED_LOCKFILE}`)
-  t.ok(shr.packages['/bar/100.0.0'].optional, `the \`bar\` package is marked as optional in ${WANTED_LOCKFILE}`)
+  t.equal(lockfile.optionalDependencies.bar, '100.0.0', `\`bar\` is in the optionalDependencies property of ${WANTED_LOCKFILE}`)
+  t.ok(lockfile.packages['/bar/100.0.0'].optional, `the \`bar\` package is marked as optional in ${WANTED_LOCKFILE}`)
 })
 
 test('dependencies should be updated in the fields where they already are', async (t: tape.Test) => {
@@ -174,8 +174,8 @@ test('dependency should be removed from the old field when installing it as a di
       name: 'project',
       version: '0.0.0',
     }, `dependencies moved around correctly when installed with node_modules and ${WANTED_LOCKFILE} present`)
-    const shr = await project.loadCurrentShrinkwrap()
-    t.deepEqual(Object.keys(shr.dependencies), ['bar', 'foo', 'qar'], 'shrinkwrap updated')
+    const lockfile = await project.loadCurrentLockfile()
+    t.deepEqual(Object.keys(lockfile.dependencies), ['bar', 'foo', 'qar'], 'lockfile updated')
   }
 
   {
@@ -188,9 +188,9 @@ test('dependency should be removed from the old field when installing it as a di
 
     await install(await testDefaults())
 
-    const shr = await project.loadCurrentShrinkwrap()
-    t.deepEqual(Object.keys(shr.devDependencies), ['bar', 'foo', 'qar'], 'shrinkwrap updated')
-    t.notOk(shr.dependencies)
+    const lockfile = await project.loadCurrentLockfile()
+    t.deepEqual(Object.keys(lockfile.devDependencies), ['bar', 'foo', 'qar'], 'lockfile updated')
+    t.notOk(lockfile.dependencies)
   }
 })
 

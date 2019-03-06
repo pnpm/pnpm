@@ -54,9 +54,9 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   const m = project.requireModule('is-positive')
   t.ok(m, 'installation succeded')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.deepEqual(shr.specifiers, { 'is-positive': '*' }, `skipped optional dep not added to ${WANTED_LOCKFILE}`)
+  t.deepEqual(lockfile.specifiers, { 'is-positive': '*' }, `skipped optional dep not added to ${WANTED_LOCKFILE}`)
 })
 
 test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
@@ -73,13 +73,13 @@ test('skip optional dependency that does not support the current OS', async (t: 
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
   t.notOk(await exists(path.resolve('node_modules', '.localhost+4873', 'dep-of-optional-pkg', '1.0.0')), "isn't linked into node_modules")
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/not-compatible-with-any-os/1.0.0'], 'shrinkwrap contains optional dependency')
-  t.ok(shr.packages['/dep-of-optional-pkg/1.0.0'], 'shrinkwrap contains dependency of optional dependency')
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/not-compatible-with-any-os/1.0.0'], 'lockfile contains optional dependency')
+  t.ok(lockfile.packages['/dep-of-optional-pkg/1.0.0'], 'lockfile contains dependency of optional dependency')
 
-  const currentShr = await project.loadCurrentShrinkwrap()
+  const currentLockfile = await project.loadCurrentLockfile()
 
-  t.ok(R.isEmpty(currentShr.packages || {}), 'current shrinkwrap does not contain skipped packages')
+  t.ok(R.isEmpty(currentLockfile.packages || {}), 'current lockfile does not contain skipped packages')
 
   const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
   t.deepEquals(modulesInfo.skipped, [

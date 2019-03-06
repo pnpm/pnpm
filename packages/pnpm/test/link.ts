@@ -85,10 +85,10 @@ test('relative link', async (t: tape.Test) => {
   const linkedProject = assertProject(t, linkedPkgPath)
   await linkedProject.isExecutable('.bin/cowsay')
 
-  const wantedShrinkwrap = await project.loadShrinkwrap()
-  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
-  t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
+  const wantedLockfile = await project.loadLockfile()
+  t.equal(wantedLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
+  t.equal(wantedLockfile.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
 
-  const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
+  const currentLockfile = await project.loadCurrentLockfile()
+  t.equal(currentLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
 })

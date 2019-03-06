@@ -52,7 +52,7 @@ function createEnv (opts?: {storeDir?: string}) {
   } as any // tslint:disable-line:no-any
   delete _.npm_config_link_workspace_packages
   delete _.npm_config_save_exact
-  delete _.npm_config_shared_workspace_shrinkwrap
+  delete _.npm_config_shared_workspace_lockfile
   delete _.npm_config_workspace_concurrency
   return _
 }

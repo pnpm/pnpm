@@ -356,9 +356,9 @@ test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
     'use strict'
     module.exports = {
       hooks: {
-        afterAllResolved (shr, context) {
+        afterAllResolved (lockfile, context) {
           context.log('All resolved')
-          return shr
+          return lockfile
         }
       }
     }

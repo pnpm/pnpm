@@ -12,7 +12,7 @@ pnpm install @pnpm/modules-cleaner
 
 ### `prune(...args)`
 
-Compares the wanted shrinkwrap with the current one and removes redundant packages from `node_modules`.
+Compares the wanted lockfile with the current one and removes redundant packages from `node_modules`.
 
 ### `removeDirectDependency(...args)`
 

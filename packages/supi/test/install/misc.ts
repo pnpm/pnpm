@@ -53,8 +53,8 @@ test('small with dependencies (rimraf)', async (t: tape.Test) => {
   t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/rimraf/2.5.1'].hasBin, `package marked with "hasBin: true" in ${WANTED_LOCKFILE}`)
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/rimraf/2.5.1'].hasBin, `package marked with "hasBin: true" in ${WANTED_LOCKFILE}`)
 })
 
 test('spec not specified in package.json.dependencies', async (t: tape.Test) => {
@@ -66,8 +66,8 @@ test('spec not specified in package.json.dependencies', async (t: tape.Test) => 
 
   await install(await testDefaults())
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.specifiers['is-positive'] === '', `spec saved properly in ${WANTED_LOCKFILE}`)
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.specifiers['is-positive'] === '', `spec saved properly in ${WANTED_LOCKFILE}`)
 })
 
 test('ignoring some files in the dependency', async (t: tape.Test) => {
@@ -514,9 +514,9 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape
 
   await project.isExecutable('pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
   t.deepEqual(
-    shr.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies,
+    lockfile.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
     `bundledDependencies added to ${WANTED_LOCKFILE}`,
   )
@@ -529,9 +529,9 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.T
 
   await project.isExecutable('pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
   t.deepEqual(
-    shr.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies,
+    lockfile.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
     `bundledDependencies added to ${WANTED_LOCKFILE}`,
   )
@@ -551,7 +551,7 @@ test('compiled modules (ursa@0.9.1)', async (t) => {
   t.ok(typeof m === 'object', 'ursa() is available')
 })
 
-test('shrinkwrap compatibility', async (t) => {
+test('lockfile compatibility', async (t) => {
   if (semver.satisfies(process.version, '4')) {
     t.skip("don't run on Node.js 4")
     return
@@ -663,8 +663,8 @@ test('building native addons', async (t: tape.Test) => {
 
   t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/runas/3.1.1'].requiresBuild)
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/runas/3.1.1'].requiresBuild)
 })
 
 test('should update subdep on second install', async (t: tape.Test) => {
@@ -676,9 +676,9 @@ test('should update subdep on second install', async (t: tape.Test) => {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  let shr = await project.loadShrinkwrap()
+  let lockfile = await project.loadLockfile()
 
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'shrinkwrap has resolution for package')
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'lockfile has resolution for package')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
@@ -695,10 +695,10 @@ test('should update subdep on second install', async (t: tape.Test) => {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 
-  shr = await project.loadShrinkwrap()
+  lockfile = await project.loadLockfile()
 
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], "shrinkwrap doesn't have old dependency")
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'shrinkwrap has new dependency')
+  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], "lockfile doesn't have old dependency")
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'lockfile has new dependency')
 
   t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.1.0', 'updated in node_modules')
 })
@@ -712,9 +712,9 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  let shr = await project.loadShrinkwrap()
+  let lockfile = await project.loadLockfile()
 
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'shrinkwrap has resolution for package')
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'lockfile has resolution for package')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
@@ -722,10 +722,10 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  shr = await project.loadShrinkwrap()
+  lockfile = await project.loadLockfile()
 
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'shrinkwrap has old dependency')
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'shrinkwrap has not the new dependency')
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'lockfile has old dependency')
+  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'lockfile has not the new dependency')
 
   t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.0.0', 'not updated in node_modules')
 })
@@ -774,7 +774,7 @@ test('should not throw error if using a different store after all the packages w
   // TODO: implement
 })
 
-test('shrinkwrap locks npm dependencies', async (t: tape.Test) => {
+test('lockfile locks npm dependencies', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 

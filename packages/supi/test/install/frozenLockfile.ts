@@ -107,7 +107,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
   }
 })
 
-test(`frozen-shrinkwrap: should successfully install when ${WANTED_LOCKFILE} is available`, async (t) => {
+test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is available`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -123,7 +123,7 @@ test(`frozen-shrinkwrap: should successfully install when ${WANTED_LOCKFILE} is 
   await project.has('is-positive')
 })
 
-test(`frozen-shrinkwrap: should fail if no ${WANTED_LOCKFILE} is present`, async (t) => {
+test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async (t) => {
   prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -138,7 +138,7 @@ test(`frozen-shrinkwrap: should fail if no ${WANTED_LOCKFILE} is present`, async
   }
 })
 
-test(`prefer-frozen-shrinkwrap: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
+test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -161,7 +161,7 @@ test(`prefer-frozen-shrinkwrap: should prefer headless installation when ${WANTE
   await project.has('is-positive')
 })
 
-test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${WANTED_LOCKFILE} does not satisfy package.json`, async (t) => {
+test(`prefer-frozen-lockfile: should not prefer headless installation when ${WANTED_LOCKFILE} does not satisfy package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '^3.0.0',
@@ -190,19 +190,19 @@ test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${W
   await project.has('is-negative')
 })
 
-test(`prefer-frozen-shrinkwrap: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
+test(`prefer-frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
   await install(await testDefaults({ preferFrozenLockfile: true }))
 })
 
-test(`frozen-shrinkwrap: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
+test(`frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
   await install(await testDefaults({ frozenLockfile: true }))
 })
 
-test(`prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
+test(`prefer-frozen-lockfile+shamefully-flatten: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
   const project = prepare(t, {
     dependencies: {
       'pkg-with-1-dep': '100.0.0',
@@ -230,7 +230,7 @@ test(`prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless instal
   await project.has('dep-of-pkg-with-1-dep')
 })
 
-test('prefer-frozen-shrinkwrap: should prefer frozen-shrinkwrap when package has linked dependency', async (t) => {
+test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'p1',

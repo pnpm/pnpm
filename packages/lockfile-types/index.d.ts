@@ -1,12 +1,12 @@
-export interface Shrinkwrap {
+export interface Lockfile {
   importers: {
-    [path: string]: ShrinkwrapImporter,
+    [path: string]: LockfileImporter,
   },
   lockfileVersion: number,
   packages?: PackageSnapshots,
 }
 
-export interface ShrinkwrapImporter {
+export interface LockfileImporter {
   specifiers: ResolvedDependencies,
   dependencies?: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,
@@ -52,7 +52,7 @@ export type Resolution =
   GitRepositoryResolution |
   DirectoryResolution
 
-export type ShrinkwrapResolution = Resolution | {
+export type LockfileResolution = Resolution | {
   integrity: string,
 }
 
@@ -67,7 +67,7 @@ export interface PackageSnapshot {
   // for packages that are hosted not in the npm registry
   name?: string,
   version?: string,
-  resolution: ShrinkwrapResolution,
+  resolution: LockfileResolution,
   dependencies?: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,
   peerDependencies?: {

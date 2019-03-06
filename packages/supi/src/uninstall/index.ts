@@ -8,13 +8,13 @@ import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { pruneLockfile } from '@pnpm/prune-lockfile'
-import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
+import { shamefullyFlattenByLockfile } from '@pnpm/shamefully-flatten'
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
-import shrinkwrapsEqual from '../lockfilesEqual'
+import lockfilesEqual from '../lockfilesEqual'
 import extendOptions, {
   StrictUninstallOptions,
   UninstallOptions,
@@ -63,12 +63,12 @@ export async function uninstallInContext (
   ctx: PnpmSingleContext,
   opts: StrictUninstallOptions,
 ) {
-  const makePartialCurrentShrinkwrap = !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
+  const makePartialCurrentLockfile = !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
 
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneLockfile(ctx.wantedShrinkwrap, pkg, ctx.importerId, {
+  const newLockfile = pruneLockfile(ctx.wantedLockfile, pkg, ctx.importerId, {
     defaultRegistry: ctx.registries.default,
     warn: (message) => logger.warn({ message, prefix: ctx.prefix }),
   })
@@ -85,26 +85,26 @@ export async function uninstallInContext (
       },
     ],
     lockfileDirectory: opts.lockfileDirectory,
-    newShrinkwrap: newShr,
-    oldShrinkwrap: ctx.currentShrinkwrap,
+    newLockfile,
+    oldLockfile: ctx.currentLockfile,
     registries: ctx.registries,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(ctx.registries, pkgId)))
   await opts.storeController.close()
-  const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneLockfile(ctx.currentShrinkwrap, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
-    : newShr
-  const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
-  if (opts.shrinkwrap) {
-    await writeLockfiles(ctx.lockfileDirectory, newShr, currentShrinkwrap, shrinkwrapOpts)
+  const currentLockfile = makePartialCurrentLockfile
+    ? pruneLockfile(ctx.currentLockfile, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
+    : newLockfile
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
+  if (opts.lockfile) {
+    await writeLockfiles(ctx.lockfileDirectory, newLockfile, currentLockfile, lockfileOpts)
   } else {
-    await writeCurrentLockfile(ctx.lockfileDirectory, currentShrinkwrap, shrinkwrapOpts)
+    await writeCurrentLockfile(ctx.lockfileDirectory, currentLockfile, lockfileOpts)
   }
 
   if (opts.shamefullyFlatten) {
-    ctx.hoistedAliases = await shamefullyFlattenByShrinkwrap(currentShrinkwrap, ctx.importerId, {
+    ctx.hoistedAliases = await shamefullyFlattenByLockfile(currentLockfile, ctx.importerId, {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {

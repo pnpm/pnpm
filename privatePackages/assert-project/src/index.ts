@@ -75,7 +75,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     isExecutable (pathToExe: string) {
       return isExecutable(t, path.join(modules, pathToExe))
     },
-    async loadCurrentShrinkwrap () {
+    async loadCurrentLockfile () {
       try {
         return await readYamlFile<any>(path.join(modules, '..', CURRENT_LOCKFILE)) // tslint:disable-line
       } catch (err) {
@@ -84,7 +84,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
       }
     },
     loadModules: () => readModules(modules),
-    async loadShrinkwrap () {
+    async loadLockfile () {
       try {
         return await readYamlFile<any>(path.join(projectPath, WANTED_LOCKFILE)) // tslint:disable-line
       } catch (err) {

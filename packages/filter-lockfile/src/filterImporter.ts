@@ -1,8 +1,8 @@
-import { ShrinkwrapImporter } from '@pnpm/lockfile-types'
+import { LockfileImporter } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 
 export default function filterImporter (
-  importer: ShrinkwrapImporter,
+  importer: LockfileImporter,
   include: { [dependenciesField in DependenciesField]: boolean },
 ) {
   return {

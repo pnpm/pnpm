@@ -148,7 +148,7 @@ export default async (
   pnpmConfig.lockfileDirectory = typeof pnpmConfig['lockfileDirectory'] === 'undefined'
     ? pnpmConfig.shrinkwrapDirectory
     : pnpmConfig['lockfileDirectory']
-  pnpmConfig.shrinkwrap = typeof pnpmConfig['lockfile'] === 'undefined'
+  pnpmConfig.lockfile = typeof pnpmConfig['lockfile'] === 'undefined'
     ? pnpmConfig.shrinkwrap
     : pnpmConfig['lockfile']
   pnpmConfig.lockfileOnly = typeof pnpmConfig['lockfileOnly'] === 'undefined'
@@ -221,8 +221,8 @@ export default async (
     pnpmConfig.development = true
   }
 
-  if (!pnpmConfig.packageLock && pnpmConfig.shrinkwrap) {
-    pnpmConfig.shrinkwrap = false
+  if (!pnpmConfig.packageLock && pnpmConfig.lockfile) {
+    pnpmConfig.lockfile = false
   }
 
   if (typeof pnpmConfig.filter === 'string') {

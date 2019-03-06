@@ -54,8 +54,8 @@ test('from a github repo with different name via named installation', async (t: 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.dependencies, {
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.dependencies, {
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   }, `the aliased name added to ${WANTED_LOCKFILE}`)
 
@@ -93,8 +93,8 @@ test('from a github repo with different name', async (t: tape.Test) => {
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.dependencies, {
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.dependencies, {
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   }, `the aliased name added to ${WANTED_LOCKFILE}`)
 
@@ -111,8 +111,8 @@ test('a subdependency is from a github repo with different name', async (t: tape
 
   t.equal(m, 'Hi', 'subdep is accessible')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.packages['/has-aliased-git-dependency/1.0.0'].dependencies, {
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.packages['/has-aliased-git-dependency/1.0.0'].dependencies, {
     'has-say-hi-peer': '1.0.0_say-hi@1.0.0',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   }, `the aliased name added to ${WANTED_LOCKFILE}`)
@@ -150,11 +150,11 @@ if (!isTravis) {
 
     t.ok(m, 'ikt is available')
 
-    const shr = await project.loadShrinkwrap()
+    const lockfile = await project.loadLockfile()
 
     const pkgId = 'ikt.pm2.io/ikt/3325a3e39a502418dc2e2e4bf21529cbbde96228'
-    t.ok(shr.packages[pkgId])
-    t.deepEqual(shr.packages[pkgId].resolution, {
+    t.ok(lockfile.packages[pkgId])
+    t.deepEqual(lockfile.packages[pkgId].resolution, {
       commit: '3325a3e39a502418dc2e2e4bf21529cbbde96228',
       repo: 'http://ikt.pm2.io/ikt.git',
       type: 'git',

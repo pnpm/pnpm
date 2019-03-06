@@ -1,7 +1,7 @@
 import { satisfiesPackageJson } from '@pnpm/lockfile-utils'
 import test = require('tape')
 
-const DEFAULT_SHR_FIELDS = {
+const DEFAULT_LOCKFILE_FIELDS = {
   lockfileVersion: 3,
 }
 
@@ -12,7 +12,7 @@ const DEFAULT_PKG_FIELDS = {
 
 test('satisfiesPackageJson()', t => {
   t.ok(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: { foo: '1.0.0' },
@@ -24,7 +24,7 @@ test('satisfiesPackageJson()', t => {
     dependencies: { foo: '^1.0.0' },
   }, '.'))
   t.ok(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: { foo: '1.0.0' },
@@ -37,7 +37,7 @@ test('satisfiesPackageJson()', t => {
     dependencies: { foo: '^1.0.0' }
   }, '.'))
   t.ok(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         devDependencies: { foo: '1.0.0' },
@@ -49,7 +49,7 @@ test('satisfiesPackageJson()', t => {
     devDependencies: { foo: '^1.0.0' },
   }, '.'))
   t.ok(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         optionalDependencies: { foo: '1.0.0' },
@@ -61,7 +61,7 @@ test('satisfiesPackageJson()', t => {
     optionalDependencies: { foo: '^1.0.0' },
   }, '.'))
   t.notOk(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: { foo: '1.0.0' },
@@ -73,7 +73,7 @@ test('satisfiesPackageJson()', t => {
     optionalDependencies: { foo: '^1.0.0' },
   }, '.'), 'dep type differs')
   t.notOk(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: { foo: '1.0.0' },
@@ -85,7 +85,7 @@ test('satisfiesPackageJson()', t => {
     dependencies: { foo: '^1.1.0' },
   }, '.'), 'spec does not match')
   t.notOk(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: { foo: '1.0.0' },
@@ -97,7 +97,7 @@ test('satisfiesPackageJson()', t => {
     dependencies: { foo: '^1.0.0', bar: '2.0.0' },
   }, '.'), 'dep spec missing')
   t.notOk(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: { foo: '1.0.0' },
@@ -110,8 +110,8 @@ test('satisfiesPackageJson()', t => {
   }, '.'))
 
   {
-    const shr = {
-      ...DEFAULT_SHR_FIELDS,
+    const lockfile = {
+      ...DEFAULT_LOCKFILE_FIELDS,
       importers: {
         '.': {
           dependencies: {
@@ -137,12 +137,12 @@ test('satisfiesPackageJson()', t => {
         bar: '2.0.0'
       }
     }
-    t.ok(satisfiesPackageJson(shr, pkg, '.'))
+    t.ok(satisfiesPackageJson(lockfile, pkg, '.'))
   }
 
   {
-    const shr = {
-      ...DEFAULT_SHR_FIELDS,
+    const lockfile = {
+      ...DEFAULT_LOCKFILE_FIELDS,
       importers: {
         '.': {
           dependencies: {
@@ -162,12 +162,12 @@ test('satisfiesPackageJson()', t => {
         bar: '2.0.0'
       },
     }
-    t.notOk(satisfiesPackageJson(shr, pkg, '.'))
+    t.notOk(satisfiesPackageJson(lockfile, pkg, '.'))
   }
 
   {
-    const shr = {
-      ...DEFAULT_SHR_FIELDS,
+    const lockfile = {
+      ...DEFAULT_LOCKFILE_FIELDS,
       importers: {
         '.': {
           dependencies: {
@@ -186,11 +186,11 @@ test('satisfiesPackageJson()', t => {
         bar: '2.0.0'
       },
     }
-    t.notOk(satisfiesPackageJson(shr, pkg, '.'))
+    t.notOk(satisfiesPackageJson(lockfile, pkg, '.'))
   }
 
   t.ok(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: { foo: '1.0.0', linked: 'link:../linked' },
@@ -203,7 +203,7 @@ test('satisfiesPackageJson()', t => {
   }, '.'), 'linked packages that are not in package.json are ignored')
 
   t.notOk(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       'packages/foo': {
         dependencies: { foo: '1.0.0' },
@@ -216,7 +216,7 @@ test('satisfiesPackageJson()', t => {
   }, '.'))
 
   t.ok(satisfiesPackageJson({
-    ...DEFAULT_SHR_FIELDS,
+    ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
         dependencies: {

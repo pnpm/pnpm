@@ -15,9 +15,9 @@ export default async function (maybeOpts: StoreStatusOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContextForSingleImporter(opts)
-  if (!ctx.wantedShrinkwrap) return []
+  if (!ctx.wantedLockfile) return []
 
-  const pkgPaths = Object.keys(ctx.wantedShrinkwrap.packages || {})
+  const pkgPaths = Object.keys(ctx.wantedLockfile.packages || {})
     .map((id) => {
       if (id === '/') return null
       return dp.resolve(ctx.registries, id)

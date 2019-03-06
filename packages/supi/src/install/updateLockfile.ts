@@ -1,10 +1,10 @@
 import logger from '@pnpm/logger'
 import {
+  Lockfile,
+  LockfileResolution,
   PackageSnapshot,
   pruneSharedLockfile,
   ResolvedDependencies,
-  Shrinkwrap,
-  ShrinkwrapResolution,
 } from '@pnpm/prune-lockfile'
 import { Resolution } from '@pnpm/resolver-base'
 import { Dependencies, Registries } from '@pnpm/types'
@@ -16,14 +16,14 @@ import { DependenciesGraph } from './resolvePeers'
 
 export default function (
   depGraph: DependenciesGraph,
-  shrinkwrap: Shrinkwrap,
+  lockfile: Lockfile,
   prefix: string,
   registries: Registries,
 ): {
-  newShrinkwrap: Shrinkwrap,
+  newLockfile: Lockfile,
   pendingRequiresBuilds: PendingRequiresBuild[],
 } {
-  shrinkwrap.packages = shrinkwrap.packages || {}
+  lockfile.packages = lockfile.packages || {}
   const pendingRequiresBuilds = [] as PendingRequiresBuild[]
   for (const depPath of R.keys(depGraph)) {
     const depNode = depGraph[depPath]
@@ -32,10 +32,10 @@ export default function (
       (child) => depNode.optionalDependencies.has(depGraph[child.depPath].name),
       R.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
     )
-    shrinkwrap.packages[relDepPath] = toShrDependency(pendingRequiresBuilds, depNode.additionalInfo, {
+    lockfile.packages[relDepPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
       depGraph,
       depPath,
-      prevSnapshot: shrinkwrap.packages[relDepPath],
+      prevSnapshot: lockfile.packages[relDepPath],
       registries,
       registry: dp.getRegistryByPackageName(registries, depNode.name),
       relDepPath,
@@ -45,7 +45,7 @@ export default function (
   }
   const warn = (message: string) => logger.warn({ message, prefix })
   return {
-    newShrinkwrap: pruneSharedLockfile(shrinkwrap, { defaultRegistry: registries.default, warn }),
+    newLockfile: pruneSharedLockfile(lockfile, { defaultRegistry: registries.default, warn }),
     pendingRequiresBuilds,
   }
 }
@@ -55,7 +55,7 @@ export interface PendingRequiresBuild {
   absoluteDepPath: string,
 }
 
-function toShrDependency (
+function toLockfileDependency (
   pendingRequiresBuilds: PendingRequiresBuild[],
   pkg: {
     deprecated?: string,
@@ -81,7 +81,7 @@ function toShrDependency (
   },
 ): PackageSnapshot {
   const depNode = opts.depGraph[opts.depPath]
-  const shrResolution = toShrResolution(
+  const lockfileResolution = toLockfileResolution(
     { name: depNode.name, version: depNode.version },
     opts.relDepPath,
     depNode.resolution,
@@ -100,7 +100,7 @@ function toShrDependency (
     opts.depGraph,
   )
   const result = {
-    resolution: shrResolution,
+    resolution: lockfileResolution,
   }
   // tslint:disable:no-string-literal
   if (dp.isAbsolute(opts.relDepPath)) {
@@ -179,7 +179,7 @@ function toShrDependency (
   return result
 }
 
-// previous resolutions should not be removed from shrinkwrap
+// previous resolutions should not be removed from lockfile
 // as installation might not reanalize the whole dependency graph
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
@@ -209,7 +209,7 @@ function updateResolvedDeps (
   )
 }
 
-function toShrResolution (
+function toLockfileResolution (
   pkg: {
     name: string,
     version: string,
@@ -217,10 +217,10 @@ function toShrResolution (
   relDepPath: string,
   resolution: Resolution,
   registry: string,
-): ShrinkwrapResolution {
+): LockfileResolution {
   // tslint:disable:no-string-literal
   if (dp.isAbsolute(relDepPath) || resolution.type !== undefined || !resolution['integrity']) {
-    return resolution as ShrinkwrapResolution
+    return resolution as LockfileResolution
   }
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
   // Sometimes packages are hosted under non-standard tarball URLs.

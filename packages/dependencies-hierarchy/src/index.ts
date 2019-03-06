@@ -1,8 +1,8 @@
 import {
   getLockfileImporterId,
+  LockfileImporter,
   PackageSnapshots,
   readCurrentLockfile,
-  ShrinkwrapImporter,
 } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDir from '@pnpm/read-modules-dir'
@@ -76,9 +76,9 @@ async function dependenciesHierarchy (
     ...modules && modules.registries,
   })
   const lockfileDirectory = maybeOpts && maybeOpts.lockfileDirectory || projectPath
-  const shrinkwrap = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const lockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
 
-  if (!shrinkwrap) return []
+  if (!lockfile) return []
 
   const opts = {
     depth: 0,
@@ -87,12 +87,12 @@ async function dependenciesHierarchy (
   }
   const importerId = getLockfileImporterId(lockfileDirectory, projectPath)
 
-  if (!shrinkwrap.importers[importerId]) return []
+  if (!lockfile.importers[importerId]) return []
 
-  const topDeps = getFilteredDependencies(shrinkwrap.importers[importerId], opts) || {}
+  const topDeps = getFilteredDependencies(lockfile.importers[importerId], opts) || {}
   const modulesDir = path.join(projectPath, 'node_modules')
 
-  const savedDeps = getAllDirectDependencies(shrinkwrap.importers[importerId])
+  const savedDeps = getAllDirectDependencies(lockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) || []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
 
@@ -105,7 +105,7 @@ async function dependenciesHierarchy (
     prod: opts.only === 'prod',
     registries,
     searched,
-  }, shrinkwrap.packages)
+  }, lockfile.packages)
   const result: PackageNode[] = []
   Object.keys(topDeps).forEach((depName) => {
     const pkgPath = refToAbsolute(topDeps[depName], depName, registries)
@@ -173,26 +173,26 @@ async function dependenciesHierarchy (
 }
 
 function getFilteredDependencies (
-  shrinkwrapImporter: ShrinkwrapImporter,
+  lockfileImporter: LockfileImporter,
   opts: {
     only?: 'dev' | 'prod',
   },
 ) {
   switch (opts.only) {
     case 'prod':
-      return shrinkwrapImporter.dependencies
+      return lockfileImporter.dependencies
     case 'dev':
-      return shrinkwrapImporter.devDependencies
+      return lockfileImporter.devDependencies
     default:
-      return getAllDirectDependencies(shrinkwrapImporter)
+      return getAllDirectDependencies(lockfileImporter)
   }
 }
 
-function getAllDirectDependencies (shrinkwrapImporter: ShrinkwrapImporter) {
+function getAllDirectDependencies (lockfileImporter: LockfileImporter) {
   return {
-    ...shrinkwrapImporter.dependencies,
-    ...shrinkwrapImporter.devDependencies,
-    ...shrinkwrapImporter.optionalDependencies,
+    ...lockfileImporter.dependencies,
+    ...lockfileImporter.devDependencies,
+    ...lockfileImporter.optionalDependencies,
   }
 }
 

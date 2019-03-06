@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
@@ -38,12 +38,12 @@ test('preserve subdeps on update', async (t: tape.Test) => {
 
   await install(await testDefaults({ update: true, depth: 0 }))
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.ok(shr.packages)
-  t.ok(shr.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
-  t.ok(shr.packages['/foobarqar/1.0.1'])
-  t.deepEqual(shr.packages['/foobarqar/1.0.1'].dependencies, {
+  t.ok(lockfile.packages)
+  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
+  t.ok(lockfile.packages['/foobarqar/1.0.1'])
+  t.deepEqual(lockfile.packages['/foobarqar/1.0.1'].dependencies, {
     bar: '100.0.0',
     foo: '100.0.0',
     qar: '100.0.0',
@@ -71,7 +71,7 @@ test('update does not install the package if it is not present in package.json',
   await project.hasNot('is-positive')
 })
 
-test('update dependency when external shrinkwrap directory is used', async (t: tape.Test) => {
+test('update dependency when external lockfile directory is used', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
@@ -83,7 +83,7 @@ test('update dependency when external shrinkwrap directory is used', async (t: t
 
   await install(await testDefaults({ update: true, depth: 0, lockfileDirectory }))
 
-  const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_LOCKFILE))
+  const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
-  t.ok(shr.packages && shr.packages['/foo/100.1.0']) // tslint:disable-line:no-string-literal
+  t.ok(lockfile.packages && lockfile.packages['/foo/100.1.0']) // tslint:disable-line:no-string-literal
 })

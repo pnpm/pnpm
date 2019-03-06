@@ -7,7 +7,7 @@ import promisifyTape from 'tape-promise'
 import { execPnpm, execPnpmSync } from './utils'
 
 const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')
-const hasOutdatedDepsFixtureAndExternalShrinkwrap = path.join(__dirname, 'packages', 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
+const hasOutdatedDepsFixtureAndExternalLockfile = path.join(__dirname, 'packages', 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
 const hasNotOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-not-outdated-deps')
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -36,8 +36,8 @@ test('pnpm outdated does not print anything when all is good', async (t: tape.Te
   t.equal(normalizeNewline(result.stdout.toString()), '')
 })
 
-test('pnpm outdated with external shrinkwrap', async (t: tape.Test) => {
-  process.chdir(hasOutdatedDepsFixtureAndExternalShrinkwrap)
+test('pnpm outdated with external lockfile', async (t: tape.Test) => {
+  process.chdir(hasOutdatedDepsFixtureAndExternalLockfile)
 
   const result = execPnpmSync('outdated')
 

@@ -23,6 +23,6 @@ test('copy does not fail on package that self-requires itself', async (t: tape.T
   const m = project.requireModule('requires-itself/package.json')
   t.ok(m, 'requires-itself is available with packageImportMethod = copy')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.packages['/requires-itself/1.0.0'].dependencies, { 'is-positive': '1.0.0' })
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.packages['/requires-itself/1.0.0'].dependencies, { 'is-positive': '1.0.0' })
 })

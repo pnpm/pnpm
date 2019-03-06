@@ -1,7 +1,7 @@
 import { isExecutable } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -46,12 +46,12 @@ test('relative link', async (t: tape.Test) => {
 
   await project.isExecutable('.bin/hello-world-js-bin')
 
-  const wantedShrinkwrap = await project.loadShrinkwrap()
-  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
-  t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
+  const wantedLockfile = await project.loadLockfile()
+  t.equal(wantedLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
+  t.equal(wantedLockfile.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
 
-  const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
+  const currentLockfile = await project.loadCurrentLockfile()
+  t.equal(currentLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
 })
 
 test('relative link is linked by the name of the alias', async (t: tape.Test) => {
@@ -72,10 +72,10 @@ test('relative link is linked by the name of the alias', async (t: tape.Test) =>
 
   await project.has('hello')
 
-  const wantedShrinkwrap = await project.loadShrinkwrap()
-  t.deepEqual(wantedShrinkwrap.dependencies, {
+  const wantedLockfile = await project.loadLockfile()
+  t.deepEqual(wantedLockfile.dependencies, {
     hello: 'link:../hello-world-js-bin',
-  }, 'link added to wanted shrinkwrap with correct alias')
+  }, 'link added to wanted lockfile with correct alias')
 })
 
 test('relative link is not rewritten by argumentless install', async (t: tape.Test) => {
@@ -141,11 +141,11 @@ test('relative link is rewritten by named installation to regular dependency', a
 
   t.notOk(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
-  const wantedShrinkwrap = await project.loadShrinkwrap()
-  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in wanted shrinkwrap anymore')
+  const wantedLockfile = await project.loadLockfile()
+  t.equal(wantedLockfile.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in wanted lockfile anymore')
 
-  const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in current shrinkwrap anymore')
+  const currentLockfile = await project.loadCurrentLockfile()
+  t.equal(currentLockfile.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in current lockfile anymore')
 })
 
 test('global link', async (t: tape.Test) => {
@@ -246,7 +246,7 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
   }
 })
 
-test['skip']('relative link when an external shrinkwrap is used', async (t: tape.Test) => {
+test['skip']('relative link when an external lockfile is used', async (t: tape.Test) => {
   const projects = prepare(t, [
     {
       name: 'project',
@@ -259,9 +259,9 @@ test['skip']('relative link when an external shrinkwrap is used', async (t: tape
   const opts = await testDefaults({ lockfileDirectory: path.join('..') })
   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
-  t.deepEqual(shr && shr['importers'], {
+  t.deepEqual(lockfile && lockfile['importers'], {
     project: {
       dependencies: {
         project: 'link:',

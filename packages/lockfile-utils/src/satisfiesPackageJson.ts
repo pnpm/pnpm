@@ -1,12 +1,12 @@
-import { Shrinkwrap } from '@pnpm/lockfile-types'
+import { Lockfile } from '@pnpm/lockfile-types'
 import {
   DEPENDENCIES_FIELDS,
   PackageJson,
 } from '@pnpm/types'
 import R = require('ramda')
 
-export default (shr: Shrinkwrap, pkg: PackageJson, importerId: string) => {
-  const importer = shr.importers[importerId]
+export default (lockfile: Lockfile, pkg: PackageJson, importerId: string) => {
+  const importer = lockfile.importers[importerId]
   if (!importer) return false
   if (!R.equals({ ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }, importer.specifiers)) {
     return false
@@ -45,6 +45,6 @@ export default (shr: Shrinkwrap, pkg: PackageJson, importerId: string) => {
   return true
 }
 
-function countOfNonLinkedDeps (shrDeps: {[depName: string]: string}): number {
-  return R.values(shrDeps).filter((ref) => ref.indexOf('link:') === -1 && ref.indexOf('file:') === -1).length
+function countOfNonLinkedDeps (lockfileDeps: {[depName: string]: string}): number {
+  return R.values(lockfileDeps).filter((ref) => ref.indexOf('link:') === -1 && ref.indexOf('file:') === -1).length
 }

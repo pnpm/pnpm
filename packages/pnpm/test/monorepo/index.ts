@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Shrinkwrap } from '@pnpm/lockfile-types'
+import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import loadJsonFile from 'load-json-file'
@@ -155,10 +155,10 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   await projects['project-1'].has('is-positive')
 
   {
-    const shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(shr.dependencies['project-2'], 'link:../project-2')
-    t.equal(shr.devDependencies['is-negative'], 'link:../is-negative')
-    t.equal(shr.optionalDependencies['is-positive'], 'link:../is-positive')
+    const lockfile = await projects['project-1'].loadLockfile()
+    t.equal(lockfile.dependencies['project-2'], 'link:../project-2')
+    t.equal(lockfile.devDependencies['is-negative'], 'link:../is-negative')
+    t.equal(lockfile.optionalDependencies['is-positive'], 'link:../is-positive')
   }
 
   projects['is-positive'].writePackageJson({
@@ -169,15 +169,15 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   await execPnpm('install')
 
   {
-    const shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(shr.optionalDependencies['is-positive'], '1.0.0', 'is-positive is unlinked and installed from registry')
+    const lockfile = await projects['project-1'].loadLockfile()
+    t.equal(lockfile.optionalDependencies['is-positive'], '1.0.0', 'is-positive is unlinked and installed from registry')
   }
 
   await execPnpm('update', 'is-negative@2.0.0')
 
   {
-    const shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(shr.devDependencies['is-negative'], '2.0.0')
+    const lockfile = await projects['project-1'].loadLockfile()
+    t.equal(lockfile.devDependencies['is-negative'], '2.0.0')
   }
 })
 
@@ -320,17 +320,17 @@ test('installation with --link-workspace-packages links packages even if they we
   await execPnpm('recursive', 'install', '--no-link-workspace-packages')
 
   {
-    const shr = await projects['project'].loadShrinkwrap()
-    t.equal(shr.dependencies['is-positive'], '2.0.0')
-    t.equal(shr.dependencies['negative'], '/is-negative/1.0.0')
+    const lockfile = await projects['project'].loadLockfile()
+    t.equal(lockfile.dependencies['is-positive'], '2.0.0')
+    t.equal(lockfile.dependencies['negative'], '/is-negative/1.0.0')
   }
 
   await execPnpm('recursive', 'install', '--link-workspace-packages')
 
   {
-    const shr = await projects['project'].loadShrinkwrap()
-    t.equal(shr.dependencies['is-positive'], 'link:../is-positive')
-    t.equal(shr.dependencies['negative'], 'link:../is-negative')
+    const lockfile = await projects['project'].loadLockfile()
+    t.equal(lockfile.dependencies['is-positive'], 'link:../is-positive')
+    t.equal(lockfile.dependencies['negative'], 'link:../is-negative')
   }
 })
 
@@ -361,9 +361,9 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
-    t.equal(shr!.importers!.project!.dependencies!['is-positive'], '2.0.0')
-    t.equal(shr!.importers!.project!.dependencies!['negative'], '/is-negative/1.0.0')
+    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    t.equal(lockfile!.importers!.project!.dependencies!['is-positive'], '2.0.0')
+    t.equal(lockfile!.importers!.project!.dependencies!['negative'], '/is-negative/1.0.0')
   }
 
   await projects['is-positive'].writePackageJson({
@@ -379,9 +379,9 @@ test('shared-workspace-lockfile: installation with --link-workspace-packages lin
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
-    t.equal(shr.importers!.project!.dependencies!['is-positive'], 'link:../is-positive')
-    t.equal(shr.importers!.project!.dependencies!['negative'], 'link:../is-negative')
+    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    t.equal(lockfile.importers!.project!.dependencies!['is-positive'], 'link:../is-positive')
+    t.equal(lockfile.importers!.project!.dependencies!['negative'], 'link:../is-negative')
   }
 })
 
@@ -437,8 +437,8 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   t.ok(projects['is-positive'].requireModule('concat-stream'), 'dependencies flattened in is-positive')
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
-  const sharedShr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
-  t.equal(sharedShr.importers['project-1']!.devDependencies!['is-positive'], 'link:../is-positive')
+  const sharedLockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+  t.equal(sharedLockfile.importers['project-1']!.devDependencies!['is-positive'], 'link:../is-positive')
 
   const outputs = await import(path.resolve('output.json')) as string[]
   t.deepEqual(outputs, ['is-positive', 'project-1'])
@@ -622,8 +622,8 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
 
   await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store')
 
-  const shr = await readYamlFile<Shrinkwrap>(`./${WANTED_LOCKFILE}`)
-  t.ok(shr.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
+  const lockfile = await readYamlFile<Lockfile>(`./${WANTED_LOCKFILE}`)
+  t.ok(lockfile.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 
   await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store', '--', 'project-1')
 
@@ -653,9 +653,9 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 
   await execPnpm('link', '.')
 
-  const shr = await projects['project-1'].loadShrinkwrap()
+  const lockfile = await projects['project-1'].loadLockfile()
 
-  t.equal(shr && shr.dependencies && shr.dependencies['is-positive'], 'link:../is-positive')
+  t.equal(lockfile && lockfile.dependencies && lockfile.dependencies['is-positive'], 'link:../is-positive')
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1437
@@ -671,10 +671,10 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
 
   await execPnpm('install', '--store', 'store')
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  t.ok(shr['importers'] && shr['importers']['.'], `correct ${WANTED_LOCKFILE} format`)
-  t.equal(shr['lockfileVersion'], 5, `correct ${WANTED_LOCKFILE} version`)
+  t.ok(lockfile['importers'] && lockfile['importers']['.'], `correct ${WANTED_LOCKFILE} format`)
+  t.equal(lockfile['lockfileVersion'], 5, `correct ${WANTED_LOCKFILE} version`)
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
@@ -716,9 +716,9 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
   await execPnpm('install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     importers: {
       'package-1': {
         dependencies: {
@@ -771,8 +771,8 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
-    t.deepEqual(Object.keys(shr.importers), ['package-1', 'package-2'])
+    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    t.deepEqual(Object.keys(lockfile.importers), ['package-1', 'package-2'])
   }
 
   await rimraf('package-2')
@@ -780,8 +780,8 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
   await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
-    t.deepEqual(Object.keys(shr.importers), ['package-1'])
+    const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+    t.deepEqual(Object.keys(lockfile.importers), ['package-1'])
   }
 })
 
@@ -845,9 +845,9 @@ test('shared-workspace-lockfile: uninstalling a package recursively', async (t: 
     t.deepEqual(pkg.dependencies, { 'is-negative': '1.0.0' }, 'is-positive removed from project2')
   }
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  t.deepEqual(Object.keys(shr.packages || {}), ['/is-negative/1.0.0'], `is-positive removed from ${WANTED_LOCKFILE}`)
+  t.deepEqual(Object.keys(lockfile.packages || {}), ['/is-negative/1.0.0'], `is-positive removed from ${WANTED_LOCKFILE}`)
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
@@ -875,8 +875,8 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await execPnpm('install', 'ajv@4.10.4', 'ajv-keywords@1.5.0')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(shr.importers['foo'], {
+    const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+    t.deepEqual(lockfile.importers['foo'], {
       dependencies: {
         'ajv': '4.10.4',
         'ajv-keywords': '1.5.0_ajv@4.10.4',
@@ -893,8 +893,8 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await execPnpm('uninstall', 'ajv')
 
   {
-    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
-    t.deepEqual(shr.importers['foo'], {
+    const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+    t.deepEqual(lockfile.importers['foo'], {
       dependencies: {
         'ajv-keywords': '1.5.0',
         'bar': 'link:../bar',

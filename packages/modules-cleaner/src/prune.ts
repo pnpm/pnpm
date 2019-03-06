@@ -3,9 +3,9 @@ import {
   statsLogger,
 } from '@pnpm/core-loggers'
 import {
+  Lockfile,
+  LockfileImporter,
   PackageSnapshots,
-  Shrinkwrap,
-  ShrinkwrapImporter,
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
@@ -34,8 +34,8 @@ export default async function prune (
       removePackages?: string[],
       shamefullyFlatten: boolean,
     }>,
-    newShrinkwrap: Shrinkwrap,
-    oldShrinkwrap: Shrinkwrap,
+    newLockfile: Lockfile,
+    oldLockfile: Lockfile,
     pruneStore?: boolean,
     registries: Registries,
     virtualStoreDir: string,
@@ -44,9 +44,9 @@ export default async function prune (
   },
 ): Promise<Set<string>> {
   await Promise.all(opts.importers.map(async (importer) => {
-    const oldImporterShr = opts.oldShrinkwrap.importers[importer.id] || {} as ShrinkwrapImporter
-    const oldPkgs = R.toPairs(mergeDependencies(oldImporterShr))
-    const newPkgs = R.toPairs(mergeDependencies(opts.newShrinkwrap.importers[importer.id]))
+    const oldLockfileImporter = opts.oldLockfile.importers[importer.id] || {} as LockfileImporter
+    const oldPkgs = R.toPairs(mergeDependencies(oldLockfileImporter))
+    const newPkgs = R.toPairs(mergeDependencies(opts.newLockfile.importers[importer.id]))
 
     const allCurrentPackages = new Set(
       (importer.pruneDirectDependencies || importer.removePackages && importer.removePackages.length)
@@ -72,9 +72,9 @@ export default async function prune (
 
     return Promise.all(Array.from(depsToRemove).map((depName) => {
       return removeDirectDependency({
-        dependenciesField: oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName] && 'devDependencies' ||
-          oldImporterShr.optionalDependencies && oldImporterShr.optionalDependencies[depName] && 'optionalDependencies' ||
-          oldImporterShr.dependencies && oldImporterShr.dependencies[depName] && 'dependencies' ||
+        dependenciesField: oldLockfileImporter.devDependencies && oldLockfileImporter.devDependencies[depName] && 'devDependencies' ||
+          oldLockfileImporter.optionalDependencies && oldLockfileImporter.optionalDependencies[depName] && 'optionalDependencies' ||
+          oldLockfileImporter.dependencies && oldLockfileImporter.dependencies[depName] && 'dependencies' ||
           undefined,
         name: depName,
       }, {
@@ -86,8 +86,8 @@ export default async function prune (
     }))
   }))
 
-  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.oldShrinkwrap.packages || {})
-  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.newShrinkwrap.packages || {})
+  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.oldLockfile.packages || {})
+  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.newLockfile.packages || {})
 
   const oldDepPaths = Object.keys(oldPkgIdsByDepPaths)
   const newDepPaths = Object.keys(newPkgIdsByDepPaths)
@@ -102,7 +102,7 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      if (opts.oldShrinkwrap.packages) {
+      if (opts.oldLockfile.packages) {
         await Promise.all(opts.importers.filter((importer) => importer.shamefullyFlatten).map((importer) => {
           const { bin, hoistedAliases, modulesDir, prefix } = importer
           return Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
@@ -156,9 +156,9 @@ export default async function prune (
   return new Set(orphanDepPaths)
 }
 
-function mergeDependencies (shrImporter: ShrinkwrapImporter): { [depName: string]: string } {
+function mergeDependencies (lockfileImporter: LockfileImporter): { [depName: string]: string } {
   return R.mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => shrImporter[depType]),
+    DEPENDENCIES_FIELDS.map((depType) => lockfileImporter[depType]),
   )
 }
 

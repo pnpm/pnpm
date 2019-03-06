@@ -86,8 +86,8 @@ export interface RequestPackageOptions {
   currentPkgId?: string,
   prefix: string,
   registry: string,
-  lockfileDirectory?: string, // TODO: make this option required
-  shrinkwrapResolution?: Resolution,
+  lockfileDirectory: string,
+  lockfileResolution?: Resolution,
   update?: boolean,
   verifyStoreIntegrity: boolean, // TODO: this should be a context field
   preferredVersions: {

@@ -47,9 +47,9 @@ test('local file', async (t: tape.Test) => {
 
   t.ok(m, 'localPkg() is available')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
@@ -72,9 +72,9 @@ test('local file via link:', async (t: tape.Test) => {
 
   t.ok(m, 'localPkg() is available')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
@@ -99,9 +99,9 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 
   t.ok(m, 'localPkg() is available')
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
@@ -131,8 +131,8 @@ test('tarball local package', async (t: tape.Test) => {
   const pkgSpec = `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`
   t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.packages[shr.dependencies['tar-pkg']], {
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.packages[lockfile.dependencies['tar-pkg']], {
     dev: false,
     name: 'tar-pkg',
     resolution: {
@@ -162,9 +162,9 @@ test('tarball local package from project directory', async (t: tape.Test) => {
   const pkgSpec = `file:tar-pkg-1.0.0.tgz`
   t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
-  const shr = await project.loadShrinkwrap()
-  t.equal(shr.dependencies['tar-pkg'], pkgSpec)
-  t.deepEqual(shr.packages[shr.dependencies['tar-pkg']], {
+  const lockfile = await project.loadLockfile()
+  t.equal(lockfile.dependencies['tar-pkg'], pkgSpec)
+  t.deepEqual(lockfile.packages[lockfile.dependencies['tar-pkg']], {
     dev: false,
     name: 'tar-pkg',
     resolution: {
@@ -181,12 +181,12 @@ test('update tarball local package when its integrity changes', async (t) => {
   await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
   await addDependenciesToPackage(['../tar.tgz'], await testDefaults())
 
-  const shr1 = await project.loadShrinkwrap()
-  t.equal(shr1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')
+  const lockfile1 = await project.loadLockfile()
+  t.equal(lockfile1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
   await install(await testDefaults())
 
-  const shr2 = await project.loadShrinkwrap()
-  t.equal(shr2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')
+  const lockfile2 = await project.loadLockfile()
+  t.equal(lockfile2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')
 })

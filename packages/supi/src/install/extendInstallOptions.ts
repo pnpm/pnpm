@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
@@ -13,15 +13,15 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface BaseInstallOptions {
-  forceSharedShrinkwrap?: boolean,
+  forceSharedLockfile?: boolean,
   frozenLockfile?: boolean,
+  lockfile?: boolean,
   lockfileOnly?: boolean,
   preferFrozenLockfile?: boolean,
   shamefullyFlatten?: boolean,
   storeController: StoreController,
   store: string,
   reporter?: ReporterFunction,
-  shrinkwrap?: boolean,
   force?: boolean,
   update?: boolean,
   depth?: number,
@@ -35,10 +35,10 @@ export interface BaseInstallOptions {
     name: string,
     version: string,
   },
-  pruneShrinkwrapImporters?: boolean,
+  pruneLockfileImporters?: boolean,
   hooks?: {
     readPackage?: ReadPackageHook,
-    afterAllResolved?: (shr: Shrinkwrap) => Shrinkwrap,
+    afterAllResolved?: (lockfile: Lockfile) => Lockfile,
   },
   sideEffectsCacheRead?: boolean,
   sideEffectsCacheWrite?: boolean,
@@ -66,11 +66,11 @@ export type InstallOptions = BaseInstallOptions & {
 }
 
 export type StrictInstallOptions = BaseInstallOptions & {
-  forceSharedShrinkwrap: boolean,
+  forceSharedLockfile: boolean,
   frozenLockfile: boolean,
   preferFrozenLockfile: boolean,
   shamefullyFlatten: boolean,
-  shrinkwrap: boolean,
+  lockfile: boolean,
   lockfileDirectory: string,
   lockfileOnly: boolean,
   force: boolean,
@@ -85,7 +85,7 @@ export type StrictInstallOptions = BaseInstallOptions & {
     name: string,
     version: string,
   },
-  pruneShrinkwrapImporters: boolean,
+  pruneLockfileImporters: boolean,
   hooks: {
     readPackage?: ReadPackageHook,
   },
@@ -119,7 +119,7 @@ const defaults = async (opts: InstallOptions) => {
     depth: 0,
     engineStrict: false,
     force: false,
-    forceSharedShrinkwrap: false,
+    forceSharedLockfile: false,
     frozenLockfile: false,
     hooks: {},
     ignoreCurrentPrefs: false,
@@ -132,6 +132,7 @@ const defaults = async (opts: InstallOptions) => {
     independentLeaves: false,
     localPackages: {},
     lock: true,
+    lockfile: true,
     lockfileDirectory: opts.lockfileDirectory || opts.prefix || process.cwd(),
     lockfileOnly: false,
     locks: path.join(opts.store, '_locks'),
@@ -140,13 +141,12 @@ const defaults = async (opts: InstallOptions) => {
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenLockfile: true,
-    pruneShrinkwrapImporters: false,
+    pruneLockfileImporters: false,
     pruneStore: false,
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,
     repeatInstallDepth: -1,
     shamefullyFlatten: false,
-    shrinkwrap: true,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
     store: opts.store,
@@ -180,8 +180,8 @@ export default async (
     ...opts,
     store: defaultOpts.store,
   }
-  if (!extendedOpts.shrinkwrap && extendedOpts.lockfileOnly) {
-    throw new Error(`Cannot generate a ${WANTED_LOCKFILE} because shrinkwrap is set to false`)
+  if (!extendedOpts.lockfile && extendedOpts.lockfileOnly) {
+    throw new Error(`Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`

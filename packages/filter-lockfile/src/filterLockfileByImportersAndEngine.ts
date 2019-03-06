@@ -1,7 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
+  Lockfile,
   PackageSnapshots,
-  Shrinkwrap,
 } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import pnpmLogger from '@pnpm/logger'
@@ -11,10 +11,10 @@ import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
 
-const logger = pnpmLogger('shrinkwrap')
+const logger = pnpmLogger('lockfile')
 
 export default function filterByImportersAndEngine (
-  shr: Shrinkwrap,
+  lockfile: Lockfile,
   importerIds: string[],
   opts: {
     currentEngine: {
@@ -29,9 +29,9 @@ export default function filterByImportersAndEngine (
     prefix: string,
     skipped: Set<string>,
   },
-): Shrinkwrap {
+): Lockfile {
   const importerDeps = importerIds
-    .map((importerId) => shr.importers[importerId])
+    .map((importerId) => lockfile.importers[importerId])
     .map((importer) => ({
       ...(opts.include.dependencies && importer.dependencies || {}),
       ...(opts.include.devDependencies && importer.devDependencies || {}),
@@ -42,8 +42,8 @@ export default function filterByImportersAndEngine (
     .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
 
-  const packages = shr.packages &&
-    pickPkgsWithAllDeps(shr.packages, directDepPaths, {
+  const packages = lockfile.packages &&
+    pickPkgsWithAllDeps(lockfile.packages, directDepPaths, {
       currentEngine: opts.currentEngine,
       engineStrict: opts.engineStrict,
       failOnMissingDependencies: opts.failOnMissingDependencies,
@@ -55,7 +55,7 @@ export default function filterByImportersAndEngine (
     }) || {}
 
   const importers = importerIds.reduce((acc, importerId) => {
-    acc[importerId] = filterImporter(shr.importers[importerId], opts.include)
+    acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
     if (acc[importerId].optionalDependencies) {
       for (const depName of Object.keys(acc[importerId].optionalDependencies || {})) {
         const relDepPath = dp.refToRelative(acc[importerId].optionalDependencies![depName], depName)
@@ -65,11 +65,11 @@ export default function filterByImportersAndEngine (
       }
     }
     return acc
-  }, { ...shr.importers })
+  }, { ...lockfile.importers })
 
   return {
     importers,
-    lockfileVersion: shr.lockfileVersion,
+    lockfileVersion: lockfile.lockfileVersion,
     packages,
   }
 }
@@ -124,7 +124,7 @@ function pkgAllDeps (
       const message = `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`
       if (opts.failOnMissingDependencies) {
         const err = new Error(message)
-        err['code'] = 'ERR_PNPM_SHRINKWRAP_MISSING_DEPENDENCY' // tslint:disable-line:no-string-literal
+        err['code'] = 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' // tslint:disable-line:no-string-literal
         throw err
       }
       logger.debug(message)

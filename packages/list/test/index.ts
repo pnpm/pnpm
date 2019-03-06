@@ -10,14 +10,14 @@ const highlighted = chalk.yellow.bgBlack
 const fixture = path.join(__dirname, 'fixture')
 const fixtureWithNoPkgNameAndNoVersion = path.join(__dirname, 'fixture-with-no-pkg-name-and-no-version')
 const fixtureWithNoPkgVersion = path.join(__dirname, 'fixture-with-no-pkg-version')
-const fixtureWithExternalShrinkwrap = path.join(__dirname, 'fixture-with-external-shrinkwrap', 'pkg')
+const fixtureWithExternalLockfile = path.join(__dirname, 'fixture-with-external-shrinkwrap', 'pkg')
 const emptyFixture = path.join(__dirname, 'empty')
 
 test('list all deps of a package that has an external lockfile', async (t) => {
-  t.equal(await list(fixtureWithExternalShrinkwrap, {
-    lockfileDirectory: path.join(fixtureWithExternalShrinkwrap, '..'),
+  t.equal(await list(fixtureWithExternalLockfile, {
+    lockfileDirectory: path.join(fixtureWithExternalLockfile, '..'),
   }), stripIndent`
-    pkg@1.0.0 ${fixtureWithExternalShrinkwrap}
+    pkg@1.0.0 ${fixtureWithExternalLockfile}
     └── is-positive@1.0.0
   `)
 

@@ -17,10 +17,10 @@ import filterLockfile, {
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
+  Lockfile,
   PackageSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
-  Shrinkwrap,
   writeCurrentLockfile,
 } from '@pnpm/lockfile-file'
 import {
@@ -40,7 +40,7 @@ import {
 } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
+import { shamefullyFlattenByLockfile } from '@pnpm/shamefully-flatten'
 import {
   PackageFilesResponse,
   StoreController,
@@ -58,7 +58,7 @@ export type ReporterFunction = (logObj: LogBase) => void
 
 export interface HeadlessOptions {
   childConcurrency?: number,
-  currentShrinkwrap?: Shrinkwrap,
+  currentLockfile?: Lockfile,
   currentEngine: {
     nodeVersion: string,
     pnpmVersion: string,
@@ -95,7 +95,7 @@ export interface HeadlessOptions {
     version: string,
   },
   pruneStore: boolean,
-  wantedShrinkwrap?: Shrinkwrap,
+  wantedLockfile?: Lockfile,
   ownLifecycleHooksStdio?: 'inherit' | 'pipe',
   pendingBuilds: string[],
   skipped: Set<string>,
@@ -108,20 +108,20 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const lockfileDirectory = opts.lockfileDirectory
-  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const wantedLockfile = opts.wantedLockfile || await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
 
-  if (!wantedShrinkwrap) {
+  if (!wantedLockfile) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
-  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
 
   for (const importer of opts.importers) {
-    if (!satisfiesPackageJson(wantedShrinkwrap, importer.pkg, importer.id)) {
+    if (!satisfiesPackageJson(wantedLockfile, importer.pkg, importer.id)) {
       const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
         path.relative(opts.lockfileDirectory, path.join(importer.prefix, 'package.json')))
-      err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
+      err['code'] = 'ERR_PNPM_OUTDATED_LOCKFILE' // tslint:disable-line
       throw err
     }
   }
@@ -148,13 +148,13 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     skipped,
   }
-  if (currentShrinkwrap) {
+  if (currentLockfile) {
     await prune({
       dryRun: false,
       importers: opts.importers,
       lockfileDirectory,
-      newShrinkwrap: filterLockfile(wantedShrinkwrap, filterOpts),
-      oldShrinkwrap: currentShrinkwrap,
+      newLockfile: filterLockfile(wantedLockfile, filterOpts),
+      oldLockfile: currentLockfile,
       pruneStore: opts.pruneStore,
       registries: opts.registries,
       storeController: opts.storeController,
@@ -172,7 +172,7 @@ export default async (opts: HeadlessOptions) => {
     stage: 'importing_started',
   })
 
-  const filteredShrinkwrap = filterLockfileByImportersAndEngine(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
+  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.importers.map((importer) => importer.id), {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -180,16 +180,16 @@ export default async (opts: HeadlessOptions) => {
     includeIncompatiblePackages: opts.force === true,
     prefix: lockfileDirectory,
   })
-  const res = await shrinkwrapToDepGraph(
-    filteredShrinkwrap,
-    opts.force ? null : currentShrinkwrap,
+  const res = await lockfileToDepGraph(
+    filteredLockfile,
+    opts.force ? null : currentLockfile,
     {
       ...opts,
       importerIds: opts.importers.map((importer) => importer.id),
       prefix: lockfileDirectory,
       skipped,
       virtualStoreDir,
-    } as ShrinkwrapToDepGraphOptions,
+    } as LockfileToDepGraphOptions,
   )
   const depGraph = res.graph
 
@@ -222,7 +222,7 @@ export default async (opts: HeadlessOptions) => {
 
   await Promise.all(opts.importers.map(async (importer) => {
     if (importer.shamefullyFlatten) {
-      importer.hoistedAliases = await shamefullyFlattenByShrinkwrap(filteredShrinkwrap, importer.id, {
+      importer.hoistedAliases = await shamefullyFlattenByLockfile(filteredLockfile, importer.id, {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -243,7 +243,7 @@ export default async (opts: HeadlessOptions) => {
   }))
 
   await Promise.all(opts.importers.map(async (importer) => {
-    await linkRootPackages(filteredShrinkwrap, {
+    await linkRootPackages(filteredLockfile, {
       importerId: importer.id,
       importerModulesDir: importer.modulesDir,
       prefix: importer.prefix,
@@ -261,10 +261,10 @@ export default async (opts: HeadlessOptions) => {
     })
   }))
 
-  if (currentShrinkwrap && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredShrinkwrap.importers).sort())) {
-    Object.assign(filteredShrinkwrap.packages, currentShrinkwrap.packages)
+  if (currentLockfile && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredLockfile.importers).sort())) {
+    Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
-  await writeCurrentLockfile(lockfileDirectory, filteredShrinkwrap)
+  await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
 
   if (opts.ignoreScripts) {
     for (const importer of opts.importers) {
@@ -340,7 +340,7 @@ export default async (opts: HeadlessOptions) => {
 }
 
 async function linkRootPackages (
-  shr: Shrinkwrap,
+  lockfile: Lockfile,
   opts: {
     registries: Registries,
     importerId: string,
@@ -349,18 +349,18 @@ async function linkRootPackages (
     rootDependencies: {[alias: string]: string},
   },
 ) {
-  const shrImporter = shr.importers[opts.importerId]
+  const lockfileImporter = lockfile.importers[opts.importerId]
   const allDeps = {
-    ...shrImporter.devDependencies,
-    ...shrImporter.dependencies,
-    ...shrImporter.optionalDependencies,
+    ...lockfileImporter.devDependencies,
+    ...lockfileImporter.dependencies,
+    ...lockfileImporter.optionalDependencies,
   }
   return Promise.all(
     R.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
-          const isDev = shrImporter.devDependencies && shrImporter.devDependencies[alias]
-          const isOptional = shrImporter.optionalDependencies && shrImporter.optionalDependencies[alias]
+          const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
+          const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
           const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
           const linkedPackage = await readPackageFromDir(packageDir)
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
@@ -381,12 +381,12 @@ async function linkRootPackages (
         if ((await symlinkDependency(peripheralLocation, opts.importerModulesDir, alias)).reused) {
           return
         }
-        const isDev = shrImporter.devDependencies && shrImporter.devDependencies[alias]
-        const isOptional = shrImporter.optionalDependencies && shrImporter.optionalDependencies[alias]
+        const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
+        const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
 
         const relDepPath = dp.refToRelative(allDeps[alias], alias)
         if (relDepPath === null) return
-        const pkgSnapshot = shr.packages && shr.packages[relDepPath]
+        const pkgSnapshot = lockfile.packages && lockfile.packages[relDepPath]
         if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
         const pkgId = pkgSnapshot.id || depPath
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
@@ -405,7 +405,7 @@ async function linkRootPackages (
   )
 }
 
-interface ShrinkwrapToDepGraphOptions {
+interface LockfileToDepGraphOptions {
   force: boolean,
   independentLeaves: boolean,
   importerIds: string[],
@@ -420,23 +420,23 @@ interface ShrinkwrapToDepGraphOptions {
   virtualStoreDir: string,
 }
 
-async function shrinkwrapToDepGraph (
-  shr: Shrinkwrap,
-  currentShrinkwrap: Shrinkwrap | null,
-  opts: ShrinkwrapToDepGraphOptions,
+async function lockfileToDepGraph (
+  lockfile: Lockfile,
+  currentLockfile: Lockfile | null,
+  opts: LockfileToDepGraphOptions,
 ) {
-  const currentPackages = currentShrinkwrap && currentShrinkwrap.packages || {}
+  const currentPackages = currentLockfile && currentLockfile.packages || {}
   const graph: DependenciesGraph = {}
   let directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
-  if (shr.packages) {
+  if (lockfile.packages) {
     const pkgSnapshotByLocation = {}
-    for (const relDepPath of R.keys(shr.packages)) {
-      if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
-        R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
+    for (const relDepPath of R.keys(lockfile.packages)) {
+      if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, lockfile.packages[relDepPath].dependencies) &&
+        R.equals(currentPackages[relDepPath].optionalDependencies, lockfile.packages[relDepPath].optionalDependencies)) {
         continue
       }
       const depPath = dp.resolve(opts.registries, relDepPath)
-      const pkgSnapshot = shr.packages[relDepPath]
+      const pkgSnapshot = lockfile.packages[relDepPath]
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
@@ -499,7 +499,7 @@ async function shrinkwrapToDepGraph (
       graph,
       independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
-      pkgSnapshotsByRelDepPaths: shr.packages,
+      pkgSnapshotsByRelDepPaths: lockfile.packages,
       prefix: opts.prefix,
       registries: opts.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -515,8 +515,8 @@ async function shrinkwrapToDepGraph (
       graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
     for (const importerId of opts.importerIds) {
-      const shrImporter = shr.importers[importerId]
-      const rootDeps = { ...shrImporter.devDependencies, ...shrImporter.dependencies, ...shrImporter.optionalDependencies }
+      const lockfileImporter = lockfile.importers[importerId]
+      const rootDeps = { ...lockfileImporter.devDependencies, ...lockfileImporter.dependencies, ...lockfileImporter.optionalDependencies }
       directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps)
     }
   }

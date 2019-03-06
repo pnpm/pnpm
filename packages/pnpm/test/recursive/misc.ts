@@ -353,11 +353,11 @@ test('recursive installation of packages with hooks', async t => {
 
   await execPnpm('recursive', 'install')
 
-  const shr1 = await projects['project-1'].loadShrinkwrap()
-  t.ok(shr1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  const lockfile1 = await projects['project-1'].loadLockfile()
+  t.ok(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 
-  const shr2 = await projects['project-2'].loadShrinkwrap()
-  t.ok(shr2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  const lockfile2 = await projects['project-2'].loadLockfile()
+  t.ok(lockfile2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
 test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async t => {
@@ -400,11 +400,11 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
 
   await execPnpm('recursive', 'install', '--ignore-pnpmfile')
 
-  const shr1 = await projects['project-1'].loadShrinkwrap()
-  t.notOk(shr1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  const lockfile1 = await projects['project-1'].loadLockfile()
+  t.notOk(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 
-  const shr2 = await projects['project-2'].loadShrinkwrap()
-  t.notOk(shr2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  const lockfile2 = await projects['project-2'].loadLockfile()
+  t.notOk(lockfile2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
 test('running `pnpm recursive` on a subset of packages', async t => {

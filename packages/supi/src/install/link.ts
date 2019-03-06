@@ -1,5 +1,5 @@
 import {
-  SHRINKWRAP_VERSION,
+  LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -11,7 +11,7 @@ import filterLockfile, {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
@@ -30,7 +30,7 @@ import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
 } from './resolvePeers'
-import updateShrinkwrap from './updateLockfile'
+import updateLockfile from './updateLockfile'
 
 export { DependenciesGraph }
 
@@ -47,20 +47,20 @@ export interface Importer {
   removePackages?: string[],
   shamefullyFlatten: boolean,
   topParents: Array<{name: string, version: string}>,
-  usesExternalShrinkwrap: boolean,
+  usesExternalLockfile: boolean,
 }
 
 export default async function linkPackages (
   importers: Importer[],
   dependenciesTree: DependenciesTree,
   opts: {
-    afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
+    afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile,
     force: boolean,
     dryRun: boolean,
     virtualStoreDir: string,
-    wantedShrinkwrap: Shrinkwrap,
-    currentShrinkwrap: Shrinkwrap,
-    makePartialCurrentShrinkwrap: boolean,
+    wantedLockfile: Lockfile,
+    currentLockfile: Lockfile,
+    makePartialCurrentLockfile: boolean,
     pruneStore: boolean,
     registries: Registries,
     lockfileDirectory: string,
@@ -69,17 +69,17 @@ export default async function linkPackages (
     wantedToBeSkippedPackageIds: Set<string>,
     include: IncludedDependencies,
     independentLeaves: boolean,
-    // This is only needed till shrinkwrap v4
-    updateShrinkwrapMinorVersion: boolean,
+    // This is only needed till lockfile v4
+    updateLockfileMinorVersion: boolean,
     outdatedDependencies: {[pkgId: string]: string},
     strictPeerDependencies: boolean,
   },
 ): Promise<{
-  currentShrinkwrap: Shrinkwrap,
+  currentLockfile: Lockfile,
   depGraph: DependenciesGraph,
   newDepPaths: string[],
   removedDepPaths: Set<string>,
-  wantedShrinkwrap: Shrinkwrap,
+  wantedLockfile: Lockfile,
 }> {
   // TODO: decide what kind of logging should be here.
   // The `Creating dependency graph` is not good to report in all cases as
@@ -94,7 +94,7 @@ export default async function linkPackages (
     virtualStoreDir: opts.virtualStoreDir,
   })
   for (const importer of importers) {
-    if (!importer.usesExternalShrinkwrap) continue
+    if (!importer.usesExternalLockfile) continue
 
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
     for (const alias of R.keys(directAbsolutePathsByAlias)) {
@@ -103,30 +103,30 @@ export default async function linkPackages (
       const depNode = depGraph[depPath]
       if (depNode.isPure) continue
 
-      const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
+      const lockfileImporter = opts.wantedLockfile.importers[importer.id]
       const ref = absolutePathToRef(depPath, {
         alias,
         realName: depNode.name,
         registries: opts.registries,
         resolution: depNode.resolution,
       })
-      if (shrImporter.dependencies && shrImporter.dependencies[alias]) {
-        shrImporter.dependencies[alias] = ref
-      } else if (shrImporter.devDependencies && shrImporter.devDependencies[alias]) {
-        shrImporter.devDependencies[alias] = ref
-      } else if (shrImporter.optionalDependencies && shrImporter.optionalDependencies[alias]) {
-        shrImporter.optionalDependencies[alias] = ref
+      if (lockfileImporter.dependencies && lockfileImporter.dependencies[alias]) {
+        lockfileImporter.dependencies[alias] = ref
+      } else if (lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]) {
+        lockfileImporter.devDependencies[alias] = ref
+      } else if (lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]) {
+        lockfileImporter.optionalDependencies[alias] = ref
       }
     }
   }
-  const { newShrinkwrap, pendingRequiresBuilds } = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir, opts.registries) // tslint:disable-line:prefer-const
-  let newWantedShrinkwrap = opts.afterAllResolvedHook
-    ? opts.afterAllResolvedHook(newShrinkwrap)
-    : newShrinkwrap
+  const { newLockfile, pendingRequiresBuilds } = updateLockfile(depGraph, opts.wantedLockfile, opts.virtualStoreDir, opts.registries) // tslint:disable-line:prefer-const
+  let newWantedLockfile = opts.afterAllResolvedHook
+    ? opts.afterAllResolvedHook(newLockfile)
+    : newLockfile
 
   let depNodes = R.values(depGraph).filter((depNode) => {
     const relDepPath = dp.relative(opts.registries, depNode.name, depNode.absolutePath)
-    if (newWantedShrinkwrap.packages && newWantedShrinkwrap.packages[relDepPath] && !newWantedShrinkwrap.packages[relDepPath].optional) {
+    if (newWantedLockfile.packages && newWantedLockfile.packages[relDepPath] && !newWantedLockfile.packages[relDepPath].optional) {
       opts.skipped.delete(relDepPath)
       return true
     }
@@ -155,8 +155,8 @@ export default async function linkPackages (
     dryRun: opts.dryRun,
     importers,
     lockfileDirectory: opts.lockfileDirectory,
-    newShrinkwrap: filterLockfile(newWantedShrinkwrap, filterOpts),
-    oldShrinkwrap: opts.currentShrinkwrap,
+    newLockfile: filterLockfile(newWantedLockfile, filterOpts),
+    oldLockfile: opts.currentLockfile,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
     storeController: opts.storeController,
@@ -169,16 +169,16 @@ export default async function linkPackages (
   })
 
   const importerIds = importers.map((importer) => importer.id)
-  const newCurrentShrinkwrap = filterLockfileByImporters(newWantedShrinkwrap, importerIds, {
+  const newCurrentLockfile = filterLockfileByImporters(newWantedLockfile, importerIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
   })
   const newDepPaths = await linkNewPackages(
-    filterLockfileByImporters(opts.currentShrinkwrap, importerIds, {
+    filterLockfileByImporters(opts.currentLockfile, importerIds, {
       ...filterOpts,
       failOnMissingDependencies: false,
     }),
-    newCurrentShrinkwrap,
+    newCurrentLockfile,
     depGraph,
     {
       dryRun: opts.dryRun,
@@ -233,8 +233,8 @@ export default async function linkPackages (
     )
   }))
 
-  if (opts.updateShrinkwrapMinorVersion) {
-    newWantedShrinkwrap.lockfileVersion = SHRINKWRAP_VERSION
+  if (opts.updateLockfileMinorVersion) {
+    newWantedLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
   await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {
@@ -252,53 +252,53 @@ export default async function linkPackages (
         filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
     )
 
-    // TODO: try to cover with unit test the case when entry is no longer available in shrinkwrap
-    // It is an edge that probably happens if the entry is removed during shrinkwrap prune
-    if (depNode.requiresBuild && newWantedShrinkwrap.packages![pendingRequiresBuild.relativeDepPath]) {
-      newWantedShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
+    // TODO: try to cover with unit test the case when entry is no longer available in lockfile
+    // It is an edge that probably happens if the entry is removed during lockfile prune
+    if (depNode.requiresBuild && newWantedLockfile.packages![pendingRequiresBuild.relativeDepPath]) {
+      newWantedLockfile.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
     }
   }))
 
-  let currentShrinkwrap: Shrinkwrap
-  const allImportersIncluded = R.equals(importerIds.sort(), Object.keys(newWantedShrinkwrap.importers).sort())
+  let currentLockfile: Lockfile
+  const allImportersIncluded = R.equals(importerIds.sort(), Object.keys(newWantedLockfile.importers).sort())
   if (
-    opts.makePartialCurrentShrinkwrap ||
+    opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
-    const filteredCurrentShrinkwrap = allImportersIncluded
-      ? opts.currentShrinkwrap
+    const filteredCurrentLockfile = allImportersIncluded
+      ? opts.currentLockfile
       : filterLockfileByImporters(
-        opts.currentShrinkwrap,
-        Object.keys(newWantedShrinkwrap.importers)
-          .filter((importerId) => importerIds.indexOf(importerId) === -1 && opts.currentShrinkwrap.importers[importerId]),
+        opts.currentLockfile,
+        Object.keys(newWantedLockfile.importers)
+          .filter((importerId) => importerIds.indexOf(importerId) === -1 && opts.currentLockfile.importers[importerId]),
         {
           ...filterOpts,
           failOnMissingDependencies: false,
         },
       )
-    const packages = filteredCurrentShrinkwrap.packages || {}
-    if (newWantedShrinkwrap.packages) {
-      for (const relDepPath in newWantedShrinkwrap.packages) { // tslint:disable-line:forin
+    const packages = filteredCurrentLockfile.packages || {}
+    if (newWantedLockfile.packages) {
+      for (const relDepPath in newWantedLockfile.packages) { // tslint:disable-line:forin
         const depPath = dp.resolve(opts.registries, relDepPath)
         if (depGraph[depPath]) {
-          packages[relDepPath] = newWantedShrinkwrap.packages[relDepPath]
+          packages[relDepPath] = newWantedLockfile.packages[relDepPath]
         }
       }
     }
     const importers = importerIds.reduce((acc, importerId) => {
-      acc[importerId] = newWantedShrinkwrap.importers[importerId]
+      acc[importerId] = newWantedLockfile.importers[importerId]
       return acc
     }, {})
-    currentShrinkwrap = { ...newWantedShrinkwrap, packages, importers }
+    currentLockfile = { ...newWantedLockfile, packages, importers }
   } else if (
     opts.include.dependencies &&
     opts.include.devDependencies &&
     opts.include.optionalDependencies &&
     opts.skipped.size === 0
   ) {
-    currentShrinkwrap = newWantedShrinkwrap
+    currentLockfile = newWantedLockfile
   } else {
-    currentShrinkwrap = newCurrentShrinkwrap
+    currentLockfile = newCurrentLockfile
   }
 
   // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
@@ -314,7 +314,7 @@ export default async function linkPackages (
               location: depNode.independent ? depNode.centralLocation : depNode.peripheralLocation,
               name: depNode.name,
             })),
-            currentShrinkwrap.importers[importer.id].specifiers,
+            currentLockfile.importers[importer.id].specifiers,
             {
               dryRun: opts.dryRun,
               modulesDir: importer.modulesDir,
@@ -342,11 +342,11 @@ export default async function linkPackages (
   }
 
   return {
-    currentShrinkwrap,
+    currentLockfile,
     depGraph,
     newDepPaths,
     removedDepPaths,
-    wantedShrinkwrap: newWantedShrinkwrap,
+    wantedLockfile: newWantedLockfile,
   }
 }
 
@@ -364,8 +364,8 @@ function resolvePath (where: string, spec: string) {
 }
 
 async function linkNewPackages (
-  currentShrinkwrap: Shrinkwrap,
-  wantedShrinkwrap: Shrinkwrap,
+  currentLockfile: Lockfile,
+  wantedLockfile: Lockfile,
   depGraph: DependenciesGraph,
   opts: {
     dryRun: boolean,
@@ -377,8 +377,8 @@ async function linkNewPackages (
     virtualStoreDir: string,
   },
 ): Promise<string[]> {
-  const wantedRelDepPaths = R.keys(wantedShrinkwrap.packages)
-  const prevRelDepPaths = R.keys(currentShrinkwrap.packages)
+  const wantedRelDepPaths = R.keys(wantedLockfile.packages)
+  const prevRelDepPaths = R.keys(currentLockfile.packages)
 
   // TODO: what if the registries differ?
   const newDepPathsSet = new Set(
@@ -398,13 +398,13 @@ async function linkNewPackages (
   })
 
   const existingWithUpdatedDeps = []
-  if (!opts.force && currentShrinkwrap.packages && wantedShrinkwrap.packages) {
+  if (!opts.force && currentLockfile.packages && wantedLockfile.packages) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const relDepPath of wantedRelDepPaths) {
-      if (currentShrinkwrap.packages[relDepPath] &&
-        (!R.equals(currentShrinkwrap.packages[relDepPath].dependencies, wantedShrinkwrap.packages[relDepPath].dependencies) ||
-        !R.equals(currentShrinkwrap.packages[relDepPath].optionalDependencies, wantedShrinkwrap.packages[relDepPath].optionalDependencies))) {
+      if (currentLockfile.packages[relDepPath] &&
+        (!R.equals(currentLockfile.packages[relDepPath].dependencies, wantedLockfile.packages[relDepPath].dependencies) ||
+        !R.equals(currentLockfile.packages[relDepPath].optionalDependencies, wantedLockfile.packages[relDepPath].optionalDependencies))) {
         const depPath = dp.resolve(opts.registries, relDepPath)
 
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined

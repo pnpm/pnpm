@@ -14,9 +14,9 @@ export interface RebuildOptions {
   storeController: StoreController,
   independentLeaves?: boolean,
   force?: boolean,
-  forceSharedShrinkwrap?: boolean,
+  forceSharedLockfile?: boolean,
+  lockfile?: boolean,
   registries?: Registries,
-  shrinkwrap?: boolean,
 
   reporter?: ReporterFunction,
   production?: boolean,
@@ -42,7 +42,8 @@ export type StrictRebuildOptions = RebuildOptions & {
   sideEffectsCacheRead: boolean,
   independentLeaves: boolean,
   force: boolean,
-  forceSharedShrinkwrap: boolean,
+  forceSharedLockfile: boolean,
+  lockfile: boolean,
   registries: Registries,
   bin: string,
   rawNpmConfig: object,
@@ -53,7 +54,6 @@ export type StrictRebuildOptions = RebuildOptions & {
   },
   unsafePerm: boolean,
   pending: boolean,
-  shrinkwrap: boolean,
   shamefullyFlatten: boolean,
 }
 
@@ -69,8 +69,9 @@ const defaults = async (opts: RebuildOptions) => {
     childConcurrency: 5,
     development: true,
     force: false,
-    forceSharedShrinkwrap: false,
+    forceSharedLockfile: false,
     independentLeaves: false,
+    lockfile: true,
     lockfileDirectory,
     optional: true,
     packageManager,
@@ -80,7 +81,6 @@ const defaults = async (opts: RebuildOptions) => {
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
-    shrinkwrap: true,
     sideEffectsCacheRead: false,
     store: opts.store,
     unsafePerm: process.platform === 'win32' ||

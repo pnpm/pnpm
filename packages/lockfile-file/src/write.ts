@@ -2,7 +2,7 @@ import {
   CURRENT_LOCKFILE,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
-import { Shrinkwrap } from '@pnpm/lockfile-types'
+import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import yaml = require('js-yaml')
 import mkdirp = require('mkdirp-promise')
@@ -15,7 +15,7 @@ import logger from './logger'
 
 const writeFileAtomic = promisify(writeFileAtomicCB)
 
-const SHRINKWRAP_YAML_FORMAT = {
+const LOCKFILE_YAML_FORMAT = {
   lineWidth: 1000,
   noCompatMode: true,
   noRefs: true,
@@ -24,70 +24,70 @@ const SHRINKWRAP_YAML_FORMAT = {
 
 export function writeWantedLockfile (
   pkgPath: string,
-  wantedShrinkwrap: Shrinkwrap,
+  wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
   },
 ) {
-  return writeShrinkwrap(WANTED_LOCKFILE, pkgPath, wantedShrinkwrap, opts)
+  return writeLockfile(WANTED_LOCKFILE, pkgPath, wantedLockfile, opts)
 }
 
 export async function writeCurrentLockfile (
   pkgPath: string,
-  currentShrinkwrap: Shrinkwrap,
+  currentLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
   },
 ) {
   await mkdirp(path.join(pkgPath, 'node_modules'))
-  return writeShrinkwrap(CURRENT_LOCKFILE, pkgPath, currentShrinkwrap, opts)
+  return writeLockfile(CURRENT_LOCKFILE, pkgPath, currentLockfile, opts)
 }
 
-function writeShrinkwrap (
-  shrinkwrapFilename: string,
+function writeLockfile (
+  lockfileFilename: string,
   pkgPath: string,
-  wantedShrinkwrap: Shrinkwrap,
+  wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
   },
 ) {
-  const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
+  const lockfilePath = path.join(pkgPath, lockfileFilename)
 
-  // empty shrinkwrap is not saved
-  if (isEmptyShrinkwrap(wantedShrinkwrap)) {
-    return rimraf(shrinkwrapPath)
+  // empty lockfile is not saved
+  if (isEmptyLockfile(wantedLockfile)) {
+    return rimraf(lockfilePath)
   }
 
-  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap, opts && opts.forceSharedFormat === true || false), SHRINKWRAP_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(normalizeLockfile(wantedLockfile, opts && opts.forceSharedFormat === true || false), LOCKFILE_YAML_FORMAT)
 
-  return writeFileAtomic(shrinkwrapPath, yamlDoc)
+  return writeFileAtomic(lockfilePath, yamlDoc)
 }
 
-function isEmptyShrinkwrap (shr: Shrinkwrap) {
-  return R.values(shr.importers).every((importer) => R.isEmpty(importer.specifiers || {}) && R.isEmpty(importer.dependencies || {}))
+function isEmptyLockfile (lockfile: Lockfile) {
+  return R.values(lockfile.importers).every((importer) => R.isEmpty(importer.specifiers || {}) && R.isEmpty(importer.dependencies || {}))
 }
 
-function normalizeShrinkwrap (shr: Shrinkwrap, forceSharedFormat: boolean) {
-  if (forceSharedFormat === false && R.equals(R.keys(shr.importers), ['.'])) {
-    const shrToSave = {
-      ...shr,
-      ...shr.importers['.'],
+function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
+  if (forceSharedFormat === false && R.equals(R.keys(lockfile.importers), ['.'])) {
+    const lockfileToSave = {
+      ...lockfile,
+      ...lockfile.importers['.'],
     }
-    delete shrToSave.importers
+    delete lockfileToSave.importers
     for (const depType of DEPENDENCIES_FIELDS) {
-      if (R.isEmpty(shrToSave[depType])) {
-        delete shrToSave[depType]
+      if (R.isEmpty(lockfileToSave[depType])) {
+        delete lockfileToSave[depType]
       }
     }
-    if (R.isEmpty(shrToSave.packages)) {
-      delete shrToSave.packages
+    if (R.isEmpty(lockfileToSave.packages)) {
+      delete lockfileToSave.packages
     }
-    return shrToSave
+    return lockfileToSave
   } else {
-    const shrToSave = {
-      ...shr,
-      importers: R.keys(shr.importers).reduce((acc, alias) => {
-        const importer = shr.importers[alias]
+    const lockfileToSave = {
+      ...lockfile,
+      importers: R.keys(lockfile.importers).reduce((acc, alias) => {
+        const importer = lockfile.importers[alias]
         const normalizedImporter = {
           specifiers: importer.specifiers,
         }
@@ -100,44 +100,44 @@ function normalizeShrinkwrap (shr: Shrinkwrap, forceSharedFormat: boolean) {
         return acc
       }, {}),
     }
-    if (R.isEmpty(shrToSave.packages)) {
-      delete shrToSave.packages
+    if (R.isEmpty(lockfileToSave.packages)) {
+      delete lockfileToSave.packages
     }
-    return shrToSave
+    return lockfileToSave
   }
 }
 
 export default function writeLockfiles (
   pkgPath: string,
-  wantedShrinkwrap: Shrinkwrap,
-  currentShrinkwrap: Shrinkwrap,
+  wantedLockfile: Lockfile,
+  currentLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
   },
 ) {
-  const wantedShrinkwrapPath = path.join(pkgPath, WANTED_LOCKFILE)
-  const currentShrinkwrapPath = path.join(pkgPath, CURRENT_LOCKFILE)
+  const wantedLockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
+  const currentLockfilePath = path.join(pkgPath, CURRENT_LOCKFILE)
 
-  // empty shrinkwrap is not saved
-  if (isEmptyShrinkwrap(wantedShrinkwrap)) {
+  // empty lockfile is not saved
+  if (isEmptyLockfile(wantedLockfile)) {
     return Promise.all([
-      rimraf(wantedShrinkwrapPath),
-      rimraf(currentShrinkwrapPath),
+      rimraf(wantedLockfilePath),
+      rimraf(currentLockfilePath),
     ])
   }
 
   const forceSharedFormat = opts && opts.forceSharedFormat === true || false
-  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap, forceSharedFormat), SHRINKWRAP_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(normalizeLockfile(wantedLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
-  // in most cases the `shrinkwrap.yaml` and `node_modules/.shrinkwrap.yaml` are equal
+  // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
-  if (wantedShrinkwrap === currentShrinkwrap) {
+  if (wantedLockfile === currentLockfile) {
     return Promise.all([
-      writeFileAtomic(wantedShrinkwrapPath, yamlDoc),
+      writeFileAtomic(wantedLockfilePath, yamlDoc),
       (async () => {
-        await mkdirp(path.dirname(currentShrinkwrapPath))
-        await writeFileAtomic(currentShrinkwrapPath, yamlDoc)
+        await mkdirp(path.dirname(currentLockfilePath))
+        await writeFileAtomic(currentLockfilePath, yamlDoc)
       })(),
     ])
   }
@@ -147,13 +147,13 @@ export default function writeLockfiles (
     prefix: pkgPath,
   })
 
-  const currentYamlDoc = yaml.safeDump(normalizeShrinkwrap(currentShrinkwrap, forceSharedFormat), SHRINKWRAP_YAML_FORMAT)
+  const currentYamlDoc = yaml.safeDump(normalizeLockfile(currentLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
   return Promise.all([
-    writeFileAtomic(wantedShrinkwrapPath, yamlDoc),
+    writeFileAtomic(wantedLockfilePath, yamlDoc),
     (async () => {
-      await mkdirp(path.dirname(currentShrinkwrapPath))
-      await writeFileAtomic(currentShrinkwrapPath, currentYamlDoc)
+      await mkdirp(path.dirname(currentLockfilePath))
+      await writeFileAtomic(currentLockfilePath, currentYamlDoc)
     })(),
   ])
 }

@@ -83,11 +83,11 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   t.notOk(pkgJson.dependencies, 'camelcase-keys has been removed from dependencies')
 
   // all dependencies are marked as dev
-  const shr = await project.loadShrinkwrap()
-  t.notOk(R.isEmpty(shr.packages))
+  const lockfile = await project.loadLockfile()
+  t.notOk(R.isEmpty(lockfile.packages))
 
   // tslint:disable-next-line:no-string-literal
-  R.toPairs(shr.packages).forEach((pair) => t.ok(pair[1]['dev'], `${pair[0]} is dev`))
+  R.toPairs(lockfile.packages).forEach((pair) => t.ok(pair[1]['dev'], `${pair[0]} is dev`))
 
   await storePrune(await testDefaults())
 

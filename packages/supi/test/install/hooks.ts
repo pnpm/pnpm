@@ -1,4 +1,4 @@
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import sinon = require('sinon')
@@ -35,9 +35,9 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
     return pkg
   }
 
-  const afterAllResolved = sinon.spy((shr: Shrinkwrap) => {
-    shr['foo'] = 'foo' // tslint:disable-line
-    return shr
+  const afterAllResolved = sinon.spy((lockfile: Lockfile) => {
+    lockfile['foo'] = 'foo' // tslint:disable-line
+    return lockfile
   })
 
   await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults({
@@ -51,8 +51,8 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   t.ok(afterAllResolved.calledOnce, 'afterAllResolved() called once')
   t.equal(afterAllResolved.getCall(0).args[0].lockfileVersion, 5)
 
-  const wantedShr = await project.loadShrinkwrap()
-  t.equal(wantedShr['foo'], 'foo', 'the shrinkwrap object has been updated by the hook') // tslint:disable-line:no-string-literal
+  const wantedLockfile = await project.loadLockfile()
+  t.equal(wantedLockfile['foo'], 'foo', 'the lockfile object has been updated by the hook') // tslint:disable-line:no-string-literal
 })
 
 test('readPackage hook overrides project package', async (t: tape.Test) => {

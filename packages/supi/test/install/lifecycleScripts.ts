@@ -36,7 +36,7 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
 
   await rimraf('node_modules')
 
-  // testing that the packages are not installed even though they are in shrinkwrap
+  // testing that the packages are not installed even though they are in lockfile
   // and that their scripts are not tried to be executed
 
   await install(await testDefaults({ production: true }))
@@ -49,8 +49,8 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is not available')
   }
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild, 'requiresBuild: true added to shrinkwrap')
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild, 'requiresBuild: true added to lockfile')
 })
 
 test('testing that the bins are linked when the package with the bins was already in node_modules', async (t: tape.Test) => {
@@ -273,6 +273,6 @@ test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
   t.equal(scripts[2], 'postinstall')
   t.equal(scripts[3], 'prepare')
 
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, `prepare field added to ${WANTED_LOCKFILE}`)
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, `prepare field added to ${WANTED_LOCKFILE}`)
 })

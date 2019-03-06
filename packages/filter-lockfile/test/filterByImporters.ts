@@ -3,7 +3,7 @@ import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import test = require('tape')
 
 test('filterByImporters(): only prod dependencies of one importer', (t) => {
-  const filteredShr = filterLockfileByImporters(
+  const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
         'project-1': {
@@ -73,7 +73,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
     },
   )
 
-  t.deepEqual(filteredShr, {
+  t.deepEqual(filteredLockfile, {
     importers: {
       'project-1': {
         dependencies: {
@@ -115,7 +115,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
   t.end()
 })
 
-// TODO: also fail when filterShrinkwrap() is used
+// TODO: also fail when filterLockfile() is used
 test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', (t) => {
   let err!: Error
   try {
@@ -169,7 +169,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
 })
 
 test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', (t) => {
-  const filteredShr = filterLockfileByImporters(
+  const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
         'project-1': {
@@ -211,7 +211,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
     },
   )
 
-  t.deepEqual(filteredShr, {
+  t.deepEqual(filteredLockfile, {
     importers: {
       'project-1': {
         dependencies: {
@@ -242,7 +242,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
 })
 
 test('filterByImporters(): do not include skipped packages', (t) => {
-  const filteredShr = filterLockfileByImporters(
+  const filteredLockfile = filterLockfileByImporters(
     {
       importers: {
         'project-1': {
@@ -312,7 +312,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
     },
   )
 
-  t.deepEqual(filteredShr, {
+  t.deepEqual(filteredLockfile, {
     importers: {
       'project-1': {
         dependencies: {

@@ -1,9 +1,9 @@
-import { SHRINKWRAP_VERSION } from '@pnpm/constants'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import {
+  Lockfile,
+  LockfileImporter,
   PackageSnapshots,
   ResolvedDependencies,
-  Shrinkwrap,
-  ShrinkwrapImporter,
 } from '@pnpm/lockfile-types'
 import { PackageJson } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
@@ -12,99 +12,99 @@ import R = require('ramda')
 export * from '@pnpm/lockfile-types'
 
 export function pruneSharedLockfile (
-  shr: Shrinkwrap,
+  lockfile: Lockfile,
   opts: {
     defaultRegistry: string,
     warn?: (msg: string) => void,
   },
 ) {
-  const copiedPackages = !shr.packages ? {} : copyPackageSnapshots(shr.packages, {
-    devRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
-    optionalRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
-    prodRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
+  const copiedPackages = !lockfile.packages ? {} : copyPackageSnapshots(lockfile.packages, {
+    devRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
+    optionalRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
+    prodRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
     registry: opts.defaultRegistry,
     warn: opts.warn || ((msg: string) => undefined),
   })
 
-  const prunnedShr = {
-    ...shr,
+  const prunnedLockfile = {
+    ...lockfile,
     packages: copiedPackages,
   }
-  if (R.isEmpty(prunnedShr.packages)) {
-    delete prunnedShr.packages
+  if (R.isEmpty(prunnedLockfile.packages)) {
+    delete prunnedLockfile.packages
   }
-  return prunnedShr
+  return prunnedLockfile
 }
 
 export function pruneLockfile (
-  shr: Shrinkwrap,
+  lockfile: Lockfile,
   pkg: PackageJson,
   importerId: string,
   opts: {
     defaultRegistry: string,
     warn?: (msg: string) => void,
   },
-): Shrinkwrap {
+): Lockfile {
   const packages: PackageSnapshots = {}
-  const importer = shr.importers[importerId]
-  const shrSpecs: ResolvedDependencies = importer.specifiers || {}
+  const importer = lockfile.importers[importerId]
+  const lockfileSpecs: ResolvedDependencies = importer.specifiers || {}
   const optionalDependencies = R.keys(pkg.optionalDependencies)
   const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
   const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
   const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
   const specifiers: ResolvedDependencies = {}
-  const shrDependencies: ResolvedDependencies = {}
-  const shrOptionalDependencies: ResolvedDependencies = {}
-  const shrDevDependencies: ResolvedDependencies = {}
+  const lockfileDependencies: ResolvedDependencies = {}
+  const lockfileOptionalDependencies: ResolvedDependencies = {}
+  const lockfileDevDependencies: ResolvedDependencies = {}
 
-  Object.keys(shrSpecs).forEach((depName) => {
+  Object.keys(lockfileSpecs).forEach((depName) => {
     if (allDeps.indexOf(depName) === -1) return
-    specifiers[depName] = shrSpecs[depName]
+    specifiers[depName] = lockfileSpecs[depName]
     if (importer.dependencies && importer.dependencies[depName]) {
-      shrDependencies[depName] = importer.dependencies[depName]
+      lockfileDependencies[depName] = importer.dependencies[depName]
     } else if (importer.optionalDependencies && importer.optionalDependencies[depName]) {
-      shrOptionalDependencies[depName] = importer.optionalDependencies[depName]
+      lockfileOptionalDependencies[depName] = importer.optionalDependencies[depName]
     } else if (importer.devDependencies && importer.devDependencies[depName]) {
-      shrDevDependencies[depName] = importer.devDependencies[depName]
+      lockfileDevDependencies[depName] = importer.devDependencies[depName]
     }
   })
   if (importer.dependencies) {
     for (const dep of R.keys(importer.dependencies)) {
       if (
-        !shrDependencies[dep] && importer.dependencies[dep].startsWith('link:') &&
+        !lockfileDependencies[dep] && importer.dependencies[dep].startsWith('link:') &&
         // If the linked dependency was removed from package.json
         // then it is removed from pnpm-lock.yaml as well
-        !(shrSpecs[dep] && !allDeps[dep])
+        !(lockfileSpecs[dep] && !allDeps[dep])
       ) {
-        shrDependencies[dep] = importer.dependencies[dep]
+        lockfileDependencies[dep] = importer.dependencies[dep]
       }
     }
   }
 
-  const updatedImporter: ShrinkwrapImporter = {
+  const updatedImporter: LockfileImporter = {
     specifiers,
   }
-  const prunnedShrinkwrap: Shrinkwrap = {
+  const prunnedLockfile: Lockfile = {
     importers: {
-      ...shr.importers,
+      ...lockfile.importers,
       [importerId]: updatedImporter,
     },
-    lockfileVersion: shr.lockfileVersion || SHRINKWRAP_VERSION,
-    packages: shr.packages,
+    lockfileVersion: lockfile.lockfileVersion || LOCKFILE_VERSION,
+    packages: lockfile.packages,
   }
   if (!R.isEmpty(packages)) {
-    prunnedShrinkwrap.packages = packages
+    prunnedLockfile.packages = packages
   }
-  if (!R.isEmpty(shrDependencies)) {
-    updatedImporter.dependencies = shrDependencies
+  if (!R.isEmpty(lockfileDependencies)) {
+    updatedImporter.dependencies = lockfileDependencies
   }
-  if (!R.isEmpty(shrOptionalDependencies)) {
-    updatedImporter.optionalDependencies = shrOptionalDependencies
+  if (!R.isEmpty(lockfileOptionalDependencies)) {
+    updatedImporter.optionalDependencies = lockfileOptionalDependencies
   }
-  if (!R.isEmpty(shrDevDependencies)) {
-    updatedImporter.devDependencies = shrDevDependencies
+  if (!R.isEmpty(lockfileDevDependencies)) {
+    updatedImporter.devDependencies = lockfileDevDependencies
   }
-  return pruneSharedLockfile(prunnedShrinkwrap, opts)
+  return pruneSharedLockfile(prunnedLockfile, opts)
 }
 
 function copyPackageSnapshots (
@@ -184,38 +184,38 @@ function copyDependencySubGraph (
     if (walked.has(depRalativePath)) continue
     walked.add(depRalativePath)
     if (!originalPackages[depRalativePath]) {
-      // local dependencies don't need to be resolved in shrinkwrap.yaml
+      // local dependencies don't need to be resolved in pnpm-lock.yaml
       // except local tarball dependencies
       if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
 
-      // NOTE: Warnings should not be printed for the current shrinkwrap file (node_modules/.shrinkwrap.yaml).
-      // The current shrinkwrap file does not contain the skipped packages, so it may have missing resolutions
-      warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
+      // NOTE: Warnings should not be printed for the current lockfile (node_modules/.lockfile.yaml).
+      // The current lockfile does not contain the skipped packages, so it may have missing resolutions
+      warn(`Cannot find resolution of ${depRalativePath} in lockfile`)
       continue
     }
-    const depShr = originalPackages[depRalativePath]
-    copiedSnapshots[depRalativePath] = depShr
+    const depLockfile = originalPackages[depRalativePath]
+    copiedSnapshots[depRalativePath] = depLockfile
     if (opts.optional && !opts.nonOptional.has(depRalativePath)) {
-      depShr.optional = true
+      depLockfile.optional = true
     } else {
       opts.nonOptional.add(depRalativePath)
-      delete depShr.optional
+      delete depLockfile.optional
     }
     if (opts.dev) {
       opts.notProdOnly.add(depRalativePath)
-      depShr.dev = true
-    } else if (depShr.dev === true) { // keeping if dev is explicitly false
-      delete depShr.dev
-    } else if (depShr.dev === undefined && !opts.notProdOnly.has(depRalativePath)) {
-      depShr.dev = false
+      depLockfile.dev = true
+    } else if (depLockfile.dev === true) { // keeping if dev is explicitly false
+      delete depLockfile.dev
+    } else if (depLockfile.dev === undefined && !opts.notProdOnly.has(depRalativePath)) {
+      depLockfile.dev = false
     }
-    const newDependencies = R.keys(depShr.dependencies)
-      .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
+    const newDependencies = R.keys(depLockfile.dependencies)
+      .map((pkgName: string) => refToRelative((depLockfile.dependencies && depLockfile.dependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
     copyDependencySubGraph(copiedSnapshots, newDependencies, originalPackages, walked, warn, opts)
     if (!opts.walkOptionals) continue
-    const newOptionalDependencies = R.keys(depShr.optionalDependencies)
-      .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
+    const newOptionalDependencies = R.keys(depLockfile.optionalDependencies)
+      .map((pkgName: string) => refToRelative((depLockfile.optionalDependencies && depLockfile.optionalDependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
     copyDependencySubGraph(copiedSnapshots, newOptionalDependencies, originalPackages, walked, warn, { ...opts, optional: true })
   }

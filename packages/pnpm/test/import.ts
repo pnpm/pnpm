@@ -23,9 +23,9 @@ test('import from package-lock.json', async (t: tape.Test) => {
   await execPnpm('import')
 
   const project = assertProject(t, process.cwd())
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
   await project.hasNot('dep-of-pkg-with-1-dep')
@@ -41,9 +41,9 @@ test('import from npm-shrinkwrap.json', async (t: tape.Test) => {
   await execPnpm('import')
 
   const project = assertProject(t, process.cwd())
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+  const lockfile = await project.loadLockfile()
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+  t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 
   // node_modules is not created
   await project.hasNot('dep-of-pkg-with-1-dep')

@@ -33,8 +33,8 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
   {
-    const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.devDependencies['is-positive'], 'link:../is-positive')
+    const project1Lockfile = await projects['project-1'].loadLockfile()
+    t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
   await execPnpm('recursive', 'unlink')
@@ -43,14 +43,14 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
   t.ok(await exists('node_modules', 'is-positive', 'index.js'), 'local package is unlinked')
 
   {
-    const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
-    t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
-    t.ok(project1Shr.packages['/is-positive/1.0.0'])
+    const project1Lockfile = await projects['project-1'].loadLockfile()
+    t.equal(project1Lockfile.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+    t.equal(project1Lockfile.devDependencies['is-positive'], '1.0.0')
+    t.ok(project1Lockfile.packages['/is-positive/1.0.0'])
   }
 
-  const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+  const isPositiveLockfile = await projects['is-positive'].loadLockfile()
+  t.equal(isPositiveLockfile.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })
 
 test('recursive unlink specific package', async (t: tape.Test) => {
@@ -79,8 +79,8 @@ test('recursive unlink specific package', async (t: tape.Test) => {
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
   {
-    const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.devDependencies['is-positive'], 'link:../is-positive')
+    const project1Lockfile = await projects['project-1'].loadLockfile()
+    t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
   await execPnpm('recursive', 'unlink', 'is-positive')
@@ -89,12 +89,12 @@ test('recursive unlink specific package', async (t: tape.Test) => {
   t.ok(await exists('node_modules', 'is-positive', 'index.js'), 'local package is unlinked')
 
   {
-    const project1Shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(project1Shr.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
-    t.equal(project1Shr.devDependencies['is-positive'], '1.0.0')
-    t.ok(project1Shr.packages['/is-positive/1.0.0'])
+    const project1Lockfile = await projects['project-1'].loadLockfile()
+    t.equal(project1Lockfile.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+    t.equal(project1Lockfile.devDependencies['is-positive'], '1.0.0')
+    t.ok(project1Lockfile.packages['/is-positive/1.0.0'])
   }
 
-  const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
-  t.equal(isPositiveShr.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+  const isPositiveLockfile = await projects['is-positive'].loadLockfile()
+  t.equal(isPositiveLockfile.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })

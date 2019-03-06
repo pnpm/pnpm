@@ -4,9 +4,9 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import {
+  Lockfile,
   PackageSnapshot,
   ResolvedDependencies,
-  Shrinkwrap,
 } from '@pnpm/lockfile-types'
 import {
   nameVerFromPkgSnapshot,
@@ -113,8 +113,8 @@ export interface ResolutionContext {
   linkedDependencies: LinkedDependency[],
   childrenByParentId: ChildrenByParentId,
   pendingNodes: PendingNode[],
-  wantedShrinkwrap: Shrinkwrap,
-  currentShrinkwrap: Shrinkwrap,
+  wantedLockfile: Lockfile,
+  currentLockfile: Lockfile,
   lockfileDirectory: string,
   storeController: StoreController,
   // the IDs of packages that are not installable
@@ -197,7 +197,7 @@ export default async function resolveDependencies (
     preferedDependencies?: ResolvedDependencies,
     parentIsInstallable?: boolean,
     readPackageHook?: ReadPackageHook,
-    hasManifestInShrinkwrap: boolean,
+    hasManifestInLockfile: boolean,
     sideEffectsCache: boolean,
     shamefullyFlatten?: boolean,
     localPackages?: LocalPackages,
@@ -223,7 +223,7 @@ export default async function resolveDependencies (
       preferedSatisfiesWanted(
         preferedDependencies[wantedDependency.alias],
         wantedDependency as {alias: string, pref: string},
-        ctx.wantedShrinkwrap,
+        ctx.wantedLockfile,
         {
           prefix: ctx.prefix,
         },
@@ -232,17 +232,17 @@ export default async function resolveDependencies (
       proceed = true
       reference = preferedDependencies[wantedDependency.alias]
     }
-    const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, ctx.registries, reference, wantedDependency.alias)
+    const infoFromLockfile = getInfoFromLockfile(ctx.wantedLockfile, ctx.registries, reference, wantedDependency.alias)
     if (
-      infoFromShrinkwrap &&
-      infoFromShrinkwrap.dependencyShrinkwrap &&
-      infoFromShrinkwrap.dependencyShrinkwrap.peerDependencies &&
-      Object.keys(infoFromShrinkwrap.dependencyShrinkwrap.peerDependencies).length
+      infoFromLockfile &&
+      infoFromLockfile.dependencyLockfile &&
+      infoFromLockfile.dependencyLockfile.peerDependencies &&
+      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).length
     ) {
       proceedAll = true
     }
     extendedWantedDeps.push({
-      infoFromShrinkwrap,
+      infoFromLockfile,
       proceed,
       reference,
       wantedDependency,
@@ -250,7 +250,7 @@ export default async function resolveDependencies (
   }
   const resolveDepOpts = {
     currentDepth: options.currentDepth,
-    hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
+    hasManifestInLockfile: options.hasManifestInLockfile,
     keypath: options.keypath,
     localPackages: options.localPackages,
     parentDependsOnPeer: options.parentDependsOnPeers,
@@ -267,7 +267,7 @@ export default async function resolveDependencies (
         .map(async (extendedWantedDep) => {
           return resolveDependency(extendedWantedDep.wantedDependency, ctx, {
             ...resolveDepOpts,
-            ...extendedWantedDep.infoFromShrinkwrap,
+            ...extendedWantedDep.infoFromLockfile,
             proceed: extendedWantedDep.proceed || proceedAll,
           })
         }),
@@ -281,17 +281,17 @@ export default async function resolveDependencies (
 function preferedSatisfiesWanted (
   preferredRef: string,
   wantedDep: {alias: string, pref: string},
-  shr: Shrinkwrap,
+  lockfile: Lockfile,
   opts: {
     prefix: string,
   },
 ) {
   const relDepPath = dp.refToRelative(preferredRef, wantedDep.alias)
   if (relDepPath === null) return false
-  const pkgSnapshot = shr.packages && shr.packages[relDepPath]
+  const pkgSnapshot = lockfile.packages && lockfile.packages[relDepPath]
   if (!pkgSnapshot) {
     logger.warn({
-      message: `Could not find preferred package ${relDepPath} in shrinkwrap`,
+      message: `Could not find preferred package ${relDepPath} in lockfile`,
       prefix: opts.prefix,
     })
     return false
@@ -300,8 +300,8 @@ function preferedSatisfiesWanted (
   return semver.satisfies(nameVer.version, wantedDep.pref, true)
 }
 
-function getInfoFromShrinkwrap (
-  shrinkwrap: Shrinkwrap,
+function getInfoFromLockfile (
+  lockfile: Lockfile,
   registries: Registries,
   reference: string | undefined,
   pkgName: string | undefined,
@@ -316,21 +316,21 @@ function getInfoFromShrinkwrap (
     return null
   }
 
-  const dependencyShrinkwrap = shrinkwrap.packages && shrinkwrap.packages[relDepPath]
+  const dependencyLockfile = lockfile.packages && lockfile.packages[relDepPath]
 
-  if (dependencyShrinkwrap) {
+  if (dependencyLockfile) {
     const depPath = dp.resolve(registries, relDepPath)
     return {
-      dependencyShrinkwrap,
+      dependencyLockfile,
       depPath,
-      optionalDependencyNames: R.keys(dependencyShrinkwrap.optionalDependencies),
-      pkgId: packageIdFromSnapshot(relDepPath, dependencyShrinkwrap, registries),
+      lockfileResolution: pkgSnapshotToResolution(relDepPath, dependencyLockfile, registries),
+      optionalDependencyNames: R.keys(dependencyLockfile.optionalDependencies),
+      pkgId: packageIdFromSnapshot(relDepPath, dependencyLockfile, registries),
       relDepPath,
       resolvedDependencies: {
-        ...dependencyShrinkwrap.dependencies,
-        ...dependencyShrinkwrap.optionalDependencies,
+        ...dependencyLockfile.dependencies,
+        ...dependencyLockfile.optionalDependencies,
       },
-      shrinkwrapResolution: pkgSnapshotToResolution(relDepPath, dependencyShrinkwrap, registries),
     }
   } else {
     return {
@@ -351,15 +351,15 @@ async function resolveDependency (
     parentDependsOnPeer: boolean,
     parentNodeId: string,
     currentDepth: number,
-    dependencyShrinkwrap?: PackageSnapshot,
-    shrinkwrapResolution?: Resolution,
+    dependencyLockfile?: PackageSnapshot,
+    lockfileResolution?: Resolution,
     resolvedDependencies?: ResolvedDependencies,
     optionalDependencyNames?: string[],
     parentIsInstallable?: boolean,
     update: boolean,
     proceed: boolean,
     readPackageHook?: ReadPackageHook,
-    hasManifestInShrinkwrap: boolean,
+    hasManifestInLockfile: boolean,
     sideEffectsCache: boolean,
     shamefullyFlatten?: boolean,
     localPackages?: LocalPackages,
@@ -370,14 +370,14 @@ async function resolveDependency (
     options.update ||
     options.localPackages &&
     wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
-  const proceed = update || options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.updateDepth
-    || options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies
+  const proceed = update || options.proceed || !options.lockfileResolution || ctx.force || keypath.length <= ctx.updateDepth
+    || options.dependencyLockfile && options.dependencyLockfile.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   if (!options.shamefullyFlatten && !proceed && options.depPath &&
-    // if package is not in `node_modules/.shrinkwrap.yaml`
+    // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
-    options.relDepPath && ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] &&
+    options.relDepPath && ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath] &&
     await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}`)) && (
       options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))
     )) {
@@ -403,13 +403,13 @@ async function resolveDependency (
       downloadPriority: -options.currentDepth,
       localPackages: options.localPackages,
       lockfileDirectory: ctx.lockfileDirectory,
+      lockfileResolution: options.lockfileResolution,
       loggedPkg,
       preferredVersions: ctx.preferredVersions,
       prefix: ctx.prefix,
       registry,
-      shrinkwrapResolution: options.shrinkwrapResolution,
       sideEffectsCache: options.sideEffectsCache,
-      // Unfortunately, even when run with --shrinkwrap-only, we need the *real* package.json
+      // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
       update,
@@ -436,7 +436,7 @@ async function resolveDependency (
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
   if (!options.parentDependsOnPeer && !pkgResponse.body.updated && options.update && options.currentDepth >= ctx.updateDepth && options.relDepPath &&
-    ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] && !ctx.force) {
+    ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath] && !ctx.force) {
     return null
   }
 
@@ -470,17 +470,17 @@ async function resolveDependency (
   }
 
   let pkg: PackageManifest
-  let useManifestInfoFromShrinkwrap = false
+  let useManifestInfoFromLockfile = false
   let prepare!: boolean
   let hasBin!: boolean
-  if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath
+  if (options.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath
     && !pkgResponse.body.updated) {
-    useManifestInfoFromShrinkwrap = true
-    prepare = options.dependencyShrinkwrap.prepare === true
-    hasBin = options.dependencyShrinkwrap.hasBin === true
+    useManifestInfoFromLockfile = true
+    prepare = options.dependencyLockfile.prepare === true
+    hasBin = options.dependencyLockfile.hasBin === true
     pkg = Object.assign(
-      nameVerFromPkgSnapshot(options.relDepPath, options.dependencyShrinkwrap),
-      options.dependencyShrinkwrap,
+      nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile),
+      options.dependencyLockfile,
     )
     if (pkg.peerDependencies) {
       const deps = pkg.dependencies || {}
@@ -499,8 +499,8 @@ async function resolveDependency (
         : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
 
       prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
-      if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkgResponse.body.updated && !pkg.deprecated) {
-        pkg.deprecated = options.dependencyShrinkwrap.deprecated
+      if (options.dependencyLockfile && options.dependencyLockfile.deprecated && !pkgResponse.body.updated && !pkg.deprecated) {
+        pkg.deprecated = options.dependencyLockfile.deprecated
       }
       hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
     } catch (err) {
@@ -602,7 +602,7 @@ async function resolveDependency (
       peerDependencies: peerDependencies || {},
       prepare,
       prod: !wantedDependency.dev && !wantedDependency.optional,
-      requiresBuild: options.dependencyShrinkwrap && Boolean(options.dependencyShrinkwrap.requiresBuild),
+      requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),
       resolution: pkgResponse.body.resolution,
       specRaw: wantedDependency.raw,
       version: pkg.version,
@@ -612,11 +612,11 @@ async function resolveDependency (
       ctx,
       {
         currentDepth: options.currentDepth + 1,
-        hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
+        hasManifestInLockfile: options.hasManifestInLockfile,
         keypath: options.keypath.concat([ pkgResponse.body.id ]),
         optionalDependencyNames: options.optionalDependencyNames,
         parentDependsOnPeers: Boolean(
-          Object.keys(options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies || pkg.peerDependencies || {}).length,
+          Object.keys(options.dependencyLockfile && options.dependencyLockfile.peerDependencies || pkg.peerDependencies || {}).length,
         ),
         parentIsInstallable: installable,
         parentNodeId: nodeId,
@@ -629,7 +629,7 @@ async function resolveDependency (
           : options.resolvedDependencies,
         shamefullyFlatten: options.shamefullyFlatten,
         sideEffectsCache: options.sideEffectsCache,
-        useManifestInfoFromShrinkwrap,
+        useManifestInfoFromLockfile,
       },
     )
     ctx.childrenByParentId[pkgResponse.body.id] = children.map((child) => ({
@@ -710,15 +710,15 @@ async function resolveDependenciesOfPackage (
     parentDependsOnPeers: boolean,
     parentIsInstallable: boolean,
     readPackageHook?: ReadPackageHook,
-    hasManifestInShrinkwrap: boolean,
-    useManifestInfoFromShrinkwrap: boolean,
+    hasManifestInLockfile: boolean,
+    useManifestInfoFromLockfile: boolean,
     sideEffectsCache: boolean,
     shamefullyFlatten?: boolean,
   },
 ): Promise<PkgAddress[]> {
 
   let deps = getNonDevWantedDependencies(pkg)
-  if (opts.hasManifestInShrinkwrap && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromShrinkwrap) {
+  if (opts.hasManifestInLockfile && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromLockfile) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
     deps = Object.keys(opts.resolvedDependencies)
       .map((depName) => ({

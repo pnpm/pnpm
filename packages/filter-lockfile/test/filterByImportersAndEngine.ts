@@ -3,7 +3,7 @@ import test = require('tape')
 
 test('filterByImportersAndEngine(): skip packages that are not installable', (t) => {
   const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
-  const filteredShrinkwrap = filterLockfileByImportersAndEngine(
+  const filteredLockfile = filterLockfileByImportersAndEngine(
     {
       importers: {
         'project-1': {
@@ -100,7 +100,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
     },
   )
 
-  t.deepEqual(filteredShrinkwrap, {
+  t.deepEqual(filteredLockfile, {
     importers: {
       'project-1': {
         dependencies: {

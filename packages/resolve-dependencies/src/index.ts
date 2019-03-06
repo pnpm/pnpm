@@ -1,4 +1,4 @@
-import { Shrinkwrap } from '@pnpm/lockfile-types'
+import { Lockfile } from '@pnpm/lockfile-types'
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
@@ -20,7 +20,7 @@ import resolveDependencies, {
 export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
 export interface Importer {
-  usesExternalShrinkwrap: boolean,
+  usesExternalLockfile: boolean,
   id: string,
   modulesDir: string,
   nonLinkedPackages: WantedDependency[],
@@ -31,7 +31,7 @@ export interface Importer {
 
 export default async function (
   opts: {
-    currentShrinkwrap: Shrinkwrap,
+    currentLockfile: Lockfile,
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
@@ -54,9 +54,9 @@ export default async function (
     tag: string,
     verifyStoreIntegrity: boolean,
     virtualStoreDir: string,
-    wantedShrinkwrap: Shrinkwrap,
+    wantedLockfile: Lockfile,
     updateDepth?: number,
-    hasManifestInShrinkwrap: boolean,
+    hasManifestInLockfile: boolean,
     localPackages: LocalPackages,
   },
 ) {
@@ -66,7 +66,7 @@ export default async function (
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
     childrenByParentId: {} as ChildrenByParentId,
-    currentShrinkwrap: opts.currentShrinkwrap,
+    currentLockfile: opts.currentLockfile,
     defaultTag: opts.tag,
     dependenciesTree: {} as DependenciesTree,
     dryRun: opts.dryRun,
@@ -84,11 +84,11 @@ export default async function (
     updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
     virtualStoreDir: opts.virtualStoreDir,
-    wantedShrinkwrap: opts.wantedShrinkwrap,
+    wantedLockfile: opts.wantedLockfile,
   }
 
   await Promise.all(opts.importers.map(async (importer) => {
-    const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
+    const lockfileImporter = opts.wantedLockfile.importers[importer.id]
     const linkedDependencies = [] as LinkedDependency[]
     const resolveCtx = {
       ...ctx,
@@ -99,16 +99,16 @@ export default async function (
     }
     const resolveOpts = {
       currentDepth: 0,
-      hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
+      hasManifestInLockfile: opts.hasManifestInLockfile,
       keypath: [],
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,
       parentNodeId: ROOT_NODE_ID,
       readPackageHook: opts.hooks.readPackage,
       resolvedDependencies: {
-        ...shrImporter.dependencies,
-        ...shrImporter.devDependencies,
-        ...shrImporter.optionalDependencies,
+        ...lockfileImporter.dependencies,
+        ...lockfileImporter.devDependencies,
+        ...lockfileImporter.optionalDependencies,
       },
       shamefullyFlatten: importer.shamefullyFlatten,
       sideEffectsCache: opts.sideEffectsCache,
@@ -120,8 +120,8 @@ export default async function (
     )
     // TODO: in a new major version of pnpm (maybe 3)
     // all dependencies should be resolved for all projects
-    // even for those that don't use external shrinkwraps
-    if (!importer.usesExternalShrinkwrap || !importer.pkg) {
+    // even for those that don't use external lockfiles
+    if (!importer.usesExternalLockfile || !importer.pkg) {
       directNonLinkedDepsByImporterId[importer.id] = newDirectDeps
     } else {
       directNonLinkedDepsByImporterId[importer.id] = [

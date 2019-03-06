@@ -1,9 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
+  Lockfile,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
   PackageSnapshots,
-  Shrinkwrap,
 } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
@@ -13,8 +13,8 @@ import * as dp from 'dependency-path'
 import path = require('path')
 import R = require('ramda')
 
-export async function shamefullyFlattenByShrinkwrap (
-  shr: Shrinkwrap,
+export async function shamefullyFlattenByLockfile (
+  lockfile: Lockfile,
   importerId: string,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
@@ -24,26 +24,26 @@ export async function shamefullyFlattenByShrinkwrap (
     virtualStoreDir: string,
   },
 ) {
-  if (!shr.packages) return {}
+  if (!lockfile.packages) return {}
 
-  const shrImporter = shr.importers[importerId]
+  const lockfileImporter = lockfile.importers[importerId]
 
   const entryNodes = R.toPairs({
-    ...shrImporter.devDependencies,
-    ...shrImporter.dependencies,
-    ...shrImporter.optionalDependencies,
+    ...lockfileImporter.devDependencies,
+    ...lockfileImporter.dependencies,
+    ...lockfileImporter.optionalDependencies,
   })
   .map((pair) => dp.refToRelative(pair[1], pair[0]))
   .filter((nodeId) => nodeId !== null) as string[]
 
-  const deps = await getDependencies(shr.packages, entryNodes, new Set(), 0, {
+  const deps = await getDependencies(lockfile.packages, entryNodes, new Set(), 0, {
     getIndependentPackageLocation: opts.getIndependentPackageLocation,
     lockfileDirectory: opts.lockfileDirectory,
     registries: opts.registries,
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  return shamefullyFlattenGraph(deps, shrImporter.specifiers, {
+  return shamefullyFlattenGraph(deps, lockfileImporter.specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
   })

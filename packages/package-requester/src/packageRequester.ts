@@ -101,7 +101,7 @@ async function resolveAndFetch (
     prefix: string,
     registry: string,
     lockfileDirectory: string,
-    shrinkwrapResolution?: Resolution,
+    lockfileResolution?: Resolution,
     update?: boolean,
     verifyStoreIntegrity: boolean,
     preferredVersions: {
@@ -119,7 +119,7 @@ async function resolveAndFetch (
     let latest: string | undefined
     let pkg: PackageJson | undefined
     let normalizedPref: string | undefined
-    let resolution = options.shrinkwrapResolution as Resolution
+    let resolution = options.lockfileResolution as Resolution
     let pkgId = options.currentPkgId
     const skipResolution = resolution && !options.update
     let forceFetch = false
@@ -127,7 +127,7 @@ async function resolveAndFetch (
     let resolvedVia: string | undefined
 
     // When fetching is skipped, resolution cannot be skipped.
-    // We need the package's manifest when doing `shrinkwrap-only` installs.
+    // We need the package's manifest when doing `lockfile-only` installs.
     // When we don't fetch, the only way to get the package's manifest is via resolving it.
     //
     // The resolution step is never skipped for local dependencies.
@@ -148,14 +148,14 @@ async function resolveAndFetch (
       // If the integrity of a local tarball dependency has changed,
       // the local tarball should be unpacked, so a fetch to the store should be forced
       forceFetch = Boolean(
-        options.shrinkwrapResolution &&
+        options.lockfileResolution &&
         pkgId && pkgId.startsWith('file:') &&
-        options.shrinkwrapResolution['integrity'] !== resolveResult.resolution['integrity'], // tslint:disable-line:no-string-literal
+        options.lockfileResolution['integrity'] !== resolveResult.resolution['integrity'], // tslint:disable-line:no-string-literal
       )
 
       if (!skipResolution || forceFetch) {
         updated = pkgId !== resolveResult.id || !resolution || forceFetch
-        // Keep the shrinkwrap resolution when possible
+        // Keep the lockfile resolution when possible
         // to keep the original shasum.
         if (updated) {
           resolution = resolveResult.resolution

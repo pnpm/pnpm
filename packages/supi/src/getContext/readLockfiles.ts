@@ -1,82 +1,82 @@
 import {
-  SHRINKWRAP_VERSION,
+  LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   createLockfileObject,
   existsWantedLockfile,
+  Lockfile,
   readCurrentLockfile,
   readWantedLockfile,
-  Shrinkwrap,
 } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import isCI = require('is-ci')
 import R = require('ramda')
 
 export interface PnpmContext {
-  currentShrinkwrap: Shrinkwrap,
-  existsCurrentShrinkwrap: boolean,
-  existsWantedShrinkwrap: boolean,
-  wantedShrinkwrap: Shrinkwrap,
+  currentLockfile: Lockfile,
+  existsCurrentLockfile: boolean,
+  existsWantedLockfile: boolean,
+  wantedLockfile: Lockfile,
 }
 
 export default async function (
   opts: {
     force: boolean,
-    forceSharedShrinkwrap: boolean,
+    forceSharedLockfile: boolean,
+    lockfile: boolean,
     lockfileDirectory: string,
     registry: string,
-    shrinkwrap: boolean,
     importers: Array<{
       id: string,
       prefix: string,
     }>,
   },
 ): Promise<{
-  currentShrinkwrap: Shrinkwrap,
-  existsCurrentShrinkwrap: boolean,
-  existsWantedShrinkwrap: boolean,
-  wantedShrinkwrap: Shrinkwrap,
+  currentLockfile: Lockfile,
+  existsCurrentLockfile: boolean,
+  existsWantedLockfile: boolean,
+  wantedLockfile: Lockfile,
 }> {
-  // ignore `shrinkwrap.yaml` on CI servers
+  // ignore `pnpm-lock.yaml` on CI servers
   // a latest pnpm should not break all the builds
-  const shrOpts = {
+  const lockfileOpts = {
     ignoreIncompatible: opts.force || isCI,
-    wantedVersion: SHRINKWRAP_VERSION,
+    wantedVersion: LOCKFILE_VERSION,
   }
-  const files = await Promise.all<Shrinkwrap | null | void>([
-    opts.shrinkwrap && readWantedLockfile(opts.lockfileDirectory, shrOpts)
+  const files = await Promise.all<Lockfile | null | void>([
+    opts.lockfile && readWantedLockfile(opts.lockfileDirectory, lockfileOpts)
       || await existsWantedLockfile(opts.lockfileDirectory) &&
         logger.warn({
-          message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
+          message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
           prefix: opts.lockfileDirectory,
         }),
-    readCurrentLockfile(opts.lockfileDirectory, shrOpts),
+    readCurrentLockfile(opts.lockfileDirectory, lockfileOpts),
   ])
-  const sopts = { lockfileVersion: SHRINKWRAP_VERSION }
+  const sopts = { lockfileVersion: LOCKFILE_VERSION }
   const importerIds = opts.importers.map((importer) => importer.id)
-  const currentShrinkwrap = files[1] || createLockfileObject(importerIds, sopts)
+  const currentLockfile = files[1] || createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
-    if (!currentShrinkwrap.importers[importerId]) {
-      currentShrinkwrap.importers[importerId] = {
+    if (!currentLockfile.importers[importerId]) {
+      currentLockfile.importers[importerId] = {
         specifiers: {},
       }
     }
   }
-  const wantedShrinkwrap = files[0] ||
-    currentShrinkwrap && R.clone(currentShrinkwrap) ||
+  const wantedLockfile = files[0] ||
+    currentLockfile && R.clone(currentLockfile) ||
     createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
-    if (!wantedShrinkwrap.importers[importerId]) {
-      wantedShrinkwrap.importers[importerId] = {
+    if (!wantedLockfile.importers[importerId]) {
+      wantedLockfile.importers[importerId] = {
         specifiers: {},
       }
     }
   }
   return {
-    currentShrinkwrap,
-    existsCurrentShrinkwrap: !!files[1],
-    existsWantedShrinkwrap: !!files[0],
-    wantedShrinkwrap,
+    currentLockfile,
+    existsCurrentLockfile: !!files[1],
+    existsWantedLockfile: !!files[0],
+    wantedLockfile,
   }
 }

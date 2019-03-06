@@ -944,7 +944,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
 })
 
 // this test may be redundant
-test('keep shrinkwrapMinorVersion, if present', t => {
+test('keep lockfileMinorVersion, if present', t => {
   t.deepEqual(pruneLockfile({
     importers: {
       '.': {

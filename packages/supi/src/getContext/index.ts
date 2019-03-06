@@ -1,5 +1,5 @@
 import { packageJsonLogger } from '@pnpm/core-loggers'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import {
   IncludedDependencies,
@@ -19,12 +19,12 @@ import mkdirp = require('mkdirp-promise')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
 import checkCompatibility from './checkCompatibility'
-import readShrinkwrapFile from './readLockfiles'
+import readLockfileFile from './readLockfiles'
 
 export interface PnpmContext<T> {
-  currentShrinkwrap: Shrinkwrap,
-  existsCurrentShrinkwrap: boolean,
-  existsWantedShrinkwrap: boolean,
+  currentLockfile: Lockfile,
+  existsCurrentLockfile: boolean,
+  existsWantedLockfile: boolean,
   importers: Array<{
     bin: string,
     hoistedAliases: {[depPath: string]: string[]}
@@ -41,7 +41,7 @@ export interface PnpmContext<T> {
   virtualStoreDir: string,
   skipped: Set<string>,
   storePath: string,
-  wantedShrinkwrap: Shrinkwrap,
+  wantedLockfile: Lockfile,
   registries: Registries,
 }
 
@@ -55,7 +55,7 @@ export default async function getContext<T> (
   importers: (ImportersOptions & T)[],
   opts: {
     force: boolean,
-    forceSharedShrinkwrap: boolean,
+    forceSharedLockfile: boolean,
     lockfileDirectory: string,
     hooks?: {
       readPackage?: ReadPackageHook,
@@ -64,7 +64,7 @@ export default async function getContext<T> (
     independentLeaves: boolean,
     registries: Registries,
     shamefullyFlatten: boolean,
-    shrinkwrap: boolean,
+    lockfile: boolean,
     store: string,
   },
 ): Promise<PnpmContext<T>> {
@@ -117,13 +117,13 @@ export default async function getContext<T> (
     skipped: manifests.skipped,
     storePath: opts.store,
     virtualStoreDir: manifests.virtualStoreDir,
-    ...await readShrinkwrapFile({
+    ...await readLockfileFile({
       force: opts.force,
-      forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
+      forceSharedLockfile: opts.forceSharedLockfile,
       importers: manifests.importers,
+      lockfile: opts.lockfile,
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
-      shrinkwrap: opts.shrinkwrap,
     }),
   }
 
@@ -156,7 +156,7 @@ async function validateNodeModules (
         })
         await removeAllExceptOuterLinks(importer.modulesDir)
       }))
-      // TODO: remove the node_modules in the shrinkwrap directory
+      // TODO: remove the node_modules in the lockfile directory
       return
     }
     if (modules.independentLeaves) {
@@ -215,9 +215,9 @@ function stringifyIncludedDeps (included: IncludedDependencies) {
 }
 
 export interface PnpmSingleContext {
-  currentShrinkwrap: Shrinkwrap,
-  existsCurrentShrinkwrap: boolean,
-  existsWantedShrinkwrap: boolean,
+  currentLockfile: Lockfile,
+  existsCurrentLockfile: boolean,
+  existsWantedLockfile: boolean,
   hoistedAliases: {[depPath: string]: string[]}
   modulesDir: string,
   importerId: string,
@@ -231,23 +231,23 @@ export interface PnpmSingleContext {
   virtualStoreDir: string,
   skipped: Set<string>,
   storePath: string,
-  wantedShrinkwrap: Shrinkwrap,
+  wantedLockfile: Lockfile,
 }
 
 export async function getContextForSingleImporter (
   opts: {
     force: boolean,
-    forceSharedShrinkwrap: boolean,
+    forceSharedLockfile: boolean,
     lockfileDirectory: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
     include?: IncludedDependencies,
     independentLeaves: boolean,
+    lockfile: boolean,
     prefix: string,
     registries: Registries,
     shamefullyFlatten: boolean,
-    shrinkwrap: boolean,
     store: string,
   },
 ): Promise<PnpmSingleContext> {
@@ -301,13 +301,13 @@ export async function getContextForSingleImporter (
     skipped: manifests.skipped,
     storePath,
     virtualStoreDir: manifests.virtualStoreDir,
-    ...await readShrinkwrapFile({
+    ...await readLockfileFile({
       force: opts.force,
-      forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
+      forceSharedLockfile: opts.forceSharedLockfile,
       importers: [{ id: importerId, prefix: opts.prefix }],
+      lockfile: opts.lockfile,
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
-      shrinkwrap: opts.shrinkwrap,
     }),
   }
   packageJsonLogger.debug({

@@ -4,7 +4,7 @@ import {
   RootLog,
   StatsLog,
 } from '@pnpm/core-loggers'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
@@ -151,13 +151,13 @@ test('uninstall package with dependencies and do not touch other deps', async (t
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, { 'is-negative': '2.1.0' }, 'camelcase-keys has been removed from dependencies')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.dependencies, {
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.dependencies, {
     'is-negative': '2.1.0',
-  }, 'camelcase-keys removed from shrinkwrap dependencies')
-  t.deepEqual(shr.specifiers, {
+  }, 'camelcase-keys removed from lockfile dependencies')
+  t.deepEqual(lockfile.specifiers, {
     'is-negative': '2.1.0',
-  }, 'camelcase-keys removed from shrinkwrap specifiers')
+  }, 'camelcase-keys removed from lockfile specifiers')
 })
 
 test('uninstall package with its bin files', async (t) => {
@@ -203,7 +203,7 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   t.equal(modules2!.pendingBuilds.length, 1, 'uninstall should update pendingBuilds')
 })
 
-test('uninstalling a dependency from package that uses shared shrinkwrap', async (t) => {
+test('uninstalling a dependency from package that uses shared lockfile', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -263,17 +263,17 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
   await projects['project-2'].has('is-negative')
 
   await uninstall(['is-positive', 'project-2'], await testDefaults({
-    prefix: path.resolve('project-1'),
     lockfileDirectory: process.cwd(),
+    prefix: path.resolve('project-1'),
     store,
   }))
 
   await projects['project-1'].hasNot('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const shr = await readYamlFile<Shrinkwrap>(WANTED_LOCKFILE)
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
-  t.deepEqual(shr, {
+  t.deepEqual(lockfile, {
     importers: {
       'project-1': {
         specifiers: {},

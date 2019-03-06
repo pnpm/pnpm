@@ -39,13 +39,13 @@ export default async function (
     try {
       const pkgResponse = await opts.storeController.requestPackage(dep, {
         downloadPriority: 1,
+        lockfileDirectory: prefix,
         loggedPkg: {
           rawSpec: dep.raw,
         },
         preferredVersions: {},
         prefix,
         registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
-        lockfileDirectory: prefix,
         verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
       })
       await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal

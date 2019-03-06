@@ -49,7 +49,7 @@ test('resolve file', async t => {
   t.end()
 })
 
-test("resolve file when shrinkwrap directory differs from the package's dir", async t => {
+test("resolve file when lockfile directory differs from the package's dir", async t => {
   const wantedDependency = {pref: './pnpm-local-resolver-0.1.1.tgz'}
   const resolveResult = await resolveFromLocal(wantedDependency, {
     prefix: __dirname,

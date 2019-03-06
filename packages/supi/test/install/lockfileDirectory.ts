@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
+import { Lockfile } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
 import ncpCB = require('ncp')
 import path = require('path')
@@ -16,19 +16,19 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 const testSkip = promisifyTape(tape.skip)
 
-testSkip('subsequent installation uses same shrinkwrap directory by default', async (t: tape.Test) => {
+testSkip('subsequent installation uses same lockfile directory by default', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
 
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
+  const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
-  t.deepEqual(Object.keys(shr['packages'] || {}), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
+  t.deepEqual(Object.keys(lockfile['packages'] || {}), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
 })
 
-testSkip('subsequent installation fails if a different shrinkwrap directory is specified', async (t: tape.Test) => {
+testSkip('subsequent installation fails if a different lockfile directory is specified', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
@@ -42,7 +42,7 @@ testSkip('subsequent installation fails if a different shrinkwrap directory is s
   }
 
   t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_SHRINKWRAP_DIRECTORY_MISMATCH', 'failed with correct error code')
+  t.equal(err.code, 'ERR_PNPM_LOCKFILE_DIRECTORY_MISMATCH', 'failed with correct error code')
 })
 
 test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async (t: tape.Test) => {
@@ -63,9 +63,9 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
     await testDefaults({ lockfileDirectory }),
   )
 
-  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_LOCKFILE))
-  t.ok(shr.packages!['file:project/pkg.tgz'])
-  t.equal(shr.packages!['file:project/pkg.tgz'].resolution['tarball'], 'file:project/pkg.tgz')
+  const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+  t.ok(lockfile.packages!['file:project/pkg.tgz'])
+  t.equal(lockfile.packages!['file:project/pkg.tgz'].resolution['tarball'], 'file:project/pkg.tgz')
 
   await rimraf('node_modules')
 

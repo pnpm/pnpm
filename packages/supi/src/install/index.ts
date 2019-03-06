@@ -1,7 +1,7 @@
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
-  SHRINKWRAP_VERSION,
+  LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
@@ -16,8 +16,8 @@ import {
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
 import {
-  Shrinkwrap,
-  ShrinkwrapImporter,
+  Lockfile,
+  LockfileImporter,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -60,7 +60,7 @@ import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import lock from '../lock'
-import shrinkwrapsEqual from '../lockfilesEqual'
+import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import save from '../save'
@@ -176,17 +176,17 @@ export async function mutateModules (
       (
         opts.frozenLockfile ||
         opts.preferFrozenLockfile &&
-        (!opts.pruneShrinkwrapImporters || Object.keys(ctx.wantedShrinkwrap.importers).length === ctx.importers.length) &&
-        ctx.existsWantedShrinkwrap &&
-        ctx.wantedShrinkwrap.lockfileVersion === SHRINKWRAP_VERSION &&
+        (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.importers.length) &&
+        ctx.existsWantedLockfile &&
+        ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await pEvery(ctx.importers, async (importer) =>
-          !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
-          satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
-          linkedPackagesAreUpToDate(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages)
+          !hasLocalTarballDepsInRoot(ctx.wantedLockfile, importer.id) &&
+          satisfiesPackageJson(ctx.wantedLockfile, importer.pkg, importer.id) &&
+          linkedPackagesAreUpToDate(importer.pkg, ctx.wantedLockfile.importers[importer.id], importer.prefix, opts.localPackages)
         )
       )
     ) {
-      if (!ctx.existsWantedShrinkwrap) {
+      if (!ctx.existsWantedLockfile) {
         if (ctx.importers.some((importer) => pkgHasDependencies(importer.pkg))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
@@ -197,7 +197,7 @@ export async function mutateModules (
             nodeVersion: opts.nodeVersion,
             pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
           },
-          currentShrinkwrap: ctx.currentShrinkwrap,
+          currentLockfile: ctx.currentLockfile,
           engineStrict: opts.engineStrict,
           force: opts.force,
           ignoreScripts: opts.ignoreScripts,
@@ -229,7 +229,7 @@ export async function mutateModules (
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
           verifyStoreIntegrity: opts.verifyStoreIntegrity,
-          wantedShrinkwrap: ctx.wantedShrinkwrap,
+          wantedLockfile: ctx.wantedLockfile,
         })
         return
       }
@@ -264,7 +264,7 @@ export async function mutateModules (
             nonLinkedPackages: [],
             removePackages: importer.dependencyNames,
             updatePackageJson: true,
-            usesExternalShrinkwrap: ctx.lockfileDirectory !== importer.prefix,
+            usesExternalLockfile: ctx.lockfileDirectory !== importer.prefix,
             wantedDeps: [],
           })
           break
@@ -292,7 +292,7 @@ export async function mutateModules (
             newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
             nonLinkedPackages: wantedDeps,
             updatePackageJson: true,
-            usesExternalShrinkwrap: ctx.lockfileDirectory !== importer.prefix,
+            usesExternalLockfile: ctx.lockfileDirectory !== importer.prefix,
             wantedDeps,
           })
           break
@@ -351,8 +351,8 @@ export async function mutateModules (
     async function installCase (importer: any) { // tslint:disable-line:no-any
       const wantedDeps = getWantedDependencies(importer.pkg)
 
-      if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[importer.id], wantedDeps)
+      if (ctx.wantedLockfile && ctx.wantedLockfile.importers) {
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDeps)
       }
       const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
       if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
@@ -384,24 +384,24 @@ export async function mutateModules (
         }),
         newPkgRawSpecs: [],
         updatePackageJson: false,
-        usesExternalShrinkwrap: ctx.lockfileDirectory !== importer.prefix,
+        usesExternalLockfile: ctx.lockfileDirectory !== importer.prefix,
         wantedDeps,
       })
     }
 
-    // Unfortunately, the private shrinkwrap file may differ from the public one.
-    // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
-    const makePartialCurrentShrinkwrap = !installsOnly && (
-      ctx.existsWantedShrinkwrap && !ctx.existsCurrentShrinkwrap ||
+    // Unfortunately, the private lockfile may differ from the public one.
+    // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
+    const makePartialCurrentLockfile = !installsOnly && (
+      ctx.existsWantedLockfile && !ctx.existsCurrentLockfile ||
       // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
       // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-      !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
+      !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
     )
     await installInContext(importersToInstall, ctx, {
       ...opts,
-      makePartialCurrentShrinkwrap,
+      makePartialCurrentLockfile,
       update: opts.update || !installsOnly,
-      updateShrinkwrapMinorVersion: true,
+      updateLockfileMinorVersion: true,
     })
 
     if (!opts.ignoreScripts) {
@@ -472,7 +472,7 @@ async function partitionLinkedPackages (
 
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
-function forgetResolutionsOfPrevWantedDeps (importer: ShrinkwrapImporter, wantedDeps: WantedDependency[]) {
+function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDeps: WantedDependency[]) {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies || {}
   importer.devDependencies = importer.devDependencies || {}
@@ -490,13 +490,13 @@ function forgetResolutionsOfPrevWantedDeps (importer: ShrinkwrapImporter, wanted
 
 async function linkedPackagesAreUpToDate (
   pkg: PackageJson,
-  shrImporter: ShrinkwrapImporter,
+  lockfileImporter: LockfileImporter,
   prefix: string,
   localPackages?: LocalPackages,
 ) {
   const localPackagesByDirectory = localPackages ? getLocalPackagesByDirectory(localPackages) : {}
   for (const depField of DEPENDENCIES_FIELDS) {
-    const importerDeps = shrImporter[depField]
+    const importerDeps = lockfileImporter[depField]
     const pkgDeps = pkg[depField]
     if (!importerDeps || !pkgDeps) continue
     const depNames = Object.keys(importerDeps)
@@ -526,8 +526,8 @@ function getLocalPackagesByDirectory (localPackages: LocalPackages) {
   return localPackagesByDirectory
 }
 
-function hasLocalTarballDepsInRoot (shr: Shrinkwrap, importerId: string) {
-  const importer = shr.importers && shr.importers[importerId]
+function hasLocalTarballDepsInRoot (lockfile: Lockfile, importerId: string) {
+  const importer = lockfile.importers && lockfile.importers[importerId]
   if (!importer) return false
   return R.any(refIsLocalTarball, R.values(importer.dependencies || {}))
     || R.any(refIsLocalTarball, R.values(importer.devDependencies || {}))
@@ -579,7 +579,7 @@ type ImporterToUpdate = {
   removePackages?: string[],
   shamefullyFlatten: boolean,
   updatePackageJson: boolean,
-  usesExternalShrinkwrap: boolean,
+  usesExternalLockfile: boolean,
   wantedDeps: WantedDependency[],
 } & DependenciesMutation
 
@@ -587,8 +587,8 @@ async function installInContext (
   importers: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
-    makePartialCurrentShrinkwrap: boolean,
-    updateShrinkwrapMinorVersion: boolean,
+    makePartialCurrentLockfile: boolean,
+    updateLockfileMinorVersion: boolean,
     preferredVersions?: {
       [packageName: string]: {
         selector: string,
@@ -597,27 +597,27 @@ async function installInContext (
     },
   },
 ) {
-  if (opts.lockfileOnly && ctx.existsCurrentShrinkwrap) {
+  if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
     logger.warn({
-      message: '`node_modules` is present. Shrinkwrap only installation will make it out-of-date',
+      message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
       prefix: ctx.lockfileDirectory,
     })
   }
 
-  // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
-  const hasManifestInShrinkwrap = ctx.wantedShrinkwrap.lockfileVersion >= SHRINKWRAP_VERSION
+  // Avoid requesting package meta info from registry only when the lockfile version is at least the expected
+  const hasManifestInLockfile = ctx.wantedLockfile.lockfileVersion >= LOCKFILE_VERSION
 
-  ctx.wantedShrinkwrap.importers = ctx.wantedShrinkwrap.importers || {}
+  ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
   for (const importer of importers) {
-    if (!ctx.wantedShrinkwrap.importers[importer.id]) {
-      ctx.wantedShrinkwrap.importers[importer.id] = { specifiers: {} }
+    if (!ctx.wantedLockfile.importers[importer.id]) {
+      ctx.wantedLockfile.importers[importer.id] = { specifiers: {} }
     }
   }
-  if (opts.pruneShrinkwrapImporters) {
+  if (opts.pruneLockfileImporters) {
     const importerIds = new Set(importers.map((importer) => importer.id))
-    for (const wantedImporter of Object.keys(ctx.wantedShrinkwrap.importers)) {
+    for (const wantedImporter of Object.keys(ctx.wantedLockfile.importers)) {
       if (!importerIds.has(wantedImporter)) {
-        delete ctx.wantedShrinkwrap.importers[wantedImporter]
+        delete ctx.wantedLockfile.importers[wantedImporter]
       }
     }
   }
@@ -646,11 +646,11 @@ async function installInContext (
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies({
-    currentShrinkwrap: ctx.currentShrinkwrap,
+    currentLockfile: ctx.currentLockfile,
     dryRun: opts.lockfileOnly,
     engineStrict: opts.engineStrict,
     force: opts.force,
-    hasManifestInShrinkwrap,
+    hasManifestInLockfile,
     hooks: opts.hooks,
     importers,
     localPackages: opts.localPackages,
@@ -663,9 +663,9 @@ async function installInContext (
     storeController: opts.storeController,
     tag: opts.tag,
     updateDepth: (() => {
-      // This can be remove from shrinkwrap v4
-      if (!hasManifestInShrinkwrap) {
-        // The shrinkwrap file has to be updated to contain
+      // This can be remove from lockfile v4
+      if (!hasManifestInLockfile) {
+        // The lockfile has to be updated to contain
         // the necessary info from package manifests
         return Infinity
       }
@@ -674,10 +674,10 @@ async function installInContext (
       }
       if (
         modulesIsUpToDate({
-          currentShrinkwrap: ctx.currentShrinkwrap,
+          currentLockfile: ctx.currentLockfile,
           defaultRegistry: ctx.registries.default,
           skippedRelDepPaths: Array.from(ctx.skipped),
-          wantedShrinkwrap: ctx.wantedShrinkwrap,
+          wantedLockfile: ctx.wantedLockfile,
         })
       ) {
         return opts.repeatInstallDepth
@@ -686,7 +686,7 @@ async function installInContext (
     })(),
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
     virtualStoreDir: ctx.virtualStoreDir,
-    wantedShrinkwrap: ctx.wantedShrinkwrap,
+    wantedLockfile: ctx.wantedLockfile,
   })
 
   stageLogger.debug({
@@ -733,10 +733,10 @@ async function installInContext (
     }
 
     if (newPkg) {
-      const shrImporter = ctx.wantedShrinkwrap.importers[importer.id]
-      ctx.wantedShrinkwrap.importers[importer.id] = addDirectDependenciesToShrinkwrap(
+      const lockfileImporter = ctx.wantedLockfile.importers[importer.id]
+      ctx.wantedLockfile.importers[importer.id] = addDirectDependenciesToLockfile(
         newPkg,
-        shrImporter,
+        lockfileImporter,
         importer.linkedPackages,
         resolvedImporter.directDependencies,
         ctx.registries,
@@ -768,7 +768,7 @@ async function installInContext (
       removePackages: importer.removePackages,
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
-      usesExternalShrinkwrap: importer.usesExternalShrinkwrap,
+      usesExternalLockfile: importer.usesExternalLockfile,
     }
   }))
 
@@ -777,22 +777,22 @@ async function installInContext (
     dependenciesTree,
     {
       afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
-      currentShrinkwrap: ctx.currentShrinkwrap,
+      currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
-      makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
+      makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
       outdatedDependencies,
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
       skipped: ctx.skipped,
       storeController: opts.storeController,
       strictPeerDependencies: opts.strictPeerDependencies,
-      updateShrinkwrapMinorVersion: opts.updateShrinkwrapMinorVersion,
+      updateLockfileMinorVersion: opts.updateLockfileMinorVersion,
       virtualStoreDir: ctx.virtualStoreDir,
-      wantedShrinkwrap: ctx.wantedShrinkwrap,
+      wantedLockfile: ctx.wantedLockfile,
       wantedToBeSkippedPackageIds,
     },
   )
@@ -810,16 +810,16 @@ async function installInContext (
       )
   }
 
-  const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
+  const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
-    await writeWantedLockfile(ctx.lockfileDirectory, result.wantedShrinkwrap, shrinkwrapOpts)
+    await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
   } else {
     await Promise.all([
-      opts.shrinkwrap
-        ? writeLockfiles(ctx.lockfileDirectory, result.wantedShrinkwrap, result.currentShrinkwrap, shrinkwrapOpts)
-        : writeCurrentLockfile(ctx.lockfileDirectory, result.currentShrinkwrap, shrinkwrapOpts),
+      opts.lockfile
+        ? writeLockfiles(ctx.lockfileDirectory, result.wantedLockfile, result.currentLockfile, lockfileOpts)
+        : writeCurrentLockfile(ctx.lockfileDirectory, result.currentLockfile, lockfileOpts),
       (() => {
-        if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
+        if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
         return writeModulesYaml(ctx.virtualStoreDir, {
@@ -942,17 +942,17 @@ async function installInContext (
 function modulesIsUpToDate (
   opts: {
     defaultRegistry: string,
-    currentShrinkwrap: Shrinkwrap,
-    wantedShrinkwrap: Shrinkwrap,
+    currentLockfile: Lockfile,
+    wantedLockfile: Lockfile,
     skippedRelDepPaths: string[],
   }
 ) {
   const currentWithSkipped = [
-    ...R.keys(opts.currentShrinkwrap.packages),
+    ...R.keys(opts.currentLockfile.packages),
     ...opts.skippedRelDepPaths,
   ]
   currentWithSkipped.sort()
-  return R.equals(R.keys(opts.wantedShrinkwrap.packages), currentWithSkipped)
+  return R.equals(R.keys(opts.wantedLockfile.packages), currentWithSkipped)
 }
 
 function getSubgraphToBuild (
@@ -978,9 +978,9 @@ function getSubgraphToBuild (
   return currentShouldBeBuilt
 }
 
-function addDirectDependenciesToShrinkwrap (
+function addDirectDependenciesToLockfile (
   newPkg: PackageJson,
-  shrinkwrapImporter: ShrinkwrapImporter,
+  lockfileImporter: LockfileImporter,
   linkedPackages: Array<WantedDependency & {alias: string}>,
   directDependencies: Array<{
     alias: string,
@@ -994,8 +994,8 @@ function addDirectDependenciesToShrinkwrap (
     normalizedPref?: string,
   }>,
   registries: Registries,
-): ShrinkwrapImporter {
-  const newShrImporter = {
+): LockfileImporter {
+  const newLockfileImporter = {
     dependencies: {},
     devDependencies: {},
     optionalDependencies: {},
@@ -1003,7 +1003,7 @@ function addDirectDependenciesToShrinkwrap (
   }
 
   linkedPackages.forEach((linkedPkg) => {
-    newShrImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg, linkedPkg.alias)
+    newLockfileImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg, linkedPkg.alias)
   })
 
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
@@ -1026,40 +1026,40 @@ function addDirectDependenciesToShrinkwrap (
         resolution: dep.resolution,
       })
       if (dep.dev) {
-        newShrImporter.devDependencies[dep.alias] = ref
+        newLockfileImporter.devDependencies[dep.alias] = ref
       } else if (dep.optional) {
-        newShrImporter.optionalDependencies[dep.alias] = ref
+        newLockfileImporter.optionalDependencies[dep.alias] = ref
       } else {
-        newShrImporter.dependencies[dep.alias] = ref
+        newLockfileImporter.dependencies[dep.alias] = ref
       }
-      newShrImporter.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias)
-    } else if (shrinkwrapImporter.specifiers[alias]) {
-      newShrImporter.specifiers[alias] = shrinkwrapImporter.specifiers[alias]
-      if (shrinkwrapImporter.dependencies && shrinkwrapImporter.dependencies[alias]) {
-        newShrImporter.dependencies[alias] = shrinkwrapImporter.dependencies[alias]
-      } else if (shrinkwrapImporter.optionalDependencies && shrinkwrapImporter.optionalDependencies[alias]) {
-        newShrImporter.optionalDependencies[alias] = shrinkwrapImporter.optionalDependencies[alias]
-      } else if (shrinkwrapImporter.devDependencies && shrinkwrapImporter.devDependencies[alias]) {
-        newShrImporter.devDependencies[alias] = shrinkwrapImporter.devDependencies[alias]
+      newLockfileImporter.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias)
+    } else if (lockfileImporter.specifiers[alias]) {
+      newLockfileImporter.specifiers[alias] = lockfileImporter.specifiers[alias]
+      if (lockfileImporter.dependencies && lockfileImporter.dependencies[alias]) {
+        newLockfileImporter.dependencies[alias] = lockfileImporter.dependencies[alias]
+      } else if (lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]) {
+        newLockfileImporter.optionalDependencies[alias] = lockfileImporter.optionalDependencies[alias]
+      } else if (lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]) {
+        newLockfileImporter.devDependencies[alias] = lockfileImporter.devDependencies[alias]
       }
     }
   }
 
-  alignDependencyTypes(newPkg, newShrImporter)
+  alignDependencyTypes(newPkg, newLockfileImporter)
 
-  return newShrImporter
+  return newLockfileImporter
 }
 
-function alignDependencyTypes (pkg: PackageJson, shrImporter: ShrinkwrapImporter) {
+function alignDependencyTypes (pkg: PackageJson, lockfileImporter: LockfileImporter) {
   const depTypesOfAliases = getAliasToDependencyTypeMap(pkg)
 
-  // Aligning the dependency types in shrinkwrap.yaml
+  // Aligning the dependency types in pnpm-lock.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!shrImporter[depType]) continue
-    for (const alias of Object.keys(shrImporter[depType] || {})) {
+    if (!lockfileImporter[depType]) continue
+    for (const alias of Object.keys(lockfileImporter[depType] || {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      shrImporter[depTypesOfAliases[alias]][alias] = shrImporter[depType]![alias]
-      delete shrImporter[depType]![alias]
+      lockfileImporter[depTypesOfAliases[alias]][alias] = lockfileImporter[depType]![alias]
+      delete lockfileImporter[depType]![alias]
     }
   }
 }

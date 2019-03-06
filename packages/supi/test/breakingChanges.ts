@@ -83,7 +83,7 @@ test(`fail on non-compatible ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
     await addDependenciesToPackage(['is-negative'], await testDefaults())
     t.fail('should have failed')
   } catch (err) {
-    t.equal(err.code, 'SHRINKWRAP_BREAKING_CHANGE', 'shrinkwrap breaking change error is thrown')
+    t.equal(err.code, 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE', 'lockfile breaking change error is thrown')
   }
 })
 

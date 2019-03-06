@@ -1,5 +1,5 @@
 // TODO: move to separate package
-export type PnpmErrorCode = 'SHRINKWRAP_BREAKING_CHANGE'
+export type PnpmErrorCode = 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE'
 
 export default class PnpmError extends Error {
   public code: PnpmErrorCode

@@ -107,8 +107,8 @@ test('dependencies of other importers are not pruned when installing for a subse
   await rootNodeModules.hasNot('.localhost+4873/is-positive/1.0.0')
   await rootNodeModules.has('.localhost+4873/is-negative/1.0.0')
 
-  const shr = await rootNodeModules.loadCurrentShrinkwrap()
-  t.deepEqual(Object.keys(shr.packages), [
+  const lockfile = await rootNodeModules.loadCurrentLockfile()
+  t.deepEqual(Object.keys(lockfile.packages), [
     '/is-negative/1.0.0',
     '/is-positive/2.0.0',
   ], `packages of importer that was not selected by last installation are not removed from current ${WANTED_LOCKFILE}`)
@@ -164,7 +164,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
   await rootNodeModules.has('.localhost+4873/is-negative/1.0.0')
 })
 
-test('adding a new dev dependency to project that uses a shared shrinkwrap', async (t) => {
+test('adding a new dev dependency to project that uses a shared lockfile', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -240,7 +240,7 @@ test('headless install is used when package link to another package in the works
   await projects['project-2'].hasNot('is-negative')
 })
 
-test('current shrinkwrap contains only installed dependencies when adding a new importer to workspace with shared shrinkwrap', async (t) => {
+test('current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -276,7 +276,7 @@ test('current shrinkwrap contains only installed dependencies when adding a new 
     },
   ], await testDefaults())
 
-  const currentShr = await readCurrentLockfile(process.cwd(), { ignoreIncompatible: false })
+  const currentLockfile = await readCurrentLockfile(process.cwd(), { ignoreIncompatible: false })
 
-  t.deepEqual(Object.keys(currentShr && currentShr.packages || {}), ['/is-negative/1.0.0'])
+  t.deepEqual(Object.keys(currentLockfile && currentLockfile.packages || {}), ['/is-negative/1.0.0'])
 })

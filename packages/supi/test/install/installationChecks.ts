@@ -32,8 +32,8 @@ test('do not fail if installed package does not support the current engine and e
   await project.has('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.packages['/not-compatible-with-any-os/1.0.0'].os, ['this-os-does-not-exist'], `os field added to ${WANTED_LOCKFILE}`)
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.packages['/not-compatible-with-any-os/1.0.0'].os, ['this-os-does-not-exist'], `os field added to ${WANTED_LOCKFILE}`)
 })
 
 test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async (t: tape.Test) => {
@@ -47,8 +47,8 @@ test('do not fail if installed package requires the node version that was passed
   await project.has('for-legacy-node')
   await project.storeHas('for-legacy-node', '1.0.0')
 
-  const shr = await project.loadShrinkwrap()
-  t.deepEqual(shr.packages['/for-legacy-node/1.0.0'].engines, { node: '0.10' }, `engines field added to ${WANTED_LOCKFILE}`)
+  const lockfile = await project.loadLockfile()
+  t.deepEqual(lockfile.packages['/for-legacy-node/1.0.0'].engines, { node: '0.10' }, `engines field added to ${WANTED_LOCKFILE}`)
 })
 
 test(`save cpu field to ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
@@ -56,10 +56,10 @@ test(`save cpu field to ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
 
   await addDependenciesToPackage(['has-cpu-specified'], await testDefaults())
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
   t.deepEqual(
-    shr.packages['/has-cpu-specified/1.0.0'].cpu,
+    lockfile.packages['/has-cpu-specified/1.0.0'].cpu,
     ['x64', 'ia32'],
     `cpu field added to ${WANTED_LOCKFILE}`,
   )
@@ -70,10 +70,10 @@ test(`engines field is not added to ${WANTED_LOCKFILE} when "node": "*" is in "e
 
   await addDependenciesToPackage(['jsonify@0.0.0'], await testDefaults())
 
-  const shr = await project.loadShrinkwrap()
+  const lockfile = await project.loadLockfile()
 
   t.notOk(
-    shr.packages['/jsonify/0.0.0'].engines,
+    lockfile.packages['/jsonify/0.0.0'].engines,
     `engines field is not added to ${WANTED_LOCKFILE}`,
   )
 })

@@ -66,13 +66,13 @@ test('install dev dependencies only', async (t: tape.Test) => {
   await project.hasNot('once')
 
   {
-    const shr = await project.loadShrinkwrap()
-    t.ok(shr.packages['/is-positive/1.0.0'].dev === false)
+    const lockfile = await project.loadLockfile()
+    t.ok(lockfile.packages['/is-positive/1.0.0'].dev === false)
   }
 
   {
-    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
+    const currentLockfile = await project.loadCurrentLockfile()
+    t.notOk(currentLockfile.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
   }
 
   // Repeat normal installation adds missing deps to node_modules
@@ -81,12 +81,12 @@ test('install dev dependencies only', async (t: tape.Test) => {
   await project.has('once')
 
   {
-    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
+    const currentLockfile = await project.loadCurrentLockfile()
+    t.ok(currentLockfile.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
   }
 })
 
-test('fail if installing different types of dependencies in a project that uses an external shrinkwrap', async (t: tape.Test) => {
+test('fail if installing different types of dependencies in a project that uses an external lockfile', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       'is-positive': '1.0.0',

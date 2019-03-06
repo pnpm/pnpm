@@ -27,8 +27,8 @@ test('installing a simple project', async (t) => {
   const reporter = sinon.spy()
 
   await headless(await testDefaults({
-    reporter,
     lockfileDirectory: prefix,
+    reporter,
   }))
 
   const project = assertProject(t, prefix)
@@ -42,7 +42,7 @@ test('installing a simple project', async (t) => {
 
   await project.isExecutable('.bin/rimraf')
 
-  t.ok(await project.loadCurrentShrinkwrap())
+  t.ok(await project.loadCurrentLockfile())
   t.ok(await project.loadModules())
 
   t.ok(reporter.calledWithMatch({
@@ -143,13 +143,13 @@ test('installing non-prod deps then all deps', async (t) => {
   await project.hasNot('once')
 
   {
-    const shr = await project.loadShrinkwrap()
-    t.ok(shr.packages['/is-positive/1.0.0'].dev === false)
+    const lockfile = await project.loadLockfile()
+    t.ok(lockfile.packages['/is-positive/1.0.0'].dev === false)
   }
 
   {
-    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
+    const currentLockfile = await project.loadCurrentLockfile()
+    t.notOk(currentLockfile.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
   }
 
   const reporter = sinon.spy()
@@ -161,8 +161,8 @@ test('installing non-prod deps then all deps', async (t) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    reporter,
     lockfileDirectory: prefix,
+    reporter,
   }))
 
   t.ok(reporter.calledWithMatch({
@@ -187,8 +187,8 @@ test('installing non-prod deps then all deps', async (t) => {
   await project.has('once')
 
   {
-    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
+    const currentLockfile = await project.loadCurrentLockfile()
+    t.ok(currentLockfile.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
   }
 
   t.end()
@@ -205,9 +205,9 @@ test('installing only optional deps', async (t) => {
       devDependencies: false,
       optionalDependencies: true,
     },
+    lockfileDirectory: prefix,
     optional: true,
     production: false,
-    lockfileDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -297,24 +297,24 @@ test('orphan packages are removed', async (t) => {
   t.comment(projectDir)
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
-  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_LOCKFILE)
+  const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
   const simpleDir = path.join(fixtures, 'simple')
   fse.copySync(path.join(simpleWithMoreDepsDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
+  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({
     lockfileDirectory: projectDir,
   }))
 
   fse.copySync(path.join(simpleDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(simpleDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
+  fse.copySync(path.join(simpleDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({
-    reporter,
     lockfileDirectory: projectDir,
+    reporter,
   }))
 
   t.ok(reporter.calledWithMatch({
@@ -338,17 +338,17 @@ test('available packages are used when node_modules is not clean', async (t) => 
   t.comment(projectDir)
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
-  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_LOCKFILE)
+  const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const hasGlobDir = path.join(fixtures, 'has-glob')
   const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({ lockfileDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({ lockfileDirectory: projectDir, reporter }))
@@ -378,17 +378,17 @@ test('available packages are relinked during forced install', async (t) => {
   t.comment(projectDir)
 
   const destPackageJsonPath = path.join(projectDir, 'package.json')
-  const destShrinkwrapYamlPath = path.join(projectDir, WANTED_LOCKFILE)
+  const destLockfileYamlPath = path.join(projectDir, WANTED_LOCKFILE)
 
   const hasGlobDir = path.join(fixtures, 'has-glob')
   const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({ lockfileDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destShrinkwrapYamlPath)
+  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({ lockfileDirectory: projectDir, reporter, force: true }))
@@ -457,7 +457,7 @@ test('installing local directory dependency', async (t) => {
   t.end()
 })
 
-test('installing using passed in shrinkwrap files', async (t) => {
+test('installing using passed in lockfile files', async (t) => {
   const prefix = tempy.directory()
   t.comment(prefix)
 
@@ -465,11 +465,11 @@ test('installing using passed in shrinkwrap files', async (t) => {
   fse.copySync(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
   fse.copySync(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
 
-  const wantedShr = await readWantedLockfile(simplePkgPath, { ignoreIncompatible: false })
+  const wantedLockfile = await readWantedLockfile(simplePkgPath, { ignoreIncompatible: false })
 
   await headless(await testDefaults({
     lockfileDirectory: prefix,
-    wantedShrinkwrap: wantedShr,
+    wantedLockfile,
   }))
 
   const project = assertProject(t, prefix)
@@ -510,7 +510,7 @@ test('independent-leaves: installing a simple project', async (t) => {
 
   await project.isExecutable('.bin/rimraf')
 
-  t.ok(await project.loadCurrentShrinkwrap())
+  t.ok(await project.loadCurrentLockfile())
   t.ok(await project.loadModules())
 
   t.ok(reporter.calledWithMatch({
@@ -558,7 +558,7 @@ test('installing with shamefullyFlatten = true', async (t) => {
 
   await project.isExecutable('.bin/rimraf')
 
-  t.ok(await project.loadCurrentShrinkwrap())
+  t.ok(await project.loadCurrentLockfile())
   t.ok(await project.loadModules())
 
   t.ok(reporter.calledWithMatch({
@@ -697,8 +697,8 @@ test('installing in a workspace', async (t) => {
   }))
 
   const rootNodeModules = assertProject(t, workspaceFixture)
-  const shr = await rootNodeModules.loadCurrentShrinkwrap()
-  t.deepEqual(Object.keys(shr.packages), [
+  const lockfile = await rootNodeModules.loadCurrentLockfile()
+  t.deepEqual(Object.keys(lockfile.packages), [
     '/is-negative/1.0.0',
     '/is-positive/1.0.0',
   ], `packages of importer that was not selected by last installation are not removed from current ${WANTED_LOCKFILE}`)

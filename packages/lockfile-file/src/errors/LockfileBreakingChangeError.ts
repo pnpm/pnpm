@@ -1,9 +1,9 @@
 import PnpmError from './PnpmError'
 
-export default class ShrinkwrapBreakingChangeError extends PnpmError {
+export default class LockfileBreakingChangeError extends PnpmError {
   public filename: string
   constructor (filename: string) {
-    super('SHRINKWRAP_BREAKING_CHANGE', `Shrinkwrap file ${filename} not compatible with current pnpm`)
+    super('ERR_PNPM_LOCKFILE_BREAKING_CHANGE', `Lockfile ${filename} not compatible with current pnpm`)
     this.filename = filename
   }
 }
