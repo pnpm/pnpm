@@ -3,10 +3,10 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  create as createShrinkwrap,
-  existsWanted as existsWantedShrinkwrap,
-  readCurrent as readCurrentShrinkwrap,
-  readWanted as readWantedShrinkwrap,
+  createLockfileObject,
+  existsWantedLockfile,
+  readCurrentLockfile,
+  readWantedLockfile,
   Shrinkwrap,
 } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
@@ -45,17 +45,17 @@ export default async function (
     wantedVersion: SHRINKWRAP_VERSION,
   }
   const files = await Promise.all<Shrinkwrap | null | void>([
-    opts.shrinkwrap && readWantedShrinkwrap(opts.lockfileDirectory, shrOpts)
-      || await existsWantedShrinkwrap(opts.lockfileDirectory) &&
+    opts.shrinkwrap && readWantedLockfile(opts.lockfileDirectory, shrOpts)
+      || await existsWantedLockfile(opts.lockfileDirectory) &&
         logger.warn({
           message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
           prefix: opts.lockfileDirectory,
         }),
-    readCurrentShrinkwrap(opts.lockfileDirectory, shrOpts),
+    readCurrentLockfile(opts.lockfileDirectory, shrOpts),
   ])
   const sopts = { lockfileVersion: SHRINKWRAP_VERSION }
   const importerIds = opts.importers.map((importer) => importer.id)
-  const currentShrinkwrap = files[1] || createShrinkwrap(importerIds, sopts)
+  const currentShrinkwrap = files[1] || createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
     if (!currentShrinkwrap.importers[importerId]) {
       currentShrinkwrap.importers[importerId] = {
@@ -65,7 +65,7 @@ export default async function (
   }
   const wantedShrinkwrap = files[0] ||
     currentShrinkwrap && R.clone(currentShrinkwrap) ||
-    createShrinkwrap(importerIds, sopts)
+    createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
     if (!wantedShrinkwrap.importers[importerId]) {
       wantedShrinkwrap.importers[importerId] = {

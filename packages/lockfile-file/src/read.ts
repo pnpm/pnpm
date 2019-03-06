@@ -11,9 +11,7 @@ import readYamlFile from 'read-yaml-file'
 import { ShrinkwrapBreakingChangeError } from './errors'
 import logger from './logger'
 
-export const readPrivate = readCurrent
-
-export async function readCurrent (
+export async function readCurrentLockfile (
   pkgPath: string,
   opts: {
     wantedVersion?: number,
@@ -24,9 +22,7 @@ export async function readCurrent (
   return _read(shrinkwrapPath, pkgPath, opts)
 }
 
-export const read = readWanted
-
-export async function readWanted (
+export async function readWantedLockfile (
   pkgPath: string,
   opts: {
     wantedVersion?: number,
@@ -92,7 +88,7 @@ async function _read (
   throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
 }
 
-export function create (
+export function createLockfileObject (
   importerIds: string[],
   opts: {
     lockfileVersion: number,

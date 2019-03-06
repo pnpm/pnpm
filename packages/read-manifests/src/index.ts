@@ -1,4 +1,4 @@
-import { getImporterId } from '@pnpm/lockfile-file'
+import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
 import { PackageJson, Registries } from '@pnpm/types'
 import {
@@ -49,7 +49,7 @@ export default async (
       importers.map(async (importer) => {
         let pkg = await safeReadPkgFromDir(importer.prefix) || {} as PackageJson
         const modulesDir = await realNodeModulesDir(importer.prefix)
-        const importerId = getImporterId(lockfileDirectory, importer.prefix)
+        const importerId = getLockfileImporterId(lockfileDirectory, importer.prefix)
 
         return {
           bin: importer.bin || path.join(importer.prefix, 'node_modules', '.bin'),

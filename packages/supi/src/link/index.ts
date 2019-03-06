@@ -3,14 +3,14 @@ import {
 } from '@pnpm/core-loggers'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
-  getImporterId,
+  getLockfileImporterId,
   ShrinkwrapImporter,
-  write as saveShrinkwrap,
-  writeCurrentOnly as saveCurrentShrinkwrapOnly,
+  writeCurrentLockfile,
+  writeLockfiles,
 } from '@pnpm/lockfile-file'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
-import { pruneSharedShrinkwrap } from '@pnpm/prune-lockfile'
+import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
@@ -49,7 +49,7 @@ export default async function link (
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContextForSingleImporter(opts)
 
-  const importerId = getImporterId(ctx.lockfileDirectory, opts.prefix)
+  const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
   const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
   const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
@@ -89,10 +89,10 @@ export default async function link (
     })
   }
 
-  const updatedCurrentShrinkwrap = pruneSharedShrinkwrap(ctx.currentShrinkwrap, { defaultRegistry: opts.registries.default })
+  const updatedCurrentShrinkwrap = pruneSharedLockfile(ctx.currentShrinkwrap, { defaultRegistry: opts.registries.default })
 
   const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
-  const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, {
+  const updatedWantedShrinkwrap = pruneSharedLockfile(ctx.wantedShrinkwrap, {
     defaultRegistry: opts.registries.default,
     warn,
   })
@@ -141,9 +141,9 @@ export default async function link (
   }
   const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.lockfileDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap, shrinkwrapOpts)
+    await writeLockfiles(ctx.lockfileDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap, shrinkwrapOpts)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.lockfileDirectory, updatedCurrentShrinkwrap, shrinkwrapOpts)
+    await writeCurrentLockfile(ctx.lockfileDirectory, updatedCurrentShrinkwrap, shrinkwrapOpts)
   }
 
   summaryLogger.debug({ prefix: opts.prefix })

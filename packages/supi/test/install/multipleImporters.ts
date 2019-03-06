@@ -1,6 +1,6 @@
 import assertProject from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { readCurrent } from '@pnpm/lockfile-file'
+import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
@@ -276,7 +276,7 @@ test('current shrinkwrap contains only installed dependencies when adding a new 
     },
   ], await testDefaults())
 
-  const currentShr = await readCurrent(process.cwd(), { ignoreIncompatible: false })
+  const currentShr = await readCurrentLockfile(process.cwd(), { ignoreIncompatible: false })
 
   t.deepEqual(Object.keys(currentShr && currentShr.packages || {}), ['/is-negative/1.0.0'])
 })

@@ -1,8 +1,8 @@
 ///<reference path="../typings/local.d.ts"/>
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  prune,
-  pruneSharedShrinkwrap,
+  pruneLockfile,
+  pruneSharedLockfile,
 } from '@pnpm/prune-lockfile'
 import test = require('tape')
 import yaml = require('yaml-tag')
@@ -15,7 +15,7 @@ const DEFAULT_OPTS = {
 }
 
 test('remove one redundant package', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -74,7 +74,7 @@ test('remove one redundant package', t => {
 })
 
 test('remove redundant linked package', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -105,7 +105,7 @@ test('remove redundant linked package', t => {
 })
 
 test('keep all', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -193,7 +193,7 @@ test('keep all', t => {
 })
 
 test('optional dependency should have optional = true', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -331,7 +331,7 @@ test('optional dependency should have optional = true', t => {
 })
 
 test('optional dependency should not have optional = true if used not only as optional', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -407,7 +407,7 @@ test('optional dependency should not have optional = true if used not only as op
 })
 
 test('dev dependency should have dev = true', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -482,7 +482,7 @@ test('dev dependency should have dev = true', t => {
 })
 
 test('dev dependency should not have dev = true if it is used not only as dev', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -562,7 +562,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
 })
 
 test('the dev field should be updated to dev = false if it is not a dev dependency anymore', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -614,7 +614,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
 })
 
 test('subdependency is both optional and dev', t => {
-  t.deepEqual(prune(yaml`
+  t.deepEqual(pruneLockfile(yaml`
     importers:
       .:
         dependencies:
@@ -692,7 +692,7 @@ test('subdependency is both optional and dev', t => {
 })
 
 test('dev = true is removed if dependency is used both as dev and prod dependency', t => {
-  t.deepEqual(prune(yaml`
+  t.deepEqual(pruneLockfile(yaml`
     importers:
       .:
         dependencies:
@@ -763,7 +763,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
 })
 
 test('optional = true is removed if dependency is used both as optional and prod dependency', t => {
-  t.deepEqual(prune(yaml`
+  t.deepEqual(pruneLockfile(yaml`
     importers:
       .:
         dependencies:
@@ -837,7 +837,7 @@ test('optional = true is removed if dependency is used both as optional and prod
 })
 
 test('remove dependencies that are not in the package', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -890,7 +890,7 @@ test('remove dependencies that are not in the package', t => {
 })
 
 test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKFILE}`, t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -945,7 +945,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
 
 // this test may be redundant
 test('keep shrinkwrapMinorVersion, if present', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -998,7 +998,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
 })
 
 test('keep linked package even if it is not in package.json', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       '.': {
         dependencies: {
@@ -1053,7 +1053,7 @@ test('keep linked package even if it is not in package.json', t => {
 })
 
 test("prune: don't remove package used by another importer", t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneLockfile({
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1137,8 +1137,8 @@ test("prune: don't remove package used by another importer", t => {
   t.end()
 })
 
-test('pruneSharedShrinkwrap: remove one redundant package', t => {
-  t.deepEqual(pruneSharedShrinkwrap({
+test('pruneSharedLockfile: remove one redundant package', t => {
+  t.deepEqual(pruneSharedLockfile({
     importers: {
       'packages/package-1': {
         dependencies: {

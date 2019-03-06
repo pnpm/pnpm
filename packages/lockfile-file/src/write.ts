@@ -22,7 +22,7 @@ const SHRINKWRAP_YAML_FORMAT = {
   sortKeys: true,
 }
 
-export function writeWantedOnly (
+export function writeWantedLockfile (
   pkgPath: string,
   wantedShrinkwrap: Shrinkwrap,
   opts?: {
@@ -32,7 +32,7 @@ export function writeWantedOnly (
   return writeShrinkwrap(WANTED_LOCKFILE, pkgPath, wantedShrinkwrap, opts)
 }
 
-export async function writeCurrentOnly (
+export async function writeCurrentLockfile (
   pkgPath: string,
   currentShrinkwrap: Shrinkwrap,
   opts?: {
@@ -107,7 +107,7 @@ function normalizeShrinkwrap (shr: Shrinkwrap, forceSharedFormat: boolean) {
   }
 }
 
-export default function write (
+export default function writeLockfiles (
   pkgPath: string,
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,

@@ -1,8 +1,8 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  getImporterId,
-  readCurrent as readCurrentShrinkwrap,
-  readWanted as readWantedShrinkwrap,
+  getLockfileImporterId,
+  readCurrentLockfile,
+  readWantedLockfile,
 } from '@pnpm/lockfile-file'
 import createResolver from '@pnpm/npm-resolver'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
@@ -105,14 +105,14 @@ async function _outdated (
   const lockfileDirectory = opts.lockfileDirectory || pkgPath
   const pkg = await readPackageFromDir(pkgPath)
   if (packageHasNoDeps(pkg)) return []
-  const wantedShrinkwrap = await readWantedShrinkwrap(lockfileDirectory, { ignoreIncompatible: false })
-    || await readCurrentShrinkwrap(lockfileDirectory, { ignoreIncompatible: false })
+  const wantedShrinkwrap = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
+    || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
   const storePath = await resolveStore(pkgPath, opts.store)
-  const importerId = getImporterId(lockfileDirectory, pkgPath)
-  const currentShrinkwrap = await readCurrentShrinkwrap(lockfileDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
+  const importerId = getLockfileImporterId(lockfileDirectory, pkgPath)
+  const currentShrinkwrap = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
 
   const resolve = createResolver({
     fetchRetries: opts.fetchRetries,

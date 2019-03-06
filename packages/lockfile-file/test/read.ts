@@ -1,13 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  existsWanted,
-  read,
-  readCurrent,
-  readPrivate,
-  readWanted,
-  write,
-  writeCurrentOnly,
-  writeWantedOnly,
+  existsWantedLockfile,
+  readCurrentLockfile,
+  readWantedLockfile,
+  writeCurrentLockfile,
+  writeLockfiles,
+  writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import fs = require('fs')
 import path = require('path')
@@ -17,22 +15,16 @@ import yaml = require('yaml-tag')
 
 process.chdir(__dirname)
 
-test('backward compatibility', t => {
-  t.equal(readWanted, read)
-  t.equal(readCurrent, readPrivate)
-  t.end()
-})
-
-test('readWanted()', async t => {
+test('readWantedLockfile()', async t => {
   {
-    const shr = await readWanted(path.join('fixtures', '2'), {
+    const shr = await readWantedLockfile(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
     t.equal(shr!.lockfileVersion, 3)
   }
 
   try {
-    const shr = await readWanted(path.join('fixtures', '3'), {
+    const shr = await readWantedLockfile(path.join('fixtures', '3'), {
       ignoreIncompatible: false,
       wantedVersion: 3,
     })
@@ -43,9 +35,9 @@ test('readWanted()', async t => {
   t.end()
 })
 
-test('readCurrent()', async t => {
+test('readCurrentLockfile()', async t => {
   {
-    const shr = await readCurrent(path.join('fixtures', '2'), {
+    const shr = await readCurrentLockfile(path.join('fixtures', '2'), {
       ignoreIncompatible: false,
     })
     t.equal(shr!.lockfileVersion, 3)
@@ -53,7 +45,7 @@ test('readCurrent()', async t => {
   t.end()
 })
 
-test('writeWantedOnly()', async t => {
+test('writeWantedLockfile()', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
     importers: {
@@ -91,13 +83,13 @@ test('writeWantedOnly()', async t => {
     },
     registry: 'https://registry.npmjs.org',
   }
-  await writeWantedOnly(projectPath, wantedShrinkwrap)
-  t.equal(await readCurrent(projectPath, { ignoreIncompatible: false }), null, 'current lockfile read')
-  t.deepEqual(await readWanted(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap, 'wanted lockfile read')
+  await writeWantedLockfile(projectPath, wantedShrinkwrap)
+  t.equal(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), null, 'current lockfile read')
+  t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap, 'wanted lockfile read')
   t.end()
 })
 
-test('writeCurrentOnly()', async t => {
+test('writeCurrentLockfile()', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
     importers: {
@@ -135,16 +127,16 @@ test('writeCurrentOnly()', async t => {
     },
     registry: 'https://registry.npmjs.org',
   }
-  await writeCurrentOnly(projectPath, wantedShrinkwrap)
-  t.equal(await readWanted(projectPath, { ignoreIncompatible: false }), null)
-  t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
+  await writeCurrentLockfile(projectPath, wantedShrinkwrap)
+  t.equal(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), null)
+  t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
   t.end()
 })
 
-test('existsWanted()', async t => {
+test('existsWantedLockfile()', async t => {
   const projectPath = tempy.directory()
-  t.notOk(await existsWanted(projectPath))
-  await writeWantedOnly(projectPath, {
+  t.notOk(await existsWantedLockfile(projectPath))
+  await writeWantedLockfile(projectPath, {
     importers: {
       '.': {
         dependencies: {
@@ -179,11 +171,11 @@ test('existsWanted()', async t => {
       },
     },
   })
-  t.ok(await existsWanted(projectPath))
+  t.ok(await existsWantedLockfile(projectPath))
   t.end()
 })
 
-test('write()', async t => {
+test('writeLockfiles()', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
     importers: {
@@ -220,13 +212,13 @@ test('write()', async t => {
       },
     },
   }
-  await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
-  t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
-  t.deepEqual(await readWanted(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
+  await writeLockfiles(projectPath, wantedShrinkwrap, wantedShrinkwrap)
+  t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
+  t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
   t.end()
 })
 
-test('write() when no specifiers but dependencies present', async t => {
+test('writeLockfiles() when no specifiers but dependencies present', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
     importers: {
@@ -239,9 +231,9 @@ test('write() when no specifiers but dependencies present', async t => {
     },
     lockfileVersion: 5,
   }
-  await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
-  t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
-  t.deepEqual(await readWanted(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
+  await writeLockfiles(projectPath, wantedShrinkwrap, wantedShrinkwrap)
+  t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
+  t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
   t.end()
 })
 
@@ -293,7 +285,7 @@ test('write does not use yaml anchors/aliases', async t => {
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
     `,
   }
-  await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
+  await writeLockfiles(projectPath, wantedShrinkwrap, wantedShrinkwrap)
 
   const shrContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
   t.ok(shrContent.indexOf('&') === -1, 'shrinkwrap contains no anchors')

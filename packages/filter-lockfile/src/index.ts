@@ -1,7 +1,7 @@
-import filterByImporters from './filterByImporters'
-import filterByImportersAndEngine from './filterByImportersAndEngine'
-import filterShrinkwrap from './filterLockfile'
+import filterLockfile from './filterLockfile'
+import filterLockfileByImporters from './filterLockfileByImporters'
+import filterLockfileByImportersAndEngine from './filterLockfileByImportersAndEngine'
 
-export default filterShrinkwrap
+export default filterLockfile
 
-export { filterByImporters, filterByImportersAndEngine }
+export { filterLockfileByImporters, filterLockfileByImportersAndEngine }

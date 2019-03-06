@@ -18,9 +18,9 @@ import {
 import {
   Shrinkwrap,
   ShrinkwrapImporter,
-  write as saveShrinkwrap,
-  writeCurrentOnly as saveCurrentShrinkwrapOnly,
-  writeWantedOnly as saveWantedShrinkwrapOnly,
+  writeCurrentLockfile,
+  writeLockfiles,
+  writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import { satisfiesPackageJson } from '@pnpm/lockfile-utils'
 import logger, {
@@ -812,12 +812,12 @@ async function installInContext (
 
   const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.lockfileOnly) {
-    await saveWantedShrinkwrapOnly(ctx.lockfileDirectory, result.wantedShrinkwrap, shrinkwrapOpts)
+    await writeWantedLockfile(ctx.lockfileDirectory, result.wantedShrinkwrap, shrinkwrapOpts)
   } else {
     await Promise.all([
       opts.shrinkwrap
-        ? saveShrinkwrap(ctx.lockfileDirectory, result.wantedShrinkwrap, result.currentShrinkwrap, shrinkwrapOpts)
-        : saveCurrentShrinkwrapOnly(ctx.lockfileDirectory, result.currentShrinkwrap, shrinkwrapOpts),
+        ? writeLockfiles(ctx.lockfileDirectory, result.wantedShrinkwrap, result.currentShrinkwrap, shrinkwrapOpts)
+        : writeCurrentLockfile(ctx.lockfileDirectory, result.currentShrinkwrap, shrinkwrapOpts),
       (() => {
         if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()

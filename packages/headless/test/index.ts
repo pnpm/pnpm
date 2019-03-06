@@ -8,7 +8,7 @@ import {
   StatsLog,
 } from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
-import { readWanted } from '@pnpm/lockfile-file'
+import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readManifests from '@pnpm/read-manifests'
 import fse = require('fs-extra')
@@ -465,7 +465,7 @@ test('installing using passed in shrinkwrap files', async (t) => {
   fse.copySync(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
   fse.copySync(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
 
-  const wantedShr = await readWanted(simplePkgPath, { ignoreIncompatible: false })
+  const wantedShr = await readWantedLockfile(simplePkgPath, { ignoreIncompatible: false })
 
   await headless(await testDefaults({
     lockfileDirectory: prefix,

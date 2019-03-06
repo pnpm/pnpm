@@ -11,17 +11,17 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import filterShrinkwrap, {
-  filterByImportersAndEngine as filterShrinkwrapByImportersAndEngine,
+import filterLockfile, {
+  filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   PackageSnapshot,
-  readCurrent,
-  readWanted,
+  readCurrentLockfile,
+  readWantedLockfile,
   Shrinkwrap,
-  writeCurrentOnly as writeCurrentShrinkwrapOnly,
+  writeCurrentLockfile,
 } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
@@ -108,13 +108,13 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const lockfileDirectory = opts.lockfileDirectory
-  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(lockfileDirectory, { ignoreIncompatible: false })
+  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
 
   if (!wantedShrinkwrap) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
-  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(lockfileDirectory, { ignoreIncompatible: false })
+  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
 
   for (const importer of opts.importers) {
@@ -153,7 +153,7 @@ export default async (opts: HeadlessOptions) => {
       dryRun: false,
       importers: opts.importers,
       lockfileDirectory,
-      newShrinkwrap: filterShrinkwrap(wantedShrinkwrap, filterOpts),
+      newShrinkwrap: filterLockfile(wantedShrinkwrap, filterOpts),
       oldShrinkwrap: currentShrinkwrap,
       pruneStore: opts.pruneStore,
       registries: opts.registries,
@@ -172,7 +172,7 @@ export default async (opts: HeadlessOptions) => {
     stage: 'importing_started',
   })
 
-  const filteredShrinkwrap = filterShrinkwrapByImportersAndEngine(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
+  const filteredShrinkwrap = filterLockfileByImportersAndEngine(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -264,7 +264,7 @@ export default async (opts: HeadlessOptions) => {
   if (currentShrinkwrap && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredShrinkwrap.importers).sort())) {
     Object.assign(filteredShrinkwrap.packages, currentShrinkwrap.packages)
   }
-  await writeCurrentShrinkwrapOnly(lockfileDirectory, filteredShrinkwrap)
+  await writeCurrentLockfile(lockfileDirectory, filteredShrinkwrap)
 
   if (opts.ignoreScripts) {
     for (const importer of opts.importers) {

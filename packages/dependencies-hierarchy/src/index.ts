@@ -1,7 +1,7 @@
 import {
-  getImporterId,
+  getLockfileImporterId,
   PackageSnapshots,
-  readCurrent,
+  readCurrentLockfile,
   ShrinkwrapImporter,
 } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
@@ -76,7 +76,7 @@ async function dependenciesHierarchy (
     ...modules && modules.registries,
   })
   const lockfileDirectory = maybeOpts && maybeOpts.lockfileDirectory || projectPath
-  const shrinkwrap = await readCurrent(lockfileDirectory, { ignoreIncompatible: false })
+  const shrinkwrap = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
 
   if (!shrinkwrap) return []
 
@@ -85,7 +85,7 @@ async function dependenciesHierarchy (
     only: undefined,
     ...maybeOpts,
   }
-  const importerId = getImporterId(lockfileDirectory, projectPath)
+  const importerId = getLockfileImporterId(lockfileDirectory, projectPath)
 
   if (!shrinkwrap.importers[importerId]) return []
 

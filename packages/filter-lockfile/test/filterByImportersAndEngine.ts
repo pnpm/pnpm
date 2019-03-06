@@ -1,9 +1,9 @@
-import { filterByImportersAndEngine } from '@pnpm/filter-lockfile'
+import { filterLockfileByImportersAndEngine } from '@pnpm/filter-lockfile'
 import test = require('tape')
 
 test('filterByImportersAndEngine(): skip packages that are not installable', (t) => {
   const skippedPackages = new Set<string>(['/preserve-existing-skipped/1.0.0'])
-  const filteredShrinkwrap = filterByImportersAndEngine(
+  const filteredShrinkwrap = filterLockfileByImportersAndEngine(
     {
       importers: {
         'project-1': {

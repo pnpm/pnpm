@@ -1,9 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { filterByImporters } from '@pnpm/filter-lockfile'
+import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import test = require('tape')
 
 test('filterByImporters(): only prod dependencies of one importer', (t) => {
-  const filteredShr = filterByImporters(
+  const filteredShr = filterLockfileByImporters(
     {
       importers: {
         'project-1': {
@@ -119,7 +119,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
 test('filterByImporters(): fail on missing packages when failOnMissingDependencies is true', (t) => {
   let err!: Error
   try {
-    filterByImporters(
+    filterLockfileByImporters(
       {
         importers: {
           'project-1': {
@@ -169,7 +169,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
 })
 
 test('filterByImporters(): do not fail on missing packages when failOnMissingDependencies is false', (t) => {
-  const filteredShr = filterByImporters(
+  const filteredShr = filterLockfileByImporters(
     {
       importers: {
         'project-1': {
@@ -242,7 +242,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
 })
 
 test('filterByImporters(): do not include skipped packages', (t) => {
-  const filteredShr = filterByImporters(
+  const filteredShr = filterLockfileByImporters(
     {
       importers: {
         'project-1': {

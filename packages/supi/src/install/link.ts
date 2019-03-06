@@ -7,8 +7,8 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import filterShrinkwrap, {
-  filterByImporters as filterShrinkwrapByImporters,
+import filterLockfile, {
+  filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import { Shrinkwrap } from '@pnpm/lockfile-file'
@@ -155,7 +155,7 @@ export default async function linkPackages (
     dryRun: opts.dryRun,
     importers,
     lockfileDirectory: opts.lockfileDirectory,
-    newShrinkwrap: filterShrinkwrap(newWantedShrinkwrap, filterOpts),
+    newShrinkwrap: filterLockfile(newWantedShrinkwrap, filterOpts),
     oldShrinkwrap: opts.currentShrinkwrap,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
@@ -169,12 +169,12 @@ export default async function linkPackages (
   })
 
   const importerIds = importers.map((importer) => importer.id)
-  const newCurrentShrinkwrap = filterShrinkwrapByImporters(newWantedShrinkwrap, importerIds, {
+  const newCurrentShrinkwrap = filterLockfileByImporters(newWantedShrinkwrap, importerIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
   })
   const newDepPaths = await linkNewPackages(
-    filterShrinkwrapByImporters(opts.currentShrinkwrap, importerIds, {
+    filterLockfileByImporters(opts.currentShrinkwrap, importerIds, {
       ...filterOpts,
       failOnMissingDependencies: false,
     }),
@@ -267,7 +267,7 @@ export default async function linkPackages (
   ) {
     const filteredCurrentShrinkwrap = allImportersIncluded
       ? opts.currentShrinkwrap
-      : filterShrinkwrapByImporters(
+      : filterLockfileByImporters(
         opts.currentShrinkwrap,
         Object.keys(newWantedShrinkwrap.importers)
           .filter((importerId) => importerIds.indexOf(importerId) === -1 && opts.currentShrinkwrap.importers[importerId]),

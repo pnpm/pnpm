@@ -1,17 +1,17 @@
 export * from '@pnpm/lockfile-types'
 export * from './read'
 
-import existsWanted from './existsWanted'
-import getImporterId from './getImporterId'
-import write, {
-  writeCurrentOnly,
-  writeWantedOnly,
+import existsWantedLockfile from './existsWantedLockfile'
+import getLockfileImporterId from './getLockfileImporterId'
+import writeLockfiles, {
+  writeCurrentLockfile,
+  writeWantedLockfile,
 } from './write'
 
 export {
-  existsWanted,
-  getImporterId,
-  write,
-  writeWantedOnly,
-  writeCurrentOnly,
+  existsWantedLockfile,
+  getLockfileImporterId,
+  writeLockfiles,
+  writeCurrentLockfile,
+  writeWantedLockfile,
 }

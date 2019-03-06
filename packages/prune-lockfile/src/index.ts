@@ -11,7 +11,7 @@ import R = require('ramda')
 
 export * from '@pnpm/lockfile-types'
 
-export function pruneSharedShrinkwrap (
+export function pruneSharedLockfile (
   shr: Shrinkwrap,
   opts: {
     defaultRegistry: string,
@@ -36,7 +36,7 @@ export function pruneSharedShrinkwrap (
   return prunnedShr
 }
 
-export function prune (
+export function pruneLockfile (
   shr: Shrinkwrap,
   pkg: PackageJson,
   importerId: string,
@@ -104,7 +104,7 @@ export function prune (
   if (!R.isEmpty(shrDevDependencies)) {
     updatedImporter.devDependencies = shrDevDependencies
   }
-  return pruneSharedShrinkwrap(prunnedShrinkwrap, opts)
+  return pruneSharedLockfile(prunnedShrinkwrap, opts)
 }
 
 function copyPackageSnapshots (

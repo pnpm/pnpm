@@ -1,7 +1,7 @@
 import logger from '@pnpm/logger'
 import {
   PackageSnapshot,
-  pruneSharedShrinkwrap,
+  pruneSharedLockfile,
   ResolvedDependencies,
   Shrinkwrap,
   ShrinkwrapResolution,
@@ -45,7 +45,7 @@ export default function (
   }
   const warn = (message: string) => logger.warn({ message, prefix })
   return {
-    newShrinkwrap: pruneSharedShrinkwrap(shrinkwrap, { defaultRegistry: registries.default, warn }),
+    newShrinkwrap: pruneSharedLockfile(shrinkwrap, { defaultRegistry: registries.default, warn }),
     pendingRequiresBuilds,
   }
 }

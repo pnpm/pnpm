@@ -1,13 +1,13 @@
 import { ENGINE_NAME, LAYOUT_VERSION } from '@pnpm/constants'
 import { summaryLogger } from '@pnpm/core-loggers'
 import {
-  write as saveShrinkwrap,
-  writeCurrentOnly as saveCurrentShrinkwrapOnly,
+  writeCurrentLockfile,
+  writeLockfiles,
 } from '@pnpm/lockfile-file'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import { prune as pruneShrinkwrap } from '@pnpm/prune-lockfile'
+import { pruneLockfile } from '@pnpm/prune-lockfile'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
@@ -68,7 +68,7 @@ export async function uninstallInContext (
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerId, {
+  const newShr = pruneLockfile(ctx.wantedShrinkwrap, pkg, ctx.importerId, {
     defaultRegistry: ctx.registries.default,
     warn: (message) => logger.warn({ message, prefix: ctx.prefix }),
   })
@@ -94,13 +94,13 @@ export async function uninstallInContext (
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(ctx.registries, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
+    ? pruneLockfile(ctx.currentShrinkwrap, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
     : newShr
   const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.lockfileDirectory, newShr, currentShrinkwrap, shrinkwrapOpts)
+    await writeLockfiles(ctx.lockfileDirectory, newShr, currentShrinkwrap, shrinkwrapOpts)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.lockfileDirectory, currentShrinkwrap, shrinkwrapOpts)
+    await writeCurrentLockfile(ctx.lockfileDirectory, currentShrinkwrap, shrinkwrapOpts)
   }
 
   if (opts.shamefullyFlatten) {
