@@ -14,7 +14,7 @@ import * as dp from 'dependency-path'
 import path = require('path')
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
-import shrinkwrapsEqual from '../shrinkwrapsEqual'
+import shrinkwrapsEqual from '../lockfilesEqual'
 import extendOptions, {
   StrictUninstallOptions,
   UninstallOptions,
