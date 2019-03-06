@@ -60,10 +60,10 @@ import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import lock from '../lock'
+import shrinkwrapsEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import save from '../save'
-import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import removeDeps from '../uninstall/removeDeps'
 import getPref from '../utils/getPref'
 import extendOptions, {
@@ -74,7 +74,7 @@ import linkPackages, {
   DependenciesGraph,
   Importer as ImporterToLink,
 } from './link'
-import { absolutePathToRef } from './shrinkwrap'
+import { absolutePathToRef } from './lockfile'
 
 export type DependenciesMutation = {
   buildIndex: number,

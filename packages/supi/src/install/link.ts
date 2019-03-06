@@ -25,12 +25,12 @@ import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
+import { absolutePathToRef } from './lockfile'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
 } from './resolvePeers'
-import { absolutePathToRef } from './shrinkwrap'
-import updateShrinkwrap from './updateShrinkwrap'
+import updateShrinkwrap from './updateLockfile'
 
 export { DependenciesGraph }
 

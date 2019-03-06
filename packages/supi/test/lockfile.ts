@@ -3,12 +3,10 @@ import {
   WANTED_SHRINKWRAP_FILENAME,
 } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
+import { Shrinkwrap } from '@pnpm/lockfile-file'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { Shrinkwrap } from '@pnpm/lockfile-file'
-import { stripIndent } from 'common-tags'
 import mkdir = require('mkdirp-promise')
-import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import { getIntegrity } from 'pnpm-registry-mock'

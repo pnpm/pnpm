@@ -1,8 +1,8 @@
 import { isExecutable } from '@pnpm/assert-project'
 import { WANTED_SHRINKWRAP_FILENAME } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
-import prepare from '@pnpm/prepare'
 import { Shrinkwrap } from '@pnpm/lockfile-file'
+import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')

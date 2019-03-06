@@ -8,7 +8,7 @@ import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
-import filterShrinkwrap from './filterShrinkwrap'
+import filterShrinkwrap from './filterLockfile'
 
 const logger = pnpmLogger('shrinkwrap')
 

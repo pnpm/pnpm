@@ -11,8 +11,8 @@ import { Dependencies, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import R = require('ramda')
+import { absolutePathToRef } from './lockfile'
 import { DependenciesGraph } from './resolvePeers'
-import { absolutePathToRef } from './shrinkwrap'
 
 export default function (
   depGraph: DependenciesGraph,

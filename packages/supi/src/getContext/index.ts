@@ -19,7 +19,7 @@ import mkdirp = require('mkdirp-promise')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
 import checkCompatibility from './checkCompatibility'
-import readShrinkwrapFile from './readShrinkwrapFiles'
+import readShrinkwrapFile from './readLockfiles'
 
 export interface PnpmContext<T> {
   currentShrinkwrap: Shrinkwrap,

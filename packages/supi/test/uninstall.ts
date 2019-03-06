@@ -4,8 +4,8 @@ import {
   RootLog,
   StatsLog,
 } from '@pnpm/core-loggers'
-import prepare, { preparePackages } from '@pnpm/prepare'
 import { Shrinkwrap } from '@pnpm/lockfile-file'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
 import path = require('path')
