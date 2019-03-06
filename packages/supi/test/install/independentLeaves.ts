@@ -18,7 +18,7 @@ test('install with --independent-leaves', async (t: tape.Test) => {
   t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
 
-  await install(await testDefaults({ independentLeaves: true, preferFrozenShrinkwrap: false }))
+  await install(await testDefaults({ independentLeaves: true, preferFrozenLockfile: false }))
 
   t.ok(isSubdir(path.resolve('node_modules'), await resolveLinkTarget(path.resolve('node_modules/rimraf'))), 'non-independent package is not symlinked directly from store')
 })

@@ -57,6 +57,7 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   fetchingConcurrency?: number,
   lockStaleDuration?: number,
   lock: boolean,
+  lockfileOnly?: boolean, // like npm's --package-lock-only
   childConcurrency?: number,
   repeatInstallDepth?: number,
   ignorePnpmfile?: boolean,
@@ -64,7 +65,6 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   shamefullyFlatten?: boolean,
-  shrinkwrapOnly?: boolean, // like npm's --package-lock-only
   useStoreServer?: boolean,
   workspaceConcurrency: number,
   workspacePrefix?: string,
@@ -74,7 +74,7 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   strictPeerDependencies: boolean,
   pending: boolean,
   lockfileDirectory?: string,
-  sharedWorkspaceShrinkwrap: boolean,
+  sharedWorkspaceLockfile: boolean,
 
   registries: Registries,
 }

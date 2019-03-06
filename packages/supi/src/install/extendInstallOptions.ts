@@ -14,14 +14,14 @@ import { ReporterFunction } from '../types'
 
 export interface BaseInstallOptions {
   forceSharedShrinkwrap?: boolean,
-  frozenShrinkwrap?: boolean,
-  preferFrozenShrinkwrap?: boolean,
+  frozenLockfile?: boolean,
+  lockfileOnly?: boolean,
+  preferFrozenLockfile?: boolean,
   shamefullyFlatten?: boolean,
   storeController: StoreController,
   store: string,
   reporter?: ReporterFunction,
   shrinkwrap?: boolean,
-  shrinkwrapOnly?: boolean,
   force?: boolean,
   update?: boolean,
   depth?: number,
@@ -67,12 +67,12 @@ export type InstallOptions = BaseInstallOptions & {
 
 export type StrictInstallOptions = BaseInstallOptions & {
   forceSharedShrinkwrap: boolean,
-  frozenShrinkwrap: boolean,
-  preferFrozenShrinkwrap: boolean,
+  frozenLockfile: boolean,
+  preferFrozenLockfile: boolean,
   shamefullyFlatten: boolean,
   shrinkwrap: boolean,
   lockfileDirectory: string,
-  shrinkwrapOnly: boolean,
+  lockfileOnly: boolean,
   force: boolean,
   update: boolean,
   depth: number,
@@ -120,7 +120,7 @@ const defaults = async (opts: InstallOptions) => {
     engineStrict: false,
     force: false,
     forceSharedShrinkwrap: false,
-    frozenShrinkwrap: false,
+    frozenLockfile: false,
     hooks: {},
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
@@ -133,12 +133,13 @@ const defaults = async (opts: InstallOptions) => {
     localPackages: {},
     lock: true,
     lockfileDirectory: opts.lockfileDirectory || opts.prefix || process.cwd(),
+    lockfileOnly: false,
     locks: path.join(opts.store, '_locks'),
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     nodeVersion: process.version,
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
-    preferFrozenShrinkwrap: true,
+    preferFrozenLockfile: true,
     pruneShrinkwrapImporters: false,
     pruneStore: false,
     rawNpmConfig: {},
@@ -146,7 +147,6 @@ const defaults = async (opts: InstallOptions) => {
     repeatInstallDepth: -1,
     shamefullyFlatten: false,
     shrinkwrap: true,
-    shrinkwrapOnly: false,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
     store: opts.store,
@@ -180,7 +180,7 @@ export default async (
     ...opts,
     store: defaultOpts.store,
   }
-  if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
+  if (!extendedOpts.shrinkwrap && extendedOpts.lockfileOnly) {
     throw new Error(`Cannot generate a ${WANTED_LOCKFILE} because shrinkwrap is set to false`)
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {

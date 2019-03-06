@@ -149,7 +149,7 @@ export default async function run (argv: string[]) {
       devDependencies: opts.development !== false,
       optionalDependencies: opts.optional !== false,
     }
-    opts.forceSharedShrinkwrap = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceShrinkwrap === true
+    opts.forceSharedShrinkwrap = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     console.error(err.message)

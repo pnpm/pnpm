@@ -49,7 +49,7 @@ test('install only the dependencies of the specified importer', async (t) => {
       prefix: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ shrinkwrapOnly: true }))
+  await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
 
   await mutateModules(importers.slice(0, 1), await testDefaults())
 
@@ -150,10 +150,10 @@ test('dependencies of other importers are not pruned when (headless) installing 
 
   await addDependenciesToPackage(['is-positive@2'], await testDefaults({
     lockfileDirectory: process.cwd(),
+    lockfileOnly: true,
     prefix: path.resolve('project-1'),
-    shrinkwrapOnly: true,
   }))
-  await mutateModules(importers.slice(0, 1), await testDefaults({ frozenShrinkwrap: true }))
+  await mutateModules(importers.slice(0, 1), await testDefaults({ frozenLockfile: true }))
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
@@ -224,7 +224,7 @@ test('headless install is used when package link to another package in the works
       prefix: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ shrinkwrapOnly: true }))
+  await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
 
   const reporter = sinon.spy()
   await mutateModules(importers.slice(0, 1), await testDefaults({ reporter }))
@@ -266,7 +266,7 @@ test('current shrinkwrap contains only installed dependencies when adding a new 
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
-  ], await testDefaults({ shrinkwrapOnly: true }))
+  ], await testDefaults({ lockfileOnly: true }))
 
   await mutateModules([
     {

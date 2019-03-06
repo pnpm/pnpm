@@ -20,8 +20,8 @@ export default async function installCmd (
   const store = await createStoreController(opts)
   const installOpts = {
     ...opts,
+    lockfileOnly: true,
     preferredVersions,
-    shrinkwrapOnly: true,
     store: store.path,
     storeController: store.ctrl,
   }

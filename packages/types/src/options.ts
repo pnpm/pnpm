@@ -55,6 +55,7 @@ export interface PnpmOptions {
   verifyStoreIntegrity?: boolean,
   networkConcurrency?: number,
   fetchingConcurrency?: number,
+  lockfileOnly?: boolean, // like npm's --package-lock-only
   lockStaleDuration?: number,
   lock?: boolean,
   childConcurrency?: number,
@@ -62,7 +63,6 @@ export interface PnpmOptions {
   ignorePnpmfile?: boolean,
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  shrinkwrapOnly?: boolean, // like npm's --package-lock-only
 
   // cannot be specified via configs
   update?: boolean,
@@ -131,6 +131,7 @@ export type StrictPnpmOptions = PnpmOptions & {
   verifyStoreIntegrity: boolean,
   networkConcurrency: number,
   fetchingConcurrency: number,
+  lockfileOnly: boolean, // like npm's --package-lock-only
   lockStaleDuration: number,
   lock: boolean,
   childConcurrency: number,
@@ -139,7 +140,6 @@ export type StrictPnpmOptions = PnpmOptions & {
   independentLeaves: boolean,
   locks: string,
   packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  shrinkwrapOnly: boolean, // like npm's --package-lock-only
 
   // cannot be specified via configs
   update: boolean,

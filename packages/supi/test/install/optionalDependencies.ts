@@ -111,7 +111,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   await rimraf('node_modules')
 
-  await mutateModules([{ buildIndex: 0, mutation: 'install', prefix: process.cwd() }], await testDefaults({ frozenShrinkwrap: true }))
+  await mutateModules([{ buildIndex: 0, mutation: 'install', prefix: process.cwd() }], await testDefaults({ frozenLockfile: true }))
 
   await project.hasNot('not-compatible-with-any-os')
   await project.has('dep-of-optional-pkg')
@@ -221,7 +221,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
         prefix: process.cwd(),
       },
     ],
-    await testDefaults({ force: true, frozenShrinkwrap: true }),
+    await testDefaults({ force: true, frozenLockfile: true }),
   )
 
   t.ok(await exists('node_modules/.localhost+4873/not-compatible-with-any-os/1.0.0'), 'optional dependency linked after forced headless install')
@@ -254,7 +254,7 @@ test('only that package is skipped which is an optional dependency only and not 
       },
     ],
     await testDefaults({
-      frozenShrinkwrap: true,
+      frozenLockfile: true,
     }),
   )
 
@@ -404,7 +404,7 @@ test('skip optional dependency that does not support the current OS, when doing 
     ],
     await testDefaults({
       lockfileDirectory: process.cwd(),
-      shrinkwrapOnly: true,
+      lockfileOnly: true,
     }),
   )
 
@@ -417,9 +417,9 @@ test('skip optional dependency that does not support the current OS, when doing 
       },
     ],
     await testDefaults({
-      frozenShrinkwrap: false,
+      frozenLockfile: false,
       lockfileDirectory: process.cwd(),
-      preferFrozenShrinkwrap: false,
+      preferFrozenLockfile: false,
     }),
   )
 

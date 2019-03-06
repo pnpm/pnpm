@@ -62,6 +62,7 @@ export interface PnpmOptions {
   verifyStoreIntegrity?: boolean,
   networkConcurrency?: number,
   fetchingConcurrency?: number,
+  lockfileOnly?: boolean, // like npm's --package-lock-only
   lockStaleDuration?: number,
   lock: boolean,
   childConcurrency?: number,
@@ -71,7 +72,6 @@ export interface PnpmOptions {
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   shamefullyFlatten?: boolean,
-  shrinkwrapOnly?: boolean, // like npm's --package-lock-only
   useStoreServer?: boolean,
   workspaceConcurrency: number,
   workspacePrefix?: string,

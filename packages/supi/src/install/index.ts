@@ -170,12 +170,12 @@ export async function mutateModules (
   async function _install () {
     const installsOnly = importers.every((importer) => importer.mutation === 'install')
     if (
-      !opts.shrinkwrapOnly &&
+      !opts.lockfileOnly &&
       !opts.update &&
       installsOnly &&
       (
-        opts.frozenShrinkwrap ||
-        opts.preferFrozenShrinkwrap &&
+        opts.frozenLockfile ||
+        opts.preferFrozenLockfile &&
         (!opts.pruneShrinkwrapImporters || Object.keys(ctx.wantedShrinkwrap.importers).length === ctx.importers.length) &&
         ctx.existsWantedShrinkwrap &&
         ctx.wantedShrinkwrap.lockfileVersion === SHRINKWRAP_VERSION &&
@@ -376,9 +376,9 @@ export async function mutateModules (
         ...importer,
         ...await partitionLinkedPackages(wantedDeps, {
           localPackages: opts.localPackages,
+          lockfileOnly: opts.lockfileOnly,
           modulesDir: importer.modulesDir,
           prefix: importer.prefix,
-          shrinkwrapOnly: opts.shrinkwrapOnly,
           storePath: ctx.storePath,
           virtualStoreDir: ctx.virtualStoreDir,
         }),
@@ -435,8 +435,8 @@ async function partitionLinkedPackages (
   opts: {
     modulesDir: string,
     localPackages?: LocalPackages,
+    lockfileOnly: boolean,
     prefix: string,
-    shrinkwrapOnly: boolean,
     storePath: string,
     virtualStoreDir: string,
   },
@@ -449,7 +449,7 @@ async function partitionLinkedPackages (
       continue
     }
     const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, wantedDependency.alias, {
-      hideAlienModules: opts.shrinkwrapOnly === false,
+      hideAlienModules: opts.lockfileOnly === false,
       prefix: opts.prefix,
       storePath: opts.storePath,
     })
@@ -597,7 +597,7 @@ async function installInContext (
     },
   },
 ) {
-  if (opts.shrinkwrapOnly && ctx.existsCurrentShrinkwrap) {
+  if (opts.lockfileOnly && ctx.existsCurrentShrinkwrap) {
     logger.warn({
       message: '`node_modules` is present. Shrinkwrap only installation will make it out-of-date',
       prefix: ctx.lockfileDirectory,
@@ -647,7 +647,7 @@ async function installInContext (
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
-    dryRun: opts.shrinkwrapOnly,
+    dryRun: opts.lockfileOnly,
     engineStrict: opts.engineStrict,
     force: opts.force,
     hasManifestInShrinkwrap,
@@ -778,7 +778,7 @@ async function installInContext (
     {
       afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
       currentShrinkwrap: ctx.currentShrinkwrap,
-      dryRun: opts.shrinkwrapOnly,
+      dryRun: opts.lockfileOnly,
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
@@ -811,7 +811,7 @@ async function installInContext (
   }
 
   const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
-  if (opts.shrinkwrapOnly) {
+  if (opts.lockfileOnly) {
     await saveWantedShrinkwrapOnly(ctx.lockfileDirectory, result.wantedShrinkwrap, shrinkwrapOpts)
   } else {
     await Promise.all([

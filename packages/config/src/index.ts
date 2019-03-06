@@ -151,16 +151,16 @@ export default async (
   pnpmConfig.shrinkwrap = typeof pnpmConfig['lockfile'] === 'undefined'
     ? pnpmConfig.shrinkwrap
     : pnpmConfig['lockfile']
-  pnpmConfig.shrinkwrapOnly = typeof pnpmConfig['lockfileOnly'] === 'undefined'
+  pnpmConfig.lockfileOnly = typeof pnpmConfig['lockfileOnly'] === 'undefined'
     ? pnpmConfig.shrinkwrapOnly
     : pnpmConfig['lockfileOnly']
-  pnpmConfig.frozenShrinkwrap = typeof pnpmConfig['frozenLockfile'] === 'undefined'
+  pnpmConfig.frozenLockfile = typeof pnpmConfig['frozenLockfile'] === 'undefined'
     ? pnpmConfig.frozenShrinkwrap
     : pnpmConfig['frozenLockfile']
-  pnpmConfig.preferFrozenShrinkwrap = typeof pnpmConfig['preferFrozenLockfile'] === 'undefined'
+  pnpmConfig.preferFrozenLockfile = typeof pnpmConfig['preferFrozenLockfile'] === 'undefined'
     ? pnpmConfig.preferFrozenShrinkwrap
     : pnpmConfig['preferFrozenLockfile']
-  pnpmConfig.sharedWorkspaceShrinkwrap = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
+  pnpmConfig.sharedWorkspaceLockfile = typeof pnpmConfig['sharedWorkspaceLockfile'] === 'undefined'
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
 
@@ -183,13 +183,13 @@ export default async (
       }
       pnpmConfig.linkWorkspacePackages = false
     }
-    if (pnpmConfig.sharedWorkspaceShrinkwrap) {
+    if (pnpmConfig.sharedWorkspaceLockfile) {
       if (opts.cliArgs['shared-workspace-lockfile'] || opts.cliArgs['shared-workspace-shrinkwrap']) {
         const err = new Error('Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
         err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL' // tslint:disable-line:no-string-literal
         throw err
       }
-      pnpmConfig.sharedWorkspaceShrinkwrap = false
+      pnpmConfig.sharedWorkspaceLockfile = false
     }
     if (pnpmConfig.lockfileDirectory) {
       if (opts.cliArgs['lockfile-directory'] || opts.cliArgs['shrinkwrap-directory']) {
@@ -203,7 +203,7 @@ export default async (
     pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
   }
-  if (pnpmConfig.sharedWorkspaceShrinkwrap && !pnpmConfig.lockfileDirectory) {
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDirectory) {
     pnpmConfig.lockfileDirectory = pnpmConfig.workspacePrefix || undefined
   }
 

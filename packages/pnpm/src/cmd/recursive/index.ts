@@ -321,7 +321,7 @@ export async function recursive (
 
   if (
     cmdFullName === 'rebuild' ||
-    !opts.shrinkwrapOnly && !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')
+    !opts.lockfileOnly && !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')
   ) {
     const action = (
       cmdFullName !== 'rebuild' || input.length === 0

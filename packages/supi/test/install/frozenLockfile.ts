@@ -31,7 +31,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
   })
 
   try {
-    await install(await testDefaults({ frozenShrinkwrap: true }))
+    await install(await testDefaults({ frozenLockfile: true }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
@@ -54,7 +54,7 @@ test(`frozen-lockfile+shamefully-flatten: installation fails if specs in package
   })
 
   try {
-    await install(await testDefaults({ frozenShrinkwrap: true, shamefullyFlatten: true }))
+    await install(await testDefaults({ frozenLockfile: true, shamefullyFlatten: true }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
@@ -100,7 +100,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
   })
 
   try {
-    await mutateModules(importers, await testDefaults({ frozenShrinkwrap: true }))
+    await mutateModules(importers, await testDefaults({ frozenLockfile: true }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with p1${path.sep}package.json`)
@@ -114,11 +114,11 @@ test(`frozen-shrinkwrap: should successfully install when ${WANTED_LOCKFILE} is 
     },
   })
 
-  await install(await testDefaults({ shrinkwrapOnly: true }))
+  await install(await testDefaults({ lockfileOnly: true }))
 
   await project.hasNot('is-positive')
 
-  await install(await testDefaults({ frozenShrinkwrap: true }))
+  await install(await testDefaults({ frozenLockfile: true }))
 
   await project.has('is-positive')
 })
@@ -131,7 +131,7 @@ test(`frozen-shrinkwrap: should fail if no ${WANTED_LOCKFILE} is present`, async
   })
 
   try {
-    await install(await testDefaults({ frozenShrinkwrap: true }))
+    await install(await testDefaults({ frozenLockfile: true }))
     t.fail()
   } catch (err) {
     t.equals(err.message, `Headless installation requires a ${WANTED_LOCKFILE} file`)
@@ -145,12 +145,12 @@ test(`prefer-frozen-shrinkwrap: should prefer headless installation when ${WANTE
     },
   })
 
-  await install(await testDefaults({ shrinkwrapOnly: true }))
+  await install(await testDefaults({ lockfileOnly: true }))
 
   await project.hasNot('is-positive')
 
   const reporter = sinon.spy()
-  await install(await testDefaults({ reporter, preferFrozenShrinkwrap: true }))
+  await install(await testDefaults({ reporter, preferFrozenLockfile: true }))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -168,7 +168,7 @@ test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${W
     },
   })
 
-  await install(await testDefaults({ shrinkwrapOnly: true }))
+  await install(await testDefaults({ lockfileOnly: true }))
 
   await project.writePackageJson({
     dependencies: {
@@ -179,7 +179,7 @@ test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${W
   await project.hasNot('is-positive')
 
   const reporter = sinon.spy()
-  await install(await testDefaults({ reporter, preferFrozenShrinkwrap: true }))
+  await install(await testDefaults({ reporter, preferFrozenLockfile: true }))
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
@@ -193,13 +193,13 @@ test(`prefer-frozen-shrinkwrap: should not prefer headless installation when ${W
 test(`prefer-frozen-shrinkwrap: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
-  await install(await testDefaults({ preferFrozenShrinkwrap: true }))
+  await install(await testDefaults({ preferFrozenLockfile: true }))
 })
 
 test(`frozen-shrinkwrap: should not fail if no ${WANTED_LOCKFILE} is present and project has no deps`, async (t) => {
   const project = prepare(t)
 
-  await install(await testDefaults({ frozenShrinkwrap: true }))
+  await install(await testDefaults({ frozenLockfile: true }))
 })
 
 test(`prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
@@ -209,13 +209,13 @@ test(`prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless instal
     },
   })
 
-  await install(await testDefaults({ shrinkwrapOnly: true }))
+  await install(await testDefaults({ lockfileOnly: true }))
 
   await project.hasNot('pkg-with-1-dep')
 
   const reporter = sinon.spy()
   await install(await testDefaults({
-    preferFrozenShrinkwrap: true,
+    preferFrozenLockfile: true,
     reporter,
     shamefullyFlatten: true,
   }))
@@ -264,7 +264,7 @@ test('prefer-frozen-shrinkwrap: should prefer frozen-shrinkwrap when package has
 
   const reporter = sinon.spy()
   await mutateModules(importers, await testDefaults({
-    preferFrozenShrinkwrap: true,
+    preferFrozenLockfile: true,
     reporter,
   }))
 

@@ -15,10 +15,10 @@ import { testDefaults } from '../utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
+test('install with lockfileOnly = true', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const opts = await testDefaults({ shrinkwrapOnly: true, pinnedVersion: 'patch' })
+  const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' })
   await addDependenciesToPackage(['pkg-with-1-dep@100.0.0'], opts)
 
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
@@ -46,14 +46,14 @@ test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   t.notOk(await project.loadCurrentShrinkwrap(), 'current shrinkwrap not created')
 })
 
-test('warn when installing with shrinkwrapOnly = true and node_modules exists', async (t: tape.Test) => {
+test('warn when installing with lockfileOnly = true and node_modules exists', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
   await addDependenciesToPackage(['is-positive'], await testDefaults())
   await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({
+    lockfileOnly: true,
     reporter,
-    shrinkwrapOnly: true,
   }))
 
   t.ok(reporter.calledWithMatch({

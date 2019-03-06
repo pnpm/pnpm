@@ -120,7 +120,7 @@ test('shrinkwrap with scoped package', async (t: tape.Test) => {
     },
   })
 
-  await install(await testDefaults({ frozenShrinkwrap: true }))
+  await install(await testDefaults({ frozenLockfile: true }))
 })
 
 test('fail when shasum from shrinkwrap does not match with the actual one', async (t: tape.Test) => {
@@ -794,11 +794,11 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when shrinkwrap: false`, 
   t.ok(await project.loadShrinkwrap(), `${WANTED_LOCKFILE} not removed during uninstall`)
 })
 
-test('fail when installing with shrinkwrap: false and shrinkwrapOnly: true', async (t: tape.Test) => {
+test('fail when installing with shrinkwrap: false and lockfileOnly: true', async (t: tape.Test) => {
   const project = prepare(t)
 
   try {
-    await install(await testDefaults({ shrinkwrap: false, shrinkwrapOnly: true }))
+    await install(await testDefaults({ shrinkwrap: false, lockfileOnly: true }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.message, `Cannot generate a ${WANTED_LOCKFILE} because shrinkwrap is set to false`)
