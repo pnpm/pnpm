@@ -53,7 +53,7 @@ test("resolve file when shrinkwrap directory differs from the package's dir", as
   const wantedDependency = {pref: './pnpm-local-resolver-0.1.1.tgz'}
   const resolveResult = await resolveFromLocal(wantedDependency, {
     prefix: __dirname,
-    shrinkwrapDirectory: path.join(__dirname, '..'),
+    lockfileDirectory: path.join(__dirname, '..'),
   })
 
   t.deepEqual(resolveResult, {

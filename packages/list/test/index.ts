@@ -15,7 +15,7 @@ const emptyFixture = path.join(__dirname, 'empty')
 
 test('list all deps of a package that has an external lockfile', async (t) => {
   t.equal(await list(fixtureWithExternalShrinkwrap, {
-    shrinkwrapDirectory: path.join(fixtureWithExternalShrinkwrap, '..'),
+    lockfileDirectory: path.join(fixtureWithExternalShrinkwrap, '..'),
   }), stripIndent`
     pkg@1.0.0 ${fixtureWithExternalShrinkwrap}
     └── is-positive@1.0.0

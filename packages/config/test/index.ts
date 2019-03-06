@@ -102,7 +102,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
     })
     t.ok(opts.linkWorkspacePackages)
     t.ok(opts.sharedWorkspaceShrinkwrap)
-    t.ok(opts.shrinkwrapDirectory)
+    t.ok(opts.lockfileDirectory)
   }
 
   {
@@ -117,7 +117,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
     })
     t.notOk(opts.linkWorkspacePackages, 'link-workspace-packages is false')
     t.notOk(opts.sharedWorkspaceShrinkwrap, 'shared-workspace-shrinkwrap is false')
-    t.notOk(opts.shrinkwrapDirectory, 'shrinkwrap-directory is null')
+    t.notOk(opts.lockfileDirectory, 'shrinkwrap-directory is null')
   }
 
   t.end()

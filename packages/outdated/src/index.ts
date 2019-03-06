@@ -36,7 +36,7 @@ export default async function (
     proxy?: string,
     rawNpmConfig: object,
     registries?: Registries,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
     store: string,
     strictSsl: boolean,
     tag: string,
@@ -65,7 +65,7 @@ export async function forPackages (
     proxy?: string,
     rawNpmConfig: object,
     registries?: Registries,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
     store: string,
     strictSsl: boolean,
     tag: string,
@@ -94,7 +94,7 @@ async function _outdated (
     proxy?: string,
     rawNpmConfig: object,
     registries?: Registries,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
     store: string,
     strictSsl: boolean,
     tag: string,
@@ -102,17 +102,17 @@ async function _outdated (
   },
 ): Promise<OutdatedPackage[]> {
   const registries = normalizeRegistries(opts.registries)
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory || pkgPath
+  const lockfileDirectory = opts.lockfileDirectory || pkgPath
   const pkg = await readPackageFromDir(pkgPath)
   if (packageHasNoDeps(pkg)) return []
-  const wantedShrinkwrap = await readWantedShrinkwrap(shrinkwrapDirectory, { ignoreIncompatible: false })
-    || await readCurrentShrinkwrap(shrinkwrapDirectory, { ignoreIncompatible: false })
+  const wantedShrinkwrap = await readWantedShrinkwrap(lockfileDirectory, { ignoreIncompatible: false })
+    || await readCurrentShrinkwrap(lockfileDirectory, { ignoreIncompatible: false })
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
   const storePath = await resolveStore(pkgPath, opts.store)
-  const importerId = getImporterId(shrinkwrapDirectory, pkgPath)
-  const currentShrinkwrap = await readCurrentShrinkwrap(shrinkwrapDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
+  const importerId = getImporterId(lockfileDirectory, pkgPath)
+  const currentShrinkwrap = await readCurrentShrinkwrap(lockfileDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
 
   const resolve = createResolver({
     fetchRetries: opts.fetchRetries,

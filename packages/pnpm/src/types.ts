@@ -78,7 +78,7 @@ export interface PnpmOptions {
   linkWorkspacePackages: boolean,
   sort: boolean,
   pending: boolean,
-  shrinkwrapDirectory?: string,
+  lockfileDirectory?: string,
 
   // cannot be specified via configs
   update?: boolean,

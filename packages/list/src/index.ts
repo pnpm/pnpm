@@ -24,11 +24,11 @@ export async function forPackages (
   maybeOpts?: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
+    lockfileDirectory?: string,
     long?: boolean,
     only?: 'dev' | 'prod',
     parseable?: boolean,
     registries?: Registries,
-    shrinkwrapDirectory?: string,
   },
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -49,9 +49,9 @@ export async function forPackages (
 
   const tree = await dhForPackages(searched, projectPath, {
     depth: opts.depth,
+    lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
     only: opts.only,
     registries: opts.registries,
-    shrinkwrapDirectory: maybeOpts && maybeOpts.shrinkwrapDirectory,
   })
 
   const print = getPrinter(opts.parseable)
@@ -71,11 +71,11 @@ export default async function (
   maybeOpts?: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
+    lockfileDirectory?: string,
     long?: boolean,
     only?: 'dev' | 'prod',
     parseable?: boolean,
     registries?: Registries,
-    shrinkwrapDirectory?: string,
   },
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -84,9 +84,9 @@ export default async function (
     ? []
     : await dh(projectPath, {
       depth: opts.depth,
+      lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
       only: opts.only,
       registries: opts.registries,
-      shrinkwrapDirectory: maybeOpts && maybeOpts.shrinkwrapDirectory,
     })
 
   const print = getPrinter(opts.parseable)

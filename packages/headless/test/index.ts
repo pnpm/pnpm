@@ -28,7 +28,7 @@ test('installing a simple project', async (t) => {
 
   await headless(await testDefaults({
     reporter,
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -88,7 +88,7 @@ test('installing only prod deps', async (t) => {
       devDependencies: false,
       optionalDependencies: false,
     },
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -112,7 +112,7 @@ test('installing only dev deps', async (t) => {
       devDependencies: true,
       optionalDependencies: false,
     },
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -133,7 +133,7 @@ test('installing non-prod deps then all deps', async (t) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -162,7 +162,7 @@ test('installing non-prod deps then all deps', async (t) => {
       optionalDependencies: true,
     },
     reporter,
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
   }))
 
   t.ok(reporter.calledWithMatch({
@@ -207,7 +207,7 @@ test('installing only optional deps', async (t) => {
     },
     optional: true,
     production: false,
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -239,7 +239,7 @@ test('installing with independent-leaves and shamefully-flatten', async (t) => {
   await headless(await testDefaults({
     importers,
     independentLeaves: true,
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -263,7 +263,7 @@ test('run pre/postinstall scripts', async (t) => {
   const outputJsonPath = path.join(prefix, 'output.json')
   await rimraf(outputJsonPath)
 
-  await headless(await testDefaults({ shrinkwrapDirectory: prefix }))
+  await headless(await testDefaults({ lockfileDirectory: prefix }))
 
   const project = assertProject(t, prefix)
   const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -277,7 +277,7 @@ test('run pre/postinstall scripts', async (t) => {
   await rimraf(outputJsonPath)
   await rimraf(path.join(prefix, 'node_modules'))
 
-  await headless(await testDefaults({ shrinkwrapDirectory: prefix, ignoreScripts: true }))
+  await headless(await testDefaults({ lockfileDirectory: prefix, ignoreScripts: true }))
 
   t.notOk(await exists(outputJsonPath))
 
@@ -305,7 +305,7 @@ test('orphan packages are removed', async (t) => {
   fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
 
   await headless(await testDefaults({
-    shrinkwrapDirectory: projectDir,
+    lockfileDirectory: projectDir,
   }))
 
   fse.copySync(path.join(simpleDir, 'package.json'), destPackageJsonPath)
@@ -314,7 +314,7 @@ test('orphan packages are removed', async (t) => {
   const reporter = sinon.spy()
   await headless(await testDefaults({
     reporter,
-    shrinkwrapDirectory: projectDir,
+    lockfileDirectory: projectDir,
   }))
 
   t.ok(reporter.calledWithMatch({
@@ -345,13 +345,13 @@ test('available packages are used when node_modules is not clean', async (t) => 
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
 
-  await headless(await testDefaults({ shrinkwrapDirectory: projectDir }))
+  await headless(await testDefaults({ lockfileDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
 
   const reporter = sinon.spy()
-  await headless(await testDefaults({ shrinkwrapDirectory: projectDir, reporter }))
+  await headless(await testDefaults({ lockfileDirectory: projectDir, reporter }))
 
   const project = assertProject(t, projectDir)
   await project.has('rimraf')
@@ -385,13 +385,13 @@ test('available packages are relinked during forced install', async (t) => {
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
 
-  await headless(await testDefaults({ shrinkwrapDirectory: projectDir }))
+  await headless(await testDefaults({ lockfileDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_SHRINKWRAP_FILENAME), destShrinkwrapYamlPath)
 
   const reporter = sinon.spy()
-  await headless(await testDefaults({ shrinkwrapDirectory: projectDir, reporter, force: true }))
+  await headless(await testDefaults({ lockfileDirectory: projectDir, reporter, force: true }))
 
   const project = assertProject(t, projectDir)
   await project.has('rimraf')
@@ -424,7 +424,7 @@ test(`fail when ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.jso
   fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_SHRINKWRAP_FILENAME), path.join(projectDir, WANTED_SHRINKWRAP_FILENAME))
 
   try {
-    await headless(await testDefaults({ shrinkwrapDirectory: projectDir }))
+    await headless(await testDefaults({ lockfileDirectory: projectDir }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with package.json`)
@@ -437,7 +437,7 @@ test('installing local dependency', async (t) => {
   const prefix = path.join(fixtures, 'has-local-dep')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter }))
+  await headless(await testDefaults({ lockfileDirectory: prefix, reporter }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('tar-pkg'), 'prod dep installed')
@@ -449,7 +449,7 @@ test('installing local directory dependency', async (t) => {
   const prefix = path.join(fixtures, 'has-local-dir-dep')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter }))
+  await headless(await testDefaults({ lockfileDirectory: prefix, reporter }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('example/package.json'), 'prod dep installed')
@@ -468,7 +468,7 @@ test('installing using passed in shrinkwrap files', async (t) => {
   const wantedShr = await readWanted(simplePkgPath, { ignoreIncompatible: false })
 
   await headless(await testDefaults({
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
     wantedShrinkwrap: wantedShr,
   }))
 
@@ -485,7 +485,7 @@ test('installing using passed in shrinkwrap files', async (t) => {
 test('installation of a dependency that has a resolved peer in subdeps', async (t) => {
   const prefix = path.join(fixtures, 'resolved-peer-deps-in-subdeps')
 
-  await headless(await testDefaults({ shrinkwrapDirectory: prefix }))
+  await headless(await testDefaults({ lockfileDirectory: prefix }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('pnpm-default-reporter'), 'prod dep installed')
@@ -498,7 +498,7 @@ test('independent-leaves: installing a simple project', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter, independentLeaves: true }))
+  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, independentLeaves: true }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -544,7 +544,7 @@ test('installing with shamefullyFlatten = true', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter, shamefullyFlatten: true }))
+  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, shamefullyFlatten: true }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -604,7 +604,7 @@ test('using side effects cache', async (t) => {
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -641,7 +641,7 @@ test('using side effects cache and shamefully-flatten', async (t) => {
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     importers,
-    shrinkwrapDirectory: prefix,
+    lockfileDirectory: prefix,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -684,7 +684,7 @@ test('installing in a workspace', async (t) => {
 
   await headless(await testDefaults({
     importers: manifests.importers,
-    shrinkwrapDirectory: workspaceFixture,
+    lockfileDirectory: workspaceFixture,
   }))
 
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
@@ -693,7 +693,7 @@ test('installing in a workspace', async (t) => {
 
   await headless(await testDefaults({
     importers: [manifests.importers[0]],
-    shrinkwrapDirectory: workspaceFixture,
+    lockfileDirectory: workspaceFixture,
   }))
 
   const rootNodeModules = assertProject(t, workspaceFixture)
@@ -727,7 +727,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
   await headless(await testDefaults({
     importers,
     independentLeaves: true,
-    shrinkwrapDirectory: workspaceFixture,
+    lockfileDirectory: workspaceFixture,
   }))
 
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))

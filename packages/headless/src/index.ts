@@ -78,7 +78,7 @@ export interface HeadlessOptions {
     pruneDirectDependencies?: boolean,
     shamefullyFlatten: boolean,
   }>,
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
   storeController: StoreController,
   verifyStoreIntegrity: boolean,
   sideEffectsCacheRead: boolean,
@@ -107,20 +107,20 @@ export default async (opts: HeadlessOptions) => {
     streamParser.on('data', reporter)
   }
 
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory
-  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(shrinkwrapDirectory, { ignoreIncompatible: false })
+  const lockfileDirectory = opts.lockfileDirectory
+  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(lockfileDirectory, { ignoreIncompatible: false })
 
   if (!wantedShrinkwrap) {
     throw new Error(`Headless installation requires a ${WANTED_SHRINKWRAP_FILENAME} file`)
   }
 
-  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
-  const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
+  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(lockfileDirectory, { ignoreIncompatible: false })
+  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
 
   for (const importer of opts.importers) {
     if (!satisfiesPackageJson(wantedShrinkwrap, importer.pkg, importer.id)) {
       const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_SHRINKWRAP_FILENAME} is not up-to-date with ` +
-        path.relative(opts.shrinkwrapDirectory, path.join(importer.prefix, 'package.json')))
+        path.relative(opts.lockfileDirectory, path.join(importer.prefix, 'package.json')))
       err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
       throw err
     }
@@ -152,23 +152,23 @@ export default async (opts: HeadlessOptions) => {
     await prune({
       dryRun: false,
       importers: opts.importers,
+      lockfileDirectory,
       newShrinkwrap: filterShrinkwrap(wantedShrinkwrap, filterOpts),
       oldShrinkwrap: currentShrinkwrap,
       pruneStore: opts.pruneStore,
       registries: opts.registries,
-      shrinkwrapDirectory,
       storeController: opts.storeController,
       virtualStoreDir,
     })
   } else {
     statsLogger.debug({
-      prefix: shrinkwrapDirectory,
+      prefix: lockfileDirectory,
       removed: 0,
     })
   }
 
   stageLogger.debug({
-    prefix: opts.shrinkwrapDirectory,
+    prefix: opts.lockfileDirectory,
     stage: 'importing_started',
   })
 
@@ -178,7 +178,7 @@ export default async (opts: HeadlessOptions) => {
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
     includeIncompatiblePackages: opts.force === true,
-    prefix: shrinkwrapDirectory,
+    prefix: lockfileDirectory,
   })
   const res = await shrinkwrapToDepGraph(
     filteredShrinkwrap,
@@ -186,7 +186,7 @@ export default async (opts: HeadlessOptions) => {
     {
       ...opts,
       importerIds: opts.importers.map((importer) => importer.id),
-      prefix: shrinkwrapDirectory,
+      prefix: lockfileDirectory,
       skipped,
       virtualStoreDir,
     } as ShrinkwrapToDepGraphOptions,
@@ -195,26 +195,26 @@ export default async (opts: HeadlessOptions) => {
 
   statsLogger.debug({
     added: Object.keys(depGraph).length,
-    prefix: shrinkwrapDirectory,
+    prefix: lockfileDirectory,
   })
 
   await Promise.all([
     linkAllModules(depGraph, {
+      lockfileDirectory: opts.lockfileDirectory,
       optional: opts.include.optionalDependencies,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }),
     linkAllPkgs(opts.storeController, R.values(depGraph), opts),
   ])
 
   stageLogger.debug({
-    prefix: opts.shrinkwrapDirectory,
+    prefix: opts.lockfileDirectory,
     stage: 'importing_done',
   })
 
   function warn (message: string) {
     logger.warn({
       message,
-      prefix: shrinkwrapDirectory,
+      prefix: lockfileDirectory,
     })
   }
 
@@ -226,14 +226,14 @@ export default async (opts: HeadlessOptions) => {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-              shrinkwrapDirectory: opts.shrinkwrapDirectory,
+              lockfileDirectory: opts.lockfileDirectory,
               targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
             })
             return directory
           }
           : undefined,
+        lockfileDirectory: opts.lockfileDirectory,
         modulesDir: importer.modulesDir,
-        prefix: opts.shrinkwrapDirectory,
         registries: opts.registries,
         virtualStoreDir,
       })
@@ -264,7 +264,7 @@ export default async (opts: HeadlessOptions) => {
   if (currentShrinkwrap && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredShrinkwrap.importers).sort())) {
     Object.assign(filteredShrinkwrap.packages, currentShrinkwrap.packages)
   }
-  await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
+  await writeCurrentShrinkwrapOnly(lockfileDirectory, filteredShrinkwrap)
 
   if (opts.ignoreScripts) {
     for (const importer of opts.importers) {
@@ -321,7 +321,7 @@ export default async (opts: HeadlessOptions) => {
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
 
-  summaryLogger.debug({ prefix: opts.shrinkwrapDirectory })
+  summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
   await opts.storeController.close()
 
@@ -409,7 +409,7 @@ interface ShrinkwrapToDepGraphOptions {
   force: boolean,
   independentLeaves: boolean,
   importerIds: string[],
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
   skipped: Set<string>,
   storeController: StoreController,
   store: string,
@@ -443,7 +443,7 @@ async function shrinkwrapToDepGraph (
       const packageId = pkgSnapshot.id || depPath
       progressLogger.debug({
         packageId,
-        requester: opts.shrinkwrapDirectory,
+        requester: opts.lockfileDirectory,
         status: 'resolved',
       })
       let fetchResponse = opts.storeController.fetchPackage({
@@ -458,17 +458,17 @@ async function shrinkwrapToDepGraph (
         .then((fetchResult) => {
           progressLogger.debug({
             packageId,
-            requester: opts.shrinkwrapDirectory,
+            requester: opts.lockfileDirectory,
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })
         })
       const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-        shrinkwrapDirectory: opts.shrinkwrapDirectory,
+        lockfileDirectory: opts.lockfileDirectory,
         targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
       })
 
-      const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.shrinkwrapDirectory)}`, 'node_modules')
+      const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
@@ -498,10 +498,10 @@ async function shrinkwrapToDepGraph (
       force: opts.force,
       graph,
       independentLeaves: opts.independentLeaves,
+      lockfileDirectory: opts.lockfileDirectory,
       pkgSnapshotsByRelDepPaths: shr.packages,
       prefix: opts.prefix,
       registries: opts.registries,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: opts.skipped,
       store: opts.store,
@@ -534,7 +534,7 @@ async function getChildrenPaths (
     skipped: Set<string>,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
     prefix: string,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     sideEffectsCacheRead: boolean,
     storeController: StoreController,
   },
@@ -555,13 +555,13 @@ async function getChildrenPaths (
       const pkgId = childPkgSnapshot.id || childDepPath
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-        shrinkwrapDirectory: ctx.shrinkwrapDirectory,
+        lockfileDirectory: ctx.lockfileDirectory,
         targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
       })
       children[alias] = pkgLocation.directory
     } else if (childPkgSnapshot) {
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.shrinkwrapDirectory)}`, 'node_modules', pkgName)
+      children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.lockfileDirectory)}`, 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else if (!ctx.skipped.has(childRelDepPath)) {
@@ -670,7 +670,7 @@ async function linkAllModules (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
   },
 ) {
   return Promise.all(
@@ -694,7 +694,7 @@ async function linkAllModules (
               if (alias === depNode.name) {
                 logger.warn({
                   message: `Cannot link dependency with name ${alias} to ${depNode.modules}. Dependency's name should differ from the parent's name.`,
-                  prefix: opts.shrinkwrapDirectory,
+                  prefix: opts.lockfileDirectory,
                 })
                 return
               }

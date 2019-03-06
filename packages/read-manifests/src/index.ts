@@ -16,7 +16,7 @@ export interface ImporterOptions {
 
 export default async (
   importers: ImporterOptions[],
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
   opts: {
     shamefullyFlatten: boolean,
   },
@@ -42,14 +42,14 @@ export default async (
   skipped: Set<string>,
   virtualStoreDir: string,
 }> => {
-  const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
+  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
   const modules = await readModulesYaml(virtualStoreDir)
   return {
     importers: await Promise.all(
       importers.map(async (importer) => {
         let pkg = await safeReadPkgFromDir(importer.prefix) || {} as PackageJson
         const modulesDir = await realNodeModulesDir(importer.prefix)
-        const importerId = getImporterId(shrinkwrapDirectory, importer.prefix)
+        const importerId = getImporterId(lockfileDirectory, importer.prefix)
 
         return {
           bin: importer.bin || path.join(importer.prefix, 'node_modules', '.bin'),

@@ -6,8 +6,8 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface UninstallOptions {
+  lockfileDirectory?: string,
   prefix?: string,
-  shrinkwrapDirectory?: string,
   store: string,
   independentLeaves?: boolean,
   force?: boolean,
@@ -30,13 +30,13 @@ export interface UninstallOptions {
 }
 
 export type StrictUninstallOptions = UninstallOptions & {
+  lockfileDirectory: string,
   prefix: string,
   store: string,
   independentLeaves: boolean,
   force: boolean,
   forceSharedShrinkwrap: boolean,
   shamefullyFlatten: boolean,
-  shrinkwrapDirectory: string,
   sideEffectsCacheRead: boolean,
   storeController: StoreController,
   registries: Registries,
@@ -58,13 +58,14 @@ const defaults = async (opts: UninstallOptions) => {
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory || prefix
+  const lockfileDirectory = opts.lockfileDirectory || prefix
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
     forceSharedShrinkwrap: false,
     independentLeaves: false,
     lock: true,
+    lockfileDirectory,
     locks: path.join(opts.store, '_locks'),
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     packageManager,
@@ -72,7 +73,6 @@ const defaults = async (opts: UninstallOptions) => {
     registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
     shrinkwrap: true,
-    shrinkwrapDirectory,
     sideEffectsCacheRead: false,
     store: opts.store,
     storeController: opts.storeController,

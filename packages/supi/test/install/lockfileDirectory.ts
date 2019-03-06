@@ -19,7 +19,7 @@ const testSkip = promisifyTape(tape.skip)
 testSkip('subsequent installation uses same shrinkwrap directory by default', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ shrinkwrapDirectory: path.resolve('..') }))
+  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
 
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
 
@@ -31,12 +31,12 @@ testSkip('subsequent installation uses same shrinkwrap directory by default', as
 testSkip('subsequent installation fails if a different shrinkwrap directory is specified', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ shrinkwrapDirectory: path.resolve('..') }))
+  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
 
   let err!: Error & {code: string}
 
   try {
-    await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ shrinkwrapDirectory: process.cwd() }))
+    await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ lockfileDirectory: process.cwd() }))
   } catch (_) {
     err = _
   }
@@ -50,7 +50,7 @@ test(`tarball location is correctly saved to ${WANTED_SHRINKWRAP_FILENAME} when 
 
   await ncp(path.join(pathToLocalPkg('tar-pkg-with-dep-2'), 'tar-pkg-with-dep-1.0.0.tgz'), 'pkg.tgz')
 
-  const shrinkwrapDirectory = path.resolve('..')
+  const lockfileDirectory = path.resolve('..')
   await mutateModules(
     [
       {
@@ -60,7 +60,7 @@ test(`tarball location is correctly saved to ${WANTED_SHRINKWRAP_FILENAME} when 
         prefix: process.cwd(),
       },
     ],
-    await testDefaults({ shrinkwrapDirectory }),
+    await testDefaults({ lockfileDirectory }),
   )
 
   const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
@@ -77,12 +77,12 @@ test(`tarball location is correctly saved to ${WANTED_SHRINKWRAP_FILENAME} when 
         prefix: process.cwd(),
       }
     ],
-    await testDefaults({ frozenShrinkwrap: true, shrinkwrapDirectory }),
+    await testDefaults({ frozenShrinkwrap: true, lockfileDirectory }),
   )
 
   await project.has('tar-pkg-with-dep')
 
-  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ shrinkwrapDirectory }))
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ lockfileDirectory }))
 
   t.pass('rebuild did not fail')
 })

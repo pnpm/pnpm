@@ -47,6 +47,7 @@ export interface LocalPackages {
 export interface ResolveOptions {
   defaultTag?: string,
   localPackages?: LocalPackages,
+  lockfileDirectory: string,
   preferredVersions: {
     [packageName: string]: {
       selector: string,
@@ -55,7 +56,6 @@ export interface ResolveOptions {
   },
   prefix: string,
   registry: string,
-  shrinkwrapDirectory?: string, // TODO: make it required in next major version
 }
 
 export type WantedDependency = {

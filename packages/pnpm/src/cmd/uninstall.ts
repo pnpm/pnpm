@@ -15,7 +15,7 @@ export default async function uninstallCmd (
     store: store.path,
     storeController: store.ctrl,
   })
-  if (opts.shrinkwrapDirectory === opts.prefix) {
+  if (opts.lockfileDirectory === opts.prefix) {
     return uninstall(input, uninstallOpts)
   }
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix

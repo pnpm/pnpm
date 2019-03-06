@@ -264,7 +264,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
 
   await uninstall(['is-positive', 'project-2'], await testDefaults({
     prefix: path.resolve('project-1'),
-    shrinkwrapDirectory: process.cwd(),
+    lockfileDirectory: process.cwd(),
     store,
   }))
 

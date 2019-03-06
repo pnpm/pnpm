@@ -7,8 +7,8 @@ import { ReporterFunction } from '../types'
 
 export interface RebuildOptions {
   childConcurrency?: number,
+  lockfileDirectory?: string,
   prefix?: string,
-  shrinkwrapDirectory?: string,
   sideEffectsCacheRead?: boolean,
   store: string, // TODO: remove this property
   storeController: StoreController,
@@ -36,9 +36,9 @@ export interface RebuildOptions {
 
 export type StrictRebuildOptions = RebuildOptions & {
   childConcurrency?: number,
+  lockfileDirectory: string,
   prefix: string,
   store: string,
-  shrinkwrapDirectory: string,
   sideEffectsCacheRead: boolean,
   independentLeaves: boolean,
   force: boolean,
@@ -63,7 +63,7 @@ const defaults = async (opts: RebuildOptions) => {
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory || prefix
+  const lockfileDirectory = opts.lockfileDirectory || prefix
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     childConcurrency: 5,
@@ -71,6 +71,7 @@ const defaults = async (opts: RebuildOptions) => {
     force: false,
     forceSharedShrinkwrap: false,
     independentLeaves: false,
+    lockfileDirectory,
     optional: true,
     packageManager,
     pending: false,
@@ -80,7 +81,6 @@ const defaults = async (opts: RebuildOptions) => {
     registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
     shrinkwrap: true,
-    shrinkwrapDirectory,
     sideEffectsCacheRead: false,
     store: opts.store,
     unsafePerm: process.platform === 'win32' ||

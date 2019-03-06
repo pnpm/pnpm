@@ -39,7 +39,7 @@ export function forPackages (
     depth: number,
     only?: 'dev' | 'prod',
     registries?: Registries,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
   },
 ) {
   assert(packages, 'packages should be defined')
@@ -54,7 +54,7 @@ export default function (
     depth: number,
     only?: 'dev' | 'prod',
     registries?: Registries,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
   },
 ) {
   return dependenciesHierarchy(projectPath, [], opts)
@@ -67,7 +67,7 @@ async function dependenciesHierarchy (
     depth: number,
     only?: 'dev' | 'prod',
     registries?: Registries,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
   },
 ): Promise<PackageNode[]> {
   const modules = await readModulesYaml(projectPath)
@@ -75,8 +75,8 @@ async function dependenciesHierarchy (
     ...maybeOpts && maybeOpts.registries,
     ...modules && modules.registries,
   })
-  const shrinkwrapDirectory = maybeOpts && maybeOpts.shrinkwrapDirectory || projectPath
-  const shrinkwrap = await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
+  const lockfileDirectory = maybeOpts && maybeOpts.lockfileDirectory || projectPath
+  const shrinkwrap = await readCurrent(lockfileDirectory, { ignoreIncompatible: false })
 
   if (!shrinkwrap) return []
 
@@ -85,7 +85,7 @@ async function dependenciesHierarchy (
     only: undefined,
     ...maybeOpts,
   }
-  const importerId = getImporterId(shrinkwrapDirectory, projectPath)
+  const importerId = getImporterId(lockfileDirectory, projectPath)
 
   if (!shrinkwrap.importers[importerId]) return []
 

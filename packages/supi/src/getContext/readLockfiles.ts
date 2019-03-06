@@ -24,7 +24,7 @@ export default async function (
   opts: {
     force: boolean,
     forceSharedShrinkwrap: boolean,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     registry: string,
     shrinkwrap: boolean,
     importers: Array<{
@@ -45,13 +45,13 @@ export default async function (
     wantedVersion: SHRINKWRAP_VERSION,
   }
   const files = await Promise.all<Shrinkwrap | null | void>([
-    opts.shrinkwrap && readWantedShrinkwrap(opts.shrinkwrapDirectory, shrOpts)
-      || await existsWantedShrinkwrap(opts.shrinkwrapDirectory) &&
+    opts.shrinkwrap && readWantedShrinkwrap(opts.lockfileDirectory, shrOpts)
+      || await existsWantedShrinkwrap(opts.lockfileDirectory) &&
         logger.warn({
           message: `A ${WANTED_SHRINKWRAP_FILENAME} file exists. The current configuration prohibits to read or write a shrinkwrap file`,
-          prefix: opts.shrinkwrapDirectory,
+          prefix: opts.lockfileDirectory,
         }),
-    readCurrentShrinkwrap(opts.shrinkwrapDirectory, shrOpts),
+    readCurrentShrinkwrap(opts.lockfileDirectory, shrOpts),
   ])
   const sopts = { lockfileVersion: SHRINKWRAP_VERSION }
   const importerIds = opts.importers.map((importer) => importer.id)

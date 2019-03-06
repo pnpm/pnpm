@@ -381,7 +381,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, shrinkwrapDirectory: path.resolve('..') }))
+  await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, lockfileDirectory: path.resolve('..') }))
 
   t.notOk(reporter.calledWithMatch({
     message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -412,10 +412,10 @@ test('peer dependency is grouped correctly with peer installed via separate inst
   })
 
   const reporter = sinon.spy()
-  const shrinkwrapDirectory = path.resolve('..')
+  const lockfileDirectory = path.resolve('..')
 
-  await install(await testDefaults({ reporter, shrinkwrapDirectory }))
-  await addDependenciesToPackage(['peer-c@2.0.0'], await testDefaults({ reporter, shrinkwrapDirectory }))
+  await install(await testDefaults({ reporter, lockfileDirectory }))
+  await addDependenciesToPackage(['peer-c@2.0.0'], await testDefaults({ reporter, lockfileDirectory }))
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc', '1.0.0_peer-c@2.0.0', NM, 'dep-of-pkg-with-1-dep')))
 })
@@ -424,9 +424,9 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   const project = prepare(t)
   await mkdir('_')
   process.chdir('_')
-  const shrinkwrapDirectory = path.resolve('..')
+  const lockfileDirectory = path.resolve('..')
 
-  await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
@@ -442,7 +442,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 
-  await install(await testDefaults({ shrinkwrapDirectory }))
+  await install(await testDefaults({ lockfileDirectory }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
@@ -468,7 +468,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
       },
     ],
     await testDefaults({
-      shrinkwrapDirectory,
+      lockfileDirectory,
     }),
   )
 
@@ -489,9 +489,9 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   const project = prepare(t)
   await mkdir('_')
   process.chdir('_')
-  const shrinkwrapDirectory = path.resolve('..')
+  const lockfileDirectory = path.resolve('..')
 
-  await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
@@ -507,7 +507,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
     })
   }
 
-  await addDependenciesToPackage(['ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToPackage(['ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
@@ -528,9 +528,9 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   const project = prepare(t)
   await mkdir('_')
   process.chdir('_')
-  const shrinkwrapDirectory = path.resolve('..')
+  const lockfileDirectory = path.resolve('..')
 
-  await addDependenciesToPackage(['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToPackage(['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
@@ -546,7 +546,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
     })
   }
 
-  await addDependenciesToPackage(['peer-c@2.0.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToPackage(['peer-c@2.0.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))
@@ -569,13 +569,13 @@ test('regular dependencies are not removed on update from transitive packages th
   const project = prepare(t)
   await mkdir('_')
   process.chdir('_')
-  const shrinkwrapDirectory = path.resolve('..')
+  const lockfileDirectory = path.resolve('..')
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
-  await addDependenciesToPackage(['abc-grand-parent-with-c@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToPackage(['abc-grand-parent-with-c@1.0.0'], await testDefaults({ lockfileDirectory }))
 
   await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
-  await install(await testDefaults({ shrinkwrapDirectory, update: true, depth: 2 }))
+  await install(await testDefaults({ lockfileDirectory, update: true, depth: 2 }))
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc-parent-with-ab', '1.0.1_peer-c@1.0.1', NM, 'is-positive')))
 })

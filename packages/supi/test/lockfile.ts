@@ -880,7 +880,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   const store = path.resolve('..', '.store')
 
   await addDependenciesToPackage(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'],
-    await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..'), store }))
+    await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }))
 
   t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
 
@@ -921,7 +921,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
 
   process.chdir('project-2')
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..'), store }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_SHRINKWRAP_FILENAME))
@@ -1012,7 +1012,7 @@ test(`doing named installation when shared ${WANTED_SHRINKWRAP_FILENAME} exists 
     ['is-positive'],
     await testDefaults({
       prefix: path.resolve('pkg2'),
-      shrinkwrapDirectory: process.cwd(),
+      lockfileDirectory: process.cwd(),
     }),
   )
 

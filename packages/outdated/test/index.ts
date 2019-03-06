@@ -98,7 +98,7 @@ test('outdated() when only current shrinkwrap is present', async (t) => {
 test('outdated() on package with external shrinkwrap', async (t) => {
   const outdatedPkgs = await outdated('../external-wanted-shrinkwrap/pkg', {
     ...outdatedOpts,
-    shrinkwrapDirectory: path.resolve('../external-wanted-shrinkwrap'),
+    lockfileDirectory: path.resolve('../external-wanted-shrinkwrap'),
   })
   t.deepEqual(outdatedPkgs, [
     {
@@ -146,10 +146,10 @@ test('outdated() on package that has one outdated dev dependency', async (t) => 
 test('outdated() on a package that has external shrinkwrap file and direct dependencies with resolved peers', async (t) => {
   const outdatedPkgs = await outdated('package-with-external-shrinkwrap/package', {
     ...outdatedOpts,
+    lockfileDirectory: path.resolve('package-with-external-shrinkwrap'),
     registries: {
       default: 'http://localhost:4873',
     },
-    shrinkwrapDirectory: path.resolve('package-with-external-shrinkwrap'),
   })
   t.deepEqual(outdatedPkgs, [])
   t.end()

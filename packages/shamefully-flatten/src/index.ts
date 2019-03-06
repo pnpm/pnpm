@@ -18,8 +18,8 @@ export async function shamefullyFlattenByShrinkwrap (
   importerId: string,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
+    lockfileDirectory: string,
     modulesDir: string,
-    prefix: string, // TODO: rename to shrinkwrapDirectory
     registries: Registries,
     virtualStoreDir: string,
   },
@@ -38,8 +38,8 @@ export async function shamefullyFlattenByShrinkwrap (
 
   const deps = await getDependencies(shr.packages, entryNodes, new Set(), 0, {
     getIndependentPackageLocation: opts.getIndependentPackageLocation,
+    lockfileDirectory: opts.lockfileDirectory,
     registries: opts.registries,
-    shrinkwrapDirectory: opts.prefix,
     virtualStoreDir: opts.virtualStoreDir,
   })
 
@@ -57,7 +57,7 @@ async function getDependencies (
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     registries: Registries,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     virtualStoreDir: string,
   },
 ): Promise<Dependency[]> {
@@ -81,7 +81,7 @@ async function getDependencies (
 
     const absolutePath = dp.resolve(opts.registries, depRelPath)
     const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(absolutePath, opts.shrinkwrapDirectory)}`, 'node_modules')
+    const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(absolutePath, opts.lockfileDirectory)}`, 'node_modules')
     const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,

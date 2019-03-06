@@ -84,10 +84,10 @@ export async function uninstallInContext (
         shamefullyFlatten: opts.shamefullyFlatten,
       },
     ],
+    lockfileDirectory: opts.lockfileDirectory,
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
     registries: ctx.registries,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })
@@ -98,9 +98,9 @@ export async function uninstallInContext (
     : newShr
   const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.shrinkwrapDirectory, newShr, currentShrinkwrap, shrinkwrapOpts)
+    await saveShrinkwrap(ctx.lockfileDirectory, newShr, currentShrinkwrap, shrinkwrapOpts)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap, shrinkwrapOpts)
+    await saveCurrentShrinkwrapOnly(ctx.lockfileDirectory, currentShrinkwrap, shrinkwrapOpts)
   }
 
   if (opts.shamefullyFlatten) {
@@ -108,14 +108,14 @@ export async function uninstallInContext (
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            shrinkwrapDirectory: ctx.shrinkwrapDirectory,
+            lockfileDirectory: ctx.lockfileDirectory,
             targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
           })
           return directory
         }
         : undefined,
+      lockfileDirectory: opts.lockfileDirectory,
       modulesDir: ctx.modulesDir,
-      prefix: opts.shrinkwrapDirectory,
       registries: ctx.registries,
       virtualStoreDir: ctx.virtualStoreDir,
     }) || {}

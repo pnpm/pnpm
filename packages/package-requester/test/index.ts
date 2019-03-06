@@ -49,13 +49,13 @@ test('request package', async t => {
   const prefix = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
+    lockfileDirectory: prefix,
     loggedPkg: {
       rawSpec: 'is-positive@1.0.0',
     },
     preferredVersions: {},
     prefix,
     registry,
-    shrinkwrapDirectory: prefix,
     verifyStoreIntegrity: true,
   }) as PackageResponse & {
     body: {inStoreLocation: string, latest: string, manifest: {name: string}},
@@ -103,13 +103,13 @@ test('request package but skip fetching', async t => {
   const prefix = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
+    lockfileDirectory: prefix,
     loggedPkg: {
       rawSpec: 'is-positive@1.0.0',
     },
     preferredVersions: {},
     prefix,
     registry,
-    shrinkwrapDirectory: prefix,
     skipFetch: true,
     verifyStoreIntegrity: true,
   }) as PackageResponse & {
@@ -151,13 +151,13 @@ test('request package but skip fetching, when resolution is already available', 
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
     downloadPriority: 0,
+    lockfileDirectory: prefix,
     loggedPkg: {
       rawSpec: 'is-positive@1.0.0',
     },
     preferredVersions: {},
     prefix,
     registry,
-    shrinkwrapDirectory: prefix,
     shrinkwrapResolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -209,13 +209,13 @@ test('refetch local tarball if its integrity has changed', async t => {
   const requestPackageOpts = {
     currentPkgId: pkgId,
     downloadPriority: 0,
+    lockfileDirectory: prefix,
     loggedPkg: {
       rawSpec: tarball,
     },
     preferredVersions: {},
     prefix,
     registry,
-    shrinkwrapDirectory: prefix,
     skipFetch: true,
     update: false,
     verifyStoreIntegrity: true,
@@ -309,13 +309,13 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const storePath = path.join(__dirname, '..', '.store')
   const requestPackageOpts = {
     downloadPriority: 0,
+    lockfileDirectory: prefix,
     loggedPkg: {
       rawSpec: tarball,
     },
     preferredVersions: {},
     prefix,
     registry,
-    shrinkwrapDirectory: prefix,
     update: false,
     verifyStoreIntegrity: true,
   }
@@ -581,13 +581,13 @@ test('always return a package manifest in the response', async t => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       downloadPriority: 0,
+      lockfileDirectory: prefix,
       loggedPkg: {
         rawSpec: 'is-positive@1.0.0',
       },
       preferredVersions: {},
       prefix,
       registry,
-      shrinkwrapDirectory: prefix,
       verifyStoreIntegrity: true,
     }) as PackageResponse & {body: {manifest: {name: string}}}
 
@@ -599,13 +599,13 @@ test('always return a package manifest in the response', async t => {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
       downloadPriority: 0,
+      lockfileDirectory: prefix,
       loggedPkg: {
         rawSpec: 'is-positive@1.0.0',
       },
       preferredVersions: {},
       prefix,
       registry,
-      shrinkwrapDirectory: prefix,
       shrinkwrapResolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
         registry: 'https://registry.npmjs.org/',

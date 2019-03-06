@@ -12,7 +12,7 @@ export default async (
     long?: boolean,
     parseable?: boolean,
     production: boolean,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
   },
 ) => {
   const outputs = []

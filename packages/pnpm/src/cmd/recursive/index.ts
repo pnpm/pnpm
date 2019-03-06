@@ -208,12 +208,12 @@ export async function recursive (
   }
 
   if (cmdFullName !== 'rebuild') {
-    if (opts.shrinkwrapDirectory && ['install', 'uninstall', 'update'].indexOf(cmdFullName) !== -1) {
+    if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].indexOf(cmdFullName) !== -1) {
       let importers = getImporters()
-      const isFromWorkspace = isSubdir.bind(null, opts.shrinkwrapDirectory)
+      const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
       if (importers.length === 0) return true
-      const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.shrinkwrapDirectory, opts)
+      const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDirectory, opts)
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 ? 'install' : 'installSome')
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
@@ -328,7 +328,7 @@ export async function recursive (
       ? rebuild
       : (importers: any, opts: any) => rebuildPkgs(importers, input, opts) // tslint:disable-line
     )
-    if (opts.shrinkwrapDirectory) {
+    if (opts.lockfileDirectory) {
       const importers = getImporters()
       await action(
         importers,

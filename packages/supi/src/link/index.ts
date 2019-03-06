@@ -49,7 +49,7 @@ export default async function link (
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContextForSingleImporter(opts)
 
-  const importerId = getImporterId(ctx.shrinkwrapDirectory, opts.prefix)
+  const importerId = getImporterId(ctx.lockfileDirectory, opts.prefix)
   const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
   const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
@@ -108,10 +108,10 @@ export default async function link (
         shamefullyFlatten: opts.shamefullyFlatten,
       },
     ],
+    lockfileDirectory: opts.lockfileDirectory,
     newShrinkwrap: updatedCurrentShrinkwrap,
     oldShrinkwrap,
     registries: ctx.registries,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })
@@ -141,9 +141,9 @@ export default async function link (
   }
   const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.shrinkwrapDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap, shrinkwrapOpts)
+    await saveShrinkwrap(ctx.lockfileDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap, shrinkwrapOpts)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, updatedCurrentShrinkwrap, shrinkwrapOpts)
+    await saveCurrentShrinkwrapOnly(ctx.lockfileDirectory, updatedCurrentShrinkwrap, shrinkwrapOpts)
   }
 
   summaryLogger.debug({ prefix: opts.prefix })
@@ -214,7 +214,7 @@ export async function linkToGlobal (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  maybeOpts.shrinkwrapDirectory = maybeOpts.shrinkwrapDirectory || maybeOpts.globalPrefix
+  maybeOpts.lockfileDirectory = maybeOpts.lockfileDirectory || maybeOpts.globalPrefix
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
   await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {

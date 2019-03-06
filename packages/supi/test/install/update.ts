@@ -76,12 +76,12 @@ test('update dependency when external shrinkwrap directory is used', async (t: t
 
   await addDistTag('foo', '100.0.0', 'latest')
 
-  const shrinkwrapDirectory = path.resolve('..')
-  await addDependenciesToPackage(['foo'], await testDefaults({ shrinkwrapDirectory }))
+  const lockfileDirectory = path.resolve('..')
+  await addDependenciesToPackage(['foo'], await testDefaults({ lockfileDirectory }))
 
   await addDistTag('foo', '100.1.0', 'latest')
 
-  await install(await testDefaults({ update: true, depth: 0, shrinkwrapDirectory }))
+  await install(await testDefaults({ update: true, depth: 0, lockfileDirectory }))
 
   const shr = await readYamlFile<Shrinkwrap>(path.join('..', WANTED_SHRINKWRAP_FILENAME))
 

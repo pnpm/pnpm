@@ -97,7 +97,7 @@ test('fail if installing different types of dependencies in a project that uses 
     },
   })
 
-  const shrinkwrapDirectory = path.resolve('..')
+  const lockfileDirectory = path.resolve('..')
 
   await install(await testDefaults({
     include: {
@@ -105,7 +105,7 @@ test('fail if installing different types of dependencies in a project that uses 
       devDependencies: true,
       optionalDependencies: false,
     },
-    shrinkwrapDirectory,
+    lockfileDirectory,
   }))
 
   const inflight = project.requireModule('inflight')
@@ -122,7 +122,7 @@ test('fail if installing different types of dependencies in a project that uses 
         devDependencies: true,
         optionalDependencies: true,
       },
-      shrinkwrapDirectory,
+      lockfileDirectory,
     }))
   } catch (_) {
     err = _

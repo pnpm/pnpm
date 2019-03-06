@@ -153,9 +153,9 @@ export async function mutateModules (
   }
 
   if (opts.lock) {
-    await lock(ctx.shrinkwrapDirectory, _install, {
+    await lock(ctx.lockfileDirectory, _install, {
       locks: opts.locks,
-      prefix: ctx.shrinkwrapDirectory,
+      prefix: ctx.lockfileDirectory,
       stale: opts.lockStaleDuration,
       storeController: opts.storeController,
     })
@@ -191,7 +191,7 @@ export async function mutateModules (
           throw new Error(`Headless installation requires a ${WANTED_SHRINKWRAP_FILENAME} file`)
         }
       } else {
-        logger.info({ message: 'Performing headless installation', prefix: opts.shrinkwrapDirectory })
+        logger.info({ message: 'Performing headless installation', prefix: opts.lockfileDirectory })
         await headless({
           currentEngine: {
             nodeVersion: opts.nodeVersion,
@@ -214,13 +214,13 @@ export async function mutateModules (
           }>,
           include: opts.include,
           independentLeaves: opts.independentLeaves,
+          lockfileDirectory: ctx.lockfileDirectory,
           ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
           packageManager:  opts.packageManager,
           pendingBuilds: ctx.pendingBuilds,
           pruneStore: opts.pruneStore,
           rawNpmConfig: opts.rawNpmConfig,
           registries: opts.registries,
-          shrinkwrapDirectory: ctx.shrinkwrapDirectory,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
           skipped: ctx.skipped,
@@ -264,7 +264,7 @@ export async function mutateModules (
             nonLinkedPackages: [],
             removePackages: importer.dependencyNames,
             updatePackageJson: true,
-            usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+            usesExternalShrinkwrap: ctx.lockfileDirectory !== importer.prefix,
             wantedDeps: [],
           })
           break
@@ -292,7 +292,7 @@ export async function mutateModules (
             newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
             nonLinkedPackages: wantedDeps,
             updatePackageJson: true,
-            usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+            usesExternalShrinkwrap: ctx.lockfileDirectory !== importer.prefix,
             wantedDeps,
           })
           break
@@ -384,7 +384,7 @@ export async function mutateModules (
         }),
         newPkgRawSpecs: [],
         updatePackageJson: false,
-        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+        usesExternalShrinkwrap: ctx.lockfileDirectory !== importer.prefix,
         wantedDeps,
       })
     }
@@ -561,7 +561,7 @@ export async function addDependenciesToPackage (
     ],
     {
       ...opts,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix,
+      lockfileDirectory: opts.lockfileDirectory || opts.prefix,
     })
 }
 
@@ -600,7 +600,7 @@ async function installInContext (
   if (opts.shrinkwrapOnly && ctx.existsCurrentShrinkwrap) {
     logger.warn({
       message: '`node_modules` is present. Shrinkwrap only installation will make it out-of-date',
-      prefix: ctx.shrinkwrapDirectory,
+      prefix: ctx.lockfileDirectory,
     })
   }
 
@@ -635,7 +635,7 @@ async function installInContext (
   )
 
   stageLogger.debug({
-    prefix: ctx.shrinkwrapDirectory,
+    prefix: ctx.lockfileDirectory,
     stage: 'resolution_started',
   })
 
@@ -654,11 +654,11 @@ async function installInContext (
     hooks: opts.hooks,
     importers,
     localPackages: opts.localPackages,
+    lockfileDirectory: opts.lockfileDirectory,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     preferredVersions: opts.preferredVersions,
     registries: opts.registries,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     sideEffectsCache: opts.sideEffectsCacheRead,
     storeController: opts.storeController,
     tag: opts.tag,
@@ -690,7 +690,7 @@ async function installInContext (
   })
 
   stageLogger.debug({
-    prefix: ctx.shrinkwrapDirectory,
+    prefix: ctx.lockfileDirectory,
     stage: 'resolution_done',
   })
 
@@ -782,11 +782,11 @@ async function installInContext (
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
+      lockfileDirectory: opts.lockfileDirectory,
       makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
       outdatedDependencies,
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
       skipped: ctx.skipped,
       storeController: opts.storeController,
       strictPeerDependencies: opts.strictPeerDependencies,
@@ -812,12 +812,12 @@ async function installInContext (
 
   const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrapOnly) {
-    await saveWantedShrinkwrapOnly(ctx.shrinkwrapDirectory, result.wantedShrinkwrap, shrinkwrapOpts)
+    await saveWantedShrinkwrapOnly(ctx.lockfileDirectory, result.wantedShrinkwrap, shrinkwrapOpts)
   } else {
     await Promise.all([
       opts.shrinkwrap
-        ? saveShrinkwrap(ctx.shrinkwrapDirectory, result.wantedShrinkwrap, result.currentShrinkwrap, shrinkwrapOpts)
-        : saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, result.currentShrinkwrap, shrinkwrapOpts),
+        ? saveShrinkwrap(ctx.lockfileDirectory, result.wantedShrinkwrap, result.currentShrinkwrap, shrinkwrapOpts)
+        : saveCurrentShrinkwrapOnly(ctx.lockfileDirectory, result.currentShrinkwrap, shrinkwrapOpts),
       (() => {
         if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
@@ -888,13 +888,13 @@ async function installInContext (
                 if (err && err.statusCode === 403) {
                   logger.warn({
                     message: `The store server disabled upload requests, could not upload ${pkg.id}`,
-                    prefix: ctx.shrinkwrapDirectory,
+                    prefix: ctx.lockfileDirectory,
                   })
                 } else {
                   logger.warn({
                     error: err,
                     message: `An error occurred while uploading ${pkg.id}`,
-                    prefix: ctx.shrinkwrapDirectory,
+                    prefix: ctx.lockfileDirectory,
                   })
                 }
               }
@@ -909,7 +909,7 @@ async function installInContext (
                   name: pkg.name,
                   version: pkg.version,
                 },
-                prefix: opts.shrinkwrapDirectory,
+                prefix: opts.lockfileDirectory,
                 reason: 'build_failure',
               })
               return
@@ -934,7 +934,7 @@ async function installInContext (
   // waiting till package requests are finished
   await Promise.all(R.values(resolvedPackagesByPackageId).map((installed) => installed.finishing))
 
-  summaryLogger.debug({ prefix: opts.shrinkwrapDirectory })
+  summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
   await opts.storeController.close()
 }

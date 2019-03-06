@@ -37,7 +37,7 @@ export default function (
         packageId: string,
         packageName: string,
         opts: {
-          shrinkwrapDirectory: string,
+          lockfileDirectory: string,
           targetEngine?: string,
         },
       ): Promise<{ directory: string, isBuilt: boolean }> => {

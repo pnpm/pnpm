@@ -115,7 +115,7 @@ export interface ResolutionContext {
   pendingNodes: PendingNode[],
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
   storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
@@ -402,11 +402,11 @@ async function resolveDependency (
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       localPackages: options.localPackages,
+      lockfileDirectory: ctx.lockfileDirectory,
       loggedPkg,
       preferredVersions: ctx.preferredVersions,
       prefix: ctx.prefix,
       registry,
-      shrinkwrapDirectory: ctx.shrinkwrapDirectory,
       shrinkwrapResolution: options.shrinkwrapResolution,
       sideEffectsCache: options.sideEffectsCache,
       // Unfortunately, even when run with --shrinkwrap-only, we need the *real* package.json
@@ -555,7 +555,7 @@ async function resolveDependency (
   if (!ctx.resolvedPackagesByPackageId[pkgResponse.body.id]) {
     progressLogger.debug({
       packageId: pkgResponse.body.id,
-      requester: ctx.shrinkwrapDirectory,
+      requester: ctx.lockfileDirectory,
       status: 'resolved',
     })
     // tslint:disable:no-string-literal
@@ -564,7 +564,7 @@ async function resolveDependency (
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
             packageId: pkgResponse.body.id,
-            requester: ctx.shrinkwrapDirectory,
+            requester: ctx.lockfileDirectory,
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })

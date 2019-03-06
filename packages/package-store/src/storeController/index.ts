@@ -71,7 +71,7 @@ export default async function (
     packageId: string,
     packageName: string,
     opts: {
-      shrinkwrapDirectory: string,
+      lockfileDirectory: string,
       targetEngine?: string,
     }
   ) {
@@ -86,7 +86,7 @@ export default async function (
     }
 
     return {
-      directory: path.join(initOpts.store, pkgIdToFilename(packageId, opts.shrinkwrapDirectory), 'node_modules', packageName),
+      directory: path.join(initOpts.store, pkgIdToFilename(packageId, opts.lockfileDirectory), 'node_modules', packageName),
       isBuilt: false,
     }
   }

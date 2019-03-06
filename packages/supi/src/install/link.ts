@@ -63,7 +63,7 @@ export default async function linkPackages (
     makePartialCurrentShrinkwrap: boolean,
     pruneStore: boolean,
     registries: Registries,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     skipped: Set<string>,
     storeController: StoreController,
     wantedToBeSkippedPackageIds: Set<string>,
@@ -89,7 +89,7 @@ export default async function linkPackages (
     dependenciesTree,
     importers,
     independentLeaves: opts.independentLeaves,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
+    lockfileDirectory: opts.lockfileDirectory,
     strictPeerDependencies: opts.strictPeerDependencies,
     virtualStoreDir: opts.virtualStoreDir,
   })
@@ -154,17 +154,17 @@ export default async function linkPackages (
   const removedDepPaths = await prune({
     dryRun: opts.dryRun,
     importers,
+    lockfileDirectory: opts.lockfileDirectory,
     newShrinkwrap: filterShrinkwrap(newWantedShrinkwrap, filterOpts),
     oldShrinkwrap: opts.currentShrinkwrap,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
   })
 
   stageLogger.debug({
-    prefix: opts.shrinkwrapDirectory,
+    prefix: opts.lockfileDirectory,
     stage: 'importing_started',
   })
 
@@ -183,16 +183,16 @@ export default async function linkPackages (
     {
       dryRun: opts.dryRun,
       force: opts.force,
+      lockfileDirectory: opts.lockfileDirectory,
       optional: opts.include.optionalDependencies,
       registries: opts.registries,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
     },
   )
 
   stageLogger.debug({
-    prefix: opts.shrinkwrapDirectory,
+    prefix: opts.lockfileDirectory,
     stage: 'importing_done',
   })
 
@@ -372,7 +372,7 @@ async function linkNewPackages (
     force: boolean,
     optional: boolean,
     registries: Registries,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     storeController: StoreController,
     virtualStoreDir: string,
   },
@@ -394,7 +394,7 @@ async function linkNewPackages (
   )
   statsLogger.debug({
     added: newDepPathsSet.size,
-    prefix: opts.shrinkwrapDirectory,
+    prefix: opts.lockfileDirectory,
   })
 
   const existingWithUpdatedDeps = []
@@ -426,19 +426,19 @@ async function linkNewPackages (
 
   await Promise.all([
     linkAllModules(newPkgs, depGraph, {
+      lockfileDirectory: opts.lockfileDirectory,
       optional: opts.optional,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }),
     linkAllModules(existingWithUpdatedDeps, depGraph, {
+      lockfileDirectory: opts.lockfileDirectory,
       optional: opts.optional,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }),
     linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
   await linkAllBins(newPkgs, depGraph, {
     optional: opts.optional,
-    warn: (message: string) => logger.warn({ message, prefix: opts.shrinkwrapDirectory }),
+    warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDirectory }),
   })
 
   return newDepPaths
@@ -514,8 +514,8 @@ async function linkAllModules (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
+    lockfileDirectory: string,
     optional: boolean,
-    shrinkwrapDirectory: string,
   },
 ) {
   return Promise.all(
@@ -540,7 +540,7 @@ async function linkAllModules (
               if (alias === depNode.name) {
                 logger.warn({
                   message: `Cannot link dependency with name ${alias} to ${depNode.modules}. Dependency's name should differ from the parent's name.`,
-                  prefix: opts.shrinkwrapDirectory,
+                  prefix: opts.lockfileDirectory,
                 })
                 return
               }

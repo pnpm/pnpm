@@ -145,7 +145,7 @@ export default async (
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
   pnpmConfig.globalPrefix = path.join(npmGlobalPrefix, 'pnpm-global')
-  pnpmConfig.shrinkwrapDirectory = typeof pnpmConfig['lockfileDirectory'] === 'undefined'
+  pnpmConfig.lockfileDirectory = typeof pnpmConfig['lockfileDirectory'] === 'undefined'
     ? pnpmConfig.shrinkwrapDirectory
     : pnpmConfig['lockfileDirectory']
   pnpmConfig.shrinkwrap = typeof pnpmConfig['lockfile'] === 'undefined'
@@ -191,20 +191,20 @@ export default async (
       }
       pnpmConfig.sharedWorkspaceShrinkwrap = false
     }
-    if (pnpmConfig.shrinkwrapDirectory) {
+    if (pnpmConfig.lockfileDirectory) {
       if (opts.cliArgs['lockfile-directory'] || opts.cliArgs['shrinkwrap-directory']) {
         const err = new Error('Configuration conflict. "lockfile-directory" may not be used with "global"')
         err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL' // tslint:disable-line:no-string-literal
         throw err
       }
-      delete pnpmConfig.shrinkwrapDirectory
+      delete pnpmConfig.lockfileDirectory
     }
   } else {
     pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
   }
-  if (pnpmConfig.sharedWorkspaceShrinkwrap && !pnpmConfig.shrinkwrapDirectory) {
-    pnpmConfig.shrinkwrapDirectory = pnpmConfig.workspacePrefix || undefined
+  if (pnpmConfig.sharedWorkspaceShrinkwrap && !pnpmConfig.lockfileDirectory) {
+    pnpmConfig.lockfileDirectory = pnpmConfig.workspacePrefix || undefined
   }
 
   pnpmConfig.packageManager = packageManager

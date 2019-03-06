@@ -39,7 +39,7 @@ export default async function prune (
     pruneStore?: boolean,
     registries: Registries,
     virtualStoreDir: string,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
@@ -96,7 +96,7 @@ export default async function prune (
   const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, oldPkgIdsByDepPaths))
 
   statsLogger.debug({
-    prefix: opts.shrinkwrapDirectory,
+    prefix: opts.lockfileDirectory,
     removed: orphanPkgIds.size,
   })
 
@@ -135,7 +135,7 @@ export default async function prune (
           logger.warn({
             error: err,
             message: `Failed to remove "${pathToRemove}"`,
-            prefix: opts.shrinkwrapDirectory,
+            prefix: opts.lockfileDirectory,
           })
         }
       }))

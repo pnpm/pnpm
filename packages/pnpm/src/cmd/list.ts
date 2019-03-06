@@ -6,11 +6,11 @@ export default async function (
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     development: boolean,
+    lockfileDirectory?: string,
     long?: boolean,
     parseable?: boolean,
     prefix: string,
     production: boolean,
-    shrinkwrapDirectory?: string,
   },
   command: string,
 ) {
@@ -25,11 +25,11 @@ export async function render (
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     development: boolean,
+    lockfileDirectory?: string,
     long?: boolean,
     parseable?: boolean,
     prefix: string,
     production: boolean,
-    shrinkwrapDirectory?: string,
   },
   command: string,
 ) {
@@ -38,10 +38,10 @@ export async function render (
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth || 0,
+    lockfileDirectory: opts.lockfileDirectory,
     long: opts.long,
     only,
     parseable: opts.parseable,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
   }
   return args.length
     ? listForPackages(args, opts.prefix, listOpts)

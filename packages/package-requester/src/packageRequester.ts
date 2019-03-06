@@ -100,7 +100,7 @@ async function resolveAndFetch (
     currentPkgId?: string,
     prefix: string,
     registry: string,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     shrinkwrapResolution?: Resolution,
     update?: boolean,
     verifyStoreIntegrity: boolean,
@@ -135,10 +135,10 @@ async function resolveAndFetch (
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         defaultTag: options.defaultTag,
         localPackages: options.localPackages,
+        lockfileDirectory: options.lockfileDirectory,
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
-        shrinkwrapDirectory: options.shrinkwrapDirectory,
       }), { priority: options.downloadPriority })
 
       pkg = resolveResult.package
@@ -197,7 +197,7 @@ async function resolveAndFetch (
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
-          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id, options.shrinkwrapDirectory)),
+          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id, options.lockfileDirectory)),
           isLocal: false as false,
           latest,
           manifest: pkg,
@@ -214,7 +214,7 @@ async function resolveAndFetch (
       force: forceFetch,
       pkgId: id,
       pkgName: pkg && pkg.name,
-      prefix: options.shrinkwrapDirectory,
+      prefix: options.lockfileDirectory,
       resolution: resolution,
       verifyStoreIntegrity: options.verifyStoreIntegrity,
     })

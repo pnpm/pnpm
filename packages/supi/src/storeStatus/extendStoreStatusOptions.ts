@@ -4,8 +4,8 @@ import path = require('path')
 import { ReporterFunction } from '../types'
 
 export interface StoreStatusOptions {
+  lockfileDirectory?: string,
   prefix?: string,
-  shrinkwrapDirectory?: string,
   store: string,
   independentLeaves?: boolean,
   force?: boolean,
@@ -22,9 +22,9 @@ export interface StoreStatusOptions {
 }
 
 export type StrictStoreStatusOptions = StoreStatusOptions & {
+  lockfileDirectory: string,
   prefix: string,
   store: string,
-  shrinkwrapDirectory: string,
   independentLeaves: boolean,
   force: boolean,
   forceSharedShrinkwrap: boolean,
@@ -36,17 +36,17 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
 
 const defaults = async (opts: StoreStatusOptions) => {
   const prefix = opts.prefix || process.cwd()
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory || prefix
+  const lockfileDirectory = opts.lockfileDirectory || prefix
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
     forceSharedShrinkwrap: false,
     independentLeaves: false,
+    lockfileDirectory,
     prefix,
     registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
     shrinkwrap: true,
-    shrinkwrapDirectory,
     store: opts.store,
   } as StrictStoreStatusOptions
 }

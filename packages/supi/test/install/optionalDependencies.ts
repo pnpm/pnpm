@@ -403,7 +403,7 @@ test('skip optional dependency that does not support the current OS, when doing 
       },
     ],
     await testDefaults({
-      shrinkwrapDirectory: process.cwd(),
+      lockfileDirectory: process.cwd(),
       shrinkwrapOnly: true,
     }),
   )
@@ -418,8 +418,8 @@ test('skip optional dependency that does not support the current OS, when doing 
     ],
     await testDefaults({
       frozenShrinkwrap: false,
+      lockfileDirectory: process.cwd(),
       preferFrozenShrinkwrap: false,
-      shrinkwrapDirectory: process.cwd(),
     }),
   )
 

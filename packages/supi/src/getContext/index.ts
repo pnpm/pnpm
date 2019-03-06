@@ -37,7 +37,7 @@ export interface PnpmContext<T> {
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
   virtualStoreDir: string,
   skipped: Set<string>,
   storePath: string,
@@ -56,7 +56,7 @@ export default async function getContext<T> (
   opts: {
     force: boolean,
     forceSharedShrinkwrap: boolean,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -68,7 +68,7 @@ export default async function getContext<T> (
     store: string,
   },
 ): Promise<PnpmContext<T>> {
-  const manifests = await readManifests(importers, opts.shrinkwrapDirectory, {
+  const manifests = await readManifests(importers, opts.lockfileDirectory, {
     shamefullyFlatten: opts.shamefullyFlatten,
   })
 
@@ -77,7 +77,7 @@ export default async function getContext<T> (
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
+      lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
     })
   }
@@ -107,13 +107,13 @@ export default async function getContext<T> (
       ...importer,
     })),
     include: opts.include || manifests.include,
+    lockfileDirectory: opts.lockfileDirectory,
     modulesFile: manifests.modules,
     pendingBuilds: manifests.pendingBuilds,
     registries: {
       ...opts.registries,
       ...manifests.registries,
     },
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     skipped: manifests.skipped,
     storePath: opts.store,
     virtualStoreDir: manifests.virtualStoreDir,
@@ -121,9 +121,9 @@ export default async function getContext<T> (
       force: opts.force,
       forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
       importers: manifests.importers,
+      lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }),
   }
 
@@ -141,7 +141,7 @@ async function validateNodeModules (
   }>,
   opts: {
     force: boolean,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     include?: IncludedDependencies,
     independentLeaves: boolean,
     store: string,
@@ -189,11 +189,11 @@ async function validateNodeModules (
         )
       }
       checkCompatibility(modules, { storePath: opts.store, modulesPath: importer.modulesDir })
-      if (opts.shrinkwrapDirectory !== importer.prefix && opts.include && modules.included) {
+      if (opts.lockfileDirectory !== importer.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('ERR_PNPM_INCLUDED_DEPS_CONFLICT',
-              `node_modules (at "${opts.shrinkwrapDirectory}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
+              `node_modules (at "${opts.lockfileDirectory}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
               `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
             )
           }
@@ -227,7 +227,7 @@ export interface PnpmSingleContext {
   modulesFile: Modules | null,
   pendingBuilds: string[],
   registries: Registries,
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
   virtualStoreDir: string,
   skipped: Set<string>,
   storePath: string,
@@ -238,7 +238,7 @@ export async function getContextForSingleImporter (
   opts: {
     force: boolean,
     forceSharedShrinkwrap: boolean,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -257,7 +257,7 @@ export async function getContextForSingleImporter (
         prefix: opts.prefix,
       },
     ],
-    opts.shrinkwrapDirectory,
+    opts.lockfileDirectory,
     {
       shamefullyFlatten: opts.shamefullyFlatten,
     },
@@ -274,7 +274,7 @@ export async function getContextForSingleImporter (
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
+      lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
     })
   }
@@ -288,6 +288,7 @@ export async function getContextForSingleImporter (
     hoistedAliases: importer.hoistedAliases,
     importerId,
     include: opts.include || manifests.include,
+    lockfileDirectory: opts.lockfileDirectory,
     modulesDir,
     modulesFile: manifests.modules,
     pendingBuilds: manifests.pendingBuilds,
@@ -297,7 +298,6 @@ export async function getContextForSingleImporter (
       ...opts.registries,
       ...manifests.registries,
     },
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     skipped: manifests.skipped,
     storePath,
     virtualStoreDir: manifests.virtualStoreDir,
@@ -305,9 +305,9 @@ export async function getContextForSingleImporter (
       force: opts.force,
       forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
       importers: [{ id: importerId, prefix: opts.prefix }],
+      lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }),
   }
   packageJsonLogger.debug({

@@ -30,7 +30,7 @@ export default async (
     prefix: string,
     proxy?: string,
     rawNpmConfig: object,
-    shrinkwrapDirectory?: string,
+    lockfileDirectory?: string,
     store: string,
     strictSsl: boolean,
     tag: string,

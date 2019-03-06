@@ -282,11 +282,11 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const pkgRoot = !independent
-        ? path.join(modules, `.${pkgIdToFilename(depPath, opts.shrinkwrapDirectory)}`, 'node_modules', pkgInfo.name)
+        ? path.join(modules, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules', pkgInfo.name)
         : await (
           async () => {
             const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
-              shrinkwrapDirectory: opts.shrinkwrapDirectory,
+              lockfileDirectory: opts.lockfileDirectory,
               targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
             })
             return directory

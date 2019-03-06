@@ -256,7 +256,7 @@ test['skip']('relative link when an external shrinkwrap is used', async (t: tape
     },
   ])
 
-  const opts = await testDefaults({ shrinkwrapDirectory: path.join('..') })
+  const opts = await testDefaults({ lockfileDirectory: path.join('..') })
   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
 
   const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', WANTED_SHRINKWRAP_FILENAME))

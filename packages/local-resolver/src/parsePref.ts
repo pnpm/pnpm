@@ -19,10 +19,10 @@ export interface LocalPackageSpec {
 export default function parsePref (
   pref: string,
   importerPrefix: string,
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
 ): LocalPackageSpec | null {
   if (pref.startsWith('link:')) {
-    return fromLocal(pref, importerPrefix, shrinkwrapDirectory, 'directory')
+    return fromLocal(pref, importerPrefix, lockfileDirectory, 'directory')
   }
   if (pref.endsWith('.tgz')
     || pref.endsWith('.tar.gz')
@@ -32,7 +32,7 @@ export default function parsePref (
     || isFilespec.test(pref)
   ) {
     const type = isFilename.test(pref) ? 'file' : 'directory'
-    return fromLocal(pref, importerPrefix, shrinkwrapDirectory, type)
+    return fromLocal(pref, importerPrefix, lockfileDirectory, type)
   }
   if (pref.startsWith('path:')) {
     const err = new Error('Local dependencies via `path:` protocol are not supported. ' +
@@ -50,7 +50,7 @@ export default function parsePref (
 function fromLocal (
   pref: string,
   importerPrefix: string,
-  shrinkwrapDirectory: string,
+  lockfileDirectory: string,
   type: 'file' | 'directory',
 ): LocalPackageSpec {
   if (!importerPrefix) importerPrefix = process.cwd()
@@ -76,9 +76,9 @@ function fromLocal (
   }
 
   const dependencyPath = normalize(path.relative(importerPrefix, fetchSpec))
-  const id = type === 'directory' || importerPrefix === shrinkwrapDirectory
+  const id = type === 'directory' || importerPrefix === lockfileDirectory
     ? `${protocol}${dependencyPath}`
-    : `${protocol}${normalize(path.relative(shrinkwrapDirectory, fetchSpec))}`
+    : `${protocol}${normalize(path.relative(lockfileDirectory, fetchSpec))}`
 
   return {
     dependencyPath,

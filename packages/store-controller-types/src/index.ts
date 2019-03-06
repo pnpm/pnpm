@@ -16,7 +16,7 @@ export interface StoreController {
     packageId: string,
     packageName: string,
     opts: {
-      shrinkwrapDirectory: string,
+      lockfileDirectory: string,
       targetEngine?: string,
     },
   ): Promise<{ directory: string, isBuilt: boolean }>,
@@ -86,7 +86,7 @@ export interface RequestPackageOptions {
   currentPkgId?: string,
   prefix: string,
   registry: string,
-  shrinkwrapDirectory?: string, // TODO: make this option required
+  lockfileDirectory?: string, // TODO: make this option required
   shrinkwrapResolution?: Resolution,
   update?: boolean,
   verifyStoreIntegrity: boolean, // TODO: this should be a context field

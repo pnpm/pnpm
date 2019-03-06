@@ -23,19 +23,19 @@ export default async function testDefaults (
   storeOpts?: any, // tslint:disable-line
 ): Promise<HeadlessOptions> {
   let store = opts && opts.store || tempy.directory()
-  const shrinkwrapDirectory = opts && opts.shrinkwrapDirectory || process.cwd()
+  const lockfileDirectory = opts && opts.lockfileDirectory || process.cwd()
   const manifests = await readManifests(
     [
       {
-        prefix: shrinkwrapDirectory,
+        prefix: lockfileDirectory,
       },
     ],
-    shrinkwrapDirectory,
+    lockfileDirectory,
     {
       shamefullyFlatten: opts.shamefullyFlatten,
     },
   )
-  store = await storePath(shrinkwrapDirectory, store)
+  store = await storePath(lockfileDirectory, store)
   const rawNpmConfig = { registry }
   const storeController = await createStore(
     createResolver({
@@ -69,6 +69,7 @@ export default async function testDefaults (
     importers: manifests.importers,
     include: manifests.include,
     independentLeaves: false,
+    lockfileDirectory,
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
@@ -78,7 +79,6 @@ export default async function testDefaults (
     registries: manifests.registries || {
       default: registry,
     },
-    shrinkwrapDirectory,
     sideEffectsCache: true,
     skipped: new Set<string>(),
     store,

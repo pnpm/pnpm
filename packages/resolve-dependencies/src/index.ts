@@ -43,7 +43,7 @@ export default async function (
     registries: Registries,
     pnpmVersion: string,
     sideEffectsCache: boolean,
-    shrinkwrapDirectory: string,
+    lockfileDirectory: string,
     preferredVersions?: {
       [packageName: string]: {
         selector: string,
@@ -72,13 +72,13 @@ export default async function (
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
+    lockfileDirectory: opts.lockfileDirectory,
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
     pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
     registries: opts.registries,
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,
