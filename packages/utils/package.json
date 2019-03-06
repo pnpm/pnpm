@@ -46,7 +46,7 @@
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "mz": "2.7.0",
     "normalize-registry-url": "1.0.0"
   }

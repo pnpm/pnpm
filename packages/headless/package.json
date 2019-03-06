@@ -30,7 +30,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/fs-extra": "5.0.5",
     "@types/mz": "0.0.32",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
     "@types/sinon": "7.0.8",

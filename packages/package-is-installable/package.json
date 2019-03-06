@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "2.0.0",
     "@pnpm/types": "2.0.0",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@types/semver": "5.5.0",
     "semver": "5.6.0"
   },

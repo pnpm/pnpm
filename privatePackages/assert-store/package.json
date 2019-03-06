@@ -50,7 +50,7 @@
   },
   "dependencies": {
     "@pnpm/assert-store": "link:",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@types/path-exists": "3.0.0",
     "@types/tape": "4.2.33",
     "path-exists": "3.0.0",

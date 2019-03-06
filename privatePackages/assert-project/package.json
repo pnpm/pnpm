@@ -48,7 +48,7 @@
     "@pnpm/constants": "1.0.0-0",
     "@pnpm/modules-yaml": "2.0.1",
     "@types/mz": "0.0.32",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@types/path-exists": "3.0.0",
     "@types/tape": "4.2.33",
     "@types/write-pkg": "3.1.0",

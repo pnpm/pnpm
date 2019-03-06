@@ -38,7 +38,7 @@
     "@pnpm/core-loggers": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@types/common-tags": "1.8.0",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@types/ramda": "0.25.34",
     "@types/semver": "5.5.0",
     "@types/strip-ansi": "3.0.0",

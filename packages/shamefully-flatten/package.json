@@ -52,7 +52,7 @@
     "@pnpm/lockfile-utils": "1.0.0-0",
     "@pnpm/symlink-dependency": "2.0.0-0",
     "@pnpm/types": "2.0.0",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@types/ramda": "0.25.34",
     "dependency-path": "3.0.0-0",
     "ramda": "0.26.1"

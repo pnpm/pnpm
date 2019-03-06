@@ -30,7 +30,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch-from-npm-registry#readme",
   "dependencies": {
     "@pnpm/npm-registry-agent": "1.0.0-0",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@zeit/fetch-retry": "3.0.0",
     "node-fetch": "2.3.0"
   },

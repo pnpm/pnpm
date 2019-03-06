@@ -46,7 +46,7 @@
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/load-json-file": "2.0.7",
-    "@types/node": "11.9.5",
+    "@types/node": "11.10.4",
     "@types/rimraf": "2.0.2",
     "@types/tape": "4.2.33",
     "json-append": "1.1.1",
