@@ -1,3 +1,4 @@
+import fetch from '@pnpm/fetch'
 import {
   FetchPackageToStoreOptions,
   PackageFilesResponse,
@@ -9,7 +10,6 @@ import {
 } from '@pnpm/store-controller-types'
 import { PackageManifest } from '@pnpm/types'
 
-import got = require('got')
 import pLimit from 'p-limit'
 import uuid = require('uuid')
 
@@ -24,7 +24,7 @@ export default function (
   },
 ): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
-  const limitedFetch = fetch.bind(null, pLimit(initOpts.concurrency || 100))
+  const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency || 100))
 
   return new Promise((resolve, reject) => {
     resolve({
@@ -81,24 +81,29 @@ export default function (
   })
 }
 
-function fetch(limit: (fn: () => PromiseLike<object>) => Promise<object>, url: string, body: object): Promise<object | undefined> { // tslint:disable-line
+function limitFetch(limit: (fn: () => PromiseLike<object>) => Promise<object>, url: string, body: object): Promise<object | undefined> { // tslint:disable-line
   return limit(async () => {
-    try {
-      const response = await got(url, {
-        body: JSON.stringify(body),
-        headers: { 'Content-Type': 'application/json' },
-        method: 'POST',
-        retries: () => {
-          return 100
-        },
-      })
-      if (!response.body) {
-        return undefined
-      }
-      return JSON.parse(response.body)
-    } catch (e) {
-      throw JSON.parse(e.response.body)
+    // TODO: the http://unix: should be also supported by the fetcher
+    // but it fails with node-fetch-unix as of v2.3.0
+    if (url.startsWith('http://unix:')) {
+      url = url.replace('http://unix:', 'unix:')
     }
+    const response = await fetch(url, {
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      retry: {
+        retries: 100,
+      },
+    })
+    if (!response.ok) {
+      throw await response.json()
+    }
+    const json = await response.json()
+    if (json.error) {
+      throw json.error
+    }
+    return json
   })
 }
 

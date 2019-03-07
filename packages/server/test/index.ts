@@ -4,10 +4,9 @@ import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer, } from '@pnpm/server'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
-import got = require('got')
-import { HTTPError } from 'got'
 import isPortReachable = require('is-port-reachable')
 import fs = require('mz/fs')
+import fetch from 'node-fetch'
 import path = require('path')
 import rimraf = require('rimraf-then')
 import test = require('tape')
@@ -250,9 +249,9 @@ test('stop server with remote call', async t => {
 
   t.ok(await isPortReachable(port), 'server is running')
 
-  const response = await got(`${remotePrefix}/stop`, { method: 'POST' })
+  const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
 
-  t.equal(response.statusCode, 200, 'success returned by server stopping endpoint')
+  t.equal(response.status, 200, 'success returned by server stopping endpoint')
 
   t.notOk(await isPortReachable(port), 'server is not running')
 
@@ -272,12 +271,8 @@ test('disallow stop server with remote call', async t => {
 
   t.ok(await isPortReachable(port), 'server is running')
 
-  try {
-    const response = await got(`${remotePrefix}/stop`, { method: 'POST' })
-    t.fail('request should have failed')
-  } catch (err) {
-    t.equal(err.statusCode, 403, 'server not stopped')
-  }
+  const response = await fetch(`${remotePrefix}/stop`, { method: 'POST' })
+  t.equal(response.status, 403, 'server not stopped')
 
   t.ok(await isPortReachable(port), 'server is running')
 
@@ -297,12 +292,8 @@ test('disallow store prune', async t => {
 
   t.ok(await isPortReachable(port), 'server is running')
 
-  try {
-    const response = await got(`${remotePrefix}/prune`, { method: 'POST' })
-    t.fail('request should have failed')
-  } catch (err) {
-    t.equal(err.statusCode, 403, 'store not pruned')
-  }
+  const response = await fetch(`${remotePrefix}/prune`, { method: 'POST' })
+  t.equal(response.status, 403, 'store not pruned')
 
   await server.close()
   await storeCtrlForServer.close()
@@ -381,15 +372,9 @@ test('server should only allow POST', async (t) => {
   for (let method of methods) {
     t.comment(`Testing HTTP ${method}`)
     // Ensure 405 error is received
-    try {
-      await got(`${remotePrefix}/a-random-endpoint`, { method: method })
-      t.fail('request should have failed')
-    } catch (err) {
-      // Ensure error is correct
-      // @ts-ignore
-      t.equal((err as HTTPError).statusCode, 405, 'response code should be a 504')
-      t.ok(JSON.parse(err.response.body).error, 'error field should be set in response body')
-    }
+    const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: method })
+    t.equal(response.status, 405, 'response code should be a 504')
+    t.ok((await response.json()).error, 'error field should be set in response body')
   }
 
   await server.close()
@@ -410,15 +395,10 @@ test('server route not found', async (t) => {
   t.ok(await isPortReachable(port), 'server is running')
 
   // Ensure 404 error is received
-  try {
-    await got(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
-    t.fail('request should have failed')
-  } catch (err) {
-    // Ensure error is correct
-    // @ts-ignore
-    t.equal((err as HTTPError).statusCode, 404, 'response code should be a 404')
-    t.ok(JSON.parse(err.response.body).error, 'error field should be set in response body')
-  }
+  const response = await fetch(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
+  // Ensure error is correct
+  t.equal(response.status, 404, 'response code should be a 404')
+  t.ok((await response.json()).error, 'error field should be set in response body')
 
   await server.close()
   await storeCtrlForServer.close()

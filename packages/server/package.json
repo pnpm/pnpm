@@ -40,11 +40,13 @@
     "@pnpm/tarball-fetcher": "3.0.0-1",
     "@pnpm/tslint-config": "0.0.0",
     "@types/mz": "0.0.32",
+    "@types/node-fetch": "2.1.6",
     "@types/tape": "4.2.33",
     "is-port-reachable": "2.0.0",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "mz": "2.7.0",
+    "node-fetch": "2.3.0",
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
     "tape": "4.10.1",
@@ -61,12 +63,11 @@
     }
   },
   "dependencies": {
+    "@pnpm/fetch": "1.0.0-0",
     "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/types": "2.0.0",
-    "@types/got": "8.3.4",
     "@types/node": "11.9.5",
     "@types/uuid": "3.4.4",
-    "got": "8.3.2",
     "p-limit": "2.2.0",
     "uuid": "3.3.2"
   }

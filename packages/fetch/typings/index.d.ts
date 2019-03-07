@@ -3,7 +3,7 @@ declare module '@zeit/fetch-retry' {
   export = anything;
 }
 
-declare module 'node-fetch' {
+declare module 'node-fetch-unix' {
   const anything: any;
   export = anything;
 }

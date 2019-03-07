@@ -72,28 +72,46 @@ export default function (
       let body: RequestBody
       switch (req.url) {
         case '/requestPackage': {
-          body = await bodyPromise
-          const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-          if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
-            rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
-            pkgResponse.body['fetchingRawManifestInProgress'] = true // tslint:disable-line
+          try {
+            body = await bodyPromise
+            const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
+            if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
+              rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
+              pkgResponse.body['fetchingRawManifestInProgress'] = true // tslint:disable-line
+            }
+            if (pkgResponse['fetchingFiles']) { // tslint:disable-line
+              filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
+            }
+            res.end(JSON.stringify(pkgResponse.body))
+          } catch (err) {
+            res.end(JSON.stringify({
+              error: {
+                message: err.message,
+                ...JSON.parse(JSON.stringify(err)),
+              },
+            }))
           }
-          if (pkgResponse['fetchingFiles']) { // tslint:disable-line
-            filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
-          }
-          res.end(JSON.stringify(pkgResponse.body))
           break
         }
         case '/fetchPackage': {
-          body = await bodyPromise
-          const pkgResponse = store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
-          if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
-            rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
+          try {
+            body = await bodyPromise
+            const pkgResponse = store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
+            if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
+              rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
+            }
+            if (pkgResponse['fetchingFiles']) { // tslint:disable-line
+              filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
+            }
+            res.end(JSON.stringify({ inStoreLocation: pkgResponse.inStoreLocation }))
+          } catch (err) {
+            res.end(JSON.stringify({
+              error: {
+                message: err.message,
+                ...JSON.parse(JSON.stringify(err)),
+              },
+            }))
           }
-          if (pkgResponse['fetchingFiles']) { // tslint:disable-line
-            filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
-          }
-          res.end(JSON.stringify({ inStoreLocation: pkgResponse.inStoreLocation }))
           break
         }
         case '/packageFilesResponse':
