@@ -31,10 +31,10 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "2.0.0",
-    "@pnpm/package-bins": "2.0.0",
-    "@pnpm/read-modules-dir": "1.0.0",
     "@pnpm/lockfile-types": "1.0.0-0",
     "@pnpm/lockfile-utils": "1.0.0-0",
+    "@pnpm/package-bins": "2.0.0",
+    "@pnpm/read-modules-dir": "1.0.0",
     "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",

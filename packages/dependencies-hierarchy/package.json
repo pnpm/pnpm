@@ -37,9 +37,9 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
+    "@pnpm/lockfile-file": "1.0.0-0",
     "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/read-modules-dir": "1.0.0",
-    "@pnpm/lockfile-file": "1.0.0-0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/node": "11.9.5",
@@ -59,7 +59,7 @@
     "mos-plugin-readme": "1.0.4",
     "mos-tap-diff": "1.0.0",
     "tape": "4.10.1",
-    "ts-node": "7.0.1",
+    "ts-node": "8.0.3",
     "tslint": "5.13.1",
     "typescript": "3.3.3333"
   },
