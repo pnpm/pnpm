@@ -14,7 +14,7 @@ test('offline installation fails when package meta not found in local registry m
     await addDependenciesToPackage(['is-positive@3.0.0'], await testDefaults({}, { offline: true }, { offline: true }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.code, 'NO_OFFLINE_META', 'failed with correct error code')
+    t.equal(err.code, 'ERR_PNPM_NO_OFFLINE_META', 'failed with correct error code')
   }
 })
 

@@ -88,7 +88,7 @@ export default async (
         pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore),
       }
 
-      throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+      throw new PnpmError('ERR_PNPM_NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
     if (metaCachedInStore) {

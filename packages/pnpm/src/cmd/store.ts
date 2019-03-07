@@ -16,7 +16,7 @@ import help from './help'
 class StoreStatusError extends PnpmError {
   public modified: string[]
   constructor (modified: string[]) {
-    super('MODIFIED_DEPENDENCY', '')
+    super('ERR_PNPM_MODIFIED_DEPENDENCY', '')
     this.modified = modified
   }
 }

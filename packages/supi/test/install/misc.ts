@@ -752,7 +752,7 @@ test('should throw error when trying to install using a different store then the
     await addDependenciesToPackage(['is-negative'], await testDefaults({ store: 'node_modules/.store2' }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.code, 'UNEXPECTED_STORE', 'failed with correct error code')
+    t.equal(err.code, 'ERR_PNPM_UNEXPECTED_STORE', 'failed with correct error code')
   }
 })
 

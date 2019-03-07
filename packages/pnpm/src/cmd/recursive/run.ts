@@ -81,7 +81,7 @@ export default async (
 
   if (scriptName !== 'test' && !hasCommand) {
     const err = new Error(`None of the packages has a "${scriptName}" script`)
-    err['code'] = 'RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
+    err['code'] = 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
     throw err
   }
 

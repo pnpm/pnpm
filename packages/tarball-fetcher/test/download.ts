@@ -332,21 +332,27 @@ test('throw error when accessing private package w/o authorization', async t => 
     tarball: 'http://example.com/foo.tgz',
   }
 
+  let err!: Error
+
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
       pkgId: 'registry.npmjs.org/foo/1.0.0',
       prefix: process.cwd(),
     })
-    t.fail('should have failed')
-  } catch (err) {
-    t.equal(err.message, '403 Forbidden: http://example.com/foo.tgz')
-    t.equal(err['code'], 'E403')
-    t.equal(err['uri'], 'http://example.com/foo.tgz')
-
-    t.ok(scope.isDone())
-    t.end()
+  } catch (_err) {
+    err = _err
   }
+
+  t.ok(err)
+  err = err || new Error()
+  t.equal(err.message, '403 Forbidden: http://example.com/foo.tgz')
+  t.equal(err['code'], 'ERR_PNPM_TARBALL_FETCH')
+  t.equal(err['httpStatusCode'], 403)
+  t.equal(err['uri'], 'http://example.com/foo.tgz')
+
+  t.ok(scope.isDone())
+  t.end()
 })
 
 test('accessing private packages', async t => {

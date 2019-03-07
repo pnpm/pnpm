@@ -21,7 +21,7 @@ test('fail on non-compatible node_modules', async (t: tape.Test) => {
     await addDependenciesToPackage(['is-negative'], opts)
     t.fail('should have failed')
   } catch (err) {
-    t.equal(err.code, 'MODULES_BREAKING_CHANGE', 'modules breaking change error is thrown')
+    t.equal(err.code, 'ERR_PNPM_MODULES_BREAKING_CHANGE', 'modules breaking change error is thrown')
   }
 })
 

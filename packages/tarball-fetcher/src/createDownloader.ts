@@ -109,7 +109,7 @@ export default (
         fetch(currentAttempt)
           .then(resolve)
           .catch((err) => {
-            if (err.code === 'E403') {
+            if (err.httpStatusCode === 403) {
               reject(err)
               return
             }
@@ -128,7 +128,8 @@ export default (
         if (res.status !== 200) {
           const err = new Error(`${res.status} ${res.statusText}: ${url}`)
           // tslint:disable
-          err['code'] = `E${res.status}`
+          err['code'] = 'ERR_PNPM_TARBALL_FETCH'
+          err['httpStatusCode'] = res.status
           err['uri'] = url
           err['response'] = res
           // tslint:enable

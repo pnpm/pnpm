@@ -20,17 +20,17 @@ export default function reportError (logObj: Log) {
   if (logObj['err']) {
     const err = logObj['err'] as (Error & { code: string, stack: object })
     switch (err.code) {
-      case 'UNEXPECTED_STORE':
+      case 'ERR_PNPM_UNEXPECTED_STORE':
         return reportUnexpectedStore(err, logObj['message'])
-      case 'STORE_BREAKING_CHANGE':
+      case 'ERR_PNPM_STORE_BREAKING_CHANGE':
         return reportStoreBreakingChange(logObj['message'])
-      case 'MODULES_BREAKING_CHANGE':
+      case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
         return reportModulesBreakingChange(logObj['message'])
-      case 'MODIFIED_DEPENDENCY':
+      case 'ERR_PNPM_MODIFIED_DEPENDENCY':
         return reportModifiedDependency(logObj['message'])
       case 'ERR_PNPM_LOCKFILE_BREAKING_CHANGE':
         return reportLockfileBreakingChange(err, logObj['message'])
-      case 'RECURSIVE_RUN_NO_SCRIPT':
+      case 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT':
         return formatErrorSummary(err.message)
       case 'ERR_PNPM_NO_MATCHING_VERSION':
         return formatNoMatchingVersion(err, logObj['message'])

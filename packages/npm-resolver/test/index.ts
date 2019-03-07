@@ -561,7 +561,7 @@ test('offline resolution fails when package meta not found in the store', async 
     await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.code, 'NO_OFFLINE_META', 'failed with correct error code')
+    t.equal(err.code, 'ERR_PNPM_NO_OFFLINE_META', 'failed with correct error code')
     t.end()
   }
 })

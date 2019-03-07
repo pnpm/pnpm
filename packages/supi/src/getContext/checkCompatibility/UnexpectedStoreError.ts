@@ -9,7 +9,7 @@ export default class UnexpectedStoreError extends PnpmError {
       actualStorePath: string,
     },
   ) {
-    super('UNEXPECTED_STORE', 'Unexpected store used for installation')
+    super('ERR_PNPM_UNEXPECTED_STORE', 'Unexpected store used for installation')
     this.expectedStorePath = opts.expectedStorePath
     this.actualStorePath = opts.actualStorePath
   }
