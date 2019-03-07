@@ -107,7 +107,7 @@ export type StrictPnpmOptions = PnpmOptions & {
   offline: boolean,
   registry: string,
   optional: boolean,
-  unsafePerm?: boolean, // TODO: make it required. This is a breaking change
+  unsafePerm: boolean,
 
   // proxy
   proxy?: string,
