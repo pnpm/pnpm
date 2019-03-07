@@ -301,12 +301,31 @@ importers:
       ts-node: 8.0.3
       tslint: 5.13.1
       typescript: 3.3.3333
-  packages/fetch-from-npm-registry:
+  packages/fetch:
     dependencies:
-      '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
-      '@types/node': 11.9.5
       '@zeit/fetch-retry': 3.0.0_node-fetch@2.3.0
       node-fetch: 2.3.0
+    devDependencies:
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.3
+      tslint: 5.13.1_typescript@3.3.3333
+      typescript: 3.3.3333
+    specifiers:
+      '@pnpm/tslint-config': 0.0.0
+      '@zeit/fetch-retry': 3.0.0
+      mos: ^2.0.0-alpha.3
+      mos-plugin-readme: ^1.0.4
+      node-fetch: 2.3.0
+      rimraf: ^2.6.2
+      tslint: 5.13.1
+      typescript: 3.3.3333
+  packages/fetch-from-npm-registry:
+    dependencies:
+      '@pnpm/fetch': 'link:../fetch'
+      '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
+      '@types/node': 11.9.5
     devDependencies:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
@@ -319,15 +338,14 @@ importers:
       tslint: 5.13.1_typescript@3.3.3333
       typescript: 3.3.3333
     specifiers:
+      '@pnpm/fetch': 1.0.0-0
       '@pnpm/npm-registry-agent': 1.0.0-0
       '@pnpm/tslint-config': 0.0.0
       '@types/node': 11.9.5
       '@types/tape': ^4.2.31
-      '@zeit/fetch-retry': 3.0.0
       fetch-from-npm-registry: 'link:'
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
-      node-fetch: 2.3.0
       rimraf: ^2.6.2
       tape: 4.10.1
       ts-node: 8.0.3
@@ -401,13 +419,12 @@ importers:
       yaml-tag: 1.1.0
   packages/git-resolver:
     dependencies:
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@types/node': 10.12.30
-      '@types/node-fetch': 2.1.6
       '@types/semver': 5.5.0
       graceful-git: 2.0.0
       hosted-git-info: 2.7.1
-      node-fetch: 2.3.0
       semver: 5.6.0
     devDependencies:
       '@pnpm/git-resolver': 'link:'
@@ -423,12 +440,12 @@ importers:
       tslint: 5.13.1_typescript@3.3.3333
       typescript: 3.3.3333
     specifiers:
+      '@pnpm/fetch': 1.0.0-0
       '@pnpm/git-resolver': 'link:'
       '@pnpm/resolver-base': ^2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/is-windows': 0.2.0
       '@types/node': ^10.0.6
-      '@types/node-fetch': ^2.1.6
       '@types/semver': ^5.5.0
       '@types/tape': ^4.2.31
       graceful-git: ^2.0.0
@@ -436,7 +453,6 @@ importers:
       is-windows: 1.0.2
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
-      node-fetch: ^2.3.0
       rimraf: ^2.6.2
       semver: ^5.5.0
       tape: ^4.8.0
@@ -2687,12 +2703,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-eOVHXS5RnWOjTVhu3deCM/ruy9E6JCgeix2g7wpFiekQh3AaEAK1cz43tZDukKmtSmQnwvSySq7ubijCA32I7Q==
-  /@types/node-fetch/2.1.6:
-    dependencies:
-      '@types/node': 10.12.30
-    dev: false
-    resolution:
-      integrity: sha512-Hv1jgh3pfpUEl2F2mqUd1AfLSk1YbUCeBJFaP36t7esAO617dErqdxWb5cdG2NfJGOofkmBW36fdx0dVewxDRg==
   /@types/node/10.12.30:
     resolution:
       integrity: sha512-nsqTN6zUcm9xtdJiM9OvOJ5EF0kOI8f1Zuug27O/rgtxCRJHGqncSWfCMZUP852dCKPsDsYXGvBhxfRjDBkF5Q==
@@ -2700,6 +2710,9 @@ packages:
     dev: false
     resolution:
       integrity: sha512-wa09itaLE8L705aXd8F80jnFpxz3Y1/KRHfKsYL2bPc0XF+wEWu8sR9n5bmeu8Ba1N9z2GRNzm/YdHcghLkLKg==
+  /@types/node/11.10.5:
+    resolution:
+      integrity: sha512-DuIRlQbX4K+d5I+GMnv+UfnGh+ist0RdlvOp+JZ7ePJ6KQONCFQv/gKYSU1ZzbVdFSUCKZOltjmpFAGGv5MdYA==
   /@types/node/11.9.5:
     resolution:
       integrity: sha512-vVjM0SVzgaOUpflq4GYBvCpozes8OgIIS5gVXVka+OfK3hvnkC1i93U8WiY2OtNE4XUWyyy/86Kf6e0IHTQw1Q==
@@ -2776,7 +2789,7 @@ packages:
       integrity: sha1-m2PUU6a1SqhJGCIHcRoIvo7qSK4=
   /@types/tape/4.2.33:
     dependencies:
-      '@types/node': 11.9.5
+      '@types/node': 11.10.5
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/tempy/0.2.0:

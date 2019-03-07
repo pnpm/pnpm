@@ -1,10 +1,7 @@
+import fetch from '@pnpm/fetch'
 import npmRegistryAgent from '@pnpm/npm-registry-agent'
-import createFetchRetry = require('@zeit/fetch-retry')
-import nodeFetch = require('node-fetch')
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
-
-const fetch = createFetchRetry(nodeFetch)
 
 const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'

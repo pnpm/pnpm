@@ -1,6 +1,6 @@
+import fetch from '@pnpm/fetch'
 import git = require('graceful-git')
 import HostedGit = require('hosted-git-info')
-import fetch from 'node-fetch'
 import url = require('url')
 
 export type HostedPackageSpec = ({
