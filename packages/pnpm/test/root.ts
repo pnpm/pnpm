@@ -30,9 +30,9 @@ test('pnpm root -g', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   if (isWindows()) {
-    t.equal(result.stdout.toString(), path.join(global, 'npm', 'pnpm-global', '1', 'node_modules') + '\n')
+    t.equal(result.stdout.toString(), path.join(global, 'npm', 'pnpm-global', '2', 'node_modules') + '\n')
   } else {
-    t.equal(result.stdout.toString(), path.join(global, 'pnpm-global', '1', 'node_modules') + '\n')
+    t.equal(result.stdout.toString(), path.join(global, 'pnpm-global', '2', 'node_modules') + '\n')
   }
 })
 
@@ -49,8 +49,8 @@ test('pnpm root -g --independent-leaves', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   if (isWindows()) {
-    t.equal(result.stdout.toString(), path.join(global, 'npm', 'pnpm-global', '1_independent_leaves', 'node_modules') + '\n')
+    t.equal(result.stdout.toString(), path.join(global, 'npm', 'pnpm-global', '2_independent_leaves', 'node_modules') + '\n')
   } else {
-    t.equal(result.stdout.toString(), path.join(global, 'pnpm-global', '1_independent_leaves', 'node_modules') + '\n')
+    t.equal(result.stdout.toString(), path.join(global, 'pnpm-global', '2_independent_leaves', 'node_modules') + '\n')
   }
 })

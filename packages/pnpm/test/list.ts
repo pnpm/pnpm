@@ -30,8 +30,8 @@ test('listing global packages', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', '1')
-    : path.join(global, 'pnpm-global', '1')
+    ? path.join(global, 'npm', 'pnpm-global', '2')
+    : path.join(global, 'pnpm-global', '2')
   t.equal(result.stdout.toString(), stripIndent`
     ${globalPrefix}
     └── is-positive@3.1.0
@@ -53,8 +53,8 @@ test('listing global packages installed with independent-leaves = true', async (
   t.equal(result.status, 0)
 
   const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', '1_independent_leaves')
-    : path.join(global, 'pnpm-global', '1_independent_leaves')
+    ? path.join(global, 'npm', 'pnpm-global', '2_independent_leaves')
+    : path.join(global, 'pnpm-global', '2_independent_leaves')
   t.equal(result.stdout.toString(), stripIndent`
     ${globalPrefix}
     └── is-positive@3.1.0

@@ -167,7 +167,7 @@ export default async (
   if (pnpmConfig.global) {
     const independentLeavesSuffix = pnpmConfig.independentLeaves ? '_independent_leaves' : ''
     const shamefullyFlattenSuffix = pnpmConfig.shamefullyFlatten ? '_shamefully_flatten' : ''
-    const subfolder = '1' + independentLeavesSuffix + shamefullyFlattenSuffix
+    const subfolder = '2' + independentLeavesSuffix + shamefullyFlattenSuffix
     pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, subfolder)
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true

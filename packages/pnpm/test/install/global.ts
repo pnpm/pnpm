@@ -9,7 +9,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-const LAYOUT_VERSION = '1'
+const LAYOUT_VERSION = '2'
 
 test('global installation', async (t: tape.Test) => {
   prepare(t)
