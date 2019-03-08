@@ -303,7 +303,7 @@ importers:
       typescript: 3.3.3333
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 3.0.0_node-fetch@2.3.0
+      '@zeit/fetch-retry': 4.0.0_node-fetch@2.3.0
       node-fetch: 2.3.0
       node-fetch-unix: 2.3.0
     devDependencies:
@@ -315,7 +315,7 @@ importers:
       typescript: 3.3.3333
     specifiers:
       '@pnpm/tslint-config': 0.0.0
-      '@zeit/fetch-retry': 3.0.0
+      '@zeit/fetch-retry': 4.0.0
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
       node-fetch: 2.3.0
@@ -2870,7 +2870,7 @@ packages:
       npm: '>=3'
     resolution:
       integrity: sha512-AjEo5LXk4Yf0SaXSc3y4i1t+wxY552O7WrVJPtnC6H7nUsSrygg/ODCG1RSKelskOq6b5p/LyXnsTkmCFXyjDQ==
-  /@zeit/fetch-retry/3.0.0_node-fetch@2.3.0:
+  /@zeit/fetch-retry/4.0.0_node-fetch@2.3.0:
     dependencies:
       async-retry: 1.2.3
       debug: 3.2.6
@@ -2879,7 +2879,7 @@ packages:
     peerDependencies:
       node-fetch: '*'
     resolution:
-      integrity: sha512-al7nNnE3kkvwqaFFUloXf/0ABKCZcsf1lldlrwF1wGS+39NZK9Yo27sYaIcBAfoyIFJGF3jItLsvD32O1a8ojQ==
+      integrity: sha512-ALXnrCPpiVWha/L3Mm1klPhqmVTKmPQ2dmb5YIsSCrMBJugfhDb42kacVsvQ11vAFRE1LRaJ9Pmw16zEMvQnbw==
   /@zkochan/async-replace/0.4.1:
     dependencies:
       babel-run-async: 1.0.0
