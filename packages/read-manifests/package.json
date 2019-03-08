@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-manifests",
-  "version": "2.0.0-1",
+  "version": "2.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,10 +30,10 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "1.0.0-0",
-    "@pnpm/modules-yaml": "2.0.1",
+    "@pnpm/lockfile-file": "1.0.0",
+    "@pnpm/modules-yaml": "3.0.0",
     "@pnpm/types": "3.0.0",
-    "@pnpm/utils": "0.9.1",
+    "@pnpm/utils": "0.10.0",
     "@types/node": "11.9.5"
   },
   "devDependencies": {

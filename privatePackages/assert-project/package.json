@@ -45,8 +45,8 @@
   },
   "dependencies": {
     "@pnpm/assert-store": "1.0.0",
-    "@pnpm/constants": "1.0.0-0",
-    "@pnpm/modules-yaml": "2.0.1",
+    "@pnpm/constants": "1.0.0",
+    "@pnpm/modules-yaml": "3.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "11.9.5",
     "@types/path-exists": "3.0.0",

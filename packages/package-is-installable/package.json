@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "2.0.0-0",
+  "version": "2.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,7 +30,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "2.0.0",
+    "@pnpm/core-loggers": "3.0.0",
     "@pnpm/types": "3.0.0",
     "@types/node": "11.9.5",
     "@types/semver": "5.5.0",

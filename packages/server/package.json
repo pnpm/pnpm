@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "3.0.0-0",
+  "version": "3.0.0",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,11 +33,11 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
-    "@pnpm/npm-resolver": "3.0.0-1",
-    "@pnpm/package-requester": "7.0.0-0",
-    "@pnpm/package-store": "4.0.0-0",
+    "@pnpm/npm-resolver": "3.0.0",
+    "@pnpm/package-requester": "7.0.0",
+    "@pnpm/package-store": "4.0.0",
     "@pnpm/server": "link:",
-    "@pnpm/tarball-fetcher": "3.0.0-1",
+    "@pnpm/tarball-fetcher": "3.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/mz": "0.0.32",
     "@types/node-fetch": "2.1.6",
@@ -63,8 +63,8 @@
     }
   },
   "dependencies": {
-    "@pnpm/fetch": "1.0.0-0",
-    "@pnpm/store-controller-types": "3.0.0-0",
+    "@pnpm/fetch": "1.0.0",
+    "@pnpm/store-controller-types": "3.0.0",
     "@pnpm/types": "3.0.0",
     "@types/node": "11.9.5",
     "@types/uuid": "3.4.4",
