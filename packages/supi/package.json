@@ -42,7 +42,7 @@
     "@pnpm/shamefully-flatten": "3.0.0-1",
     "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/symlink-dependency": "2.0.0-0",
-    "@pnpm/types": "2.0.0",
+    "@pnpm/types": "3.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.8.0",

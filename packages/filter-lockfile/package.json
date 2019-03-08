@@ -56,7 +56,7 @@
     "@pnpm/lockfile-types": "1.0.0-0",
     "@pnpm/lockfile-utils": "1.0.0-0",
     "@pnpm/package-is-installable": "2.0.0-0",
-    "@pnpm/types": "2.0.0",
+    "@pnpm/types": "3.0.0",
     "@types/ramda": "0.25.39",
     "dependency-path": "3.0.0-0",
     "ramda": "0.26.1"

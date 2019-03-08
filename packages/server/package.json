@@ -65,7 +65,7 @@
   "dependencies": {
     "@pnpm/fetch": "1.0.0-0",
     "@pnpm/store-controller-types": "3.0.0-0",
-    "@pnpm/types": "2.0.0",
+    "@pnpm/types": "3.0.0",
     "@types/node": "11.9.5",
     "@types/uuid": "3.4.4",
     "p-limit": "2.2.0",

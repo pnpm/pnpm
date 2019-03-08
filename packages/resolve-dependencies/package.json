@@ -37,7 +37,7 @@
     "@pnpm/package-is-installable": "2.0.0-0",
     "@pnpm/resolver-base": "2.1.0",
     "@pnpm/store-controller-types": "3.0.0-0",
-    "@pnpm/types": "2.0.0",
+    "@pnpm/types": "3.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/node": "11.9.5",
     "@types/ramda": "0.25.38",

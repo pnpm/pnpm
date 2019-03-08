@@ -34,6 +34,6 @@
   },
   "dependencies": {
     "@pnpm/resolver-base": "2.1.0",
-    "@pnpm/types": "2.0.0"
+    "@pnpm/types": "3.0.0"
   }
 }

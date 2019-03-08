@@ -27,7 +27,7 @@
   "license": "MIT",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolver-base#readme",
   "dependencies": {
-    "@pnpm/types": "^2.0.0"
+    "@pnpm/types": "3.0.0"
   },
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",

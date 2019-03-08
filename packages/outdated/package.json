@@ -45,7 +45,7 @@
     "@pnpm/npm-resolver": "3.0.0-1",
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/store-path": "1.0.4",
-    "@pnpm/types": "2.0.0",
+    "@pnpm/types": "3.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/node": "11.9.5",
     "dependency-path": "3.0.0-0"

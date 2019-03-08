@@ -98,7 +98,7 @@
     "@pnpm/shamefully-flatten": "3.0.0-1",
     "@pnpm/store-controller-types": "3.0.0-0",
     "@pnpm/symlink-dependency": "2.0.0-0",
-    "@pnpm/types": "2.0.0",
+    "@pnpm/types": "3.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/ramda": "0.25.34",
     "dependency-path": "3.0.0-0",
