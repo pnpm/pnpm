@@ -90,7 +90,7 @@
     "@pnpm/lockfile-types": "1.0.0-0",
     "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/prepare": "0.0.0",
-    "@pnpm/read-package-json": "1.1.1",
+    "@pnpm/read-package-json": "2.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.8.0",

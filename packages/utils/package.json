@@ -43,7 +43,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/read-package-json": "1.1.1",
+    "@pnpm/read-package-json": "2.0.0",
     "@pnpm/types": "3.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "11.9.5",

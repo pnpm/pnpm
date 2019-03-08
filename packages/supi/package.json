@@ -36,7 +36,7 @@
     "@pnpm/prune-lockfile": "1.0.0-0",
     "@pnpm/read-manifests": "2.0.0-1",
     "@pnpm/read-modules-dir": "1.0.0",
-    "@pnpm/read-package-json": "1.1.1",
+    "@pnpm/read-package-json": "2.0.0",
     "@pnpm/resolve-dependencies": "5.0.0-2",
     "@pnpm/resolver-base": "2.1.0",
     "@pnpm/shamefully-flatten": "3.0.0-1",

@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "2.0.0",
-    "@pnpm/read-package-json": "1.1.1",
+    "@pnpm/read-package-json": "2.0.0",
     "@pnpm/types": "3.0.0",
     "@zkochan/npm-lifecycle": "2.2.0",
     "path-exists": "3.0.0",
