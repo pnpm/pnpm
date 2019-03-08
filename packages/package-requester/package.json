@@ -48,7 +48,7 @@
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "p-limit": "2.2.0",
-    "p-queue": "3.2.0",
+    "p-queue": "4.0.0",
     "path-exists": "3.0.0",
     "read-package-json": "2.0.13",
     "rename-overwrite": "1.0.3",
