@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetcher-base#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "^2.0.0"
+    "@pnpm/resolver-base": "2.1.0"
   },
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",

@@ -32,7 +32,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/fetcher-base": "^2.0.0",
+    "@pnpm/fetcher-base": "2.0.0",
     "@types/graceful-fs": "^4.1.2",
     "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
