@@ -1,28 +1,28 @@
-# pnpm-list
+# @pnpm/list
 
 > List installed packages in a symlinked \`node_modules\`
 
 <!--@shields('npm')-->
-[![npm version](https://img.shields.io/npm/v/pnpm-list.svg)](https://www.npmjs.com/package/pnpm-list)
+[![npm version](https://img.shields.io/npm/v/@pnpm/list.svg)](https://www.npmjs.com/package/@pnpm/list)
 <!--/@-->
 
 ## Install
 
 Install it via npm.
 
-    npm install pnpm-list
+    npm install @pnpm/list
 
 ## Usage
 
 <!--@example('./example/index.js')-->
 ```js
 'use strict'
-const pnpmList = require('pnpm-list').default
+const pnpmList = require('@pnpm/list').default
 
 pnpmList(__dirname, {depth: 2})
   .then(output => {
     console.log(output)
-    //> pnpm-list@0.0.1 /home/zkochan/src/pnpm/pnpm-list/example
+    //> @pnpm/list@0.0.1 /home/zkochan/src/pnpm/@pnpm/list/example
     //  └─┬ write-pkg@3.1.0
     //    ├─┬ sort-keys@2.0.0
     //    │ └── is-plain-obj@1.1.0

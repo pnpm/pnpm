@@ -1,4 +1,4 @@
-import list, { forPackages as listForPackages } from 'pnpm-list'
+import list, { forPackages as listForPackages } from '@pnpm/list'
 
 export default async function (
   args: string[],

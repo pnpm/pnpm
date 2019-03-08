@@ -1,8 +1,8 @@
+import list, { forPackages as listForPackages } from '@pnpm/list'
+import renderTree from '@pnpm/list/lib/renderTree'
 import chalk from 'chalk'
 import { stripIndent } from 'common-tags'
 import path = require('path')
-import list, { forPackages as listForPackages } from 'pnpm-list'
-import renderTree from 'pnpm-list/lib/renderTree'
 import test = require('tape')
 
 const highlighted = chalk.yellow.bgBlack

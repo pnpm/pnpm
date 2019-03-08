@@ -673,6 +673,7 @@ importers:
       p-limit: 2.2.0
       ramda: 0.26.1
     devDependencies:
+      '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/common-tags': 1.8.0
@@ -680,12 +681,12 @@ importers:
       common-tags: 1.8.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      pnpm-list: 'link:'
       tape: 4.10.1
       ts-node: 8.0.3_typescript@3.3.3333
       tslint: 5.13.1_typescript@3.3.3333
       typescript: 3.3.3333
     specifiers:
+      '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 1.1.1
       '@pnpm/tslint-config': 0.0.0
@@ -703,7 +704,6 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       p-limit: 2.2.0
-      pnpm-list: 'link:'
       ramda: 0.26.1
       tape: 4.10.1
       ts-node: 8.0.3
@@ -1315,6 +1315,7 @@ importers:
       '@pnpm/default-reporter': 'link:../default-reporter'
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/list': 'link:../list'
       '@pnpm/logger': 2.1.0
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-store': 'link:../package-store'
@@ -1359,7 +1360,6 @@ importers:
       path-name: 1.0.0
       pkgs-graph: 2.0.2
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 'link:../list'
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1427,6 +1427,7 @@ importers:
       '@pnpm/default-reporter': 3.0.0-1
       '@pnpm/default-resolver': 3.0.0-1
       '@pnpm/lifecycle': 4.2.0
+      '@pnpm/list': 1.0.0-0
       '@pnpm/lockfile-types': 1.0.0-0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.1
@@ -1501,7 +1502,6 @@ importers:
       pkgs-graph: 2.0.2
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 6.0.0-3
       pnpm-registry-mock: 2.8.0
       process-exists: 3.1.0
       ramda: 0.26.1
