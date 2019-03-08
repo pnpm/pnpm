@@ -147,8 +147,8 @@ export default async function (
     return results
   }
 
-  async function upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}) {
-    const cachePath = path.join(store, opts.pkgId, 'side_effects', opts.engine, 'package')
+  async function upload (builtPkgLocation: string, opts: {packageId: string, engine: string}) {
+    const cachePath = path.join(store, opts.packageId, 'side_effects', opts.engine, 'package')
     // TODO calculate integrity.json here
     const filenames: string[] = []
     await copyPkg(builtPkgLocation, cachePath, { filesResponse: { fromStore: true, filenames }, force: true })

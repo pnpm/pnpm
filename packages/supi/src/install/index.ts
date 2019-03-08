@@ -882,7 +882,7 @@ async function installInContext (
               try {
                 await opts.storeController.upload(pkg.peripheralLocation, {
                   engine: ENGINE_NAME,
-                  pkgId: pkg.id,
+                  packageId: pkg.id,
                 })
               } catch (err) {
                 if (err && err.statusCode === 403) {

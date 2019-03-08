@@ -2,7 +2,6 @@ import { Resolution } from '@pnpm/resolver-base'
 
 export interface FetchOptions {
   cachedTarballLocation: string,
-  pkgId: string,
   prefix: string,
   onStart?: (totalSize: number | null, attempt: number) => void,
   onProgress?: (downloaded: number) => void,

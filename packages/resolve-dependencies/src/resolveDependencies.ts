@@ -47,6 +47,8 @@ import semver = require('semver')
 import encodePkgId from './encodePkgId'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
 
+const dependencyResolvedLogger = logger('_dependency_resolved')
+
 export function nodeIdToParents (
   nodeId: string,
   resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
@@ -321,9 +323,9 @@ function getInfoFromLockfile (
   if (dependencyLockfile) {
     const depPath = dp.resolve(registries, relDepPath)
     return {
+      currentResolution: pkgSnapshotToResolution(relDepPath, dependencyLockfile, registries),
       dependencyLockfile,
       depPath,
-      lockfileResolution: pkgSnapshotToResolution(relDepPath, dependencyLockfile, registries),
       optionalDependencyNames: R.keys(dependencyLockfile.optionalDependencies),
       pkgId: packageIdFromSnapshot(relDepPath, dependencyLockfile, registries),
       relDepPath,
@@ -352,7 +354,7 @@ async function resolveDependency (
     parentNodeId: string,
     currentDepth: number,
     dependencyLockfile?: PackageSnapshot,
-    lockfileResolution?: Resolution,
+    currentResolution?: Resolution,
     resolvedDependencies?: ResolvedDependencies,
     optionalDependencyNames?: string[],
     parentIsInstallable?: boolean,
@@ -370,7 +372,7 @@ async function resolveDependency (
     options.update ||
     options.localPackages &&
     wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
-  const proceed = update || options.proceed || !options.lockfileResolution || ctx.force || keypath.length <= ctx.updateDepth
+  const proceed = update || options.proceed || !options.currentResolution || ctx.force || keypath.length <= ctx.updateDepth
     || options.dependencyLockfile && options.dependencyLockfile.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
@@ -388,23 +390,15 @@ async function resolveDependency (
   const scope = wantedDependency.alias && getScope(wantedDependency.alias)
   const registry = normalizeRegistry(scope && ctx.registries[scope] || ctx.registries.default)
 
-  const dependentId = keypath[keypath.length - 1]
-  const loggedPkg = {
-    dependentId,
-    name: wantedDependency.alias,
-    rawSpec: wantedDependency.raw,
-  }
-
   let pkgResponse!: PackageResponse
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
-      currentPkgId: options.pkgId,
+      currentPackageId: options.pkgId,
+      currentResolution: options.currentResolution,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       localPackages: options.localPackages,
       lockfileDirectory: ctx.lockfileDirectory,
-      lockfileResolution: options.lockfileResolution,
-      loggedPkg,
       preferredVersions: ctx.preferredVersions,
       prefix: ctx.prefix,
       registry,
@@ -432,6 +426,16 @@ async function resolveDependency (
     }
     throw err
   }
+
+  const dependentId = keypath[keypath.length - 1]
+  dependencyResolvedLogger.debug({
+    resolution: pkgResponse.body.id,
+    wanted: {
+      dependentId,
+      name: wantedDependency.alias,
+      rawSpec: wantedDependency.raw,
+    },
+  })
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 

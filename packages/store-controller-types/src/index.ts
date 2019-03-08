@@ -27,7 +27,7 @@ export interface StoreController {
   updateConnections (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}): Promise<void>,
   prune (): Promise<void>,
   saveState (): Promise<void>,
-  upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}): Promise<void>,
+  upload (builtPkgLocation: string, opts: {packageId: string, engine: string}): Promise<void>,
   findPackageUsages (searchQueries: string[]): Promise<PackageUsagesBySearchQueries>,
 }
 
@@ -79,31 +79,24 @@ export type RequestPackageFunction = (
 ) => Promise<PackageResponse>
 
 export interface RequestPackageOptions {
+  currentPackageId?: string,
+  currentResolution?: Resolution,
   defaultTag?: string,
-  skipFetch?: boolean,
   downloadPriority: number,
-  loggedPkg: LoggedPkg,
-  currentPkgId?: string,
-  prefix: string,
-  registry: string,
   lockfileDirectory: string,
-  lockfileResolution?: Resolution,
-  update?: boolean,
-  verifyStoreIntegrity: boolean, // TODO: this should be a context field
+  localPackages?: LocalPackages,
+  prefix: string,
   preferredVersions: {
     [packageName: string]: {
       selector: string,
       type: 'version' | 'range' | 'tag',
     },
   },
-  localPackages?: LocalPackages,
+  registry: string,
   sideEffectsCache?: boolean,
-}
-
-export interface LoggedPkg {
-  rawSpec: string,
-  name?: string,
-  dependentId?: string,
+  skipFetch?: boolean,
+  update?: boolean,
+  verifyStoreIntegrity: boolean, // TODO: this should be a context field
 }
 
 export type PackageResponse = {

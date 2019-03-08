@@ -40,9 +40,6 @@ export default async function (
       const pkgResponse = await opts.storeController.requestPackage(dep, {
         downloadPriority: 1,
         lockfileDirectory: prefix,
-        loggedPkg: {
-          rawSpec: dep.raw,
-        },
         preferredVersions: {},
         prefix,
         registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),

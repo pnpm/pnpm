@@ -5,7 +5,7 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import pnpmLogger, { storeLogger } from '@pnpm/logger'
+import { storeLogger } from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import {
@@ -17,7 +17,6 @@ import {
 } from '@pnpm/resolver-base'
 import {
   FetchPackageToStoreFunction,
-  LoggedPkg,
   PackageFilesResponse,
   PackageResponse,
   RequestPackageFunction,
@@ -37,7 +36,6 @@ import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile from 'write-json-file'
 
-const dependencyResolvedLogger = pnpmLogger('_dependency_resolved')
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 
 export default function (
@@ -96,12 +94,11 @@ async function resolveAndFetch (
   options: {
     defaultTag?: string,
     downloadPriority: number,
-    loggedPkg: LoggedPkg,
-    currentPkgId?: string,
+    currentPackageId?: string,
+    currentResolution?: Resolution,
     prefix: string,
     registry: string,
     lockfileDirectory: string,
-    lockfileResolution?: Resolution,
     update?: boolean,
     verifyStoreIntegrity: boolean,
     preferredVersions: {
@@ -119,8 +116,8 @@ async function resolveAndFetch (
     let latest: string | undefined
     let pkg: PackageJson | undefined
     let normalizedPref: string | undefined
-    let resolution = options.lockfileResolution as Resolution
-    let pkgId = options.currentPkgId
+    let resolution = options.currentResolution as Resolution
+    let pkgId = options.currentPackageId
     const skipResolution = resolution && !options.update
     let forceFetch = false
     let updated = false
@@ -148,9 +145,9 @@ async function resolveAndFetch (
       // If the integrity of a local tarball dependency has changed,
       // the local tarball should be unpacked, so a fetch to the store should be forced
       forceFetch = Boolean(
-        options.lockfileResolution &&
+        options.currentResolution &&
         pkgId && pkgId.startsWith('file:') &&
-        options.lockfileResolution['integrity'] !== resolveResult.resolution['integrity'], // tslint:disable-line:no-string-literal
+        options.currentResolution['integrity'] !== resolveResult.resolution['integrity'], // tslint:disable-line:no-string-literal
       )
 
       if (!skipResolution || forceFetch) {
@@ -166,11 +163,6 @@ async function resolveAndFetch (
     }
 
     const id = pkgId as string
-
-    dependencyResolvedLogger.debug({
-      resolution: id,
-      wanted: options.loggedPkg,
-    })
 
     if (resolution.type === 'directory') {
       if (!pkg) {
@@ -243,7 +235,12 @@ async function resolveAndFetch (
 
 function fetchToStore (
   ctx: {
-    fetch: FetchFunction,
+    fetch: (
+      packageId: string,
+      resolution: Resolution,
+      target: string,
+      opts: FetchOptions
+    ) => Promise<FetchResult>,
     fetchingLocker: Map<string, {
       finishing: Promise<void>,
       fetchingFiles: Promise<PackageFilesResponse>,
@@ -410,26 +407,30 @@ function fetchToStore (
           // As much tarballs should be downloaded simultaneously as possible.
           const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
 
-          const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(opts.resolution, target, {
-            cachedTarballLocation: path.join(ctx.storePath, opts.pkgId, 'packed.tgz'),
-            onProgress: (downloaded) => {
-              fetchingProgressLogger.debug({
-                downloaded,
-                packageId: opts.pkgId,
-                status: 'in_progress',
-              })
+          const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(
+            opts.pkgId,
+            opts.resolution,
+            target,
+            {
+              cachedTarballLocation: path.join(ctx.storePath, opts.pkgId, 'packed.tgz'),
+              onProgress: (downloaded) => {
+                fetchingProgressLogger.debug({
+                  downloaded,
+                  packageId: opts.pkgId,
+                  status: 'in_progress',
+                })
+              },
+              onStart: (size, attempt) => {
+                fetchingProgressLogger.debug({
+                  attempt,
+                  packageId: opts.pkgId,
+                  size,
+                  status: 'started',
+                })
+              },
+              prefix: opts.prefix,
             },
-            onStart: (size, attempt) => {
-              fetchingProgressLogger.debug({
-                attempt,
-                packageId: opts.pkgId,
-                size,
-                status: 'started',
-              })
-            },
-            pkgId: opts.pkgId,
-            prefix: opts.prefix,
-          }), { priority })
+          ), { priority })
 
           filesIndex = fetchedPackage.filesIndex
           tempLocation = fetchedPackage.tempLocation
@@ -536,6 +537,7 @@ function differed<T> (): PromiseContainer<T> {
 
 async function fetcher (
   fetcherByHostingType: {[hostingType: string]: FetchFunction},
+  packageId: string,
   resolution: Resolution,
   target: string,
   opts: FetchOptions,
@@ -547,7 +549,7 @@ async function fetcher (
   try {
     return await fetch(resolution, target, opts)
   } catch (err) {
-    storeLogger.warn(`Fetching ${opts.pkgId} failed!`)
+    storeLogger.warn(`Fetching ${packageId} failed!`)
     throw err
   }
 }

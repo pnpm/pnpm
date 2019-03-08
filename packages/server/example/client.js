@@ -13,7 +13,6 @@ main()
     {alias: 'is-positive', pref: '1.0.0'},
     {
       downloadPriority: 0,
-      loggedPkg: {rawSpec: 'sfdf'},
       offline: false,
       prefix,
       registry,

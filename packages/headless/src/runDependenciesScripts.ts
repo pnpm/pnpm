@@ -58,7 +58,7 @@ export default async (
           try {
             await opts.storeController.upload(depNode.peripheralLocation, {
               engine: ENGINE_NAME,
-              pkgId: depNode.pkgId,
+              packageId: depNode.pkgId,
             })
           } catch (err) {
             if (err && err.statusCode === 403) {

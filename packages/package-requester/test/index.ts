@@ -50,9 +50,6 @@ test('request package', async t => {
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
     lockfileDirectory: prefix,
-    loggedPkg: {
-      rawSpec: 'is-positive@1.0.0',
-    },
     preferredVersions: {},
     prefix,
     registry,
@@ -104,9 +101,6 @@ test('request package but skip fetching', async t => {
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
     lockfileDirectory: prefix,
-    loggedPkg: {
-      rawSpec: 'is-positive@1.0.0',
-    },
     preferredVersions: {},
     prefix,
     registry,
@@ -149,17 +143,14 @@ test('request package but skip fetching, when resolution is already available', 
 
   const prefix = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-    currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
-    downloadPriority: 0,
-    lockfileDirectory: prefix,
-    lockfileResolution: {
+    currentPackageId: 'registry.npmjs.org/is-positive/1.0.0',
+    currentResolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-    loggedPkg: {
-      rawSpec: 'is-positive@1.0.0',
-    },
+    downloadPriority: 0,
+    lockfileDirectory: prefix,
     preferredVersions: {},
     prefix,
     registry,
@@ -207,12 +198,9 @@ test('refetch local tarball if its integrity has changed', async t => {
   const storePath = path.join(__dirname, '..', '.store')
   const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
-    currentPkgId: pkgId,
+    currentPackageId: pkgId,
     downloadPriority: 0,
     lockfileDirectory: prefix,
-    loggedPkg: {
-      rawSpec: tarball,
-    },
     preferredVersions: {},
     prefix,
     registry,
@@ -230,7 +218,7 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      lockfileResolution: {
+      currentResolution: {
         integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
@@ -257,7 +245,7 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      lockfileResolution: {
+      currentResolution: {
         integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
@@ -281,7 +269,7 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
-      lockfileResolution: {
+      currentResolution: {
         integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
         tarball,
       },
@@ -310,9 +298,6 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const requestPackageOpts = {
     downloadPriority: 0,
     lockfileDirectory: prefix,
-    loggedPkg: {
-      rawSpec: tarball,
-    },
     preferredVersions: {},
     prefix,
     registry,
@@ -582,9 +567,6 @@ test('always return a package manifest in the response', async t => {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       downloadPriority: 0,
       lockfileDirectory: prefix,
-      loggedPkg: {
-        rawSpec: 'is-positive@1.0.0',
-      },
       preferredVersions: {},
       prefix,
       registry,
@@ -597,17 +579,14 @@ test('always return a package manifest in the response', async t => {
 
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
-      currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
-      downloadPriority: 0,
-      lockfileDirectory: prefix,
-      lockfileResolution: {
+      currentPackageId: 'registry.npmjs.org/is-positive/1.0.0',
+      currentResolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-      loggedPkg: {
-        rawSpec: 'is-positive@1.0.0',
-      },
+      downloadPriority: 0,
+      lockfileDirectory: prefix,
       preferredVersions: {},
       prefix,
       registry,

@@ -52,7 +52,6 @@ test('server', async t => {
     {
       downloadPriority: 0,
       lockfileDirectory: prefix,
-      loggedPkg: { rawSpec: 'sfdf' },
       preferredVersions: {},
       prefix,
       registry,
@@ -149,7 +148,6 @@ test('server errors should arrive to the client', async t => {
       {
         downloadPriority: 0,
         lockfileDirectory: prefix,
-        loggedPkg: { rawSpec: 'sfdf' },
         preferredVersions: {},
         prefix,
         registry,
@@ -188,7 +186,7 @@ test('server upload', async t => {
 
   await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
     engine: fakeEngine,
-    pkgId: fakePkgId,
+    packageId: fakePkgId,
   })
 
   const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
@@ -221,7 +219,7 @@ test('disable server upload', async t => {
   try {
     await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
       engine: fakeEngine,
-      pkgId: fakePkgId,
+      packageId: fakePkgId,
     })
   } catch (e) {
     thrown = true
@@ -320,7 +318,6 @@ test('find package usages', async t => {
     {
       downloadPriority: 0,
       lockfileDirectory: prefix,
-      loggedPkg: { rawSpec: 'sfdf' },
       preferredVersions: {},
       prefix,
       registry,
