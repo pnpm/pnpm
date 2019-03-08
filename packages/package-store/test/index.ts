@@ -23,7 +23,10 @@ test('store.importPackage()', async (t) => {
     rawNpmConfig,
     registry,
   })
-  const storeController = await createStore(resolver, fetcher, { store })
+  const storeController = await createStore(resolver, fetcher, {
+    store,
+    verifyStoreIntegrity: true,
+  })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const fetchResult = await storeController.fetchPackage({
     force: false,
@@ -34,7 +37,6 @@ test('store.importPackage()', async (t) => {
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-    verifyStoreIntegrity: true,
   })
   const importTo = tempy.directory()
   const importFrom = path.join(fetchResult.inStoreLocation, 'node_modules', 'is-positive')
@@ -62,6 +64,7 @@ test('store.importPackage() by copying', async (t) => {
   const storeController = await createStore(resolver, fetcher, {
     packageImportMethod: 'copy',
     store,
+    verifyStoreIntegrity: true,
   })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const fetchResult = await storeController.fetchPackage({
@@ -73,7 +76,6 @@ test('store.importPackage() by copying', async (t) => {
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-    verifyStoreIntegrity: true,
   })
   const importTo = tempy.directory()
   const importFrom = path.join(fetchResult.inStoreLocation, 'node_modules', 'is-positive')

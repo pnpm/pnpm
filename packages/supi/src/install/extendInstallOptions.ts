@@ -80,7 +80,6 @@ export type StrictInstallOptions = BaseInstallOptions & {
   engineStrict: boolean,
   nodeVersion: string,
   rawNpmConfig: object,
-  verifyStoreIntegrity: boolean,
   packageManager: {
     name: string,
     version: string,

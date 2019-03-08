@@ -33,6 +33,7 @@ async function createStoreController () {
     lockStaleDuration: 100,
     networkConcurrency: 1,
     store: store,
+    verifyStoreIntegrity: true,
   })
 }
 
@@ -56,7 +57,6 @@ test('server', async t => {
       prefix,
       registry,
       sideEffectsCache: false,
-      verifyStoreIntegrity: false,
     }
   )
 
@@ -99,7 +99,6 @@ test('fetchPackage', async t => {
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-    verifyStoreIntegrity: true,
   })
 
   t.equal(typeof response.inStoreLocation, 'string', 'location in store returned')
@@ -152,7 +151,6 @@ test('server errors should arrive to the client', async t => {
         prefix,
         registry,
         sideEffectsCache: false,
-        verifyStoreIntegrity: false,
       }
     )
   } catch (e) {
@@ -322,7 +320,6 @@ test('find package usages', async t => {
       prefix,
       registry,
       sideEffectsCache: false,
-      verifyStoreIntegrity: false,
     }
   )
   await requestResponse['fetchingRawManifest']

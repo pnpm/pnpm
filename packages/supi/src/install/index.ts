@@ -228,7 +228,6 @@ export async function mutateModules (
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
-          verifyStoreIntegrity: opts.verifyStoreIntegrity,
           wantedLockfile: ctx.wantedLockfile,
         })
         return
@@ -684,7 +683,6 @@ async function installInContext (
       }
       return Infinity
     })(),
-    verifyStoreIntegrity: opts.verifyStoreIntegrity,
     virtualStoreDir: ctx.virtualStoreDir,
     wantedLockfile: ctx.wantedLockfile,
   })

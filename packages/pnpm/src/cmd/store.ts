@@ -41,7 +41,6 @@ export default async function (input: string[], opts: PnpmOptions) {
         reporter: opts.reporter,
         storeController: store.ctrl,
         tag: opts.tag,
-        verifyStoreIntegrity: opts.verifyStoreIntegrity,
       })
     case 'usages':
       store = await createStoreController(opts)

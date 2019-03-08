@@ -31,6 +31,7 @@ export default async function (
     store: string,
     networkConcurrency?: number,
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
+    verifyStoreIntegrity: boolean,
   },
 ): Promise<StoreController & { closeSync: () => void, saveStateSync: () => void }> {
   const unlock = initOpts.locks
@@ -47,6 +48,7 @@ export default async function (
     networkConcurrency: initOpts.networkConcurrency,
     storeIndex,
     storePath: initOpts.store,
+    verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
   })
 
   return {

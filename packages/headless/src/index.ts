@@ -80,7 +80,6 @@ export interface HeadlessOptions {
   }>,
   lockfileDirectory: string,
   storeController: StoreController,
-  verifyStoreIntegrity: boolean,
   sideEffectsCacheRead: boolean,
   sideEffectsCacheWrite: boolean,
   force: boolean,
@@ -416,7 +415,6 @@ interface LockfileToDepGraphOptions {
   prefix: string,
   registries: Registries,
   sideEffectsCacheRead: boolean,
-  verifyStoreIntegrity: boolean,
   virtualStoreDir: string,
 }
 
@@ -451,7 +449,6 @@ async function lockfileToDepGraph (
         pkgId: packageId,
         prefix: opts.prefix,
         resolution,
-        verifyStoreIntegrity: opts.verifyStoreIntegrity,
       })
       if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
       fetchResponse.fetchingFiles // tslint:disable-line

@@ -131,7 +131,6 @@ export interface ResolutionContext {
   pnpmVersion: string,
   registries: Registries,
   virtualStoreDir: string,
-  verifyStoreIntegrity: boolean,
   preferredVersions: {
     [packageName: string]: {
       type: 'version' | 'range' | 'tag',
@@ -407,7 +406,6 @@ async function resolveDependency (
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
       update,
-      verifyStoreIntegrity: ctx.verifyStoreIntegrity,
     })
   } catch (err) {
     if (wantedDependency.optional) {

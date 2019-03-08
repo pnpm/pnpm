@@ -43,8 +43,9 @@ export default function (
   fetchers: {[type: string]: FetchFunction},
   opts: {
     networkConcurrency?: number,
-    storePath: string,
     storeIndex: StoreIndex,
+    storePath: string,
+    verifyStoreIntegrity: boolean,
   },
 ): RequestPackageFunction & {
   fetchPackageToStore: FetchPackageToStoreFunction,
@@ -66,12 +67,14 @@ export default function (
     requestsQueue,
     storeIndex: opts.storeIndex,
     storePath: opts.storePath,
+    verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     fetchPackageToStore,
     requestsQueue,
     resolve,
     storePath: opts.storePath,
+    verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
 
   requestPackage['requestPackage'] = requestPackage // tslint:disable-line
@@ -86,6 +89,7 @@ async function resolveAndFetch (
     resolve: ResolveFunction,
     fetchPackageToStore: FetchPackageToStoreFunction,
     storePath: string,
+    verifyStoreIntegrity: boolean,
   },
   wantedDependency: {
     alias?: string,
@@ -100,7 +104,6 @@ async function resolveAndFetch (
     registry: string,
     lockfileDirectory: string,
     update?: boolean,
-    verifyStoreIntegrity: boolean,
     preferredVersions: {
       [packageName: string]: {
         selector: string,
@@ -208,7 +211,6 @@ async function resolveAndFetch (
       pkgName: pkg && pkg.name,
       prefix: options.lockfileDirectory,
       resolution: resolution,
-      verifyStoreIntegrity: options.verifyStoreIntegrity,
     })
 
     return {
@@ -250,6 +252,7 @@ function fetchToStore (
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storePath: string,
+    verifyStoreIntegrity: boolean,
   },
   opts: {
     fetchRawManifest?: boolean,
@@ -258,7 +261,6 @@ function fetchToStore (
     pkgId: string,
     prefix: string,
     resolution: Resolution,
-    verifyStoreIntegrity: boolean,
   },
 ): {
   fetchingFiles: Promise<PackageFilesResponse>,
@@ -375,7 +377,7 @@ function fetchToStore (
         )
       ) {
         // if target exists and it wasn't modified, then no need to refetch it
-        const satisfiedIntegrity = opts.verifyStoreIntegrity
+        const satisfiedIntegrity = ctx.verifyStoreIntegrity
           ? await checkPackage(linkToUnpacked)
           : await loadJsonFile<object>(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
         if (satisfiedIntegrity) {
@@ -443,7 +445,7 @@ function fetchToStore (
       // Ideally, fetchingFiles wouldn't care about when integrity is calculated.
       // However, we can only rename the temp folder once we know the package name.
       // And we cannot rename the temp folder till we're calculating integrities.
-      if (opts.verifyStoreIntegrity) {
+      if (ctx.verifyStoreIntegrity) {
         const fileIntegrities = await Promise.all(
           Object.keys(filesIndex)
             .map((filename) =>

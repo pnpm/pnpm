@@ -52,7 +52,6 @@ export default async function (
     },
     storeController: StoreController,
     tag: string,
-    verifyStoreIntegrity: boolean,
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
     updateDepth?: number,
@@ -82,7 +81,6 @@ export default async function (
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
     updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,
-    verifyStoreIntegrity: opts.verifyStoreIntegrity,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
   }

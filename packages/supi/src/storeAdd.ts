@@ -15,7 +15,6 @@ export default async function (
     reporter?: ReporterFunction,
     storeController: StoreController,
     tag?: string,
-    verifyStoreIntegrity?: boolean,
   },
 ) {
   const reporter = opts && opts.reporter
@@ -43,7 +42,6 @@ export default async function (
         preferredVersions: {},
         prefix,
         registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
-        verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
       })
       await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
       storeLogger.info(`+ ${pkgResponse.body.id}`)

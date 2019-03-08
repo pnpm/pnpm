@@ -43,6 +43,7 @@ export default async function testDefaults (
     {
       locks: path.join(store, '_locks'),
       store,
+      verifyStoreIntegrity: true,
       ...storeOpts,
     },
   )

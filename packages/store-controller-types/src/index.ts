@@ -56,7 +56,6 @@ export interface FetchPackageToStoreOptions {
   pkgId: string,
   prefix: string,
   resolution: Resolution,
-  verifyStoreIntegrity: boolean, // TODO: this should be a context field
 }
 
 export type ImportPackageFunction = (
@@ -96,7 +95,6 @@ export interface RequestPackageOptions {
   sideEffectsCache?: boolean,
   skipFetch?: boolean,
   update?: boolean,
-  verifyStoreIntegrity: boolean, // TODO: this should be a context field
 }
 
 export type PackageResponse = {

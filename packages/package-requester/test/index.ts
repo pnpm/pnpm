@@ -43,6 +43,7 @@ test('request package', async t => {
     networkConcurrency: 1,
     storeIndex,
     storePath: '.store',
+    verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
 
@@ -53,7 +54,6 @@ test('request package', async t => {
     preferredVersions: {},
     prefix,
     registry,
-    verifyStoreIntegrity: true,
   }) as PackageResponse & {
     body: {inStoreLocation: string, latest: string, manifest: {name: string}},
     fetchingFiles: Promise<{filenames: string[], fromStore: boolean}>,
@@ -94,6 +94,7 @@ test('request package but skip fetching', async t => {
     networkConcurrency: 1,
     storeIndex: {},
     storePath: '.store',
+    verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
 
@@ -105,7 +106,6 @@ test('request package but skip fetching', async t => {
     prefix,
     registry,
     skipFetch: true,
-    verifyStoreIntegrity: true,
   }) as PackageResponse & {
     body: {inStoreLocation: string, latest: string, manifest: {name: string}},
     fetchingFiles: Promise<object>,
@@ -138,6 +138,7 @@ test('request package but skip fetching, when resolution is already available', 
     networkConcurrency: 1,
     storeIndex: {},
     storePath: '.store',
+    verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
 
@@ -156,7 +157,6 @@ test('request package but skip fetching, when resolution is already available', 
     registry,
     skipFetch: true,
     update: false,
-    verifyStoreIntegrity: true,
   }) as PackageResponse & {
     body: {
       inStoreLocation: string,
@@ -206,7 +206,6 @@ test('refetch local tarball if its integrity has changed', async t => {
     registry,
     skipFetch: true,
     update: false,
-    verifyStoreIntegrity: true,
   }
   const storeIndex = {}
 
@@ -214,6 +213,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const response = await requestPackage(wantedPackage, {
@@ -241,6 +241,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const response = await requestPackage(wantedPackage, {
@@ -265,6 +266,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const response = await requestPackage(wantedPackage, {
@@ -302,7 +304,6 @@ test('refetch local tarball if its integrity has changed. The requester does not
     prefix,
     registry,
     update: false,
-    verifyStoreIntegrity: true,
   }
   const storeIndex = {}
 
@@ -310,6 +311,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
@@ -331,6 +333,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
@@ -349,6 +352,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
@@ -370,10 +374,10 @@ test('fetchPackageToStore()', async (t) => {
     networkConcurrency: 1,
     storeIndex: {},
     storePath: '.store',
+    verifyStoreIntegrity: true,
   })
 
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const storePath = '.store'
   const fetchResult = await packageRequester.fetchPackageToStore({
     force: false,
     pkgId,
@@ -383,7 +387,6 @@ test('fetchPackageToStore()', async (t) => {
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-    verifyStoreIntegrity: true,
   })
 
   t.notOk(fetchResult.fetchingRawManifest, 'full manifest not returned')
@@ -406,7 +409,6 @@ test('fetchPackageToStore()', async (t) => {
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-    verifyStoreIntegrity: true,
   })
 
   // This verifies that when a package has been cached with no full manifest
@@ -421,6 +423,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
     networkConcurrency: 1,
     storeIndex: {},
     storePath: '.store',
+    verifyStoreIntegrity: true,
   })
 
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
@@ -436,7 +439,6 @@ test('fetchPackageToStore() concurrency check', async (t) => {
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-      verifyStoreIntegrity: true,
     }),
     packageRequester.fetchPackageToStore({
       force: false,
@@ -447,7 +449,6 @@ test('fetchPackageToStore() concurrency check', async (t) => {
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-      verifyStoreIntegrity: true,
     })
   ])
 
@@ -508,6 +509,7 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
     networkConcurrency: 1,
     storeIndex: {},
     storePath: tempy.directory(),
+    verifyStoreIntegrity: true,
   })
 
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
@@ -522,7 +524,6 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-      verifyStoreIntegrity: true,
     })
     await badRequest.fetchingFiles
     t.fail('first fetch should have failed')
@@ -539,7 +540,6 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-    verifyStoreIntegrity: true,
   })
   const files = await fetchResult.fetchingFiles
   t.deepEqual(files, {
@@ -559,6 +559,7 @@ test('always return a package manifest in the response', async t => {
     networkConcurrency: 1,
     storeIndex: {},
     storePath: '.store',
+    verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
   const prefix = tempy.directory()
@@ -570,7 +571,6 @@ test('always return a package manifest in the response', async t => {
       preferredVersions: {},
       prefix,
       registry,
-      verifyStoreIntegrity: true,
     }) as PackageResponse & {body: {manifest: {name: string}}}
 
     t.ok(pkgResponse.body, 'response has body')
@@ -590,7 +590,6 @@ test('always return a package manifest in the response', async t => {
       preferredVersions: {},
       prefix,
       registry,
-      verifyStoreIntegrity: true,
     }) as PackageResponse & {fetchingRawManifest: Promise<PackageJson>}
 
     t.ok(pkgResponse.body, 'response has body')
@@ -610,6 +609,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
     networkConcurrency: 1,
     storeIndex: {},
     storePath: tempy.directory(),
+    verifyStoreIntegrity: true,
   })
 
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
@@ -624,7 +624,6 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
       pkgId,
       prefix: tempy.directory(),
       resolution,
-      verifyStoreIntegrity: true,
     }),
     packageRequester.fetchPackageToStore({
       fetchRawManifest: true,
@@ -632,7 +631,6 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
       pkgId,
       prefix: tempy.directory(),
       resolution,
-      verifyStoreIntegrity: true,
     })
   ])
 
@@ -657,6 +655,7 @@ test('refetch package to store if it has been modified', async (t) => {
       networkConcurrency: 1,
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const fetchResult = await packageRequester.fetchPackageToStore({
@@ -665,7 +664,6 @@ test('refetch package to store if it has been modified', async (t) => {
       pkgId,
       prefix: tempy.directory(),
       resolution,
-      verifyStoreIntegrity: true,
     })
 
     await fetchResult.fetchingFiles
@@ -687,6 +685,7 @@ test('refetch package to store if it has been modified', async (t) => {
       networkConcurrency: 1,
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const fetchResult = await packageRequester.fetchPackageToStore({
@@ -695,7 +694,6 @@ test('refetch package to store if it has been modified', async (t) => {
       pkgId,
       prefix: tempy.directory(),
       resolution,
-      verifyStoreIntegrity: true,
     })
 
     await fetchResult.fetchingFiles
@@ -731,6 +729,7 @@ test('refetch package to store if it has no integrity checksums and verification
       networkConcurrency: 1,
       storeIndex,
       storePath,
+      verifyStoreIntegrity: false,
     })
 
     const fetchResult = await packageRequester.fetchPackageToStore({
@@ -739,7 +738,6 @@ test('refetch package to store if it has no integrity checksums and verification
       pkgId,
       prefix: tempy.directory(),
       resolution,
-      verifyStoreIntegrity: false,
     })
 
     await fetchResult.fetchingFiles
@@ -756,6 +754,7 @@ test('refetch package to store if it has no integrity checksums and verification
       networkConcurrency: 1,
       storeIndex,
       storePath,
+      verifyStoreIntegrity: true,
     })
 
     const fetchResult = await packageRequester.fetchPackageToStore({
@@ -764,7 +763,6 @@ test('refetch package to store if it has no integrity checksums and verification
       pkgId,
       prefix: tempy.directory(),
       resolution,
-      verifyStoreIntegrity: true,
     })
 
     await fetchResult.fetchingFiles
