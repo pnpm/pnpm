@@ -46,7 +46,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/constants": "1.0.0-0",
+    "@pnpm/constants": "1.0.0",
     "@pnpm/lockfile-types": "1.0.0-0",
     "@pnpm/lockfile-utils": "1.0.0-0",
     "@pnpm/pkgid-to-filename": "2.0.0",
