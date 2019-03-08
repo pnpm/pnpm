@@ -5,6 +5,7 @@
   "ignoreDeps": [
     "@pnpm/assert-project",
     "@pnpm/config",
+    "@pnpm/constants",
     "@pnpm/core-loggers",
     "@pnpm/default-fetcher",
     "@pnpm/default-reporter",
@@ -23,6 +24,7 @@
     "@pnpm/lockfile-utils",
     "@pnpm/logger",
     "@pnpm/modules-cleaner",
+    "@pnpm/npm-registry-agent",
     "@pnpm/npm-resolver",
     "@pnpm/outdated",
     "@pnpm/package-requester",
