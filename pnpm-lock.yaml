@@ -81,7 +81,7 @@ importers:
       typescript: 3.3.3333
   packages/default-fetcher:
     dependencies:
-      '@pnpm/git-fetcher': 1.0.1
+      '@pnpm/git-fetcher': 'link:../git-fetcher'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
     devDependencies:
@@ -419,6 +419,40 @@ importers:
       typescript: 3.3.3333
       write-yaml-file: 2.0.0
       yaml-tag: 1.1.0
+  packages/git-fetcher:
+    dependencies:
+      '@types/node': 10.12.30
+      dint: 3.0.2
+      execa: 1.0.0
+      path-temp: 1.0.0
+      rimraf-then: 1.0.1
+    devDependencies:
+      '@pnpm/git-fetcher': 'link:'
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/tape': 4.2.33
+      '@types/tempy': 0.2.0
+      rimraf: 2.6.3
+      tape: 4.10.1
+      tempy: 0.2.1
+      ts-node: 8.0.3_typescript@3.3.3333
+      tslint: 5.13.1_typescript@3.3.3333
+      typescript: 3.3.3333
+    specifiers:
+      '@pnpm/git-fetcher': 'link:'
+      '@pnpm/tslint-config': 0.0.0
+      '@types/node': ^9.3.0 || 10
+      '@types/tape': ^4.2.31
+      '@types/tempy': ^0.2.0
+      dint: ^3.0.0
+      execa: ^1.0.0
+      path-temp: ^1.0.0
+      rimraf: ^2.6.2
+      rimraf-then: ^1.0.1
+      tape: ^4.8.0
+      tempy: ^0.2.1
+      ts-node: ^8.0.1
+      tslint: ^5.8.0
+      typescript: ^3.0.0
   packages/git-resolver:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -2489,18 +2523,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
-  /@pnpm/git-fetcher/1.0.1:
-    dependencies:
-      '@types/node': 10.12.30
-      dint: 3.0.2
-      execa: 1.0.0
-      path-temp: 1.0.0
-      rimraf-then: 1.0.1
-    dev: false
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-qn14ZMCCxLLFX1MWQLANVwlUlvWVbN4V4lAguWTeI2ABj0sZVZ7aZiVbHFbAJnxe9sqqE4NzAGBVgsCiW4TZwg==
   /@pnpm/link-bins/3.0.3:
     dependencies:
       '@pnpm/package-bins': 2.0.0
@@ -2708,9 +2730,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-wa09itaLE8L705aXd8F80jnFpxz3Y1/KRHfKsYL2bPc0XF+wEWu8sR9n5bmeu8Ba1N9z2GRNzm/YdHcghLkLKg==
-  /@types/node/11.10.5:
-    resolution:
-      integrity: sha512-DuIRlQbX4K+d5I+GMnv+UfnGh+ist0RdlvOp+JZ7ePJ6KQONCFQv/gKYSU1ZzbVdFSUCKZOltjmpFAGGv5MdYA==
   /@types/node/11.9.5:
     resolution:
       integrity: sha512-vVjM0SVzgaOUpflq4GYBvCpozes8OgIIS5gVXVka+OfK3hvnkC1i93U8WiY2OtNE4XUWyyy/86Kf6e0IHTQw1Q==
@@ -2787,7 +2806,7 @@ packages:
       integrity: sha1-m2PUU6a1SqhJGCIHcRoIvo7qSK4=
   /@types/tape/4.2.33:
     dependencies:
-      '@types/node': 11.10.5
+      '@types/node': 11.9.5
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/tempy/0.2.0:
