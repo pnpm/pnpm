@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
-    "@pnpm/read-package-json": "1.1.1",
+    "@pnpm/read-package-json": "2.0.0",
     "@pnpm/types": "3.0.0",
     "@types/archy": "0.0.31",
     "@types/node": "11.9.5",

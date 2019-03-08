@@ -501,14 +501,14 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 3.0.3
+      '@pnpm/link-bins': 4.0.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/shamefully-flatten': 'link:../shamefully-flatten'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
@@ -563,7 +563,7 @@ importers:
       '@pnpm/filter-lockfile': 1.0.0-0
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 4.2.0
-      '@pnpm/link-bins': 3.0.3
+      '@pnpm/link-bins': 4.0.0
       '@pnpm/lockfile-file': 1.0.0-0
       '@pnpm/lockfile-utils': 1.0.0-0
       '@pnpm/logger': 2.1.0
@@ -573,7 +573,7 @@ importers:
       '@pnpm/package-store': 4.0.0-0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-manifests': 2.0.0-1
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/shamefully-flatten': 3.0.0-1
       '@pnpm/store-controller-types': 3.0.0-0
       '@pnpm/store-path': 1.0.4
@@ -614,7 +614,7 @@ importers:
   packages/lifecycle:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-lifecycle': 2.2.0
       path-exists: 3.0.0
@@ -640,7 +640,7 @@ importers:
       '@pnpm/core-loggers': 2.0.0
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/load-json-file': 2.0.7
@@ -661,7 +661,7 @@ importers:
       typescript: 3.3.3333
   packages/list:
     dependencies:
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/types': 'link:../types'
       '@types/archy': 0.0.31
       '@types/node': 11.9.5
@@ -688,7 +688,7 @@ importers:
     specifiers:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/archy': 0.0.31
@@ -711,7 +711,7 @@ importers:
       typescript: 3.3.3333
   packages/local-resolver:
     dependencies:
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
       '@types/graceful-fs': 4.1.3
@@ -731,7 +731,7 @@ importers:
       typescript: 3.3.3333
     specifiers:
       '@pnpm/local-resolver': 'link:'
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
@@ -865,7 +865,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/package-bins': 2.0.0
+      '@pnpm/package-bins': 3.0.0
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -890,7 +890,7 @@ importers:
       '@pnpm/lockfile-utils': 1.0.0-0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
-      '@pnpm/package-bins': 2.0.0
+      '@pnpm/package-bins': 3.0.0
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/store-controller-types': 3.0.0-0
       '@pnpm/tslint-config': 0.0.0
@@ -1057,7 +1057,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/store-path': 1.0.4
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
@@ -1082,7 +1082,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 3.0.0-1
       '@pnpm/outdated': 'link:'
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/store-path': 1.0.4
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
@@ -1136,7 +1136,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -1188,7 +1188,7 @@ importers:
       '@pnpm/npm-resolver': 3.0.0-1
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/store-controller-types': 3.0.0-0
       '@pnpm/tarball-fetcher': 3.0.0-1
@@ -1376,7 +1376,7 @@ importers:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
@@ -1434,7 +1434,7 @@ importers:
       '@pnpm/outdated': 2.0.0-2
       '@pnpm/package-store': 4.0.0-0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/server': 3.0.0-0
       '@pnpm/store-controller-types': 3.0.0-0
       '@pnpm/store-path': 1.0.4
@@ -1795,7 +1795,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 3.0.3
+      '@pnpm/link-bins': 4.0.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -1805,7 +1805,7 @@ importers:
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
       '@pnpm/read-manifests': 'link:../read-manifests'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/shamefully-flatten': 'link:../shamefully-flatten'
@@ -1910,7 +1910,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 6.0.0-2
       '@pnpm/lifecycle': 4.2.0
-      '@pnpm/link-bins': 3.0.3
+      '@pnpm/link-bins': 4.0.0
       '@pnpm/lockfile-file': 1.0.0-0
       '@pnpm/lockfile-utils': 1.0.0-0
       '@pnpm/logger': 2.1.0
@@ -1923,7 +1923,7 @@ importers:
       '@pnpm/prune-lockfile': 1.0.0-0
       '@pnpm/read-manifests': 2.0.0-1
       '@pnpm/read-modules-dir': 1.0.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolve-dependencies': 5.0.0-2
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/shamefully-flatten': 3.0.0-1
@@ -2145,7 +2145,7 @@ importers:
       typescript: 3.3.3333
   packages/utils:
     dependencies:
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 11.9.5
@@ -2160,7 +2160,7 @@ importers:
       typescript: 3.3.3333
     specifiers:
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.1.1
+      '@pnpm/read-package-json': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@pnpm/utils': 'link:'
@@ -2523,14 +2523,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
-  /@pnpm/link-bins/3.0.3:
+  /@pnpm/link-bins/4.0.0:
     dependencies:
-      '@pnpm/package-bins': 2.0.0
-      '@pnpm/read-package-json': 1.1.1
-      '@pnpm/types': 2.0.0
+      '@pnpm/package-bins': 3.0.0
+      '@pnpm/read-package-json': 2.0.0
+      '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
       '@types/node': 10.12.30
-      '@types/ramda': 0.26.0
+      '@types/ramda': 0.26.1
       '@zkochan/cmd-shim': 3.1.0
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -2541,9 +2541,9 @@ packages:
       ramda: 0.26.1
     dev: false
     engines:
-      node: '>=6'
+      node: '>=8'
     resolution:
-      integrity: sha512-AeAxhTVNNtB7u5hVyojTnFsJi/iE/w13t23aQ3wMdpIEIDFVO6nukk8eZShDWlRCTTHjvfON1LpwHqQDRsT0dA==
+      integrity: sha512-rMJQUlPqspDT9XTYqO6yM2C0kvEnfKP50Yy233hX0Af/7LRyZ85dcWEuxkIv3+a6WEBFDki4M34K7MuMoUrsuw==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.12.30
@@ -2553,17 +2553,17 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/package-bins/2.0.0:
+  /@pnpm/package-bins/3.0.0:
     dependencies:
-      '@pnpm/types': 2.0.0
+      '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
       mz: 2.7.0
       p-filter: 1.0.0
     dev: false
     engines:
-      node: '>=6'
+      node: '>=8'
     resolution:
-      integrity: sha512-Zftgs0jJ3O4RXajViGe/JfVNpIB5I3I2np2YH5UOvVeMuxPVEB/MwHNOJpAtSQWj5p7KAXGj1OhVxtQFrDTdhQ==
+      integrity: sha512-j6lW7MKpKveB1CDcUQjU/5yR3zKkVDMhT3i/jd3n+JWbvdErPac9MquN/p1kxqa6crsezJ7pziNqbdvKWvSOHg==
   /@pnpm/pkgid-to-filename/2.0.0:
     dependencies:
       normalize-path: 3.0.0
@@ -2572,15 +2572,15 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/read-package-json/1.1.1:
+  /@pnpm/read-package-json/2.0.0:
     dependencies:
-      '@pnpm/types': 2.0.0
+      '@pnpm/types': 3.0.0
       read-package-json: 2.0.13
       util.promisify: 1.0.0
     engines:
-      node: '>=6'
+      node: '>=8'
     resolution:
-      integrity: sha512-x4nte9ex/SQ2oxFQ/fi5/Hgx692qt7pmqneePh4q+7CNs1Hv6Xn8kM7REerGGSdQQD+2xu54fmHxVMVcgW6gxQ==
+      integrity: sha512-I38F0ccCa/icXtoe15ha/t0pYmtp0M4NUbP79z7FtZZ3lXUWSx7THsfBVU5AbgZandiCVZLIOFqsxzDdFlQL0g==
   /@pnpm/store-path/1.0.4:
     dependencies:
       '@types/node': 10.12.30
@@ -2596,11 +2596,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-sGNnrjzNgzizIAiVIuXBQYWY8XvNBGUFbjEftIzKuXB/++Dr/JVinjLijm6iql7WDHolEf90pMNcBkL8Ni139w==
-  /@pnpm/types/2.0.0:
+  /@pnpm/types/3.0.0:
     engines:
-      node: '>=6'
+      node: '>=8'
     resolution:
-      integrity: sha512-jBLjrZjafStD0DFjnsiiGVXclkLieRPjfg6fyHI1rGvvACMPOW/sNweFBCxKI7B2o7U5mdjVX3OgKPnhXx70zw==
+      integrity: sha512-YPqAUqoleOgbPhPK+hKIb7IHzKPCok2Kype/DBfJqenzvZjsR0V+uwZMS1FHcCKzSgn8g0J+y2q+g6yjJsAN0g==
   /@sinonjs/commons/1.4.0:
     dependencies:
       type-detect: 4.0.8
@@ -2780,6 +2780,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-6FCz2E3SrkgbuV3piRNfjThSRyMbcIxHknnGYPfrg4k55PHnNRR80boVdl1AME/KfDW+FBVmKrKPyRbFo8HjaQ==
+  /@types/ramda/0.26.1:
+    dev: false
+    resolution:
+      integrity: sha512-rvHuym7ZBYntRnA7W0qoBIQsomVYCamgKz5KD55Y1e94FeJv8UgBH102PylOUUCcyeEdQ1MwnsnP7K8yKlMstA==
   /@types/rc/1.1.0:
     dev: false
     resolution:
