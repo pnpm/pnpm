@@ -9,12 +9,18 @@
     "@pnpm/default-fetcher",
     "@pnpm/default-reporter",
     "@pnpm/default-resolver",
+    "@pnpm/fetch",
+    "@pnpm/fetcher-base",
     "@pnpm/filter-lockfile",
     "@pnpm/git-fetcher",
     "@pnpm/git-resolver",
     "@pnpm/headless",
     "@pnpm/lifecycle",
+    "@pnpm/list",
     "@pnpm/local-resolver",
+    "@pnpm/lockfile-file",
+    "@pnpm/lockfile-types",
+    "@pnpm/lockfile-utils",
     "@pnpm/logger",
     "@pnpm/modules-cleaner",
     "@pnpm/npm-resolver",
@@ -28,10 +34,6 @@
     "@pnpm/resolver-base",
     "@pnpm/server",
     "@pnpm/shamefully-flatten",
-    "@pnpm/list",
-    "@pnpm/lockfile-file",
-    "@pnpm/lockfile-types",
-    "@pnpm/lockfile-utils",
     "@pnpm/store-controller-types",
     "@pnpm/store-path",
     "@pnpm/symlink-dependency",
@@ -41,6 +43,7 @@
     "@pnpm/utils",
     "dependencies-hierarchy",
     "dependency-path",
+    "fetch-from-npm-registry",
     "pnpm-file-reporter",
     "pnpm-registry-mock",
     "remove-all-except-outer-links",
@@ -57,16 +60,8 @@
   ],
   "packageRules": [
     {
-      "packageNames": ["@types/got"],
-      "allowedVersions": "<=8"
-    },
-    {
       "packageNames": ["@types/ramda"],
       "allowedVersions": "0.25.34"
-    },
-    {
-      "packageNames": ["got"],
-      "allowedVersions": "<=8"
     }
   ],
   "pinVersions": false,
