@@ -33,7 +33,7 @@
     "@types/node": "11.9.5",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
-    "@types/sinon": "7.0.8",
+    "@types/sinon": "7.0.9",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "fs-extra": "7.0.1",

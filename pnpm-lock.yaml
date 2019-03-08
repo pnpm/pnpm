@@ -135,7 +135,7 @@ importers:
       semver: 5.6.0
       stacktracey: 1.2.106
       string-length: 2.0.0
-      strip-ansi: 5.0.0
+      strip-ansi: 5.1.0
     devDependencies:
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
@@ -184,7 +184,7 @@ importers:
       semver: 5.6.0
       stacktracey: 1.2.106
       string-length: 2.0.0
-      strip-ansi: 5.0.0
+      strip-ansi: 5.1.0
       tape: 4.10.1
       ts-node: 8.0.3
       tslint: 5.13.1
@@ -536,7 +536,7 @@ importers:
       '@types/node': 11.9.5
       '@types/path-exists': 3.0.0
       '@types/rimraf': 2.0.2
-      '@types/sinon': 7.0.8
+      '@types/sinon': 7.0.9
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       fs-extra: 7.0.1
@@ -587,7 +587,7 @@ importers:
       '@types/path-exists': 3.0.0
       '@types/ramda': 0.25.34
       '@types/rimraf': 2.0.2
-      '@types/sinon': 7.0.8
+      '@types/sinon': 7.0.9
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       dependency-path: 3.0.0-0
@@ -1146,7 +1146,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       p-limit: 2.2.0
-      p-queue: 3.2.0
+      p-queue: 4.0.0
       path-exists: 3.0.0
       read-package-json: 2.0.13
       rename-overwrite: 1.0.3
@@ -1163,7 +1163,7 @@ importers:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/ncp': 2.0.1
       '@types/nock': 9.3.1
-      '@types/sinon': 7.0.8
+      '@types/sinon': 7.0.9
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       delay: 4.1.0
@@ -1198,7 +1198,7 @@ importers:
       '@types/ncp': 2.0.1
       '@types/nock': 9.3.1
       '@types/node': 11.9.5
-      '@types/sinon': 7.0.8
+      '@types/sinon': 7.0.9
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       delay: 4.1.0
@@ -1211,7 +1211,7 @@ importers:
       nock: 10.0.6
       normalize-path: 3.0.0
       p-limit: 2.2.0
-      p-queue: 3.2.0
+      p-queue: 4.0.0
       path-exists: 3.0.0
       read-package-json: 2.0.13
       rename-overwrite: 1.0.3
@@ -1869,7 +1869,7 @@ importers:
       '@types/fs-extra': 5.0.5
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
-      '@types/sinon': 7.0.8
+      '@types/sinon': 7.0.9
       '@types/tape': 4.2.33
       anonymous-npm-registry-client: 0.1.2
       caw: 2.0.1
@@ -1946,7 +1946,7 @@ importers:
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
       '@types/semver': 5.5.0
-      '@types/sinon': 7.0.8
+      '@types/sinon': 7.0.9
       '@types/tape': 4.2.33
       '@zkochan/npm-package-arg': 1.0.1
       anonymous-npm-registry-client: 0.1.2
@@ -2610,18 +2610,18 @@ packages:
   /@sinonjs/formatio/3.2.1:
     dependencies:
       '@sinonjs/commons': 1.4.0
-      '@sinonjs/samsam': 3.2.0
+      '@sinonjs/samsam': 3.3.0
     dev: true
     resolution:
       integrity: sha512-tsHvOB24rvyvV2+zKMmPkZ7dXX6LSLKZ7aOtXY6Edklp0uRcgGpOsQTTGTcWViFyx4uhWc6GV8QdnALbIbIdeQ==
-  /@sinonjs/samsam/3.2.0:
+  /@sinonjs/samsam/3.3.0:
     dependencies:
       '@sinonjs/commons': 1.4.0
       array-from: 2.1.1
       lodash: 4.17.11
     dev: true
     resolution:
-      integrity: sha512-j5F1rScewLtx6pbTK0UAjA3jJj4RYiSKOix53YWv+Jzy/AZ69qHxUpU8fwVLjyKbEEud9QrLpv6Ggs7WqTimYw==
+      integrity: sha512-beHeJM/RRAaLLsMJhsCvHK31rIqZuobfPLa/80yGH5hnD8PV1hyh9xJBJNFfNmO7yWqm+zomijHsXpI6iTQJfQ==
   /@sinonjs/text-encoding/0.7.1:
     dev: true
     resolution:
@@ -2796,10 +2796,10 @@ packages:
   /@types/semver/5.5.0:
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
-  /@types/sinon/7.0.8:
+  /@types/sinon/7.0.9:
     dev: true
     resolution:
-      integrity: sha512-v8HKmpYANbS3y0cWji16uk/CV9v2CqpI+wxeW7WVZPU2E8MAcvBYbCBpeukhaWPRHbTO3tu8m6vb2IXWCbEUOQ==
+      integrity: sha512-PS102Fj4BAa9B8C0qLp677UiW9sdI+9ZhsD6GdPbcNKNdymyKKRJ1Bsc5Uk5pQV7jTtLozTQdxzgnQx+aH8Pvg==
   /@types/strip-ansi/3.0.0:
     dev: false
     resolution:
@@ -3090,12 +3090,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-7QMXwyIGT3lGbAKWa922Bas32Zg=
-  /ansi-regex/4.0.0:
+  /ansi-regex/4.1.0:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-iB5Dda8t/UqpPI/IjsejXu5jOGDrzn41wJyljwPH65VCIbk6+1BzFIMJGFwTNrYXT1CrD+B4l19U7awiQ8rk7w==
+      integrity: sha512-1apePfXM1UOSqw0o9IiFAovVz9M5S1Dg+4TrDwfMewQ6p/rmMueb7tWZjQ1rx4Loy1ArBggoqGpfqqdI4rondg==
   /ansi-split/1.0.1:
     dependencies:
       ansi-regex: 3.0.0
@@ -4811,6 +4811,10 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-Qa4u62XvpiJorr/qg6x9eSmbCIc=
+  /eventemitter3/3.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-ivIvhpq/Y0uSjcHDcOIccjmYjGLcP09MFGE7ysAwkAvkXfpZlC985pH2/ui64DKazbTW/4kN3yqozUxlXzI6cA==
   /events-to-array/1.1.2:
     dev: true
     resolution:
@@ -7717,12 +7721,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
-  /p-queue/3.2.0:
+  /p-queue/4.0.0:
+    dependencies:
+      eventemitter3: 3.1.0
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-D2OjWeETS1Bjov7d82VclyMRigjZtMdALWV04u0H2zPvV3sYC8f6sYBgQ2Z0OHoBGUYh9S8cHtJqMAO8xaHEwg==
+      integrity: sha512-3cRXXn3/O0o3+eVmUroJPSj/esxoEFIm0ZOno/T+NzG/VZgPOqQ8WKmlNqubSEpZmCIngEy34unkHGg83ZIBmg==
   /p-some/2.0.1:
     dependencies:
       aggregate-error: 1.0.0
@@ -8879,7 +8885,7 @@ packages:
     dependencies:
       '@sinonjs/commons': 1.4.0
       '@sinonjs/formatio': 3.2.1
-      '@sinonjs/samsam': 3.2.0
+      '@sinonjs/samsam': 3.3.0
       diff: 3.5.0
       lolex: 3.1.0
       nise: 1.4.10
@@ -9233,14 +9239,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-qEeQIusaw2iocTibY1JixQXuNo8=
-  /strip-ansi/5.0.0:
+  /strip-ansi/5.1.0:
     dependencies:
-      ansi-regex: 4.0.0
+      ansi-regex: 4.1.0
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-Uu7gQyZI7J7gn5qLn1Np3G9vcYGTVqB+lFTytnDJv83dd8T22aGH451P3jueT2/QemInJDfxHB5Tde5OzgG1Ow==
+      integrity: sha512-TjxrkPONqO2Z8QDCpeE2j6n0M6EwxzyDgzEeGp+FbdvaJAt//ClYi6W5my+3ROlC/hZX2KACUwDfK49Ka5eDvg==
   /strip-bom/2.0.0:
     dependencies:
       is-utf8: 0.2.1
