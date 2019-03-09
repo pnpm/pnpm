@@ -25,6 +25,7 @@ import {
 } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
+  packageIdFromSnapshot,
   packageIsIndependent,
   pkgSnapshotToResolution,
   satisfiesPackageJson,
@@ -438,7 +439,7 @@ async function lockfileToDepGraph (
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-      const packageId = pkgSnapshot.id || depPath
+      const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
       progressLogger.debug({
         packageId,
         requester: opts.lockfileDirectory,
