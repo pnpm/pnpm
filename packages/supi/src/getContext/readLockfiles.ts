@@ -24,13 +24,13 @@ export default async function (
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
-    lockfile: boolean,
-    lockfileDirectory: string,
-    registry: string,
     importers: Array<{
       id: string,
       prefix: string,
     }>,
+    lockfileDirectory: string,
+    registry: string,
+    useLockfile: boolean,
   },
 ): Promise<{
   currentLockfile: Lockfile,
@@ -45,7 +45,7 @@ export default async function (
     wantedVersion: LOCKFILE_VERSION,
   }
   const files = await Promise.all<Lockfile | null | void>([
-    opts.lockfile && readWantedLockfile(opts.lockfileDirectory, lockfileOpts)
+    opts.useLockfile && readWantedLockfile(opts.lockfileDirectory, lockfileOpts)
       || await existsWantedLockfile(opts.lockfileDirectory) &&
         logger.warn({
           message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,

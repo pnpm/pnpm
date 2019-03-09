@@ -97,7 +97,7 @@ export async function uninstallInContext (
     ? pruneLockfile(ctx.currentLockfile, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
     : newLockfile
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
-  if (opts.lockfile) {
+  if (opts.useLockfile) {
     await writeLockfiles(ctx.lockfileDirectory, newLockfile, currentLockfile, lockfileOpts)
   } else {
     await writeCurrentLockfile(ctx.lockfileDirectory, currentLockfile, lockfileOpts)

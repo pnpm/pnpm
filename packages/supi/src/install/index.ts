@@ -813,7 +813,7 @@ async function installInContext (
     await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
   } else {
     await Promise.all([
-      opts.lockfile
+      opts.useLockfile
         ? writeLockfiles(ctx.lockfileDirectory, result.wantedLockfile, result.currentLockfile, lockfileOpts)
         : writeCurrentLockfile(ctx.lockfileDirectory, result.currentLockfile, lockfileOpts),
       (() => {

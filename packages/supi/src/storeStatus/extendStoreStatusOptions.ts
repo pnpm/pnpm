@@ -10,7 +10,7 @@ export interface StoreStatusOptions {
   independentLeaves?: boolean,
   force?: boolean,
   forceSharedLockfile?: boolean,
-  lockfile?: boolean,
+  useLockfile?: boolean,
   registries?: Registries,
 
   reporter?: ReporterFunction,
@@ -28,7 +28,7 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
   independentLeaves: boolean,
   force: boolean,
   forceSharedLockfile: boolean,
-  lockfile: boolean,
+  useLockfile: boolean,
   registries: Registries,
   bin: string,
   shamefullyFlatten: boolean,
@@ -42,12 +42,12 @@ const defaults = async (opts: StoreStatusOptions) => {
     force: false,
     forceSharedLockfile: false,
     independentLeaves: false,
-    lockfile: true,
     lockfileDirectory,
     prefix,
     registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
     store: opts.store,
+    useLockfile: true,
   } as StrictStoreStatusOptions
 }
 

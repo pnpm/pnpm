@@ -64,8 +64,8 @@ export default async function getContext<T> (
     independentLeaves: boolean,
     registries: Registries,
     shamefullyFlatten: boolean,
-    lockfile: boolean,
     store: string,
+    useLockfile: boolean,
   },
 ): Promise<PnpmContext<T>> {
   const manifests = await readManifests(importers, opts.lockfileDirectory, {
@@ -121,9 +121,9 @@ export default async function getContext<T> (
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       importers: manifests.importers,
-      lockfile: opts.lockfile,
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
+      useLockfile: opts.useLockfile,
     }),
   }
 
@@ -244,11 +244,11 @@ export async function getContextForSingleImporter (
     },
     include?: IncludedDependencies,
     independentLeaves: boolean,
-    lockfile: boolean,
     prefix: string,
     registries: Registries,
     shamefullyFlatten: boolean,
     store: string,
+    useLockfile: boolean,
   },
 ): Promise<PnpmSingleContext> {
   const manifests = await readManifests(
@@ -305,9 +305,9 @@ export async function getContextForSingleImporter (
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       importers: [{ id: importerId, prefix: opts.prefix }],
-      lockfile: opts.lockfile,
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
+      useLockfile: opts.useLockfile,
     }),
   }
   packageJsonLogger.debug({

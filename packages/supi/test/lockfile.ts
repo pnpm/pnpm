@@ -725,7 +725,7 @@ test('no lockfile', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({ lockfile: false, reporter }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ useLockfile: false, reporter }))
 
   t.notOk(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
 
@@ -761,7 +761,7 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await install(await testDefaults({ lockfile: false, reporter }))
+  await install(await testDefaults({ useLockfile: false, reporter }))
 
   t.ok(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
 
@@ -770,7 +770,7 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
   t.ok(await project.loadLockfile(), `existing ${WANTED_LOCKFILE} not removed`)
 })
 
-test(`don't update ${WANTED_LOCKFILE} during uninstall when lockfile: false`, async (t: tape.Test) => {
+test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async (t: tape.Test) => {
   const project = prepare(t)
 
   {
@@ -784,7 +784,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when lockfile: false`, as
   {
     const reporter = sinon.spy()
 
-    await uninstall(['is-positive'], await testDefaults({ lockfile: false, reporter }))
+    await uninstall(['is-positive'], await testDefaults({ useLockfile: false, reporter }))
 
     t.ok(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
   }
@@ -794,22 +794,22 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when lockfile: false`, as
   t.ok(await project.loadLockfile(), `${WANTED_LOCKFILE} not removed during uninstall`)
 })
 
-test('fail when installing with lockfile: false and lockfileOnly: true', async (t: tape.Test) => {
+test('fail when installing with useLockfile: false and lockfileOnly: true', async (t: tape.Test) => {
   const project = prepare(t)
 
   try {
-    await install(await testDefaults({ lockfile: false, lockfileOnly: true }))
+    await install(await testDefaults({ useLockfile: false, lockfileOnly: true }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.message, `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
 })
 
-test("don't remove packages during named install when lockfile: false", async (t: tape.Test) => {
+test("don't remove packages during named install when useLockfile: false", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({ lockfile: false }))
-  await addDependenciesToPackage(['is-negative'], await testDefaults({ lockfile: false }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ useLockfile: false }))
+  await addDependenciesToPackage(['is-negative'], await testDefaults({ useLockfile: false }))
 
   await project.has('is-positive')
   await project.has('is-negative')

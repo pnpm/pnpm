@@ -75,6 +75,7 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   pending: boolean,
   lockfileDirectory?: string,
   sharedWorkspaceLockfile: boolean,
+  useLockfile: boolean,
 
   registries: Registries,
 }

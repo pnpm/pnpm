@@ -15,7 +15,7 @@ export interface RebuildOptions {
   independentLeaves?: boolean,
   force?: boolean,
   forceSharedLockfile?: boolean,
-  lockfile?: boolean,
+  useLockfile?: boolean,
   registries?: Registries,
 
   reporter?: ReporterFunction,
@@ -43,7 +43,7 @@ export type StrictRebuildOptions = RebuildOptions & {
   independentLeaves: boolean,
   force: boolean,
   forceSharedLockfile: boolean,
-  lockfile: boolean,
+  useLockfile: boolean,
   registries: Registries,
   bin: string,
   rawNpmConfig: object,
@@ -71,7 +71,6 @@ const defaults = async (opts: RebuildOptions) => {
     force: false,
     forceSharedLockfile: false,
     independentLeaves: false,
-    lockfile: true,
     lockfileDirectory,
     optional: true,
     packageManager,
@@ -88,6 +87,7 @@ const defaults = async (opts: RebuildOptions) => {
       !(process.getuid && process.setuid &&
         process.getgid && process.setgid) ||
       process.getuid() !== 0,
+    useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
   } as StrictRebuildOptions
 }

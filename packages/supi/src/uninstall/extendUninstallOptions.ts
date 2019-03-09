@@ -12,7 +12,7 @@ export interface UninstallOptions {
   independentLeaves?: boolean,
   force?: boolean,
   forceSharedLockfile?: boolean,
-  lockfile?: boolean,
+  useLockfile?: boolean,
   storeController: StoreController,
   registries?: Registries,
   shamefullyFlatten?: boolean,
@@ -36,7 +36,7 @@ export type StrictUninstallOptions = UninstallOptions & {
   independentLeaves: boolean,
   force: boolean,
   forceSharedLockfile: boolean,
-  lockfile: boolean,
+  useLockfile: boolean,
   shamefullyFlatten: boolean,
   sideEffectsCacheRead: boolean,
   storeController: StoreController,
@@ -65,7 +65,6 @@ const defaults = async (opts: UninstallOptions) => {
     forceSharedLockfile: false,
     independentLeaves: false,
     lock: true,
-    lockfile: true,
     lockfileDirectory,
     locks: path.join(opts.store, '_locks'),
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes
@@ -76,6 +75,7 @@ const defaults = async (opts: UninstallOptions) => {
     sideEffectsCacheRead: false,
     store: opts.store,
     storeController: opts.storeController,
+    useLockfile: true,
   } as StrictUninstallOptions
 }
 

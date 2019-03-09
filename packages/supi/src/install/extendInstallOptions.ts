@@ -15,7 +15,7 @@ import { ReporterFunction } from '../types'
 export interface BaseInstallOptions {
   forceSharedLockfile?: boolean,
   frozenLockfile?: boolean,
-  lockfile?: boolean,
+  useLockfile?: boolean,
   lockfileOnly?: boolean,
   preferFrozenLockfile?: boolean,
   shamefullyFlatten?: boolean,
@@ -70,7 +70,7 @@ export type StrictInstallOptions = BaseInstallOptions & {
   frozenLockfile: boolean,
   preferFrozenLockfile: boolean,
   shamefullyFlatten: boolean,
-  lockfile: boolean,
+  useLockfile: boolean,
   lockfileDirectory: string,
   lockfileOnly: boolean,
   force: boolean,
@@ -131,7 +131,6 @@ const defaults = async (opts: InstallOptions) => {
     independentLeaves: false,
     localPackages: {},
     lock: true,
-    lockfile: true,
     lockfileDirectory: opts.lockfileDirectory || opts.prefix || process.cwd(),
     lockfileOnly: false,
     locks: path.join(opts.store, '_locks'),
@@ -158,6 +157,7 @@ const defaults = async (opts: InstallOptions) => {
         process.getgid && process.setgid) ||
       process.getuid() !== 0,
     update: false,
+    useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
   } as StrictInstallOptions
@@ -179,7 +179,7 @@ export default async (
     ...opts,
     store: defaultOpts.store,
   }
-  if (!extendedOpts.lockfile && extendedOpts.lockfileOnly) {
+  if (!extendedOpts.useLockfile && extendedOpts.lockfileOnly) {
     const err = new Error(`Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
     err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE' // tslint:disable-line:no-string-literal
     throw err
