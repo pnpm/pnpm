@@ -35,6 +35,8 @@ function getHelpText (command: string) {
           -O, --save-optional                save package to your \`optionalDependencies\`
           -E, --save-exact                   install exact version
           -g, --global                       install as a global package
+          -r                                 run installation recursively in every package found in subdirectories
+                                             or in every workspace package, when executed inside a workspace
           --store                            the location where all the packages are saved on the disk.
           --offline                          trigger an error if any required dependencies are not available in local store
           --prefer-offline                   skip staleness checks for cached data, but request missing data from the server
@@ -119,8 +121,12 @@ function getHelpText (command: string) {
 
         Removes packages from \`node_modules\` and from the project's \`packages.json\`
 
+        Options:
+          -r                    uninstall from every package found in subdirectories
+                                or from every workspace package, when executed inside a workspace
+
         Discouraged options:
-          --shamefully-flatten           Attempt to flatten the dependency tree, similar to what npm does
+          --shamefully-flatten  attempt to flatten the dependency tree, similar to what npm and Yarn do
       `
 
     case 'link':
@@ -140,6 +146,10 @@ function getHelpText (command: string) {
         Aliases: dislink
 
         Removes the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`
+
+        Options:
+          -r  unlink in every package found in subdirectories
+              or in every workspace package, when executed inside a workspace
       `
 
     case 'update':
@@ -150,12 +160,14 @@ function getHelpText (command: string) {
 
         Options:
 
-          -g, --global                    update globally installed packages
-          --depth                         how deep should levels of dependencies be inspected
-                                          0 is default, which means top-level dependencies
+          -r                    update in every package found in subdirectories
+                                or every workspace package, when executed inside a workspace
+          -g, --global          update globally installed packages
+          --depth               how deep should levels of dependencies be inspected
+                                0 is default, which means top-level dependencies
 
         Discouraged options:
-          --shamefully-flatten            Attempt to flatten the dependency tree, similar to what npm does
+          --shamefully-flatten  attempt to flatten the dependency tree, similar to what npm does
       `
 
     case 'list':
@@ -168,15 +180,17 @@ function getHelpText (command: string) {
 
         Options:
 
-          --long                          show extended information
-          --parseable                     show parseable output instead of tree view
-          -g, --global                    list packages in the global install prefix instead of in the current project
-          --depth                         max display depth of the dependency tree
-          --depth 0                       display only direct dependencies
-          --depth -1                      display only projects. Useful in a monorepo.
-                                          \`pnpm recursive ls --depth -1\` lists all projects in a monorepo.
-          --prod, --production            display only the dependency tree for packages in \`dependencies\`.
-          --dev                           display only the dependency tree for packages in \`devDependencies\`.
+          -r                    perform command on every package in subdirectories
+                                or on every workspace package, when executed inside a workspace
+          --long                show extended information
+          --parseable           show parseable output instead of tree view
+          -g, --global          list packages in the global install prefix instead of in the current project
+          --depth               max display depth of the dependency tree
+          --depth 0             display only direct dependencies
+          --depth -1            display only projects. Useful in a monorepo.
+                                \`pnpm recursive ls --depth -1\` lists all projects in a monorepo.
+          --prod, --production  display only the dependency tree for packages in \`dependencies\`.
+          --dev                 display only the dependency tree for packages in \`devDependencies\`.
       `
 
     case 'prune':
@@ -246,6 +260,10 @@ function getHelpText (command: string) {
         pnpm outdated [[<@scope>/]<pkg> ...]
 
         Check for outdated packages.
+
+        Options:
+          -r  check for outdated dependencies in every package found in subdirectories
+              or in every workspace package, when executed inside a workspace
       `
 
     case 'rebuild':
@@ -257,6 +275,8 @@ function getHelpText (command: string) {
         Rebuild a package.
 
         Options:
+          -r         rebuild every package found in subdirectories
+                     or every workspace package, when executed inside a workspace.
           --pending  rebuild packages that were not build during installation.
                      Packages are not build when installing with the --ignore-scripts flag
       `
