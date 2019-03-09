@@ -35,7 +35,7 @@
     "http-proxy-agent": "2.1.0",
     "https-proxy-agent": "2.2.1",
     "lru-cache": "5.1.1",
-    "socks-proxy-agent": "4.0.1"
+    "socks-proxy-agent": "4.0.2"
   },
   "env": {
     "node": ">=8"

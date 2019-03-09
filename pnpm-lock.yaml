@@ -949,7 +949,7 @@ importers:
       http-proxy-agent: 2.1.0
       https-proxy-agent: 2.2.1
       lru-cache: 5.1.1
-      socks-proxy-agent: 4.0.1
+      socks-proxy-agent: 4.0.2
     devDependencies:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/proxyquire': 1.3.28
@@ -973,7 +973,7 @@ importers:
       lru-cache: 5.1.1
       proxyquire: 2.1.0
       rimraf: 2.6.3
-      socks-proxy-agent: 4.0.1
+      socks-proxy-agent: 4.0.2
       tape: 4.10.1
       ts-node: 8.0.3
       tslint: 5.13.1
@@ -8939,16 +8939,16 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-FtyOnWN/wCHTVXOMwvSv26d+ko5vWlIDD6zoUJ7LW8vh+ZBC8QdljveRP+crNrtBwioEUWy/4dMtbBjA4ioNlg==
-  /socks-proxy-agent/4.0.1:
+  /socks-proxy-agent/4.0.2:
     dependencies:
       agent-base: 4.2.1
-      socks: 2.2.3
+      socks: 2.3.2
     dev: false
     engines:
       node: '>= 6'
     resolution:
-      integrity: sha512-Kezx6/VBguXOsEe5oU3lXYyKMi4+gva72TwJ7pQY5JfqUx2nMk7NXA6z/mpNqIlfQjWYVfeuNvQjexiTaTn6Nw==
-  /socks/2.2.3:
+      integrity: sha512-NT6syHhI9LmuEMSK6Kd2V7gNv5KFZoLE7V5udWmn0de+3Mkj3UMA/AJPLyeNUVmElCurSHtUdM3ETpR3z770Wg==
+  /socks/2.3.2:
     dependencies:
       ip: 1.1.5
       smart-buffer: 4.0.2
@@ -8957,7 +8957,7 @@ packages:
       node: '>= 6.0.0'
       npm: '>= 3.0.0'
     resolution:
-      integrity: sha512-+2r83WaRT3PXYoO/1z+RDEBE7Z2f9YcdQnJ0K/ncXXbV5gJ6wYfNAebYFYiiUjM6E4JyXnPY8cimwyvFYHVUUA==
+      integrity: sha512-pCpjxQgOByDHLlNqlnh/mNSAxIUkyBBuwwhTcV+enZGbDaClPvHdvm6uvOwZfFJkam7cGhBNbb4JxiP8UZkRvQ==
   /sort-keys/1.1.2:
     dependencies:
       is-plain-obj: 1.1.0
