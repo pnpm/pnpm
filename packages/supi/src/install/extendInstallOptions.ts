@@ -180,7 +180,9 @@ export default async (
     store: defaultOpts.store,
   }
   if (!extendedOpts.lockfile && extendedOpts.lockfileOnly) {
-    throw new Error(`Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
+    const err = new Error(`Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
+    err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE' // tslint:disable-line:no-string-literal
+    throw err
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
