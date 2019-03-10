@@ -1,8 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
+import path = require('path')
+import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -32,6 +34,28 @@ test("don't fail on non-compatible node_modules when forced", async (t: tape.Tes
   await saveModulesYaml('0.50.0', opts.store)
 
   await install(opts)
+
+  t.pass('install did not fail')
+})
+
+test("don't fail on non-compatible node_modules when forced in a workspace", async (t: tape.Test) => {
+  const project = preparePackages(t, [
+    {
+      location: 'pkg',
+      package: {},
+    },
+  ])
+  const opts = await testDefaults({ force: true })
+
+  process.chdir('pkg')
+  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+  await rimraf('node_modules')
+
+  process.chdir('..')
+
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.store}\nindependentLeaves: false\nlayoutVersion: 1`)
+
+  await install({ ...opts, prefix: path.resolve('pkg'), lockfileDirectory: process.cwd() })
 
   t.pass('install did not fail')
 })

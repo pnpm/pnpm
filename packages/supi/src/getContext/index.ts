@@ -154,7 +154,11 @@ async function validateNodeModules (
           message: `Recreating ${importer.modulesDir}`,
           prefix: importer.prefix,
         })
-        await removeAllExceptOuterLinks(importer.modulesDir)
+        try {
+          await removeAllExceptOuterLinks(importer.modulesDir)
+        } catch (err) {
+          if (err.code !== 'ENOENT') throw err
+        }
       }))
       // TODO: remove the node_modules in the lockfile directory
       return
@@ -205,7 +209,11 @@ async function validateNodeModules (
         message: `Recreating ${importer.modulesDir}`,
         prefix: importer.prefix,
       })
-      await removeAllExceptOuterLinks(importer.modulesDir)
+      try {
+        await removeAllExceptOuterLinks(importer.modulesDir)
+      } catch (err) {
+        if (err.code !== 'ENOENT') throw err
+      }
     }
   }))
 }
