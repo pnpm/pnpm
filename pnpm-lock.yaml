@@ -1514,7 +1514,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.30.0
+      supi: 0.30.1
       symlink-dir: 3.0.0
       tape: 4.10.1
       tape-promise: 4.0.0
