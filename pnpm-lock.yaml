@@ -1339,7 +1339,7 @@ importers:
       delay: 4.1.0
       diable: 4.0.2
       execa: 1.0.0
-      find-packages: 3.0.0
+      find-packages: 4.0.0
       get-port: 4.2.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1473,7 +1473,7 @@ importers:
       diable: 4.0.2
       execa: 1.0.0
       exists-link: 2.0.0
-      find-packages: 3.0.0
+      find-packages: 4.0.0
       get-port: 4.2.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -5059,17 +5059,17 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha512-Y1GUDo39ez4aHAw7MysnUD5JzYX+WaIj8I57kO3aEPT1fFRL4sr7mjei97FgnwhAyyzRYmQZaTHb2+9uZ1dPtg==
-  /find-packages/3.0.0:
+  /find-packages/4.0.0:
     dependencies:
+      '@pnpm/read-package-json': 2.0.0
       '@types/node': 10.12.30
       fast-glob: 2.2.6
       p-filter: 1.0.0
-      read-pkg: 4.0.1
     dev: false
     engines:
-      node: '>=6'
+      node: '>=8'
     resolution:
-      integrity: sha512-+kS1Ip4x7SCCo4T/O3ZDAJUYJErLinT2XUDNPnvjsp5pxC2V9BMbmmrLTvFyRBgDoHTosVkcMrsQxRWX84NBAw==
+      integrity: sha512-Tx4wrV6jVDRZ/N7WHPAWfihxr6aCxq5QIvwvbeXpVSkD05OI+oDF91z8ZOnXuy7xBdiaFvavQm5yz7J/sX4FYA==
   /find-up/1.1.2:
     dependencies:
       path-exists: 2.1.0
@@ -8311,6 +8311,7 @@ packages:
       normalize-package-data: 2.5.0
       parse-json: 4.0.0
       pify: 3.0.0
+    dev: true
     engines:
       node: '>=6'
     resolution:
