@@ -101,7 +101,7 @@ importers:
       '@pnpm/git-fetcher': 2.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/resolver-base': 3.0.0
-      '@pnpm/tarball-fetcher': 3.0.0
+      '@pnpm/tarball-fetcher': 3.0.1
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.33
       mos: 2.0.0-alpha.3
@@ -152,7 +152,7 @@ importers:
       tslint: 5.13.1_typescript@3.3.3333
       typescript: 3.3.3333
     specifiers:
-      '@pnpm/config': 3.0.0-2
+      '@pnpm/config': 3.0.0
       '@pnpm/core-loggers': 3.0.0
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
@@ -212,7 +212,7 @@ importers:
       '@pnpm/git-resolver': 2.0.0
       '@pnpm/local-resolver': 2.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.0
+      '@pnpm/npm-resolver': 3.0.1
       '@pnpm/tarball-resolver': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.33
@@ -341,7 +341,7 @@ importers:
       typescript: 3.3.3333
     specifiers:
       '@pnpm/fetch': 1.0.0
-      '@pnpm/npm-registry-agent': 1.0.0
+      '@pnpm/npm-registry-agent': 1.0.1
       '@pnpm/tslint-config': 0.0.0
       '@types/node': 11.9.5
       '@types/tape': ^4.2.31
@@ -558,8 +558,8 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
-      '@pnpm/default-fetcher': 3.0.0
-      '@pnpm/default-resolver': 3.0.0
+      '@pnpm/default-fetcher': 3.0.1
+      '@pnpm/default-resolver': 3.0.1
       '@pnpm/filter-lockfile': 1.0.0
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 5.0.0
@@ -1018,7 +1018,7 @@ importers:
       typescript: 3.3.3333
     specifiers:
       '@pnpm/logger': ^2.0.1
-      '@pnpm/npm-resolver': 'link:'
+      '@pnpm/npm-resolver': 3.0.1
       '@pnpm/resolver-base': 3.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
@@ -1032,7 +1032,7 @@ importers:
       '@types/tempy': ^0.2.0
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
-      fetch-from-npm-registry: 2.0.0
+      fetch-from-npm-registry: 2.0.1
       load-json-file: 5.2.0
       mem: 4.1.0
       mos: ^2.0.0-alpha.3
@@ -1080,7 +1080,7 @@ importers:
       '@pnpm/constants': 1.0.0
       '@pnpm/lockfile-file': 1.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.0
+      '@pnpm/npm-resolver': 3.0.1
       '@pnpm/outdated': 'link:'
       '@pnpm/read-package-json': 2.0.0
       '@pnpm/store-path': 1.0.4
@@ -1185,13 +1185,13 @@ importers:
       '@pnpm/fetcher-base': 3.0.0
       '@pnpm/local-resolver': 2.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.0
+      '@pnpm/npm-resolver': 3.0.1
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolver-base': 3.0.0
       '@pnpm/store-controller-types': 3.0.0
-      '@pnpm/tarball-fetcher': 3.0.0
+      '@pnpm/tarball-fetcher': 3.0.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
@@ -1272,13 +1272,13 @@ importers:
       '@pnpm/fetcher-base': 3.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.0
+      '@pnpm/npm-resolver': 3.0.1
       '@pnpm/package-requester': 7.0.0
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 3.0.0
       '@pnpm/store-controller-types': 3.0.0
-      '@pnpm/tarball-fetcher': 3.0.0
+      '@pnpm/tarball-fetcher': 3.0.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
@@ -1420,18 +1420,18 @@ importers:
       write-yaml-file: 2.0.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 3.0.0-2
+      '@pnpm/config': 3.0.0
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
-      '@pnpm/default-fetcher': 3.0.0
-      '@pnpm/default-reporter': 3.0.0-2
-      '@pnpm/default-resolver': 3.0.0
+      '@pnpm/default-fetcher': 3.0.1
+      '@pnpm/default-reporter': 3.0.0
+      '@pnpm/default-resolver': 3.0.1
       '@pnpm/lifecycle': 5.0.0
       '@pnpm/list': 1.0.0
       '@pnpm/lockfile-types': 1.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 3.0.0
-      '@pnpm/outdated': 2.0.0
+      '@pnpm/outdated': 2.0.1
       '@pnpm/package-store': 4.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 2.0.0
@@ -1514,7 +1514,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.30.0-4
+      supi: 0.30.0
       symlink-dir: 3.0.0
       tape: 4.10.1
       tape-promise: 4.0.0
@@ -1636,7 +1636,7 @@ importers:
       '@pnpm/lockfile-types': 1.0.0
       '@pnpm/lockfile-utils': 1.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.0
+      '@pnpm/npm-resolver': 3.0.1
       '@pnpm/package-is-installable': 2.0.0
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 3.0.0
@@ -1708,12 +1708,12 @@ importers:
     specifiers:
       '@pnpm/fetch': 1.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.0
+      '@pnpm/npm-resolver': 3.0.1
       '@pnpm/package-requester': 7.0.0
       '@pnpm/package-store': 4.0.0
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 3.0.0
-      '@pnpm/tarball-fetcher': 3.0.0
+      '@pnpm/tarball-fetcher': 3.0.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
@@ -1904,11 +1904,11 @@ importers:
       '@pnpm/check-package': 2.0.0
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
-      '@pnpm/default-fetcher': 3.0.0
-      '@pnpm/default-resolver': 3.0.0
+      '@pnpm/default-fetcher': 3.0.1
+      '@pnpm/default-resolver': 3.0.1
       '@pnpm/filter-lockfile': 1.0.0
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 6.0.0-3
+      '@pnpm/headless': 6.0.0
       '@pnpm/lifecycle': 5.0.0
       '@pnpm/link-bins': 4.0.0
       '@pnpm/lockfile-file': 1.0.0
@@ -1924,7 +1924,7 @@ importers:
       '@pnpm/read-manifests': 2.0.0
       '@pnpm/read-modules-dir': 2.0.0
       '@pnpm/read-package-json': 2.0.0
-      '@pnpm/resolve-dependencies': 5.0.0
+      '@pnpm/resolve-dependencies': 5.0.1
       '@pnpm/resolver-base': 3.0.0
       '@pnpm/shamefully-flatten': 3.0.0
       '@pnpm/store-controller-types': 3.0.0
@@ -2086,7 +2086,7 @@ importers:
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       credentials-by-uri: 1.0.0
-      fetch-from-npm-registry: 2.0.0
+      fetch-from-npm-registry: 2.0.1
       graceful-fs: 4.1.15
       mem: 4.1.0
       mkdirp-promise: 5.0.1

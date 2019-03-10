@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -41,7 +41,7 @@
     "@types/semver": "^5.4.0",
     "credentials-by-uri": "1.0.0",
     "encode-registry": "1.1.0",
-    "fetch-from-npm-registry": "2.0.0",
+    "fetch-from-npm-registry": "2.0.1",
     "load-json-file": "5.2.0",
     "mem": "4.1.0",
     "normalize-path": "3.0.0",
@@ -54,7 +54,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.1",
-    "@pnpm/npm-resolver": "link:",
+    "@pnpm/npm-resolver": "3.0.1",
     "@pnpm/tslint-config": "0.0.0",
     "@types/nock": "^9.1.1",
     "@types/path-exists": "^3.0.0",
