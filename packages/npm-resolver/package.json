@@ -54,7 +54,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.1",
-    "@pnpm/npm-resolver": "3.0.1",
+    "@pnpm/npm-resolver": "link:",
     "@pnpm/tslint-config": "0.0.0",
     "@types/nock": "^9.1.1",
     "@types/path-exists": "^3.0.0",

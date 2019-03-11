@@ -558,8 +558,8 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
-      '@pnpm/default-fetcher': 3.0.1
-      '@pnpm/default-resolver': 3.0.1
+      '@pnpm/default-fetcher': 'file:../default-fetcher'
+      '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/filter-lockfile': 1.0.0
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 5.0.0
@@ -570,9 +570,9 @@ importers:
       '@pnpm/modules-cleaner': 3.0.0
       '@pnpm/modules-yaml': 3.0.0
       '@pnpm/package-requester': 7.0.0
-      '@pnpm/package-store': 4.0.0
+      '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-manifests': 2.0.0
+      '@pnpm/read-manifests': 'file:../read-manifests'
       '@pnpm/read-package-json': 2.0.0
       '@pnpm/shamefully-flatten': 3.0.0
       '@pnpm/store-controller-types': 3.0.0
@@ -1018,7 +1018,7 @@ importers:
       typescript: 3.3.3333
     specifiers:
       '@pnpm/logger': ^2.0.1
-      '@pnpm/npm-resolver': 3.0.1
+      '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolver-base': 3.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
@@ -1183,15 +1183,15 @@ importers:
       '@pnpm/check-package': 2.0.0
       '@pnpm/core-loggers': 3.0.0
       '@pnpm/fetcher-base': 3.0.0
-      '@pnpm/local-resolver': 2.0.0
+      '@pnpm/local-resolver': 'file:../local-resolver'
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.1
+      '@pnpm/npm-resolver': 'file:../npm-resolver'
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 2.0.0
       '@pnpm/resolver-base': 3.0.0
       '@pnpm/store-controller-types': 3.0.0
-      '@pnpm/tarball-fetcher': 3.0.1
+      '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
@@ -1272,13 +1272,13 @@ importers:
       '@pnpm/fetcher-base': 3.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.1
+      '@pnpm/npm-resolver': 'file:../npm-resolver'
       '@pnpm/package-requester': 7.0.0
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 3.0.0
       '@pnpm/store-controller-types': 3.0.0
-      '@pnpm/tarball-fetcher': 3.0.1
+      '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
@@ -1708,12 +1708,12 @@ importers:
     specifiers:
       '@pnpm/fetch': 1.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 3.0.1
-      '@pnpm/package-requester': 7.0.0
-      '@pnpm/package-store': 4.0.0
+      '@pnpm/npm-resolver': 'file:../npm-resolver'
+      '@pnpm/package-requester': 'file:../package-requester'
+      '@pnpm/package-store': 'file:../package-store'
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 3.0.0
-      '@pnpm/tarball-fetcher': 3.0.1
+      '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
@@ -1904,8 +1904,8 @@ importers:
       '@pnpm/check-package': 2.0.0
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
-      '@pnpm/default-fetcher': 3.0.1
-      '@pnpm/default-resolver': 3.0.1
+      '@pnpm/default-fetcher': 'file:../default-fetcher'
+      '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/filter-lockfile': 1.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 6.0.0
@@ -1917,7 +1917,7 @@ importers:
       '@pnpm/modules-cleaner': 3.0.0
       '@pnpm/modules-yaml': 3.0.0
       '@pnpm/package-requester': 7.0.0
-      '@pnpm/package-store': 4.0.0
+      '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/prune-lockfile': 1.0.0

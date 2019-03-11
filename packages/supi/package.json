@@ -91,10 +91,10 @@
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/assert-store": "link:../../privatePackages/assert-store",
-    "@pnpm/default-fetcher": "3.0.1",
-    "@pnpm/default-resolver": "3.0.1",
+    "@pnpm/default-fetcher": "file:../default-fetcher",
+    "@pnpm/default-resolver": "file:../default-resolver",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/package-store": "4.0.0",
+    "@pnpm/package-store": "file:../package-store",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/tslint-config": "0.0.0",
