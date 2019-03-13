@@ -87,7 +87,7 @@
     "@pnpm/core-loggers": "3.0.0",
     "@pnpm/filter-lockfile": "1.0.0",
     "@pnpm/lifecycle": "5.0.0",
-    "@pnpm/link-bins": "4.0.0",
+    "@pnpm/link-bins": "4.0.1",
     "@pnpm/lockfile-file": "1.0.0",
     "@pnpm/lockfile-utils": "1.0.0",
     "@pnpm/modules-cleaner": "3.0.0",

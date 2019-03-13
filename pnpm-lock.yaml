@@ -501,7 +501,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.0.0
+      '@pnpm/link-bins': 4.0.1
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -563,7 +563,7 @@ importers:
       '@pnpm/filter-lockfile': 1.0.0
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 5.0.0
-      '@pnpm/link-bins': 4.0.0
+      '@pnpm/link-bins': 4.0.1
       '@pnpm/lockfile-file': 1.0.0
       '@pnpm/lockfile-utils': 1.0.0
       '@pnpm/logger': 2.1.0
@@ -865,7 +865,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/package-bins': 3.0.0
+      '@pnpm/package-bins': 3.0.1
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -890,7 +890,7 @@ importers:
       '@pnpm/lockfile-utils': 1.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
-      '@pnpm/package-bins': 3.0.0
+      '@pnpm/package-bins': 3.0.1
       '@pnpm/read-modules-dir': 2.0.0
       '@pnpm/store-controller-types': 3.0.0
       '@pnpm/tslint-config': 0.0.0
@@ -1243,7 +1243,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       ncp: 2.0.0
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       p-limit: 2.2.0
       path-exists: 3.0.0
       path-temp: 1.0.0
@@ -1291,7 +1291,7 @@ importers:
       mz: 2.7.0
       ncp: 2.0.0
       npm-scripts-info: 0.3.9
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       p-limit: 2.2.0
       path-exists: 3.0.0
       path-temp: 1.0.0
@@ -1339,7 +1339,7 @@ importers:
       delay: 4.1.0
       diable: 4.0.2
       execa: 1.0.0
-      find-packages: 4.0.0
+      find-packages: 4.0.1
       get-port: 4.2.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1354,7 +1354,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       nopt: 4.0.1
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       path-name: 1.0.0
@@ -1473,7 +1473,7 @@ importers:
       diable: 4.0.2
       execa: 1.0.0
       exists-link: 2.0.0
-      find-packages: 4.0.0
+      find-packages: 4.0.1
       get-port: 4.2.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1494,7 +1494,7 @@ importers:
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
       p-any: 1.1.0
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       path-exists: 3.0.0
@@ -1795,7 +1795,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.0.0
+      '@pnpm/link-bins': 4.0.1
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -1841,11 +1841,11 @@ importers:
       normalize-path: 3.0.0
       normalize-registry-url: 1.0.0
       p-every: 1.0.2
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       ramda: 0.26.1
-      remove-all-except-outer-links: 1.0.3
+      remove-all-except-outer-links: 2.0.0
       replace-string: 2.0.0
       resolve-link-target: 1.0.1
       rimraf-then: 1.0.1
@@ -1910,7 +1910,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 6.0.0
       '@pnpm/lifecycle': 5.0.0
-      '@pnpm/link-bins': 4.0.0
+      '@pnpm/link-bins': 4.0.1
       '@pnpm/lockfile-file': 1.0.0
       '@pnpm/lockfile-utils': 1.0.0
       '@pnpm/logger': 2.1.0
@@ -1977,7 +1977,7 @@ importers:
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
       p-every: 1.0.2
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       path-exists: 3.0.0
@@ -1986,7 +1986,7 @@ importers:
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
-      remove-all-except-outer-links: 1.0.3
+      remove-all-except-outer-links: 2.0.0
       replace-string: 2.0.0
       resolve-link-target: 1.0.1
       rimraf: 2.6.3
@@ -2523,27 +2523,27 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
-  /@pnpm/link-bins/4.0.0:
+  /@pnpm/link-bins/4.0.1:
     dependencies:
-      '@pnpm/package-bins': 3.0.0
+      '@pnpm/package-bins': 3.0.1
       '@pnpm/read-package-json': 2.0.0
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
-      '@types/node': 10.12.30
-      '@types/ramda': 0.26.1
+      '@types/node': 11.9.5
+      '@types/ramda': 0.26.3
       '@zkochan/cmd-shim': 3.1.0
       arr-flatten: 1.1.0
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       normalize-path: 3.0.0
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       ramda: 0.26.1
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-rMJQUlPqspDT9XTYqO6yM2C0kvEnfKP50Yy233hX0Af/7LRyZ85dcWEuxkIv3+a6WEBFDki4M34K7MuMoUrsuw==
+      integrity: sha512-7rtKxnqYi5TtO4bDdq3IjTNQPLfVzKN5JsWVcCfoUk8T2e7HFu5ULSspMsWcqLFLcMZM3cN3YYmnaB0gf/weHg==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.12.30
@@ -2553,17 +2553,17 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/package-bins/3.0.0:
+  /@pnpm/package-bins/3.0.1:
     dependencies:
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
       mz: 2.7.0
-      p-filter: 1.0.0
+      p-filter: 2.0.0
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-j6lW7MKpKveB1CDcUQjU/5yR3zKkVDMhT3i/jd3n+JWbvdErPac9MquN/p1kxqa6crsezJ7pziNqbdvKWvSOHg==
+      integrity: sha512-VaRpH+2g3p5dMgXtd2dunrpTaO775W29NIEM7mm3GXHZkLnMGTtQ0fDks22rSXTyH6tou5plW7pvpJq538p4vw==
   /@pnpm/pkgid-to-filename/2.0.0:
     dependencies:
       normalize-path: 3.0.0
@@ -2726,6 +2726,10 @@ packages:
   /@types/node/10.12.30:
     resolution:
       integrity: sha512-nsqTN6zUcm9xtdJiM9OvOJ5EF0kOI8f1Zuug27O/rgtxCRJHGqncSWfCMZUP852dCKPsDsYXGvBhxfRjDBkF5Q==
+  /@types/node/10.14.1:
+    dev: false
+    resolution:
+      integrity: sha512-Rymt08vh1GaW4vYB6QP61/5m/CFLGnFZP++bJpWbiNxceNa6RBipDmb413jvtSf/R1gg5a/jQVl2jY4XVRscEA==
   /@types/node/11.10.4:
     dev: false
     resolution:
@@ -2780,6 +2784,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-rvHuym7ZBYntRnA7W0qoBIQsomVYCamgKz5KD55Y1e94FeJv8UgBH102PylOUUCcyeEdQ1MwnsnP7K8yKlMstA==
+  /@types/ramda/0.26.3:
+    dev: false
+    resolution:
+      integrity: sha512-ZTepXW1dgQySkTUbxb2JC61vJxnLqofq4S43rFWpobRRsDh9HgNQxjEWhjQcjoYAMhkyV8JsE9mhE7Pgo3AYbg==
   /@types/rc/1.1.0:
     dev: false
     resolution:
@@ -5059,17 +5067,17 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha512-Y1GUDo39ez4aHAw7MysnUD5JzYX+WaIj8I57kO3aEPT1fFRL4sr7mjei97FgnwhAyyzRYmQZaTHb2+9uZ1dPtg==
-  /find-packages/4.0.0:
+  /find-packages/4.0.1:
     dependencies:
       '@pnpm/read-package-json': 2.0.0
-      '@types/node': 10.12.30
+      '@types/node': 10.14.1
       fast-glob: 2.2.6
-      p-filter: 1.0.0
+      p-filter: 2.0.0
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-Tx4wrV6jVDRZ/N7WHPAWfihxr6aCxq5QIvwvbeXpVSkD05OI+oDF91z8ZOnXuy7xBdiaFvavQm5yz7J/sX4FYA==
+      integrity: sha512-1qtGZL3BATaXYhYvH80CDgdy+5vVXLFGXMvJsJq00/E+/sIYd6BM/2V+hOq2VyR8Fe02k/v3pdl32TuLgyvSFg==
   /find-up/1.1.2:
     dependencies:
       path-exists: 2.1.0
@@ -7652,14 +7660,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-TgHYXCPaGe1xpK+6MZvbTZTIXgA=
-  /p-filter/1.0.0:
+  /p-filter/2.0.0:
     dependencies:
-      p-map: 1.2.0
+      p-map: 2.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=8'
     resolution:
-      integrity: sha1-Yp0xcVAgnI/VCLoTdxPvS7kg6ds=
+      integrity: sha512-y0j4GHE3Vsj0GsmPCsaR6gvCDb5kJSIs87fL+Buhka/d/zk+VOmHNGADkE/QEIMH5Na4/sm7LrwXfT2fq8ZXGA==
   /p-finally/1.0.0:
     engines:
       node: '>=4'
@@ -7713,6 +7721,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
+  /p-map/2.0.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-GO107XdrSUmtHxVoi60qc9tUl/KkNKm+X2CF4P9amalpGxv5YqVPJNfSb0wcA+syCopkZvYYIzW8OVTQW59x/w==
   /p-queue/4.0.0:
     dependencies:
       eventemitter3: 3.1.0
@@ -8433,16 +8447,18 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Rxt5AU16SWvboB0BihJvj3ctiMY=
-  /remove-all-except-outer-links/1.0.3:
+  /remove-all-except-outer-links/2.0.0:
     dependencies:
       is-subdir: 1.0.3
       mz: 2.7.0
-      p-filter: 1.0.0
+      p-filter: 2.0.0
       resolve-link-target: 1.0.1
       rimraf-then: 1.0.1
     dev: false
+    engines:
+      node: '>=8'
     resolution:
-      integrity: sha512-h9Pl2xE1ZxYOhlKh0nYeMfzfv0GYUfglE5Eb0ILFFUiDnvVcbKwxGGukETEeIteR0JTVfesOaKqiwrOoUz1ajw==
+      integrity: sha512-W7nRn6bvT+HK3bphmb4oJSH7MOx+Nuc4Cin4Q2y1G00KoKcrpDyoRB3f2ZSrjgS0E+Fj/dwRbtgmmLF9Kug4KQ==
   /remove-trailing-separator/1.1.0:
     dev: true
     resolution:
