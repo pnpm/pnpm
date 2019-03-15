@@ -54,7 +54,7 @@
     "ramda": "0.26.1",
     "right-pad": "1.0.1",
     "semver": "5.6.0",
-    "stacktracey": "1.2.106",
+    "stacktracey": "1.2.109",
     "string-length": "2.0.0",
     "strip-ansi": "5.1.0"
   },
