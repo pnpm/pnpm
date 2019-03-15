@@ -60,7 +60,7 @@
     "mos-tap-diff": "1.0.0",
     "tape": "4.10.1",
     "ts-node": "8.0.3",
-    "tslint": "5.13.1",
+    "tslint": "5.14.0",
     "typescript": "3.3.3333"
   },
   "mos": {
