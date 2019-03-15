@@ -23,7 +23,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@pnpm/utils": "0.10.0",
     "rimraf": "2.6.3",
-    "tslint": "5.13.1",
+    "tslint": "5.14.0",
     "typescript": "3.3.3333"
   },
   "directories": {

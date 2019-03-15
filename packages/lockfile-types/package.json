@@ -24,7 +24,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme",
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",
-    "tslint": "5.13.1",
+    "tslint": "5.14.0",
     "typescript": "3.3.3333"
   }
 }
