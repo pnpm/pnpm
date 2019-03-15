@@ -3,7 +3,7 @@ import byline = require('byline')
 import { ChildProcess } from 'child_process'
 import delay from 'delay'
 import isWindows = require('is-windows')
-import pAny = require('p-any')
+import pAny from 'p-any'
 import path = require('path')
 import pathExists = require('path-exists')
 import tape = require('tape')
