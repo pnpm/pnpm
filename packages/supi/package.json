@@ -71,7 +71,7 @@
     "mz": "2.7.0",
     "normalize-path": "3.0.0",
     "normalize-registry-url": "1.0.0",
-    "p-every": "1.0.2",
+    "p-every": "2.0.0",
     "p-filter": "2.0.0",
     "p-limit": "2.2.0",
     "path-absolute": "1.0.1",
