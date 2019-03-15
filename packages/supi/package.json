@@ -19,7 +19,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/check-package": "2.0.0",
+    "@pnpm/check-package": "3.0.0",
     "@pnpm/constants": "1.0.0",
     "@pnpm/core-loggers": "3.0.0",
     "@pnpm/filter-lockfile": "1.0.0",
@@ -49,7 +49,6 @@
     "@types/mz": "0.0.32",
     "@types/node": "11.9.5",
     "@types/nopt": "3.0.29",
-    "@types/p-every": "1.0.0",
     "@types/p-series": "1.0.1",
     "@types/ramda": "0.25.34",
     "@types/rc": "1.1.0",
@@ -71,7 +70,7 @@
     "mz": "2.7.0",
     "normalize-path": "3.0.0",
     "normalize-registry-url": "1.0.0",
-    "p-every": "1.0.2",
+    "p-every": "2.0.0",
     "p-filter": "2.0.0",
     "p-limit": "2.2.0",
     "path-absolute": "1.0.1",

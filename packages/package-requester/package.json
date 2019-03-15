@@ -34,7 +34,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/check-package": "2.0.0",
+    "@pnpm/check-package": "3.0.0",
     "@pnpm/core-loggers": "3.0.0",
     "@pnpm/fetcher-base": "3.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",

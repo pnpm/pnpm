@@ -49,7 +49,7 @@ import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
-import pEvery = require('p-every')
+import pEvery from 'p-every'
 import pFilter = require('p-filter')
 import path = require('path')
 import R = require('ramda')

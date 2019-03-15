@@ -5,7 +5,7 @@ import {
 import { PackageJson } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
-import mem = require('mem')
+import mem from 'mem'
 import normalize = require('normalize-path')
 import path = require('path')
 import semver = require('semver')
