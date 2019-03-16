@@ -28,6 +28,12 @@ async function tryLinkIndexedDir (existingDir: string, newDir: string, filenames
   )
   await Promise.all(
     filenames
-      .map((f: string) => fs.link(path.join(existingDir, f), path.join(newDir, f))),
+      .map(async (f: string) => {
+        try {
+          await fs.link(path.join(existingDir, f), path.join(newDir, f))
+        } catch (err) {
+          if (err['code'] !== 'EEXIST') throw err
+        }
+      }),
   )
 }

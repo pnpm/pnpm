@@ -134,3 +134,12 @@ test('install save new dep with the specified spec', async (t: tape.Test) => {
 
   t.deepEqual(pkg.dependencies, { 'is-positive': '~3.1.0' })
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1685
+test("don't fail on Windows when package has 2 files with same name", async (t) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'with-same-file-in-different-cases')
+
+  await project.has('with-same-file-in-different-cases')
+})

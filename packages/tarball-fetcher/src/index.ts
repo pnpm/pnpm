@@ -35,12 +35,16 @@ export default function (
     userAgent?: string,
     ignoreFile?: IgnoreFunction,
     offline?: boolean,
+    fsIsCaseSensitive?: boolean,
   },
 ): { tarball: FetchFunction } {
   const download = createDownloader({
     alwaysAuth: opts.alwaysAuth || false,
     ca: opts.ca,
     cert: opts.cert,
+    fsIsCaseSensitive: typeof opts.fsIsCaseSensitive === 'boolean'
+      ? opts.fsIsCaseSensitive
+      : true, // TODO: change the default value to false
     key: opts.key,
     localAddress: opts.localAddress,
     proxy: opts.httpsProxy || opts.proxy,

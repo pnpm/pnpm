@@ -916,6 +916,7 @@ test('rewrites node_modules created by npm', async (t) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1685
+// TODO: move this test to @pnpm/package-store
 test("don't fail on Windows when package has 2 files with same name", async (t) => {
   const project = prepare(t)
 
