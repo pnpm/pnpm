@@ -64,6 +64,10 @@
     {
       "packageNames": ["@types/ramda"],
       "allowedVersions": "0.25.34"
+    },
+    {
+      "packageNames": ["p-any"],
+      "allowedVersions": "<2"
     }
   ],
   "pinVersions": false,

@@ -1327,6 +1327,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/minimatch': 3.0.3
       '@types/mz': 0.0.32
+      '@types/p-any': 1.1.2
       '@zkochan/libnpx': 10.0.0
       archy: 1.0.0
       camelcase: 5.2.0
@@ -1397,7 +1398,7 @@ importers:
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
-      p-any: 2.0.0
+      p-any: 1.1.0
       path-exists: 3.0.0
       pnpm: 'link:'
       pnpm-registry-mock: 2.8.0
@@ -1449,6 +1450,7 @@ importers:
       '@types/mz': 0.0.32
       '@types/node': 11.9.5
       '@types/nopt': 3.0.29
+      '@types/p-any': 1.1.2
       '@types/ramda': 0.25.34
       '@types/retry': 0.12.0
       '@types/semver': 5.5.0
@@ -1489,7 +1491,7 @@ importers:
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
-      p-any: 2.0.0
+      p-any: 1.1.0
       p-filter: 2.0.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
@@ -2618,6 +2620,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-+iTbntw2IZPb/anVDbypzfQa+ay64MW0Zo8aJ8gZPWMMK6/OubMVb6lUPMagqjOPnmtauXnFCACVl3O7ogjeqQ==
+  /@types/aggregate-error/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-IcFSztsIxbL8XWGqsT6l4XbzvrOWS+b44MNtzAYTvxGPITTtioKNgUO3vKABLGcJciViaNOxBZl4MlpZEG1pJg==
   /@types/archy/0.0.31:
     dev: false
     resolution:
@@ -2732,6 +2738,12 @@ packages:
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
+  /@types/p-any/1.1.2:
+    dependencies:
+      '@types/aggregate-error': 1.0.0
+    dev: false
+    resolution:
+      integrity: sha512-Lm/tV8QgjMtiooDoO9qNsPgWiZowtO4hZ18q9p0PQ/jSsQbwGASW1s1I/sx0yXClfY24d+ONlViFuq6kiCghqw==
   /@types/p-series/1.0.1:
     dev: false
     resolution:
@@ -2977,15 +2989,15 @@ packages:
       node: '>= 8.0.0'
     resolution:
       integrity: sha512-McCjHBAI3FGTy9XOMDr/8qzXK4VBL3h+O/TqlBdsyiwX21SdPCQhPIX0Y1HS5ctO5m2maVQRJWEn0IrzKRB6oQ==
-  /aggregate-error/2.2.0:
+  /aggregate-error/1.0.0:
     dependencies:
-      clean-stack: 2.0.0
+      clean-stack: 1.3.0
       indent-string: 3.2.0
     dev: true
     engines:
-      node: '>=6'
+      node: '>=4'
     resolution:
-      integrity: sha512-E5n+IZkhh22/pFdUvHUU/o9z752lc+7tgHt+FXS/g6BjlbE9249dGmuS/SxIWMPhTljZJkFN+7OXE0+O5+WT8w==
+      integrity: sha1-iINE2tAiCnLjr1CQYRf0h3GSX6w=
   /ajv/6.10.0:
     dependencies:
       fast-deep-equal: 2.0.1
@@ -3930,12 +3942,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-qOhPa/Fj7s6TY8H8esGu5QNpMMQxz79h+urzrNYN6mn+9BnxlDGf5QZ+XeCDsxSjPqsSR56XOZOJmpeurnLMeg==
-  /clean-stack/2.0.0:
+  /clean-stack/1.3.0:
     dev: true
     engines:
-      node: '>=6'
+      node: '>=4'
     resolution:
-      integrity: sha512-VEoL9Qh7I8s8iHnV53DaeWSt8NJ0g3khMfK6NiCPB7H657juhro+cSw2O88uo3bo0c0X5usamtXk0/Of0wXa5A==
+      integrity: sha1-noIVAa6XmYbEax1m0tQy2y/UrjE=
   /cli-box/5.0.0:
     dependencies:
       ansi-parser: 3.0.0
@@ -7609,22 +7621,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-sptrsq11acTmb67yjLXXQ2EXnLQ=
-  /p-any/2.0.0:
+  /p-any/1.1.0:
     dependencies:
-      p-cancelable: 1.1.0
-      p-some: 4.0.0
-      type-fest: 0.1.0
+      p-some: 2.0.1
     dev: true
     engines:
-      node: '>=8'
+      node: '>=4'
     resolution:
-      integrity: sha512-5+Q7VpNIayPKaAYMeY3X/UIS05ycDCT8jZCnhylGkK8NGtnW0XH7ySK53Nh2AL0bVrveNDifarvRLp8T/5R02g==
-  /p-cancelable/1.1.0:
-    dev: true
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-s73XxOZ4zpt1edZYZzvhqFa6uvQc1vwUa0K0BdtIZgQMAJj9IbebH+JkgKZc9h+B05PKHLOTl4ajG1BmNrVZlw==
+      integrity: sha512-Ef0tVa4CZ5pTAmKn+Cg3w8ABBXh+hHO1aV8281dKOoUHfX+3tjG2EaFcC+aZyagg9b4EYGsHEjz21DnEE8Og2g==
   /p-defer/1.0.0:
     dev: false
     engines:
@@ -7708,15 +7712,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-3cRXXn3/O0o3+eVmUroJPSj/esxoEFIm0ZOno/T+NzG/VZgPOqQ8WKmlNqubSEpZmCIngEy34unkHGg83ZIBmg==
-  /p-some/4.0.0:
+  /p-some/2.0.1:
     dependencies:
-      aggregate-error: 2.2.0
-      p-cancelable: 1.1.0
+      aggregate-error: 1.0.0
     dev: true
     engines:
-      node: '>=8'
+      node: '>=4'
     resolution:
-      integrity: sha512-cu31yoHGHtMxNPaGgzDSJm9y6MzFm1heI2WGSDJmGIUxM3TqC/lOuof63zEgYpnX9Y8/RKAYinprxIrjsZbVcQ==
+      integrity: sha1-Zdh8ixVO289SIdFnd4ttLhUPbwY=
   /p-try/1.0.0:
     dev: true
     engines:
@@ -9677,12 +9680,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-0fr/mIH1dlO+x7TlcMy+bIDqKPsw/70tVyeHW787goQjhmqaZe10uwLujubK9q9Lg6Fiho1KUKDYz0Z7k7g5/g==
-  /type-fest/0.1.0:
-    dev: true
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-k0r/HA6MgtzcDgwGUMvtSc5iGuOVhX5U301iU2FeuL4XSGTm/kfz3gS25759shOxcrTxWT4ud0zXLhefZmiWag==
   /type-is/1.6.16:
     dependencies:
       media-typer: 0.3.0
