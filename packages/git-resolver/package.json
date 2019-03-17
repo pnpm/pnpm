@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/fetch": "1.0.0",
     "@pnpm/resolver-base": "3.0.0",
-    "@types/node": "10.12.30",
+    "@types/node": "*",
     "@types/semver": "5.5.0",
     "graceful-git": "2.0.0",
     "hosted-git-info": "2.7.1",

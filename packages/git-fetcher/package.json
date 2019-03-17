@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/git-fetcher#readme",
   "dependencies": {
-    "@types/node": "10.12.30",
+    "@types/node": "*",
     "dint": "4.0.0",
     "execa": "1.0.0",
     "path-temp": "1.0.0",
