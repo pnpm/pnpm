@@ -10,6 +10,7 @@ import prepare from '@pnpm/prepare'
 import caw = require('caw')
 import crossSpawn = require('cross-spawn')
 import deepRequireCwd = require('deep-require-cwd')
+import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
@@ -919,8 +920,23 @@ test('rewrites node_modules created by npm', async (t) => {
 // TODO: move this test to @pnpm/package-store
 test("don't fail on Windows when package has 2 files with same name", async (t) => {
   const project = prepare(t)
+  const reporter = sinon.spy()
 
-  await addDependenciesToPackage(['with-same-file-in-different-cases'], await testDefaults())
+  const opts = await testDefaults({ reporter })
+  await addDependenciesToPackage(['with-same-file-in-different-cases'], opts)
 
   await project.has('with-same-file-in-different-cases')
+
+  const hardlinkAlreadyExistsReported = reporter.calledWithMatch({
+    level: 'debug',
+    name: 'pnpm:_hardlink-already-exists',
+  })
+
+  if (await dirIsCaseSensitive(opts.store)) {
+    t.comment('store is not case sensitive')
+    t.notOk(hardlinkAlreadyExistsReported, 'hard link already exists not reported')
+  } else {
+    t.comment('store is not case sensitive')
+    t.ok(hardlinkAlreadyExistsReported, 'hard link already exists reported')
+  }
 })

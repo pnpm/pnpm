@@ -1,9 +1,11 @@
-import { storeLogger } from '@pnpm/logger'
+import pnpmLogger, { storeLogger } from '@pnpm/logger'
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
 import rimraf = require('rimraf-then')
+
+const hardLinkingLogger = pnpmLogger('_hardlink-already-exists')
 
 export default async function linkIndexedDir (existingDir: string, newDir: string, filenames: string[]) {
   const stage = pathTemp(path.dirname(newDir))
@@ -31,18 +33,21 @@ async function tryLinkIndexedDir (existingDir: string, newDir: string, filenames
   await Promise.all(
     filenames
       .map(async (f: string) => {
+        const src = path.join(existingDir, f)
+        const dest = path.join(newDir, f)
         try {
-          await fs.link(path.join(existingDir, f), path.join(newDir, f))
+          await fs.link(src, dest)
         } catch (err) {
           if (err['code'] !== 'EEXIST') throw err
           // If the file is already linked, we ignore the error.
           // This is an extreme edge case that may happen only in one case,
           // when the store folder is case sensitive and the project's node_modules
           // is case insensitive.
-          // So, for instance, foo.js and FOO.js could be unpacked to the store
+          // So, for instance, foo.js and Foo.js could be unpacked to the store
           // but they cannot be both linked to node_modules.
           // More details at https://github.com/pnpm/pnpm/issues/1685
           allLinked = false
+          hardLinkingLogger.debug({ src, dest })
         }
       }),
   )
