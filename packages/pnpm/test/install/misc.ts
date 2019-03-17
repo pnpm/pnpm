@@ -3,6 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import caw = require('caw')
+import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import isWindows = require('is-windows')
 import path = require('path')
 import exists = require('path-exists')
@@ -142,4 +143,14 @@ test("don't fail on Windows when package has 2 files with same name", async (t) 
   await execPnpm('install', 'with-same-file-in-different-cases')
 
   await project.has('with-same-file-in-different-cases')
+
+  const storeDir = await project.getStorePath()
+  const integrityFile = await import(path.join(storeDir, 'localhost+4873', 'with-same-file-in-different-cases', '1.0.0', 'integrity.json'))
+  const packageFiles = Object.keys(integrityFile).sort()
+
+  if (await dirIsCaseSensitive(storeDir)) {
+    t.deepEqual(packageFiles, ['Foo.js', 'foo.js', 'package.json'])
+  } else {
+    t.deepEqual(packageFiles, ['foo.js', 'package.json'])
+  }
 })

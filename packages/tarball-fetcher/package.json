@@ -48,7 +48,7 @@
     "retry": "0.12.0",
     "rimraf": "2.6.3",
     "ssri": "6.0.1",
-    "unpack-stream": "4.0.1"
+    "unpack-stream": "5.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
