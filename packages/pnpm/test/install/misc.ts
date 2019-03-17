@@ -137,7 +137,7 @@ test('install save new dep with the specified spec', async (t: tape.Test) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1685
-test("don't fail on Windows when package has 2 files with same name", async (t) => {
+test("don't fail on case insensitive filesystems when package has 2 files with same name", async (t) => {
   const project = prepare(t)
 
   await execPnpm('install', 'with-same-file-in-different-cases')
