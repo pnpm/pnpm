@@ -23,9 +23,7 @@ export default function checkCompatibility (
   }
   if (!modules.layoutVersion || modules.layoutVersion !== LAYOUT_VERSION) {
     throw new ModulesBreakingChangeError({
-      additionalInformation: 'The change was needed to make `independent-leafs` not the default installation layout',
       modulesPath: opts.modulesPath,
-      relatedIssue: 821,
     })
   }
 }
