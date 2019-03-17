@@ -34,7 +34,7 @@
     "@pnpm/modules-yaml": "3.0.0",
     "@pnpm/types": "3.0.0",
     "@pnpm/utils": "0.10.0",
-    "@types/node": "11.9.5"
+    "@types/node": "*"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

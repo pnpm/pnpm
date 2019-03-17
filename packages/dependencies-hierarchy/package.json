@@ -42,7 +42,7 @@
     "@pnpm/read-modules-dir": "2.0.0",
     "@pnpm/types": "3.0.0",
     "@pnpm/utils": "0.10.0",
-    "@types/node": "11.9.5",
+    "@types/node": "*",
     "@types/semver": "5.5.0",
     "dependency-path": "3.0.0",
     "normalize-path": "3.0.0",

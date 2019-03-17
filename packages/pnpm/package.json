@@ -98,7 +98,7 @@
     "@types/common-tags": "1.8.0",
     "@types/load-json-file": "2.0.7",
     "@types/mkdirp": "0.5.2",
-    "@types/node": "11.9.5",
+    "@types/node": "*",
     "@types/nopt": "3.0.29",
     "@types/ramda": "0.25.34",
     "@types/retry": "0.12.0",
