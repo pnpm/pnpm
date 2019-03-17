@@ -1,4 +1,5 @@
 import { FetchResult } from '@pnpm/fetcher-base'
+import logger from '@pnpm/logger'
 import createFetcher from 'fetch-from-npm-registry'
 import fs = require('graceful-fs')
 import { IncomingMessage } from 'http'
@@ -11,6 +12,8 @@ import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
 import urlLib = require('url')
 import { BadTarballError } from './errorTypes'
+
+const ignorePackageFileLogger = logger('_ignore-package-file')
 
 export interface HttpResponse {
   body: string
@@ -43,6 +46,7 @@ export interface NpmRegistryClient {
 export default (
   gotOpts: {
     alwaysAuth: boolean,
+    fsIsCaseSensitive: boolean,
     registry: string,
     // proxy
     proxy?: string,
@@ -160,11 +164,12 @@ export default (
             .on('error', reject)
 
           const tempLocation = pathTemp(opts.unpackTo)
+          const ignore = gotOpts.fsIsCaseSensitive ? opts.ignore : createIgnorer(url, opts.ignore)
           Promise.all([
             opts.integrity && safeCheckStream(res.body, opts.integrity) || true,
             unpackStream.local(res.body, tempLocation, {
               generateIntegrity: opts.generatePackageIntegrity,
-              ignore: opts.ignore,
+              ignore,
             }),
             waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
           ])
@@ -194,6 +199,38 @@ export default (
         throw err
       }
     }
+  }
+}
+
+function createIgnorer (tarballUrl: string, ignore?: (filename: string) => Boolean) {
+  const lowercaseFiles = new Set<string>()
+  if (ignore) {
+    return (filename: string) => {
+      const lowercaseFilename = filename.toLowerCase()
+      if (lowercaseFiles.has(lowercaseFilename)) {
+        ignorePackageFileLogger.debug({
+          reason: 'case-insensitive-duplicate',
+          skippedFilename: filename,
+          tarballUrl,
+        })
+        return true
+      }
+      lowercaseFiles.add(lowercaseFilename)
+      return ignore(filename)
+    }
+  }
+  return (filename: string) => {
+    const lowercaseFilename = filename.toLowerCase()
+    if (lowercaseFiles.has(lowercaseFilename)) {
+      ignorePackageFileLogger.debug({
+        reason: 'case-insensitive-duplicate',
+        skippedFilename: filename,
+        tarballUrl,
+      })
+      return true
+    }
+    lowercaseFiles.add(lowercaseFilename)
+    return false
   }
 }
 

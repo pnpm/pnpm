@@ -10,6 +10,7 @@ import createTarballFetcher, {
 export default function (
   opts: {
     alwaysAuth?: boolean,
+    fsIsCaseSensitive?: boolean,
     registry: string,
     rawNpmConfig: object,
     strictSsl?: boolean,

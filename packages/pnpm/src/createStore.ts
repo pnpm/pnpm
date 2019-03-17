@@ -1,7 +1,10 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
+import logger from '@pnpm/logger'
 import createStore from '@pnpm/package-store'
+import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import LRU = require('lru-cache')
+import mkdirp = require('mkdirp-promise')
 import path = require('path')
 
 export default async (
@@ -43,7 +46,16 @@ export default async (
       maxAge: 120 * 1000, // 2 minutes
     }) as any, // tslint:disable-line:no-any
   }))
-  const fetchers = createFetcher(sopts)
+  await mkdirp(sopts.store)
+  const fsIsCaseSensitive = await dirIsCaseSensitive(sopts.store)
+  logger.debug({
+    // An undefined field would cause a crash of the logger
+    // so converting it to null
+    isCaseSensitive: typeof fsIsCaseSensitive === 'boolean'
+      ? fsIsCaseSensitive : null,
+    store: sopts.store,
+  })
+  const fetchers = createFetcher({ ...sopts, fsIsCaseSensitive })
   return {
     ctrl: await createStore(resolve, fetchers as {}, {
       locks: sopts.locks,
