@@ -6,6 +6,7 @@ import isWindows = require('is-windows')
 import pAny = require('p-any')
 import path = require('path')
 import pathExists = require('path-exists')
+import { Readable } from 'stream'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import killcb = require('tree-kill')
@@ -232,8 +233,8 @@ async function testParallelServerStart (
     }
     serverProcessList.push(item)
 
-    byline(item.childProcess.stderr).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
-    byline(item.childProcess.stdout).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
+    byline(item.childProcess.stderr as Readable).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
+    byline(item.childProcess.stdout as Readable).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
 
     item.childProcess.on('exit', async (code: number | null, signal: string | null) => {
       options.onProcessClosed(item.childProcess, item.attemptedToKill)
