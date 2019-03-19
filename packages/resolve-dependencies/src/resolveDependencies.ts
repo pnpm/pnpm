@@ -116,14 +116,18 @@ export interface ResolutionContext {
   childrenByParentId: ChildrenByParentId,
   pendingNodes: PendingNode[],
   wantedLockfile: Lockfile,
+  hasManifestInLockfile: boolean,
   currentLockfile: Lockfile,
   lockfileDirectory: string,
+  sideEffectsCache: boolean,
+  shamefullyFlatten?: boolean,
   storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
   dependenciesTree: DependenciesTree,
   force: boolean,
   prefix: string,
+  readPackageHook?: ReadPackageHook,
   updateDepth: number,
   engineStrict: boolean,
   modulesDir: string,
@@ -187,7 +191,6 @@ export default async function resolveDependencies (
   ctx: ResolutionContext,
   wantedDependencies: WantedDependency[],
   options: {
-    keypath: string[],
     parentDependsOnPeers: boolean,
     parentNodeId: string,
     currentDepth: number,
@@ -198,9 +201,6 @@ export default async function resolveDependencies (
     preferedDependencies?: ResolvedDependencies,
     parentIsInstallable?: boolean,
     readPackageHook?: ReadPackageHook,
-    hasManifestInLockfile: boolean,
-    sideEffectsCache: boolean,
-    shamefullyFlatten?: boolean,
     localPackages?: LocalPackages,
   },
 ): Promise<PkgAddress[]> {
@@ -251,15 +251,11 @@ export default async function resolveDependencies (
   }
   const resolveDepOpts = {
     currentDepth: options.currentDepth,
-    hasManifestInLockfile: options.hasManifestInLockfile,
-    keypath: options.keypath,
     localPackages: options.localPackages,
     parentDependsOnPeer: options.parentDependsOnPeers,
     parentIsInstallable: options.parentIsInstallable,
     parentNodeId: options.parentNodeId,
     readPackageHook: options.readPackageHook,
-    shamefullyFlatten: options.shamefullyFlatten,
-    sideEffectsCache: options.sideEffectsCache,
     update,
   }
   const pkgAddresses = (
@@ -345,8 +341,8 @@ async function resolveDependency (
   wantedDependency: WantedDependency,
   ctx: ResolutionContext,
   options: {
-    keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
+    dependentId?: string,
     depPath?: string,
     relDepPath?: string,
     parentDependsOnPeer: boolean,
@@ -359,23 +355,18 @@ async function resolveDependency (
     parentIsInstallable?: boolean,
     update: boolean,
     proceed: boolean,
-    readPackageHook?: ReadPackageHook,
-    hasManifestInLockfile: boolean,
-    sideEffectsCache: boolean,
-    shamefullyFlatten?: boolean,
     localPackages?: LocalPackages,
   },
 ): Promise<PkgAddress | null> {
-  const keypath = options.keypath || []
   const update = Boolean(
     options.update ||
     options.localPackages &&
     wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
-  const proceed = update || options.proceed || !options.currentResolution || ctx.force || keypath.length <= ctx.updateDepth
+  const proceed = update || options.proceed || !options.currentResolution || ctx.force || options.currentDepth <= ctx.updateDepth
     || options.dependencyLockfile && options.dependencyLockfile.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  if (!options.shamefullyFlatten && !proceed && options.depPath &&
+  if (!ctx.shamefullyFlatten && !proceed && options.depPath &&
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     options.relDepPath && ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath] &&
@@ -401,7 +392,7 @@ async function resolveDependency (
       preferredVersions: ctx.preferredVersions,
       prefix: ctx.prefix,
       registry,
-      sideEffectsCache: options.sideEffectsCache,
+      sideEffectsCache: ctx.sideEffectsCache,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
@@ -425,11 +416,10 @@ async function resolveDependency (
     throw err
   }
 
-  const dependentId = keypath[keypath.length - 1]
   dependencyResolvedLogger.debug({
     resolution: pkgResponse.body.id,
     wanted: {
-      dependentId,
+      dependentId: options.dependentId,
       name: wantedDependency.alias,
       rawSpec: wantedDependency.raw,
     },
@@ -467,7 +457,7 @@ async function resolveDependency (
 
   // For the root dependency dependentId will be undefined,
   // that's why checking it
-  if (dependentId && nodeIdContainsSequence(options.parentNodeId, dependentId, pkgResponse.body.id)) {
+  if (options.dependentId && nodeIdContainsSequence(options.parentNodeId, options.dependentId, pkgResponse.body.id)) {
     return null
   }
 
@@ -475,7 +465,7 @@ async function resolveDependency (
   let useManifestInfoFromLockfile = false
   let prepare!: boolean
   let hasBin!: boolean
-  if (options.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath
+  if (ctx.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath
     && !pkgResponse.body.updated) {
     useManifestInfoFromLockfile = true
     prepare = options.dependencyLockfile.prepare === true
@@ -496,8 +486,8 @@ async function resolveDependency (
   } else {
     // tslint:disable:no-string-literal
     try {
-      pkg = options.readPackageHook
-        ? options.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest'])
+      pkg = ctx.readPackageHook
+        ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest'])
         : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
 
       prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
@@ -614,8 +604,7 @@ async function resolveDependency (
       ctx,
       {
         currentDepth: options.currentDepth + 1,
-        hasManifestInLockfile: options.hasManifestInLockfile,
-        keypath: options.keypath.concat([ pkgResponse.body.id ]),
+        dependentId: pkgResponse.body.id,
         optionalDependencyNames: options.optionalDependencyNames,
         parentDependsOnPeers: Boolean(
           Object.keys(options.dependencyLockfile && options.dependencyLockfile.peerDependencies || pkg.peerDependencies || {}).length,
@@ -625,12 +614,9 @@ async function resolveDependency (
         preferedDependencies: pkgResponse.body.updated
           ? options.resolvedDependencies
           : undefined,
-        readPackageHook: options.readPackageHook,
         resolvedDependencies: pkgResponse.body.updated
           ? undefined
           : options.resolvedDependencies,
-        shamefullyFlatten: options.shamefullyFlatten,
-        sideEffectsCache: options.sideEffectsCache,
         useManifestInfoFromLockfile,
       },
     )
@@ -703,7 +689,7 @@ async function resolveDependenciesOfPackage (
   pkg: PackageManifest,
   ctx: ResolutionContext,
   opts: {
-    keypath: string[],
+    dependentId?: string,
     parentNodeId: string,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
@@ -711,16 +697,12 @@ async function resolveDependenciesOfPackage (
     optionalDependencyNames?: string[],
     parentDependsOnPeers: boolean,
     parentIsInstallable: boolean,
-    readPackageHook?: ReadPackageHook,
-    hasManifestInLockfile: boolean,
     useManifestInfoFromLockfile: boolean,
-    sideEffectsCache: boolean,
-    shamefullyFlatten?: boolean,
   },
 ): Promise<PkgAddress[]> {
 
   let deps = getNonDevWantedDependencies(pkg)
-  if (opts.hasManifestInLockfile && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromLockfile) {
+  if (ctx.hasManifestInLockfile && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromLockfile) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
     deps = Object.keys(opts.resolvedDependencies)
       .map((depName) => ({
