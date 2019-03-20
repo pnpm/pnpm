@@ -668,6 +668,7 @@ async function installInContext (
         // the necessary info from package manifests
         return Infinity
       }
+      if (opts.force) return Infinity
       if (opts.update) {
         return opts.depth
       }

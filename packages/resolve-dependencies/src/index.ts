@@ -97,7 +97,7 @@ export default async function (
       modulesDir: importer.modulesDir,
       preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
       prefix: importer.prefix,
-      shamefullyFlatten: importer.shamefullyFlatten,
+      updateDepth: importer.shamefullyFlatten ? Infinity : ctx.updateDepth,
     }
     const resolveOpts = {
       currentDepth: 0,

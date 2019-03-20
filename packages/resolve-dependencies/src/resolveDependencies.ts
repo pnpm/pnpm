@@ -120,7 +120,6 @@ export interface ResolutionContext {
   currentLockfile: Lockfile,
   lockfileDirectory: string,
   sideEffectsCache: boolean,
-  shamefullyFlatten?: boolean,
   storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
@@ -362,18 +361,20 @@ async function resolveDependency (
     options.update ||
     options.localPackages &&
     wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
-  const proceed = update || options.proceed || !options.currentResolution || ctx.force || options.currentDepth <= ctx.updateDepth
+  const proceed = update || options.proceed || !options.currentResolution
     || options.dependencyLockfile && options.dependencyLockfile.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  if (!ctx.shamefullyFlatten && !proceed && options.depPath &&
+  const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath]) : undefined
+
+  if (
+    !proceed && options.depPath &&
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
-    options.relDepPath && ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath] &&
-    await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}`)) && (
-      options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))
-    )) {
-
+    currentLockfileContainsTheDep &&
+    await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}`)) &&
+    (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias)))
+  ) {
     return null
   }
 
@@ -427,8 +428,11 @@ async function resolveDependency (
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
-  if (!options.parentDependsOnPeer && !pkgResponse.body.updated && options.update && options.currentDepth >= ctx.updateDepth && options.relDepPath &&
-    ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath] && !ctx.force) {
+  if (
+    !options.parentDependsOnPeer && !pkgResponse.body.updated &&
+    options.update && options.currentDepth >= ctx.updateDepth &&
+    currentLockfileContainsTheDep && !ctx.force
+  ) {
     return null
   }
 
@@ -465,8 +469,10 @@ async function resolveDependency (
   let useManifestInfoFromLockfile = false
   let prepare!: boolean
   let hasBin!: boolean
-  if (ctx.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath
-    && !pkgResponse.body.updated) {
+  if (
+    ctx.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath
+    && !pkgResponse.body.updated
+  ) {
     useManifestInfoFromLockfile = true
     prepare = options.dependencyLockfile.prepare === true
     hasBin = options.dependencyLockfile.hasBin === true
