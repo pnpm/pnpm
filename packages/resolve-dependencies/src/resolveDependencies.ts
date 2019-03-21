@@ -315,6 +315,15 @@ function getInfoFromLockfile (
   const dependencyLockfile = lockfile.packages && lockfile.packages[relDepPath]
 
   if (dependencyLockfile) {
+    if (dependencyLockfile.peerDependencies && dependencyLockfile.dependencies) {
+      // This is done to guarantee that the dependency will be relinked with the
+      // up-to-date peer dependencies
+      // Covered by test: "peer dependency is grouped with dependency when peer is resolved not from a top dependency"
+      R.keys(dependencyLockfile.peerDependencies).forEach((peer) => {
+        delete dependencyLockfile.dependencies![peer]
+      })
+    }
+
     const depPath = dp.resolve(registries, relDepPath)
     return {
       currentResolution: pkgSnapshotToResolution(relDepPath, dependencyLockfile, registries),
@@ -479,15 +488,6 @@ async function resolveDependency (
       nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile),
       options.dependencyLockfile,
     )
-    if (pkg.peerDependencies) {
-      const deps = pkg.dependencies || {}
-      R.keys(pkg.peerDependencies).forEach((peer) => {
-        delete deps[peer]
-        if (options.resolvedDependencies) {
-          delete options.resolvedDependencies[peer]
-        }
-      })
-    }
   } else {
     // tslint:disable:no-string-literal
     try {
