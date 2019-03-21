@@ -362,7 +362,6 @@ async function resolveDependency (
     options.localPackages &&
     wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
   const proceed = update || options.proceed || !options.currentResolution
-    || options.dependencyLockfile && options.dependencyLockfile.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath]) : undefined
@@ -430,7 +429,7 @@ async function resolveDependency (
 
   if (
     !options.parentDependsOnPeer && !pkgResponse.body.updated &&
-    options.update && options.currentDepth >= ctx.updateDepth &&
+    options.currentDepth === ctx.updateDepth &&
     currentLockfileContainsTheDep && !ctx.force
   ) {
     return null
