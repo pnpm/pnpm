@@ -40,7 +40,7 @@
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
     "@pnpm/tslint-config": "0.0.0",
     "@types/mz": "0.0.32",
-    "@types/node-fetch": "2.1.6",
+    "@types/node-fetch": "2.1.7",
     "@types/tape": "4.2.33",
     "is-port-reachable": "2.0.0",
     "mos": "2.0.0-alpha.3",
