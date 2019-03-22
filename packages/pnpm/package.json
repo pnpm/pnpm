@@ -124,7 +124,7 @@
     "rimraf-then": "1.0.1",
     "semver": "5.6.0",
     "sepia": "2.0.2",
-    "symlink-dir": "3.0.0",
+    "symlink-dir": "3.0.1",
     "tape": "4.10.1",
     "tape-promise": "4.0.0",
     "ts-node": "8.0.3",
