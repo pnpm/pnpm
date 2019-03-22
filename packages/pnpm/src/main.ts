@@ -10,7 +10,7 @@ import gfs = require('graceful-fs')
 
 gfs.gracefulify(fs)
 
-import loudRejection = require('loud-rejection')
+import loudRejection from 'loud-rejection'
 loudRejection()
 import {
   PnpmConfigs,

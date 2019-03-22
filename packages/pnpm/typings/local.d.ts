@@ -23,11 +23,6 @@ declare module 'is-ci' {
   export = anything;
 }
 
-declare module 'loud-rejection' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'meow' {
   const anything: any;
   export = anything;
