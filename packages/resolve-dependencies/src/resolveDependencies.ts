@@ -146,9 +146,14 @@ const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.
 
 export interface PkgAddress {
   alias: string,
+  isNew: boolean,
   nodeId: string,
   pkgId: string,
   normalizedPref?: string, // is returned only for root dependencies
+  installable: boolean,
+  pkg: PackageManifest,
+  updated: boolean,
+  useManifestInfoFromLockfile: boolean,
 }
 
 export interface ResolvedPackage {
@@ -261,11 +266,53 @@ export default async function resolveDependencies (
     await Promise.all(
       extendedWantedDeps
         .map(async (extendedWantedDep) => {
-          return resolveDependency(extendedWantedDep.wantedDependency, ctx, {
+          const resolveDependencyOpts: ResolveDependencyOptions = {
             ...resolveDepOpts,
             ...extendedWantedDep.infoFromLockfile,
             proceed: extendedWantedDep.proceed || proceedAll,
-          })
+          }
+          const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
+
+          if (!resolveDependencyResult) return null
+          if (!resolveDependencyResult.isNew) return resolveDependencyResult
+
+          const resolvedPackage = ctx.resolvedPackagesByPackageId[resolveDependencyResult.pkgId]
+          const children = await resolveDependenciesOfPackage(
+            resolveDependencyResult.pkg,
+            ctx,
+            {
+              currentDepth: options.currentDepth + 1,
+              dependentId: resolveDependencyResult.pkgId,
+              optionalDependencyNames: extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.optionalDependencyNames || undefined,
+              parentDependsOnPeers: Boolean(
+                Object.keys(resolveDependencyOpts.dependencyLockfile && resolveDependencyOpts.dependencyLockfile.peerDependencies || resolveDependencyResult.pkg.peerDependencies || {}).length,
+              ),
+              parentIsInstallable: resolveDependencyResult.installable,
+              parentNodeId: resolveDependencyResult.nodeId,
+              preferedDependencies: resolveDependencyResult.updated
+                ? extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
+                : undefined,
+              resolvedDependencies: resolveDependencyResult.updated
+                ? undefined
+                : extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined,
+              useManifestInfoFromLockfile: resolveDependencyResult.useManifestInfoFromLockfile,
+            },
+          )
+          ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
+            alias: child.alias,
+            pkgId: child.pkgId,
+          }))
+          ctx.dependenciesTree[resolveDependencyResult.nodeId] = {
+            children: children.reduce((chn, child) => {
+              chn[child.alias] = child.nodeId
+              return chn
+            }, {}),
+            depth: options.currentDepth,
+            installable: resolveDependencyResult.installable,
+            resolvedPackage,
+          }
+
+          return resolveDependencyResult
         }),
     )
   )
@@ -345,26 +392,26 @@ function getInfoFromLockfile (
   }
 }
 
+type ResolveDependencyOptions = {
+  pkgId?: string,
+  dependentId?: string,
+  depPath?: string,
+  relDepPath?: string,
+  parentDependsOnPeer: boolean,
+  parentNodeId: string,
+  currentDepth: number,
+  dependencyLockfile?: PackageSnapshot,
+  currentResolution?: Resolution,
+  parentIsInstallable?: boolean,
+  update: boolean,
+  proceed: boolean,
+  localPackages?: LocalPackages,
+}
+
 async function resolveDependency (
   wantedDependency: WantedDependency,
   ctx: ResolutionContext,
-  options: {
-    pkgId?: string,
-    dependentId?: string,
-    depPath?: string,
-    relDepPath?: string,
-    parentDependsOnPeer: boolean,
-    parentNodeId: string,
-    currentDepth: number,
-    dependencyLockfile?: PackageSnapshot,
-    currentResolution?: Resolution,
-    resolvedDependencies?: ResolvedDependencies,
-    optionalDependencyNames?: string[],
-    parentIsInstallable?: boolean,
-    update: boolean,
-    proceed: boolean,
-    localPackages?: LocalPackages,
-  },
+  options: ResolveDependencyOptions,
 ): Promise<PkgAddress | null> {
   const update = Boolean(
     options.update ||
@@ -495,8 +542,15 @@ async function resolveDependency (
         ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest'])
         : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
 
-      prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
-      if (options.dependencyLockfile && options.dependencyLockfile.deprecated && !pkgResponse.body.updated && !pkg.deprecated) {
+      prepare = Boolean(
+        pkgResponse.body['resolvedVia'] === 'git-repository' &&
+        pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string',
+      )
+
+      if (
+        options.dependencyLockfile && options.dependencyLockfile.deprecated &&
+        !pkgResponse.body.updated && !pkg.deprecated
+      ) {
         pkg.deprecated = options.dependencyLockfile.deprecated
       }
       hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
@@ -548,8 +602,9 @@ async function resolveDependency (
     ctx.skipped.add(pkgResponse.body.id)
   }
   const installable = parentIsInstallable && currentIsInstallable !== false
+  const isNew = !ctx.resolvedPackagesByPackageId[pkgResponse.body.id]
 
-  if (!ctx.resolvedPackagesByPackageId[pkgResponse.body.id]) {
+  if (isNew) {
     progressLogger.debug({
       packageId: pkgResponse.body.id,
       requester: ctx.lockfileDirectory,
@@ -569,79 +624,24 @@ async function resolveDependency (
     }
     // tslint:enable:no-string-literal
 
-    const peerDependencies = peerDependenciesWithoutOwn(pkg)
-
-    ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = {
-      additionalInfo: {
-        bundledDependencies: pkg.bundledDependencies,
-        bundleDependencies: pkg.bundleDependencies,
-        cpu: pkg.cpu,
-        deprecated: pkg.deprecated,
-        engines: pkg.engines,
-        os: pkg.os,
-        peerDependencies,
-      },
-      dev: wantedDependency.dev,
-      engineCache: !ctx.force && pkgResponse.body.cacheByEngine && pkgResponse.body.cacheByEngine[ENGINE_NAME],
-      fetchingFiles: pkgResponse['fetchingFiles'], // tslint:disable-line:no-string-literal
-      fetchingRawManifest: pkgResponse['fetchingRawManifest'], // tslint:disable-line:no-string-literal
-      finishing: pkgResponse['finishing'], // tslint:disable-line:no-string-literal
+    ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = getResolvedPackage({
+      dependencyLockfile: options.dependencyLockfile,
+      force: ctx.force,
       hasBin,
-      hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
-      id: pkgResponse.body.id,
-      independent: (pkg.dependencies === undefined || R.isEmpty(pkg.dependencies)) &&
-        (pkg.optionalDependencies === undefined || R.isEmpty(pkg.optionalDependencies)) &&
-        (pkg.peerDependencies === undefined || R.isEmpty(pkg.peerDependencies)),
-      name: pkg.name,
-      optional: wantedDependency.optional,
-      optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
-      path: pkgResponse.body.inStoreLocation,
-      peerDependencies: peerDependencies || {},
-      prepare,
-      prod: !wantedDependency.dev && !wantedDependency.optional,
-      requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),
-      resolution: pkgResponse.body.resolution,
-      specRaw: wantedDependency.raw,
-      version: pkg.version,
-    }
-    const children = await resolveDependenciesOfPackage(
       pkg,
-      ctx,
-      {
-        currentDepth: options.currentDepth + 1,
-        dependentId: pkgResponse.body.id,
-        optionalDependencyNames: options.optionalDependencyNames,
-        parentDependsOnPeers: Boolean(
-          Object.keys(options.dependencyLockfile && options.dependencyLockfile.peerDependencies || pkg.peerDependencies || {}).length,
-        ),
-        parentIsInstallable: installable,
-        parentNodeId: nodeId,
-        preferedDependencies: pkgResponse.body.updated
-          ? options.resolvedDependencies
-          : undefined,
-        resolvedDependencies: pkgResponse.body.updated
-          ? undefined
-          : options.resolvedDependencies,
-        useManifestInfoFromLockfile,
-      },
-    )
-    ctx.childrenByParentId[pkgResponse.body.id] = children.map((child) => ({
-      alias: child.alias,
-      pkgId: child.pkgId,
-    }))
-    ctx.dependenciesTree[nodeId] = {
-      children: children.reduce((chn, child) => {
-        chn[child.alias] = child.nodeId
-        return chn
-      }, {}),
-      depth: options.currentDepth,
-      installable,
-      resolvedPackage: ctx.resolvedPackagesByPackageId[pkgResponse.body.id],
-    }
+      pkgResponse,
+      prepare,
+      wantedDependency,
+    })
   } else {
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].prod = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev || wantedDependency.dev
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional && wantedDependency.optional
+
+    // we need this for saving to package.json
+    if (options.currentDepth === 0) {
+      ctx.resolvedPackagesByPackageId[pkgResponse.body.id].specRaw = wantedDependency.raw
+    }
 
     ctx.pendingNodes.push({
       alias: wantedDependency.alias || pkg.name,
@@ -651,16 +651,67 @@ async function resolveDependency (
       resolvedPackage: ctx.resolvedPackagesByPackageId[pkgResponse.body.id],
     })
   }
-  // we need this for saving to package.json
-  if (options.currentDepth === 0) {
-    ctx.resolvedPackagesByPackageId[pkgResponse.body.id].specRaw = wantedDependency.raw
-  }
 
   return {
     alias: wantedDependency.alias || pkg.name,
+    isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
+
+    // Next fields are actually only needed when isNew = true
+    installable,
+    pkg,
+    updated: pkgResponse.body.updated,
+    useManifestInfoFromLockfile,
+  }
+}
+
+function getResolvedPackage (
+  options: {
+    dependencyLockfile?: PackageSnapshot,
+    force: boolean,
+    hasBin: boolean,
+    pkg: PackageManifest,
+    pkgResponse: PackageResponse,
+    prepare: boolean,
+    wantedDependency: WantedDependency,
+  }
+) {
+  const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
+
+  return {
+    additionalInfo: {
+      bundledDependencies: options.pkg.bundledDependencies,
+      bundleDependencies: options.pkg.bundleDependencies,
+      cpu: options.pkg.cpu,
+      deprecated: options.pkg.deprecated,
+      engines: options.pkg.engines,
+      os: options.pkg.os,
+      peerDependencies,
+    },
+    dev: options.wantedDependency.dev,
+    engineCache: !options.force && options.pkgResponse.body['cacheByEngine'] && options.pkgResponse.body['cacheByEngine'][ENGINE_NAME], // tslint:disable-line:no-string-literal
+    fetchingFiles: options.pkgResponse['fetchingFiles'], // tslint:disable-line:no-string-literal
+    fetchingRawManifest: options.pkgResponse['fetchingRawManifest'], // tslint:disable-line:no-string-literal
+    finishing: options.pkgResponse['finishing'], // tslint:disable-line:no-string-literal
+    hasBin: options.hasBin,
+    hasBundledDependencies: !!(options.pkg.bundledDependencies || options.pkg.bundleDependencies),
+    id: options.pkgResponse.body.id,
+    independent: (options.pkg.dependencies === undefined || R.isEmpty(options.pkg.dependencies)) &&
+      (options.pkg.optionalDependencies === undefined || R.isEmpty(options.pkg.optionalDependencies)) &&
+      (options.pkg.peerDependencies === undefined || R.isEmpty(options.pkg.peerDependencies)),
+    name: options.pkg.name,
+    optional: options.wantedDependency.optional,
+    optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
+    path: options.pkgResponse.body['inStoreLocation'], // tslint:disable-line:no-string-literal
+    peerDependencies: peerDependencies || {},
+    prepare: options.prepare,
+    prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
+    requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),
+    resolution: options.pkgResponse.body.resolution,
+    specRaw: options.wantedDependency.raw,
+    version: options.pkg.version,
   }
 }
 
