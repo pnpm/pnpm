@@ -570,6 +570,7 @@ test('regular dependencies are not removed on update from transitive packages th
   await mkdir('_')
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
+  await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
   await addDependenciesToPackage(['abc-grand-parent-with-c@1.0.0'], await testDefaults({ lockfileDirectory }))
