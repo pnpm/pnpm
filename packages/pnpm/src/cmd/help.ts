@@ -75,6 +75,10 @@ function getHelpText (command: string) {
           --reporter append-only             the output is always appended to the end. No cursor manipulations are performed
           --reporter ndjson                  the most verbose reporter. Prints all logs in ndjson format
 
+          --resolution-strategy fast                the default resolution strategy. Speed is preferred over deduplication
+          --resolution-strategy fewer-dependencies  already installed dependencies are preferred even if newer versions
+                                                    satisfy a range
+
         Experimental options:
           --side-effects-cache               use or cache the results of (pre/post)install hooks
           --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
