@@ -658,6 +658,7 @@ async function installInContext (
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     preferredVersions: opts.preferredVersions,
     registries: opts.registries,
+    resolutionStrategy: opts.resolutionStrategy,
     sideEffectsCache: opts.sideEffectsCacheRead,
     storeController: opts.storeController,
     tag: opts.tag,
