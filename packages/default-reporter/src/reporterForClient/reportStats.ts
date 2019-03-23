@@ -2,7 +2,7 @@ import { StatsLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import most = require('most')
 import R = require('ramda')
-import stringLength = require('string-length')
+import stringLength from 'string-length'
 import { EOL } from '../constants'
 import {
   ADDED_CHAR,
