@@ -133,7 +133,7 @@ importers:
       right-pad: 1.0.1
       semver: 5.6.0
       stacktracey: 1.2.109
-      string-length: 2.0.0
+      string-length: 3.0.0
       strip-ansi: 5.2.0
     devDependencies:
       '@pnpm/default-reporter': 'link:'
@@ -181,7 +181,7 @@ importers:
       rimraf: 2.6.3
       semver: 5.6.0
       stacktracey: 1.2.109
-      string-length: 2.0.0
+      string-length: 3.0.0
       strip-ansi: 5.2.0
       tape: 4.10.1
       ts-node: 8.0.3
@@ -9132,15 +9132,15 @@ packages:
     dev: false
     resolution:
       integrity: sha1-1cdSgl5TZ+eG944Y5EXqIjoVWVI=
-  /string-length/2.0.0:
+  /string-length/3.0.0:
     dependencies:
       astral-regex: 1.0.0
-      strip-ansi: 4.0.0
+      strip-ansi: 5.2.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=8'
     resolution:
-      integrity: sha1-1A27aGo6zpYMHP/KVivyxF+DY+0=
+      integrity: sha512-VeZa3u8MpEpDi7NMsZfp6ggk2x6ncBdE+sObPEVlczaUciCc+3ktm46P3HU2KdXArigN4XeEFNaj1Sg9TYAznw==
   /string-to-stream/1.1.1:
     dependencies:
       inherits: 2.0.3
