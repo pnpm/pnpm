@@ -1325,7 +1325,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/minimatch': 3.0.3
       '@types/mz': 0.0.32
-      '@types/p-any': 1.1.3
+      '@types/p-any': 1.1.2
       '@zkochan/libnpx': 10.0.0
       archy: 1.0.0
       camelcase: 5.2.0
@@ -1449,7 +1449,7 @@ importers:
       '@types/mz': ^0.0.32
       '@types/node': '*'
       '@types/nopt': 3.0.29
-      '@types/p-any': ^1.1.2
+      '@types/p-any': 1.1.2
       '@types/ramda': 0.25.34
       '@types/retry': 0.12.0
       '@types/semver': 5.5.0
@@ -2622,6 +2622,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-+iTbntw2IZPb/anVDbypzfQa+ay64MW0Zo8aJ8gZPWMMK6/OubMVb6lUPMagqjOPnmtauXnFCACVl3O7ogjeqQ==
+  /@types/aggregate-error/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-IcFSztsIxbL8XWGqsT6l4XbzvrOWS+b44MNtzAYTvxGPITTtioKNgUO3vKABLGcJciViaNOxBZl4MlpZEG1pJg==
   /@types/archy/0.0.31:
     dev: false
     resolution:
@@ -2728,13 +2732,12 @@ packages:
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
-  /@types/p-any/1.1.3:
+  /@types/p-any/1.1.2:
     dependencies:
-      p-any: 1.1.0
-    deprecated: 'This is a stub types definition. p-any provides its own type definitions, so you do not need this installed.'
+      '@types/aggregate-error': 1.0.0
     dev: false
     resolution:
-      integrity: sha512-nEtnVk4r6H87mBZJxfJCyrJLfL+68USNCSGiEmRwKORnJFFA91IkB2Fyrh218y6AvaTEepKEAb35PCKop6BFJA==
+      integrity: sha512-Lm/tV8QgjMtiooDoO9qNsPgWiZowtO4hZ18q9p0PQ/jSsQbwGASW1s1I/sx0yXClfY24d+ONlViFuq6kiCghqw==
   /@types/p-series/1.0.1:
     dev: false
     resolution:
@@ -2980,6 +2983,7 @@ packages:
     dependencies:
       clean-stack: 1.3.0
       indent-string: 3.2.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -3929,6 +3933,7 @@ packages:
     resolution:
       integrity: sha512-qOhPa/Fj7s6TY8H8esGu5QNpMMQxz79h+urzrNYN6mn+9BnxlDGf5QZ+XeCDsxSjPqsSR56XOZOJmpeurnLMeg==
   /clean-stack/1.3.0:
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -5763,6 +5768,7 @@ packages:
     resolution:
       integrity: sha1-ji1INIdCEhtKghi3oTfppSBJ3IA=
   /indent-string/3.2.0:
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -7627,6 +7633,7 @@ packages:
   /p-any/1.1.0:
     dependencies:
       p-some: 2.0.1
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -7717,6 +7724,7 @@ packages:
   /p-some/2.0.1:
     dependencies:
       aggregate-error: 1.0.0
+    dev: true
     engines:
       node: '>=4'
     resolution:

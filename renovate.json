@@ -68,6 +68,10 @@
     {
       "packageNames": ["p-any"],
       "allowedVersions": "<2"
+    },
+    {
+      "packageNames": ["@types/p-any"],
+      "allowedVersions": "1.1.2"
     }
   ],
   "pinVersions": false,
