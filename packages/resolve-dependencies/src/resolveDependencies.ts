@@ -36,6 +36,7 @@ import {
   createNodeId,
   getNonDevWantedDependencies,
   nodeIdContainsSequence,
+  pickRegistryForPackage,
   splitNodeId,
   WantedDependency,
 } from '@pnpm/utils'
@@ -433,9 +434,6 @@ async function resolveDependency (
     return null
   }
 
-  const scope = wantedDependency.alias && getScope(wantedDependency.alias)
-  const registry = scope && ctx.registries[scope] || ctx.registries.default
-
   let pkgResponse!: PackageResponse
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
@@ -447,7 +445,7 @@ async function resolveDependency (
       lockfileDirectory: ctx.lockfileDirectory,
       preferredVersions: ctx.preferredVersions,
       prefix: ctx.prefix,
-      registry,
+      registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
       sideEffectsCache: ctx.sideEffectsCache,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
@@ -713,13 +711,6 @@ function getResolvedPackage (
     specRaw: options.wantedDependency.raw,
     version: options.pkg.version,
   }
-}
-
-function getScope (pkgName: string): string | null {
-  if (pkgName[0] === '@') {
-    return pkgName.substr(0, pkgName.indexOf('/'))
-  }
-  return null
 }
 
 function peerDependenciesWithoutOwn (pkg: PackageManifest) {

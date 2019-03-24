@@ -37,7 +37,7 @@ export default async function (input: string[], opts: PnpmOptions) {
       store = await createStoreController(opts)
       return storeAdd(input.slice(1), {
         prefix: opts.prefix,
-        registry: opts.registry,
+        registries: opts.registries,
         reporter: opts.reporter,
         storeController: store.ctrl,
         tag: opts.tag,

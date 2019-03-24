@@ -3,7 +3,8 @@ import {
   streamParser,
 } from '@pnpm/logger'
 import { StoreController } from '@pnpm/store-controller-types'
-import normalizeRegistryUrl = require('normalize-registry-url')
+import { Registries } from '@pnpm/types'
+import { pickRegistryForPackage } from '@pnpm/utils'
 import parseWantedDependencies from './parseWantedDependencies'
 import { ReporterFunction } from './types'
 
@@ -11,7 +12,7 @@ export default async function (
   fuzzyDeps: string[],
   opts: {
     prefix?: string,
-    registry?: string,
+    registries?: Registries,
     reporter?: ReporterFunction,
     storeController: StoreController,
     tag?: string,
@@ -34,6 +35,9 @@ export default async function (
 
   let hasFailures = false
   const prefix = opts.prefix || process.cwd()
+  const registries = opts.registries || {
+    default: 'https://registry.npmjs.org/',
+  }
   await Promise.all(deps.map(async (dep) => {
     try {
       const pkgResponse = await opts.storeController.requestPackage(dep, {
@@ -41,7 +45,7 @@ export default async function (
         lockfileDirectory: prefix,
         preferredVersions: {},
         prefix,
-        registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
+        registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
       })
       await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
       storeLogger.info(`+ ${pkgResponse.body.id}`)

@@ -213,11 +213,6 @@ declare module 'is-subdir' {
   export = anything;
 }
 
-declare module 'normalize-registry-url' {
-  function normalizeRegistryUrl (registry: string): string
-  export = normalizeRegistryUrl;
-}
-
 declare module 'encode-registry' {
   function encodeRegistry (registry: string): string
   export = encodeRegistry;
