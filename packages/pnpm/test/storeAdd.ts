@@ -1,6 +1,6 @@
 import { tempDir } from '@pnpm/prepare'
-import fs = require('mz/fs')
 import loadJsonFile from 'load-json-file'
+import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import tape = require('tape')
