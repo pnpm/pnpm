@@ -267,3 +267,33 @@ test('depth is 0 by default for list commands', async (t) => {
 
   t.end()
 })
+
+test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
+  {
+    const configs = await getConfigs({
+      cliArgs: {
+        'global': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.ok(configs)
+    t.notOk(configs.workspacePrefix)
+  }
+
+  {
+    const configs = await getConfigs({
+      cliArgs: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.ok(configs)
+    t.ok(configs.workspacePrefix)
+  }
+
+  t.end()
+})
