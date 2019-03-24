@@ -6,6 +6,7 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 const addDistTag = pnpmRegistryMock.addDistTag
 
 test('prefer version ranges specified for top dependencies', async (t: tape.Test) => {
@@ -133,4 +134,46 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
   const lockfile = await project.loadLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1187
+test('resolution-strategy=fewer-dependencies: prefer version of package that also satisfies the range of the same package higher in the dependency graph', async (t: tape.Test) => {
+  const project = prepare(t)
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(['has-foo-as-dep-and-subdep'], await testDefaults({
+    resolutionStrategy: 'fewer-dependencies',
+  }))
+
+  const lockfile = await project.loadLockfile()
+
+  t.deepEqual(
+    Object.keys(lockfile.packages),
+    [
+      '/foo/100.0.0',
+      '/has-foo-as-dep-and-subdep/1.0.0',
+      '/requires-any-foo/1.0.0',
+    ],
+  )
+})
+
+test('resolution-strategy=fast: always prefer the latest version', async (t: tape.Test) => {
+  const project = prepare(t)
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(['has-foo-as-dep-and-subdep'], await testDefaults({
+    resolutionStrategy: 'fast',
+  }))
+
+  const lockfile = await project.loadLockfile()
+
+  t.deepEqual(
+    Object.keys(lockfile.packages),
+    [
+      '/foo/100.0.0',
+      '/foo/100.1.0',
+      '/has-foo-as-dep-and-subdep/1.0.0',
+      '/requires-any-foo/1.0.0',
+    ],
+  )
 })

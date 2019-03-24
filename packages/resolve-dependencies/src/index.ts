@@ -41,6 +41,7 @@ export default async function (
     },
     nodeVersion: string,
     registries: Registries,
+    resolutionStrategy?: 'fast' | 'fewer-dependencies',
     pnpmVersion: string,
     sideEffectsCache: boolean,
     lockfileDirectory: string,
@@ -95,8 +96,8 @@ export default async function (
       ...ctx,
       linkedDependencies,
       modulesDir: importer.modulesDir,
-      preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
       prefix: importer.prefix,
+      resolutionStrategy: opts.resolutionStrategy || 'fast',
       updateDepth: importer.shamefullyFlatten ? Infinity : ctx.updateDepth,
     }
     const resolveOpts = {
@@ -104,6 +105,7 @@ export default async function (
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,
       parentNodeId: ROOT_NODE_ID,
+      preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
       resolvedDependencies: {
         ...lockfileImporter.dependencies,
         ...lockfileImporter.devDependencies,

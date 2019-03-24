@@ -542,7 +542,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.3.0
@@ -597,7 +597,7 @@ importers:
       npm-run-all: 4.1.5
       p-limit: 2.2.0
       path-exists: 3.0.0
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1067,7 +1067,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       tape: 4.10.1
       ts-node: 8.0.3_typescript@3.3.4000
       tslint: 5.14.0_typescript@3.3.4000
@@ -1089,7 +1089,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       tape: 4.10.1
       ts-node: 8.0.3
       tslint: 5.14.0
@@ -1400,7 +1400,7 @@ importers:
       p-any: 1.1.0
       path-exists: 3.0.0
       pnpm: 'link:'
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       retry: 0.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1500,7 +1500,7 @@ importers:
       pkgs-graph: 2.0.2
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1881,7 +1881,7 @@ importers:
       npm-scripts-info: 0.3.9
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
@@ -1978,7 +1978,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 3.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.8.0
+      pnpm-registry-mock: 2.9.0
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
@@ -8009,7 +8009,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-registry-mock/2.8.0:
+  /pnpm-registry-mock/2.9.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -8020,7 +8020,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-0RobA+n2Jp1+mb64nx2vDxk/vNwGh+/CegI5JqcWisiPp1e9VnJ7SOeYxtVrMC7qmCIuwbefEXRv5DbRj9vyng==
+      integrity: sha512-n/1xE+5290VcmBh44/zpg2JoZU0e4BkoApwJAUb8a22FuFYg3EjyhfeuQJtyfZCmdPgmhLekxNlRA4rgNA0Qng==
   /posix-character-classes/0.1.1:
     dev: false
     engines:

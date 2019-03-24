@@ -135,11 +135,13 @@ export interface ResolutionContext {
   pnpmVersion: string,
   registries: Registries,
   virtualStoreDir: string,
-  preferredVersions: {
-    [packageName: string]: {
-      type: 'version' | 'range' | 'tag',
-      selector: string,
-    },
+  resolutionStrategy: 'fast' | 'fewer-dependencies',
+}
+
+type PreferredVersions = {
+  [packageName: string]: {
+    type: 'version' | 'range' | 'tag',
+    selector: string,
   },
 }
 
@@ -204,6 +206,7 @@ export default async function resolveDependencies (
     // which were used by the previous version are passed
     // via this option
     preferedDependencies?: ResolvedDependencies,
+    preferredVersions: PreferredVersions,
     parentIsInstallable?: boolean,
     readPackageHook?: ReadPackageHook,
     localPackages?: LocalPackages,
@@ -260,9 +263,12 @@ export default async function resolveDependencies (
     parentDependsOnPeer: options.parentDependsOnPeers,
     parentIsInstallable: options.parentIsInstallable,
     parentNodeId: options.parentNodeId,
+    preferredVersions: options.preferredVersions,
     readPackageHook: options.readPackageHook,
     update,
   }
+  const postponedResolutionsQueue = ctx.resolutionStrategy === 'fewer-dependencies'
+    ? [] as Array<(preferredVersions: PreferredVersions) => Promise<void>> : undefined
   const pkgAddresses = (
     await Promise.all(
       extendedWantedDeps
@@ -277,47 +283,77 @@ export default async function resolveDependencies (
           if (!resolveDependencyResult) return null
           if (!resolveDependencyResult.isNew) return resolveDependencyResult
 
-          const resolvedPackage = ctx.resolvedPackagesByPackageId[resolveDependencyResult.pkgId]
-          const children = await resolveDependenciesOfPackage(
-            resolveDependencyResult.pkg,
-            ctx,
-            {
-              currentDepth: options.currentDepth + 1,
-              dependentId: resolveDependencyResult.pkgId,
-              optionalDependencyNames: extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.optionalDependencyNames || undefined,
-              parentDependsOnPeers: Boolean(
-                Object.keys(resolveDependencyOpts.dependencyLockfile && resolveDependencyOpts.dependencyLockfile.peerDependencies || resolveDependencyResult.pkg.peerDependencies || {}).length,
-              ),
-              parentIsInstallable: resolveDependencyResult.installable,
-              parentNodeId: resolveDependencyResult.nodeId,
-              preferedDependencies: resolveDependencyResult.updated
-                ? extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
-                : undefined,
-              resolvedDependencies: resolveDependencyResult.updated
-                ? undefined
-                : extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined,
-              useManifestInfoFromLockfile: resolveDependencyResult.useManifestInfoFromLockfile,
-            },
-          )
-          ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
-            alias: child.alias,
-            pkgId: child.pkgId,
-          }))
-          ctx.dependenciesTree[resolveDependencyResult.nodeId] = {
-            children: children.reduce((chn, child) => {
-              chn[child.alias] = child.nodeId
-              return chn
-            }, {}),
-            depth: options.currentDepth,
-            installable: resolveDependencyResult.installable,
-            resolvedPackage,
+          const resolveChildren = async function (preferredVersions: PreferredVersions) {
+            const resolvedPackage = ctx.resolvedPackagesByPackageId[resolveDependencyResult.pkgId]
+            const children = await resolveDependenciesOfPackage(
+              resolveDependencyResult.pkg,
+              ctx,
+              {
+                currentDepth: options.currentDepth + 1,
+                dependentId: resolveDependencyResult.pkgId,
+                optionalDependencyNames: extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.optionalDependencyNames || undefined,
+                parentDependsOnPeers: Boolean(
+                  Object.keys(resolveDependencyOpts.dependencyLockfile && resolveDependencyOpts.dependencyLockfile.peerDependencies || resolveDependencyResult.pkg.peerDependencies || {}).length,
+                ),
+                parentIsInstallable: resolveDependencyResult.installable,
+                parentNodeId: resolveDependencyResult.nodeId,
+                preferedDependencies: resolveDependencyResult.updated
+                  ? extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
+                  : undefined,
+                preferredVersions,
+                resolvedDependencies: resolveDependencyResult.updated
+                  ? undefined
+                  : extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined,
+                useManifestInfoFromLockfile: resolveDependencyResult.useManifestInfoFromLockfile,
+              },
+            )
+            ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
+              alias: child.alias,
+              pkgId: child.pkgId,
+            }))
+            ctx.dependenciesTree[resolveDependencyResult.nodeId] = {
+              children: children.reduce((chn, child) => {
+                chn[child.alias] = child.nodeId
+                return chn
+              }, {}),
+              depth: options.currentDepth,
+              installable: resolveDependencyResult.installable,
+              resolvedPackage,
+            }
           }
+
+          if (postponedResolutionsQueue) {
+            postponedResolutionsQueue.push(resolveChildren)
+          }
+
+          await resolveChildren(options.preferredVersions)
 
           return resolveDependencyResult
         }),
     )
   )
   .filter(Boolean) as PkgAddress[]
+
+  if (postponedResolutionsQueue) {
+    const newPreferredVersions = {
+      ...options.preferredVersions,
+    }
+    for (const pkgAddress of pkgAddresses) {
+      const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgAddress.pkgId]
+      if (newPreferredVersions[resolvedPackage.name] && newPreferredVersions[resolvedPackage.name].type !== 'tag') {
+        newPreferredVersions[resolvedPackage.name] = {
+          selector: `${newPreferredVersions[resolvedPackage.name].selector} || ${resolvedPackage.version}`,
+          type: 'range',
+        }
+      } else {
+        newPreferredVersions[resolvedPackage.name] = {
+          selector: resolvedPackage.version,
+          type: 'version',
+        }
+      }
+    }
+    await Promise.all(postponedResolutionsQueue.map((postponedResolution) => postponedResolution(newPreferredVersions)))
+  }
 
   return pkgAddresses
 }
@@ -404,6 +440,7 @@ type ResolveDependencyOptions = {
   dependencyLockfile?: PackageSnapshot,
   currentResolution?: Resolution,
   parentIsInstallable?: boolean,
+  preferredVersions: PreferredVersions,
   update: boolean,
   proceed: boolean,
   localPackages?: LocalPackages,
@@ -443,7 +480,7 @@ async function resolveDependency (
       downloadPriority: -options.currentDepth,
       localPackages: options.localPackages,
       lockfileDirectory: ctx.lockfileDirectory,
-      preferredVersions: ctx.preferredVersions,
+      preferredVersions: options.preferredVersions,
       prefix: ctx.prefix,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
       sideEffectsCache: ctx.sideEffectsCache,
@@ -739,6 +776,7 @@ async function resolveDependenciesOfPackage (
     optionalDependencyNames?: string[],
     parentDependsOnPeers: boolean,
     parentIsInstallable: boolean,
+    preferredVersions: PreferredVersions,
     useManifestInfoFromLockfile: boolean,
   },
 ): Promise<PkgAddress[]> {
