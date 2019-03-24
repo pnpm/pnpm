@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "5.0.2",
+  "version": "5.1.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -38,7 +38,7 @@
     "@pnpm/resolver-base": "3.0.0",
     "@pnpm/store-controller-types": "3.0.0",
     "@pnpm/types": "3.0.0",
-    "@pnpm/utils": "0.10.0",
+    "@pnpm/utils": "0.10.1",
     "@types/node": "*",
     "@types/ramda": "0.25.38",
     "@types/semver": "5.5.0",
