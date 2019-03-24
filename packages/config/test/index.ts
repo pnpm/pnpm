@@ -4,6 +4,8 @@ import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
 
+delete process.env['npm_config_depth']
+
 test('getConfigs()', async (t) => {
   const configs = await getConfigs({
     cliArgs: {},
@@ -220,6 +222,45 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
     t.ok(configs.sideEffectsCacheReadonly) // for backward compatibility
     t.ok(configs.sideEffectsCacheRead)
     t.notOk(configs.sideEffectsCacheWrite)
+  }
+
+  t.end()
+})
+
+test('depth is 0 by default for list commands', async (t) => {
+  {
+    const configs = await getConfigs({
+      cliArgs: {},
+      command: ['list'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const configs = await getConfigs({
+      cliArgs: {},
+      command: ['recursive', 'list'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const configs = await getConfigs({
+      cliArgs: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, Infinity)
   }
 
   t.end()
