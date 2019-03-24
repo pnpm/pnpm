@@ -72,7 +72,10 @@ export default async (
     pkgPaths.map((prefix) => installLimit(async () => {
       const s = await createStoreController(storeControllerCache, opts)
       await install({
-        ...await getConfigs({ ...opts.cliArgs, prefix }, { excludeReporter: true }),
+        ...await getConfigs({ ...opts.cliArgs, prefix }, {
+          command: ['link'],
+          excludeReporter: true,
+        }),
         localPackages,
         store: s.path,
         storeController: s.ctrl,

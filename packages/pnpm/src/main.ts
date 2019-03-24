@@ -140,16 +140,51 @@ export default async function run (argv: string[]) {
   }
 
   cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
+  let subCmd = cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])
+
+  const dashDashFilterUsed = (
+    (
+      cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
+      || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
+    )
+    && cliConf.argv.cooked.indexOf('--') !== -1
+  )
+
+  const filterArgs = [] as string[]
+
+  if (dashDashFilterUsed) {
+    const dashDashIndex = cliConf.argv.cooked.indexOf('--')
+    Array.prototype.push.apply(filterArgs, cliConf.argv.cooked.slice(dashDashIndex + 1))
+    const afterDashDash = cliConf.argv.cooked.length - dashDashIndex - 1
+    cliConf.argv.remain = cliConf.argv.remain.slice(0, cliConf.argv.remain.length - afterDashDash)
+  }
+
+  // `pnpm install ""` is going to be just `pnpm install`
+  const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
+
+  if (cmd !== 'recursive' && (dashDashFilterUsed || argv.indexOf('--filter') !== -1 || cliConf['recursive'] === true)) {
+    subCmd = cmd
+    cmd = 'recursive'
+    cliArgs.unshift(subCmd)
+  }
 
   let opts!: PnpmConfigs
   try {
-    opts = await getConfigs(cliConf, { excludeReporter: false })
+    opts = await getConfigs(cliConf, {
+      command: subCmd ? [cmd, subCmd] : [cmd],
+      excludeReporter: false,
+    })
     opts.include = {
       dependencies: opts.production !== false,
       devDependencies: opts.development !== false,
       optionalDependencies: opts.optional !== false,
     }
     opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
+    if (opts.filter) {
+      Array.prototype.push.apply(opts.filter, filterArgs)
+    } else {
+      opts.filter = filterArgs
+    }
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     console.error(err.message)
@@ -172,8 +207,6 @@ export default async function run (argv: string[]) {
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
-
-  let subCmd = cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])
 
   initReporter(reporterType, {
     cmd,
@@ -200,31 +233,6 @@ export default async function run (argv: string[]) {
           message: 'using --force I sure hope you know what you are doing',
           prefix: opts.prefix,
         })
-      }
-
-      const dashDashFilterUsed = (
-        (
-          cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
-          || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
-        )
-        && cliConf.argv.cooked.indexOf('--') !== -1
-      )
-
-      if (dashDashFilterUsed) {
-        opts.filter = opts.filter || []
-        const dashDashIndex = cliConf.argv.cooked.indexOf('--')
-        Array.prototype.push.apply(opts.filter, cliConf.argv.cooked.slice(dashDashIndex + 1))
-        const afterDashDash = cliConf.argv.cooked.length - dashDashIndex - 1
-        cliConf.argv.remain = cliConf.argv.remain.slice(0, cliConf.argv.remain.length - afterDashDash)
-      }
-
-      // `pnpm install ""` is going to be just `pnpm install`
-      const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
-
-      if (cmd !== 'recursive' && (dashDashFilterUsed || argv.indexOf('--filter') !== -1 || cliConf['recursive'] === true)) {
-        subCmd = cmd
-        cmd = 'recursive'
-        cliArgs.unshift(subCmd)
       }
 
       if (cmd !== 'recursive') {

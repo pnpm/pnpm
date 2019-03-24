@@ -72,6 +72,7 @@ const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 export default async (
   opts: {
     cliArgs: object,
+    command?: string[],
     packageManager: {
       name: string,
       version: string,
@@ -80,6 +81,7 @@ export default async (
 ): Promise<PnpmConfigs> => {
   const packageManager = opts && opts.packageManager || { name: 'pnpm', version: 'undefined' }
   const cliArgs = opts && opts.cliArgs || {}
+  const command = opts.command || []
 
   // This is what npm does as well, overriding process.execPath with the resolved location of Node.
   // The value of process.execPath is changed only for the duration of config initialization.
@@ -99,6 +101,7 @@ export default async (
   })
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
+    'depth': command[command.length - 1] === 'list' ? 0 : Infinity,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
