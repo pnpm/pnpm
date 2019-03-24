@@ -158,11 +158,13 @@ test('registries of scoped packages are read', async (t) => {
     },
   })
 
+  // tslint:disable
   t.deepEqual(opts.registries, {
-    '@bar': 'https://bar.com',
-    '@foo': 'https://foo.com',
     'default': 'https://registry.npmjs.org/',
+    '@foo': 'https://foo.com/',
+    '@bar': 'https://bar.com/',
   })
+  // tslint:enable
 
   t.end()
 })

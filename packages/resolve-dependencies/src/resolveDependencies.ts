@@ -434,7 +434,7 @@ async function resolveDependency (
   }
 
   const scope = wantedDependency.alias && getScope(wantedDependency.alias)
-  const registry = normalizeRegistry(scope && ctx.registries[scope] || ctx.registries.default)
+  const registry = scope && ctx.registries[scope] || ctx.registries.default
 
   let pkgResponse!: PackageResponse
   try {
@@ -734,11 +734,6 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
   }
   if (R.isEmpty(result)) return undefined
   return result
-}
-
-function normalizeRegistry (registry: string) {
-  if (registry.endsWith('/')) return registry
-  return `${registry}/`
 }
 
 async function resolveDependenciesOfPackage (
