@@ -1,6 +1,7 @@
 import {
   LogBase,
   PackageManifest,
+  Registries,
 } from '@pnpm/types'
 
 export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
@@ -35,6 +36,7 @@ export interface PnpmOptions {
   engineStrict?: boolean,
   nodeVersion?: string,
   offline?: boolean,
+  registries?: Registries,
   registry?: string,
   optional?: boolean,
   unsafePerm?: boolean,

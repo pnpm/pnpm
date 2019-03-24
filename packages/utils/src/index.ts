@@ -1,6 +1,7 @@
 import getAllDependenciesFromPackage from './getAllDependenciesFromPackage'
 import getSaveType from './getSaveType'
 import normalizeRegistries, { DEFAULT_REGISTRIES } from './normalizeRegistries'
+import pickRegistryForPackage from './pickRegistryForPackage'
 import realNodeModulesDir from './realNodeModulesDir'
 import safeReadPackage, { fromDir as safeReadPackageFromDir } from './safeReadPkg'
 
@@ -11,6 +12,7 @@ export {
   getAllDependenciesFromPackage,
   getSaveType,
   normalizeRegistries,
+  pickRegistryForPackage,
   realNodeModulesDir,
   safeReadPackage,
   safeReadPackageFromDir,

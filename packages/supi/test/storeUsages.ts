@@ -110,7 +110,7 @@ test('find usages for package in store but not in any projects', async (t: tape.
 
   // Add dependency directly to store (not to the project)
   await storeAdd(['is-negative'], {
-    registry: registries.default,
+    registries,
     tag: '2.1.0',
     ...opts
   })
@@ -142,13 +142,13 @@ test('find usages for multiple packages in store but not in any projects', async
 
   // Add dependencies directly to store (not to the project). Note we add different versions of the same package
   await storeAdd(['is-negative'], {
-    registry: registries.default,
+    registries,
     tag: '2.0.0',
     ...opts
   })
   await store.storeHas('is-negative', '2.0.0')
   await storeAdd(['is-negative'], {
-    registry: registries.default,
+    registries,
     tag: '2.1.0',
     ...opts
   })
