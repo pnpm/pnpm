@@ -212,51 +212,16 @@ export default async function resolveDependencies (
     localPackages?: LocalPackages,
   },
 ): Promise<PkgAddress[]> {
-  const resolvedDependencies = options.resolvedDependencies || {}
-  const preferedDependencies = options.preferedDependencies || {}
-  const update = options.currentDepth <= ctx.updateDepth
-  const extendedWantedDeps = []
-  let proceedAll = options.parentDependsOnPeers
-  for (const wantedDependency of wantedDependencies) {
-    let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
-    let proceed = options.parentDependsOnPeers
-
-    // If dependencies that were used by the previous version of the package
-    // satisfy the newer version's requirements, then pnpm tries to keep
-    // the previous dependency.
-    // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
-    // and foo was updated to 1.1.0 which depends on bar ^1.0.0
-    // then bar@1.0.0 can be reused for foo@1.1.0
-    if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // tslint:disable-line
-      preferedDependencies[wantedDependency.alias] &&
-      preferedSatisfiesWanted(
-        preferedDependencies[wantedDependency.alias],
-        wantedDependency as {alias: string, pref: string},
-        ctx.wantedLockfile,
-        {
-          prefix: ctx.prefix,
-        },
-      )
-    ) {
-      proceed = true
-      reference = preferedDependencies[wantedDependency.alias]
-    }
-    const infoFromLockfile = getInfoFromLockfile(ctx.wantedLockfile, ctx.registries, reference, wantedDependency.alias)
-    if (
-      infoFromLockfile &&
-      infoFromLockfile.dependencyLockfile &&
-      infoFromLockfile.dependencyLockfile.peerDependencies &&
-      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).length
-    ) {
-      proceedAll = true
-    }
-    extendedWantedDeps.push({
-      infoFromLockfile,
-      proceed,
-      reference,
-      wantedDependency,
-    })
-  }
+  const {
+    extendedWantedDeps,
+    proceedAll,
+  } = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+    parentDependsOnPeers: options.parentDependsOnPeers,
+    preferedDependencies: options.preferedDependencies,
+    prefix: ctx.prefix,
+    registries: ctx.registries,
+    resolvedDependencies: options.resolvedDependencies,
+  })
   const resolveDepOpts = {
     currentDepth: options.currentDepth,
     localPackages: options.localPackages,
@@ -265,7 +230,7 @@ export default async function resolveDependencies (
     parentNodeId: options.parentNodeId,
     preferredVersions: options.preferredVersions,
     readPackageHook: options.readPackageHook,
-    update,
+    update: options.currentDepth <= ctx.updateDepth,
   }
   const postponedResolutionsQueue = ctx.resolutionStrategy === 'fewer-dependencies'
     ? [] as Array<(preferredVersions: PreferredVersions) => Promise<void>> : undefined
@@ -356,6 +321,67 @@ export default async function resolveDependencies (
   }
 
   return pkgAddresses
+}
+
+function getDepsToResolve (
+  wantedDependencies: WantedDependency[],
+  wantedLockfile: Lockfile,
+  options: {
+    parentDependsOnPeers: boolean,
+    preferedDependencies?: ResolvedDependencies,
+    prefix: string,
+    registries: Registries,
+    resolvedDependencies?: ResolvedDependencies,
+  },
+) {
+  const resolvedDependencies = options.resolvedDependencies || {}
+  const preferedDependencies = options.preferedDependencies || {}
+  const extendedWantedDeps = []
+  let proceedAll = options.parentDependsOnPeers
+  for (const wantedDependency of wantedDependencies) {
+    let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
+    let proceed = options.parentDependsOnPeers
+
+    // If dependencies that were used by the previous version of the package
+    // satisfy the newer version's requirements, then pnpm tries to keep
+    // the previous dependency.
+    // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
+    // and foo was updated to 1.1.0 which depends on bar ^1.0.0
+    // then bar@1.0.0 can be reused for foo@1.1.0
+    if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // tslint:disable-line
+      preferedDependencies[wantedDependency.alias] &&
+      preferedSatisfiesWanted(
+        preferedDependencies[wantedDependency.alias],
+        wantedDependency as {alias: string, pref: string},
+        wantedLockfile,
+        {
+          prefix: options.prefix,
+        },
+      )
+    ) {
+      proceed = true
+      reference = preferedDependencies[wantedDependency.alias]
+    }
+    const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
+    if (
+      !proceedAll &&
+      infoFromLockfile &&
+      infoFromLockfile.dependencyLockfile &&
+      infoFromLockfile.dependencyLockfile.peerDependencies &&
+      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).length
+    ) {
+      proceedAll = true
+    }
+    extendedWantedDeps.push({
+      infoFromLockfile,
+      proceed,
+      wantedDependency,
+    })
+  }
+  return {
+    extendedWantedDeps,
+    proceedAll,
+  }
 }
 
 function preferedSatisfiesWanted (
