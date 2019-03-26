@@ -198,6 +198,7 @@ export default async function resolveDependencies (
   ctx: ResolutionContext,
   wantedDependencies: WantedDependency[],
   options: {
+    dependentId?: string,
     parentDependsOnPeers: boolean,
     parentNodeId: string,
     currentDepth: number,
@@ -224,6 +225,7 @@ export default async function resolveDependencies (
   })
   const resolveDepOpts = {
     currentDepth: options.currentDepth,
+    dependentId: options.dependentId,
     localPackages: options.localPackages,
     parentDependsOnPeer: options.parentDependsOnPeers,
     parentIsInstallable: options.parentIsInstallable,
@@ -250,13 +252,20 @@ export default async function resolveDependencies (
 
           const resolveChildren = async function (preferredVersions: PreferredVersions) {
             const resolvedPackage = ctx.resolvedPackagesByPackageId[resolveDependencyResult.pkgId]
-            const children = await resolveDependenciesOfPackage(
-              resolveDependencyResult.pkg,
+            const resolvedDependencies = resolveDependencyResult.updated
+              ? undefined
+              : extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
+            const optionalDependencyNames = extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.optionalDependencyNames || undefined
+            const children = await resolveDependencies(
               ctx,
+              getWantedDependencies(resolveDependencyResult.pkg, {
+                optionalDependencyNames,
+                resolvedDependencies,
+                useManifestInfoFromLockfile: resolveDependencyResult.useManifestInfoFromLockfile,
+              }),
               {
                 currentDepth: options.currentDepth + 1,
                 dependentId: resolveDependencyResult.pkgId,
-                optionalDependencyNames: extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.optionalDependencyNames || undefined,
                 parentDependsOnPeers: Boolean(
                   Object.keys(resolveDependencyOpts.dependencyLockfile && resolveDependencyOpts.dependencyLockfile.peerDependencies || resolveDependencyResult.pkg.peerDependencies || {}).length,
                 ),
@@ -266,10 +275,7 @@ export default async function resolveDependencies (
                   ? extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
                   : undefined,
                 preferredVersions,
-                resolvedDependencies: resolveDependencyResult.updated
-                  ? undefined
-                  : extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined,
-                useManifestInfoFromLockfile: resolveDependencyResult.useManifestInfoFromLockfile,
+                resolvedDependencies,
               },
             )
             ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
@@ -790,25 +796,16 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
   return result
 }
 
-async function resolveDependenciesOfPackage (
+function getWantedDependencies (
   pkg: PackageManifest,
-  ctx: ResolutionContext,
   opts: {
-    dependentId?: string,
-    parentNodeId: string,
-    currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
-    preferedDependencies?: ResolvedDependencies,
     optionalDependencyNames?: string[],
-    parentDependsOnPeers: boolean,
-    parentIsInstallable: boolean,
-    preferredVersions: PreferredVersions,
     useManifestInfoFromLockfile: boolean,
   },
-): Promise<PkgAddress[]> {
-
+) {
   let deps = getNonDevWantedDependencies(pkg)
-  if (ctx.hasManifestInLockfile && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromLockfile) {
+  if (!deps.length && opts.resolvedDependencies && opts.useManifestInfoFromLockfile) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
     deps = Object.keys(opts.resolvedDependencies)
       .map((depName) => ({
@@ -816,6 +813,5 @@ async function resolveDependenciesOfPackage (
         optional: optionalDependencyNames.indexOf(depName) !== -1,
       } as WantedDependency))
   }
-
-  return resolveDependencies(ctx, deps, opts)
+  return deps
 }
