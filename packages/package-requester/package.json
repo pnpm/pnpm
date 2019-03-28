@@ -76,7 +76,7 @@
     "nock": "10.0.6",
     "normalize-path": "3.0.0",
     "rimraf": "2.6.3",
-    "sinon": "7.3.0",
+    "sinon": "7.3.1",
     "tape": "4.10.1",
     "tempy": "0.2.1",
     "ts-node": "8.0.3",

@@ -545,7 +545,7 @@ importers:
       pnpm-registry-mock: 2.9.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      sinon: 7.3.0
+      sinon: 7.3.1
       tape: 4.10.1
       tape-promise: 4.0.0
       tempy: 0.2.1
@@ -602,7 +602,7 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       run-groups: 2.0.0
-      sinon: 7.3.0
+      sinon: 7.3.1
       tape: 4.10.1
       tape-promise: 4.0.0
       tempy: 0.2.1
@@ -1169,7 +1169,7 @@ importers:
       nock: 10.0.6
       normalize-path: 3.0.0
       rimraf: 2.6.3
-      sinon: 7.3.0
+      sinon: 7.3.1
       tape: 4.10.1
       tempy: 0.2.1
       ts-node: 8.0.3_typescript@3.3.4000
@@ -1213,7 +1213,7 @@ importers:
       rename-overwrite: 1.0.3
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      sinon: 7.3.0
+      sinon: 7.3.1
       symlink-dir: 3.0.1
       tape: 4.10.1
       tempy: 0.2.1
@@ -1886,7 +1886,7 @@ importers:
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
       sepia: 2.0.2
-      sinon: 7.3.0
+      sinon: 7.3.1
       supi: 'link:'
       tape: 4.10.1
       tape-promise: 4.0.0
@@ -1990,7 +1990,7 @@ importers:
       run-groups: 2.0.0
       semver: 6.0.0
       sepia: 2.0.2
-      sinon: 7.3.0
+      sinon: 7.3.1
       supi: 'link:'
       symlink-dir: 3.0.1
       tape: 4.10.1
@@ -8878,7 +8878,7 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/7.3.0:
+  /sinon/7.3.1:
     dependencies:
       '@sinonjs/commons': 1.4.0
       '@sinonjs/formatio': 3.2.1
@@ -8889,7 +8889,7 @@ packages:
       supports-color: 5.5.0
     dev: true
     resolution:
-      integrity: sha512-0pYvgRv46fODzT/PByqb79MVNpyxsxf38WEiXTABOF8RfIMcIARfZ+1ORuxwAmHkreZ/jST3UDBdKCRhUy/e1A==
+      integrity: sha512-eQKMaeWovtOtYe2xThEvaHmmxf870Di+bim10c3ZPrL5bZhLGtu8cz+rOBTFz0CwBV4Q/7dYwZiqZbGVLZ+vjQ==
   /slash/1.0.0:
     engines:
       node: '>=0.10.0'
