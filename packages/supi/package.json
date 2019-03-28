@@ -79,7 +79,7 @@
     "resolve-link-target": "1.0.1",
     "rimraf-then": "1.0.1",
     "run-groups": "2.0.0",
-    "semver": "5.6.0",
+    "semver": "6.0.0",
     "symlink-dir": "3.0.1",
     "util.promisify": "1.0.0",
     "validate-npm-package-name": "3.0.0",

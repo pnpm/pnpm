@@ -47,7 +47,7 @@
     "dependency-path": "3.0.0",
     "normalize-path": "3.0.0",
     "resolve-link-target": "1.0.1",
-    "semver": "5.6.0"
+    "semver": "6.0.0"
   },
   "devDependencies": {
     "@pnpm/constants": "1.0.0",
