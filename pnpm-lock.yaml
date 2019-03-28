@@ -1816,7 +1816,7 @@ importers:
       '@types/mz': 0.0.32
       '@types/node': 11.12.0
       '@types/nopt': 3.0.29
-      '@types/p-series': 1.0.1
+      '@types/p-series': 1.0.2
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
       '@types/semver': 5.5.0
@@ -1938,7 +1938,7 @@ importers:
       '@types/mz': 0.0.32
       '@types/node': '*'
       '@types/nopt': 3.0.29
-      '@types/p-series': 1.0.1
+      '@types/p-series': 1.0.2
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
       '@types/semver': 5.5.0
@@ -2595,6 +2595,12 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-YPqAUqoleOgbPhPK+hKIb7IHzKPCok2Kype/DBfJqenzvZjsR0V+uwZMS1FHcCKzSgn8g0J+y2q+g6yjJsAN0g==
+  /@sindresorhus/is/0.15.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-lu8BpxjAtRCAo5ifytTpCPCj99LF7o/2Myn+NXyNCBqvPYn7Pjd76AMmUB5l7XF1U6t0hcWrlEM5ESufW7wAeA==
   /@sinonjs/commons/1.4.0:
     dependencies:
       type-detect: 4.0.8
@@ -2736,10 +2742,13 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Lm/tV8QgjMtiooDoO9qNsPgWiZowtO4hZ18q9p0PQ/jSsQbwGASW1s1I/sx0yXClfY24d+ONlViFuq6kiCghqw==
-  /@types/p-series/1.0.1:
+  /@types/p-series/1.0.2:
+    dependencies:
+      p-series: 2.0.0
+    deprecated: 'This is a stub types definition. p-series provides its own type definitions, so you do not need this installed.'
     dev: false
     resolution:
-      integrity: sha512-dwv960sf5inFWiufjhDfK7ZG3nYyHXt58I+14bJJBKV5MPlZm6Tu1sQS63NWEtLpIw6+RhbNbXjNStdMXxR8Nw==
+      integrity: sha512-LR/y9zMx+zg/xQxqaImPGDd14ezXVBi27d9FxlMfiYNkFUFvrryuBEcsGgLS8SXCdrUkUTGzIeiA3FVeCib4Ew==
   /@types/path-exists/3.0.0:
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
@@ -7714,6 +7723,21 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-3cRXXn3/O0o3+eVmUroJPSj/esxoEFIm0ZOno/T+NzG/VZgPOqQ8WKmlNqubSEpZmCIngEy34unkHGg83ZIBmg==
+  /p-reduce/2.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-VcNNEqiYIkRCGeUHELY5dUrnQHCRwL6eIH/L9oSbl/PsvyHQXD1ws/MFwuEb+6dgH/URCfROVUqOYL37eHi2kQ==
+  /p-series/2.0.0:
+    dependencies:
+      '@sindresorhus/is': 0.15.0
+      p-reduce: 2.0.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-Wtk9lIcWrZXujgTFUtOo2Y913Y5zGAFPg8yngbA8Le8n5hsv0Qfuhg9DhtMi22vwBU6SmTqvHgTvW8rsl72ekA==
   /p-some/2.0.1:
     dependencies:
       aggregate-error: 1.0.0
