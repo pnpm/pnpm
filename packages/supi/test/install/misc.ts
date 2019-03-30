@@ -940,3 +940,50 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
     t.ok(hardlinkAlreadyExistsReported, 'hard link already exists reported')
   }
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1134
+test('reinstalls missing packages to node_modules', async (t) => {
+  const project = prepare(t)
+
+  const opts = await testDefaults()
+  await addDependenciesToPackage(['is-positive@1.0.0'], opts)
+
+  await rimraf('pnpm-lock.yaml')
+  await rimraf('node_modules/.localhost+4873/is-positive')
+
+  let err
+  try {
+    await import(path.resolve('node_modules/is-positive'))
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+
+  await install(opts)
+
+  t.ok(await import(path.resolve('node_modules/is-positive')))
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1134
+test('reinstalls missing packages to node_modules during headless install', async (t) => {
+  const project = prepare(t)
+
+  const opts = await testDefaults()
+  await addDependenciesToPackage(['is-positive@1.0.0'], opts)
+
+  await rimraf('node_modules/.localhost+4873/is-positive')
+
+  let err
+  try {
+    await import(path.resolve('node_modules/is-positive'))
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+
+  await install(opts)
+
+  t.ok(await import(path.resolve('node_modules/is-positive')))
+})

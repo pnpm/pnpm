@@ -50,6 +50,7 @@ import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-de
 import { PackageJson, Registries } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
+import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
@@ -429,69 +430,74 @@ async function lockfileToDepGraph (
   let directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
   if (lockfile.packages) {
     const pkgSnapshotByLocation = {}
-    for (const relDepPath of R.keys(lockfile.packages)) {
-      if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, lockfile.packages[relDepPath].dependencies) &&
-        R.equals(currentPackages[relDepPath].optionalDependencies, lockfile.packages[relDepPath].optionalDependencies)) {
-        continue
-      }
-      const depPath = dp.resolve(opts.registries, relDepPath)
-      const pkgSnapshot = lockfile.packages[relDepPath]
-      const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
-      // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
-      const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-      const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
-      progressLogger.debug({
-        packageId,
-        requester: opts.lockfileDirectory,
-        status: 'resolved',
-      })
-      let fetchResponse = opts.storeController.fetchPackage({
-        force: false,
-        pkgId: packageId,
-        prefix: opts.prefix,
-        resolution,
-      })
-      if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-      fetchResponse.fetchingFiles // tslint:disable-line
-        .then((fetchResult) => {
-          progressLogger.debug({
-            packageId,
-            requester: opts.lockfileDirectory,
-            status: fetchResult.fromStore
-              ? 'found_in_store' : 'fetched',
-          })
+    await Promise.all(
+      R.keys(lockfile.packages).map(async (relDepPath) => {
+        const depPath = dp.resolve(opts.registries, relDepPath)
+        const pkgSnapshot = lockfile.packages![relDepPath]
+        // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
+        const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
+        const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+        const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
+        const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
+          lockfileDirectory: opts.lockfileDirectory,
+          targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
         })
-      const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-        lockfileDirectory: opts.lockfileDirectory,
-        targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
-      })
 
-      const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
-      const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
-      const peripheralLocation = !independent
-        ? path.join(modules, pkgName)
-        : pkgLocation.directory
-      graph[peripheralLocation] = {
-        centralLocation: pkgLocation.directory,
-        children: {},
-        fetchingFiles: fetchResponse.fetchingFiles,
-        finishing: fetchResponse.finishing,
-        hasBin: pkgSnapshot.hasBin === true,
-        hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
-        independent,
-        isBuilt: pkgLocation.isBuilt,
-        modules,
-        name: pkgName,
-        optional: !!pkgSnapshot.optional,
-        optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
-        peripheralLocation,
-        pkgId: packageId,
-        prepare: pkgSnapshot.prepare === true,
-        relDepPath,
-        requiresBuild: pkgSnapshot.requiresBuild === true,
-      }
-      pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
-    }
+        const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
+        const peripheralLocation = !independent
+          ? path.join(modules, pkgName)
+          : pkgLocation.directory
+        if (
+          currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, lockfile.packages![relDepPath].dependencies) &&
+          R.equals(currentPackages[relDepPath].optionalDependencies, lockfile.packages![relDepPath].optionalDependencies) &&
+          await fs.exists(peripheralLocation)
+        ) {
+          return
+        }
+        const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
+        progressLogger.debug({
+          packageId,
+          requester: opts.lockfileDirectory,
+          status: 'resolved',
+        })
+        let fetchResponse = opts.storeController.fetchPackage({
+          force: false,
+          pkgId: packageId,
+          prefix: opts.prefix,
+          resolution,
+        })
+        if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+        fetchResponse.fetchingFiles // tslint:disable-line
+          .then((fetchResult) => {
+            progressLogger.debug({
+              packageId,
+              requester: opts.lockfileDirectory,
+              status: fetchResult.fromStore
+                ? 'found_in_store' : 'fetched',
+            })
+          })
+        graph[peripheralLocation] = {
+          centralLocation: pkgLocation.directory,
+          children: {},
+          fetchingFiles: fetchResponse.fetchingFiles,
+          finishing: fetchResponse.finishing,
+          hasBin: pkgSnapshot.hasBin === true,
+          hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
+          independent,
+          isBuilt: pkgLocation.isBuilt,
+          modules,
+          name: pkgName,
+          optional: !!pkgSnapshot.optional,
+          optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
+          peripheralLocation,
+          pkgId: packageId,
+          prepare: pkgSnapshot.prepare === true,
+          relDepPath,
+          requiresBuild: pkgSnapshot.requiresBuild === true,
+        }
+        pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
+      })
+    )
     const ctx = {
       force: opts.force,
       graph,

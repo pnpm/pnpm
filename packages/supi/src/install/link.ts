@@ -22,6 +22,8 @@ import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import fs = require('mz/fs')
+import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
@@ -378,14 +380,23 @@ async function linkNewPackages (
   },
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedLockfile.packages)
-  const prevRelDepPaths = R.keys(currentLockfile.packages)
+  const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
 
-  // TODO: what if the registries differ?
   const newDepPathsSet = new Set(
     (
       opts.force
         ? wantedRelDepPaths
-        : R.difference(wantedRelDepPaths, prevRelDepPaths)
+        : await pFilter(
+          wantedRelDepPaths,
+          async (wantedRelDepPath: string) => {
+            if (!prevRelDepPaths.has(wantedRelDepPath)) return true
+            const depPath = dp.resolve(opts.registries, wantedRelDepPath)
+            if (!depGraph[depPath]) return false
+            const depNode = depGraph[depPath]
+            if (depNode.independent) return true
+            return !await fs.exists(depNode.peripheralLocation)
+          }
+        ) as string[]
     )
     .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
     // when installing a new package, not all the nodes are analyzed
