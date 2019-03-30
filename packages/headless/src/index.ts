@@ -56,6 +56,8 @@ import path = require('path')
 import R = require('ramda')
 import runDependenciesScripts from './runDependenciesScripts'
 
+const brokenNodeModulesLogger = logger('_broken_node_modules')
+
 export type ReporterFunction = (logObj: LogBase) => void
 
 export interface HeadlessOptions {
@@ -449,10 +451,15 @@ async function lockfileToDepGraph (
           : pkgLocation.directory
         if (
           currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, lockfile.packages![relDepPath].dependencies) &&
-          R.equals(currentPackages[relDepPath].optionalDependencies, lockfile.packages![relDepPath].optionalDependencies) &&
-          await fs.exists(peripheralLocation)
+          R.equals(currentPackages[relDepPath].optionalDependencies, lockfile.packages![relDepPath].optionalDependencies)
         ) {
-          return
+          if (await fs.exists(peripheralLocation)) {
+            return
+          }
+
+          brokenNodeModulesLogger.debug({
+            missing: peripheralLocation,
+          })
         }
         const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
         progressLogger.debug({

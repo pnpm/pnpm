@@ -34,6 +34,8 @@ import resolvePeers, {
 } from './resolvePeers'
 import updateLockfile from './updateLockfile'
 
+const brokenNodeModulesLogger = logger('_broken_node_modules')
+
 export { DependenciesGraph }
 
 export interface Importer {
@@ -394,7 +396,13 @@ async function linkNewPackages (
             if (!depGraph[depPath]) return false
             const depNode = depGraph[depPath]
             if (depNode.independent) return true
-            return !await fs.exists(depNode.peripheralLocation)
+            if (await fs.exists(depNode.peripheralLocation)) {
+              return false
+            }
+            brokenNodeModulesLogger.debug({
+              missing: depNode.peripheralLocation,
+            })
+            return true
           }
         ) as string[]
     )
