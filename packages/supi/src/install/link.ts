@@ -22,6 +22,8 @@ import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import fs = require('mz/fs')
+import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
@@ -31,6 +33,8 @@ import resolvePeers, {
   DependenciesGraphNode,
 } from './resolvePeers'
 import updateLockfile from './updateLockfile'
+
+const brokenNodeModulesLogger = logger('_broken_node_modules')
 
 export { DependenciesGraph }
 
@@ -378,20 +382,20 @@ async function linkNewPackages (
   },
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedLockfile.packages)
-  const prevRelDepPaths = R.keys(currentLockfile.packages)
 
-  // TODO: what if the registries differ?
-  const newDepPathsSet = new Set(
-    (
-      opts.force
-        ? wantedRelDepPaths
-        : R.difference(wantedRelDepPaths, prevRelDepPaths)
+  let newDepPathsSet: Set<string>
+  if (opts.force) {
+    newDepPathsSet = new Set(
+      wantedRelDepPaths
+        .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
+        // when installing a new package, not all the nodes are analyzed
+        // just skip the ones that are in the lockfile but were not analyzed
+        .filter((depPath) => depGraph[depPath]),
     )
-    .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
-    // when installing a new package, not all the nodes are analyzed
-    // just skip the ones that are in the lockfile but were not analyzed
-    .filter((depPath) => depGraph[depPath]),
-  )
+  } else {
+    newDepPathsSet = await selectNewFromWantedDeps(wantedRelDepPaths, currentLockfile, depGraph, opts)
+  }
+
   statsLogger.debug({
     added: newDepPathsSet.size,
     prefix: opts.lockfileDirectory,
@@ -442,6 +446,37 @@ async function linkNewPackages (
   })
 
   return newDepPaths
+}
+
+async function selectNewFromWantedDeps (
+  wantedRelDepPaths: string[],
+  currentLockfile: Lockfile,
+  depGraph: DependenciesGraph,
+  opts: {
+    registries: Registries,
+  },
+) {
+  const newDeps = new Set()
+  const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
+  await Promise.all(
+    wantedRelDepPaths.map(
+      async (wantedRelDepPath: string) => {
+        const depPath = dp.resolve(opts.registries, wantedRelDepPath)
+        const depNode = depGraph[depPath]
+        if (!depNode) return
+        if (prevRelDepPaths.has(wantedRelDepPath) && !depNode.independent) {
+          if (await fs.exists(depNode.peripheralLocation)) {
+            return
+          }
+          brokenNodeModulesLogger.debug({
+            missing: depNode.peripheralLocation,
+          })
+        }
+        newDeps.add(depPath)
+      },
+    )
+  )
+  return newDeps
 }
 
 const limitLinking = pLimit(16)
