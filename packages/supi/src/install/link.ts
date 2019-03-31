@@ -383,37 +383,19 @@ async function linkNewPackages (
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedLockfile.packages)
 
-  const newDepPathsSet = await (async () => {
-    if (opts.force) {
-      return new Set(
-        wantedRelDepPaths
-          .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
-          // when installing a new package, not all the nodes are analyzed
-          // just skip the ones that are in the lockfile but were not analyzed
-          .filter((depPath) => depGraph[depPath]),
-      )
-    }
-    const s = new Set()
-    const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
-    await Promise.all(
-      wantedRelDepPaths.map(
-      async (wantedRelDepPath: string) => {
-        const depPath = dp.resolve(opts.registries, wantedRelDepPath)
-        const depNode = depGraph[depPath]
-        if (!depNode) return
-        if (prevRelDepPaths.has(wantedRelDepPath) && !depNode.independent) {
-          if (await fs.exists(depNode.peripheralLocation)) {
-            return
-          }
-          brokenNodeModulesLogger.debug({
-            missing: depNode.peripheralLocation,
-          })
-        }
-        s.add(depPath)
-      })
+  let newDepPathsSet: Set<string>
+  if (opts.force) {
+    newDepPathsSet = new Set(
+      wantedRelDepPaths
+        .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
+        // when installing a new package, not all the nodes are analyzed
+        // just skip the ones that are in the lockfile but were not analyzed
+        .filter((depPath) => depGraph[depPath]),
     )
-    return s
-  })()
+  } else {
+    newDepPathsSet = await selectNewFromWantedDeps(wantedRelDepPaths, currentLockfile, depGraph, opts)
+  }
+
   statsLogger.debug({
     added: newDepPathsSet.size,
     prefix: opts.lockfileDirectory,
@@ -464,6 +446,37 @@ async function linkNewPackages (
   })
 
   return newDepPaths
+}
+
+async function selectNewFromWantedDeps (
+  wantedRelDepPaths: string[],
+  currentLockfile: Lockfile,
+  depGraph: DependenciesGraph,
+  opts: {
+    registries: Registries,
+  },
+) {
+  const newDeps = new Set()
+  const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
+  await Promise.all(
+    wantedRelDepPaths.map(
+      async (wantedRelDepPath: string) => {
+        const depPath = dp.resolve(opts.registries, wantedRelDepPath)
+        const depNode = depGraph[depPath]
+        if (!depNode) return
+        if (prevRelDepPaths.has(wantedRelDepPath) && !depNode.independent) {
+          if (await fs.exists(depNode.peripheralLocation)) {
+            return
+          }
+          brokenNodeModulesLogger.debug({
+            missing: depNode.peripheralLocation,
+          })
+        }
+        newDeps.add(depPath)
+      },
+    )
+  )
+  return newDeps
 }
 
 const limitLinking = pLimit(16)
