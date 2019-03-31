@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prune-lockfile",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Prune a pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "@pnpm/lockfile-types": "1.0.0",
     "@pnpm/types": "3.0.0",
     "@types/ramda": "0.25.39",
-    "dependency-path": "3.0.0",
+    "dependency-path": "3.0.1",
     "ramda": "0.26.1"
   }
 }
