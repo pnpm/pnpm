@@ -53,7 +53,7 @@
     "@types/ramda": "0.25.34",
     "@types/rc": "1.1.0",
     "@types/semver": "5.5.0",
-    "@zkochan/npm-package-arg": "1.0.1",
+    "@zkochan/npm-package-arg": "1.0.2",
     "common-tags": "1.8.0",
     "dependency-path": "3.0.0",
     "encode-registry": "1.1.0",
@@ -83,7 +83,7 @@
     "symlink-dir": "3.0.1",
     "util.promisify": "1.0.0",
     "validate-npm-package-name": "3.0.0",
-    "version-selector-type": "2.0.0",
+    "version-selector-type": "2.0.1",
     "write-pkg": "3.2.0"
   },
   "devDependencies": {
