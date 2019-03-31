@@ -27,6 +27,7 @@
     "@pnpm/npm-registry-agent",
     "@pnpm/npm-resolver",
     "@pnpm/outdated",
+    "@pnpm/package-is-installable",
     "@pnpm/package-requester",
     "@pnpm/package-store",
     "@pnpm/prune-lockfile",
