@@ -382,35 +382,38 @@ async function linkNewPackages (
   },
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedLockfile.packages)
-  const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
 
-  const newDepPathsSet = new Set(
-    (
-      opts.force
-        ? wantedRelDepPaths
-        : await pFilter(
-          wantedRelDepPaths,
-          async (wantedRelDepPath: string) => {
-            if (!prevRelDepPaths.has(wantedRelDepPath)) return true
-            const depPath = dp.resolve(opts.registries, wantedRelDepPath)
-            if (!depGraph[depPath]) return false
-            const depNode = depGraph[depPath]
-            if (depNode.independent) return true
-            if (await fs.exists(depNode.peripheralLocation)) {
-              return false
-            }
-            brokenNodeModulesLogger.debug({
-              missing: depNode.peripheralLocation,
-            })
-            return true
+  const newDepPathsSet = await (async () => {
+    if (opts.force) {
+      return new Set(
+        wantedRelDepPaths
+          .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
+          // when installing a new package, not all the nodes are analyzed
+          // just skip the ones that are in the lockfile but were not analyzed
+          .filter((depPath) => depGraph[depPath]),
+      )
+    }
+    const s = new Set()
+    const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
+    await Promise.all(
+      wantedRelDepPaths.map(
+      async (wantedRelDepPath: string) => {
+        const depPath = dp.resolve(opts.registries, wantedRelDepPath)
+        const depNode = depGraph[depPath]
+        if (!depNode) return
+        if (prevRelDepPaths.has(wantedRelDepPath) && !depNode.independent) {
+          if (await fs.exists(depNode.peripheralLocation)) {
+            return
           }
-        ) as string[]
+          brokenNodeModulesLogger.debug({
+            missing: depNode.peripheralLocation,
+          })
+        }
+        s.add(depPath)
+      })
     )
-    .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
-    // when installing a new package, not all the nodes are analyzed
-    // just skip the ones that are in the lockfile but were not analyzed
-    .filter((depPath) => depGraph[depPath]),
-  )
+    return s
+  })()
   statsLogger.debug({
     added: newDepPathsSet.size,
     prefix: opts.lockfileDirectory,
