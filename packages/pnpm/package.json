@@ -64,7 +64,7 @@
     "load-json-file": "5.2.0",
     "loud-rejection": "2.0.0",
     "lru-cache": "5.1.1",
-    "mem": "4.2.0",
+    "mem": "4.3.0",
     "minimatch": "3.0.4",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",

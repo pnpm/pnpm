@@ -41,7 +41,7 @@
     "credentials-by-uri": "1.0.0",
     "fetch-from-npm-registry": "2.0.1",
     "graceful-fs": "4.1.15",
-    "mem": "4.2.0",
+    "mem": "4.3.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "path-temp": "1.0.0",
