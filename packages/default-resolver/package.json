@@ -45,7 +45,7 @@
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "ts-node": "8.0.3",
-    "tslint": "5.14.0",
+    "tslint": "5.15.0",
     "typescript": "3.4.1"
   },
   "mos": {
