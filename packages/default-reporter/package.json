@@ -40,7 +40,7 @@
     "@types/common-tags": "1.8.0",
     "@types/node": "*",
     "@types/ramda": "0.25.34",
-    "@types/semver": "5.5.0",
+    "@types/semver": "6.0.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
     "chalk": "2.4.2",
@@ -54,7 +54,7 @@
     "right-pad": "1.0.1",
     "semver": "6.0.0",
     "stacktracey": "1.2.110",
-    "string-length": "3.0.0",
+    "string-length": "3.1.0",
     "strip-ansi": "5.2.0"
   },
   "devDependencies": {

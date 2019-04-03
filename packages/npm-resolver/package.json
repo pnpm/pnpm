@@ -37,7 +37,7 @@
     "@pnpm/types": "3.0.0",
     "@types/load-json-file": "^2.0.7",
     "@types/node": "*",
-    "@types/semver": "^5.4.0",
+    "@types/semver": "6.0.0",
     "credentials-by-uri": "1.0.0",
     "encode-registry": "1.1.0",
     "fetch-from-npm-registry": "2.0.1",

@@ -5,7 +5,7 @@ importers:
       '@types/node': 11.13.0
       '@types/which': 1.3.1
       '@zkochan/npm-conf': 1.2.4
-      camelcase: 5.2.0
+      camelcase: 5.3.1
       find-up: 3.0.0
       which: 1.3.1
     devDependencies:
@@ -33,7 +33,7 @@ importers:
       '@types/tempy': 0.2.0
       '@types/which': 1.3.1
       '@zkochan/npm-conf': 1.2.4
-      camelcase: 5.2.0
+      camelcase: 5.3.1
       find-up: 3.0.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
@@ -119,7 +119,7 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/node': 11.13.0
       '@types/ramda': 0.25.34
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
       chalk: 2.4.2
@@ -133,7 +133,7 @@ importers:
       right-pad: 1.0.1
       semver: 6.0.0
       stacktracey: 1.2.110
-      string-length: 3.0.0
+      string-length: 3.1.0
       strip-ansi: 5.2.0
     devDependencies:
       '@pnpm/default-reporter': 'link:'
@@ -160,7 +160,7 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/node': '*'
       '@types/ramda': 0.25.34
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/tape': 4.2.33
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
@@ -181,7 +181,7 @@ importers:
       rimraf: 2.6.3
       semver: 6.0.0
       stacktracey: 1.2.110
-      string-length: 3.0.0
+      string-length: 3.1.0
       strip-ansi: 5.2.0
       tape: 4.10.1
       ts-node: 8.0.3
@@ -229,7 +229,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 11.13.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       dependency-path: 'link:../dependency-path'
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
@@ -257,7 +257,7 @@ importers:
       '@pnpm/types': 3.0.0
       '@pnpm/utils': 0.10.1
       '@types/node': '*'
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/tape': 4.2.33
       dependencies-hierarchy: 'link:'
       dependency-path: 3.0.1
@@ -274,7 +274,7 @@ importers:
   packages/dependency-path:
     dependencies:
       '@pnpm/types': 'link:../types'
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       encode-registry: 1.1.0
       semver: 6.0.0
     devDependencies:
@@ -289,7 +289,7 @@ importers:
     specifiers:
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/tape': ^4.2.30
       encode-registry: 1.1.0
       mos: ^2.0.0-alpha.3
@@ -456,7 +456,7 @@ importers:
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@types/node': 11.13.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       graceful-git: 2.0.0
       hosted-git-info: 2.7.1
       semver: 6.0.0
@@ -480,7 +480,7 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@types/is-windows': 0.2.0
       '@types/node': '*'
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/tape': ^4.2.31
       graceful-git: 2.0.0
       hosted-git-info: 2.7.1
@@ -982,7 +982,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/load-json-file': 2.0.7
       '@types/node': 11.13.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
@@ -1023,7 +1023,7 @@ importers:
       '@types/nock': ^9.1.1
       '@types/node': '*'
       '@types/path-exists': ^3.0.0
-      '@types/semver': ^5.4.0
+      '@types/semver': 6.0.0
       '@types/tape': ^4.2.31
       '@types/tempy': ^0.2.0
       credentials-by-uri: 1.0.0
@@ -1099,7 +1099,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/types': 'link:../types'
       '@types/node': 11.13.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       semver: 6.0.0
     devDependencies:
       '@pnpm/logger': 2.1.0
@@ -1118,7 +1118,7 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
       '@types/node': '*'
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/tape': 4.2.33
       rimraf: 2.6.3
       semver: 6.0.0
@@ -1328,7 +1328,7 @@ importers:
       '@types/p-any': 1.1.2
       '@zkochan/libnpx': 10.0.0
       archy: 1.0.0
-      camelcase: 5.2.0
+      camelcase: 5.3.1
       camelcase-keys: 5.0.0
       chalk: 2.4.2
       common-tags: 1.8.0
@@ -1384,7 +1384,7 @@ importers:
       '@types/nopt': 3.0.29
       '@types/ramda': 0.25.34
       '@types/retry': 0.12.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/tape': 4.2.33
       '@types/update-notifier': 2.5.0
       anonymous-npm-registry-client: 0.1.2
@@ -1452,14 +1452,14 @@ importers:
       '@types/p-any': 1.1.2
       '@types/ramda': 0.25.34
       '@types/retry': 0.12.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/tape': 4.2.33
       '@types/update-notifier': 2.5.0
       '@zkochan/libnpx': 10.0.0
       anonymous-npm-registry-client: 0.1.2
       archy: 1.0.0
       byline: 5.0.0
-      camelcase: 5.2.0
+      camelcase: 5.3.1
       camelcase-keys: 5.0.0
       caw: 2.0.1
       chalk: 2.4.2
@@ -1615,7 +1615,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       '@types/node': 11.13.0
       '@types/ramda': 0.25.38
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       dependency-path: 'link:../dependency-path'
       path-exists: 3.0.0
       ramda: 0.26.1
@@ -1644,7 +1644,7 @@ importers:
       '@pnpm/utils': 0.10.1
       '@types/node': '*'
       '@types/ramda': 0.25.38
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       dependency-path: 3.0.1
       path-exists: 3.0.0
       ramda: 0.26.1
@@ -1819,7 +1819,7 @@ importers:
       '@types/p-series': 1.0.2
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@zkochan/npm-package-arg': 1.0.2
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
@@ -1941,7 +1941,7 @@ importers:
       '@types/p-series': 1.0.2
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
-      '@types/semver': 5.5.0
+      '@types/semver': 6.0.0
       '@types/sinon': ^7.0.10
       '@types/tape': 4.2.33
       '@zkochan/npm-package-arg': 1.0.2
@@ -2785,8 +2785,12 @@ packages:
     resolution:
       integrity: sha512-Hm/bnWq0TCy7jmjeN5bKYij9vw5GrDFWME4IuxV08278NtU/VdGbzsBohcCUJ7+QMqmUq5hpRKB39HeQWJjztQ==
   /@types/semver/5.5.0:
+    dev: false
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
+  /@types/semver/6.0.0:
+    resolution:
+      integrity: sha512-OO0srjOGH99a4LUN2its3+r6CBYcplhJ466yLqs+zvAWgphCpS8hYZEZ797tRDP/QKcqTdb/YCN6ifASoAWkrQ==
   /@types/sinon/7.0.11:
     dev: true
     resolution:
@@ -3779,7 +3783,7 @@ packages:
       integrity: sha1-oqpfsa9oh1glnDLBQUJteJI7m3c=
   /camelcase-keys/5.0.0:
     dependencies:
-      camelcase: 5.2.0
+      camelcase: 5.3.1
       map-obj: 3.0.0
       quick-lru: 1.1.0
     dev: false
@@ -3798,12 +3802,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-1UVjW+HjPFQmScaRc+Xeas+uNN0=
-  /camelcase/5.2.0:
+  /camelcase/5.3.1:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-IXFsBS2pC+X0j0N/GE7Dm7j3bsEBp+oTpb7F50dwEVX7rf3IgwO9XatnegTsDtniKCUtEJH4fSU6Asw7uoVLfQ==
+      integrity: sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg==
   /can-link/1.0.2:
     dependencies:
       graceful-fs: 4.1.15
@@ -9168,7 +9172,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-1cdSgl5TZ+eG944Y5EXqIjoVWVI=
-  /string-length/3.0.0:
+  /string-length/3.1.0:
     dependencies:
       astral-regex: 1.0.0
       strip-ansi: 5.2.0
@@ -9176,7 +9180,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-VeZa3u8MpEpDi7NMsZfp6ggk2x6ncBdE+sObPEVlczaUciCc+3ktm46P3HU2KdXArigN4XeEFNaj1Sg9TYAznw==
+      integrity: sha512-Ttp5YvkGm5v9Ijagtaz1BnN+k9ObpvS0eIBblPMp2YWL8FBmi9qblQ9fexc2k/CXFgrTIteU3jAw3payCnwSTA==
   /string-to-stream/1.1.1:
     dependencies:
       inherits: 2.0.3
@@ -10275,7 +10279,7 @@ packages:
       integrity: sha512-VCIyR1wJoEBZUqk5PA+oOBF6ypbwh5aNB3I50guxAL/quggdfs4TtNHQrSazFA3fYZ+tEqfs0zIGlv0c/rgjbQ==
   /yargs-parser/11.1.1:
     dependencies:
-      camelcase: 5.2.0
+      camelcase: 5.3.1
       decamelize: 1.2.0
     dev: false
     resolution:

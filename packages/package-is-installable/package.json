@@ -33,7 +33,7 @@
     "@pnpm/core-loggers": "3.0.0",
     "@pnpm/types": "3.0.0",
     "@types/node": "*",
-    "@types/semver": "5.5.0",
+    "@types/semver": "6.0.0",
     "semver": "6.0.0"
   },
   "devDependencies": {

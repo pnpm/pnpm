@@ -43,7 +43,7 @@
     "@pnpm/types": "3.0.0",
     "@pnpm/utils": "0.10.1",
     "@types/node": "*",
-    "@types/semver": "5.5.0",
+    "@types/semver": "6.0.0",
     "dependency-path": "3.0.1",
     "normalize-path": "3.0.0",
     "resolve-link-target": "1.0.1",
