@@ -36,7 +36,7 @@
     "ncp": "2.0.0",
     "p-filter": "2.0.0",
     "p-limit": "2.2.0",
-    "path-exists": "3.0.0",
+    "path-exists": "4.0.0",
     "path-temp": "1.0.0",
     "ramda": "0.26.1",
     "rename-overwrite": "1.0.3",

@@ -516,7 +516,7 @@ importers:
       dependency-path: 'link:../dependency-path'
       graph-sequencer: 2.0.0
       p-limit: 2.2.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       ramda: 0.26.1
       run-groups: 2.0.0
     devDependencies:
@@ -596,7 +596,7 @@ importers:
       mz: 2.7.0
       npm-run-all: 4.1.5
       p-limit: 2.2.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       pnpm-registry-mock: 2.9.0
       ramda: 0.26.1
       rimraf: 2.6.3
@@ -615,7 +615,7 @@ importers:
       '@pnpm/read-package-json': 2.0.0
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-lifecycle': 2.2.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       run-groups: 2.0.0
     devDependencies:
       '@pnpm/lifecycle': 'link:'
@@ -650,7 +650,7 @@ importers:
       load-json-file: 5.2.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       rimraf: 2.6.3
       run-groups: 2.0.0
       tape: 4.10.1
@@ -1006,7 +1006,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       nock: 10.0.6
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       rimraf: 2.6.3
       tape: 4.10.1
       tempy: 0.2.1
@@ -1037,7 +1037,7 @@ importers:
       normalize-path: 3.0.0
       p-limit: 2.2.0
       parse-npm-tarball-url: 2.0.0
-      path-exists: ^3.0.0
+      path-exists: 4.0.0
       rimraf: ^2.6.2
       semver: 6.0.0
       ssri: 6.0.1
@@ -1143,7 +1143,7 @@ importers:
       mz: 2.7.0
       p-limit: 2.2.0
       p-queue: 4.0.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       read-package-json: 2.0.13
       rename-overwrite: 1.0.3
       rimraf-then: 1.0.1
@@ -1208,7 +1208,7 @@ importers:
       normalize-path: 3.0.0
       p-limit: 2.2.0
       p-queue: 4.0.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       read-package-json: 2.0.13
       rename-overwrite: 1.0.3
       rimraf: 2.6.3
@@ -1241,7 +1241,7 @@ importers:
       ncp: 2.0.0
       p-filter: 2.0.0
       p-limit: 2.2.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       path-temp: 1.0.0
       ramda: 0.26.1
       rename-overwrite: 1.0.3
@@ -1289,7 +1289,7 @@ importers:
       npm-scripts-info: 0.3.9
       p-filter: 2.0.0
       p-limit: 2.2.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       path-temp: 1.0.0
       ramda: 0.26.1
       rename-overwrite: 1.0.3
@@ -1398,7 +1398,7 @@ importers:
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
       p-any: 1.1.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       pnpm: 'link:'
       pnpm-registry-mock: 2.9.0
       retry: 0.12.0
@@ -1495,7 +1495,7 @@ importers:
       p-filter: 2.0.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       path-name: 1.0.0
       pkgs-graph: 3.0.0
       pnpm: 'link:'
@@ -1617,7 +1617,7 @@ importers:
       '@types/ramda': 0.25.38
       '@types/semver': 6.0.0
       dependency-path: 'link:../dependency-path'
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       ramda: 0.26.1
       replace-string: 2.0.0
       semver: 6.0.0
@@ -1646,7 +1646,7 @@ importers:
       '@types/ramda': 0.25.38
       '@types/semver': 6.0.0
       dependency-path: 3.0.1
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       ramda: 0.26.1
       replace-string: 2.0.0
       rimraf: 2.6.3
@@ -1879,7 +1879,7 @@ importers:
       ncp: 2.0.0
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       path-name: 1.0.0
       pnpm-registry-mock: 2.9.0
       read-pkg: 4.0.1
@@ -1976,7 +1976,7 @@ importers:
       p-filter: 2.0.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       path-name: 1.0.0
       pnpm-registry-mock: 2.9.0
       ramda: 0.26.1
@@ -2178,7 +2178,7 @@ importers:
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       read-yaml-file: 1.1.0
       tape: 4.10.1
       util.promisify: 1.0.0
@@ -2202,7 +2202,7 @@ importers:
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
       tape: 4.10.1
@@ -2217,7 +2217,7 @@ importers:
       '@types/node': 11.13.0
       '@types/path-exists': 3.0.0
       '@types/tape': 4.2.33
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       tape: 4.10.1
     devDependencies:
       rimraf: 2.6.3
@@ -2229,7 +2229,7 @@ importers:
       '@types/node': '*'
       '@types/path-exists': 3.0.0
       '@types/tape': 4.2.33
-      path-exists: 3.0.0
+      path-exists: 4.0.0
       rimraf: 2.6.3
       tape: 4.10.1
       ts-node: 8.0.3
@@ -7881,6 +7881,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-zg6+ql94yxiSXqfYENe1mwEP1RU=
+  /path-exists/4.0.0:
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==
   /path-is-absolute/1.0.1:
     engines:
       node: '>=0.10.0'

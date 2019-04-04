@@ -104,7 +104,7 @@
     "dependency-path": "3.0.1",
     "graph-sequencer": "2.0.0",
     "p-limit": "2.2.0",
-    "path-exists": "3.0.0",
+    "path-exists": "4.0.0",
     "ramda": "0.26.1",
     "run-groups": "2.0.0"
   }

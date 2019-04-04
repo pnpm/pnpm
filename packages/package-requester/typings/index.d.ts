@@ -18,11 +18,6 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'path-exists' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'rename-overwrite' {
   const anything: any;
   export = anything;

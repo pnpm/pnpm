@@ -3,11 +3,6 @@ declare module '@zkochan/npm-lifecycle' {
   export = anything;
 }
 
-declare module 'path-exists' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'read-package-json' {
   const anything: any;
   export = anything;

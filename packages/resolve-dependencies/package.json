@@ -43,7 +43,7 @@
     "@types/ramda": "0.25.38",
     "@types/semver": "6.0.0",
     "dependency-path": "3.0.1",
-    "path-exists": "3.0.0",
+    "path-exists": "4.0.0",
     "ramda": "0.26.1",
     "replace-string": "2.0.0",
     "semver": "6.0.0",

@@ -98,11 +98,6 @@ declare module 'find-up' {
   export = anything;
 }
 
-declare module 'path-exists' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'exists-link' {
   const anything: any;
   export = anything;
