@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { preparePackages } from '@pnpm/prepare'
+import path = require('path')
 import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -40,7 +41,7 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
   await execPnpm('recursive', 'unlink')
 
   process.chdir('project-1')
-  t.ok(await exists('node_modules', 'is-positive', 'index.js'), 'local package is unlinked')
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'index.js')), 'local package is unlinked')
 
   {
     const project1Lockfile = await projects['project-1'].loadLockfile()
@@ -86,7 +87,7 @@ test('recursive unlink specific package', async (t: tape.Test) => {
   await execPnpm('recursive', 'unlink', 'is-positive')
 
   process.chdir('project-1')
-  t.ok(await exists('node_modules', 'is-positive', 'index.js'), 'local package is unlinked')
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'index.js')), 'local package is unlinked')
 
   {
     const project1Lockfile = await projects['project-1'].loadLockfile()
