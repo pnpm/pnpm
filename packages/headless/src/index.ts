@@ -1,3 +1,4 @@
+import runDependenciesScripts from '@pnpm/build-modules'
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
@@ -54,7 +55,6 @@ import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
-import runDependenciesScripts from './runDependenciesScripts'
 
 const brokenNodeModulesLogger = logger('_broken_node_modules')
 
@@ -496,8 +496,8 @@ async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
+          packageId,
           peripheralLocation,
-          pkgId: packageId,
           prepare: pkgSnapshot.prepare === true,
           relDepPath,
           requiresBuild: pkgSnapshot.requiresBuild === true,
@@ -597,7 +597,7 @@ export interface DependenciesGraphNode {
   optionalDependencies: Set<string>,
   optional: boolean,
   relDepPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
-  pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
+  packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt: boolean,
   requiresBuild: boolean,
   prepare: boolean,

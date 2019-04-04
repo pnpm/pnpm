@@ -83,6 +83,7 @@
     "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
+    "@pnpm/build-modules": "0.0.0",
     "@pnpm/constants": "1.0.0",
     "@pnpm/core-loggers": "3.0.0",
     "@pnpm/filter-lockfile": "1.0.1",

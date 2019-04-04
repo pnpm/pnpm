@@ -1,3 +1,4 @@
+import buildModules from '@pnpm/build-modules'
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
@@ -847,78 +848,21 @@ async function installInContext (
     ])
 
     // postinstall hooks
-    if (!(opts.ignoreScripts || !result.newDepPaths || !result.newDepPaths.length)) {
+    if (!opts.ignoreScripts && result.newDepPaths && result.newDepPaths.length) {
       const depPaths = Object.keys(result.depGraph)
       const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
-      const nodesToBuild = new Set<string>()
-      getSubgraphToBuild(result.depGraph, rootNodes, nodesToBuild, new Set<string>())
-      const onlyFromBuildGraph = R.filter((depPath: string) => nodesToBuild.has(depPath))
 
-      const nodesToBuildArray = Array.from(nodesToBuild)
-      const graph = new Map(
-        nodesToBuildArray
-          .map((depPath) => [depPath, onlyFromBuildGraph(R.values(result.depGraph[depPath].children))]) as Array<[string, string[]]>,
-      )
-      const graphSequencerResult = graphSequencer({
-        graph,
-        groups: [nodesToBuildArray],
+      await buildModules(result.depGraph, rootNodes, {
+        childConcurrency: opts.childConcurrency,
+        depsToBuild: new Set(result.newDepPaths),
+        prefix: ctx.lockfileDirectory,
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: ctx.virtualStoreDir,
+        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+        storeController: opts.storeController,
+        unsafePerm: opts.unsafePerm,
+        userAgent: opts.userAgent,
       })
-      const chunks = graphSequencerResult.chunks as string[][]
-      const groups = chunks.map((chunk) => chunk
-        .filter((depPath) => result.depGraph[depPath].requiresBuild && !result.depGraph[depPath].isBuilt && result.newDepPaths.indexOf(depPath) !== -1)
-        .map((depPath) => result.depGraph[depPath])
-        .map((pkg) => async () => {
-          try {
-            const hasSideEffects = await runPostinstallHooks({
-              depPath: pkg.absolutePath,
-              optional: pkg.optional,
-              pkgRoot: pkg.peripheralLocation,
-              prepare: pkg.prepare,
-              rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: ctx.virtualStoreDir,
-              unsafePerm: opts.unsafePerm || false,
-            })
-            if (hasSideEffects && opts.sideEffectsCacheWrite) {
-              try {
-                await opts.storeController.upload(pkg.peripheralLocation, {
-                  engine: ENGINE_NAME,
-                  packageId: pkg.id,
-                })
-              } catch (err) {
-                if (err && err.statusCode === 403) {
-                  logger.warn({
-                    message: `The store server disabled upload requests, could not upload ${pkg.id}`,
-                    prefix: ctx.lockfileDirectory,
-                  })
-                } else {
-                  logger.warn({
-                    error: err,
-                    message: `An error occurred while uploading ${pkg.id}`,
-                    prefix: ctx.lockfileDirectory,
-                  })
-                }
-              }
-            }
-          } catch (err) {
-            if (resolvedPackagesByPackageId[pkg.id].optional) {
-              // TODO: add parents field to the log
-              skippedOptionalDependencyLogger.debug({
-                details: err.toString(),
-                package: {
-                  id: pkg.id,
-                  name: pkg.name,
-                  version: pkg.version,
-                },
-                prefix: opts.lockfileDirectory,
-                reason: 'build_failure',
-              })
-              return
-            }
-            throw err
-          }
-        }),
-      )
-      await runGroups(opts.childConcurrency, groups)
     }
   }
 

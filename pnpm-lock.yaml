@@ -1,4 +1,44 @@
 importers:
+  packages/build-modules:
+    dependencies:
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/read-package-json': 2.0.1
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@types/node': 11.13.0
+      '@types/ramda': 0.26.6
+      graph-sequencer: 2.0.0
+      run-groups: 2.0.0
+    devDependencies:
+      '@pnpm/build-modules': 'link:'
+      '@pnpm/logger': 2.1.0
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.3
+      ts-node: 8.0.3_typescript@3.4.1
+      tslint: 5.15.0_typescript@3.4.1
+      typescript: 3.4.1
+    specifiers:
+      '@pnpm/build-modules': 'link:'
+      '@pnpm/constants': 1.0.0
+      '@pnpm/core-loggers': 3.0.0
+      '@pnpm/lifecycle': 5.0.0
+      '@pnpm/logger': 2.1.0
+      '@pnpm/read-package-json': 2.0.1
+      '@pnpm/store-controller-types': 3.0.0
+      '@pnpm/tslint-config': 0.0.0
+      '@types/node': '*'
+      '@types/ramda': 0.26.6
+      graph-sequencer: 2.0.0
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.3
+      run-groups: 2.0.0
+      ts-node: 8.0.3
+      tslint: 5.15.0
+      typescript: 3.4.1
   packages/config:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -495,6 +535,7 @@ importers:
       typescript: 3.4.1
   packages/headless:
     dependencies:
+      '@pnpm/build-modules': 'link:../build-modules'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
@@ -554,6 +595,7 @@ importers:
       typescript: 3.4.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
+      '@pnpm/build-modules': 0.0.0
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
       '@pnpm/default-fetcher': 'file:../default-fetcher'
@@ -1776,6 +1818,7 @@ importers:
       typescript: 3.4.1
   packages/supi:
     dependencies:
+      '@pnpm/build-modules': 'link:../build-modules'
       '@pnpm/check-package': 3.0.0
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1887,6 +1930,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
+      '@pnpm/build-modules': 0.0.0
       '@pnpm/check-package': 3.0.0
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0

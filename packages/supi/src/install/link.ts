@@ -134,7 +134,7 @@ export default async function linkPackages (
       opts.skipped.delete(relDepPath)
       return true
     }
-    if (opts.wantedToBeSkippedPackageIds.has(depNode.id)) {
+    if (opts.wantedToBeSkippedPackageIds.has(depNode.packageId)) {
       opts.skipped.add(relDepPath)
       return false
     }
@@ -225,8 +225,8 @@ export default async function linkPackages (
           rootLogger.debug({
             added: {
               dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-              id: depGraphNode.id,
-              latest: opts.outdatedDependencies[depGraphNode.id],
+              id: depGraphNode.packageId,
+              latest: opts.outdatedDependencies[depGraphNode.packageId],
               name: rootAlias,
               realName: depGraphNode.name,
               version: depGraphNode.version,

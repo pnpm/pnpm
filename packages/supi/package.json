@@ -19,6 +19,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
+    "@pnpm/build-modules": "0.0.0",
     "@pnpm/check-package": "3.0.0",
     "@pnpm/constants": "1.0.0",
     "@pnpm/core-loggers": "3.0.0",
