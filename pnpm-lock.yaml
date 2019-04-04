@@ -1239,7 +1239,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       ncp: 2.0.0
-      p-filter: 2.0.0
+      p-filter: 2.1.0
       p-limit: 2.2.0
       path-exists: 4.0.0
       path-temp: 1.0.0
@@ -1287,7 +1287,7 @@ importers:
       mz: 2.7.0
       ncp: 2.0.0
       npm-scripts-info: 0.3.9
-      p-filter: 2.0.0
+      p-filter: 2.1.0
       p-limit: 2.2.0
       path-exists: 4.0.0
       path-temp: 1.0.0
@@ -1352,7 +1352,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       nopt: 4.0.1
-      p-filter: 2.0.0
+      p-filter: 2.1.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       path-name: 1.0.0
@@ -1492,7 +1492,7 @@ importers:
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
       p-any: 1.1.0
-      p-filter: 2.0.0
+      p-filter: 2.1.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       path-exists: 4.0.0
@@ -1837,7 +1837,7 @@ importers:
       mz: 2.7.0
       normalize-path: 3.0.0
       p-every: 2.0.0
-      p-filter: 2.0.0
+      p-filter: 2.1.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       ramda: 0.26.1
@@ -1973,7 +1973,7 @@ importers:
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
       p-every: 2.0.0
-      p-filter: 2.0.0
+      p-filter: 2.1.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
       path-exists: 4.0.0
@@ -7670,6 +7670,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-y0j4GHE3Vsj0GsmPCsaR6gvCDb5kJSIs87fL+Buhka/d/zk+VOmHNGADkE/QEIMH5Na4/sm7LrwXfT2fq8ZXGA==
+  /p-filter/2.1.0:
+    dependencies:
+      p-map: 2.0.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-ZBxxZ5sL2HghephhpGAQdoskxplTwr7ICaehZwLIlfL6acuVgZPm8yBNuRAFBGEqtD/hmUeq9eqLg2ys9Xr/yw==
   /p-finally/1.0.0:
     engines:
       node: '>=4'

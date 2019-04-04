@@ -34,7 +34,7 @@
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "ncp": "2.0.0",
-    "p-filter": "2.0.0",
+    "p-filter": "2.1.0",
     "p-limit": "2.2.0",
     "path-exists": "4.0.0",
     "path-temp": "1.0.0",
