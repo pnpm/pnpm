@@ -2,7 +2,7 @@ import { storeLogger } from '@pnpm/logger'
 import { createServer } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import Diable = require('diable')
-import getPort from 'get-port'
+import getPort = require('get-port')
 import isWindows = require('is-windows')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')

@@ -55,7 +55,7 @@
     "dir-is-case-sensitive": "1.0.0",
     "execa": "1.0.0",
     "find-packages": "4.0.1",
-    "get-port": "4.2.0",
+    "get-port": "5.0.0",
     "graceful-fs": "4.1.15",
     "graph-sequencer": "2.0.0",
     "is-ci": "2.0.0",
