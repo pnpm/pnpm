@@ -1141,9 +1141,9 @@ importers:
       p-queue: 4.0.0
       path-exists: 4.0.0
       read-package-json: 2.0.13
-      rename-overwrite: 1.0.3
+      rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
       write-json-file: 3.1.0
     devDependencies:
       '@pnpm/local-resolver': 'link:../local-resolver'
@@ -1205,11 +1205,11 @@ importers:
       p-queue: 4.0.0
       path-exists: 4.0.0
       read-package-json: 2.0.13
-      rename-overwrite: 1.0.3
+      rename-overwrite: 2.0.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.3.1
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
       tape: 4.10.1
       tempy: 0.2.1
       ts-node: 8.0.3
@@ -1238,7 +1238,7 @@ importers:
       path-exists: 4.0.0
       path-temp: 1.0.0
       ramda: 0.26.1
-      rename-overwrite: 1.0.3
+      rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
       write-json-file: 3.1.0
     devDependencies:
@@ -1285,7 +1285,7 @@ importers:
       path-exists: 4.0.0
       path-temp: 1.0.0
       ramda: 0.26.1
-      rename-overwrite: 1.0.3
+      rename-overwrite: 2.0.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       tape: 4.10.1
@@ -1397,7 +1397,7 @@ importers:
       rimraf-then: 1.0.1
       semver: 6.0.0
       sepia: 2.0.2
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 8.0.3_typescript@3.4.1
@@ -1504,7 +1504,7 @@ importers:
       signal-exit: 3.0.2
       strip-color: 0.1.0
       supi: 0.31.1
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
       tape: 4.10.1
       tape-promise: 4.0.0
       text-table: 0.2.0
@@ -1837,7 +1837,7 @@ importers:
       rimraf-then: 1.0.1
       run-groups: 2.0.0
       semver: 6.0.0
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
       write-pkg: 3.2.0
@@ -1981,7 +1981,7 @@ importers:
       sepia: 2.0.2
       sinon: 7.3.1
       supi: 'link:'
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 8.0.3
@@ -2000,7 +2000,7 @@ importers:
       '@types/node': 11.13.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -2018,7 +2018,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       rimraf: 2.6.3
-      symlink-dir: 3.0.1
+      symlink-dir: 3.0.2
       ts-node: 8.0.3
       tslint: 5.15.0
       typescript: 3.4.1
@@ -7193,6 +7193,7 @@ packages:
     dependencies:
       '@most/multicast': 1.3.0_most@1.7.3
       '@most/prelude': 1.7.2
+      most: 1.7.3_most@1.7.3
       symbol-observable: 1.2.0
     dev: false
     peerDependencies:
@@ -7538,14 +7539,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-95xEk68MU3e1n+OdOV5BBC3QRbs=
-  /object.getownpropertydescriptors/2.0.3:
-    dependencies:
-      define-properties: 1.1.3
-      es-abstract: 1.13.0
-    engines:
-      node: '>= 0.8'
-    resolution:
-      integrity: sha1-h1jIRvW0B62rDyNuCYbxSwUcqhY=
   /object.pick/1.3.0:
     dependencies:
       isobject: 3.0.1
@@ -8476,15 +8469,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-wkvOKig62tW8P1jg1IJJuSN52O8=
-  /rename-overwrite/1.0.3:
+  /rename-overwrite/2.0.1:
     dependencies:
       graceful-fs: 4.1.15
       rimraf: 2.6.3
-      util.promisify: 1.0.0
     engines:
-      node: '>=4'
+      node: '>=8'
     resolution:
-      integrity: sha512-hehcDzwprE09J1NkKbL8IEqKDB1g8yF0xKZcBN7uzGQKYfiHgY7pmQ66H7BzDeMcvfHDixPxDr4cDIAnVWYIeA==
+      integrity: sha512-9PDT/PjrQqI9IMbeEOuTINr4hASyGAh0gy4k1Q6xDh+POdtOAPyiEx5mO62ofY9AAJ01Vh3cZovkv3uH4RItBw==
   /repeat-element/1.1.3:
     dev: false
     engines:
@@ -9355,7 +9347,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-e900nM8RRtGhlV36KGEU9k65K3mPb1WV70OdjfxlG2EAuM1noi/E/BaW/uMhL7bPEssK8QV57vN3esixjUvcXQ==
-  /symlink-dir/3.0.1:
+  /symlink-dir/3.0.2:
     dependencies:
       '@types/mz': 0.0.32
       '@types/node': 11.13.0
@@ -9364,12 +9356,12 @@ packages:
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      rename-overwrite: 1.0.3
+      rename-overwrite: 2.0.1
     engines:
       node: '>=8'
     hasBin: true
     resolution:
-      integrity: sha512-k6rEJ0dfpRFPtgrQsqzpjN/3gTo0ORKQzZ3lqTQo1ZJVekNK2Aj3MkH0OtjIKqZxC6lft4/XyLSqeS1s8UK1UQ==
+      integrity: sha512-FjZGwbQYV73MjfuRWNjqkH2tTt79mFlvZYogJY4LCfDOm7PYgN/ODHAkh8GPbpD7B7QtDjyPm9Zu/8DHmp7I0Q==
   /tap-parser/1.3.2:
     dependencies:
       events-to-array: 1.1.2
@@ -9650,7 +9642,9 @@ packages:
       integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
   /tslint-config-standard/8.0.1_tslint@5.15.0+typescript@3.4.1:
     dependencies:
+      tslint: 5.15.0_typescript@3.4.1
       tslint-eslint-rules: 5.4.0_tslint@5.15.0+typescript@3.4.1
+      typescript: 3.4.1
     peerDependencies:
       tslint: '*'
       typescript: '*'
@@ -9954,12 +9948,6 @@ packages:
   /util-deprecate/1.0.2:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
-  /util.promisify/1.0.0:
-    dependencies:
-      define-properties: 1.1.3
-      object.getownpropertydescriptors: 2.0.3
-    resolution:
-      integrity: sha512-i+6qA2MPhvoKLuxnJNpXAGhg7HphQOSUq2LKMZD0m15EiskXUkMvKdF4Uui0WYeCUGea+o2cw/ZuwehtfsrNkA==
   /utils-merge/1.0.1:
     dev: true
     engines:
