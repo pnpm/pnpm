@@ -51,7 +51,7 @@
     "p-queue": "4.0.0",
     "path-exists": "4.0.0",
     "read-package-json": "2.0.13",
-    "rename-overwrite": "1.0.3",
+    "rename-overwrite": "2.0.1",
     "rimraf-then": "1.0.1",
     "symlink-dir": "3.0.1",
     "write-json-file": "3.1.0"

@@ -39,7 +39,7 @@
     "path-exists": "4.0.0",
     "path-temp": "1.0.0",
     "ramda": "0.26.1",
-    "rename-overwrite": "1.0.3",
+    "rename-overwrite": "2.0.1",
     "rimraf-then": "1.0.1",
     "write-json-file": "3.1.0"
   },
