@@ -80,7 +80,7 @@
     "rimraf-then": "1.0.1",
     "run-groups": "2.0.0",
     "semver": "6.0.0",
-    "symlink-dir": "3.0.1",
+    "symlink-dir": "3.0.2",
     "validate-npm-package-name": "3.0.0",
     "version-selector-type": "2.0.1",
     "write-pkg": "3.2.0"
