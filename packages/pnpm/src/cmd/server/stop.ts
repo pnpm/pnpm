@@ -5,7 +5,7 @@ import delay from 'delay'
 import path = require('path')
 import processExists = require('process-exists')
 import killcb = require('tree-kill')
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import { tryLoadServerJson } from '../../createStoreController'
 import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 

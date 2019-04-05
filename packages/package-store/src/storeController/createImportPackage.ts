@@ -13,7 +13,7 @@ import path = require('path')
 import exists = require('path-exists')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import linkIndexedDir from '../fs/linkIndexedDir'
 
 const execFilePromise = promisify(child_process.execFile)

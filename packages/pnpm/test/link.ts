@@ -8,7 +8,7 @@ import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import writePkg = require('write-pkg')
 import {
   execPnpm,

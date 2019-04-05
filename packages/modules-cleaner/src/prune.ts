@@ -16,7 +16,7 @@ import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import path = require('path')
 import R = require('ramda')
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import removeDirectDependency from './removeDirectDependency'
 
 const vacuum = promisify(vacuumCB)

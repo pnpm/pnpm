@@ -38,7 +38,7 @@
     "@pnpm/core-loggers": "3.0.0",
     "@pnpm/fetcher-base": "3.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/read-package-json": "2.0.0",
+    "@pnpm/read-package-json": "2.0.1",
     "@pnpm/resolver-base": "3.0.0",
     "@pnpm/store-controller-types": "3.0.0",
     "@pnpm/types": "3.0.0",
@@ -54,7 +54,6 @@
     "rename-overwrite": "1.0.3",
     "rimraf-then": "1.0.1",
     "symlink-dir": "3.0.1",
-    "util.promisify": "1.0.0",
     "write-json-file": "3.1.0"
   },
   "devDependencies": {

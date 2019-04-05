@@ -8,7 +8,7 @@ import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, mutateModules, rebuild } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import { pathToLocalPkg, testDefaults } from '../utils'
 
 const ncp = promisify(ncpCB)

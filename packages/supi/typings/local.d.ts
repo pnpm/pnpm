@@ -58,11 +58,6 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'util.promisify' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'isexe' {
   const anything: any;
   export = anything;

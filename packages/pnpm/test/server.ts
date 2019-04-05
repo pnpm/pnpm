@@ -10,7 +10,7 @@ import { Readable } from 'stream'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import killcb = require('tree-kill')
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import writeJsonFile from 'write-json-file'
 import {
   createDeferred,

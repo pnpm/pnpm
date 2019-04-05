@@ -94,7 +94,7 @@
     "@pnpm/modules-yaml": "3.0.0",
     "@pnpm/package-requester": "7.0.2",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/read-package-json": "2.0.0",
+    "@pnpm/read-package-json": "2.0.1",
     "@pnpm/shamefully-flatten": "3.0.2",
     "@pnpm/store-controller-types": "3.0.0",
     "@pnpm/symlink-dependency": "2.0.1",
