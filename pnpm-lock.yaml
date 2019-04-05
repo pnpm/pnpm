@@ -1724,7 +1724,7 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
-      '@types/node-fetch': 2.1.7
+      '@types/node-fetch': 2.3.0
       '@types/tape': 4.2.33
       is-port-reachable: 2.0.0
       mos: 2.0.0-alpha.3
@@ -1750,7 +1750,7 @@ importers:
       '@pnpm/types': 3.0.0
       '@types/mz': 0.0.32
       '@types/node': '*'
-      '@types/node-fetch': 2.1.7
+      '@types/node-fetch': '2'
       '@types/tape': 4.2.33
       '@types/uuid': 3.4.4
       is-port-reachable: 2.0.0
@@ -2745,12 +2745,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-eOVHXS5RnWOjTVhu3deCM/ruy9E6JCgeix2g7wpFiekQh3AaEAK1cz43tZDukKmtSmQnwvSySq7ubijCA32I7Q==
-  /@types/node-fetch/2.1.7:
+  /@types/node-fetch/2.3.0:
     dependencies:
       '@types/node': 11.13.0
     dev: true
     resolution:
-      integrity: sha512-TZozHCDVrs0Aj1B9ZR5F4Q9MknDNcVd+hO5lxXOCzz07ELBey6s1gMUSZHUYHlPfRFKJFXiTnNuD7ePiI6S4/g==
+      integrity: sha512-8hiAWrp7m9c0+LWLSMrUdPAoTJogvarqUdpQsyV9BlWnxVHTpdopNW0ldB4H8s/G4dg/KJLpqJIMb0GaZDf8/Q==
   /@types/node/10.14.4:
     resolution:
       integrity: sha512-DT25xX/YgyPKiHFOpNuANIQIVvYEwCWXgK2jYYwqgaMrYE6+tq+DtmMwlD3drl6DJbUwtlIDnn0d7tIn/EbXBg==
