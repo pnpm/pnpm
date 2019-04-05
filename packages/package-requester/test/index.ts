@@ -17,11 +17,11 @@ import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
-const ncp = promisify(ncpCB)
+const ncp = promisify(ncpCB as any) // tslint:disable-line:no-any
 
 const rawNpmConfig = { registry }
 

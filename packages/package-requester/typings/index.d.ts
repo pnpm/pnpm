@@ -3,11 +3,6 @@ declare module 'p-limit' {
   export = anything;
 }
 
-declare module 'util.promisify' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'mkdirp-promise' {
   const anything: any;
   export = anything;

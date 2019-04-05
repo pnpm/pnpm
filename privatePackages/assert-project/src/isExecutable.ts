@@ -2,7 +2,7 @@ import isWindows = require('is-windows')
 import isexeCB = require('isexe')
 import fs = require('mz/fs')
 import {Test} from 'tape'
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 
 const IS_WINDOWS = isWindows()
 const isexe = promisify(isexeCB)

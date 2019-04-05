@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/local-resolver#readme",
   "dependencies": {
-    "@pnpm/read-package-json": "2.0.0",
+    "@pnpm/read-package-json": "2.0.1",
     "@pnpm/resolver-base": "3.0.0",
     "@pnpm/types": "3.0.0",
     "@types/graceful-fs": "4.1.3",

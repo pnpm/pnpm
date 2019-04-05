@@ -9,7 +9,7 @@ import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import writeFileAtomicCB = require('write-file-atomic')
 import logger from './logger'
 

@@ -43,8 +43,7 @@
     "dependency-path": "3.0.1",
     "fs-vacuum": "1.2.10",
     "ramda": "0.26.1",
-    "rimraf-then": "1.0.1",
-    "util.promisify": "1.0.0"
+    "rimraf-then": "1.0.1"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

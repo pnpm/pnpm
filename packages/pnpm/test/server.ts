@@ -10,7 +10,7 @@ import { Readable } from 'stream'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import killcb = require('tree-kill')
-import promisify = require('util.promisify')
+import { promisify } from 'util'
 import writeJsonFile from 'write-json-file'
 import {
   createDeferred,
@@ -31,7 +31,7 @@ const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 test['only'] = promisifyTape(tape.only)
-const kill = promisify(killcb)
+const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
 test('installation using pnpm server', async (t: tape.Test) => {
   const project = prepare(t)
