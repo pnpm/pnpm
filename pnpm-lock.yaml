@@ -1034,7 +1034,7 @@ importers:
       semver: 6.0.0
       ssri: 6.0.1
       version-selector-type: 2.0.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:'
@@ -1087,7 +1087,7 @@ importers:
       tslint: 5.15.0
       typescript: 3.4.1
       version-selector-type: 2.0.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
   packages/outdated:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1188,7 +1188,7 @@ importers:
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
       symlink-dir: 3.0.2
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
     devDependencies:
       '@pnpm/local-resolver': 'link:../local-resolver'
       '@pnpm/logger': 2.1.0
@@ -1259,7 +1259,7 @@ importers:
       ts-node: 8.0.3
       tslint: 5.15.0
       typescript: 3.4.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
   packages/package-store:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1284,7 +1284,7 @@ importers:
       ramda: 0.26.1
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -1337,7 +1337,7 @@ importers:
       ts-node: 8.0.3
       tslint: 5.15.0
       typescript: 3.4.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
   packages/pnpm:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -1447,7 +1447,7 @@ importers:
       ts-node: 8.0.3_typescript@3.4.1
       tslint: 5.15.0_typescript@3.4.1
       typescript: 3.4.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0
     specifiers:
@@ -1557,7 +1557,7 @@ importers:
       tslint: 5.15.0
       typescript: 3.4.1
       update-notifier: 2.5.0
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0
   packages/prune-lockfile:
@@ -1927,7 +1927,7 @@ importers:
       ts-node: 8.0.3_typescript@3.4.1
       tslint: 5.15.0_typescript@3.4.1
       typescript: 3.4.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
       write-yaml-file: 2.0.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -2035,7 +2035,7 @@ importers:
       typescript: 3.4.1
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
-      write-json-file: 3.1.0
+      write-json-file: 3.2.0
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0
   packages/symlink-dependency:
@@ -3788,12 +3788,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-BuuE8A7qQT2oav/vrL/7Ngk7PFA=
-  /callsites/3.0.0:
+  /callsites/3.1.0:
     dev: true
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-tWnkwu9YEq2uzlBDI4RcLn8jrFvF9AOi8PxDNU3hZZjJcjkcRAq3vCI+vZcg1SuxISDYe86k9VZFwAxDiJGoAw==
+      integrity: sha512-P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ==
   /camelcase-keys/2.1.0:
     dependencies:
       camelcase: 2.1.1
@@ -6700,6 +6700,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-2w31R7SJtieJJnQtGc7RVL2StM2vGYVfqUOvUDxH6bC6aJTxPxTF0GnIgCyu7tjockiUWAYQRbxa7vKn34s5sQ==
+  /make-dir/2.1.0:
+    dependencies:
+      pify: 4.0.1
+      semver: 5.7.0
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-LS9X+dc8KLxXCb8dni79fLIIUA5VyZoyjSMCwTluaXA0o27cCK0bhXkpgw+sTXVpPy/lSO57ilRixqk0vDmtRA==
   /make-error/1.3.5:
     dev: true
     resolution:
@@ -6790,7 +6798,7 @@ packages:
     dependencies:
       map-age-cleaner: 0.1.3
       mimic-fn: 2.1.0
-      p-is-promise: 2.0.0
+      p-is-promise: 2.1.0
     dev: false
     engines:
       node: '>=6'
@@ -7240,7 +7248,6 @@ packages:
     dependencies:
       '@most/multicast': 1.3.0_most@1.7.3
       '@most/prelude': 1.7.2
-      most: 1.7.3_most@1.7.3
       symbol-observable: 1.2.0
     dev: false
     peerDependencies:
@@ -7693,7 +7700,7 @@ packages:
       integrity: sha1-n26xgvbJqozXQwBKfU+WsZaw+ww=
   /p-every/2.0.0:
     dependencies:
-      p-map: 2.0.0
+      p-map: 2.1.0
     dev: false
     engines:
       node: '>=8'
@@ -7701,7 +7708,7 @@ packages:
       integrity: sha512-MCz9DqD5opPC48Zsd+BHm56O/HfhYIQQtupfDzhXoVgQdg/Ux4F8/JcdRuQ+arq7zD5fB6zP3axbH3d9Nr8dlw==
   /p-filter/2.1.0:
     dependencies:
-      p-map: 2.0.0
+      p-map: 2.1.0
     dev: false
     engines:
       node: '>=8'
@@ -7718,12 +7725,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
-  /p-is-promise/2.0.0:
+  /p-is-promise/2.1.0:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-pzQPhYMCAgLAKPWD2jC3Se9fEfrD9npNos0y150EeqZll7akhEgGhTW/slB6lHku8AvYGiJ+YJ5hfHKePPgFWg==
+      integrity: sha512-Y3W0wlRPK8ZMRbNq97l4M5otioeA5lm1z7bkNkxCka8HSPjR0xRWmpCmc9utiaLP9Jb1eD8BgeIxTW4AIF45Pg==
   /p-limit/1.3.0:
     dependencies:
       p-try: 1.0.0
@@ -7754,12 +7761,12 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-x+12w/To+4GFfgJhBEpiDcLozRJGegY+Ei7/z0tSLkMmxGZNybVMSfWj9aJn8Z5Fc7dBUNJOOVgPv2H7IwulSQ==
-  /p-map/2.0.0:
+  /p-map/2.1.0:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-GO107XdrSUmtHxVoi60qc9tUl/KkNKm+X2CF4P9amalpGxv5YqVPJNfSb0wcA+syCopkZvYYIzW8OVTQW59x/w==
+      integrity: sha512-y3b8Kpd8OAN444hxfBbFfj1FY/RjtTd8tzYwhUqNYXx0fXx2iX4maP4Qr6qhIKbQXI02wTLAda4fYUbDagTUFw==
   /p-queue/4.0.0:
     dependencies:
       eventemitter3: 3.1.0
@@ -7830,7 +7837,7 @@ packages:
       integrity: sha1-8/dSL073gjSNqBYbrZ7P1Rv4OnU=
   /parent-module/1.0.1:
     dependencies:
-      callsites: 3.0.0
+      callsites: 3.1.0
     dev: true
     engines:
       node: '>=6'
@@ -9125,7 +9132,7 @@ packages:
   /spdx-correct/3.1.0:
     dependencies:
       spdx-expression-parse: 3.0.0
-      spdx-license-ids: 3.0.3
+      spdx-license-ids: 3.0.4
     resolution:
       integrity: sha512-lr2EZCctC2BNR7j7WzJ2FpDznxky1sjfxvvYEyzxNyb6lZXHODmEoJeFu4JupYlkfha1KZpJyoqiJ7pgA1qq8Q==
   /spdx-exceptions/2.2.0:
@@ -9134,12 +9141,12 @@ packages:
   /spdx-expression-parse/3.0.0:
     dependencies:
       spdx-exceptions: 2.2.0
-      spdx-license-ids: 3.0.3
+      spdx-license-ids: 3.0.4
     resolution:
       integrity: sha512-Yg6D3XpRD4kkOmTpdgbUiEJFKghJH03fiC1OPll5h/0sO6neh2jqRDVHOQ4o/LMea0tgCkbMgea5ip/e+MkWyg==
-  /spdx-license-ids/3.0.3:
+  /spdx-license-ids/3.0.4:
     resolution:
-      integrity: sha512-uBIcIl3Ih6Phe3XHK1NqboJLdGfwr1UN3k6wSD1dZpmPsIkb8AGNbZYJ1fOBk834+Gxy8rpfDxrS6XLEMZMY2g==
+      integrity: sha512-7j8LYJLeY/Yb6ACbQ7F76qy5jHkp0U6jgBfJsk97bwWlVUnUWsAgpyaCvo17h0/RQGnQ036tVDomiwoI4pDkQA==
   /split-string/3.1.0:
     dependencies:
       extend-shallow: 3.0.2
@@ -9672,7 +9679,7 @@ packages:
       make-error: 1.3.5
       source-map-support: 0.5.11
       typescript: 3.4.1
-      yn: 3.0.0
+      yn: 3.1.0
     dev: true
     engines:
       node: '>=4.2.0'
@@ -9689,9 +9696,7 @@ packages:
       integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
   /tslint-config-standard/8.0.1_tslint@5.15.0+typescript@3.4.1:
     dependencies:
-      tslint: 5.15.0_typescript@3.4.1
       tslint-eslint-rules: 5.4.0_tslint@5.15.0+typescript@3.4.1
-      typescript: 3.4.1
     peerDependencies:
       tslint: '*'
       typescript: '*'
@@ -10211,18 +10216,18 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-K2TIozAE1UuGmMdtWFp3zrYdoy8=
-  /write-json-file/3.1.0:
+  /write-json-file/3.2.0:
     dependencies:
       detect-indent: 5.0.0
       graceful-fs: 4.1.15
-      make-dir: 1.3.0
+      make-dir: 2.1.0
       pify: 4.0.1
       sort-keys: 2.0.0
       write-file-atomic: 2.4.2
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-37tm31CeWsTKZtM6UZYcxNBv/Vs1ta4oTm5h3bxiNkIxwU7KxXgSb4OL/g8M/XAEJL4dIi2muYSRzeJOWCqBZw==
+      integrity: sha512-3xZqT7Byc2uORAatYiP3DHUUAVEkNOswEWNs9H5KXiicRTvzYzYqKjYc4G7p+8pltvAw641lVByKVtMpf+4sYQ==
   /write-pkg/1.0.0:
     dependencies:
       write-json-file: 1.2.0
@@ -10322,12 +10327,12 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Lhz8TLaYnxq/2ObqHDql8dX8CJi97oHxrjUcYtzKbbykPtVW9WB+poxI+NM2UIzsMgNCZTIf0AQwsjK5yMAqZw==
-  /yn/3.0.0:
+  /yn/3.1.0:
     dev: true
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-+Wo/p5VRfxUgBUGy2j/6KX2mj9AYJWOHuhMjMcbBFc3y54o9/4buK1ksBvuiK01C3kby8DH9lSmJdSxw+4G/2Q==
+      integrity: sha512-kKfnnYkbTfrAdd0xICNFw7Atm8nKpLcLv9AZGEt+kczL/WQVai4e2V6ZN8U/O+iI6WrNuJjNNOyu4zfhl9D3Hg==
   /zen-observable/0.8.13:
     dev: false
     resolution:
