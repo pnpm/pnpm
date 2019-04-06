@@ -6,10 +6,12 @@ import exists = require('path-exists')
 import test = require('tape')
 import tempy = require('tempy')
 
-const isPositiveMeta = loadJsonFileSync(path.join(__dirname, 'meta', 'is-positive.json'))
-const isPositiveMetaWithDeprecated = loadJsonFileSync(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
-const isPositiveMetaFull = loadJsonFileSync(path.join(__dirname, 'meta', 'is-positive-full.json'))
-const sindresorhusIsMeta = loadJsonFileSync(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
+// tslint:disable:no-any
+const isPositiveMeta = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
+const isPositiveMetaFull = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'is-positive-full.json'))
+const sindresorhusIsMeta = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
+// tslint:enable:no-any
 
 const registry = 'https://registry.npmjs.org/'
 

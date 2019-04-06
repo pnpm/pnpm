@@ -188,7 +188,7 @@ importers:
       '@types/tape': 4.2.33
       delay: 4.1.0
       ghooks: 2.0.4
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mos-tap-diff: 1.0.0
       normalize-newline: 3.0.0
       rimraf: 2.6.3
@@ -215,7 +215,7 @@ importers:
       common-tags: 1.8.0
       delay: 4.1.0
       ghooks: 2.0.4
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mos-tap-diff: 1.0.0
       most: 1.7.3
       normalize-newline: 3.0.0
@@ -670,7 +670,7 @@ importers:
       '@types/rimraf': 2.0.2
       '@types/tape': 4.2.33
       json-append: 1.1.1
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       rimraf: 2.6.3
@@ -691,7 +691,7 @@ importers:
       '@types/tape': 4.2.33
       '@zkochan/npm-lifecycle': 2.2.0
       json-append: 1.1.1
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       path-exists: 4.0.0
@@ -1026,7 +1026,7 @@ importers:
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mem: 4.3.0
       normalize-path: 3.0.0
       p-limit: 2.2.0
@@ -1069,7 +1069,7 @@ importers:
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
       fetch-from-npm-registry: 2.0.1
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mem: 4.3.0
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
@@ -1178,7 +1178,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 11.13.0
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       p-limit: 2.2.0
@@ -1237,7 +1237,7 @@ importers:
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       delay: 4.1.0
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mkdirp-promise: 5.0.1
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
@@ -1273,7 +1273,7 @@ importers:
       '@types/mz': 0.0.32
       '@types/node': 11.13.0
       '@types/ramda': 0.25.39
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       ncp: 2.0.0
@@ -1319,7 +1319,7 @@ importers:
       '@types/ramda': 0.25.39
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       ncp: 2.0.0
@@ -1380,7 +1380,7 @@ importers:
       is-ci: 2.0.0
       is-subdir: 1.0.3
       is-windows: 1.0.2
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       loud-rejection: 2.0.0
       lru-cache: 5.1.1
       mem: 4.3.0
@@ -1513,7 +1513,7 @@ importers:
       is-ci: 2.0.0
       is-subdir: 1.0.3
       is-windows: 1.0.2
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       loud-rejection: 2.0.0
       lru-cache: 5.1.1
       mem: 4.3.0
@@ -1867,7 +1867,7 @@ importers:
       is-ci: 2.0.0
       is-inner-link: 2.0.2
       is-subdir: 1.0.3
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       normalize-path: 3.0.0
@@ -1999,7 +1999,7 @@ importers:
       is-inner-link: 2.0.2
       is-subdir: 1.0.3
       is-windows: 1.0.2
-      load-json-file: 5.2.0
+      load-json-file: 5.3.0
       mkdirp: 0.5.1
       mkdirp-promise: 5.0.1
       mz: 2.7.0
@@ -6502,10 +6502,22 @@ packages:
       parse-json: 4.0.0
       pify: 3.0.0
       strip-bom: 3.0.0
+    dev: false
     engines:
       node: '>=6'
     resolution:
       integrity: sha512-HvjIlM2Y/RDHk1X6i4sGgaMTrAsnNrgQCJtuf5PEhbOV6MCJuMVZLMdlJRE0JGLMkF7b6O5zs9LcDxKIUt9CbQ==
+  /load-json-file/5.3.0:
+    dependencies:
+      graceful-fs: 4.1.15
+      parse-json: 4.0.0
+      pify: 4.0.1
+      strip-bom: 3.0.0
+      type-fest: 0.3.0
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-cJGP40Jc/VXUsp8/OrnyKyTZ1y6v/dphm3bioS+RrKXjK2BB6wHUd6JptZEFDGgGahMT+InnZO5i1Ei9mpC8Bw==
   /locate-path/2.0.0:
     dependencies:
       p-locate: 2.0.0
@@ -9769,6 +9781,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-0fr/mIH1dlO+x7TlcMy+bIDqKPsw/70tVyeHW787goQjhmqaZe10uwLujubK9q9Lg6Fiho1KUKDYz0Z7k7g5/g==
+  /type-fest/0.3.0:
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-fg3sfdDdJDtdHLUpeGsf/fLyG1aapk6zgFiYG5+MDUPybGrJemH4SLk5tP7hGRe8ntxjg0q5LYW53b6YpJIQ9Q==
   /type-is/1.6.16:
     dependencies:
       media-typer: 0.3.0
