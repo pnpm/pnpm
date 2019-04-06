@@ -870,7 +870,7 @@ async function installInContext (
       })
     }
 
-    if (!opts.lockfileOnly) {
+    if (!opts.lockfileOnly && !opts.ignoreScripts) {
       await Promise.all(importersToLink.map(linkBinsOfImporter))
     }
   }

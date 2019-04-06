@@ -247,3 +247,19 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
   t.deepEqual(outputs1, ['project-1', 'project-2'])
   t.deepEqual(outputs2, ['project-1', 'project-3'])
 })
+
+test('rebuild links bins', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDependenciesToPackage(['pkg-with-peer-having-bin', 'peer-with-bin'], await testDefaults({ ignoreScripts: true }))
+
+  t.notOk(await exists(path.resolve('node_modules/.bin/peer-with-bin')))
+
+  t.ok(await exists(path.resolve('node_modules/pkg-with-peer-having-bin/package.json')))
+  t.notOk(await exists(path.resolve('node_modules/pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')))
+
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+
+  await project.isExecutable('.bin/peer-with-bin')
+  await project.isExecutable('pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
+})

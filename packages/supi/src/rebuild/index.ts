@@ -21,6 +21,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
+import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import runGroups from 'run-groups'
@@ -114,7 +115,7 @@ export async function rebuildPkgs (
     new Set(pkgs),
     ctx.virtualStoreDir,
     ctx.currentLockfile,
-    ctx.importers.map((importer) => importer.id),
+    ctx.importers,
     opts,
   )
 }
@@ -136,16 +137,13 @@ export async function rebuild (
     idsToRebuild = ctx.pendingBuilds
   } else if (ctx.currentLockfile && ctx.currentLockfile.packages) {
     idsToRebuild = R.keys(ctx.currentLockfile.packages)
-  } else {
-    return
   }
-  if (idsToRebuild.length === 0) return
 
   const pkgsThatWereRebuilt = await _rebuild(
     new Set(idsToRebuild),
     ctx.virtualStoreDir,
     ctx.currentLockfile,
-    ctx.importers.map((importer) => importer.id),
+    ctx.importers,
     opts,
   )
 
@@ -233,11 +231,13 @@ function getSubgraphToBuild (
   return currentShouldBeBuilt
 }
 
+const limitLinking = pLimit(16)
+
 async function _rebuild (
   pkgsToRebuild: Set<string>,
   rootNodeModulesDir: string,
   lockfile: Lockfile,
-  importerIds: string[],
+  importers: Array<{ id: string, prefix: string }>,
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
@@ -246,8 +246,8 @@ async function _rebuild (
 
   const entryNodes = [] as string[]
 
-  importerIds.forEach((importerId) => {
-    const lockfileImporter = lockfile.importers[importerId]
+  importers.forEach((importer) => {
+    const lockfileImporter = lockfile.importers[importer.id]
     R.toPairs({
       ...(opts.development && lockfileImporter.devDependencies || {}),
       ...(opts.production && lockfileImporter.dependencies || {}),
@@ -298,11 +298,6 @@ async function _rebuild (
           const modules = path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { warn })
-          // link also the bundled dependencies` bins
-          if (pkgSnapshot.bundledDependencies && !R.isEmpty(pkgSnapshot.bundledDependencies)) {
-            const bundledModules = path.join(pkgRoot, 'node_modules')
-            await linkBins(bundledModules, binPath, { warn })
-          }
         }
         await runPostinstallHooks({
           depPath,
@@ -335,6 +330,26 @@ async function _rebuild (
   ))
 
   await runGroups(opts.childConcurrency || 5, groups)
+
+  // It may be optimized because some bins were already linked before running lifecycle scripts
+  await Promise.all(
+    R
+      .keys(pkgSnapshots)
+      .filter((relDepPath) => !packageIsIndependent(pkgSnapshots[relDepPath]))
+      .map((relDepPath) => limitLinking(() => {
+        const depPath = dp.resolve(opts.registries, relDepPath)
+        const pkgSnapshot = pkgSnapshots[relDepPath]
+        const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+        const modules = path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+        const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
+        return linkBins(modules, binPath, { warn })
+      })),
+  )
+  await Promise.all(importers.map((importer) => limitLinking(() => {
+    const modules = path.join(importer.prefix, 'node_modules')
+    const binPath = path.join(modules, '.bin')
+    return linkBins(modules, binPath, { warn })
+  })))
 
   return pkgsThatWereRebuilt
 }
