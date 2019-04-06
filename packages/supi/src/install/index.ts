@@ -862,7 +862,9 @@ async function installInContext (
         unsafePerm: opts.unsafePerm,
         userAgent: opts.userAgent,
       })
+    }
 
+    if (result.newDepPaths && result.newDepPaths.length) {
       const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
       await linkAllBins(newPkgs, result.depGraph, {
         optional: opts.include.optionalDependencies,
@@ -870,7 +872,7 @@ async function installInContext (
       })
     }
 
-    if (!opts.lockfileOnly && !opts.ignoreScripts) {
+    if (!opts.lockfileOnly) {
       await Promise.all(importersToLink.map(linkBinsOfImporter))
     }
   }
