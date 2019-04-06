@@ -1,9 +1,11 @@
 import { ENGINE_NAME } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
+import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
+import { PackageJson } from '@pnpm/types'
 import graphSequencer = require('graph-sequencer')
 import path = require('path')
 import R = require('ramda')
@@ -15,6 +17,7 @@ export default async (
   opts: {
     childConcurrency?: number,
     depsToBuild?: Set<string>,
+    optional: boolean,
     prefix: string,
     rawNpmConfig: object,
     unsafePerm: boolean,
@@ -24,6 +27,7 @@ export default async (
     rootNodeModulesDir: string,
   },
 ) => {
+  const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
   // postinstall hooks
   const nodesToBuild = new Set<string>()
   getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
@@ -49,6 +53,10 @@ export default async (
       async () => {
         const depNode = depGraph[depPath]
         try {
+          await linkBinsOfDependencies(depNode, depGraph, {
+            optional: opts.optional,
+            warn,
+          })
           const hasSideEffects = await runPostinstallHooks({
             depPath,
             optional: depNode.optional,
@@ -128,15 +136,60 @@ function getSubgraphToBuild (
 }
 
 export interface DependenciesGraphNode {
+  fetchingRawManifest?: Promise<PackageJson>,
+  hasBundledDependencies: boolean,
   peripheralLocation: string,
   children: {[alias: string]: string},
   optional: boolean,
+  optionalDependencies: Set<string>,
   packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
+  installable?: boolean,
   isBuilt?: boolean,
   requiresBuild?: boolean,
   prepare: boolean,
+  hasBin: boolean,
 }
 
 export interface DependenciesGraph {
   [depPath: string]: DependenciesGraphNode
+}
+
+export async function linkBinsOfDependencies (
+  depNode: DependenciesGraphNode,
+  depGraph: DependenciesGraph,
+  opts: {
+    optional: boolean,
+    warn: (message: string) => void,
+  },
+) {
+  const childrenToLink = opts.optional
+    ? depNode.children
+    : R.keys(depNode.children)
+      .reduce((nonOptionalChildren, childAlias: string) => {
+        if (!depNode.optionalDependencies.has(childAlias)) {
+          nonOptionalChildren[childAlias] = depNode.children[childAlias]
+        }
+        return nonOptionalChildren
+      }, {})
+
+  const pkgs = await Promise.all(
+    R.keys(childrenToLink)
+      .filter((alias) => depGraph[childrenToLink[alias]].hasBin && depGraph[childrenToLink[alias]].installable !== false)
+      .map(async (alias) => {
+        const dep = depGraph[childrenToLink[alias]]
+        return {
+          location: dep.peripheralLocation,
+          manifest: dep.fetchingRawManifest && (await dep.fetchingRawManifest) || await readPackageFromDir(dep.peripheralLocation),
+        }
+      }),
+  )
+
+  const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+  await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
+
+  // link also the bundled dependencies` bins
+  if (depNode.hasBundledDependencies) {
+    const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
+    await linkBins(bundledModules, binPath, { warn: opts.warn })
+  }
 }

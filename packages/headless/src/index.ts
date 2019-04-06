@@ -221,8 +221,6 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
-
   await Promise.all(opts.importers.map(async (importer) => {
     if (importer.shamefullyFlatten) {
       importer.hoistedAliases = await shamefullyFlattenByLockfile(filteredLockfile, importer.id, {
@@ -253,8 +251,6 @@ export default async (opts: HeadlessOptions) => {
       registries: opts.registries,
       rootDependencies: res.directDependenciesByImporterId[importer.id],
     })
-    const bin = path.join(importer.modulesDir, '.bin')
-    await linkBins(importer.modulesDir, bin, { warn })
 
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
@@ -310,6 +306,7 @@ export default async (opts: HeadlessOptions) => {
     for (const importer of opts.importers) {
       await runDependenciesScripts(depGraph, R.values(res.directDependenciesByImporterId[importer.id]).filter((loc) => depGraph[loc]), {
         childConcurrency: opts.childConcurrency,
+        optional: opts.include.optionalDependencies,
         prefix: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: importer.modulesDir,
@@ -320,6 +317,9 @@ export default async (opts: HeadlessOptions) => {
       })
     }
   }
+
+  await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
+  await Promise.all(opts.importers.map(linkBinsOfImporter))
 
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
@@ -340,6 +340,17 @@ export default async (opts: HeadlessOptions) => {
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
+}
+
+function linkBinsOfImporter (
+  { modulesDir, bin, prefix }: {
+    bin: string,
+    modulesDir: string,
+    prefix: string,
+  },
+) {
+  const warn = (message: string) => logger.warn({ message, prefix })
+  return linkBins(modulesDir, bin, { warn })
 }
 
 async function linkRootPackages (

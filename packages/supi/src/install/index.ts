@@ -1,21 +1,19 @@
-import buildModules from '@pnpm/build-modules'
+import buildModules, { linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
-  ENGINE_NAME,
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   packageJsonLogger,
-  skippedOptionalDependencyLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
 import {
   runLifecycleHooksConcurrently,
-  runPostinstallHooks,
 } from '@pnpm/lifecycle'
+import linkBins from '@pnpm/link-bins'
 import {
   Lockfile,
   LockfileImporter,
@@ -47,15 +45,14 @@ import {
   WantedDependency,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
-import graphSequencer = require('graph-sequencer')
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import pEvery from 'p-every'
 import pFilter = require('p-filter')
+import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
-import runGroups from 'run-groups'
 import semver = require('semver')
 import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
@@ -73,6 +70,7 @@ import extendOptions, {
 } from './extendInstallOptions'
 import linkPackages, {
   DependenciesGraph,
+  DependenciesGraphNode,
   Importer as ImporterToLink,
 } from './link'
 import { absolutePathToRef } from './lockfile'
@@ -855,6 +853,7 @@ async function installInContext (
       await buildModules(result.depGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
+        optional: opts.include.optionalDependencies,
         prefix: ctx.lockfileDirectory,
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: ctx.virtualStoreDir,
@@ -863,6 +862,16 @@ async function installInContext (
         unsafePerm: opts.unsafePerm,
         userAgent: opts.userAgent,
       })
+
+      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
+      await linkAllBins(newPkgs, result.depGraph, {
+        optional: opts.include.optionalDependencies,
+        warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDirectory }),
+      })
+    }
+
+    if (!opts.lockfileOnly) {
+      await Promise.all(importersToLink.map(linkBinsOfImporter))
     }
   }
 
@@ -883,6 +892,26 @@ async function installInContext (
   await opts.storeController.close()
 }
 
+const limitLinking = pLimit(16)
+
+function linkBinsOfImporter ({ modulesDir, bin, prefix }: ImporterToLink) {
+  const warn = (message: string) => logger.warn({ message, prefix })
+  return linkBins(modulesDir, bin, { warn })
+}
+
+async function linkAllBins (
+  depNodes: DependenciesGraphNode[],
+  depGraph: DependenciesGraph,
+  opts: {
+    optional: boolean,
+    warn: (message: string) => void,
+  },
+) {
+  return Promise.all(
+    depNodes.map((depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))),
+  )
+}
+
 function modulesIsUpToDate (
   opts: {
     defaultRegistry: string,
@@ -897,29 +926,6 @@ function modulesIsUpToDate (
   ]
   currentWithSkipped.sort()
   return R.equals(R.keys(opts.wantedLockfile.packages), currentWithSkipped)
-}
-
-function getSubgraphToBuild (
-  graph: DependenciesGraph,
-  entryNodes: string[],
-  nodesToBuild: Set<string>,
-  walked: Set<string>,
-) {
-  let currentShouldBeBuilt = false
-  for (const depPath of entryNodes) {
-    if (nodesToBuild.has(depPath)) {
-      currentShouldBeBuilt = true
-    }
-    if (walked.has(depPath)) continue
-    walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked)
-      || graph[depPath].requiresBuild
-    if (childShouldBeBuilt) {
-      nodesToBuild.add(depPath)
-      currentShouldBeBuilt = true
-    }
-  }
-  return currentShouldBeBuilt
 }
 
 function addDirectDependenciesToLockfile (

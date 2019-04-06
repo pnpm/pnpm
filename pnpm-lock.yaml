@@ -4,11 +4,14 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/link-bins': 4.0.1
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@pnpm/types': 'link:../types'
       '@types/node': 11.13.0
       '@types/ramda': 0.26.6
       graph-sequencer: 2.0.0
+      ramda: 0.26.1
       run-groups: 2.0.0
     devDependencies:
       '@pnpm/build-modules': 'link:'
@@ -25,15 +28,18 @@ importers:
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
       '@pnpm/lifecycle': 5.0.0
+      '@pnpm/link-bins': 4.0.1
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/store-controller-types': 3.0.0
       '@pnpm/tslint-config': 0.0.0
+      '@pnpm/types': 3.0.0
       '@types/node': '*'
       '@types/ramda': 0.26.6
       graph-sequencer: 2.0.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
+      ramda: 0.26.1
       rimraf: 2.6.3
       run-groups: 2.0.0
       ts-node: 8.0.3
