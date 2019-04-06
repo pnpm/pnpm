@@ -1,4 +1,4 @@
-import runDependenciesScripts from '@pnpm/build-modules'
+import buildModules from '@pnpm/build-modules'
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
@@ -303,19 +303,26 @@ export default async (opts: HeadlessOptions) => {
   })
 
   if (!opts.ignoreScripts) {
+    const directNodes = new Set<string>()
     for (const importer of opts.importers) {
-      await runDependenciesScripts(depGraph, R.values(res.directDependenciesByImporterId[importer.id]).filter((loc) => depGraph[loc]), {
-        childConcurrency: opts.childConcurrency,
-        optional: opts.include.optionalDependencies,
-        prefix: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-        storeController: opts.storeController,
-        unsafePerm: opts.unsafePerm,
-        userAgent: opts.userAgent,
-      })
+      R
+        .values(res.directDependenciesByImporterId[importer.id])
+        .filter((loc) => depGraph[loc])
+        .forEach((loc) => {
+          directNodes.add(loc)
+        })
     }
+    await buildModules(depGraph, Array.from(directNodes), {
+      childConcurrency: opts.childConcurrency,
+      optional: opts.include.optionalDependencies,
+      prefix: opts.lockfileDirectory,
+      rawNpmConfig: opts.rawNpmConfig,
+      rootNodeModulesDir: virtualStoreDir,
+      sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+      storeController: opts.storeController,
+      unsafePerm: opts.unsafePerm,
+      userAgent: opts.userAgent,
+    })
   }
 
   await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })

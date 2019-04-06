@@ -561,11 +561,9 @@ importers:
       '@pnpm/utils': 'link:../utils'
       '@types/ramda': 0.25.34
       dependency-path: 'link:../dependency-path'
-      graph-sequencer: 2.0.0
       p-limit: 2.2.0
       path-exists: 4.0.0
       ramda: 0.26.1
-      run-groups: 2.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
@@ -638,7 +636,6 @@ importers:
       '@types/tempy': 0.2.0
       dependency-path: 3.0.1
       fs-extra: 7.0.1
-      graph-sequencer: 2.0.0
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -649,7 +646,6 @@ importers:
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      run-groups: 2.0.0
       sinon: 7.3.1
       tape: 4.10.1
       tape-promise: 4.0.0
