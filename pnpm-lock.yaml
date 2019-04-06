@@ -1,4 +1,50 @@
 importers:
+  packages/build-modules:
+    dependencies:
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/link-bins': 4.0.2
+      '@pnpm/read-package-json': 2.0.1
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@pnpm/types': 'link:../types'
+      '@types/node': 11.13.0
+      '@types/ramda': 0.26.6
+      graph-sequencer: 2.0.0
+      ramda: 0.26.1
+      run-groups: 2.0.0
+    devDependencies:
+      '@pnpm/build-modules': 'link:'
+      '@pnpm/logger': 2.1.0
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.3
+      ts-node: 8.0.3_typescript@3.4.1
+      tslint: 5.15.0_typescript@3.4.1
+      typescript: 3.4.1
+    specifiers:
+      '@pnpm/build-modules': 'link:'
+      '@pnpm/constants': 1.0.0
+      '@pnpm/core-loggers': 3.0.0
+      '@pnpm/lifecycle': 5.0.0
+      '@pnpm/link-bins': 4.0.2
+      '@pnpm/logger': 2.1.0
+      '@pnpm/read-package-json': 2.0.1
+      '@pnpm/store-controller-types': 3.0.0
+      '@pnpm/tslint-config': 0.0.0
+      '@pnpm/types': 3.0.0
+      '@types/node': '*'
+      '@types/ramda': 0.26.6
+      graph-sequencer: 2.0.0
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      ramda: 0.26.1
+      rimraf: 2.6.3
+      run-groups: 2.0.0
+      ts-node: 8.0.3
+      tslint: 5.15.0
+      typescript: 3.4.1
   packages/config:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -495,11 +541,12 @@ importers:
       typescript: 3.4.1
   packages/headless:
     dependencies:
+      '@pnpm/build-modules': 'link:../build-modules'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.0.1
+      '@pnpm/link-bins': 4.0.2
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -514,11 +561,9 @@ importers:
       '@pnpm/utils': 'link:../utils'
       '@types/ramda': 0.25.34
       dependency-path: 'link:../dependency-path'
-      graph-sequencer: 2.0.0
       p-limit: 2.2.0
       path-exists: 4.0.0
       ramda: 0.26.1
-      run-groups: 2.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
@@ -542,7 +587,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.3.1
@@ -554,6 +599,7 @@ importers:
       typescript: 3.4.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
+      '@pnpm/build-modules': 0.0.0
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
       '@pnpm/default-fetcher': 'file:../default-fetcher'
@@ -561,7 +607,7 @@ importers:
       '@pnpm/filter-lockfile': 1.0.1
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 5.0.0
-      '@pnpm/link-bins': 4.0.1
+      '@pnpm/link-bins': 4.0.2
       '@pnpm/lockfile-file': 1.0.1
       '@pnpm/lockfile-utils': 1.0.1
       '@pnpm/logger': 2.1.0
@@ -590,18 +636,16 @@ importers:
       '@types/tempy': 0.2.0
       dependency-path: 3.0.1
       fs-extra: 7.0.1
-      graph-sequencer: 2.0.0
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
       p-limit: 2.2.0
       path-exists: 4.0.0
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      run-groups: 2.0.0
       sinon: 7.3.1
       tape: 4.10.1
       tape-promise: 4.0.0
@@ -1063,7 +1107,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       tape: 4.10.1
       ts-node: 8.0.3_typescript@3.4.1
       tslint: 5.15.0_typescript@3.4.1
@@ -1085,7 +1129,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       tape: 4.10.1
       ts-node: 8.0.3
       tslint: 5.15.0
@@ -1391,7 +1435,7 @@ importers:
       p-any: 1.1.0
       path-exists: 4.0.0
       pnpm: 'link:'
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       retry: 0.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1491,7 +1535,7 @@ importers:
       pkgs-graph: 3.0.0
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1776,6 +1820,7 @@ importers:
       typescript: 3.4.1
   packages/supi:
     dependencies:
+      '@pnpm/build-modules': 'link:../build-modules'
       '@pnpm/check-package': 3.0.0
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1783,7 +1828,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.0.1
+      '@pnpm/link-bins': 4.0.2
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -1870,7 +1915,7 @@ importers:
       npm-scripts-info: 0.3.9
       path-exists: 4.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
@@ -1887,6 +1932,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
+      '@pnpm/build-modules': 0.0.0
       '@pnpm/check-package': 3.0.0
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.0
@@ -1896,7 +1942,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 6.0.4
       '@pnpm/lifecycle': 5.0.0
-      '@pnpm/link-bins': 4.0.1
+      '@pnpm/link-bins': 4.0.2
       '@pnpm/lockfile-file': 1.0.1
       '@pnpm/lockfile-utils': 1.0.1
       '@pnpm/logger': 2.1.0
@@ -1967,7 +2013,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.9.0
+      pnpm-registry-mock: 2.11.0
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
@@ -2503,7 +2549,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
-  /@pnpm/link-bins/4.0.1:
+  /@pnpm/link-bins/4.0.2:
     dependencies:
       '@pnpm/package-bins': 3.0.1
       '@pnpm/read-package-json': 2.0.1
@@ -2513,6 +2559,7 @@ packages:
       '@types/ramda': 0.26.6
       '@zkochan/cmd-shim': 3.1.0
       arr-flatten: 1.1.0
+      is-subdir: 1.0.3
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
@@ -2523,7 +2570,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-7rtKxnqYi5TtO4bDdq3IjTNQPLfVzKN5JsWVcCfoUk8T2e7HFu5ULSspMsWcqLFLcMZM3cN3YYmnaB0gf/weHg==
+      integrity: sha512-69ZxoeiSRxtOOmeBlYXEOiNZPY0fTinePQhXmLcNE5g8+ZUGaSD6KKDWJ6fW2rSrc21m4hcuadpdoqVlyfA6/w==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.14.4
@@ -8031,7 +8078,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-registry-mock/2.9.0:
+  /pnpm-registry-mock/2.11.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -8042,7 +8089,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-n/1xE+5290VcmBh44/zpg2JoZU0e4BkoApwJAUb8a22FuFYg3EjyhfeuQJtyfZCmdPgmhLekxNlRA4rgNA0Qng==
+      integrity: sha512-c1cOVtuDutugSgWp5Et02x+JBJXAKGmPF59ADuYocLbZETUJ/s9ZtHarfAN+eEq5BZEXgA0o8u1hPYxVTk286w==
   /posix-character-classes/0.1.1:
     dev: false
     engines:

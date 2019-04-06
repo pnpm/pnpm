@@ -10,6 +10,7 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -18,6 +19,7 @@ import { testDefaults } from '../utils'
 const pkgRoot = path.join(__dirname, '..', '..')
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('run pre/postinstall scripts', async (t: tape.Test) => {
   const project = prepare(t)
@@ -275,4 +277,69 @@ test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
 
   const lockfile = await project.loadLockfile()
   t.ok(lockfile.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, `prepare field added to ${WANTED_LOCKFILE}`)
+})
+
+test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDependenciesToPackage(['generated-bins'], await testDefaults())
+
+  await project.isExecutable('.bin/cmd1')
+  await project.isExecutable('.bin/cmd2')
+
+  await rimraf('node_modules')
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: process.cwd(),
+      }
+    ],
+    await testDefaults({ frozenLockfile: true }),
+  )
+
+  await project.isExecutable('.bin/cmd1')
+  await project.isExecutable('.bin/cmd2')
+})
+
+test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDependenciesToPackage(
+    [
+      'pkg-with-peer-having-bin',
+      'peer-with-bin',
+      'pre-and-postinstall-scripts-example',
+    ],
+    await testDefaults({ ignoreScripts: true }),
+  )
+
+  await project.isExecutable('.bin/peer-with-bin')
+  await project.isExecutable('pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
+
+  // Verifying that the scripts were ignored
+  t.ok(await exists('node_modules/pre-and-postinstall-scripts-example/package.json'))
+  t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'), 'scripts were ignored indeed')
+
+  await rimraf('node_modules')
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: process.cwd(),
+      }
+    ],
+    await testDefaults({ frozenLockfile: true, ignoreScripts: true }),
+  )
+
+  await project.isExecutable('.bin/peer-with-bin')
+  await project.isExecutable('pkg-with-peer-having-bin/node_modules/.bin/hello-world-js-bin')
+
+  // Verifying that the scripts were ignored
+  t.ok(await exists('node_modules/pre-and-postinstall-scripts-example/package.json'))
+  t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'), 'scripts were ignored indeed')
 })

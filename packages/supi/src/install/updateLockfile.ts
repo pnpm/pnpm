@@ -126,8 +126,8 @@ function toLockfileDependency (
   if (depNode.optional) {
     result['optional'] = true
   }
-  if (opts.relDepPath[0] !== '/' && opts.depPath !== depNode.id) {
-    result['id'] = depNode.id
+  if (opts.relDepPath[0] !== '/' && opts.depPath !== depNode.packageId) {
+    result['id'] = depNode.packageId
   }
   if (pkg.peerDependencies) {
     result['peerDependencies'] = pkg.peerDependencies

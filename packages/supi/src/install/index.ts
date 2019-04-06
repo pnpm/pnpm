@@ -1,20 +1,19 @@
+import buildModules, { linkBinsOfDependencies } from '@pnpm/build-modules'
 import {
-  ENGINE_NAME,
   LAYOUT_VERSION,
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
   packageJsonLogger,
-  skippedOptionalDependencyLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
 import {
   runLifecycleHooksConcurrently,
-  runPostinstallHooks,
 } from '@pnpm/lifecycle'
+import linkBins from '@pnpm/link-bins'
 import {
   Lockfile,
   LockfileImporter,
@@ -46,15 +45,14 @@ import {
   WantedDependency,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
-import graphSequencer = require('graph-sequencer')
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import pEvery from 'p-every'
 import pFilter = require('p-filter')
+import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
-import runGroups from 'run-groups'
 import semver = require('semver')
 import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
@@ -72,6 +70,7 @@ import extendOptions, {
 } from './extendInstallOptions'
 import linkPackages, {
   DependenciesGraph,
+  DependenciesGraphNode,
   Importer as ImporterToLink,
 } from './link'
 import { absolutePathToRef } from './lockfile'
@@ -847,78 +846,34 @@ async function installInContext (
     ])
 
     // postinstall hooks
-    if (!(opts.ignoreScripts || !result.newDepPaths || !result.newDepPaths.length)) {
+    if (!opts.ignoreScripts && result.newDepPaths && result.newDepPaths.length) {
       const depPaths = Object.keys(result.depGraph)
       const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
-      const nodesToBuild = new Set<string>()
-      getSubgraphToBuild(result.depGraph, rootNodes, nodesToBuild, new Set<string>())
-      const onlyFromBuildGraph = R.filter((depPath: string) => nodesToBuild.has(depPath))
 
-      const nodesToBuildArray = Array.from(nodesToBuild)
-      const graph = new Map(
-        nodesToBuildArray
-          .map((depPath) => [depPath, onlyFromBuildGraph(R.values(result.depGraph[depPath].children))]) as Array<[string, string[]]>,
-      )
-      const graphSequencerResult = graphSequencer({
-        graph,
-        groups: [nodesToBuildArray],
+      await buildModules(result.depGraph, rootNodes, {
+        childConcurrency: opts.childConcurrency,
+        depsToBuild: new Set(result.newDepPaths),
+        optional: opts.include.optionalDependencies,
+        prefix: ctx.lockfileDirectory,
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: ctx.virtualStoreDir,
+        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+        storeController: opts.storeController,
+        unsafePerm: opts.unsafePerm,
+        userAgent: opts.userAgent,
       })
-      const chunks = graphSequencerResult.chunks as string[][]
-      const groups = chunks.map((chunk) => chunk
-        .filter((depPath) => result.depGraph[depPath].requiresBuild && !result.depGraph[depPath].isBuilt && result.newDepPaths.indexOf(depPath) !== -1)
-        .map((depPath) => result.depGraph[depPath])
-        .map((pkg) => async () => {
-          try {
-            const hasSideEffects = await runPostinstallHooks({
-              depPath: pkg.absolutePath,
-              optional: pkg.optional,
-              pkgRoot: pkg.peripheralLocation,
-              prepare: pkg.prepare,
-              rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: ctx.virtualStoreDir,
-              unsafePerm: opts.unsafePerm || false,
-            })
-            if (hasSideEffects && opts.sideEffectsCacheWrite) {
-              try {
-                await opts.storeController.upload(pkg.peripheralLocation, {
-                  engine: ENGINE_NAME,
-                  packageId: pkg.id,
-                })
-              } catch (err) {
-                if (err && err.statusCode === 403) {
-                  logger.warn({
-                    message: `The store server disabled upload requests, could not upload ${pkg.id}`,
-                    prefix: ctx.lockfileDirectory,
-                  })
-                } else {
-                  logger.warn({
-                    error: err,
-                    message: `An error occurred while uploading ${pkg.id}`,
-                    prefix: ctx.lockfileDirectory,
-                  })
-                }
-              }
-            }
-          } catch (err) {
-            if (resolvedPackagesByPackageId[pkg.id].optional) {
-              // TODO: add parents field to the log
-              skippedOptionalDependencyLogger.debug({
-                details: err.toString(),
-                package: {
-                  id: pkg.id,
-                  name: pkg.name,
-                  version: pkg.version,
-                },
-                prefix: opts.lockfileDirectory,
-                reason: 'build_failure',
-              })
-              return
-            }
-            throw err
-          }
-        }),
-      )
-      await runGroups(opts.childConcurrency, groups)
+    }
+
+    if (result.newDepPaths && result.newDepPaths.length) {
+      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
+      await linkAllBins(newPkgs, result.depGraph, {
+        optional: opts.include.optionalDependencies,
+        warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDirectory }),
+      })
+    }
+
+    if (!opts.lockfileOnly) {
+      await Promise.all(importersToLink.map(linkBinsOfImporter))
     }
   }
 
@@ -939,6 +894,26 @@ async function installInContext (
   await opts.storeController.close()
 }
 
+const limitLinking = pLimit(16)
+
+function linkBinsOfImporter ({ modulesDir, bin, prefix }: ImporterToLink) {
+  const warn = (message: string) => logger.warn({ message, prefix })
+  return linkBins(modulesDir, bin, { warn })
+}
+
+async function linkAllBins (
+  depNodes: DependenciesGraphNode[],
+  depGraph: DependenciesGraph,
+  opts: {
+    optional: boolean,
+    warn: (message: string) => void,
+  },
+) {
+  return Promise.all(
+    depNodes.map((depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))),
+  )
+}
+
 function modulesIsUpToDate (
   opts: {
     defaultRegistry: string,
@@ -953,29 +928,6 @@ function modulesIsUpToDate (
   ]
   currentWithSkipped.sort()
   return R.equals(R.keys(opts.wantedLockfile.packages), currentWithSkipped)
-}
-
-function getSubgraphToBuild (
-  graph: DependenciesGraph,
-  entryNodes: string[],
-  nodesToBuild: Set<string>,
-  walked: Set<string>,
-) {
-  let currentShouldBeBuilt = false
-  for (const depPath of entryNodes) {
-    if (nodesToBuild.has(depPath)) {
-      currentShouldBeBuilt = true
-    }
-    if (walked.has(depPath)) continue
-    walked.add(depPath)
-    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked)
-      || graph[depPath].requiresBuild
-    if (childShouldBeBuilt) {
-      nodesToBuild.add(depPath)
-      currentShouldBeBuilt = true
-    }
-  }
-  return currentShouldBeBuilt
 }
 
 function addDirectDependenciesToLockfile (

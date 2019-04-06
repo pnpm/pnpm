@@ -10,12 +10,10 @@ import {
 import filterLockfile, {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
-import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import shamefullyFlattenGraph from '@pnpm/shamefully-flatten'
 import { StoreController } from '@pnpm/store-controller-types'
@@ -23,7 +21,6 @@ import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-de
 import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import fs = require('mz/fs')
-import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
@@ -36,7 +33,10 @@ import updateLockfile from './updateLockfile'
 
 const brokenNodeModulesLogger = logger('_broken_node_modules')
 
-export { DependenciesGraph }
+export {
+  DependenciesGraph,
+  DependenciesGraphNode,
+}
 
 export interface Importer {
   bin: string,
@@ -134,7 +134,7 @@ export default async function linkPackages (
       opts.skipped.delete(relDepPath)
       return true
     }
-    if (opts.wantedToBeSkippedPackageIds.has(depNode.id)) {
+    if (opts.wantedToBeSkippedPackageIds.has(depNode.packageId)) {
       opts.skipped.add(relDepPath)
       return false
     }
@@ -225,8 +225,8 @@ export default async function linkPackages (
           rootLogger.debug({
             added: {
               dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-              id: depGraphNode.id,
-              latest: opts.outdatedDependencies[depGraphNode.id],
+              id: depGraphNode.packageId,
+              latest: opts.outdatedDependencies[depGraphNode.packageId],
               name: rootAlias,
               realName: depGraphNode.name,
               version: depGraphNode.version,
@@ -341,8 +341,6 @@ export default async function linkPackages (
         })),
       ),
     )
-
-    await Promise.all(importers.map(linkBinsOfImporter))
   }
 
   return {
@@ -352,11 +350,6 @@ export default async function linkPackages (
     removedDepPaths,
     wantedLockfile: newWantedLockfile,
   }
-}
-
-function linkBinsOfImporter ({ modulesDir, bin, prefix }: Importer) {
-  const warn = (message: string) => logger.warn({ message, prefix })
-  return linkBins(modulesDir, bin, { warn })
 }
 
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
@@ -440,11 +433,6 @@ async function linkNewPackages (
     linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
-  await linkAllBins(newPkgs, depGraph, {
-    optional: opts.optional,
-    warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDirectory }),
-  })
-
   return newDepPaths
 }
 
@@ -498,50 +486,6 @@ async function linkAllPkgs (
         force: opts.force,
       })
     }),
-  )
-}
-
-async function linkAllBins (
-  depNodes: DependenciesGraphNode[],
-  depGraph: DependenciesGraph,
-  opts: {
-    optional: boolean,
-    warn: (message: string) => void,
-  },
-) {
-  return Promise.all(
-    depNodes.map((depNode) => limitLinking(async () => {
-      const childrenToLink = opts.optional
-          ? depNode.children
-          : R.keys(depNode.children)
-            .reduce((nonOptionalChildren, childAlias) => {
-              if (!depNode.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = depNode.children[childAlias]
-              }
-              return nonOptionalChildren
-            }, {})
-
-      const pkgs = await Promise.all(
-        R.keys(childrenToLink)
-          .filter((alias) => depGraph[childrenToLink[alias]].hasBin && depGraph[childrenToLink[alias]].installable)
-          .map(async (alias) => {
-            const dep = depGraph[childrenToLink[alias]]
-            return {
-              location: dep.peripheralLocation,
-              manifest: (await dep.fetchingRawManifest) || await readPackageFromDir(dep.peripheralLocation),
-            }
-          }),
-      )
-
-      const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
-      await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
-
-      // link also the bundled dependencies` bins
-      if (depNode.hasBundledDependencies) {
-        const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
-        await linkBins(bundledModules, binPath, { warn: opts.warn })
-      }
-    })),
   )
 }
 

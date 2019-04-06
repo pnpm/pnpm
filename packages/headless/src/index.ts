@@ -1,3 +1,4 @@
+import buildModules from '@pnpm/build-modules'
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
@@ -54,7 +55,6 @@ import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
-import runDependenciesScripts from './runDependenciesScripts'
 
 const brokenNodeModulesLogger = logger('_broken_node_modules')
 
@@ -221,8 +221,6 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
-
   await Promise.all(opts.importers.map(async (importer) => {
     if (importer.shamefullyFlatten) {
       importer.hoistedAliases = await shamefullyFlattenByLockfile(filteredLockfile, importer.id, {
@@ -253,8 +251,6 @@ export default async (opts: HeadlessOptions) => {
       registries: opts.registries,
       rootDependencies: res.directDependenciesByImporterId[importer.id],
     })
-    const bin = path.join(importer.modulesDir, '.bin')
-    await linkBins(importer.modulesDir, bin, { warn })
 
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
@@ -307,19 +303,30 @@ export default async (opts: HeadlessOptions) => {
   })
 
   if (!opts.ignoreScripts) {
+    const directNodes = new Set<string>()
     for (const importer of opts.importers) {
-      await runDependenciesScripts(depGraph, R.values(res.directDependenciesByImporterId[importer.id]).filter((loc) => depGraph[loc]), {
-        childConcurrency: opts.childConcurrency,
-        prefix: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-        storeController: opts.storeController,
-        unsafePerm: opts.unsafePerm,
-        userAgent: opts.userAgent,
-      })
+      R
+        .values(res.directDependenciesByImporterId[importer.id])
+        .filter((loc) => depGraph[loc])
+        .forEach((loc) => {
+          directNodes.add(loc)
+        })
     }
+    await buildModules(depGraph, Array.from(directNodes), {
+      childConcurrency: opts.childConcurrency,
+      optional: opts.include.optionalDependencies,
+      prefix: opts.lockfileDirectory,
+      rawNpmConfig: opts.rawNpmConfig,
+      rootNodeModulesDir: virtualStoreDir,
+      sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+      storeController: opts.storeController,
+      unsafePerm: opts.unsafePerm,
+      userAgent: opts.userAgent,
+    })
   }
+
+  await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
+  await Promise.all(opts.importers.map(linkBinsOfImporter))
 
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
@@ -340,6 +347,17 @@ export default async (opts: HeadlessOptions) => {
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
+}
+
+function linkBinsOfImporter (
+  { modulesDir, bin, prefix }: {
+    bin: string,
+    modulesDir: string,
+    prefix: string,
+  },
+) {
+  const warn = (message: string) => logger.warn({ message, prefix })
+  return linkBins(modulesDir, bin, { warn })
 }
 
 async function linkRootPackages (
@@ -496,8 +514,8 @@ async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
+          packageId,
           peripheralLocation,
-          pkgId: packageId,
           prepare: pkgSnapshot.prepare === true,
           relDepPath,
           requiresBuild: pkgSnapshot.requiresBuild === true,
@@ -597,7 +615,7 @@ export interface DependenciesGraphNode {
   optionalDependencies: Set<string>,
   optional: boolean,
   relDepPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
-  pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
+  packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt: boolean,
   requiresBuild: boolean,
   prepare: boolean,

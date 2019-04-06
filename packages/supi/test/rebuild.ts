@@ -247,3 +247,23 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
   t.deepEqual(outputs1, ['project-1', 'project-2'])
   t.deepEqual(outputs2, ['project-1', 'project-3'])
 })
+
+test('rebuild links bins', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDependenciesToPackage(['has-generated-bins-as-dep', 'generated-bins'], await testDefaults({ ignoreScripts: true }))
+
+  t.notOk(await exists(path.resolve('node_modules/.bin/cmd1')))
+  t.notOk(await exists(path.resolve('node_modules/.bin/cmd2')))
+
+  t.ok(await exists(path.resolve('node_modules/has-generated-bins-as-dep/package.json')))
+  t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1')))
+  t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2')))
+
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+
+  await project.isExecutable('.bin/cmd1')
+  await project.isExecutable('.bin/cmd2')
+  await project.isExecutable('has-generated-bins-as-dep/node_modules/.bin/cmd1')
+  await project.isExecutable('has-generated-bins-as-dep/node_modules/.bin/cmd2')
+})
