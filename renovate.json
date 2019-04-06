@@ -73,6 +73,10 @@
     {
       "packageNames": ["@types/p-any"],
       "allowedVersions": "1.1.2"
+    },
+    {
+      "packageNames": ["get-port"],
+      "allowedVersions": "<5"
     }
   ],
   "pinVersions": false,
