@@ -43,6 +43,7 @@ export default async (
     groups: [nodesToBuildArray],
   })
   const chunks = graphSequencerResult.chunks as string[][]
+  const buildDepOpts = { ...opts, warn }
   const groups = chunks.map((chunk) => {
     chunk = chunk.filter((depPath) => depGraph[depPath].requiresBuild && !depGraph[depPath].isBuilt)
     if (opts.depsToBuild) {
@@ -50,65 +51,77 @@ export default async (
     }
 
     return chunk.map((depPath: string) =>
-      async () => {
-        const depNode = depGraph[depPath]
-        try {
-          await linkBinsOfDependencies(depNode, depGraph, {
-            optional: opts.optional,
-            warn,
-          })
-          const hasSideEffects = await runPostinstallHooks({
-            depPath,
-            optional: depNode.optional,
-            pkgRoot: depNode.peripheralLocation,
-            prepare: depNode.prepare,
-            rawNpmConfig: opts.rawNpmConfig,
-            rootNodeModulesDir: opts.rootNodeModulesDir,
-            unsafePerm: opts.unsafePerm || false,
-          })
-          if (hasSideEffects && opts.sideEffectsCacheWrite) {
-            try {
-              await opts.storeController.upload(depNode.peripheralLocation, {
-                engine: ENGINE_NAME,
-                packageId: depNode.packageId,
-              })
-            } catch (err) {
-              if (err && err.statusCode === 403) {
-                logger.warn({
-                  message: `The store server disabled upload requests, could not upload ${depNode.packageId}`,
-                  prefix: opts.prefix,
-                })
-              } else {
-                logger.warn({
-                  error: err,
-                  message: `An error occurred while uploading ${depNode.packageId}`,
-                  prefix: opts.prefix,
-                })
-              }
-            }
-          }
-        } catch (err) {
-          if (depNode.optional) {
-            // TODO: add parents field to the log
-            const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation))
-            skippedOptionalDependencyLogger.debug({
-              details: err.toString(),
-              package: {
-                id: depNode.packageId,
-                name: pkg.name,
-                version: pkg.version,
-              },
-              prefix: opts.prefix,
-              reason: 'build_failure',
-            })
-            return
-          }
-          throw err
-        }
-      }
+      async () => buildDependency(depPath, depGraph, buildDepOpts)
     )
   })
   await runGroups(opts.childConcurrency || 4, groups)
+}
+
+async function buildDependency (
+  depPath: string,
+  depGraph: DependenciesGraph,
+  opts: {
+    optional: boolean,
+    prefix: string,
+    rawNpmConfig: object,
+    rootNodeModulesDir: string,
+    sideEffectsCacheWrite: boolean,
+    storeController: StoreController,
+    unsafePerm: boolean,
+    warn: (message: string) => void,
+  }
+) {
+  const depNode = depGraph[depPath]
+  try {
+    await linkBinsOfDependencies(depNode, depGraph, opts)
+    const hasSideEffects = await runPostinstallHooks({
+      depPath,
+      optional: depNode.optional,
+      pkgRoot: depNode.peripheralLocation,
+      prepare: depNode.prepare,
+      rawNpmConfig: opts.rawNpmConfig,
+      rootNodeModulesDir: opts.rootNodeModulesDir,
+      unsafePerm: opts.unsafePerm || false,
+    })
+    if (hasSideEffects && opts.sideEffectsCacheWrite) {
+      try {
+        await opts.storeController.upload(depNode.peripheralLocation, {
+          engine: ENGINE_NAME,
+          packageId: depNode.packageId,
+        })
+      } catch (err) {
+        if (err && err.statusCode === 403) {
+          logger.warn({
+            message: `The store server disabled upload requests, could not upload ${depNode.packageId}`,
+            prefix: opts.prefix,
+          })
+        } else {
+          logger.warn({
+            error: err,
+            message: `An error occurred while uploading ${depNode.packageId}`,
+            prefix: opts.prefix,
+          })
+        }
+      }
+    }
+  } catch (err) {
+    if (depNode.optional) {
+      // TODO: add parents field to the log
+      const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation))
+      skippedOptionalDependencyLogger.debug({
+        details: err.toString(),
+        package: {
+          id: depNode.packageId,
+          name: pkg.name,
+          version: pkg.version,
+        },
+        prefix: opts.prefix,
+        reason: 'build_failure',
+      })
+      return
+    }
+    throw err
+  }
 }
 
 function getSubgraphToBuild (

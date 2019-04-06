@@ -8,6 +8,7 @@ import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
 } from '@pnpm/lifecycle'
+import linkBins from '@pnpm/link-bins'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
@@ -234,7 +235,7 @@ function getSubgraphToBuild (
 
 async function _rebuild (
   pkgsToRebuild: Set<string>,
-  modules: string,
+  rootNodeModulesDir: string,
   lockfile: Lockfile,
   importerIds: string[],
   opts: StrictRebuildOptions,
@@ -274,7 +275,7 @@ async function _rebuild (
     groups: [nodesToBuildAndTransitiveArray],
   })
   const chunks = graphSequencerResult.chunks as string[][]
-
+  const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
   const groups = chunks.map((chunk) => chunk.filter((relDepPath) => pkgsToRebuild.has(relDepPath)).map((relDepPath) =>
     async () => {
       const pkgSnapshot = pkgSnapshots[relDepPath]
@@ -282,7 +283,7 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const pkgRoot = !independent
-        ? path.join(modules, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules', pkgInfo.name)
+        ? path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules', pkgInfo.name)
         : await (
           async () => {
             const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
@@ -293,13 +294,23 @@ async function _rebuild (
           }
         )()
       try {
+        if (!independent) {
+          const modules = path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+          const binPath = path.join(pkgRoot, 'node_modules', '.bin')
+          await linkBins(modules, binPath, { warn })
+          // link also the bundled dependencies` bins
+          if (pkgSnapshot.bundledDependencies && !R.isEmpty(pkgSnapshot.bundledDependencies)) {
+            const bundledModules = path.join(pkgRoot, 'node_modules')
+            await linkBins(bundledModules, binPath, { warn })
+          }
+        }
         await runPostinstallHooks({
           depPath,
           optional: pkgSnapshot.optional === true,
           pkgRoot,
           prepare: pkgSnapshot.prepare,
           rawNpmConfig: opts.rawNpmConfig,
-          rootNodeModulesDir: modules,
+          rootNodeModulesDir,
           unsafePerm: opts.unsafePerm || false,
         })
         pkgsThatWereRebuilt.add(relDepPath)
