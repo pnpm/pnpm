@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -8,7 +8,7 @@
     "lib"
   ],
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
@@ -30,9 +30,9 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/git-resolver": "2.0.1",
-    "@pnpm/local-resolver": "2.0.0",
-    "@pnpm/npm-resolver": "3.0.3",
+    "@pnpm/git-resolver": "2.0.2",
+    "@pnpm/local-resolver": "2.0.1",
+    "@pnpm/npm-resolver": "3.0.4",
     "@pnpm/tarball-resolver": "2.0.0"
   },
   "devDependencies": {

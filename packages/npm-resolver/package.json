@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -8,7 +8,7 @@
     "lib"
   ],
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",

@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "3.1.0",
+  "version": "3.1.1-0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,22 +21,22 @@
     "lib/"
   ],
   "dependencies": {
-    "@pnpm/config": "3.1.0",
+    "@pnpm/config": "3.1.1",
     "@pnpm/constants": "1.0.0",
     "@pnpm/core-loggers": "3.0.0",
-    "@pnpm/default-fetcher": "3.1.1",
-    "@pnpm/default-reporter": "3.0.3",
-    "@pnpm/default-resolver": "3.0.3",
-    "@pnpm/lifecycle": "5.0.0",
-    "@pnpm/list": "1.0.2",
+    "@pnpm/default-fetcher": "3.1.2",
+    "@pnpm/default-reporter": "3.0.4",
+    "@pnpm/default-resolver": "3.0.4",
+    "@pnpm/lifecycle": "5.0.1",
+    "@pnpm/list": "1.0.3",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/outdated": "2.0.4",
-    "@pnpm/package-store": "4.0.2",
+    "@pnpm/outdated": "2.0.5",
+    "@pnpm/package-store": "4.0.3",
     "@pnpm/server": "3.0.0",
     "@pnpm/store-controller-types": "3.0.0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/types": "3.0.0",
-    "@pnpm/utils": "0.10.1",
+    "@pnpm/utils": "0.10.2",
     "@types/archy": "0.0.31",
     "@types/camelcase-keys": "^4.1.0",
     "@types/lru-cache": "^5.1.0",
@@ -81,7 +81,7 @@
     "read-yaml-file": "1.1.0",
     "signal-exit": "3.0.2",
     "strip-color": "0.1.0",
-    "supi": "0.31.1",
+    "supi": "0.31.2",
     "text-table": "0.2.0",
     "tree-kill": "1.2.1",
     "update-notifier": "2.5.0"
@@ -165,7 +165,7 @@
   "license": "MIT",
   "preferGlobal": true,
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "repository": {
     "type": "git",

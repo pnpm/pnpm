@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -8,7 +8,7 @@
     "lib"
   ],
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "scripts": {
     "lint": "tslint -c tslint.json --project .",

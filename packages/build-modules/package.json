@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -8,7 +8,7 @@
     "lib"
   ],
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/constants": "1.0.0",
     "@pnpm/core-loggers": "3.0.0",
-    "@pnpm/lifecycle": "5.0.0",
+    "@pnpm/lifecycle": "5.0.1",
     "@pnpm/link-bins": "4.0.2",
     "@pnpm/read-package-json": "2.0.1",
     "@pnpm/store-controller-types": "3.0.0",
