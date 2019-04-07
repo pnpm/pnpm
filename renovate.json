@@ -81,6 +81,10 @@
     {
       "packageNames": ["p-queue"],
       "allowedVersions": "<5"
+    },
+    {
+      "packageNames": ["agentkeepalive"],
+      "allowedVersions": "4.0.0"
     }
   ],
   "pinVersions": false,
