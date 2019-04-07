@@ -160,7 +160,7 @@ export async function rebuild (
     scriptsOpts,
   )
   for (const importer of ctx.importers) {
-    if (importer.pkg && importer.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(importer.id) !== -1)) {
+    if (importer.pkg && importer.pkg.scripts && (!opts.pending || ctx.pendingBuilds.includes(importer.id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(importer.id), 1)
     }
   }

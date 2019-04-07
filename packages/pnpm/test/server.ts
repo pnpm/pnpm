@@ -336,7 +336,7 @@ test['skip']('fail if the store server is run by a different version of pnpm', a
   const result = execPnpmSync('install', 'is-positive@1.0.0')
 
   t.equal(result.status, 1)
-  t.ok(result.stdout.toString().indexOf('The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect (current is') !== -1)
+  t.ok(result.stdout.toString().includes('The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect (current is'))
 })
 
 test('print server status', async (t: tape.Test) => {

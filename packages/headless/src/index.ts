@@ -671,7 +671,7 @@ async function linkAllBins (
         const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
         const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
 
-        if (pkgSnapshots.indexOf(undefined as any) !== -1) { // tslint:disable-line
+        if (pkgSnapshots.includes(undefined as any)) { // tslint:disable-line
           await linkBins(depNode.modules, binPath, { warn: opts.warn })
         } else {
           const pkgs = await Promise.all(

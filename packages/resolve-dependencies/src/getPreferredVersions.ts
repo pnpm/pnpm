@@ -25,7 +25,7 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
             type: selector.type,
           }
         }
-      } else if (deps[depName].indexOf(':') === -1) { // we really care only about semver specs
+      } else if (!deps[depName].includes(':')) { // we really care only about semver specs
         const selector = getVerSelType(deps[depName])
         if (selector) {
           acc[depName] = {

@@ -288,8 +288,8 @@ test('write does not use yaml anchors/aliases', async t => {
   await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
 
   const lockfileContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
-  t.ok(lockfileContent.indexOf('&') === -1, 'lockfile contains no anchors')
-  t.ok(lockfileContent.indexOf('*') === -1, 'lockfile contains no aliases')
+  t.ok(!lockfileContent.includes('&'), 'lockfile contains no anchors')
+  t.ok(!lockfileContent.includes('*'), 'lockfile contains no aliases')
 
   t.end()
 })

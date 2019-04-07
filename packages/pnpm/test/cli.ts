@@ -19,7 +19,7 @@ test('returns help when not available command is used', t => {
   const result = execPnpmSync('foobarqar')
 
   t.equal(result.status, 0)
-  t.ok(result.stdout.toString().indexOf('Usage: pnpm [command] [flags]') !== -1)
+  t.ok(result.stdout.toString().includes('Usage: pnpm [command] [flags]'))
 
   t.end()
 })
@@ -28,7 +28,7 @@ test('some commands pass through to npm', t => {
   const result = execPnpmSync('dist-tag', 'ls', 'is-positive')
 
   t.equal(result.status, 0)
-  t.ok(result.stdout.toString().indexOf('Usage: pnpm [command] [flags]') === -1)
+  t.ok(!result.stdout.toString().includes('Usage: pnpm [command] [flags]'))
 
   t.end()
 })
@@ -113,7 +113,7 @@ test('pass through to npm CLI for commands that are not supported by npm', t => 
   const result = execPnpmSync('config', 'get', 'user-agent')
 
   t.equal(result.status, 0, 'command was successfull')
-  t.ok(result.stdout.toString().indexOf('npm/') !== -1, 'command returned correct result')
+  t.ok(result.stdout.toString().includes('npm/'), 'command returned correct result')
 
   t.end()
 })

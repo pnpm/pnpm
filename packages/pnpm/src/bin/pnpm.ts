@@ -5,7 +5,7 @@ process.setMaxListeners(0)
 
 let argv = process.argv.slice(2)
 
-if (argv.indexOf('--help') !== -1 || argv.indexOf('-h') !== -1 || argv.indexOf('--h') !== -1) {
+if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
   argv = ['help'].concat(argv)
 }
 
@@ -68,7 +68,7 @@ if (argv.indexOf('--help') !== -1 || argv.indexOf('-h') !== -1 || argv.indexOf('
     case 'test':
     case 'run':
     case 'run-script':
-      if (argv.indexOf('--filter') !== -1) {
+      if (argv.includes('--filter')) {
         await runPnpm()
       } else {
         await passThruToNpm()

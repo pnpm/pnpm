@@ -208,7 +208,7 @@ export async function recursive (
   }
 
   if (cmdFullName !== 'rebuild') {
-    if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].indexOf(cmdFullName) !== -1) {
+    if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
       let importers = getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))

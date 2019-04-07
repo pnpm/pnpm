@@ -620,7 +620,7 @@ test('top-level packages should find the plugins they use', async (t) => {
   })
   await addDependenciesToPackage(['pkg-that-uses-plugins', 'plugin-example'], await testDefaults({ save: true }))
   const result = spawnSync('npm', ['test'])
-  t.ok(result.stdout.toString().indexOf('My plugin is plugin-example') !== -1, 'package executable have found its plugin')
+  t.ok(result.stdout.toString().includes('My plugin is plugin-example'), 'package executable have found its plugin')
   t.equal(result.status, 0, 'executable exited with success')
 })
 
@@ -653,7 +653,7 @@ test('run js bin file', async (t) => {
   await addDependenciesToPackage(['hello-world-js-bin'], await testDefaults({ save: true }))
 
   const result = spawnSync('npm', ['test'])
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'package executable printed its message')
+  t.ok(result.stdout.toString().includes('Hello world!'), 'package executable printed its message')
   t.equal(result.status, 0, 'executable exited with success')
 })
 

@@ -58,7 +58,7 @@ export function pruneLockfile (
   const lockfileDevDependencies: ResolvedDependencies = {}
 
   Object.keys(lockfileSpecs).forEach((depName) => {
-    if (allDeps.indexOf(depName) === -1) return
+    if (!allDeps.includes(depName)) return
     specifiers[depName] = lockfileSpecs[depName]
     if (importer.dependencies && importer.dependencies[depName]) {
       lockfileDependencies[depName] = importer.dependencies[depName]

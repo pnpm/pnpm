@@ -241,7 +241,7 @@ function getTree (
       newEntry = { pkg }
     } else {
       const relativeId = refToRelative(deps[depName], depName) as string // we know for sure that relative is not null if pkgPath is not null
-      circular = keypath.indexOf(relativeId) !== -1
+      circular = keypath.includes(relativeId)
       const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
 
       if (dependencies.length) {

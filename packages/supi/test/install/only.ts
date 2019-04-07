@@ -130,5 +130,5 @@ test('fail if installing different types of dependencies in a project that uses 
 
   t.ok(err, 'installation failed')
   t.equal(err.code, 'ERR_PNPM_INCLUDED_DEPS_CONFLICT', 'error has correct error code')
-  t.ok(err.message.indexOf('was installed with devDependencies. Current install wants optionalDependencies, dependencies, devDependencies.') !== -1, 'correct error message')
+  t.ok(err.message.includes('was installed with devDependencies. Current install wants optionalDependencies, dependencies, devDependencies.'), 'correct error message')
 })

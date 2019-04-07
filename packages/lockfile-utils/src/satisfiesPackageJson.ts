@@ -46,5 +46,5 @@ export default (lockfile: Lockfile, pkg: PackageJson, importerId: string) => {
 }
 
 function countOfNonLinkedDeps (lockfileDeps: {[depName: string]: string}): number {
-  return R.values(lockfileDeps).filter((ref) => ref.indexOf('link:') === -1 && ref.indexOf('file:') === -1).length
+  return R.values(lockfileDeps).filter((ref) => !ref.includes('link:') && !ref.includes('file:')).length
 }

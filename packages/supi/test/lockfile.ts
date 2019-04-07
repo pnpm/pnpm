@@ -62,7 +62,7 @@ test('lockfile has correct format', async (t: tape.Test) => {
   t.ok(lockfile.dependencies, 'has dependencies field')
   t.equal(lockfile.dependencies['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
   t.ok(lockfile.dependencies['@rstacruz/tap-spec'], 'has scoped dependency resolved')
-  t.ok(lockfile.dependencies['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+  t.ok(lockfile.dependencies['is-negative'].includes('/'), 'has not shortened tarball from the non-standard registry')
 
   t.ok(lockfile.packages, 'has packages field')
   t.ok(lockfile.packages[id], `has resolution for ${id}`)
@@ -902,7 +902,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.importers.project.dependencies, 'has dependencies field')
     t.equal(lockfile.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
     t.ok(lockfile.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
-    t.ok(lockfile.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+    t.ok(lockfile.importers.project.dependencies!['is-negative'].includes('/'), 'has not shortened tarball from the non-standard registry')
 
     t.ok(lockfile.packages, 'has packages field')
     t.ok(lockfile.packages![id], `has resolution for ${id}`)
@@ -938,7 +938,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.importers.project.dependencies, 'has dependencies field')
     t.equal(lockfile.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
     t.ok(lockfile.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
-    t.ok(lockfile.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+    t.ok(lockfile.importers.project.dependencies!['is-negative'].includes('/'), 'has not shortened tarball from the non-standard registry')
 
     t.ok(lockfile.packages, 'has packages field')
     t.ok(lockfile.packages![id], `has resolution for ${id}`)

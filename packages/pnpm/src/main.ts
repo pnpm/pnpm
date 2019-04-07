@@ -147,7 +147,7 @@ export default async function run (argv: string[]) {
       cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
       || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
     )
-    && cliConf.argv.cooked.indexOf('--') !== -1
+    && cliConf.argv.cooked.includes('--')
   )
 
   const filterArgs = [] as string[]
@@ -162,7 +162,7 @@ export default async function run (argv: string[]) {
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
 
-  if (cmd !== 'recursive' && (dashDashFilterUsed || argv.indexOf('--filter') !== -1 || cliConf['recursive'] === true)) {
+  if (cmd !== 'recursive' && (dashDashFilterUsed || argv.includes('--filter') || cliConf['recursive'] === true)) {
     subCmd = cmd
     cmd = 'recursive'
     cliArgs.unshift(subCmd)
@@ -192,7 +192,7 @@ export default async function run (argv: string[]) {
     return
   }
 
-  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.indexOf(packageManager.name) !== -1
+  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.includes(packageManager.name)
 
   // Don't check for updates
   //   1. on CI environments

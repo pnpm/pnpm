@@ -701,7 +701,7 @@ async function installInContext (
         throw new Error('Cannot save because no package.json found')
       }
       const specsToUsert = <any>resolvedImporter.directDependencies // tslint:disable-line
-        .filter((dep) => importer.newPkgRawSpecs.indexOf(dep.specRaw) !== -1)
+        .filter((dep) => importer.newPkgRawSpecs.includes(dep.specRaw))
         .map((dep) => {
           return {
             name: dep.alias,
@@ -747,7 +747,7 @@ async function installInContext (
           R.difference(
             R.keys(getAllDependenciesFromPackage(importer.pkg)),
             importer.newPkgRawSpecs && resolvedImporter.directDependencies
-              .filter((directDep) => importer.newPkgRawSpecs.indexOf(directDep.specRaw) !== -1)
+              .filter((directDep) => importer.newPkgRawSpecs.includes(directDep.specRaw))
               .map((directDep) => directDep.alias) || [],
           ),
           importer.modulesDir,

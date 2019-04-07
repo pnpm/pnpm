@@ -56,5 +56,5 @@ test('import fails when no npm lockfiles are found', async (t: tape.Test) => {
   const result = execPnpmSync('import')
 
   t.equal(result.status, 1)
-  t.ok(result.stdout.toString().indexOf('No package-lock.json or npm-shrinkwrap.json found') !== -1)
+  t.ok(result.stdout.toString().includes('No package-lock.json or npm-shrinkwrap.json found'))
 })

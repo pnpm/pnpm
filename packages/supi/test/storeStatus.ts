@@ -41,5 +41,5 @@ test('store status returns path to the modified package', async (t: tape.Test) =
   const mutatedPkgs = await storeStatus(opts)
 
   t.equal(mutatedPkgs && mutatedPkgs.length, 1, '1 package was modified')
-  t.ok(mutatedPkgs && mutatedPkgs[0].indexOf('is-positive') !== -1, 'is-positive was modified')
+  t.ok(mutatedPkgs && mutatedPkgs[0].includes('is-positive'), 'is-positive was modified')
 })

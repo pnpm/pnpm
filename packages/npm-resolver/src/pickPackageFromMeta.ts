@@ -63,7 +63,7 @@ function pickVersionByVersionRange (
       }
     }
 
-    if (preferredVersions.indexOf(latest) !== -1 && semver.satisfies(latest, versionRange, true)) {
+    if (preferredVersions.includes(latest) && semver.satisfies(latest, versionRange, true)) {
       return latest
     }
     const preferredVersion = semver.maxSatisfying(preferredVersions, versionRange, true)

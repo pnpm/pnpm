@@ -36,7 +36,7 @@ test('lifecycle script runs with the correct user agent', t => {
 
   t.equal(result.status, 0, 'installation was successfull')
   const expectedUserAgentPrefix = `${pnpmPkg.name}/${pnpmPkg.version} `
-  t.ok(result.stdout.toString().indexOf(expectedUserAgentPrefix) !== -1, 'correct npm_config_user_agent value')
+  t.ok(result.stdout.toString().includes(expectedUserAgentPrefix), 'correct npm_config_user_agent value')
 
   t.end()
 })
@@ -51,7 +51,7 @@ test('preinstall is executed before general installation', t => {
   const result = execPnpmSync('install')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'preinstall script was executed')
+  t.ok(result.stdout.toString().includes('Hello world!'), 'preinstall script was executed')
 
   t.end()
 })
@@ -66,7 +66,7 @@ test('postinstall is executed after general installation', t => {
   const result = execPnpmSync('install')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
+  t.ok(result.stdout.toString().includes('Hello world!'), 'postinstall script was executed')
 
   t.end()
 })
@@ -81,7 +81,7 @@ test('postinstall is not executed after named installation', t => {
   const result = execPnpmSync('install', 'is-negative')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'postinstall script was not executed')
+  t.ok(!result.stdout.toString().includes('Hello world!'), 'postinstall script was not executed')
 
   t.end()
 })
@@ -96,7 +96,7 @@ test('prepare is not executed after installation with arguments', t => {
   const result = execPnpmSync('install', 'is-negative')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'prepare script was not executed')
+  t.ok(!result.stdout.toString().includes('Hello world!'), 'prepare script was not executed')
 
   t.end()
 })
@@ -111,7 +111,7 @@ test('prepare is executed after argumentless installation', t => {
   const result = execPnpmSync('install')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepare script was executed')
+  t.ok(result.stdout.toString().includes('Hello world!'), 'prepare script was executed')
 
   t.end()
 })

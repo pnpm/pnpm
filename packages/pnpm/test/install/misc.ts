@@ -37,7 +37,7 @@ test('bin files are found by lifecycle scripts', t => {
   const result = execPnpmSync('install')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
+  t.ok(result.stdout.toString().includes('Hello world!'), 'postinstall script was executed')
 
   t.end()
 })

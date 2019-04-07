@@ -252,7 +252,7 @@ export default async function linkPackages (
     const pkgJson = await depNode.fetchingRawManifest
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
-      filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
+      filesResponse.filenames.includes('binding.gyp') ||
         filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
     )
 
@@ -274,7 +274,7 @@ export default async function linkPackages (
       : filterLockfileByImporters(
         opts.currentLockfile,
         Object.keys(newWantedLockfile.importers)
-          .filter((importerId) => importerIds.indexOf(importerId) === -1 && opts.currentLockfile.importers[importerId]),
+          .filter((importerId) => !importerIds.includes(importerId) && opts.currentLockfile.importers[importerId]),
         {
           ...filterOpts,
           failOnMissingDependencies: false,

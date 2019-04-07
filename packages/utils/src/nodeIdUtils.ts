@@ -1,5 +1,5 @@
 export function nodeIdContainsSequence (nodeId: string, pkgId1: string, pkgId2: string) {
-  return nodeId.indexOf(`>${pkgId1}>${pkgId2}>`) !== -1
+  return nodeId.includes(`>${pkgId1}>${pkgId2}>`)
 }
 
 export function createNodeId (parentNodeId: string, pkgId: string) {

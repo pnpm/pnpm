@@ -53,7 +53,7 @@ export default async (
     if (opts.workspacePrefix) {
       workspacePackages = await findWorkspacePackages(opts.workspacePrefix)
 
-      const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.indexOf(pkg.manifest.name) !== -1)
+      const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.includes(pkg.manifest.name))
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))
 
       if (pkgsFoundInWorkspace.length && !linkOpts.saveDev && !linkOpts.saveProd && !linkOpts.saveOptional) {

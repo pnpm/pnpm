@@ -810,7 +810,7 @@ function getWantedDependencies (
     deps = Object.keys(opts.resolvedDependencies)
       .map((depName) => ({
         alias: depName,
-        optional: optionalDependencyNames.indexOf(depName) !== -1,
+        optional: optionalDependencyNames.includes(depName),
       } as WantedDependency))
   }
   return deps

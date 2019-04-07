@@ -134,7 +134,7 @@ async function _outdated (
       let pkgs = Object.keys(wantedLockfile.importers[importerId][depType]!)
 
       if (forPkgs.length) {
-        pkgs = pkgs.filter((pkgName) => forPkgs.indexOf(pkgName) !== -1)
+        pkgs = pkgs.filter((pkgName) => forPkgs.includes(pkgName))
       }
 
       await Promise.all(

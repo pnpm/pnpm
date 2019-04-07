@@ -43,7 +43,7 @@ export function refToAbsolute (
   if (reference.startsWith('link:')) {
     return null
   }
-  if (reference.indexOf('/') === -1) {
+  if (!reference.includes('/')) {
     const registryName = encodeRegistry(getRegistryByPackageName(registries, pkgName))
     return `${registryName}/${pkgName}/${reference}`
   }
@@ -65,7 +65,7 @@ export function relative (
 ) {
   const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
 
-  if (absoluteResolutionLoc.startsWith(`${registryName}/`) && absoluteResolutionLoc.indexOf('/-/') === -1) {
+  if (absoluteResolutionLoc.startsWith(`${registryName}/`) && !absoluteResolutionLoc.includes('/-/')) {
     return absoluteResolutionLoc.substr(absoluteResolutionLoc.indexOf('/'))
   }
   return absoluteResolutionLoc
@@ -81,7 +81,7 @@ export function refToRelative (
   if (reference.startsWith('file:')) {
     return reference
   }
-  if (reference.indexOf('/') === -1) {
+  if (!reference.includes('/')) {
     return `/${pkgName}/${reference}`
   }
   return reference

@@ -68,7 +68,7 @@ test('server', async t => {
 
   const files = await response['fetchingFiles'] as PackageFilesResponse
   t.notOk(files.fromStore)
-  t.ok(files.filenames.indexOf('package.json') !== -1)
+  t.ok(files.filenames.includes('package.json'))
   t.ok(response['finishing'])
 
   await response['finishing']
@@ -107,7 +107,7 @@ test('fetchPackage', async t => {
 
   const files = await response['fetchingFiles'] as PackageFilesResponse
   t.notOk(files.fromStore)
-  t.ok(files.filenames.indexOf('package.json') !== -1)
+  t.ok(files.filenames.includes('package.json'))
   t.ok(response['finishing'])
 
   await response['finishing']

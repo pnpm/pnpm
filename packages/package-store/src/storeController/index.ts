@@ -108,7 +108,7 @@ export default async function (
   async function addDependencies (prefix: string, dependencyPkgIds: string[]) {
     dependencyPkgIds.forEach((newDependent) => {
       storeIndex[newDependent] = storeIndex[newDependent] || []
-      if (storeIndex[newDependent].indexOf(prefix) === -1) {
+      if (!storeIndex[newDependent].includes(prefix)) {
         storeIndex[newDependent].push(prefix)
       }
     })
