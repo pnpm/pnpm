@@ -62,7 +62,7 @@
     "is-subdir": "1.0.3",
     "is-windows": "1.0.2",
     "load-json-file": "5.3.0",
-    "loud-rejection": "2.0.0",
+    "loud-rejection": "2.1.0",
     "lru-cache": "5.1.1",
     "mem": "4.3.0",
     "minimatch": "3.0.4",
