@@ -44,7 +44,7 @@
     "@pnpm/types": "3.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "*",
-    "load-json-file": "5.2.0",
+    "load-json-file": "5.3.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "p-limit": "2.2.0",
