@@ -77,6 +77,10 @@
     {
       "packageNames": ["get-port"],
       "allowedVersions": "<5"
+    },
+    {
+      "packageNames": ["p-queue"],
+      "allowedVersions": "<5"
     }
   ],
   "pinVersions": false,
