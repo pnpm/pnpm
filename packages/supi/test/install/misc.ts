@@ -7,6 +7,7 @@ import {
   StatsLog,
 } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import caw = require('caw')
 import crossSpawn = require('cross-spawn')
 import deepRequireCwd = require('deep-require-cwd')
@@ -14,10 +15,10 @@ import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
+import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import readPkg = require('read-pkg')
 import rimraf = require('rimraf-then')
 import semver = require('semver')
 import 'sepia'
@@ -246,8 +247,8 @@ test('update a package when installing with a dist-tag', async (t: tape.Test) =>
   await project.has('dep-of-pkg-with-1-dep')
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 
-  const pkg = await readPkg()
-  t.equal(pkg.devDependencies['dep-of-pkg-with-1-dep'], '^100.1.0')
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  t.equal(pkg.devDependencies!['dep-of-pkg-with-1-dep'], '^100.1.0')
 })
 
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async (t) => {
@@ -877,7 +878,7 @@ test('create a package.json if there is none', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['dep-of-pkg-with-1-dep@100.1.0'], await testDefaults())
 
-  t.deepEqual(await readPkg({ normalize: false }), {
+  t.deepEqual(await loadJsonFile(path.resolve('package.json')), {
     dependencies: {
       'dep-of-pkg-with-1-dep': '100.1.0',
     },

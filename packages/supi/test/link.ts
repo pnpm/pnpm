@@ -3,11 +3,11 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { Lockfile } from '@pnpm/lockfile-file'
 import prepare from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
-import readPkg = require('read-pkg')
 import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import {
@@ -135,7 +135,7 @@ test('relative link is rewritten by named installation to regular dependency', a
 
   await addDependenciesToPackage(['hello-world-js-bin'], opts)
 
-  const pkg = await readPkg()
+  const pkg = await readPackageJsonFromDir(process.cwd())
 
   t.deepEqual(pkg.dependencies, { 'hello-world-js-bin': '^1.0.0' })
 

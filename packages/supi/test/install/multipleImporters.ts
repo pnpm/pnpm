@@ -2,8 +2,8 @@ import assertProject from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { preparePackages } from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import path = require('path')
-import readPkg = require('read-pkg')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
@@ -185,7 +185,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
   ], await testDefaults())
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
-  const pkg = await readPkg({ cwd: 'project-1' })
+  const pkg = await readPackageJsonFromDir(path.resolve('project-1'))
 
   t.deepEqual(pkg.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
   t.deepEqual(pkg.devDependencies, { 'is-negative': '1.0.0' }, 'dev deps have a new dependency in package.json')

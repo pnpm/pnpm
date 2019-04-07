@@ -1916,7 +1916,6 @@ importers:
       path-exists: 4.0.0
       path-name: 1.0.0
       pnpm-registry-mock: 2.11.0
-      read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
       sepia: 2.0.2
@@ -2015,7 +2014,6 @@ importers:
       path-name: 1.0.0
       pnpm-registry-mock: 2.11.0
       ramda: 0.26.1
-      read-pkg: 4.0.1
       read-yaml-file: 1.1.0
       remove-all-except-outer-links: 2.0.0
       replace-string: 2.0.0

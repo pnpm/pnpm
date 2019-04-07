@@ -1,11 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { copy } from 'fs-extra'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
 import path = require('path')
-import readPkg = require('read-pkg')
 import {
   addDependenciesToPackage,
   install,
@@ -39,7 +39,7 @@ test('local file', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['file:../local-pkg'], await testDefaults())
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
@@ -64,7 +64,7 @@ test('local file via link:', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['link:../local-pkg'], await testDefaults())
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
@@ -91,7 +91,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['file:../local-pkg'], await testDefaults())
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
@@ -127,7 +127,7 @@ test('tarball local package', async (t: tape.Test) => {
 
   t.equal(m(), 'tar-pkg', 'tarPkg() is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const pkgSpec = `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`
   t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
@@ -158,7 +158,7 @@ test('tarball local package from project directory', async (t: tape.Test) => {
 
   t.equal(m(), 'tar-pkg', 'tarPkg() is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const pkgSpec = `file:tar-pkg-1.0.0.tgz`
   t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 

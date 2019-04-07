@@ -1,6 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
-import readPkg = require('read-pkg')
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { PackageJson } from '@pnpm/types'
+import loadJsonFile = require('load-json-file')
+import path = require('path')
 import {
   addDependenciesToPackage,
   install,
@@ -23,7 +26,7 @@ test('save to package.json (rimraf@2.5.1)', async (t) => {
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   t.deepEqual(pkgJson.dependencies, { rimraf: '^2.5.1' }, 'rimraf has been added to dependencies')
 })
 
@@ -43,7 +46,7 @@ test("don't override existing spec in package.json on named installation", async
   t.equal(project.requireModule('is-positive/package.json').version, '2.0.0')
   t.equal(project.requireModule('is-negative/package.json').version, '1.0.1')
 
-  const pkgJson = await readPkg({ normalize: false })
+  const pkgJson = await loadJsonFile<PackageJson>(path.resolve('package.json'))
   t.deepEqual(pkgJson.dependencies, {
     'is-negative': '^1.0.1',
     'is-positive': '^2.0.0',
@@ -58,7 +61,7 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async (t) => 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tapSpec() is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   t.deepEqual(pkgJson.devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
 })
 
@@ -76,7 +79,7 @@ test('dependency should not be added to package.json if it is already there', as
   })
   await addDependenciesToPackage(['foo', 'bar'], await testDefaults())
 
-  const pkgJson = await readPkg({ normalize: false })
+  const pkgJson = await loadJsonFile(path.resolve('package.json'))
   t.deepEqual(pkgJson, {
     devDependencies: {
       foo: '^100.0.0',
@@ -111,7 +114,7 @@ test('dependencies should be updated in the fields where they already are', asyn
   })
   await addDependenciesToPackage(['foo@latest', 'bar@latest'], await testDefaults())
 
-  const pkgJson = await readPkg({ normalize: false })
+  const pkgJson = await loadJsonFile(path.resolve('package.json'))
   t.deepEqual(pkgJson, {
     devDependencies: {
       foo: '^100.1.0',
@@ -145,7 +148,7 @@ test('dependency should be removed from the old field when installing it as a di
   await addDependenciesToPackage(['qar'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   {
-    const pkgJson = await readPkg({ normalize: false })
+    const pkgJson = await loadJsonFile(path.resolve('package.json'))
     t.deepEqual(pkgJson, {
       dependencies: {
         bar: '^100.0.0',
@@ -164,7 +167,7 @@ test('dependency should be removed from the old field when installing it as a di
   await addDependenciesToPackage(['bar', 'foo', 'qar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
 
   {
-    const pkgJson = await readPkg({ normalize: false })
+    const pkgJson = await loadJsonFile(path.resolve('package.json'))
     t.deepEqual(pkgJson, {
       dependencies: {
         bar: '^100.0.0',
@@ -181,7 +184,7 @@ test('dependency should be removed from the old field when installing it as a di
   {
     t.comment('manually editing package.json. Converting all prod deps to dev deps')
 
-    const pkgJson = await readPkg({ normalize: false })
+    const pkgJson = await loadJsonFile<PackageJson>(path.resolve('package.json'))
     pkgJson.devDependencies = pkgJson.dependencies
     delete pkgJson.dependencies
     await writePkg(pkgJson)
@@ -204,19 +207,19 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   const m2 = project.requireModule('rimraf')
   t.ok(typeof m2 === 'function', 'rimraf() is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const expectedDeps = {
     '@rstacruz/tap-spec': '4.1.1',
     'rimraf': '2.5.1',
   }
   t.deepEqual(pkgJson.dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
-  t.deepEqual(Object.keys(pkgJson.dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
+  t.deepEqual(Object.keys(pkgJson.dependencies!), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
 
 test('save to package.json with save prefix ~', async (t: tape.Test) => {
   const project = prepare(t)
   await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   t.deepEqual(pkgJson.dependencies, { 'pkg-with-1-dep': '~100.0.0' }, 'rimraf have been added to dependencies')
 })

@@ -1,7 +1,7 @@
 import { RootLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import path = require('path')
-import readPkg = require('read-pkg')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
@@ -29,10 +29,10 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 
   await project.has('hello-world-js-bin') // external link added
 
-  const pkg = await readPkg()
+  const pkg = await readPackageJsonFromDir(process.cwd())
 
-  delete pkg.dependencies['is-positive']
-  delete pkg.dependencies['@zkochan/logger']
+  delete pkg.dependencies!['is-positive']
+  delete pkg.dependencies!['@zkochan/logger']
 
   await writePkg(pkg)
 

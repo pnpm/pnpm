@@ -1,10 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import isCI = require('is-ci')
 import path = require('path')
 import exists = require('path-exists')
-import readPkg = require('read-pkg')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
@@ -25,7 +25,7 @@ test('from a github repo', async (t: tape.Test) => {
 
   t.ok(m, 'isNegative() is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   t.deepEqual(pkgJson.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
 })
 
@@ -51,7 +51,7 @@ test('from a github repo with different name via named installation', async (t: 
 
   t.equal(m, 'Hi', 'dep is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   t.deepEqual(pkgJson.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
@@ -90,7 +90,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 
   t.equal(m, 'Hi', 'dep is available')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   t.deepEqual(pkgJson.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
