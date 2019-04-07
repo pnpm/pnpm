@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Gets configs for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -21,7 +21,7 @@
     "config"
   ],
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",

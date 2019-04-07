@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -28,7 +28,7 @@
     "url": "https://www.kochan.io/"
   },
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "license": "MIT",
   "bugs": {
@@ -44,7 +44,7 @@
     "@zkochan/npm-package-arg": "1.0.2",
     "archy": "1.0.0",
     "chalk": "2.4.2",
-    "dependencies-hierarchy": "5.0.2",
+    "dependencies-hierarchy": "5.0.3",
     "p-limit": "2.2.0",
     "ramda": "0.26.1"
   },
