@@ -4,6 +4,7 @@
   ],
   "ignoreDeps": [
     "@pnpm/assert-project",
+    "@pnpm/build-modules",
     "@pnpm/config",
     "@pnpm/constants",
     "@pnpm/core-loggers",
