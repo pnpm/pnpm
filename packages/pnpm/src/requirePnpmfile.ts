@@ -1,4 +1,5 @@
 import logger from '@pnpm/logger'
+import { PackageJson } from '@pnpm/types'
 import chalk from 'chalk'
 import fs = require('fs')
 
@@ -14,8 +15,12 @@ export default (pnpmFilePath: string, prefix: string) => {
     }
     if (pnpmfile && pnpmfile.hooks && pnpmfile.hooks.readPackage) {
       const readPackage = pnpmfile.hooks.readPackage
-      pnpmfile.hooks.readPackage = function (...args: any[]) { // tslint:disable-line
-        const newPkg = readPackage(...args)
+      pnpmfile.hooks.readPackage = function (pkg: PackageJson, ...args: any[]) { // tslint:disable-line
+        pkg.dependencies = pkg.dependencies || {}
+        pkg.devDependencies = pkg.devDependencies || {}
+        pkg.optionalDependencies = pkg.optionalDependencies || {}
+        pkg.peerDependencies = pkg.peerDependencies || {}
+        const newPkg = readPackage(pkg, ...args)
         if (!newPkg) {
           const err = new Error(`readPackage hook did not return a package manifest object. Hook imported via ${pnpmFilePath}`)
            // tslint:disable:no-string-literal

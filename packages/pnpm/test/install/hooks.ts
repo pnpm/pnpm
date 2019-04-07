@@ -10,6 +10,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('readPackage hook', async (t: tape.Test) => {
   const project = prepare(t)
@@ -377,4 +378,29 @@ test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
   t.ok(hookLog.from, 'logged the hook source')
   t.equal(hookLog.hook, 'afterAllResolved', 'logged hook name')
   t.equal(hookLog.message, 'All resolved', 'logged the message')
+})
+
+test('readPackage hook normalizes the package manifest', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {
+          if (pkg.name === 'dep-of-pkg-with-1-dep') {
+            pkg.dependencies['is-positive'] = '*'
+            pkg.optionalDependencies['is-negative'] = '*'
+            pkg.peerDependencies['is-negative'] = '*'
+            pkg.devDependencies['is-positive'] = '*'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  await execPnpm('install', 'dep-of-pkg-with-1-dep')
+
+  t.pass('code in pnpmfile did not fail')
 })
