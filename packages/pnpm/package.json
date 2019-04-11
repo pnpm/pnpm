@@ -50,7 +50,7 @@
     "chalk": "2.4.2",
     "common-tags": "1.8.0",
     "cross-spawn": "6.0.5",
-    "delay": "4.1.0",
+    "delay": "4.2.0",
     "diable": "4.0.2",
     "dir-is-case-sensitive": "1.0.0",
     "execa": "1.0.0",
