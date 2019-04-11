@@ -8,6 +8,7 @@
     "noImplicitReturns": true,
     "suppressImplicitAnyIndexErrors": true,
     "allowSyntheticDefaultImports": true,
+    "strictBindCallApply": true,
     "strictNullChecks": true,
     "target": "es2017",
     "outDir": "lib",
@@ -15,8 +16,7 @@
     "moduleResolution": "node"
   },
   "include": [
-    "src/**/*.ts",
-    "typings/**/*.d.ts"
+    "src/**/*.ts"
   ],
   "atom": {
     "rewriteTsconfig": true

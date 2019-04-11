@@ -81,7 +81,7 @@ export default function createResolver (
     },
     strictSSL: opts.strictSsl,
     userAgent: opts.userAgent,
-  })
+  }) as (url: string, opts: {auth?: object}) => Promise<object>
   return resolveNpm.bind(null, {
     getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
     pickPackage: pickPackage.bind(null, {
@@ -97,13 +97,16 @@ export default function createResolver (
 
 async function resolveNpm (
   ctx: {
-    pickPackage: Function, //tslint:disable-line
+    pickPackage: (spec: RegistryPackageSpec, opts: object) => ReturnType<typeof pickPackage>,
     getCredentialsByURI: (registry: string) => object,
   },
   wantedDependency: {
     alias?: string,
+    pref: string,
+  } | {
+    alias: string,
     pref?: string,
-  } & ({alias: string, pref: string} | {alias: string} | {pref: string}),
+  },
   opts: {
     defaultTag?: string,
     dryRun?: boolean,
@@ -120,7 +123,7 @@ async function resolveNpm (
 ): Promise<ResolveResult | null> {
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
-    : defaultTagForAlias(wantedDependency.alias as string, opts.defaultTag || 'latest')
+    : defaultTagForAlias(wantedDependency.alias!, opts.defaultTag || 'latest')
   if (!spec) return null
   const auth = ctx.getCredentialsByURI(opts.registry)
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
@@ -242,7 +245,7 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
   return {
     fetchSpec: defaultTag,
     name: alias,
-    type: 'tag' as 'tag',
+    type: 'tag',
   }
 }
 

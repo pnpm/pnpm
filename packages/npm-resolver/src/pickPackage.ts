@@ -2,7 +2,7 @@ import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
 import loadJsonFile from 'load-json-file'
-import pLimit = require('p-limit')
+import pLimit, { Limit } from 'p-limit'
 import path = require('path')
 import url = require('url')
 import writeJsonFile from 'write-json-file'
@@ -40,9 +40,13 @@ export type PackageInRegistry = PackageManifest & {
   },
 }
 
-// prevents simultainous operations on the meta.json
-// otherwise it would cause EPERM exceptions
-const metafileOperationLimits = {}
+/**
+ * prevents simultaneous operations on the meta.json
+ * otherwise it would cause EPERM exceptions
+ */
+const metafileOperationLimits = {} as {
+  [pkgMirror: string]: Limit
+}
 
 export default async (
   ctx: {
@@ -50,8 +54,8 @@ export default async (
     metaFileName: string,
     metaCache: PackageMetaCache,
     storePath: string,
-    offline: boolean,
-    preferOffline: boolean,
+    offline?: boolean,
+    preferOffline?: boolean,
   },
   spec: RegistryPackageSpec,
   opts: {
@@ -78,7 +82,7 @@ export default async (
   const pkgMirror = path.join(ctx.storePath, registryName, spec.name)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
-  let metaCachedInStore: PackageMeta | undefined
+  let metaCachedInStore: PackageMeta | null | undefined
   if (ctx.offline || ctx.preferOffline) {
     metaCachedInStore = await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
 
@@ -120,6 +124,7 @@ export default async (
     // only save meta to cache, when it is fresh
     ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
+      // tslint:disable-next-line:no-floating-promises
       limit(() => saveMeta(pkgMirror, meta, ctx.metaFileName))
     }
     return {
@@ -142,7 +147,7 @@ async function fromRegistry (
   fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
   pkgName: string,
   registry: string,
-  auth: object,
+  auth?: object,
 ) {
   const uri = toUri(pkgName, registry)
   const res = await fetch(uri, { auth }) as {
