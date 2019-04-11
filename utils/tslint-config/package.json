@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "tslint": "5.15.0",
-    "typescript": "3.4.2"
+    "typescript": "3.4.3"
   },
   "directories": {
     "test": "test"

@@ -49,7 +49,7 @@
     "tape": "^4.8.0",
     "ts-node": "8.0.3",
     "tslint": "5.15.0",
-    "typescript": "^3.0.0"
+    "typescript": "3.4.3"
   },
   "mos": {
     "plugins": [
