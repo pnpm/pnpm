@@ -185,9 +185,19 @@ export async function linkBinsOfDependencies (
         return nonOptionalChildren
       }, {})
 
+  const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+
   const pkgs = await Promise.all(
     R.keys(childrenToLink)
-      .filter((alias) => depGraph[childrenToLink[alias]].hasBin && depGraph[childrenToLink[alias]].installable !== false)
+      .filter((alias) => {
+        const dep = depGraph[childrenToLink[alias]]
+        if (!dep) {
+          // TODO: Try to reproduce this issue with a test in supi
+          opts.warn(`Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.`)
+          return false
+        }
+        return dep.hasBin && dep.installable !== false
+      })
       .map(async (alias) => {
         const dep = depGraph[childrenToLink[alias]]
         return {
@@ -197,7 +207,6 @@ export async function linkBinsOfDependencies (
       }),
   )
 
-  const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
   await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
 
   // link also the bundled dependencies` bins
