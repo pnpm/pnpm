@@ -3,9 +3,11 @@ import resolveFromLocal from '@pnpm/local-resolver'
 import createResolveFromNpm, {
   PackageMeta,
   PackageMetaCache,
+  ResolveFromNpmOptions,
 } from '@pnpm/npm-resolver'
 import {
-  ResolveFunction
+  ResolveFunction,
+  ResolveOptions,
 } from '@pnpm/resolver-base'
 import resolveFromTarball from '@pnpm/tarball-resolver'
 
@@ -41,9 +43,9 @@ export default function createResolver (
   const resolveFromGit = createResolveFromGit(pnpmOpts)
   return async (
     wantedDependency,
-    opts: { registry: string, prefix: string },
+    opts: ResolveOptions,
   ) => {
-    const resolution = await resolveFromNpm(wantedDependency, opts)
+    const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions)
       || wantedDependency.pref && (
         await resolveFromTarball(wantedDependency as {pref: string})
         || await resolveFromGit(wantedDependency as {pref: string})

@@ -96,29 +96,31 @@ export default function createResolver (
   })
 }
 
+export type ResolveFromNpmOptions = {
+  defaultTag?: string,
+  dryRun?: boolean,
+  registry: string,
+  preferredVersions?: {
+    [packageName: string]: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    },
+  },
+} & ({
+  prefix?: string,
+  localPackages?: undefined,
+} | {
+  prefix: string,
+  localPackages: LocalPackages,
+})
+
 async function resolveNpm (
   ctx: {
     pickPackage: (spec: RegistryPackageSpec, opts: object) => ReturnType<typeof pickPackage>,
     getCredentialsByURI: (registry: string) => object,
   },
   wantedDependency: WantedDependency,
-  opts: {
-    defaultTag?: string,
-    dryRun?: boolean,
-    registry: string,
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
-  } & ({
-    prefix?: string,
-    localPackages?: undefined,
-  } | {
-    prefix: string,
-    localPackages: LocalPackages,
-  }),
+  opts: ResolveFromNpmOptions,
 ): Promise<ResolveResult | null> {
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
