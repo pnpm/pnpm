@@ -1,13 +1,14 @@
-import test = require('tape')
+///<reference path="../typings/index.d.ts"/>
 import createResolveFromGit from '@pnpm/git-resolver'
-const git = require('graceful-git')
-import path = require('path')
+import git = require('graceful-git')
 import isWindows = require('is-windows')
+import path = require('path')
+import test = require('tape')
 
 const resolveFromGit = createResolveFromGit({})
 
 test('resolveFromGit() with commit', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99'})
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99' })
   t.deepEqual(resolveResult, {
     id: 'github.com/zkochan/is-negative/163360a8d3ae6bee9524541043197ff356f8ed99',
     normalizedPref: 'github:zkochan/is-negative#163360a8d3ae6bee9524541043197ff356f8ed99',
@@ -20,7 +21,7 @@ test('resolveFromGit() with commit', async (t) => {
 })
 
 test('resolveFromGit() with no commit', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'zkochan/is-negative'})
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' })
   t.deepEqual(resolveResult, {
     id: 'github.com/zkochan/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c',
     normalizedPref: 'github:zkochan/is-negative',
@@ -33,7 +34,7 @@ test('resolveFromGit() with no commit', async (t) => {
 })
 
 test('resolveFromGit() with branch', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'zkochan/is-negative#canary'})
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#canary' })
   t.deepEqual(resolveResult, {
     id: 'github.com/zkochan/is-negative/4c39fbc124cd4944ee51cb082ad49320fab58121',
     normalizedPref: 'github:zkochan/is-negative#canary',
@@ -46,7 +47,7 @@ test('resolveFromGit() with branch', async (t) => {
 })
 
 test('resolveFromGit() with tag', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'zkochan/is-negative#2.0.1'})
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#2.0.1' })
   t.deepEqual(resolveResult, {
     id: 'github.com/zkochan/is-negative/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
     normalizedPref: 'github:zkochan/is-negative#2.0.1',
@@ -59,7 +60,7 @@ test('resolveFromGit() with tag', async (t) => {
 })
 
 test('resolveFromGit() with tag (v-prefixed tag)', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'andreineculau/npm-publish-git#v0.0.7'})
+  const resolveResult = await resolveFromGit({ pref: 'andreineculau/npm-publish-git#v0.0.7' })
   t.deepEqual(resolveResult, {
     id: 'github.com/andreineculau/npm-publish-git/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
     normalizedPref: 'github:andreineculau/npm-publish-git#v0.0.7',
@@ -72,7 +73,7 @@ test('resolveFromGit() with tag (v-prefixed tag)', async (t) => {
 })
 
 test('resolveFromGit() with strict semver', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'zkochan/is-negative#semver:1.0.0'})
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#semver:1.0.0' })
   t.deepEqual(resolveResult, {
     id: 'github.com/zkochan/is-negative/163360a8d3ae6bee9524541043197ff356f8ed99',
     normalizedPref: 'github:zkochan/is-negative#semver:1.0.0',
@@ -85,7 +86,7 @@ test('resolveFromGit() with strict semver', async (t) => {
 })
 
 test('resolveFromGit() with strict semver (v-prefixed tag)', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'andreineculau/npm-publish-git#semver:v0.0.7'})
+  const resolveResult = await resolveFromGit({ pref: 'andreineculau/npm-publish-git#semver:v0.0.7' })
   t.deepEqual(resolveResult, {
     id: 'github.com/andreineculau/npm-publish-git/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
     normalizedPref: 'github:andreineculau/npm-publish-git#semver:v0.0.7',
@@ -98,7 +99,7 @@ test('resolveFromGit() with strict semver (v-prefixed tag)', async (t) => {
 })
 
 test('resolveFromGit() with range semver', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'zkochan/is-negative#semver:^1.0.0'})
+  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative#semver:^1.0.0' })
   t.deepEqual(resolveResult, {
     id: 'github.com/zkochan/is-negative/9a89df745b2ec20ae7445d3d9853ceaeef5b0b72',
     normalizedPref: 'github:zkochan/is-negative#semver:^1.0.0',
@@ -111,7 +112,7 @@ test('resolveFromGit() with range semver', async (t) => {
 })
 
 test('resolveFromGit() with range semver (v-prefixed tag)', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'andreineculau/npm-publish-git#semver:<=v0.0.7'})
+  const resolveResult = await resolveFromGit({ pref: 'andreineculau/npm-publish-git#semver:<=v0.0.7' })
   t.deepEqual(resolveResult, {
     id: 'github.com/andreineculau/npm-publish-git/a2f8d94562884e9529cb12c0818312ac87ab7f0b',
     normalizedPref: 'github:andreineculau/npm-publish-git#semver:<=v0.0.7',
@@ -125,7 +126,7 @@ test('resolveFromGit() with range semver (v-prefixed tag)', async (t) => {
 
 test('resolveFromGit() fails when ref not found', async (t) => {
   try {
-    const r = await resolveFromGit({pref: 'zkochan/is-negative#bad-ref'})
+    const r = await resolveFromGit({ pref: 'zkochan/is-negative#bad-ref' })
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Could not resolve bad-ref to a commit of git://github.com/zkochan/is-negative.git.', 'throws the expected error message')
@@ -135,7 +136,7 @@ test('resolveFromGit() fails when ref not found', async (t) => {
 
 test('resolveFromGit() fails when semver ref not found', async (t) => {
   try {
-    const r = await resolveFromGit({pref: 'zkochan/is-negative#semver:^100.0.0'})
+    const r = await resolveFromGit({ pref: 'zkochan/is-negative#semver:^100.0.0' })
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Could not resolve ^100.0.0 to a commit of git://github.com/zkochan/is-negative.git. Available versions are: 1.0.0, 1.0.1, 2.0.0, 2.0.1, 2.0.2, 2.1.0', 'throws the expected error message')
@@ -149,8 +150,8 @@ test('resolveFromGit() with commit from non-github repo', async (t) => {
     t.end()
     return
   }
-  const localPath = process.cwd();
-  const resolveResult = await resolveFromGit({pref: `git+file://${localPath}#988c61e11dc8d9ca0b5580cb15291951812549dc`})
+  const localPath = process.cwd()
+  const resolveResult = await resolveFromGit({ pref: `git+file://${localPath}#988c61e11dc8d9ca0b5580cb15291951812549dc` })
   t.deepEqual(resolveResult, {
     id: `${localPath}/988c61e11dc8d9ca0b5580cb15291951812549dc`,
     normalizedPref: `git+file://${localPath}#988c61e11dc8d9ca0b5580cb15291951812549dc`,
@@ -167,7 +168,7 @@ test('resolveFromGit() with commit from non-github repo', async (t) => {
 // TODO: make it pass on CI servers
 test.skip('resolveFromGit() with commit from non-github repo with no commit', async (t) => {
   const localPath = path.resolve('..', '..')
-  const result = await git(['rev-parse', 'origin/master'], { retries: 0 });
+  const result = await git(['rev-parse', 'origin/master'], { retries: 0 })
   const hash = result.stdout.trim()
   const resolveResult = await resolveFromGit({ pref: `git+file://${localPath}` })
   t.deepEqual(resolveResult, {
@@ -189,7 +190,7 @@ test('resolveFromGit() bitbucket with commit', async (t) => {
     t.end()
     return
   }
-  const resolveResult = await resolveFromGit({pref: 'bitbucket:pnpmjs/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc'})
+  const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
   t.deepEqual(resolveResult, {
     id: 'bitbucket.org/pnpmjs/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc',
     normalizedPref: 'bitbucket:pnpmjs/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
@@ -202,8 +203,8 @@ test('resolveFromGit() bitbucket with commit', async (t) => {
 })
 
 test('resolveFromGit() bitbucket with no commit', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'bitbucket:pnpmjs/git-resolver'})
-  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], {retries: 0});
+  const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver' })
+  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `bitbucket.org/pnpmjs/git-resolver/${hash}`,
@@ -217,8 +218,8 @@ test('resolveFromGit() bitbucket with no commit', async (t) => {
 })
 
 test('resolveFromGit() bitbucket with branch', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'bitbucket:pnpmjs/git-resolver#master'})
-  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], {retries: 0});
+  const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver#master' })
+  const result = await git(['ls-remote', '--refs', 'https://bitbucket.org/pnpmjs/git-resolver.git', 'master'], { retries: 0 })
   const hash = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `bitbucket.org/pnpmjs/git-resolver/${hash}`,
@@ -232,7 +233,7 @@ test('resolveFromGit() bitbucket with branch', async (t) => {
 })
 
 test('resolveFromGit() bitbucket with tag', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'bitbucket:pnpmjs/git-resolver#0.3.4'})
+  const resolveResult = await resolveFromGit({ pref: 'bitbucket:pnpmjs/git-resolver#0.3.4' })
   t.deepEqual(resolveResult, {
     id: 'bitbucket.org/pnpmjs/git-resolver/87cf6a67064d2ce56e8cd20624769a5512b83ff9',
     normalizedPref: 'bitbucket:pnpmjs/git-resolver#0.3.4',
@@ -245,7 +246,7 @@ test('resolveFromGit() bitbucket with tag', async (t) => {
 })
 
 test('resolveFromGit() gitlab with commit', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc'})
+  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc' })
   t.deepEqual(resolveResult, {
     id: 'gitlab.com/pnpm/git-resolver/988c61e11dc8d9ca0b5580cb15291951812549dc',
     normalizedPref: 'gitlab:pnpm/git-resolver#988c61e11dc8d9ca0b5580cb15291951812549dc',
@@ -258,8 +259,8 @@ test('resolveFromGit() gitlab with commit', async (t) => {
 })
 
 test('resolveFromGit() gitlab with no commit', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'gitlab:pnpm/git-resolver'})
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], {retries: 0});
+  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver' })
+  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
@@ -273,8 +274,8 @@ test('resolveFromGit() gitlab with no commit', async (t) => {
 })
 
 test('resolveFromGit() gitlab with branch', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'gitlab:pnpm/git-resolver#master'})
-  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], {retries: 0});
+  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#master' })
+  const result = await git(['ls-remote', '--refs', 'https://gitlab.com/pnpm/git-resolver.git', 'master'], { retries: 0 })
   const hash = result.stdout.trim().split('\t')[0]
   t.deepEqual(resolveResult, {
     id: `gitlab.com/pnpm/git-resolver/${hash}`,
@@ -288,7 +289,7 @@ test('resolveFromGit() gitlab with branch', async (t) => {
 })
 
 test('resolveFromGit() gitlab with tag', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'gitlab:pnpm/git-resolver#0.3.4'})
+  const resolveResult = await resolveFromGit({ pref: 'gitlab:pnpm/git-resolver#0.3.4' })
   t.deepEqual(resolveResult, {
     id: 'gitlab.com/pnpm/git-resolver/87cf6a67064d2ce56e8cd20624769a5512b83ff9',
     normalizedPref: 'gitlab:pnpm/git-resolver#0.3.4',
@@ -311,10 +312,10 @@ test('resolveFromGit() normalizes full url', async (t) => {
     resolvedVia: 'git-repository',
   })
   t.end()
-});
+})
 
 test('resolveFromGit() normalizes full url (alternative form)', async (t) => {
-  const resolveResult = await resolveFromGit({pref: 'git+ssh://git@github.com/zkochan/is-negative.git#2.0.1'})
+  const resolveResult = await resolveFromGit({ pref: 'git+ssh://git@github.com/zkochan/is-negative.git#2.0.1' })
   t.deepEqual(resolveResult, {
     id: 'github.com/zkochan/is-negative/2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
     normalizedPref: 'github:zkochan/is-negative#2.0.1',
@@ -324,7 +325,7 @@ test('resolveFromGit() normalizes full url (alternative form)', async (t) => {
     resolvedVia: 'git-repository',
   })
   t.end()
-});
+})
 
 test('resolveFromGit() normalizes full url (alternative form 2)', async (t) => {
   const resolveResult = await resolveFromGit({ pref: 'https://github.com/zkochan/is-negative.git#2.0.1' })
@@ -337,7 +338,7 @@ test('resolveFromGit() normalizes full url (alternative form 2)', async (t) => {
     resolvedVia: 'git-repository',
   })
   t.end()
-});
+})
 
 // This test relies on implementation detail.
 // current implementation does not try git ls-remote --refs on pref with full commit hash, this fake repo url will pass.
@@ -354,4 +355,4 @@ test('resolveFromGit() private repo with commit hash', async (t) => {
     resolvedVia: 'git-repository',
   })
   t.end()
-});
+})

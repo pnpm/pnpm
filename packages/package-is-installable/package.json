@@ -25,7 +25,7 @@
   "scripts": {
     "start": "npm run tsc -- --watch",
     "test": "npm run tsc && npm run lint && ts-node test",
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },

@@ -11,12 +11,12 @@
     "node": ">=8.15"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "tsc",
     "test": "npm run tsc && npm run lint && ts-node test --ts-node",
     "md": "mos",
     "prepublishOnly": "npm run tsc",
-    "fix": "tslint -c tslint.json --project . --fix"
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/local-resolver",
   "keywords": [

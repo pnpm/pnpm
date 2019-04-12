@@ -11,12 +11,12 @@
     "node": ">=8.15"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "test": "npm run lint && npm run tsc && ts-node test --type-check && mos t",
     "md": "mos",
     "prepublishOnly": "npm run tsc",
-    "fix": "tslint -c tslint.json --project . --fix"
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/lifecycle",
   "keywords": [

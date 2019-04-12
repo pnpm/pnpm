@@ -1,8 +1,8 @@
-import test = require('tape')
-import runLifecycleHook, {runPostinstallHooks} from '@pnpm/lifecycle'
+import runLifecycleHook, { runPostinstallHooks } from '@pnpm/lifecycle'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import rimraf = require('rimraf')
-import loadJsonFile = require('load-json-file')
+import test = require('tape')
 
 const fixtures = path.join(__dirname, 'fixtures')
 const rootNodeModulesDir = path.join(__dirname, '..', 'node_modules')

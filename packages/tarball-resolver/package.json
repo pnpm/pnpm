@@ -11,7 +11,8 @@
     "node": ">=8"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "tsc": "rimraf lib && tsc",
     "test": "npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "md": "mos",
