@@ -60,11 +60,10 @@ export interface ResolveOptions {
 
 export type WantedDependency = {
   alias?: string,
+  pref: string,
+} | {
+  alias: string,
   pref?: string,
-} & (
-  {alias: string, pref: string}
-  | {alias: string}
-  | {pref: string}
-)
+}
 
 export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>

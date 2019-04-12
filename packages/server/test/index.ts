@@ -2,7 +2,7 @@
 import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer, } from '@pnpm/server'
-import { PackageFilesResponse } from '@pnpm/store-controller-types'
+import { PackageFilesResponse, ResolveFunction } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
 import isPortReachable = require('is-port-reachable')
 import fs = require('mz/fs')
@@ -21,7 +21,7 @@ async function createStoreController () {
     metaCache: new Map<string, object>() as PackageMetaCache,
     rawNpmConfig,
     store,
-  })
+  }) as ResolveFunction
   const fetchers = createFetcher({
     alwaysAuth: true,
     rawNpmConfig,

@@ -1,5 +1,6 @@
 import createResolver from '@pnpm/npm-resolver'
 import createStore, * as packageStore from '@pnpm/package-store'
+import { ResolveFunction } from '@pnpm/resolver-base'
 import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import test = require('tape')
@@ -18,7 +19,7 @@ test('store.importPackage()', async (t) => {
     metaCache: new Map(),
     rawNpmConfig,
     store,
-  })
+  }) as ResolveFunction
   const fetcher = createFetcher({
     rawNpmConfig,
     registry,
@@ -56,7 +57,7 @@ test('store.importPackage() by copying', async (t) => {
     metaCache: new Map(),
     rawNpmConfig,
     store,
-  })
+  }) as ResolveFunction
   const fetcher = createFetcher({
     rawNpmConfig,
     registry,

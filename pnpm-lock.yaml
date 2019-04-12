@@ -238,6 +238,7 @@ importers:
       '@pnpm/git-resolver': 'link:../git-resolver'
       '@pnpm/local-resolver': 'link:../local-resolver'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
+      '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/tarball-resolver': 'link:../tarball-resolver'
     devDependencies:
       '@pnpm/default-resolver': 'link:'
@@ -257,6 +258,7 @@ importers:
       '@pnpm/local-resolver': 2.0.1
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 3.0.4
+      '@pnpm/resolver-base': 3.0.0
       '@pnpm/tarball-resolver': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.33
@@ -1040,7 +1042,9 @@ importers:
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/nock': 9.3.1
+      '@types/normalize-path': 3.0.0
       '@types/path-exists': 3.0.0
+      '@types/ssri': 6.0.0
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       mos: 2.0.0-alpha.3
@@ -1062,8 +1066,10 @@ importers:
       '@types/load-json-file': ^2.0.7
       '@types/nock': ^9.1.1
       '@types/node': '*'
+      '@types/normalize-path': ^3.0.0
       '@types/path-exists': ^3.0.0
       '@types/semver': 6.0.0
+      '@types/ssri': ^6.0.0
       '@types/tape': ^4.2.31
       '@types/tempy': ^0.2.0
       credentials-by-uri: 1.0.0
@@ -2766,6 +2772,10 @@ packages:
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
+  /@types/normalize-path/3.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-Nd8y/5t/7CRakPYiyPzr/IAfYusy1FkcZYFEAcoMZkwpJv2n4Wm+olW+e7xBdHEXhOnWdG9ddbar0gqZWS4x5Q==
   /@types/p-any/1.1.2:
     dependencies:
       '@types/aggregate-error': 1.0.0
@@ -2825,6 +2835,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-6ee09Ugx6GyEr0opUIakmxIWFNmqYPjkqa3/BuxCBokA0klsOLPgMD5K4q40lH7/yZVuJVzOfQpd7pipwjngkQ==
+  /@types/ssri/6.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-JSUkNxrI06sLQKDKVJG5nuZyTuKWm58d+zf8xiadQ7L2BSMSQW8KoLb0GrL2hz6y40huq1mduZOClXqLpxLXfA==
   /@types/tape/4.2.33:
     dependencies:
       '@types/node': 11.13.4

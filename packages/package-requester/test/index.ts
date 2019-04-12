@@ -29,7 +29,7 @@ const resolve = createResolver({
   metaCache: new Map(),
   rawNpmConfig,
   store: '.store',
-})
+}) as ResolveFunction
 const fetch = createFetcher({
   alwaysAuth: false,
   rawNpmConfig,

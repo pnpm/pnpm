@@ -10,7 +10,7 @@ export default function (
   } | undefined,
   meta: PackageMeta,
 ): PackageInRegistry {
-  let version: string | undefined
+  let version!: string
   switch (spec.type) {
     case 'version':
       version = spec.fetchSpec
@@ -22,7 +22,7 @@ export default function (
       version = pickVersionByVersionRange(meta, spec.fetchSpec, preferredVersionSelector)
       break
   }
-  return meta.versions[version as string]
+  return meta.versions[version]
 }
 
 function pickVersionByVersionRange (

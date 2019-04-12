@@ -1,6 +1,7 @@
 import {
   LocalPackages,
   ResolveResult,
+  WantedDependency,
 } from '@pnpm/resolver-base'
 import { PackageJson } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
@@ -81,7 +82,7 @@ export default function createResolver (
     },
     strictSSL: opts.strictSsl,
     userAgent: opts.userAgent,
-  })
+  }) as (url: string, opts: {auth?: object}) => Promise<object>
   return resolveNpm.bind(null, {
     getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
     pickPackage: pickPackage.bind(null, {
@@ -95,32 +96,35 @@ export default function createResolver (
   })
 }
 
+export type ResolveFromNpmOptions = {
+  defaultTag?: string,
+  dryRun?: boolean,
+  registry: string,
+  preferredVersions?: {
+    [packageName: string]: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    },
+  },
+} & ({
+  prefix?: string,
+  localPackages?: undefined,
+} | {
+  prefix: string,
+  localPackages: LocalPackages,
+})
+
 async function resolveNpm (
   ctx: {
-    pickPackage: Function, //tslint:disable-line
+    pickPackage: (spec: RegistryPackageSpec, opts: object) => ReturnType<typeof pickPackage>,
     getCredentialsByURI: (registry: string) => object,
   },
-  wantedDependency: {
-    alias?: string,
-    pref?: string,
-  } & ({alias: string, pref: string} | {alias: string} | {pref: string}),
-  opts: {
-    defaultTag?: string,
-    dryRun?: boolean,
-    registry: string,
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
-    prefix: string,
-    localPackages?: LocalPackages,
-  },
+  wantedDependency: WantedDependency,
+  opts: ResolveFromNpmOptions,
 ): Promise<ResolveResult | null> {
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
-    : defaultTagForAlias(wantedDependency.alias as string, opts.defaultTag || 'latest')
+    : defaultTagForAlias(wantedDependency.alias!, opts.defaultTag || 'latest')
   if (!spec) return null
   const auth = ctx.getCredentialsByURI(opts.registry)
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
@@ -242,7 +246,7 @@ function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackage
   return {
     fetchSpec: defaultTag,
     name: alias,
-    type: 'tag' as 'tag',
+    type: 'tag',
   }
 }
 
