@@ -117,9 +117,13 @@ async function resolveNpm (
         type: 'version' | 'range' | 'tag',
       },
     },
+  } & ({
+    prefix?: string,
+    localPackages?: undefined,
+  } | {
     prefix: string,
-    localPackages?: LocalPackages,
-  },
+    localPackages: LocalPackages,
+  }),
 ): Promise<ResolveResult | null> {
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)

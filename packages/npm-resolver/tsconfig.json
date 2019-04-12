@@ -7,7 +7,6 @@
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "suppressImplicitAnyIndexErrors": true,
-    "allowSyntheticDefaultImports": true,
     "strictBindCallApply": true,
     "strictNullChecks": true,
     "target": "es2017",
