@@ -500,7 +500,7 @@ async function linkAllModules (
   return Promise.all(
     depNodes
       .filter((depNode) => !depNode.independent)
-      .map((depNode) => limitLinking(async () => {
+      .map(async (depNode) => {
         const childrenToLink = opts.optional
           ? depNode.children
           : R.keys(depNode.children)
@@ -523,9 +523,9 @@ async function linkAllModules (
                 })
                 return
               }
-              await symlinkDependency(pkg.peripheralLocation, depNode.modules, alias)
+              await limitLinking(() => symlinkDependency(pkg.peripheralLocation, depNode.modules, alias))
             }),
         )
-      })),
+      }),
   )
 }

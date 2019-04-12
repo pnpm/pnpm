@@ -705,7 +705,7 @@ async function linkAllModules (
   return Promise.all(
     R.values(depGraph)
       .filter((depNode) => !depNode.independent)
-      .map((depNode) => limitLinking(async () => {
+      .map(async (depNode) => {
         const childrenToLink = opts.optional
           ? depNode.children
           : R.keys(depNode.children)
@@ -727,9 +727,9 @@ async function linkAllModules (
                 })
                 return
               }
-              await symlinkDependency(childrenToLink[alias], depNode.modules, alias)
+              await limitLinking(() => symlinkDependency(childrenToLink[alias], depNode.modules, alias))
             }),
         )
-      })),
+      }),
   )
 }
