@@ -238,6 +238,7 @@ importers:
       '@pnpm/git-resolver': 'link:../git-resolver'
       '@pnpm/local-resolver': 'link:../local-resolver'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
+      '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/tarball-resolver': 'link:../tarball-resolver'
     devDependencies:
       '@pnpm/default-resolver': 'link:'
@@ -257,6 +258,7 @@ importers:
       '@pnpm/local-resolver': 2.0.1
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 3.0.4
+      '@pnpm/resolver-base': 3.0.0
       '@pnpm/tarball-resolver': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.33
