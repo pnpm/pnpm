@@ -293,7 +293,7 @@ export async function recursive (
             prefix,
             rawNpmConfig: {
               ...installOpts.rawNpmConfig,
-              ...localConfigs.rawNpmConfig,
+              ...localConfigs,
             },
             storeController,
           })
@@ -358,7 +358,7 @@ export async function recursive (
                 prefix,
                 rawNpmConfig: {
                   ...installOpts.rawNpmConfig,
-                  ...localConfigs.rawNpmConfig,
+                  ...localConfigs,
                 },
               },
             )
@@ -482,7 +482,7 @@ function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
 async function readLocalConfigs (prefix: string) {
   try {
     const ini = await readIniFile(path.join(prefix, '.npmrc'))
-    return camelcaseKeys(ini)
+    return camelcaseKeys(ini) as {[key: string]: string}
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
     return {}
