@@ -1,6 +1,7 @@
 import {
   LocalPackages,
   ResolveResult,
+  WantedDependency,
 } from '@pnpm/resolver-base'
 import { PackageJson } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
@@ -100,13 +101,7 @@ async function resolveNpm (
     pickPackage: (spec: RegistryPackageSpec, opts: object) => ReturnType<typeof pickPackage>,
     getCredentialsByURI: (registry: string) => object,
   },
-  wantedDependency: {
-    alias?: string,
-    pref: string,
-  } | {
-    alias: string,
-    pref?: string,
-  },
+  wantedDependency: WantedDependency,
   opts: {
     defaultTag?: string,
     dryRun?: boolean,

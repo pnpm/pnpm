@@ -47,24 +47,23 @@ export interface LocalPackages {
 export interface ResolveOptions {
   defaultTag?: string,
   localPackages?: LocalPackages,
-  lockfileDirectory: string,
-  preferredVersions: {
+  lockfileDirectory?: string,
+  preferredVersions?: {
     [packageName: string]: {
       selector: string,
       type: 'version' | 'range' | 'tag',
     },
   },
-  prefix: string,
+  prefix?: string,
   registry: string,
 }
 
 export type WantedDependency = {
   alias?: string,
+  pref: string,
+} | {
+  alias: string,
   pref?: string,
-} & (
-  {alias: string, pref: string}
-  | {alias: string}
-  | {pref: string}
-)
+}
 
 export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
