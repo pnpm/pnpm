@@ -1,5 +1,9 @@
 import readPackageJson from '@pnpm/read-package-json'
-import { ResolveResult } from '@pnpm/resolver-base'
+import {
+  DirectoryResolution,
+  ResolveResult,
+  TarballResolution
+} from '@pnpm/resolver-base'
 import { PackageJson } from '@pnpm/types'
 import fs = require('graceful-fs')
 import path = require('path')
@@ -15,16 +19,16 @@ export default async function resolveLocal (
     prefix: string,
     lockfileDirectory?: string,
   },
-): Promise<(ResolveResult & {
+): Promise<(ResolveResult & ({
   id: string,
   normalizedPref: string,
-  resolution: {tarball: string},
+  resolution: TarballResolution,
 } | {
   id: string,
   normalizedPref: string,
   package: PackageJson,
-  resolution: {directory: string, type: 'directory'},
-}) | null> {
+  resolution: DirectoryResolution,
+})) | null> {
   const spec = parsePref(wantedDependency.pref, opts.prefix, opts.lockfileDirectory || opts.prefix)
   if (!spec) return null
 
