@@ -260,11 +260,6 @@ export default async (opts: HeadlessOptions) => {
     })
   }))
 
-  if (currentLockfile && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredLockfile.importers).sort())) {
-    Object.assign(filteredLockfile.packages, currentLockfile.packages)
-  }
-  await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
-
   if (opts.ignoreScripts) {
     for (const importer of opts.importers) {
       if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
@@ -283,26 +278,7 @@ export default async (opts: HeadlessOptions) => {
           .filter((node) => node.requiresBuild)
           .map((node) => node.relDepPath),
       )
-  }
-  await writeModulesYaml(virtualStoreDir, {
-    importers: opts.importers.reduce((acc, importer) => {
-      acc[importer.id] = {
-        hoistedAliases: importer.hoistedAliases,
-        shamefullyFlatten: importer.shamefullyFlatten,
-      }
-      return acc
-    }, {}),
-    included: opts.include,
-    independentLeaves: !!opts.independentLeaves,
-    layoutVersion: LAYOUT_VERSION,
-    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-    pendingBuilds: opts.pendingBuilds,
-    registries: opts.registries,
-    skipped: Array.from(skipped),
-    store: opts.store,
-  })
-
-  if (!opts.ignoreScripts) {
+  } else {
     const directNodes = new Set<string>()
     for (const importer of opts.importers) {
       R
@@ -327,6 +303,28 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
   await Promise.all(opts.importers.map(linkBinsOfImporter))
+
+  if (currentLockfile && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredLockfile.importers).sort())) {
+    Object.assign(filteredLockfile.packages, currentLockfile.packages)
+  }
+  await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
+  await writeModulesYaml(virtualStoreDir, {
+    importers: opts.importers.reduce((acc, importer) => {
+      acc[importer.id] = {
+        hoistedAliases: importer.hoistedAliases,
+        shamefullyFlatten: importer.shamefullyFlatten,
+      }
+      return acc
+    }, {}),
+    included: opts.include,
+    independentLeaves: !!opts.independentLeaves,
+    layoutVersion: LAYOUT_VERSION,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+    pendingBuilds: opts.pendingBuilds,
+    registries: opts.registries,
+    skipped: Array.from(skipped),
+    store: opts.store,
+  })
 
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))

@@ -54,6 +54,7 @@ import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import semver = require('semver')
+import writePkg = require('write-pkg')
 import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
@@ -696,10 +697,12 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: PackageJson | undefined = importer.pkg
+    let writePackageJson!: boolean
     if (importer.updatePackageJson && importer.mutation === 'installSome') {
       if (!importer.pkg) {
         throw new Error('Cannot save because no package.json found')
       }
+      writePackageJson = true
       const specsToUsert = <any>resolvedImporter.directDependencies // tslint:disable-line
         .filter((dep) => importer.newPkgRawSpecs.includes(dep.specRaw))
         .map((dep) => {
@@ -723,8 +726,10 @@ async function installInContext (
       newPkg = await save(
         importer.prefix,
         specsToUsert,
+        { dryRun: true },
       )
     } else {
+      writePackageJson = false
       packageJsonLogger.debug({
         prefix: importer.prefix,
         updated: importer.pkg,
@@ -768,6 +773,7 @@ async function installInContext (
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
       usesExternalLockfile: importer.usesExternalLockfile,
+      writePackageJson,
     }
   }))
 
@@ -809,6 +815,45 @@ async function installInContext (
       )
   }
 
+  if (!opts.lockfileOnly) {
+    // postinstall hooks
+    if (!opts.ignoreScripts && result.newDepPaths && result.newDepPaths.length) {
+      const depPaths = Object.keys(result.depGraph)
+      const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
+
+      await buildModules(result.depGraph, rootNodes, {
+        childConcurrency: opts.childConcurrency,
+        depsToBuild: new Set(result.newDepPaths),
+        optional: opts.include.optionalDependencies,
+        prefix: ctx.lockfileDirectory,
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: ctx.virtualStoreDir,
+        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+        storeController: opts.storeController,
+        unsafePerm: opts.unsafePerm,
+        userAgent: opts.userAgent,
+      })
+    }
+
+    if (result.newDepPaths && result.newDepPaths.length) {
+      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
+      await linkAllBins(newPkgs, result.depGraph, {
+        optional: opts.include.optionalDependencies,
+        warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDirectory }),
+      })
+    }
+
+    if (!opts.lockfileOnly) {
+      await Promise.all(importersToLink.map(linkBinsOfImporter))
+    }
+  }
+
+  await Promise.all(
+    importersToLink
+      .filter((importer) => importer.writePackageJson)
+      .map((importer) => writePkg(path.join(importer.prefix, 'package.json'), importer.pkg))
+  )
+
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
     await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
@@ -844,37 +889,6 @@ async function installInContext (
         })
       })(),
     ])
-
-    // postinstall hooks
-    if (!opts.ignoreScripts && result.newDepPaths && result.newDepPaths.length) {
-      const depPaths = Object.keys(result.depGraph)
-      const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
-
-      await buildModules(result.depGraph, rootNodes, {
-        childConcurrency: opts.childConcurrency,
-        depsToBuild: new Set(result.newDepPaths),
-        optional: opts.include.optionalDependencies,
-        prefix: ctx.lockfileDirectory,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: ctx.virtualStoreDir,
-        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-        storeController: opts.storeController,
-        unsafePerm: opts.unsafePerm,
-        userAgent: opts.userAgent,
-      })
-    }
-
-    if (result.newDepPaths && result.newDepPaths.length) {
-      const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
-      await linkAllBins(newPkgs, result.depGraph, {
-        optional: opts.include.optionalDependencies,
-        warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDirectory }),
-      })
-    }
-
-    if (!opts.lockfileOnly) {
-      await Promise.all(importersToLink.map(linkBinsOfImporter))
-    }
   }
 
   // waiting till the skipped packages are downloaded to the store

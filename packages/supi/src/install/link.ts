@@ -52,6 +52,7 @@ export interface Importer {
   shamefullyFlatten: boolean,
   topParents: Array<{name: string, version: string}>,
   usesExternalLockfile: boolean,
+  writePackageJson: boolean,
 }
 
 export default async function linkPackages (

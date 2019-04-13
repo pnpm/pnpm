@@ -15,6 +15,9 @@ export default async function save (
     pref?: string,
     saveType?: DependenciesField,
   }>,
+  opts?: {
+    dryRun?: boolean,
+  }
 ): Promise<PackageJson> {
   // Read the latest version of package.json to avoid accidental overwriting
   let packageJson: object
@@ -42,7 +45,9 @@ export default async function save (
     }
   })
 
-  await writePkg(pkgJsonPath, packageJson)
+  if (!opts || opts.dryRun !== true) {
+    await writePkg(pkgJsonPath, packageJson)
+  }
   packageJsonLogger.debug({
     prefix,
     updated: packageJson,
