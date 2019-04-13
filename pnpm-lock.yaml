@@ -1190,7 +1190,6 @@ importers:
       p-limit: 2.2.0
       p-queue: 4.0.0
       path-exists: 4.0.0
-      read-package-json: 2.0.13
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
       symlink-dir: 3.0.2
@@ -1254,7 +1253,6 @@ importers:
       p-limit: 2.2.0
       p-queue: 4.0.0
       path-exists: 4.0.0
-      read-package-json: 2.0.13
       rename-overwrite: 2.0.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
