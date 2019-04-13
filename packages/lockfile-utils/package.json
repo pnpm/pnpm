@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-utils",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@pnpm/lockfile-types": "1.0.0",
-    "@pnpm/resolver-base": "3.0.0",
+    "@pnpm/resolver-base": "3.1.0",
     "@pnpm/types": "3.0.0",
     "@types/js-yaml": "3",
     "@types/node": "*",

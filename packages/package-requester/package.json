@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "7.0.3",
+  "version": "7.0.4",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,11 +36,11 @@
   "dependencies": {
     "@pnpm/check-package": "3.0.0",
     "@pnpm/core-loggers": "3.0.0",
-    "@pnpm/fetcher-base": "3.0.0",
+    "@pnpm/fetcher-base": "3.0.1",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "2.0.1",
-    "@pnpm/resolver-base": "3.0.0",
-    "@pnpm/store-controller-types": "3.0.0",
+    "@pnpm/resolver-base": "3.1.0",
+    "@pnpm/store-controller-types": "3.0.1",
     "@pnpm/types": "3.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "*",
