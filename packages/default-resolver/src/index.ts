@@ -4,47 +4,23 @@ import createResolveFromNpm, {
   PackageMeta,
   PackageMetaCache,
   ResolveFromNpmOptions,
+  ResolverFactoryOptions,
 } from '@pnpm/npm-resolver'
-import {
-  ResolveFunction,
-  ResolveOptions,
-} from '@pnpm/resolver-base'
+import { ResolveFunction } from '@pnpm/resolver-base'
 import resolveFromTarball from '@pnpm/tarball-resolver'
 
 export {
   PackageMeta,
   PackageMetaCache,
+  ResolverFactoryOptions,
 }
 
 export default function createResolver (
-  pnpmOpts: {
-    rawNpmConfig: object,
-    metaCache: PackageMetaCache,
-    store: string,
-    // TODO: export options type from @pnpm/npm-resolver
-    cert?: string,
-    fullMetadata?: boolean,
-    key?: string,
-    ca?: string,
-    strictSsl?: boolean,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    userAgent?: string,
-    offline?: boolean,
-    preferOffline?: boolean,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMintimeout?: number,
-    fetchRetryMaxtimeout?: number,
-  },
+  pnpmOpts: ResolverFactoryOptions,
 ): ResolveFunction {
   const resolveFromNpm = createResolveFromNpm(pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)
-  return async (
-    wantedDependency,
-    opts: ResolveOptions,
-  ) => {
+  return async (wantedDependency, opts) => {
     const resolution = await resolveFromNpm(wantedDependency, opts as ResolveFromNpmOptions)
       || wantedDependency.pref && (
         await resolveFromTarball(wantedDependency as {pref: string})

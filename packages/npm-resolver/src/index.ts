@@ -33,27 +33,29 @@ export {
 const META_FILENAME = 'index.json'
 const FULL_META_FILENAME = 'index-full.json'
 
+export interface ResolverFactoryOptions {
+  rawNpmConfig: object,
+  metaCache: PackageMetaCache,
+  store: string,
+  cert?: string,
+  fullMetadata?: boolean,
+  key?: string,
+  ca?: string,
+  strictSsl?: boolean,
+  proxy?: string,
+  httpsProxy?: string,
+  localAddress?: string,
+  userAgent?: string,
+  offline?: boolean,
+  preferOffline?: boolean,
+  fetchRetries?: number,
+  fetchRetryFactor?: number,
+  fetchRetryMintimeout?: number,
+  fetchRetryMaxtimeout?: number,
+}
+
 export default function createResolver (
-  opts: {
-    cert?: string,
-    fullMetadata?: boolean,
-    key?: string,
-    ca?: string,
-    strictSsl?: boolean,
-    rawNpmConfig: object,
-    metaCache: PackageMetaCache,
-    store: string,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    userAgent?: string,
-    offline?: boolean,
-    preferOffline?: boolean,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMintimeout?: number,
-    fetchRetryMaxtimeout?: number,
-  },
+  opts: ResolverFactoryOptions,
 ) {
   if (typeof opts.rawNpmConfig !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.rawNpmConfig` is required and needs to be an object')
