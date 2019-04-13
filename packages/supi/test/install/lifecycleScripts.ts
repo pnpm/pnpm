@@ -343,3 +343,62 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
   t.ok(await exists('node_modules/pre-and-postinstall-scripts-example/package.json'))
   t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'), 'scripts were ignored indeed')
 })
+
+test('dependency should not be added to package.json and lockfile if it was not built successfully', async (t: tape.Test) => {
+  const project = prepare(t)
+  const initialPkgJson = await loadJsonFile(path.resolve('package.json'))
+
+  let err
+  try {
+    await addDependenciesToPackage(
+      [
+        'package-that-cannot-be-installed@0.0.0',
+      ],
+      await testDefaults(),
+    )
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+
+  t.notOk(await project.loadCurrentLockfile())
+  t.notOk(await project.loadLockfile())
+
+  const pkg = await loadJsonFile(path.resolve('package.json'))
+  t.deepEqual(pkg, initialPkgJson, 'package.json not updated')
+})
+
+test('dependency should not be added current lockfile if it was not built successfully during headless install', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDependenciesToPackage(
+    [
+      'package-that-cannot-be-installed@0.0.0',
+    ],
+    await testDefaults({
+      ignoreScripts: true,
+      lockfileOnly: true,
+    }),
+  )
+
+  let err
+  try {
+    await mutateModules(
+      [
+        {
+          buildIndex: 0,
+          mutation: 'install',
+          prefix: process.cwd(),
+        },
+      ],
+      await testDefaults({ frozenLockfile: true }),
+    )
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+
+  t.notOk(await project.loadCurrentLockfile())
+})
