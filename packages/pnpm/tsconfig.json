@@ -1,24 +1,11 @@
 {
+  "extends": "../../utils/tsconfig.json",
   "compilerOptions": {
-    "removeComments": false,
-    "preserveConstEnums": true,
-    "sourceMap": true,
     "declaration": false,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,
-    "suppressImplicitAnyIndexErrors": true,
-    "allowSyntheticDefaultImports": true,
-    "strictNullChecks": true,
-    "target": "es2017",
-    "outDir": "lib",
-    "module": "commonjs",
-    "moduleResolution": "node"
+    "outDir": "lib"
   },
   "include": [
     "src/**/*.ts",
     "typings/**/*.d.ts"
-  ],
-  "atom": {
-    "rewriteTsconfig": true
-  }
+  ]
 }
