@@ -1,5 +1,6 @@
 import { StoreController } from '@pnpm/package-store'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageFromDir } from '@pnpm/utils'
 import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -43,7 +44,10 @@ export default async (
 
   // pnpm link
   if (!input || !input.length) {
-    await linkToGlobal(cwd, linkOpts)
+    await linkToGlobal(cwd, {
+      ...linkOpts,
+      pkg: await safeReadPackageFromDir(opts.globalPrefix) || {}
+    })
     return
   }
 
@@ -88,7 +92,10 @@ export default async (
       )
     })),
   )
-  await link(pkgPaths, path.join(cwd, 'node_modules'), linkOpts)
+  await link(pkgPaths, path.join(cwd, 'node_modules'), {
+    ...linkOpts,
+    pkg: await readPackageJsonFromDir(cwd),
+  })
 
   await Promise.all(
     Array.from(storeControllerCache.values())

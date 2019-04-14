@@ -1,10 +1,11 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getSaveType } from '@pnpm/utils'
+import { getSaveType, safeReadPackageFromDir } from '@pnpm/utils'
 import {
   install,
   mutateModules,
   rebuild,
 } from 'supi'
+import writePkg = require('write-pkg')
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
@@ -54,17 +55,18 @@ export default async function installCmd (
   if (!input || !input.length) {
     await install(await readPackageJsonFromDir(opts.prefix), installOpts)
   } else {
-    await mutateModules([
+    const [{ pkg }] = await mutateModules([
       {
         bin: installOpts.bin,
         dependencySelectors: input,
         mutation: 'installSome',
         pinnedVersion: getPinnedVersion(opts),
-        pkg: await readPackageJsonFromDir(opts.prefix),
+        pkg: await safeReadPackageFromDir(opts.prefix) || {},
         prefix: installOpts.prefix,
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
+    await writePkg(opts.prefix, pkg)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {

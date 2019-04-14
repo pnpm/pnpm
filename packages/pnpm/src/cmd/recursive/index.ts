@@ -11,6 +11,7 @@ import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
+import R = require('ramda')
 import readIniFile = require('read-ini-file')
 import {
   addDependenciesToPackage,
@@ -22,6 +23,7 @@ import {
   rebuildPkgs,
   uninstall,
 } from 'supi'
+import writePkg = require('write-pkg')
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
@@ -223,6 +225,7 @@ export async function recursive (
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 ? 'install' : 'installSome')
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
+        const pkg = await readPackageJsonFromDir(prefix)
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -231,6 +234,7 @@ export async function recursive (
             return {
               dependencyNames: input,
               mutation,
+              pkg,
               prefix,
               shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
@@ -244,6 +248,7 @@ export async function recursive (
                 saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
                 savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
               }),
+              pkg,
               prefix,
               shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
@@ -252,16 +257,20 @@ export async function recursive (
             return {
               buildIndex,
               mutation,
+              pkg,
               prefix,
               shamefullyFlatten,
             } as MutatedImporter
         }
       }))
-      await mutateModules(mutatedImporters, {
+      const mutatedPkgs = await mutateModules(mutatedImporters, {
         ...installOpts,
         hooks,
         storeController: store.ctrl,
       })
+      await Promise.all(
+        mutatedPkgs.map(({ pkg, prefix }) => writePkg(prefix, pkg))
+      )
       return true
     }
 
@@ -275,10 +284,10 @@ export async function recursive (
         action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
         break
       case 'uninstall':
-        action = uninstall.bind(null, input)
+        action = R.flip(uninstall).bind(null, input)
         break
       default:
-        action = input.length === 0 ? install : addDependenciesToPackage.bind(null, input)
+        action = input.length === 0 ? install : R.flip(addDependenciesToPackage).bind(null, input)
         break
     }
     const limitInstallation = pLimit(opts.workspaceConcurrency)
@@ -290,19 +299,23 @@ export async function recursive (
             return
           }
           const localConfigs = await memReadLocalConfigs(prefix)
-          await action({
-            ...installOpts,
-            ...localConfigs,
-            bin: path.join(prefix, 'node_modules', '.bin'),
-            hooks,
-            ignoreScripts: true,
-            prefix,
-            rawNpmConfig: {
-              ...installOpts.rawNpmConfig,
+          const newPkg = await action(
+            await readPackageJsonFromDir(prefix),
+            {
+              ...installOpts,
               ...localConfigs,
+              bin: path.join(prefix, 'node_modules', '.bin'),
+              hooks,
+              ignoreScripts: true,
+              prefix,
+              rawNpmConfig: {
+                ...installOpts.rawNpmConfig,
+                ...localConfigs,
+              },
+              storeController,
             },
-            storeController,
-          })
+          )
+          await writePkg(prefix, newPkg)
           result.passes++
         } catch (err) {
           logger.info(err)
@@ -400,12 +413,12 @@ export async function recursive (
   return true
 }
 
-async function unlink (opts: any) { // tslint:disable-line:no-any
+async function unlink (pkg: PackageJson, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
         mutation: 'unlink',
-        pkg: await readPackageJsonFromDir(opts.prefix),
+        pkg,
         prefix: opts.prefix,
       },
     ],
@@ -413,13 +426,13 @@ async function unlink (opts: any) { // tslint:disable-line:no-any
   )
 }
 
-async function unlinkPkgs (dependencyNames: string[], opts: any) { // tslint:disable-line:no-any
+async function unlinkPkgs (dependencyNames: string[], pkg: PackageJson, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
         dependencyNames,
         mutation: 'unlinkSome',
-        pkg: await readPackageJsonFromDir(opts.prefix),
+        pkg,
         prefix: opts.prefix,
       },
     ],
