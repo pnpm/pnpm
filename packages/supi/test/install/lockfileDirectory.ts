@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
-import prepare from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import ncpCB = require('ncp')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
@@ -17,11 +17,11 @@ const testOnly = promisifyTape(tape.only)
 const testSkip = promisifyTape(tape.skip)
 
 testSkip('subsequent installation uses same lockfile directory by default', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
 
-  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+  const pkg = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
 
-  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
+  await addDependenciesToPackage(pkg, ['is-negative@1.0.0'], await testDefaults())
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
@@ -29,14 +29,14 @@ testSkip('subsequent installation uses same lockfile directory by default', asyn
 })
 
 testSkip('subsequent installation fails if a different lockfile directory is specified', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
 
-  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+  const pkg = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
 
   let err!: Error & {code: string}
 
   try {
-    await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ lockfileDirectory: process.cwd() }))
+    await addDependenciesToPackage(pkg, ['is-negative@1.0.0'], await testDefaults({ lockfileDirectory: process.cwd() }))
   } catch (_) {
     err = _
   }
@@ -46,17 +46,18 @@ testSkip('subsequent installation fails if a different lockfile directory is spe
 })
 
 test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   await ncp(path.join(pathToLocalPkg('tar-pkg-with-dep-2'), 'tar-pkg-with-dep-1.0.0.tgz'), 'pkg.tgz')
 
   const lockfileDirectory = path.resolve('..')
-  await mutateModules(
+  let [{ pkg }] = await mutateModules(
     [
       {
         allowNew: true,
         dependencySelectors: ['file:pkg.tgz'],
         mutation: 'installSome',
+        pkg: {},
         prefix: process.cwd(),
       },
     ],
@@ -74,6 +75,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
       {
         buildIndex: 0,
         mutation: 'install',
+        pkg,
         prefix: process.cwd(),
       }
     ],
@@ -82,7 +84,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
 
   await project.has('tar-pkg-with-dep')
 
-  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ lockfileDirectory }))
+  await rebuild([{ buildIndex: 0, pkg, prefix: process.cwd() }], await testDefaults({ lockfileDirectory }))
 
   t.pass('rebuild did not fail')
 })

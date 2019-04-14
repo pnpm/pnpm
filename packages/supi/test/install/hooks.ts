@@ -1,6 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-file'
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
@@ -18,7 +17,7 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
@@ -40,7 +39,7 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
     return lockfile
   })
 
-  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({
     hooks: {
       afterAllResolved,
       readPackage: readPackageHook,
@@ -55,10 +54,9 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   t.equal(wantedLockfile['foo'], 'foo', 'the lockfile object has been updated by the hook') // tslint:disable-line:no-string-literal
 })
 
-test('readPackage hook overrides project package', async (t: tape.Test) => {
-  const project = prepare(t, {
-    name: 'test-read-package-hook',
-  })
+// TODO: move this test to packages/pnpm
+test['skip']('readPackage hook overrides project package', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
 
   function readPackageHook (pkg: PackageManifest) {
     switch (pkg.name) {
@@ -69,12 +67,13 @@ test('readPackage hook overrides project package', async (t: tape.Test) => {
     return pkg
   }
 
-  await install(await testDefaults({
+  const pkg = await install({
+    name: 'test-read-package-hook',
+  }, await testDefaults({
     hooks: { readPackage: readPackageHook },
   }))
 
   await project.has('is-positive')
 
-  const packageJson = await readPackageJsonFromDir(process.cwd())
-  t.notOk(packageJson.dependencies, 'dependencies added by the hooks not saved in package.json')
+  t.notOk(pkg.dependencies, 'dependencies added by the hooks not saved in package.json')
 })

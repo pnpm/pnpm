@@ -743,6 +743,7 @@ async function installInContext (
       }
       newPkg = await save(
         importer.prefix,
+        importer.pkg,
         specsToUsert,
         { dryRun: true },
       )

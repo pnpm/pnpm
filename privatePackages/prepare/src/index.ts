@@ -68,3 +68,12 @@ export default function prepare (t: Test, pkg?: Object, pkgTmpPath?: string) {
 
   return assertProject(t, pkgTmpPath)
 }
+
+export function prepareEmpty (t: Test) {
+  const pkgTmpPath = path.join(tempDir(t), 'project')
+
+  mkdirp.sync(pkgTmpPath)
+  process.chdir(pkgTmpPath)
+
+  return assertProject(t, pkgTmpPath)
+}

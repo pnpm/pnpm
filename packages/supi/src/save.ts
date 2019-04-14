@@ -4,12 +4,12 @@ import {
   DependenciesField,
   PackageJson,
 } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
 import path = require('path')
 import writePkg = require('write-pkg')
 
 export default async function save (
   prefix: string,
+  packageJson: PackageJson,
   packageSpecs: Array<{
     name: string,
     pref?: string,
@@ -19,29 +19,24 @@ export default async function save (
     dryRun?: boolean,
   }
 ): Promise<PackageJson> {
-  // Read the latest version of package.json to avoid accidental overwriting
-  let packageJson: object
   const pkgJsonPath = path.join(prefix, 'package.json')
-  try {
-    packageJson = await loadJsonFile<PackageJson>(pkgJsonPath)
-  } catch (err) {
-    if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
-    packageJson = {}
-  }
+
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
-      const saveType = packageSpec.saveType
-      packageJson[packageSpec.saveType] = packageJson[packageSpec.saveType] || {}
-      packageJson[saveType][packageSpec.name] = packageSpec.pref || findSpec(packageSpec.name, packageJson as PackageJson)
-      DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
-        if (packageJson[deptype]) {
-          delete packageJson[deptype][packageSpec.name]
-        }
-      })
-    } else {
+      const spec = packageSpec.pref || findSpec(packageSpec.name, packageJson as PackageJson)
+      if (spec) {
+        packageJson[packageSpec.saveType] = packageJson[packageSpec.saveType] || {}
+        packageJson[packageSpec.saveType]![packageSpec.name] = spec
+        DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
+          if (packageJson[deptype]) {
+            delete packageJson[deptype]![packageSpec.name]
+          }
+        })
+      }
+    } else if (packageSpec.pref) {
       const usedDepType = guessDependencyType(packageSpec.name, packageJson as PackageJson) || 'dependencies'
       packageJson[usedDepType] = packageJson[usedDepType] || {}
-      packageJson[usedDepType][packageSpec.name] = packageSpec.pref
+      packageJson[usedDepType]![packageSpec.name] = packageSpec.pref
     }
   })
 
