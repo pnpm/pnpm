@@ -35,6 +35,7 @@ import {
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
+  DependencyPackageJson,
   PackageJson,
   Registries,
 } from '@pnpm/types'
@@ -76,29 +77,36 @@ import linkPackages, {
 } from './link'
 import { absolutePathToRef } from './lockfile'
 
-export type DependenciesMutation = {
-  buildIndex: number,
-  mutation: 'install',
-  pruneDirectDependencies?: boolean,
-} | {
-  allowNew?: boolean,
-  dependencySelectors: string[],
-  mutation: 'installSome',
-  pruneDirectDependencies?: boolean,
-  pinnedVersion?: 'major' | 'minor' | 'patch',
-  targetDependenciesField?: DependenciesField,
-} | {
-  mutation: 'uninstallSome',
-  dependencyNames: string[],
-  targetDependenciesField?: DependenciesField,
-} | {
-  mutation: 'unlink',
-} | {
-  mutation: 'unlinkSome',
-  dependencyNames: string[],
-}
+export type DependenciesMutation = (
+  {
+    buildIndex: number,
+    mutation: 'install',
+    pruneDirectDependencies?: boolean,
+  } | {
+    allowNew?: boolean,
+    dependencySelectors: string[],
+    mutation: 'installSome',
+    pruneDirectDependencies?: boolean,
+    pinnedVersion?: 'major' | 'minor' | 'patch',
+    targetDependenciesField?: DependenciesField,
+  } | {
+    mutation: 'uninstallSome',
+    dependencyNames: string[],
+    targetDependenciesField?: DependenciesField,
+  } | {
+    mutation: 'unlink',
+  } | {
+    mutation: 'unlinkSome',
+    dependencyNames: string[],
+  }
+) & (
+  {
+    pkg: PackageJson,
+  }
+)
 
-export function install (
+export async function install (
+  pkg: PackageJson,
   opts: InstallOptions & {
     preferredVersions?: {
       [packageName: string]: {
@@ -108,16 +116,18 @@ export function install (
     },
   },
 ) {
-  return mutateModules(
+  const importers = await mutateModules(
     [
       {
         buildIndex: 0,
         mutation: 'install',
+        pkg,
         prefix: opts.prefix || process.cwd(),
       },
     ],
     opts,
   )
+  return importers[0].pkg
 }
 
 export type MutatedImporter = ImportersOptions & DependenciesMutation
@@ -152,22 +162,25 @@ export async function mutateModules (
     }
   }
 
+  let result!: Array<{ prefix: string, pkg: PackageJson }>
   if (opts.lock) {
-    await lock(ctx.lockfileDirectory, _install, {
+    result = await lock(ctx.lockfileDirectory, _install, {
       locks: opts.locks,
       prefix: ctx.lockfileDirectory,
       stale: opts.lockStaleDuration,
       storeController: opts.storeController,
     })
   } else {
-    await _install()
+    result = await _install()
   }
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
 
-  async function _install () {
+  return result
+
+  async function _install (): Promise<Array<{ prefix: string, pkg: PackageJson }>> {
     const installsOnly = importers.every((importer) => importer.mutation === 'install')
     if (
       !opts.lockfileOnly &&
@@ -230,7 +243,7 @@ export async function mutateModules (
           userAgent: opts.userAgent,
           wantedLockfile: ctx.wantedLockfile,
         })
-        return
+        return importers
       }
     }
 
@@ -310,7 +323,7 @@ export async function mutateModules (
               packagesToInstall.push(pkgName)
             }
           }
-          if (!packagesToInstall.length) return
+          if (!packagesToInstall.length) return importers
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
@@ -337,7 +350,7 @@ export async function mutateModules (
               packagesToInstall.push(depName)
             }
           }
-          if (!packagesToInstall.length) return
+          if (!packagesToInstall.length) return importers
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
@@ -396,7 +409,7 @@ export async function mutateModules (
       // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
       !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
     )
-    await installInContext(importersToInstall, ctx, {
+    const result = await installInContext(importersToInstall, ctx, {
       ...opts,
       makePartialCurrentLockfile,
       update: opts.update || !installsOnly,
@@ -410,6 +423,8 @@ export async function mutateModules (
         scriptsOpts,
       )
     }
+
+    return result
   }
 }
 
@@ -538,6 +553,7 @@ function refIsLocalTarball (ref: string) {
 }
 
 export async function addDependenciesToPackage (
+  pkg: PackageJson,
   dependencySelectors: string[],
   opts: InstallOptions & {
     allowNew?: boolean,
@@ -546,13 +562,14 @@ export async function addDependenciesToPackage (
     targetDependenciesField?: DependenciesField,
   },
 ) {
-  return mutateModules(
+  const importers = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
         dependencySelectors,
         mutation: 'installSome',
         pinnedVersion: opts.pinnedVersion,
+        pkg,
         prefix: opts.prefix || process.cwd(),
         shamefullyFlatten: opts.shamefullyFlatten,
         targetDependenciesField: opts.targetDependenciesField,
@@ -562,6 +579,7 @@ export async function addDependenciesToPackage (
       ...opts,
       lockfileDirectory: opts.lockfileDirectory || opts.prefix,
     })
+  return importers[0].pkg
 }
 
 type ImporterToUpdate = {
@@ -848,12 +866,6 @@ async function installInContext (
     }
   }
 
-  await Promise.all(
-    importersToLink
-      .filter((importer) => importer.writePackageJson)
-      .map((importer) => writePkg(path.join(importer.prefix, 'package.json'), importer.pkg))
-  )
-
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
     await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
@@ -906,6 +918,8 @@ async function installInContext (
   summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
   await opts.storeController.close()
+
+  return importersToLink.map((importer) => ({ prefix: importer.prefix, pkg: importer.pkg }))
 }
 
 const limitLinking = pLimit(16)
@@ -1047,7 +1061,7 @@ async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir),
   )
-  return pkgs.filter(Boolean).map((pkg: PackageJson) => ({
+  return pkgs.filter(Boolean).map((pkg: DependencyPackageJson) => ({
     name: pkg.name,
     version: pkg.version,
   }))

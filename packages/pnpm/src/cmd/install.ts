@@ -1,3 +1,4 @@
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getSaveType } from '@pnpm/utils'
 import {
   install,
@@ -51,7 +52,7 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
   if (!input || !input.length) {
-    await install(installOpts)
+    await install(await readPackageJsonFromDir(opts.prefix), installOpts)
   } else {
     await mutateModules([
       {
@@ -59,6 +60,7 @@ export default async function installCmd (
         dependencySelectors: input,
         mutation: 'installSome',
         pinnedVersion: getPinnedVersion(opts),
+        pkg: await readPackageJsonFromDir(opts.prefix),
         prefix: installOpts.prefix,
         targetDependenciesField: getSaveType(installOpts),
       },
@@ -84,6 +86,17 @@ export default async function installCmd (
 
     if (opts.ignoreScripts) return
 
-    await rebuild([{ buildIndex: 0, prefix: opts.prefix }], { ...opts, pending: true } as any) // tslint:disable-line:no-any
+    await rebuild(
+      [
+        {
+          buildIndex: 0,
+          pkg: await readPackageJsonFromDir(opts.prefix),
+          prefix: opts.prefix,
+        },
+      ], {
+        ...opts,
+        pending: true,
+      } as any, // tslint:disable-line:no-any
+    )
   }
 }

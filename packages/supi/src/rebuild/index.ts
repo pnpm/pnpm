@@ -18,6 +18,7 @@ import {
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import { PackageJson } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
@@ -75,7 +76,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildPkgs (
-  importers: Array<{ prefix: string }>,
+  importers: Array<{ pkg: PackageJson, prefix: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
@@ -121,7 +122,7 @@ export async function rebuildPkgs (
 }
 
 export async function rebuild (
-  importers: Array<{ buildIndex: number, prefix: string }>,
+  importers: Array<{ buildIndex: number, pkg: PackageJson, prefix: string }>,
   maybeOpts: RebuildOptions,
 ) {
   const reporter = maybeOpts && maybeOpts.reporter

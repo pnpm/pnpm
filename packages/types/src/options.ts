@@ -1,4 +1,7 @@
-import { PackageManifest } from './package'
+import {
+  PackageJson,
+  PackageManifest,
+} from './package'
 
 export interface LogBase {
   level: 'debug' | 'info' | 'warn' | 'error',
@@ -79,7 +82,10 @@ export interface PnpmOptions {
   ignoreFile?: (filename: string) => boolean,
 }
 
-export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
+export interface ReadPackageHook {
+  (pkg: PackageManifest): PackageManifest
+  (pkg: PackageJson): PackageJson
+}
 
 export type StrictPnpmOptions = PnpmOptions & {
   rawNpmConfig: object,

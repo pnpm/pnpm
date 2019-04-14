@@ -15,6 +15,7 @@ import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
+  DependencyPackageJson,
   PackageJson,
 } from '@pnpm/types'
 import {
@@ -51,7 +52,7 @@ export default async function link (
 
   const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
   const oldLockfile = R.clone(ctx.currentLockfile)
-  const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
+  const linkedPkgs: Array<{path: string, pkg: DependencyPackageJson, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
   const saveType = getSaveType(opts)
 
@@ -64,7 +65,7 @@ export default async function link (
       linkFromPath = linkFrom.path
       linkFromAlias = linkFrom.alias
     }
-    const linkedPkg = await loadJsonFile<PackageJson>(path.join(linkFromPath, 'package.json'))
+    const linkedPkg = await loadJsonFile<DependencyPackageJson>(path.join(linkFromPath, 'package.json'))
     specsToUpsert.push({
       name: linkedPkg.name,
       pref: getPref(linkedPkg.name, linkedPkg.name, linkedPkg.version, {

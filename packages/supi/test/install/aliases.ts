@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from 'pnpm-registry-mock'
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
@@ -13,8 +13,8 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('installing aliased dependency', async (t: tape.Test) => {
-  const project = prepare(t)
-  await addDependenciesToPackage(['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults())
+  const project = prepareEmpty(t)
+  await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults())
 
   const m = project.requireModule('negative')
   t.ok(typeof m === 'function', 'negative() is available')
@@ -54,22 +54,22 @@ test('installing aliased dependency', async (t: tape.Test) => {
 })
 
 test('aliased dependency w/o version spec, with custom tag config', async (t) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   const tag = 'beta'
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
 
-  await addDependenciesToPackage(['foo@npm:dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
+  await addDependenciesToPackage({}, ['foo@npm:dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
 test('a dependency has an aliased subdependency', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
-  await addDependenciesToPackage(['pkg-with-1-aliased-dep'], await testDefaults())
+  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults())
 
   t.equal(project.requireModule('pkg-with-1-aliased-dep')().name, 'dep-of-pkg-with-1-dep', 'can require aliased subdep')
 

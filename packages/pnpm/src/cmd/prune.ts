@@ -1,3 +1,4 @@
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { InstallOptions, mutateModules } from 'supi'
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
@@ -8,6 +9,7 @@ export default async (input: string[], opts: PnpmOptions) => {
     {
       buildIndex: 0,
       mutation: 'install',
+      pkg: await readPackageJsonFromDir(process.cwd()),
       prefix: process.cwd(),
       pruneDirectDependencies: true,
     },

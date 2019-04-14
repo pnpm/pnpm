@@ -1,10 +1,9 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
-import { PackageJson, Registries } from '@pnpm/types'
+import { Registries } from '@pnpm/types'
 import {
   normalizeRegistries,
   realNodeModulesDir,
-  safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import path = require('path')
 
@@ -27,7 +26,6 @@ export default async (
     hoistedAliases: { [depPath: string]: string[] },
     id: string,
     modulesDir: string,
-    pkg: PackageJson,
     prefix: string,
     shamefullyFlatten: boolean,
   }>,
@@ -47,7 +45,6 @@ export default async (
   return {
     importers: await Promise.all(
       importers.map(async (importer) => {
-        let pkg = await safeReadPkgFromDir(importer.prefix) || {} as PackageJson
         const modulesDir = await realNodeModulesDir(importer.prefix)
         const importerId = getLockfileImporterId(lockfileDirectory, importer.prefix)
 
@@ -57,7 +54,6 @@ export default async (
           hoistedAliases: modules && modules.importers[importerId] && modules.importers[importerId].hoistedAliases || {},
           id: importerId,
           modulesDir,
-          pkg,
           prefix: importer.prefix,
           shamefullyFlatten: Boolean(
             typeof importer.shamefullyFlatten === 'boolean' ? importer.shamefullyFlatten : opts.shamefullyFlatten

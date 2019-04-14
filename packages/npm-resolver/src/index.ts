@@ -3,7 +3,7 @@ import {
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolver-base'
-import { PackageJson } from '@pnpm/types'
+import { DependencyPackageJson } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem from 'mem'
@@ -206,7 +206,7 @@ function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
       directory: string;
-      package: PackageJson;
+      package: DependencyPackageJson;
     },
   },
   spec: RegistryPackageSpec,
@@ -227,7 +227,7 @@ function pickMatchingLocalVersionOrNull (
 function resolveFromLocalPackage (
   localPackage: {
     directory: string,
-    package: PackageJson,
+    package: DependencyPackageJson,
   },
   normalizedPref: string | undefined,
   prefix: string,

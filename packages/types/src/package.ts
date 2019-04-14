@@ -40,9 +40,14 @@ export type PackageScripts = {
   postshrinkwrap?: string,
 }
 
-export interface PackageJson {
+export type DependencyPackageJson = PackageJson & {
   name: string,
   version: string,
+}
+
+export interface PackageJson {
+  name?: string,
+  version?: string,
   private?: boolean,
   bin?: PackageBin,
   directories?: {
@@ -66,6 +71,7 @@ export interface PackageJson {
 
 // Most of the fields in PackageManifest are also in PackageJson
 // except the `deprecated` field
+// and name/version are not optional
 export interface PackageManifest {
   name: string,
   version: string,

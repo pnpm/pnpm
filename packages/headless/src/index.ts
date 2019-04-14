@@ -48,7 +48,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { PackageJson, Registries } from '@pnpm/types'
+import { DependencyPackageJson, PackageJson, Registries } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
@@ -381,7 +381,7 @@ async function linkRootPackages (
           const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
           const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
           const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
-          const linkedPackage = await readPackageFromDir(packageDir)
+          const linkedPackage = await readPackageFromDir(packageDir) as DependencyPackageJson
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
             fromDependenciesField: isDev && 'devDependencies' ||
               isOptional && 'optionalDependencies' ||

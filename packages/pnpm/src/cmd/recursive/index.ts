@@ -1,6 +1,6 @@
-import { stageLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
-import { PackageJson } from '@pnpm/types'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { DependencyPackageJson, PackageJson } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
@@ -98,7 +98,7 @@ export default async (
 }
 
 export async function recursive (
-  allPkgs: Array<{path: string, manifest: PackageJson}>,
+  allPkgs: Array<{path: string, manifest: DependencyPackageJson}>,
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
@@ -194,22 +194,28 @@ export async function recursive (
 
   const memReadLocalConfigs = mem(readLocalConfigs)
 
-  function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, prefix: string }>
-    chunks.forEach((prefixes: string[], buildIndex) => {
+  async function getImporters () {
+    const importers = [] as Array<{ buildIndex: number, pkg: PackageJson, prefix: string }>
+    await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
-      prefixes.forEach((prefix) => {
-        importers.push({ buildIndex, prefix })
-      })
-    })
+      return Promise.all(
+        prefixes.map(async (prefix) => {
+          importers.push({
+            buildIndex,
+            pkg: await readPackageJsonFromDir(prefix),
+            prefix,
+          })
+        })
+      )
+    }))
     return importers
   }
 
   if (cmdFullName !== 'rebuild') {
     if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
-      let importers = getImporters()
+      let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
       if (importers.length === 0) return true
@@ -329,7 +335,7 @@ export async function recursive (
       : (importers: any, opts: any) => rebuildPkgs(importers, input, opts) // tslint:disable-line
     )
     if (opts.lockfileDirectory) {
-      const importers = getImporters()
+      const importers = await getImporters()
       await action(
         importers,
         {
@@ -349,7 +355,13 @@ export async function recursive (
             }
             const localConfigs = await memReadLocalConfigs(prefix)
             await action(
-              [{ buildIndex: 0, prefix }],
+              [
+                {
+                  buildIndex: 0,
+                  pkg: await readPackageJsonFromDir(prefix),
+                  prefix,
+                },
+              ],
               {
                 ...installOpts,
                 ...localConfigs,
@@ -388,11 +400,12 @@ export async function recursive (
   return true
 }
 
-function unlink (opts: any) { // tslint:disable-line:no-any
+async function unlink (opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
         mutation: 'unlink',
+        pkg: await readPackageJsonFromDir(opts.prefix),
         prefix: opts.prefix,
       },
     ],
@@ -400,12 +413,13 @@ function unlink (opts: any) { // tslint:disable-line:no-any
   )
 }
 
-function unlinkPkgs (dependencyNames: string[], opts: any) { // tslint:disable-line:no-any
+async function unlinkPkgs (dependencyNames: string[], opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
         dependencyNames,
         mutation: 'unlinkSome',
+        pkg: await readPackageJsonFromDir(opts.prefix),
         prefix: opts.prefix,
       },
     ],

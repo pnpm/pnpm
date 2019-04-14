@@ -47,6 +47,7 @@ export interface PnpmContext<T> {
 
 export interface ImportersOptions {
   bin?: string,
+  pkg: PackageJson,
   prefix: string,
   shamefullyFlatten?: boolean,
 }
@@ -84,14 +85,14 @@ export default async function getContext<T> (
 
   await mkdirp(opts.store)
 
-  manifests.importers.forEach((importer) => {
+  importers.forEach((importer) => {
     packageJsonLogger.debug({
       initial: importer.pkg,
       prefix: importer.prefix,
     })
   })
   if (opts.hooks && opts.hooks.readPackage) {
-    manifests.importers = manifests.importers.map((importer) => ({
+    importers = importers.map((importer) => ({
       ...importer,
       pkg: opts.hooks!.readPackage!(importer.pkg),
     }))

@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import loadJsonFile from 'load-json-file'
 import path = require('path')
 import rimraf = require('rimraf-then')
@@ -25,7 +26,7 @@ export default async function installCmd (
     store: store.path,
     storeController: store.ctrl,
   }
-  await install(installOpts)
+  await install(await readPackageJsonFromDir(opts.prefix), installOpts)
 }
 
 async function readNpmLockfile (prefix: string) {

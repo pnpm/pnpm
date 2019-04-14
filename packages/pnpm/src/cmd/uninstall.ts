@@ -1,3 +1,4 @@
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   mutateModules,
   uninstall,
@@ -21,12 +22,16 @@ export default async function uninstallCmd (
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
     : undefined
-  return mutateModules([
-    {
-      bin: opts.bin,
-      dependencyNames: input,
-      mutation: 'uninstallSome',
-      prefix: opts.prefix,
-    },
-  ], uninstallOpts)
+  return mutateModules(
+    [
+      {
+        bin: opts.bin,
+        dependencyNames: input,
+        mutation: 'uninstallSome',
+        pkg: await readPackageJsonFromDir(opts.prefix),
+        prefix: opts.prefix,
+      },
+    ],
+    uninstallOpts,
+  )
 }

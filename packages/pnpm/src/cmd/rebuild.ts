@@ -1,3 +1,4 @@
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   rebuild,
   rebuildPkgs,
@@ -17,7 +18,25 @@ export default async function (
   })
 
   if (args.length === 0) {
-    await rebuild([{ buildIndex: 0, prefix: rebuildOpts.prefix }], rebuildOpts)
+    await rebuild(
+      [
+        {
+          buildIndex: 0,
+          pkg: await readPackageJsonFromDir(rebuildOpts.prefix),
+          prefix: rebuildOpts.prefix,
+        },
+      ],
+      rebuildOpts,
+    )
   }
-  await rebuildPkgs([{ prefix: rebuildOpts.prefix }], args, rebuildOpts)
+  await rebuildPkgs(
+    [
+      {
+        pkg: await readPackageJsonFromDir(rebuildOpts.prefix),
+        prefix: rebuildOpts.prefix,
+      },
+    ],
+    args,
+    rebuildOpts,
+  )
 }
