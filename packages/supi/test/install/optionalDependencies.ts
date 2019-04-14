@@ -324,7 +324,7 @@ test('only skip optional dependencies', async (t: tape.Test) => {
 
   prepareEmpty(t)
 
-  const preferVersion = (selector: string) => ({ selector, type: 'version' })
+  const preferVersion = (selector: string) => ({ selector, type: 'version' as 'version' })
   const preferredVersions = {
     'duplexify': preferVersion('3.6.0'),
     'got': preferVersion('3.3.1'),

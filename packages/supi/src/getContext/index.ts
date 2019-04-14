@@ -244,6 +244,7 @@ export interface PnpmSingleContext {
 }
 
 export async function getContextForSingleImporter (
+  pkg: PackageJson,
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
@@ -288,11 +289,7 @@ export async function getContextForSingleImporter (
     })
   }
 
-  const files = await Promise.all([
-    safeReadPkgFromDir(opts.prefix),
-    mkdirp(storePath),
-  ])
-  const pkg = files[0] || {} as PackageJson
+  await mkdirp(storePath)
   const ctx: PnpmSingleContext = {
     hoistedAliases: importer.hoistedAliases,
     importerId,

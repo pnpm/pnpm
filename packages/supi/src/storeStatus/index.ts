@@ -14,7 +14,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts)
+  const ctx = await getContextForSingleImporter({}, opts)
   if (!ctx.wantedLockfile) return []
 
   const pkgPaths = Object.keys(ctx.wantedLockfile.packages || {})

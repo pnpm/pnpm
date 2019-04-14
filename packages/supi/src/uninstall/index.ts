@@ -9,9 +9,9 @@ import { prune } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { pruneLockfile } from '@pnpm/prune-lockfile'
 import { shamefullyFlattenByLockfile } from '@pnpm/shamefully-flatten'
+import { PackageJson } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
-import path = require('path')
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
 import lockfilesEqual from '../lockfilesEqual'
@@ -22,6 +22,7 @@ import extendOptions, {
 import removeDeps from './removeDeps'
 
 export default async function uninstall (
+  pkg: PackageJson,
   pkgsToUninstall: string[],
   maybeOpts: UninstallOptions,
 ) {
@@ -32,23 +33,26 @@ export default async function uninstall (
 
   const opts = await extendOptions(maybeOpts)
 
+  let newPkg!: PackageJson
   if (opts.lock) {
-    await lock(opts.prefix, _uninstall, {
+    newPkg = await lock(opts.prefix, _uninstall, {
       locks: opts.locks,
       prefix: opts.prefix,
       stale: opts.lockStaleDuration,
       storeController: opts.storeController,
     })
   } else {
-    await _uninstall()
+    newPkg = await _uninstall()
   }
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
 
+  return newPkg
+
   async function _uninstall () {
-    const ctx = await getContextForSingleImporter(opts)
+    const ctx = await getContextForSingleImporter(pkg, opts)
 
     if (!ctx.pkg) {
       throw new Error('No package.json found - cannot uninstall')
@@ -65,9 +69,8 @@ export async function uninstallInContext (
 ) {
   const makePartialCurrentLockfile = !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
 
-  const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
-  const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
+  const pkg = await removeDeps(ctx.pkg, pkgsToUninstall, { prefix: opts.prefix, saveType })
   const newLockfile = pruneLockfile(ctx.wantedLockfile, pkg, ctx.importerId, {
     defaultRegistry: ctx.registries.default,
     warn: (message) => logger.warn({ message, prefix: ctx.prefix }),
@@ -140,4 +143,6 @@ export async function uninstallInContext (
   })
 
   summaryLogger.debug({ prefix: opts.prefix })
+
+  return pkg
 }

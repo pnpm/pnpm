@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import path = require('path')
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
@@ -10,10 +10,10 @@ import { testDefaults } from '../utils'
 const test = promisifyTape(tape)
 
 test('repeat install with corrupted `store.json` should work', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   const opts = await testDefaults()
-  await addDependenciesToPackage(['is-negative@1.0.0'], opts)
+  const pkg = await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)
 
   await rimraf('node_modules')
 
@@ -23,7 +23,7 @@ test('repeat install with corrupted `store.json` should work', async (t: tape.Te
   // in the store, it is overwritten.
   await writeJsonFile(path.join(opts.store, '2', 'store.json'), {})
 
-  await install(opts)
+  await install(pkg, opts)
 
   const m = project.requireModule('is-negative')
   t.ok(m)

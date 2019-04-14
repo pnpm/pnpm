@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
-import prepare from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, install } from 'supi'
@@ -15,7 +15,7 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('preserve subdeps on update', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
@@ -26,7 +26,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('peer-c', '1.0.0', 'latest'),
   ])
 
-  await addDependenciesToPackage(['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
+  const pkg = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
@@ -36,7 +36,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('foobarqar', '1.0.1', 'latest'),
   ])
 
-  await install(await testDefaults({ update: true, depth: 0 }))
+  await install(pkg, await testDefaults({ update: true, depth: 0 }))
 
   const lockfile = await project.loadLockfile()
 
@@ -51,19 +51,19 @@ test('preserve subdeps on update', async (t: tape.Test) => {
 })
 
 test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
-  prepare(t)
+  prepareEmpty(t)
 
-  await addDependenciesToPackage(['has-pkg-with-peer-only'], await testDefaults())
+  const pkg = await addDependenciesToPackage({}, ['has-pkg-with-peer-only'], await testDefaults())
 
-  await install(await testDefaults({ update: true, depth: Infinity }))
+  await install(pkg, await testDefaults({ update: true, depth: Infinity }))
 
   t.pass('did not fail')
 })
 
 test('update does not install the package if it is not present in package.json', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({
+  await addDependenciesToPackage({}, ['is-positive'], await testDefaults({
     allowNew: false,
     update: true,
   }))
@@ -72,16 +72,16 @@ test('update does not install the package if it is not present in package.json',
 })
 
 test('update dependency when external lockfile directory is used', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
 
   const lockfileDirectory = path.resolve('..')
-  await addDependenciesToPackage(['foo'], await testDefaults({ lockfileDirectory }))
+  const pkg = await addDependenciesToPackage({}, ['foo'], await testDefaults({ lockfileDirectory }))
 
   await addDistTag('foo', '100.1.0', 'latest')
 
-  await install(await testDefaults({ update: true, depth: 0, lockfileDirectory }))
+  await install(pkg, await testDefaults({ update: true, depth: 0, lockfileDirectory }))
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 

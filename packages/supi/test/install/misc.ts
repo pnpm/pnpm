@@ -610,7 +610,7 @@ test['skip']('support installing and uninstalling from the same store simultaneo
     wait(500) // to be sure that lock was created
       .then(async () => {
         await project.storeHasNot('pkg-that-installs-slowly')
-        await uninstall(['rimraf@2.5.1'], await testDefaults())
+        await uninstall({}, ['rimraf@2.5.1'], await testDefaults())
       })
       .then(async () => {
         await project.has('pkg-that-installs-slowly')

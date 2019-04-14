@@ -1,6 +1,5 @@
 import { RootLog } from '@pnpm/core-loggers'
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import path = require('path')
 import sinon = require('sinon')
 import {
@@ -11,30 +10,25 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writePkg = require('write-pkg')
 import { pathToLocalPkg, testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('prune removes extraneous packages', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   const opts = await testDefaults()
-  await addDependenciesToPackage(['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
-  await addDependenciesToPackage(['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
-  await addDependenciesToPackage(['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
-  await addDependenciesToPackage(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
-  await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), opts)
+  let pkg = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
+  pkg = await addDependenciesToPackage(pkg, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
+  pkg = await addDependenciesToPackage(pkg, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
+  pkg = await addDependenciesToPackage(pkg, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
+  pkg = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, pkg, prefix: process.cwd() })
 
   await project.has('hello-world-js-bin') // external link added
 
-  const pkg = await readPackageJsonFromDir(process.cwd())
-
   delete pkg.dependencies!['is-positive']
   delete pkg.dependencies!['@zkochan/logger']
-
-  await writePkg(pkg)
 
   const reporter = sinon.spy()
 
@@ -43,6 +37,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
       {
         buildIndex: 0,
         mutation: 'install',
+        pkg,
         prefix: process.cwd(),
         pruneDirectDependencies: true,
       },
@@ -83,12 +78,12 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 })
 
 test('prune removes dev dependencies in production', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
-  await addDependenciesToPackage(['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  await addDependenciesToPackage(['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  await install(await testDefaults({
+  let pkg = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  pkg = await addDependenciesToPackage(pkg, ['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  pkg = await addDependenciesToPackage(pkg, ['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await install(pkg, await testDefaults({
     include: {
       dependencies: true,
       devDependencies: false,

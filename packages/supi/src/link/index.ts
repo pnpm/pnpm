@@ -11,7 +11,6 @@ import {
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
@@ -41,6 +40,7 @@ export default async function link (
   destModules: string,
   maybeOpts: LinkOptions & {
     linkToBin?: string,
+    prefix: string,
   },
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -49,7 +49,7 @@ export default async function link (
   }
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts)
+  const ctx = await getContextForSingleImporter(opts.pkg, opts)
 
   const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
   const oldLockfile = R.clone(ctx.currentLockfile)
@@ -135,11 +135,14 @@ export default async function link (
     warn: (message: string) => logger.warn({ message, prefix: opts.prefix }),
   })
 
+  let newPkg!: PackageJson
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
-    const newPkg = await save(opts.prefix, await readPackageJsonFromDir(opts.prefix), specsToUpsert)
+    newPkg = await save(opts.prefix, opts.pkg, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
     }
+  } else {
+    newPkg = opts.pkg
   }
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.useLockfile) {
@@ -153,6 +156,8 @@ export default async function link (
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
+
+  return newPkg
 }
 
 function addLinkToLockfile (

@@ -643,8 +643,7 @@ async function installInContext (
     importers
       .map(async (importer) => {
         if (importer.mutation !== 'uninstallSome') return
-        const pkgJsonPath = path.join(importer.prefix, 'package.json')
-        importer.pkg = await removeDeps(pkgJsonPath, importer.dependencyNames, {
+        importer.pkg = await removeDeps(importer.pkg, importer.dependencyNames, {
           prefix: importer.prefix,
           saveType: importer.targetDependenciesField,
         })

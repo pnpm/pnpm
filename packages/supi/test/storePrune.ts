@@ -1,6 +1,5 @@
 import assertStore from '@pnpm/assert-store'
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
@@ -17,10 +16,10 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('remove unreferenced packages', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
-  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ save: true }))
-  await uninstall(['is-negative'], await testDefaults({ save: true }))
+  const pkg = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await uninstall(pkg, ['is-negative'], await testDefaults({ save: true }))
 
   await project.storeHas('is-negative', '2.1.0')
 
@@ -44,11 +43,11 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 })
 
 test('remove packages that are used by project that no longer exist', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
   const opts = await testDefaults({ save: true })
   const store = assertStore(t, opts.store)
 
-  await addDependenciesToPackage(['is-negative@2.1.0'], opts)
+  await addDependenciesToPackage({}, ['is-negative@2.1.0'], opts)
 
   await rimraf('node_modules')
 
@@ -66,10 +65,10 @@ test('remove packages that are used by project that no longer exist', async (t: 
 })
 
 test('keep dependencies used by others', async (t: tape.Test) => {
-  const project = prepare(t)
-  await addDependenciesToPackage(['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
-  await addDependenciesToPackage(['hastscript@3.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  await uninstall(['camelcase-keys'], await testDefaults({ save: true }))
+  const project = prepareEmpty(t)
+  let pkg = await addDependenciesToPackage({}, ['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
+  pkg = await addDependenciesToPackage(pkg, ['hastscript@3.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  pkg = await uninstall(pkg, ['camelcase-keys'], await testDefaults({ save: true }))
 
   await project.storeHas('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')
@@ -79,8 +78,7 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   await project.storeHas('map-obj', '1.0.1')
   await project.hasNot('map-obj')
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
-  t.notOk(pkgJson.dependencies, 'camelcase-keys has been removed from dependencies')
+  t.notOk(Object.keys(pkg.dependencies || {}).length, 'camelcase-keys has been removed from dependencies')
 
   // all dependencies are marked as dev
   const lockfile = await project.loadLockfile()
@@ -97,9 +95,9 @@ test('keep dependencies used by others', async (t: tape.Test) => {
 })
 
 test('keep dependency used by package', async (t: tape.Test) => {
-  const project = prepare(t)
-  await addDependenciesToPackage(['is-not-positive@1.0.0', 'is-positive@3.1.0'], await testDefaults({ save: true }))
-  await uninstall(['is-not-positive'], await testDefaults({ save: true }))
+  const project = prepareEmpty(t)
+  const pkg = await addDependenciesToPackage({}, ['is-not-positive@1.0.0', 'is-positive@3.1.0'], await testDefaults({ save: true }))
+  await uninstall(pkg, ['is-not-positive'], await testDefaults({ save: true }))
 
   await storePrune(await testDefaults())
 
