@@ -3,6 +3,7 @@ import createResolver from '@pnpm/default-resolver'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
 import readManifests from '@pnpm/read-manifests'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import storePath from '@pnpm/store-path'
 import path = require('path')
 import tempy = require('tempy')
@@ -66,7 +67,9 @@ export default async function testDefaults (
     },
     engineStrict: false,
     force: false,
-    importers: manifests.importers,
+    importers: opts.importers ? opts.importers : await Promise.all(
+      manifests.importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix) }))
+    ),
     include: manifests.include,
     independentLeaves: false,
     lockfileDirectory,
