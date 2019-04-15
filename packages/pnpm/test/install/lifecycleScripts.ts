@@ -10,6 +10,7 @@ const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageJson>(path.join(pkgRoot, 'package.json'))
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('installation fails if lifecycle script fails', t => {
   const project = prepare(t, {
@@ -135,4 +136,18 @@ test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
     original: ['install'],
     remain: ['install'],
   })
+})
+
+test('dependency should not be added to package.json and lockfile if it was not built successfully', async (t: tape.Test) => {
+  const project = prepare(t, { name: 'foo', version: '1.0.0' })
+
+  const result = execPnpmSync('install', 'package-that-cannot-be-installed@0.0.0')
+
+  t.equal(result.status, 1)
+
+  t.notOk(await project.loadCurrentLockfile())
+  t.notOk(await project.loadLockfile())
+
+  const pkg = await import(path.resolve('package.json'))
+  t.deepEqual(pkg, { name: 'foo', version: '1.0.0' }, 'package.json not updated')
 })

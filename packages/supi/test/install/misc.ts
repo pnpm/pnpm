@@ -558,31 +558,6 @@ test('compiled modules (ursa@0.9.1)', async (t) => {
   t.ok(typeof m === 'object', 'ursa() is available')
 })
 
-// TODO: move this to packages/pnpm
-test['skip']('lockfile compatibility', async (t: tape.Test) => {
-  if (semver.satisfies(process.version, '4')) {
-    t.skip("don't run on Node.js 4")
-    return
-  }
-  prepareEmpty(t)
-
-  await addDependenciesToPackage({ dependencies: { rimraf: '*' } }, ['rimraf@2.5.1'], await testDefaults())
-
-  return new Promise((resolve, reject) => {
-    const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
-
-    proc.on('error', reject)
-
-    proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error('Exit code ' + code))
-      const wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
-      t.ok(wrap.dependencies.rimraf.version === '2.5.1',
-        'npm shrinkwrap is successful')
-      resolve()
-    })
-  })
-})
-
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 test('support installing into the same store simultaneously', async (t) => {

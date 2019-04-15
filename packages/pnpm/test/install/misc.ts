@@ -3,11 +3,14 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import caw = require('caw')
+import crossSpawn = require('cross-spawn')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
+import fs = require('fs')
 import isWindows = require('is-windows')
 import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
+import semver = require('semver')
 import 'sepia'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -153,4 +156,28 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   } else {
     t.deepEqual(packageFiles, ['foo.js', 'package.json'])
   }
+})
+
+test('lockfile compatibility', async (t: tape.Test) => {
+  if (semver.satisfies(process.version, '4')) {
+    t.skip("don't run on Node.js 4")
+    return
+  }
+  prepare(t, { dependencies: { rimraf: '*' } })
+
+  await execPnpm('install', 'rimraf@2.5.1')
+
+  return new Promise((resolve, reject) => {
+    const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
+
+    proc.on('error', reject)
+
+    proc.on('close', (code: number) => {
+      if (code > 0) return reject(new Error('Exit code ' + code))
+      const wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+      t.ok(wrap.dependencies.rimraf.version === '2.5.1',
+        'npm shrinkwrap is successful')
+      resolve()
+    })
+  })
 })

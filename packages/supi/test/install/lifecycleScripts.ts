@@ -345,34 +345,6 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
   t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'), 'scripts were ignored indeed')
 })
 
-// TODO: move this to packages/pnpm
-test['skip']('dependency should not be added to package.json and lockfile if it was not built successfully', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-
-  let err
-  let pkg
-  try {
-    pkg = await addDependenciesToPackage(
-      {
-        name: 'foo',
-      },
-      [
-        'package-that-cannot-be-installed@0.0.0',
-      ],
-      await testDefaults(),
-    )
-  } catch (_err) {
-    err = _err
-  }
-
-  t.ok(err)
-
-  t.notOk(await project.loadCurrentLockfile())
-  t.notOk(await project.loadLockfile())
-
-  t.deepEqual(pkg, { name: 'foo' }, 'package.json not updated')
-})
-
 test('dependency should not be added to current lockfile if it was not built successfully during headless install', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 

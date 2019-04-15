@@ -53,27 +53,3 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   const wantedLockfile = await project.loadLockfile()
   t.equal(wantedLockfile['foo'], 'foo', 'the lockfile object has been updated by the hook') // tslint:disable-line:no-string-literal
 })
-
-// TODO: move this test to packages/pnpm
-test['skip']('readPackage hook overrides project package', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-
-  function readPackageHook (pkg: PackageManifest) {
-    switch (pkg.name) {
-      case 'test-read-package-hook':
-        pkg.dependencies = { 'is-positive': '1.0.0' }
-        break
-    }
-    return pkg
-  }
-
-  const pkg = await install({
-    name: 'test-read-package-hook',
-  }, await testDefaults({
-    hooks: { readPackage: readPackageHook },
-  }))
-
-  await project.has('is-positive')
-
-  t.notOk(pkg.dependencies, 'dependencies added by the hooks not saved in package.json')
-})
