@@ -577,69 +577,12 @@ test('support installing into the same store simultaneously', async (t) => {
   ])
 })
 
-// TODO: move this to packages/pnpm
-test['skip']('support installing and uninstalling from the same store simultaneously', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-  await Promise.all([
-    addDependenciesToPackage({}, ['pkg-that-installs-slowly'], await testDefaults()),
-    wait(500) // to be sure that lock was created
-      .then(async () => {
-        await project.storeHasNot('pkg-that-installs-slowly')
-        await uninstall({}, ['rimraf@2.5.1'], await testDefaults())
-      })
-      .then(async () => {
-        await project.has('pkg-that-installs-slowly')
-        await project.hasNot('rimraf')
-      })
-      .catch((err) => t.notOk(err)),
-  ])
-})
-
-test['skip']('top-level packages should find the plugins they use', async (t: tape.Test) => {
-  prepareEmpty(t)
-  await addDependenciesToPackage({
-    scripts: {
-      test: 'pkg-that-uses-plugins',
-    },
-  }, ['pkg-that-uses-plugins', 'plugin-example'], await testDefaults({ save: true }))
-  const result = spawnSync('npm', ['test'])
-  t.ok(result.stdout.toString().includes('My plugin is plugin-example'), 'package executable have found its plugin')
-  t.equal(result.status, 0, 'executable exited with success')
-})
-
-// TODO: move this to packages/pnpm
-test['skip']('not top-level packages should find the plugins they use', async (t: tape.Test) => {
-  // standard depends on eslint and eslint plugins
-  prepareEmpty(t)
-  await addDependenciesToPackage({
-    scripts: {
-      test: 'standard',
-    },
-  }, ['standard@8.6.0'], await testDefaults({ save: true }))
-  const result = spawnSync('npm', ['test'])
-  t.equal(result.status, 0, 'standard exited with success')
-})
-
 test('bin specified in the directories property linked to .bin folder', async (t) => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['pkg-with-directories-bin'], await testDefaults())
 
   await project.isExecutable('.bin/pkg-with-directories-bin')
-})
-
-// TODO: move this to packages/pnpm
-test['skip']('run js bin file', async (t: tape.Test) => {
-  prepareEmpty(t)
-  await addDependenciesToPackage({
-    scripts: {
-      test: 'hello-world-js-bin',
-    },
-  }, ['hello-world-js-bin'], await testDefaults({ save: true }))
-
-  const result = spawnSync('npm', ['test'])
-  t.ok(result.stdout.toString().includes('Hello world!'), 'package executable printed its message')
-  t.equal(result.status, 0, 'executable exited with success')
 })
 
 test('building native addons', async (t: tape.Test) => {
@@ -852,20 +795,6 @@ test('install a dependency with * range', async (t: tape.Test) => {
       },
     },
   } as PackageJsonLog), 'should log package-json updated even when package.json was not changed')
-})
-
-// TODO: move this to packages/pnpm
-test['skip']('create a package.json if there is none', async (t: tape.Test) => {
-  prepareEmpty(t)
-  await rimraf('package.json')
-
-  await addDependenciesToPackage({}, ['dep-of-pkg-with-1-dep@100.1.0'], await testDefaults())
-
-  t.deepEqual(await loadJsonFile(path.resolve('package.json')), {
-    dependencies: {
-      'dep-of-pkg-with-1-dep': '100.1.0',
-    },
-  }, 'package.json created')
 })
 
 test('should throw error when trying to install a package without name', async (t: tape.Test) => {

@@ -1,9 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
-import prepare from '@pnpm/prepare'
+import prepare, { prepareEmpty } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import caw = require('caw')
 import crossSpawn = require('cross-spawn')
+import delay = require('delay')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import fs = require('fs')
 import isWindows = require('is-windows')
@@ -180,4 +181,75 @@ test('lockfile compatibility', async (t: tape.Test) => {
       resolve()
     })
   })
+})
+
+test('support installing and uninstalling from the same store simultaneously', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await Promise.all([
+    execPnpm('install', 'pkg-that-installs-slowly'),
+    (async () => {
+      await delay(500) // to be sure that lock was created
+
+      await project.storeHasNot('pkg-that-installs-slowly')
+      await execPnpm('uninstall', 'rimraf@2.5.1')
+
+      await project.has('pkg-that-installs-slowly')
+      await project.hasNot('rimraf')
+    })(),
+  ])
+})
+
+test('top-level packages should find the plugins they use', async (t: tape.Test) => {
+  prepare(t, {
+    scripts: {
+      test: 'pkg-that-uses-plugins',
+    },
+  })
+
+  await execPnpm('install', 'pkg-that-uses-plugins', 'plugin-example')
+
+  const result = crossSpawn.sync('npm', ['test'])
+  t.ok(result.stdout.toString().includes('My plugin is plugin-example'), 'package executable have found its plugin')
+  t.equal(result.status, 0, 'executable exited with success')
+})
+
+test('not top-level packages should find the plugins they use', async (t: tape.Test) => {
+  // standard depends on eslint and eslint plugins
+  prepare(t, {
+    scripts: {
+      test: 'standard',
+    },
+  })
+
+  await execPnpm('install', 'standard@8.6.0')
+
+  const result = crossSpawn.sync('npm', ['test'])
+  t.equal(result.status, 0, 'standard exited with success')
+})
+
+test('run js bin file', async (t: tape.Test) => {
+  prepare(t, {
+    scripts: {
+      test: 'hello-world-js-bin',
+    },
+  })
+
+  await execPnpm('install', 'hello-world-js-bin')
+
+  const result = crossSpawn.sync('npm', ['test'])
+  t.ok(result.stdout.toString().includes('Hello world!'), 'package executable printed its message')
+  t.equal(result.status, 0, 'executable exited with success')
+})
+
+test('create a package.json if there is none', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.1.0')
+
+  t.deepEqual(await import(path.resolve('package.json')), {
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '100.1.0',
+    },
+  }, 'package.json created')
 })
