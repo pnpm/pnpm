@@ -12,9 +12,6 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import {
-  safeReadPackageFromDir as safeReadPkgFromDir,
-} from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
@@ -98,15 +95,8 @@ export default async function getContext<T> (
     }))
   }
 
-  const importerOptionsByPrefix = importers.reduce((prev, curr) => {
-    prev[curr.prefix] = curr
-    return prev
-  }, {})
   const ctx: PnpmContext<T> = {
-    importers: manifests.importers.map((importer) => ({
-      ...importerOptionsByPrefix[importer.prefix],
-      ...importer,
-    })),
+    importers: manifests.importers,
     include: opts.include || manifests.include,
     lockfileDirectory: opts.lockfileDirectory,
     modulesFile: manifests.modules,

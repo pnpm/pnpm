@@ -13,8 +13,8 @@ export interface ImporterOptions {
   shamefullyFlatten?: boolean,
 }
 
-export default async (
-  importers: ImporterOptions[],
+export default async function <T>(
+  importers: (ImporterOptions & T)[],
   lockfileDirectory: string,
   opts: {
     shamefullyFlatten: boolean,
@@ -28,7 +28,7 @@ export default async (
     modulesDir: string,
     prefix: string,
     shamefullyFlatten: boolean,
-  }>,
+  } & T>,
   include: {
     dependencies: boolean,
     devDependencies: boolean,
@@ -39,7 +39,7 @@ export default async (
   registries: Registries | null | undefined,
   skipped: Set<string>,
   virtualStoreDir: string,
-}> => {
+}> {
   const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
   const modules = await readModulesYaml(virtualStoreDir)
   return {
@@ -49,12 +49,12 @@ export default async (
         const importerId = getLockfileImporterId(lockfileDirectory, importer.prefix)
 
         return {
+          ...importer,
           bin: importer.bin || path.join(importer.prefix, 'node_modules', '.bin'),
           currentShamefullyFlatten: modules && modules.importers[importerId] && modules.importers[importerId].shamefullyFlatten,
           hoistedAliases: modules && modules.importers[importerId] && modules.importers[importerId].hoistedAliases || {},
           id: importerId,
           modulesDir,
-          prefix: importer.prefix,
           shamefullyFlatten: Boolean(
             typeof importer.shamefullyFlatten === 'boolean' ? importer.shamefullyFlatten : opts.shamefullyFlatten
           ),

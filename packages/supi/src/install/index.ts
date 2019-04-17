@@ -55,7 +55,6 @@ import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import semver = require('semver')
-import writePkg = require('write-pkg')
 import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
