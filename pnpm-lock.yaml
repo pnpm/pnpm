@@ -567,7 +567,7 @@ importers:
       '@pnpm/headless': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/package-store': 'link:../package-store'
-      '@pnpm/read-manifests': 'link:../read-manifests'
+      '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/store-path': 1.0.4
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/fs-extra': 5.0.5
@@ -611,7 +611,7 @@ importers:
       '@pnpm/package-requester': 7.0.4
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-manifests': 'file:../read-manifests'
+      '@pnpm/read-importers-context': 'file:../read-importers-context'
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/shamefully-flatten': 3.0.4
       '@pnpm/store-controller-types': 3.0.1
@@ -1576,7 +1576,7 @@ importers:
       tslint: 5.16.0
       typescript: 3.4.4
       yaml-tag: 1.1.0
-  packages/read-manifests:
+  packages/read-importers-context:
     dependencies:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
@@ -1846,7 +1846,7 @@ importers:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
-      '@pnpm/read-manifests': 'link:../read-manifests'
+      '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
@@ -1962,7 +1962,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/prune-lockfile': 1.0.2
-      '@pnpm/read-manifests': 2.0.2
+      '@pnpm/read-importers-context': 0.0.0
       '@pnpm/read-modules-dir': 2.0.0
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/resolve-dependencies': 5.1.3

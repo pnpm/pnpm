@@ -32,7 +32,7 @@
     "@pnpm/package-requester",
     "@pnpm/package-store",
     "@pnpm/prune-lockfile",
-    "@pnpm/read-manifests",
+    "@pnpm/read-importers-context",
     "@pnpm/read-modules-dir",
     "@pnpm/read-package-json",
     "@pnpm/resolve-dependencies",

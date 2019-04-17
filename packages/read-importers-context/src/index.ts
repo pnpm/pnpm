@@ -47,12 +47,13 @@ export default async function <T>(
       importers.map(async (importer) => {
         const modulesDir = await realNodeModulesDir(importer.prefix)
         const importerId = getLockfileImporterId(lockfileDirectory, importer.prefix)
+        const importerModules = modules && modules.importers[importerId]
 
         return {
           ...importer,
           bin: importer.bin || path.join(importer.prefix, 'node_modules', '.bin'),
-          currentShamefullyFlatten: modules && modules.importers[importerId] && modules.importers[importerId].shamefullyFlatten,
-          hoistedAliases: modules && modules.importers[importerId] && modules.importers[importerId].hoistedAliases || {},
+          currentShamefullyFlatten: importerModules && importerModules.shamefullyFlatten,
+          hoistedAliases: importerModules && importerModules.hoistedAliases || {},
           id: importerId,
           modulesDir,
           shamefullyFlatten: Boolean(

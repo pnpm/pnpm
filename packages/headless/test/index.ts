@@ -10,7 +10,7 @@ import {
 import headless from '@pnpm/headless'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
-import readManifests from '@pnpm/read-manifests'
+import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import fse = require('fs-extra')
 import path = require('path')
@@ -225,7 +225,7 @@ test('installing with independent-leaves and shamefully-flatten', async (t) => {
   const prefix = path.join(fixtures, 'with-1-dep')
   await rimraf(path.join(prefix, 'node_modules'))
 
-  const { importers } = await readManifests(
+  const { importers } = await readImportersContext(
     [
       {
         prefix,
@@ -628,7 +628,7 @@ test('using side effects cache', async (t) => {
 test('using side effects cache and shamefully-flatten', async (t) => {
   const prefix = path.join(fixtures, 'side-effects-of-subdep')
 
-  const { importers } = await readManifests(
+  const { importers } = await readImportersContext(
     [
       {
         prefix,
@@ -672,7 +672,7 @@ test('using side effects cache and shamefully-flatten', async (t) => {
 test('installing in a workspace', async (t) => {
   const workspaceFixture = path.join(__dirname, 'workspace-fixture')
 
-  const manifests = await readManifests(
+  let { importers } = await readImportersContext(
     [
       {
         prefix: path.join(workspaceFixture, 'foo'),
@@ -687,12 +687,12 @@ test('installing in a workspace', async (t) => {
     },
   )
 
-  manifests.importers = await Promise.all(
-    manifests.importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix) })),
+  importers = await Promise.all(
+    importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix) })),
   )
 
   await headless(await testDefaults({
-    importers: manifests.importers,
+    importers,
     lockfileDirectory: workspaceFixture,
   }))
 
@@ -701,7 +701,7 @@ test('installing in a workspace', async (t) => {
   await projectBar.has('foo')
 
   await headless(await testDefaults({
-    importers: [manifests.importers[0]],
+    importers: [importers[0]],
     lockfileDirectory: workspaceFixture,
   }))
 
@@ -718,7 +718,7 @@ test('installing in a workspace', async (t) => {
 test('independent-leaves: installing in a workspace', async (t) => {
   const workspaceFixture = path.join(__dirname, 'workspace-fixture2')
 
-  const { importers } = await readManifests(
+  const { importers } = await readImportersContext(
     [
       {
         prefix: path.join(workspaceFixture, 'foo'),

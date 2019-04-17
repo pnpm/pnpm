@@ -2,7 +2,7 @@ import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
-import readManifests from '@pnpm/read-manifests'
+import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import storePath from '@pnpm/store-path'
 import path = require('path')
@@ -25,7 +25,7 @@ export default async function testDefaults (
 ): Promise<HeadlessOptions> {
   let store = opts && opts.store || tempy.directory()
   const lockfileDirectory = opts && opts.lockfileDirectory || process.cwd()
-  const manifests = await readManifests(
+  const { importers, include, pendingBuilds, registries } = await readImportersContext(
     [
       {
         prefix: lockfileDirectory,
@@ -68,18 +68,18 @@ export default async function testDefaults (
     engineStrict: false,
     force: false,
     importers: opts.importers ? opts.importers : await Promise.all(
-      manifests.importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix) }))
+      importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix) }))
     ),
-    include: manifests.include,
+    include,
     independentLeaves: false,
     lockfileDirectory,
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
     },
-    pendingBuilds: manifests.pendingBuilds,
+    pendingBuilds,
     rawNpmConfig: {},
-    registries: manifests.registries || {
+    registries: registries || {
       default: registry,
     },
     sideEffectsCache: true,
