@@ -662,7 +662,10 @@ importers:
     devDependencies:
       '@pnpm/hook-utils': 'link:'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/tape': 4.2.33
       rimraf: 2.6.3
+      tape: 4.10.1
+      ts-node: 8.1.0_typescript@3.4.3
       tslint: 5.16.0_typescript@3.4.3
       typescript: 3.4.3
     specifiers:
@@ -670,7 +673,10 @@ importers:
       '@pnpm/lockfile-types': 1.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.0.0
+      '@types/tape': 4.2.33
       rimraf: 2.6.3
+      tape: 4.10.1
+      ts-node: 8.1.0
       tslint: 5.16.0
       typescript: 3.4.3
   packages/lifecycle:
@@ -2815,6 +2821,9 @@ packages:
   /@types/node/11.13.4:
     resolution:
       integrity: sha512-+rabAZZ3Yn7tF/XPGHupKIL5EcAbrLxnTr/hgQICxbeuAfWtT0UZSfULE+ndusckBItcv4o6ZeOJplQikVcLvQ==
+  /@types/node/11.13.5:
+    resolution:
+      integrity: sha512-/OMMBnjVtDuwX1tg2pkYVSqRIDSmNTnvVvmvP/2xiMAAWf4a5+JozrApCrO4WCAILmXVxfNoQ3E+0HJbNpFVGg==
   /@types/node/8.10.45:
     dev: false
     resolution:
@@ -2895,7 +2904,7 @@ packages:
       integrity: sha512-JSUkNxrI06sLQKDKVJG5nuZyTuKWm58d+zf8xiadQ7L2BSMSQW8KoLb0GrL2hz6y40huq1mduZOClXqLpxLXfA==
   /@types/tape/4.2.33:
     dependencies:
-      '@types/node': 11.13.4
+      '@types/node': 11.13.5
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/tempy/0.2.0:
@@ -9750,6 +9759,22 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-2qayBA4vdtVRuDo11DEFSsD/SFsBXQBRZZhbRGSIkmYmVkWjULn/GGMdG10KVqkaGndljfaTD8dKjWgcejO8YA==
+  /ts-node/8.1.0_typescript@3.4.3:
+    dependencies:
+      arg: 4.1.0
+      diff: 3.5.0
+      make-error: 1.3.5
+      source-map-support: 0.5.12
+      typescript: 3.4.3
+      yn: 3.1.0
+    dev: true
+    engines:
+      node: '>=4.2.0'
+    hasBin: true
+    peerDependencies:
+      typescript: '>=2.0'
+    resolution:
+      integrity: sha512-34jpuOrxDuf+O6iW1JpgTRDFynUZ1iEqtYruBqh35gICNjN8x+LpVcPAcwzLPi9VU6mdA3ym+x233nZmZp445A==
   /tslib/1.9.0:
     resolution:
       integrity: sha512-f/qGG2tUkrISBlQZEjEqoZ3B2+npJjIf04H1wuAv9iA8i04Icp+61KRXxFdha22670NJopsZCIjhC3SnjPRKrQ==
