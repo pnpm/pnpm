@@ -40,11 +40,12 @@ export type PackageScripts = {
   postshrinkwrap?: string,
 }
 
-export type DependencyPackageJson = PackageJson & {
+export type DependencyManifest = PackageJson & {
   name: string,
   version: string,
 }
 
+// TODO: rename to ImporterManifest
 export interface PackageJson {
   name?: string,
   version?: string,

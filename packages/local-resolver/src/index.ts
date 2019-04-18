@@ -4,7 +4,7 @@ import {
   ResolveResult,
   TarballResolution
 } from '@pnpm/resolver-base'
-import { DependencyPackageJson } from '@pnpm/types'
+import { DependencyManifest } from '@pnpm/types'
 import fs = require('graceful-fs')
 import path = require('path')
 import ssri = require('ssri')
@@ -26,7 +26,7 @@ export default async function resolveLocal (
 } | {
   id: string,
   normalizedPref: string,
-  package: DependencyPackageJson,
+  package: DependencyManifest,
   resolution: DirectoryResolution,
 })) | null> {
   const spec = parsePref(wantedDependency.pref, opts.prefix, opts.lockfileDirectory || opts.prefix)
@@ -44,9 +44,9 @@ export default async function resolveLocal (
     }
   }
 
-  let localPkg!: DependencyPackageJson
+  let localPkg!: DependencyManifest
   try {
-    localPkg = await readPackageJson(path.join(spec.fetchSpec, 'package.json')) as DependencyPackageJson
+    localPkg = await readPackageJson(path.join(spec.fetchSpec, 'package.json')) as DependencyManifest
   } catch (internalErr) {
     switch (internalErr.code) {
       case 'ENOTDIR': {

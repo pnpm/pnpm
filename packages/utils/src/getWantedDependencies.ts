@@ -1,4 +1,4 @@
-import { Dependencies, DependencyPackageJson, PackageJson } from '@pnpm/types'
+import { Dependencies, DependencyManifest, PackageJson } from '@pnpm/types'
 import depsFromPackage from './getAllDependenciesFromPackage'
 
 export interface WantedDependency {
@@ -17,7 +17,7 @@ export function getWantedDependencies (pkg: PackageJson): WantedDependency[] {
   })
 }
 
-export function getNonDevWantedDependencies (pkg: DependencyPackageJson) {
+export function getNonDevWantedDependencies (pkg: DependencyManifest) {
   const bundledDeps = new Set(pkg.bundleDependencies || pkg.bundledDependencies || [])
   bundledDeps.add(pkg.name)
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)

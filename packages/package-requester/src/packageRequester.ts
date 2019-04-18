@@ -22,7 +22,7 @@ import {
   RequestPackageFunction,
 } from '@pnpm/store-controller-types'
 import {
-  DependencyPackageJson,
+  DependencyManifest,
   PackageJson,
   StoreIndex,
 } from '@pnpm/types'
@@ -118,7 +118,7 @@ async function resolveAndFetch (
 ): Promise<PackageResponse> {
   try {
     let latest: string | undefined
-    let pkg: DependencyPackageJson | undefined
+    let pkg: DependencyManifest | undefined
     let normalizedPref: string | undefined
     let resolution = options.currentResolution as Resolution
     let pkgId = options.currentPackageId
@@ -473,7 +473,7 @@ function fetchToStore (
 
       let pkgName: string | undefined = opts.pkgName
       if (!pkgName || opts.fetchRawManifest) {
-        const pkg = await readPkgFromDir(tempLocation) as DependencyPackageJson
+        const pkg = await readPkgFromDir(tempLocation) as DependencyManifest
         fetchingRawManifest.resolve(pkg)
         if (!pkgName) {
           pkgName = pkg.name

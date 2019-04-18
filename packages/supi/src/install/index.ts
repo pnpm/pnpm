@@ -35,7 +35,7 @@ import {
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  DependencyPackageJson,
+  DependencyManifest,
   PackageJson,
   Registries,
 } from '@pnpm/types'
@@ -1060,7 +1060,7 @@ async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir),
   )
-  return pkgs.filter(Boolean).map((pkg: DependencyPackageJson) => ({
+  return pkgs.filter(Boolean).map((pkg: DependencyManifest) => ({
     name: pkg.name,
     version: pkg.version,
   }))

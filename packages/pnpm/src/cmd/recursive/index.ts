@@ -1,6 +1,6 @@
 import logger from '@pnpm/logger'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { DependencyPackageJson, PackageJson } from '@pnpm/types'
+import { DependencyManifest, PackageJson } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
@@ -100,7 +100,7 @@ export default async (
 }
 
 export async function recursive (
-  allPkgs: Array<{path: string, manifest: DependencyPackageJson}>,
+  allPkgs: Array<{path: string, manifest: DependencyManifest}>,
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,

@@ -5,7 +5,7 @@ import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
-import { DependencyPackageJson, PackageJson } from '@pnpm/types'
+import { DependencyManifest, PackageJson } from '@pnpm/types'
 import graphSequencer = require('graph-sequencer')
 import path = require('path')
 import R = require('ramda')
@@ -107,7 +107,7 @@ async function buildDependency (
   } catch (err) {
     if (depNode.optional) {
       // TODO: add parents field to the log
-      const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation)) as DependencyPackageJson
+      const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation)) as DependencyManifest
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
