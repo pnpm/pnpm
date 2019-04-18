@@ -655,6 +655,24 @@ importers:
       ts-node: 8.0.3
       tslint: 5.15.0
       typescript: 3.4.3
+  packages/hook-utils:
+    dependencies:
+      '@pnpm/lockfile-types': 'link:../lockfile-types'
+      '@pnpm/types': 'link:../types'
+    devDependencies:
+      '@pnpm/hook-utils': 'link:'
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      rimraf: 2.6.3
+      tslint: 5.16.0_typescript@3.4.3
+      typescript: 3.4.3
+    specifiers:
+      '@pnpm/hook-utils': 'link:'
+      '@pnpm/lockfile-types': 1.0.0
+      '@pnpm/tslint-config': 0.0.0
+      '@pnpm/types': 3.0.0
+      rimraf: 2.6.3
+      tslint: 5.16.0
+      typescript: 3.4.3
   packages/lifecycle:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -2352,6 +2370,20 @@ importers:
       typescript: 3.4.3
 lockfileVersion: 5
 packages:
+  /@babel/code-frame/7.0.0:
+    dependencies:
+      '@babel/highlight': 7.0.0
+    dev: true
+    resolution:
+      integrity: sha512-OfC2uemaknXr87bdLUkWog7nYuliM9Ij5HUcajsVcMCpQrcLmtxRbVFTIqmcSkSeYRBFBRxs2FiUqFJDLdiebA==
+  /@babel/highlight/7.0.0:
+    dependencies:
+      chalk: 2.4.2
+      esutils: 2.0.2
+      js-tokens: 4.0.0
+    dev: true
+    resolution:
+      integrity: sha512-UFMC4ZeFC48Tpvj7C8UgLvtkaUuovQX+5xNWrsIoMG8o2z+XFKjKaN9iVmS84dPwVN00W4wPmqvYoZF3EGAsfw==
   /@commitlint/cli/7.5.2:
     dependencies:
       '@commitlint/format': 7.5.0
@@ -9769,6 +9801,30 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
     resolution:
       integrity: sha512-6bIEujKR21/3nyeoX2uBnE8s+tMXCQXhqMmaIPJpHmXJoBJPTLcI7/VHRtUwMhnLVdwLqqY3zmd8Dxqa5CVdJA==
+  /tslint/5.16.0_typescript@3.4.3:
+    dependencies:
+      '@babel/code-frame': 7.0.0
+      builtin-modules: 1.1.1
+      chalk: 2.4.2
+      commander: 2.20.0
+      diff: 3.5.0
+      glob: 7.1.3
+      js-yaml: 3.13.1
+      minimatch: 3.0.4
+      mkdirp: 0.5.1
+      resolve: 1.10.0
+      semver: 5.7.0
+      tslib: 1.9.3
+      tsutils: 2.29.0_typescript@3.4.3
+      typescript: 3.4.3
+    dev: true
+    engines:
+      node: '>=4.8.0'
+    hasBin: true
+    peerDependencies:
+      typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
+    resolution:
+      integrity: sha512-UxG2yNxJ5pgGwmMzPMYh/CCnCnh0HfPgtlVRDs1ykZklufFBL1ZoTlWFRz2NQjcoEiDoRp+JyT0lhBbbH/obyA==
   /tsutils/2.29.0_typescript@3.4.3:
     dependencies:
       tslib: 1.9.3

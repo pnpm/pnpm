@@ -1,0 +1,52 @@
+{
+  "name": "@pnpm/hook-utils",
+  "description": "A helper for pnpmfile.js files",
+  "version": "0.0.0",
+  "author": {
+    "name": "ExE Boss",
+    "url": "https://ExE-Boss.tech/"
+  },
+  "license": "CC0",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "directories": {
+    "test": "test"
+  },
+
+  "engines": {
+    "node": ">=4"
+  },
+  "scripts": {
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "test": "npm run lint && npm run tsc && ts-node test --type-check",
+    "tsc": "rimraf lib && tsc",
+    "prepublishOnly": "npm run tsc"
+  },
+  "keywords": [
+    "pnpm",
+    "hook",
+    "hooks"
+  ],
+
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/hook-utils#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/hook-utils",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+
+  "dependencies": {
+    "@pnpm/lockfile-types": "1.0.0",
+    "@pnpm/types": "3.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/hook-utils": "link:",
+    "@pnpm/tslint-config": "0.0.0",
+    "rimraf": "2.6.3",
+    "tslint": "5.16.0",
+    "typescript": "3.4.3"
+  }
+}
