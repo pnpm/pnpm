@@ -35,7 +35,6 @@
     "@types/rimraf": "2.0.2",
     "@types/sinon": "^7.0.10",
     "@types/tape": "4.2.33",
-    "@types/tempy": "0.2.0",
     "fs-extra": "7.0.1",
     "is-windows": "1.0.2",
     "isexe": "2.0.0",
@@ -47,7 +46,7 @@
     "sinon": "7.3.2",
     "tape": "4.10.1",
     "tape-promise": "4.0.0",
-    "tempy": "0.2.1",
+    "tempy": "0.3.0",
     "ts-node": "8.0.3",
     "tslint": "5.16.0",
     "typescript": "3.4.4"
