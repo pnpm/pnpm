@@ -25,6 +25,6 @@
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",
     "tslint": "5.15.0",
-    "typescript": "3.4.3"
+    "typescript": "3.4.4"
   }
 }
