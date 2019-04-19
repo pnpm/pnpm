@@ -45,7 +45,7 @@
     "@zkochan/libnpx": "10.0.0",
     "archy": "1.0.0",
     "camelcase": "5.3.1",
-    "camelcase-keys": "5.1.0",
+    "camelcase-keys": "5.2.0",
     "chalk": "2.4.2",
     "common-tags": "1.8.0",
     "cross-spawn": "6.0.5",
