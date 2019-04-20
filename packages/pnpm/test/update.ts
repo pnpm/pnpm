@@ -273,9 +273,9 @@ test('recursive update --latest specific dependency on projects that do not shar
       version: '1.0.0',
 
       dependencies: {
+        'alias': 'npm:qar@100.0.0',
         'dep-of-pkg-with-1-dep': '101.0.0',
         'foo': '100.0.0',
-        'alias': 'npm:qar@100.0.0',
       },
     },
     {
@@ -295,9 +295,9 @@ test('recursive update --latest specific dependency on projects that do not shar
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
+    'alias': 'npm:qar@^100.1.0',
     'dep-of-pkg-with-1-dep': '100.0.0',
     'foo': '^100.1.0',
-    'alias': 'npm:qar@^100.1.0',
   })
 
   const lockfile1 = await projects['project-1'].readLockfile()
@@ -447,9 +447,9 @@ test('recursive update --latest specific dependency on projects with a shared a 
       version: '1.0.0',
 
       dependencies: {
+        'alias': 'npm:qar@100.0.0',
         'dep-of-pkg-with-1-dep': '101.0.0',
         'foo': '100.0.0',
-        'alias': 'npm:qar@100.0.0',
       },
     },
     {
@@ -470,9 +470,9 @@ test('recursive update --latest specific dependency on projects with a shared a 
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
+    'alias': 'npm:qar@^100.1.0',
     'dep-of-pkg-with-1-dep': '100.0.0',
     'foo': '^100.1.0',
-    'alias': 'npm:qar@^100.1.0',
   })
 
   const manifest2 = await readPackage(path.resolve('project-2'))
