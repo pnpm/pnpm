@@ -28,8 +28,14 @@ export function createLatestSpecs (specs: string[], manifest: ImporterManifest) 
     if (selector.includes('@', 1)) {
       return selector
     }
-    if (allDeps[selector] && allDeps[selector].startsWith('npm:')) {
+    if (!allDeps[selector]) {
+      return `${selector}@latest`
+    }
+    if (allDeps[selector].startsWith('npm:')) {
       return `${selector}@${removeVersionFromSpec(allDeps[selector])}@latest`
+    }
+    if (!getVerSelType(allDeps[selector])) {
+      return selector
     }
     return `${selector}@latest`
   })

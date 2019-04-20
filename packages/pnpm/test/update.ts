@@ -42,7 +42,7 @@ test('update --latest', async function (t: tape.Test) {
     addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0')
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative')
 
   await execPnpm('update', '--latest')
 
@@ -57,6 +57,7 @@ test('update --latest', async function (t: tape.Test) {
   t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
   t.equal(pkg.dependencies && pkg.dependencies['bar'], '^100.1.0')
   t.equal(pkg.dependencies && pkg.dependencies['alias'], 'npm:qar@^100.1.0')
+  t.equal(pkg.dependencies && pkg.dependencies['is-negative'], 'github:kevva/is-negative', 'do not touch non-npm hosted package')
 })
 
 test('update --latest specific dependency', async function (t: tape.Test) {
@@ -69,9 +70,9 @@ test('update --latest specific dependency', async function (t: tape.Test) {
     addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'foo@100.1.0', 'alias@npm:qar@100.0.0')
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'foo@100.1.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative')
 
-  await execPnpm('update', '-L', 'bar', 'foo@100.0.0', 'alias')
+  await execPnpm('update', '-L', 'bar', 'foo@100.0.0', 'alias', 'is-negative')
 
   const lockfile = await project.readLockfile()
   t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '100.0.0')
@@ -84,6 +85,7 @@ test('update --latest specific dependency', async function (t: tape.Test) {
   t.equal(pkg.dependencies && pkg.dependencies['bar'], '^100.1.0')
   t.equal(pkg.dependencies && pkg.dependencies['foo'], '100.0.0')
   t.equal(pkg.dependencies && pkg.dependencies['alias'], 'npm:qar@^100.1.0')
+  t.equal(pkg.dependencies && pkg.dependencies['is-negative'], 'github:kevva/is-negative', 'do not touch non-npm hosted package')
 })
 
 test('update --latest --prod', async function (t: tape.Test) {
