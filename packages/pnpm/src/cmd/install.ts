@@ -14,7 +14,7 @@ import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspa
 import getPinnedVersion from '../getPinnedVersion'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
-import updateToLatestSpecsFromManifest from '../updateToLatestSpecsFromManifest'
+import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
 import { recursive } from './recursive'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -71,12 +71,7 @@ export default async function installCmd (
     if (!input || !input.length) {
       input = updateToLatestSpecsFromManifest(manifest, opts.include)
     } else {
-      input = input.map((selector) => {
-        if (selector.includes('@', 1)) {
-          return selector
-        }
-        return `${selector}@latest`
-      })
+      input = createLatestSpecs(input, manifest)
     }
     delete installOpts.include
   }

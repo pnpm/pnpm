@@ -32,7 +32,7 @@ import { scopeLogger } from '../../loggers'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
-import updateToLatestSpecsFromManifest from '../../updateToLatestSpecsFromManifest'
+import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
 import help from '../help'
 import exec from './exec'
 import { filterGraph } from './filter'
@@ -241,12 +241,7 @@ export async function recursive (
           if (!currentInput || !currentInput.length) {
             currentInput = updateToLatestSpecsFromManifest(manifest, include)
           } else {
-            currentInput = currentInput.map((selector) => {
-              if (selector.includes('@', 1)) {
-                return selector
-              }
-              return `${selector}@latest`
-            })
+            currentInput = createLatestSpecs(currentInput, manifest)
           }
         }
         switch (mutation) {
@@ -313,12 +308,7 @@ export async function recursive (
             if (!currentInput || !currentInput.length) {
               currentInput = updateToLatestSpecsFromManifest(manifest, include)
             } else {
-              currentInput = currentInput.map((selector) => {
-                if (selector.includes('@', 1)) {
-                  return selector
-                }
-                return `${selector}@latest`
-              })
+              currentInput = createLatestSpecs(currentInput, manifest)
             }
           }
 

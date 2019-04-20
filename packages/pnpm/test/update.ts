@@ -39,9 +39,10 @@ test('update --latest', async function (t: tape.Test) {
   await Promise.all([
     addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0')
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0')
 
   await execPnpm('update', '--latest')
 
@@ -50,10 +51,12 @@ test('update --latest', async function (t: tape.Test) {
   const lockfile = await project.readLockfile()
   t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
   t.equal(lockfile.dependencies['bar'], '100.1.0')
+  t.equal(lockfile.dependencies['alias'], '/qar/100.1.0')
 
   const pkg = await readPackage(process.cwd())
   t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
   t.equal(pkg.dependencies && pkg.dependencies['bar'], '^100.1.0')
+  t.equal(pkg.dependencies && pkg.dependencies['alias'], 'npm:qar@^100.1.0')
 })
 
 test('update --latest specific dependency', async function (t: tape.Test) {
@@ -63,21 +66,24 @@ test('update --latest specific dependency', async function (t: tape.Test) {
     addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('bar', '100.1.0', 'latest'),
     addDistTag('foo', '100.1.0', 'latest'),
+    addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'foo@100.1.0')
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'foo@100.1.0', 'alias@npm:qar@100.0.0')
 
-  await execPnpm('update', '-L', 'bar', 'foo@100.0.0')
+  await execPnpm('update', '-L', 'bar', 'foo@100.0.0', 'alias')
 
   const lockfile = await project.readLockfile()
   t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '100.0.0')
   t.equal(lockfile.dependencies['bar'], '100.1.0')
   t.equal(lockfile.dependencies['foo'], '100.0.0')
+  t.equal(lockfile.dependencies['alias'], '/qar/100.1.0')
 
   const pkg = await readPackage(process.cwd())
   t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '100.0.0')
   t.equal(pkg.dependencies && pkg.dependencies['bar'], '^100.1.0')
   t.equal(pkg.dependencies && pkg.dependencies['foo'], '100.0.0')
+  t.equal(pkg.dependencies && pkg.dependencies['alias'], 'npm:qar@^100.1.0')
 })
 
 test('update --latest --prod', async function (t: tape.Test) {
@@ -229,6 +235,7 @@ test('recursive update --latest specific dependency on projects that do not shar
     addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('bar', '100.1.0', 'latest'),
     addDistTag('foo', '100.1.0', 'latest'),
+    addDistTag('qar', '100.1.0', 'latest'),
   ])
 
   const projects = preparePackages(t, [
@@ -238,7 +245,8 @@ test('recursive update --latest specific dependency on projects that do not shar
 
       dependencies: {
         'dep-of-pkg-with-1-dep': '101.0.0',
-        'foo': '100.0.0'
+        'foo': '100.0.0',
+        'alias': 'npm:qar@100.0.0',
       },
     },
     {
@@ -254,17 +262,19 @@ test('recursive update --latest specific dependency on projects that do not shar
 
   await execPnpm('recursive', 'install')
 
-  await execPnpm('recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0')
+  await execPnpm('recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0', 'alias')
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
     'dep-of-pkg-with-1-dep': '100.0.0',
-    'foo': '^100.1.0'
+    'foo': '^100.1.0',
+    'alias': 'npm:qar@^100.1.0',
   })
 
   const lockfile1 = await projects['project-1'].readLockfile()
   t.equal(lockfile1.dependencies['dep-of-pkg-with-1-dep'], '100.0.0')
   t.equal(lockfile1.dependencies['foo'], '100.1.0')
+  t.equal(lockfile1.dependencies['alias'], '/qar/100.1.0')
 
   const manifest2 = await readPackage(path.resolve('project-2'))
   t.deepEqual(manifest2.dependencies, {
@@ -399,6 +409,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
     addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
     addDistTag('bar', '100.1.0', 'latest'),
     addDistTag('foo', '100.1.0', 'latest'),
+    addDistTag('qar', '100.1.0', 'latest'),
   ])
 
   const projects = preparePackages(t, [
@@ -408,7 +419,8 @@ test('recursive update --latest specific dependency on projects with a shared a 
 
       dependencies: {
         'dep-of-pkg-with-1-dep': '101.0.0',
-        'foo': '100.0.0'
+        'foo': '100.0.0',
+        'alias': 'npm:qar@100.0.0',
       },
     },
     {
@@ -425,12 +437,13 @@ test('recursive update --latest specific dependency on projects with a shared a 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await execPnpm('recursive', 'install')
 
-  await execPnpm('recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0')
+  await execPnpm('recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0', 'alias')
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
     'dep-of-pkg-with-1-dep': '100.0.0',
-    'foo': '^100.1.0'
+    'foo': '^100.1.0',
+    'alias': 'npm:qar@^100.1.0',
   })
 
   const manifest2 = await readPackage(path.resolve('project-2'))
@@ -442,6 +455,7 @@ test('recursive update --latest specific dependency on projects with a shared a 
   const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // tslint:disable-line
   t.equal(lockfile.importers['project-1'].dependencies['dep-of-pkg-with-1-dep'], '100.0.0')
   t.equal(lockfile.importers['project-1'].dependencies['foo'], '100.1.0')
+  t.equal(lockfile.importers['project-1'].dependencies['alias'], '/qar/100.1.0')
   t.equal(lockfile.importers['project-2'].dependencies['bar'], '100.0.0')
   t.equal(lockfile.importers['project-2'].dependencies['foo'], '100.1.0')
 })

@@ -1,4 +1,5 @@
 import { ImporterManifest, IncludedDependencies } from '@pnpm/types'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import R = require('ramda')
 import getVerSelType = require('version-selector-type')
 
@@ -11,7 +12,7 @@ export default function (manifest: ImporterManifest, include: IncludedDependenci
   const updateSpecs = []
   for (const [depName, depVersion] of R.toPairs(allDeps)) {
     if (depVersion.startsWith('npm:')) {
-      updateSpecs.push(`${depName}@${depVersion.substr(0, depVersion.lastIndexOf('@'))}@latest`)
+      updateSpecs.push(`${depName}@${removeVersionFromSpec(depVersion)}@latest`)
     } else {
       const selector = getVerSelType(depVersion)
       if (!selector) continue
@@ -19,4 +20,21 @@ export default function (manifest: ImporterManifest, include: IncludedDependenci
     }
   }
   return updateSpecs
+}
+
+export function createLatestSpecs (specs: string[], manifest: ImporterManifest) {
+  const allDeps = getAllDependenciesFromPackage(manifest)
+  return specs.map((selector) => {
+    if (selector.includes('@', 1)) {
+      return selector
+    }
+    if (allDeps[selector] && allDeps[selector].startsWith('npm:')) {
+      return `${selector}@${removeVersionFromSpec(allDeps[selector])}@latest`
+    }
+    return `${selector}@latest`
+  })
+}
+
+function removeVersionFromSpec (spec: string) {
+  return spec.substr(0, spec.lastIndexOf('@'))
 }
