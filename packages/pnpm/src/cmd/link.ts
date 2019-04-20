@@ -1,5 +1,4 @@
 import { StoreController } from '@pnpm/package-store'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { safeReadPackageFromDir } from '@pnpm/utils'
 import pLimit = require('p-limit')
 import path = require('path')
@@ -15,6 +14,7 @@ import {
 import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfigs from '../getConfigs'
+import { readImporterManifestFromDir } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 const installLimit = pLimit(4)
@@ -77,7 +77,7 @@ export default async (
     pkgPaths.map((prefix) => installLimit(async () => {
       const s = await createStoreController(storeControllerCache, opts)
       await install(
-        await readPackageJsonFromDir(prefix), {
+        await readImporterManifestFromDir(prefix), {
           ...await getConfigs(
             { ...opts.cliArgs, prefix },
             {
@@ -94,7 +94,7 @@ export default async (
   )
   await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,
-    manifest: await readPackageJsonFromDir(cwd),
+    manifest: await readImporterManifestFromDir(cwd),
   })
 
   await Promise.all(

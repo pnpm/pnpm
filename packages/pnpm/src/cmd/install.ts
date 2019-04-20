@@ -1,8 +1,4 @@
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import {
-  getSaveType,
-  safeReadPackageFromDir,
-} from '@pnpm/utils'
+import { getSaveType } from '@pnpm/utils'
 import {
   install,
   mutateModules,
@@ -12,6 +8,7 @@ import writePkg = require('write-pkg')
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
+import { readImporterManifestFromDir, safeReadImporterManifestFromDir } from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
@@ -57,7 +54,7 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
 
-  let manifest = await safeReadPackageFromDir(opts.prefix)
+  let manifest = await safeReadImporterManifestFromDir(opts.prefix)
   if (manifest === null) {
     if (opts.update) {
       const err = new Error('No package.json found')
@@ -115,7 +112,7 @@ export default async function installCmd (
       [
         {
           buildIndex: 0,
-          manifest: await readPackageJsonFromDir(opts.prefix),
+          manifest: await readImporterManifestFromDir(opts.prefix),
           prefix: opts.prefix,
         },
       ], {

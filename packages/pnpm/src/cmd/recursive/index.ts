@@ -1,5 +1,4 @@
 import logger from '@pnpm/logger'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
@@ -30,6 +29,7 @@ import getCommandFullName from '../../getCommandFullName'
 import getPinnedVersion from '../../getPinnedVersion'
 import { scopeLogger } from '../../loggers'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
+import { readImporterManifestFromDir } from '../../readImporterManifest'
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
@@ -207,7 +207,7 @@ export async function recursive (
         prefixes.map(async (prefix) => {
           importers.push({
             buildIndex,
-            manifest: await readPackageJsonFromDir(prefix),
+            manifest: await readImporterManifestFromDir(prefix),
             prefix,
           })
         })
@@ -232,7 +232,7 @@ export async function recursive (
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
-        const manifest = await readPackageJsonFromDir(prefix)
+        const manifest = await readImporterManifestFromDir(prefix)
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -302,7 +302,7 @@ export async function recursive (
             return
           }
 
-          const manifest = await readPackageJsonFromDir(prefix)
+          const manifest = await readImporterManifestFromDir(prefix)
           let currentInput = [...input]
           if (updateToLatest) {
             if (!currentInput || !currentInput.length) {
@@ -398,7 +398,7 @@ export async function recursive (
               [
                 {
                   buildIndex: 0,
-                  manifest: await readPackageJsonFromDir(prefix),
+                  manifest: await readImporterManifestFromDir(prefix),
                   prefix,
                 },
               ],

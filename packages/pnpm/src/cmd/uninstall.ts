@@ -1,4 +1,3 @@
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   mutateModules,
   uninstall,
@@ -6,6 +5,7 @@ import {
 import writePkg = require('write-pkg')
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
+import { readImporterManifestFromDir } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async function uninstallCmd (
@@ -18,7 +18,7 @@ export default async function uninstallCmd (
     storeController: store.ctrl,
   })
   if (opts.lockfileDirectory === opts.prefix) {
-    const manifest = await uninstall(await readPackageJsonFromDir(opts.prefix), input, uninstallOpts)
+    const manifest = await uninstall(await readImporterManifestFromDir(opts.prefix), input, uninstallOpts)
     await writePkg(opts.prefix, manifest)
     return
   }
@@ -30,7 +30,7 @@ export default async function uninstallCmd (
       {
         bin: opts.bin,
         dependencyNames: input,
-        manifest: await readPackageJsonFromDir(opts.prefix),
+        manifest: await readImporterManifestFromDir(opts.prefix),
         mutation: 'uninstallSome',
         prefix: opts.prefix,
       },
