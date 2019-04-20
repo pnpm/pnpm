@@ -1,5 +1,4 @@
 import prepare from '@pnpm/prepare'
-import { fromDir as readPackage } from '@pnpm/read-package-json'
 import execa = require('execa')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
@@ -7,7 +6,6 @@ import rimraf = require('rimraf-then')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
-  addDistTag,
   execPnpm,
   execPnpmSync,
 } from './utils'
@@ -59,66 +57,6 @@ test('pnpm import does not move modules created by npm', async (t: tape.Test) =>
   const packageJsonInodeAfter = (await fs.stat('node_modules/is-positive/package.json')).ino
 
   t.equal(packageJsonInodeBefore, packageJsonInodeAfter)
-})
-
-test('update', async function (t: tape.Test) {
-  const project = prepare(t)
-
-  await addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest')
-
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0')
-
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
-
-  await execPnpm('update', 'dep-of-pkg-with-1-dep@latest')
-
-  await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
-
-  const lockfile = await project.readLockfile()
-  t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
-
-  const pkg = await readPackage(process.cwd())
-  t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
-})
-
-testOnly('update --latest', async function (t: tape.Test) {
-  const project = prepare(t)
-
-  await Promise.all([
-    addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
-    addDistTag('bar', '100.1.0', 'latest'),
-  ])
-
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0')
-
-  await execPnpm('update', '--latest')
-
-  await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
-
-  const lockfile = await project.loadLockfile()
-  t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
-  t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
-
-  const pkg = await readPackage(process.cwd())
-  // TODO: Should it preserve specs? That might be a different issue
-  t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
-  t.equal(pkg.dependencies && pkg.dependencies['bar'], '^100.1.0')
-})
-
-test('deep update', async function (t: tape.Test) {
-  const project = prepare(t)
-
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
-
-  await execPnpm('install', 'pkg-with-1-dep', '-S')
-
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
-
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
-
-  await execPnpm('update', '--depth', '1')
-
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
 
 test('installation via the CLI', async function (t) {

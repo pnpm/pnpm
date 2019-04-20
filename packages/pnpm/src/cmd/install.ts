@@ -1,6 +1,5 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
-  getAllDependenciesFromPackage,
   getSaveType,
   safeReadPackageFromDir,
 } from '@pnpm/utils'
@@ -15,6 +14,7 @@ import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspa
 import getPinnedVersion from '../getPinnedVersion'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
+import updateToLatestSpecsFromManifest from '../updateToLatestSpecsFromManifest'
 import { recursive } from './recursive'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -56,26 +56,33 @@ export default async function installCmd (
     store: store.path,
     storeController: store.ctrl,
   }
-  if (!input || !input.length) {
-    const manifest = await readPackageJsonFromDir(opts.prefix)
-    if (opts.update && opts.latest) {
-      const allDeps = getAllDependenciesFromPackage(manifest)
-      const [updatedImporter] = await mutateModules([
-        {
-          bin: installOpts.bin,
-          dependencySelectors: Object.keys(allDeps).map((depName) => `${depName}@latest`),
-          manifest: await safeReadPackageFromDir(opts.prefix) || {},
-          mutation: 'installSome',
-          pinnedVersion: getPinnedVersion(opts),
-          prefix: installOpts.prefix,
-        },
-      ], installOpts)
-      await writePkg(opts.prefix, updatedImporter.manifest)
-    } else {
-      await install(manifest, installOpts)
+
+  let manifest = await safeReadPackageFromDir(opts.prefix)
+  if (manifest === null) {
+    if (opts.update) {
+      const err = new Error('No package.json found')
+      err['code'] = 'ERR_PNPM_NO_IMPORTER_MANIFEST' // tslint:disable-line
+      throw err
     }
+    manifest = {}
+  }
+
+  if (opts.update && opts.latest) {
+    if (!input || !input.length) {
+      input = updateToLatestSpecsFromManifest(manifest)
+    } else {
+      input = input.map((selector) => {
+        if (selector.includes('@', 1)) {
+          return selector
+        }
+        return `${selector}@latest`
+      })
+    }
+  }
+  if (!input || !input.length) {
+    await install(manifest, installOpts)
   } else {
-    const [{ manifest }] = await mutateModules([
+    const [updatedImporter] = await mutateModules([
       {
         bin: installOpts.bin,
         dependencySelectors: input,
@@ -86,7 +93,7 @@ export default async function installCmd (
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
-    await writePkg(opts.prefix, manifest)
+    await writePkg(opts.prefix, updatedImporter.manifest)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {

@@ -1387,6 +1387,7 @@ importers:
       text-table: 0.2.0
       tree-kill: 1.2.1
       update-notifier: 2.5.0
+      version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
@@ -1539,6 +1540,7 @@ importers:
       tslint: 5.16.0
       typescript: 3.4.4
       update-notifier: 2.5.0
+      version-selector-type: 2.0.1
       write-json-file: 3.2.0
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0

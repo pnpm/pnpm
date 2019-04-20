@@ -32,6 +32,7 @@ import { scopeLogger } from '../../loggers'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
+import updateToLatestSpecsFromManifest from '../../updateToLatestSpecsFromManifest'
 import help from '../help'
 import exec from './exec'
 import { filterGraph } from './filter'
@@ -215,6 +216,8 @@ export async function recursive (
     return importers
   }
 
+  const updateToLatest = opts.update && opts.latest
+
   if (cmdFullName !== 'rebuild') {
     if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
       let importers = await getImporters()
@@ -222,17 +225,30 @@ export async function recursive (
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
       if (importers.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDirectory, opts)
-      const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 ? 'install' : 'installSome')
+      const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
         const manifest = await readPackageJsonFromDir(prefix)
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
+        let currentInput = [...input]
+        if (updateToLatest) {
+          if (!currentInput || !currentInput.length) {
+            currentInput = updateToLatestSpecsFromManifest(manifest)
+          } else {
+            currentInput = currentInput.map((selector) => {
+              if (selector.includes('@', 1)) {
+                return selector
+              }
+              return `${selector}@latest`
+            })
+          }
+        }
         switch (mutation) {
           case 'uninstallSome':
             return {
-              dependencyNames: input,
+              dependencyNames: currentInput,
               manifest,
               mutation,
               prefix,
@@ -242,7 +258,7 @@ export async function recursive (
           case 'installSome':
             return {
               allowNew: cmdFullName === 'install',
-              dependencySelectors: input,
+              dependencySelectors: currentInput,
               manifest,
               mutation,
               pinnedVersion: getPinnedVersion({
@@ -278,18 +294,6 @@ export async function recursive (
       ? chunks[0]
       : Object.keys(pkgGraphResult.graph).sort()
 
-    let action!: any // tslint:disable-line:no-any
-    switch (cmdFullName) {
-      case 'unlink':
-        action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
-        break
-      case 'uninstall':
-        action = R.flip(uninstall).bind(null, input)
-        break
-      default:
-        action = input.length === 0 ? install : R.flip(addDependenciesToPackage).bind(null, input)
-        break
-    }
     const limitInstallation = pLimit(opts.workspaceConcurrency)
     await Promise.all(pkgPaths.map((prefix: string) =>
       limitInstallation(async () => {
@@ -298,9 +302,38 @@ export async function recursive (
           if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
             return
           }
+
+          const manifest = await readPackageJsonFromDir(prefix)
+          let currentInput = [...input]
+          if (updateToLatest) {
+            if (!currentInput || !currentInput.length) {
+              currentInput = updateToLatestSpecsFromManifest(manifest)
+            } else {
+              currentInput = currentInput.map((selector) => {
+                if (selector.includes('@', 1)) {
+                  return selector
+                }
+                return `${selector}@latest`
+              })
+            }
+          }
+
+          let action!: any // tslint:disable-line:no-any
+          switch (cmdFullName) {
+            case 'unlink':
+              action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
+              break
+            case 'uninstall':
+              action = R.flip(uninstall).bind(null, currentInput)
+              break
+            default:
+              action = currentInput.length === 0 ? install : R.flip(addDependenciesToPackage).bind(null, currentInput)
+              break
+          }
+
           const localConfigs = await memReadLocalConfigs(prefix)
           const newPkg = await action(
-            await readPackageJsonFromDir(prefix),
+            manifest,
             {
               ...installOpts,
               ...localConfigs,
