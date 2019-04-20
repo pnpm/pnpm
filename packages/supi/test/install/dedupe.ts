@@ -24,7 +24,7 @@ test('prefer version ranges specified for top dependencies', async (t: tape.Test
     await testDefaults(),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
@@ -44,7 +44,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
   )
   await addDependenciesToPackage(manifest, ['pkg-with-1-dep'], await testDefaults())
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
@@ -64,7 +64,7 @@ test('prefer version ranges specified for top dependencies, even if they are ali
     await testDefaults(),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
@@ -84,7 +84,7 @@ test('prefer version ranges specified for top dependencies, even if the subdepen
     await testDefaults(),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
@@ -104,7 +104,7 @@ test('ignore version of root dependency when it is incompatible with the indirec
     await testDefaults(),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/101.0.0'])
 })
@@ -125,7 +125,7 @@ test('prefer dist-tag specified for top dependency', async (t: tape.Test) => {
     await testDefaults(),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
@@ -154,7 +154,7 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
     ),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
@@ -170,7 +170,7 @@ test('resolution-strategy=fewer-dependencies: prefer version of package that als
     await testDefaults({ resolutionStrategy: 'fewer-dependencies' }),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(
     Object.keys(lockfile.packages),
@@ -192,7 +192,7 @@ test('resolution-strategy=fast: always prefer the latest version', async (t: tap
     await testDefaults({ resolutionStrategy: 'fast' }),
   )
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(
     Object.keys(lockfile.packages),

@@ -26,12 +26,12 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
 
   t.ok(manifest.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.dependencies['pkg-with-1-dep'])
   t.ok(lockfile.packages['/pkg-with-1-dep/100.0.0'])
   t.ok(lockfile.specifiers['pkg-with-1-dep'])
 
-  const currentLockfile = await project.loadCurrentLockfile()
+  const currentLockfile = await project.readCurrentLockfile()
   t.notOk(currentLockfile, 'current lockfile not created')
 
   t.comment(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
@@ -41,7 +41,7 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
   await project.hasNot('pkg-with-1-dep')
 
-  t.notOk(await project.loadCurrentLockfile(), 'current lockfile not created')
+  t.notOk(await project.readCurrentLockfile(), 'current lockfile not created')
 })
 
 test('warn when installing with lockfileOnly = true and node_modules exists', async (t: tape.Test) => {
@@ -65,11 +65,11 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
 
   t.ok(manifest.dependencies!.rimraf, 'the new dependency added to package.json')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.dependencies.rimraf)
   t.ok(lockfile.packages['/rimraf/2.5.1'])
   t.ok(lockfile.specifiers.rimraf)
 
-  const currentLockfile = await project.loadCurrentLockfile()
+  const currentLockfile = await project.readCurrentLockfile()
   t.notOk(currentLockfile.packages['/rimraf/2.5.1'], 'current lockfile not changed')
 })

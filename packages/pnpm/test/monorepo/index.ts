@@ -155,7 +155,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   await projects['project-1'].has('is-positive')
 
   {
-    const lockfile = await projects['project-1'].loadLockfile()
+    const lockfile = await projects['project-1'].readLockfile()
     t.equal(lockfile.dependencies['project-2'], 'link:../project-2')
     t.equal(lockfile.devDependencies['is-negative'], 'link:../is-negative')
     t.equal(lockfile.optionalDependencies['is-positive'], 'link:../is-positive')
@@ -169,14 +169,14 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   await execPnpm('install')
 
   {
-    const lockfile = await projects['project-1'].loadLockfile()
+    const lockfile = await projects['project-1'].readLockfile()
     t.equal(lockfile.optionalDependencies['is-positive'], '1.0.0', 'is-positive is unlinked and installed from registry')
   }
 
   await execPnpm('update', 'is-negative@2.0.0')
 
   {
-    const lockfile = await projects['project-1'].loadLockfile()
+    const lockfile = await projects['project-1'].readLockfile()
     t.equal(lockfile.devDependencies['is-negative'], '2.0.0')
   }
 })
@@ -320,7 +320,7 @@ test('installation with --link-workspace-packages links packages even if they we
   await execPnpm('recursive', 'install', '--no-link-workspace-packages')
 
   {
-    const lockfile = await projects['project'].loadLockfile()
+    const lockfile = await projects['project'].readLockfile()
     t.equal(lockfile.dependencies['is-positive'], '2.0.0')
     t.equal(lockfile.dependencies['negative'], '/is-negative/1.0.0')
   }
@@ -328,7 +328,7 @@ test('installation with --link-workspace-packages links packages even if they we
   await execPnpm('recursive', 'install', '--link-workspace-packages')
 
   {
-    const lockfile = await projects['project'].loadLockfile()
+    const lockfile = await projects['project'].readLockfile()
     t.equal(lockfile.dependencies['is-positive'], 'link:../is-positive')
     t.equal(lockfile.dependencies['negative'], 'link:../is-negative')
   }
@@ -653,7 +653,7 @@ test('local packages should be preferred when running "pnpm install" inside a wo
 
   await execPnpm('link', '.')
 
-  const lockfile = await projects['project-1'].loadLockfile()
+  const lockfile = await projects['project-1'].readLockfile()
 
   t.equal(lockfile && lockfile.dependencies && lockfile.dependencies['is-positive'], 'link:../is-positive')
 })

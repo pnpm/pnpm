@@ -85,10 +85,10 @@ test('relative link', async (t: tape.Test) => {
   const linkedProject = assertProject(t, linkedPkgPath)
   await linkedProject.isExecutable('.bin/cowsay')
 
-  const wantedLockfile = await project.loadLockfile()
+  const wantedLockfile = await project.readLockfile()
   t.equal(wantedLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
   t.equal(wantedLockfile.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
 
-  const currentLockfile = await project.loadCurrentLockfile()
+  const currentLockfile = await project.readCurrentLockfile()
   t.equal(currentLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
 })

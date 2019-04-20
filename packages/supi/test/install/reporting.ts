@@ -29,7 +29,7 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
     } as DeprecationLog), 'deprecation warning reported')
   }
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.equal(
     lockfile.packages['/express/0.14.1'].deprecated,
     'express 0.x series is deprecated',

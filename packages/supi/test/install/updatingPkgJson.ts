@@ -80,7 +80,7 @@ test('dependency should not be added to package.json if it is already there', as
     },
   }, 'package.json was not changed')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.equal(lockfile.devDependencies.foo, '100.0.0', `\`foo\` is in the devDependencies property of ${WANTED_LOCKFILE}`)
   t.ok(lockfile.packages['/foo/100.0.0'].dev, `the \`foo\` package is marked as dev in ${WANTED_LOCKFILE}`)
@@ -158,7 +158,7 @@ test('dependency should be removed from the old field when installing it as a di
   }, `dependencies moved around correctly when installed with node_modules and ${WANTED_LOCKFILE} present`)
 
   {
-    const lockfile = await project.loadCurrentLockfile()
+    const lockfile = await project.readCurrentLockfile()
     t.deepEqual(Object.keys(lockfile.dependencies), ['bar', 'foo', 'qar'], 'lockfile updated')
   }
 
@@ -170,7 +170,7 @@ test('dependency should be removed from the old field when installing it as a di
   await install(manifest, await testDefaults())
 
   {
-    const lockfile = await project.loadCurrentLockfile()
+    const lockfile = await project.readCurrentLockfile()
     t.deepEqual(Object.keys(lockfile.devDependencies), ['bar', 'foo', 'qar'], 'lockfile updated')
     t.notOk(lockfile.dependencies)
   }

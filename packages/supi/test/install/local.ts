@@ -45,7 +45,7 @@ test('local file', async (t: tape.Test) => {
 
   t.ok(m, 'localPkg() is available')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(lockfile, {
     dependencies: {
@@ -69,7 +69,7 @@ test('local file via link:', async (t: tape.Test) => {
 
   t.ok(m, 'localPkg() is available')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(lockfile, {
     dependencies: {
@@ -95,7 +95,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 
   t.ok(m, 'localPkg() is available')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(lockfile, {
     dependencies: {
@@ -126,7 +126,7 @@ test('tarball local package', async (t: tape.Test) => {
   const pkgSpec = `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`
   t.deepEqual(manifest.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(lockfile.packages[lockfile.dependencies['tar-pkg']], {
     dev: false,
     name: 'tar-pkg',
@@ -156,7 +156,7 @@ test('tarball local package from project directory', async (t: tape.Test) => {
   const pkgSpec = `file:tar-pkg-1.0.0.tgz`
   t.deepEqual(manifest.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.equal(lockfile.dependencies['tar-pkg'], pkgSpec)
   t.deepEqual(lockfile.packages[lockfile.dependencies['tar-pkg']], {
     dev: false,
@@ -175,12 +175,12 @@ test('update tarball local package when its integrity changes', async (t) => {
   await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
 
-  const lockfile1 = await project.loadLockfile()
+  const lockfile1 = await project.readLockfile()
   t.equal(lockfile1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
   await install(manifest, await testDefaults())
 
-  const lockfile2 = await project.loadLockfile()
+  const lockfile2 = await project.readLockfile()
   t.equal(lockfile2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')
 })

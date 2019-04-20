@@ -46,11 +46,11 @@ test('relative link', async (t: tape.Test) => {
 
   await project.isExecutable('.bin/hello-world-js-bin')
 
-  const wantedLockfile = await project.loadLockfile()
+  const wantedLockfile = await project.readLockfile()
   t.equal(wantedLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
   t.equal(wantedLockfile.specifiers['hello-world-js-bin'], '*', `specifier of linked dependency added to ${WANTED_LOCKFILE}`)
 
-  const currentLockfile = await project.loadCurrentLockfile()
+  const currentLockfile = await project.readCurrentLockfile()
   t.equal(currentLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
 })
 
@@ -72,7 +72,7 @@ test('relative link is linked by the name of the alias', async (t: tape.Test) =>
 
   await project.has('hello')
 
-  const wantedLockfile = await project.loadLockfile()
+  const wantedLockfile = await project.readLockfile()
   t.deepEqual(wantedLockfile.dependencies, {
     hello: 'link:../hello-world-js-bin',
   }, 'link added to wanted lockfile with correct alias')
@@ -156,10 +156,10 @@ test('relative link is rewritten by named installation to regular dependency', a
 
   t.notOk(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
-  const wantedLockfile = await project.loadLockfile()
+  const wantedLockfile = await project.readLockfile()
   t.equal(wantedLockfile.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in wanted lockfile anymore')
 
-  const currentLockfile = await project.loadCurrentLockfile()
+  const currentLockfile = await project.readCurrentLockfile()
   t.equal(currentLockfile.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in current lockfile anymore')
 })
 

@@ -81,7 +81,7 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   t.notOk(Object.keys(manifest.dependencies || {}).length, 'camelcase-keys has been removed from dependencies')
 
   // all dependencies are marked as dev
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.notOk(R.isEmpty(lockfile.packages))
 
   // tslint:disable-next-line:no-string-literal

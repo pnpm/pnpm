@@ -34,7 +34,7 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
   {
-    const project1Lockfile = await projects['project-1'].loadLockfile()
+    const project1Lockfile = await projects['project-1'].readLockfile()
     t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
@@ -44,13 +44,13 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
   t.ok(await exists(path.resolve('node_modules', 'is-positive', 'index.js')), 'local package is unlinked')
 
   {
-    const project1Lockfile = await projects['project-1'].loadLockfile()
+    const project1Lockfile = await projects['project-1'].readLockfile()
     t.equal(project1Lockfile.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
     t.equal(project1Lockfile.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Lockfile.packages['/is-positive/1.0.0'])
   }
 
-  const isPositiveLockfile = await projects['is-positive'].loadLockfile()
+  const isPositiveLockfile = await projects['is-positive'].readLockfile()
   t.equal(isPositiveLockfile.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })
 
@@ -80,7 +80,7 @@ test('recursive unlink specific package', async (t: tape.Test) => {
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
   {
-    const project1Lockfile = await projects['project-1'].loadLockfile()
+    const project1Lockfile = await projects['project-1'].readLockfile()
     t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
@@ -90,12 +90,12 @@ test('recursive unlink specific package', async (t: tape.Test) => {
   t.ok(await exists(path.resolve('node_modules', 'is-positive', 'index.js')), 'local package is unlinked')
 
   {
-    const project1Lockfile = await projects['project-1'].loadLockfile()
+    const project1Lockfile = await projects['project-1'].readLockfile()
     t.equal(project1Lockfile.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
     t.equal(project1Lockfile.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Lockfile.packages['/is-positive/1.0.0'])
   }
 
-  const isPositiveLockfile = await projects['is-positive'].loadLockfile()
+  const isPositiveLockfile = await projects['is-positive'].readLockfile()
   t.equal(isPositiveLockfile.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })

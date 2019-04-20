@@ -27,7 +27,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
   const manifest = await addDependenciesToPackage({}, pkgs, await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }))
 
-  let modules = await project.loadModules()
+  let modules = await project.readModulesManifest()
   t.deepEqual(modules!.pendingBuilds, [
     '/pre-and-postinstall-scripts-example/1.0.0',
     'github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb',
@@ -44,7 +44,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
     await testDefaults(),
   )
 
-  modules = await project.loadModules()
+  modules = await project.readModulesManifest()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
@@ -108,7 +108,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   let manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
   manifest = await addDependenciesToPackage(manifest, ['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
 
-  let modules = await project.loadModules()
+  let modules = await project.readModulesManifest()
   t.deepEqual(modules!.pendingBuilds, [
     '/pre-and-postinstall-scripts-example/1.0.0',
     'github.com/zkochan/install-scripts-example/6d879afcee10ece4d3f0e8c09de2993232f3430a',
@@ -122,7 +122,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
 
   await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
-  modules = await project.loadModules()
+  modules = await project.readModulesManifest()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
@@ -148,7 +148,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
 
-  let modules = await project.loadModules()
+  let modules = await project.readModulesManifest()
   t.ok(modules)
   t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
@@ -157,7 +157,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
 
   await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
-  modules = await project.loadModules()
+  modules = await project.readModulesManifest()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
@@ -169,7 +169,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
 
   const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true, independentLeaves: true }))
 
-  let modules = await project.loadModules()
+  let modules = await project.readModulesManifest()
   t.ok(modules)
   t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
@@ -178,7 +178,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
 
   await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true }, independentLeaves: true }))
 
-  modules = await project.loadModules()
+  modules = await project.readModulesManifest()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 

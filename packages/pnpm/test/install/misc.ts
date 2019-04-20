@@ -65,7 +65,7 @@ test('install --lockfile-only', async (t: tape.Test) => {
 
   await project.hasNot('rimraf')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/rimraf/2.5.1'])
 })
 
@@ -76,7 +76,7 @@ test('install --no-lockfile', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadLockfile(), `${WANTED_LOCKFILE} not created`)
+  t.notOk(await project.readLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
 test('install --no-package-lock', async (t: tape.Test) => {
@@ -86,7 +86,7 @@ test('install --no-package-lock', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadLockfile(), `${WANTED_LOCKFILE} not created`)
+  t.notOk(await project.readLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
 test('install from any location via the --prefix flag', async (t: tape.Test) => {

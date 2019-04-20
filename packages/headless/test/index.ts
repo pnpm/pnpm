@@ -43,8 +43,8 @@ test('installing a simple project', async (t) => {
 
   await project.isExecutable('.bin/rimraf')
 
-  t.ok(await project.loadCurrentLockfile())
-  t.ok(await project.loadModules())
+  t.ok(await project.readCurrentLockfile())
+  t.ok(await project.readModulesManifest())
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
@@ -144,12 +144,12 @@ test('installing non-prod deps then all deps', async (t) => {
   await project.hasNot('once')
 
   {
-    const lockfile = await project.loadLockfile()
+    const lockfile = await project.readLockfile()
     t.ok(lockfile.packages['/is-positive/1.0.0'].dev === false)
   }
 
   {
-    const currentLockfile = await project.loadCurrentLockfile()
+    const currentLockfile = await project.readCurrentLockfile()
     t.notOk(currentLockfile.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
   }
 
@@ -188,7 +188,7 @@ test('installing non-prod deps then all deps', async (t) => {
   await project.has('once')
 
   {
-    const currentLockfile = await project.loadCurrentLockfile()
+    const currentLockfile = await project.readCurrentLockfile()
     t.ok(currentLockfile.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
   }
 
@@ -513,8 +513,8 @@ test('independent-leaves: installing a simple project', async (t) => {
 
   await project.isExecutable('.bin/rimraf')
 
-  t.ok(await project.loadCurrentLockfile())
-  t.ok(await project.loadModules())
+  t.ok(await project.readCurrentLockfile())
+  t.ok(await project.readModulesManifest())
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
@@ -561,8 +561,8 @@ test('installing with shamefullyFlatten = true', async (t) => {
 
   await project.isExecutable('.bin/rimraf')
 
-  t.ok(await project.loadCurrentLockfile())
-  t.ok(await project.loadModules())
+  t.ok(await project.readCurrentLockfile())
+  t.ok(await project.readModulesManifest())
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
@@ -594,7 +594,7 @@ test('installing with shamefullyFlatten = true', async (t) => {
     status: 'resolved',
   }), 'logs that package is being resolved')
 
-  const modules = await project.loadModules()
+  const modules = await project.readModulesManifest()
 
   t.deepEqual(modules!.importers['.'].hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
@@ -706,7 +706,7 @@ test('installing in a workspace', async (t) => {
   }))
 
   const rootNodeModules = assertProject(t, workspaceFixture)
-  const lockfile = await rootNodeModules.loadCurrentLockfile()
+  const lockfile = await rootNodeModules.readCurrentLockfile()
   t.deepEqual(Object.keys(lockfile.packages), [
     '/is-negative/1.0.0',
     '/is-positive/1.0.0',

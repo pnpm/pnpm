@@ -38,7 +38,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
 
   await install(manifest, await testDefaults({ update: true, depth: 0 }))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.ok(lockfile.packages)
   t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')

@@ -51,7 +51,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 
   await addDependenciesToPackage(manifest, ['using-ajv'], await testDefaults({ update: true }))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.equal(
     lockfile.packages['/using-ajv/1.0.0'].dependencies['ajv-keywords'],
@@ -299,7 +299,7 @@ test['skip']('peer dependencies are linked', async (t: tape.Test) => {
   t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0/peer-a@1.0.0+peer-b@1.0.0'].dev, `the dev resolution set is marked as dev in ${WANTED_LOCKFILE}`)
 })
 
@@ -351,7 +351,7 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'pkg-with-resolved-peer', '1.0.0', NM, 'pkg-with-resolved-peer')))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.notOk(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].peerDependencies, 'peerDependencies not added to lockfile')
   t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].dependencies['peer-c'])
@@ -362,7 +362,7 @@ test('package that has parent as peer dependency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['has-alpha', 'alpha'], await testDefaults())
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.ok(lockfile.packages['/has-alpha-as-peer/1.0.0_alpha@1.0.0'])
   t.ok(lockfile.packages['/has-alpha-as-peer/1.0.0'])

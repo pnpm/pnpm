@@ -255,8 +255,8 @@ export async function recursive (
             } as MutatedImporter
           case 'install':
             return {
-              manifest,
               buildIndex,
+              manifest,
               mutation,
               prefix,
               shamefullyFlatten,

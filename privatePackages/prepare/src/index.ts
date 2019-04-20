@@ -38,9 +38,9 @@ export function preparePackages (
     storeHas (pkgName: string, version?: string | undefined): Promise<void>
     storeHasNot (pkgName: string, version?: string | undefined): Promise<void>
     isExecutable (pathToExe: string): Promise<void>
-    loadCurrentLockfile (): Promise<any> // tslint:disable-line:no-any
-    loadModules: () => Promise<Modules | null>
-    loadLockfile (): Promise<any> // tslint:disable-line:no-any
+    readCurrentLockfile (): Promise<any> // tslint:disable-line:no-any
+    readModulesManifest: () => Promise<Modules | null>
+    readLockfile (): Promise<any> // tslint:disable-line:no-any
     writePackageJson (pkgJson: object): Promise<void>
   }
 } {

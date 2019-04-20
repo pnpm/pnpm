@@ -49,11 +49,11 @@ test('lockfile has correct format', async (t: tape.Test) => {
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ], await testDefaults({ save: true }))
 
-  const modules = await project.loadModules()
+  const modules = await project.readModulesManifest()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   const id = '/pkg-with-1-dep/100.0.0'
 
   t.equal(lockfile.lockfileVersion, 5, 'correct lockfile version')
@@ -86,7 +86,7 @@ test('lockfile has dev deps even when installing for prod only', async (t: tape.
     },
   }, await testDefaults({ production: true }))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   const id = '/is-negative/2.1.0'
 
   t.ok(lockfile.devDependencies, 'has devDependencies field')
@@ -170,7 +170,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.equal(Object.keys(lockfile.dependencies).length, 1, 'resolutions not duplicated')
 })
@@ -180,7 +180,7 @@ test('lockfile not created when no deps in package.json', async (t: tape.Test) =
 
   await install({}, await testDefaults())
 
-  t.notOk(await project.loadLockfile(), 'lockfile not created')
+  t.notOk(await project.readLockfile(), 'lockfile not created')
   t.notOk(await exists('node_modules'), 'empty node_modules not created')
 })
 
@@ -206,7 +206,7 @@ test('lockfile removed when no deps in package.json', async (t: tape.Test) => {
 
   await install({}, await testDefaults())
 
-  t.notOk(await project.loadLockfile(), 'lockfile removed')
+  t.notOk(await project.readLockfile(), 'lockfile removed')
 })
 
 test('lockfile is fixed when it does not match package.json', async (t: tape.Test) => {
@@ -259,7 +259,7 @@ test('lockfile is fixed when it does not match package.json', async (t: tape.Tes
   })
   t.equal(reporter.withArgs(progress).callCount, 0, 'resolving not reported')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.equal(lockfile.devDependencies['is-negative'], '2.1.0', `is-negative moved to devDependencies in ${WANTED_LOCKFILE}`)
   t.equal(lockfile.optionalDependencies['is-positive'], '3.1.0', `is-positive moved to optionalDependencies in ${WANTED_LOCKFILE}`)
@@ -379,7 +379,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
 
@@ -407,7 +407,7 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
   manifest = await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))
   manifest = await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))
 
-  const lockfile1 = await project.loadLockfile()
+  const lockfile1 = await project.readLockfile()
   t.equal(lockfile1.dependencies['is-negative'], '1.0.0')
   t.equal(lockfile1.specifiers['is-negative'], '1.0.0')
 
@@ -417,7 +417,7 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
 
   await install(manifest, await testDefaults())
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.equal(lockfile.dependencies['is-negative'], '2.1.0')
   t.equal(lockfile.specifiers['is-negative'], '^2.1.0')
@@ -434,7 +434,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   const manifest = await addDependenciesToPackage({}, ['highmaps-release@5.0.11'], await testDefaults())
 
-  const lockfile1 = await project.loadLockfile()
+  const lockfile1 = await project.readLockfile()
 
   t.equal(lockfile1.dependencies['highmaps-release'], '5.0.11', `dependency added correctly to ${WANTED_LOCKFILE}`)
 
@@ -442,7 +442,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   await install(manifest, await testDefaults())
 
-  const lockfile2 = await project.loadLockfile()
+  const lockfile2 = await project.readLockfile()
 
   t.deepEqual(lockfile1, lockfile2, "lockfile hasn't been changed")
 })
@@ -460,7 +460,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   t.pass('installed optional dependency which is also a dependency of pkg-with-1-dep')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].dev, 'package is not marked as dev')
 })
@@ -473,7 +473,7 @@ test('package is not marked optional if it is also a subdep of a regular depende
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
   await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].optional, 'package is not marked as optional')
 })
@@ -490,7 +490,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
   const m = project.requireModule('@zkochan/foo')
   t.ok(m, 'foo is available')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(lockfile, {
     dependencies: {
@@ -572,7 +572,7 @@ test['skip']('installing from lockfile when using npm enterprise', async (t: tap
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@3.1.0'], opts)
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(lockfile, {
     dependencies: {
@@ -617,7 +617,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     },
   }, await testDefaults({ reporter }))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.ok(lockfile.devDependencies['dep-of-pkg-with-1-dep'])
   t.ok(lockfile.devDependencies['pkg-with-1-dep'])
@@ -671,14 +671,14 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
       'with-postinstall-b': '*',
     },
   }, await testDefaults({ ignoreScripts: true }))
-  const modules1 = await project.loadModules()
+  const modules1 = await project.readModulesManifest()
 
   await install({
     dependencies: {
       'pre-and-postinstall-scripts-example': '*',
     },
   }, await testDefaults({ ignoreScripts: true }))
-  const modules2 = await project.loadModules()
+  const modules2 = await project.readModulesManifest()
 
   t.ok(modules1)
   t.ok(modules2)
@@ -691,7 +691,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   const manifest = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], `there are 0 packages with dev property in ${WANTED_LOCKFILE}`)
 })
 
@@ -701,7 +701,7 @@ test('optional properties are correctly updated on named install', async (t: tap
   const manifest = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], `there are 0 packages with optional property in ${WANTED_LOCKFILE}`)
 })
 
@@ -711,7 +711,7 @@ test('dev property is correctly set for package that is duplicated to both the d
   // TODO: use a smaller package for testing
   await addDependenciesToPackage({}, ['overlap@2.2.8'], await testDefaults())
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/couleurs/5.0.0'].dev === false)
 })
 
@@ -725,7 +725,7 @@ test('no lockfile', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  t.notOk(await project.loadLockfile(), `${WANTED_LOCKFILE} not created`)
+  t.notOk(await project.readLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
 test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
@@ -761,7 +761,7 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
 
   await project.has('is-negative')
 
-  t.ok(await project.loadLockfile(), `existing ${WANTED_LOCKFILE} not removed`)
+  t.ok(await project.readLockfile(), `existing ${WANTED_LOCKFILE} not removed`)
 })
 
 test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async (t: tape.Test) => {
@@ -786,7 +786,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
 
   await project.hasNot('is-positive')
 
-  t.ok(await project.loadLockfile(), `${WANTED_LOCKFILE} not removed during uninstall`)
+  t.ok(await project.readLockfile(), `${WANTED_LOCKFILE} not removed during uninstall`)
 })
 
 test('fail when installing with useLockfile: false and lockfileOnly: true', async (t: tape.Test) => {
@@ -815,7 +815,7 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
 
   await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults())
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.equal(lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, '/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
 })
@@ -828,7 +828,7 @@ test('packages installed via tarball URL from the default registry are normalize
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], await testDefaults())
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(lockfile, {
     dependencies: {

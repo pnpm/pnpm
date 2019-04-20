@@ -49,7 +49,7 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is not available')
   }
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild, 'requiresBuild: true added to lockfile')
 })
 
@@ -273,7 +273,7 @@ test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
   t.equal(scripts[2], 'postinstall')
   t.equal(scripts[3], 'prepare')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, `prepare field added to ${WANTED_LOCKFILE}`)
 })
 
@@ -378,5 +378,5 @@ test('dependency should not be added to current lockfile if it was not built suc
 
   t.ok(err)
 
-  t.notOk(await project.loadCurrentLockfile())
+  t.notOk(await project.readCurrentLockfile())
 })

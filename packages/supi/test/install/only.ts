@@ -66,12 +66,12 @@ test('install dev dependencies only', async (t: tape.Test) => {
   await project.hasNot('once')
 
   {
-    const lockfile = await project.loadLockfile()
+    const lockfile = await project.readLockfile()
     t.ok(lockfile.packages['/is-positive/1.0.0'].dev === false)
   }
 
   {
-    const currentLockfile = await project.loadCurrentLockfile()
+    const currentLockfile = await project.readCurrentLockfile()
     t.notOk(currentLockfile.packages['/is-positive/1.0.0'], `prod dep only not added to current ${WANTED_LOCKFILE}`)
   }
 
@@ -81,7 +81,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   await project.has('once')
 
   {
-    const currentLockfile = await project.loadCurrentLockfile()
+    const currentLockfile = await project.readCurrentLockfile()
     t.ok(currentLockfile.packages['/is-positive/1.0.0'], `prod dep added to current ${WANTED_LOCKFILE}`)
   }
 })

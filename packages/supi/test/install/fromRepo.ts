@@ -52,7 +52,7 @@ test('from a github repo with different name via named installation', async (t: 
 
   t.deepEqual(manifest.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(lockfile.dependencies, {
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   }, `the aliased name added to ${WANTED_LOCKFILE}`)
@@ -90,7 +90,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 
   t.deepEqual(manifest.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(lockfile.dependencies, {
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
   }, `the aliased name added to ${WANTED_LOCKFILE}`)
@@ -108,7 +108,7 @@ test('a subdependency is from a github repo with different name', async (t: tape
 
   t.equal(m, 'Hi', 'subdep is accessible')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(lockfile.packages['/has-aliased-git-dependency/1.0.0'].dependencies, {
     'has-say-hi-peer': '1.0.0_say-hi@1.0.0',
     'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
@@ -147,7 +147,7 @@ if (!isTravis) {
 
     t.ok(m, 'ikt is available')
 
-    const lockfile = await project.loadLockfile()
+    const lockfile = await project.readLockfile()
 
     const pkgId = 'ikt.pm2.io/ikt/3325a3e39a502418dc2e2e4bf21529cbbde96228'
     t.ok(lockfile.packages[pkgId])

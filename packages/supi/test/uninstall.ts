@@ -144,7 +144,7 @@ test('uninstall package with dependencies and do not touch other deps', async (t
 
   t.deepEqual(manifest.dependencies, { 'is-negative': '2.1.0' }, 'camelcase-keys has been removed from dependencies')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(lockfile.dependencies, {
     'is-negative': '2.1.0',
   }, 'camelcase-keys removed from lockfile dependencies')
@@ -185,13 +185,13 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))
 
-  const modules1 = await project.loadModules()
+  const modules1 = await project.readModulesManifest()
   t.ok(modules1)
   t.equal(modules1!.pendingBuilds.length, 2, 'install should update pendingBuilds')
 
   await uninstall(manifest, ['with-postinstall-b'], await testDefaults({ save: true }))
 
-  const modules2 = await project.loadModules()
+  const modules2 = await project.readModulesManifest()
   t.ok(modules2)
   t.equal(modules2!.pendingBuilds.length, 1, 'uninstall should update pendingBuilds')
 })

@@ -145,8 +145,8 @@ test('dependency should not be added to package.json and lockfile if it was not 
 
   t.equal(result.status, 1)
 
-  t.notOk(await project.loadCurrentLockfile())
-  t.notOk(await project.loadLockfile())
+  t.notOk(await project.readCurrentLockfile())
+  t.notOk(await project.readLockfile())
 
   const pkg = await import(path.resolve('package.json'))
   t.deepEqual(pkg, { name: 'foo', version: '1.0.0' }, 'package.json not updated')

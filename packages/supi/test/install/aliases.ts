@@ -20,7 +20,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
   t.ok(typeof m === 'function', 'negative() is available')
   t.ok(typeof project.requireModule('positive') === 'function', 'positive() is available')
 
-  t.deepEqual(await project.loadLockfile(), {
+  t.deepEqual(await project.readLockfile(), {
     dependencies: {
       negative: '/is-negative/1.0.0',
       positive: '/is-positive/3.1.0',
@@ -73,7 +73,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
 
   t.equal(project.requireModule('pkg-with-1-aliased-dep')().name, 'dep-of-pkg-with-1-dep', 'can require aliased subdep')
 
-  t.deepEqual(await project.loadLockfile(), {
+  t.deepEqual(await project.readLockfile(), {
     dependencies: {
       'pkg-with-1-aliased-dep': '100.0.0',
     },

@@ -49,6 +49,6 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   t.ok(afterAllResolved.calledOnce, 'afterAllResolved() called once')
   t.equal(afterAllResolved.getCall(0).args[0].lockfileVersion, 5)
 
-  const wantedLockfile = await project.loadLockfile()
+  const wantedLockfile = await project.readLockfile()
   t.equal(wantedLockfile['foo'], 'foo', 'the lockfile object has been updated by the hook') // tslint:disable-line:no-string-literal
 })

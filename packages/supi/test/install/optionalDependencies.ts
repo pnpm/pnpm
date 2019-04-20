@@ -54,7 +54,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   const m = project.requireModule('is-positive')
   t.ok(m, 'installation succeded')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
 
   t.deepEqual(lockfile.specifiers, { 'is-positive': '*' }, `skipped optional dep not added to ${WANTED_LOCKFILE}`)
 })
@@ -73,11 +73,11 @@ test('skip optional dependency that does not support the current OS', async (t: 
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
   t.notOk(await exists(path.resolve('node_modules', '.localhost+4873', 'dep-of-optional-pkg', '1.0.0')), "isn't linked into node_modules")
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/not-compatible-with-any-os/1.0.0'], 'lockfile contains optional dependency')
   t.ok(lockfile.packages['/dep-of-optional-pkg/1.0.0'], 'lockfile contains dependency of optional dependency')
 
-  const currentLockfile = await project.loadCurrentLockfile()
+  const currentLockfile = await project.readCurrentLockfile()
 
   t.ok(R.isEmpty(currentLockfile.packages || {}), 'current lockfile does not contain skipped packages')
 
@@ -105,7 +105,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
   await project.has('dep-of-optional-pkg')
 
   {
-    const modules = await project.loadModules()
+    const modules = await project.readModulesManifest()
     t.deepEqual(modules && modules.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
   }
 
@@ -127,7 +127,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
   await project.has('dep-of-optional-pkg')
 
   {
-    const modules = await project.loadModules()
+    const modules = await project.readModulesManifest()
     t.deepEqual(modules && modules.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
   }
 })

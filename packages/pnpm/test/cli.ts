@@ -74,7 +74,7 @@ test('update', async function (t: tape.Test) {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
 
   const pkg = await readPackage(process.cwd())

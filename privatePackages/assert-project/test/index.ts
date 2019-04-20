@@ -21,9 +21,9 @@ test('assertProject() store functions', async (t) => {
   await project.storeHas('is-positive', '3.1.0')
   t.equal(typeof await project.resolve('is-positive', '3.1.0'), 'string')
   await project.storeHasNot('is-positive', '3.100.0')
-  t.ok(await project.loadLockfile(), `loads wanted ${WANTED_LOCKFILE}`)
-  t.ok(await project.loadCurrentLockfile(), `loads current ${WANTED_LOCKFILE}`)
-  t.ok(await project.loadModules(), 'loads .modules.yaml')
+  t.ok(await project.readLockfile(), `loads wanted ${WANTED_LOCKFILE}`)
+  t.ok(await project.readCurrentLockfile(), `loads current ${WANTED_LOCKFILE}`)
+  t.ok(await project.readModulesManifest(), 'loads .modules.yaml')
 
   t.end()
 })

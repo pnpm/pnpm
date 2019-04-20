@@ -54,7 +54,7 @@ test('small with dependencies (rimraf)', async (t: tape.Test) => {
   t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/rimraf/2.5.1'].hasBin, `package marked with "hasBin: true" in ${WANTED_LOCKFILE}`)
 })
 
@@ -67,7 +67,7 @@ test('spec not specified in package.json.dependencies', async (t: tape.Test) => 
     },
   }, await testDefaults())
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.specifiers['is-positive'] === '', `spec saved properly in ${WANTED_LOCKFILE}`)
 })
 
@@ -521,7 +521,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape
 
   await project.isExecutable('pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(
     lockfile.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
@@ -536,7 +536,7 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.T
 
   await project.isExecutable('pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.deepEqual(
     lockfile.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
@@ -592,7 +592,7 @@ test('building native addons', async (t: tape.Test) => {
 
   t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
 
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/runas/3.1.1'].requiresBuild)
 })
 
@@ -605,7 +605,7 @@ test('should update subdep on second install', async (t: tape.Test) => {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  let lockfile = await project.loadLockfile()
+  let lockfile = await project.readLockfile()
 
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'lockfile has resolution for package')
 
@@ -624,7 +624,7 @@ test('should update subdep on second install', async (t: tape.Test) => {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 
-  lockfile = await project.loadLockfile()
+  lockfile = await project.readLockfile()
 
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], "lockfile doesn't have old dependency")
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'lockfile has new dependency')
@@ -641,7 +641,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  let lockfile = await project.loadLockfile()
+  let lockfile = await project.readLockfile()
 
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'lockfile has resolution for package')
 
@@ -651,7 +651,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  lockfile = await project.loadLockfile()
+  lockfile = await project.readLockfile()
 
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'lockfile has old dependency')
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'lockfile has not the new dependency')

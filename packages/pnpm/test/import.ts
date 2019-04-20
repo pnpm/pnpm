@@ -23,7 +23,7 @@ test('import from package-lock.json', async (t: tape.Test) => {
   await execPnpm('import')
 
   const project = assertProject(t, process.cwd())
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 
@@ -41,7 +41,7 @@ test('import from npm-shrinkwrap.json', async (t: tape.Test) => {
   await execPnpm('import')
 
   const project = assertProject(t, process.cwd())
-  const lockfile = await project.loadLockfile()
+  const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 

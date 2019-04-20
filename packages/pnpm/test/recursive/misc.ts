@@ -353,10 +353,10 @@ test('recursive installation of packages with hooks', async t => {
 
   await execPnpm('recursive', 'install')
 
-  const lockfile1 = await projects['project-1'].loadLockfile()
+  const lockfile1 = await projects['project-1'].readLockfile()
   t.ok(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 
-  const lockfile2 = await projects['project-2'].loadLockfile()
+  const lockfile2 = await projects['project-2'].readLockfile()
   t.ok(lockfile2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
@@ -400,10 +400,10 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
 
   await execPnpm('recursive', 'install', '--ignore-pnpmfile')
 
-  const lockfile1 = await projects['project-1'].loadLockfile()
+  const lockfile1 = await projects['project-1'].readLockfile()
   t.notOk(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 
-  const lockfile2 = await projects['project-2'].loadLockfile()
+  const lockfile2 = await projects['project-2'].readLockfile()
   t.notOk(lockfile2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
