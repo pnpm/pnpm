@@ -60,6 +60,33 @@ test('update --latest', async function (t: tape.Test) {
   t.equal(pkg.dependencies && pkg.dependencies['is-negative'], 'github:kevva/is-negative', 'do not touch non-npm hosted package')
 })
 
+test('update --latest --save-exact', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await Promise.all([
+    addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('qar', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative')
+
+  await execPnpm('update', '--latest', '--save-exact')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
+
+  const lockfile = await project.readLockfile()
+  t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
+  t.equal(lockfile.dependencies['bar'], '100.1.0')
+  t.equal(lockfile.dependencies['alias'], '/qar/100.1.0')
+
+  const pkg = await readPackage(process.cwd())
+  t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
+  t.equal(pkg.dependencies && pkg.dependencies['bar'], '100.1.0')
+  t.equal(pkg.dependencies && pkg.dependencies['alias'], 'npm:qar@100.1.0')
+  t.equal(pkg.dependencies && pkg.dependencies['is-negative'], 'github:kevva/is-negative', 'do not touch non-npm hosted package')
+})
+
 test('update --latest specific dependency', async function (t: tape.Test) {
   const project = prepare(t)
 
