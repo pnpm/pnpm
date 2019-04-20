@@ -169,6 +169,7 @@ function getHelpText (command: string) {
           -g, --global          update globally installed packages
           --depth               how deep should levels of dependencies be inspected
                                 0 is default, which means top-level dependencies
+          -L, --latest          ignore version ranges in package.json
 
         Discouraged options:
           --shamefully-flatten  attempt to flatten the dependency tree, similar to what npm does

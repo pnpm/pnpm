@@ -1,4 +1,5 @@
 import {
+  IncludedDependencies,
   LogBase,
   PackageManifest,
   Registries,
@@ -40,6 +41,7 @@ export interface PnpmOptions {
   registry?: string,
   optional?: boolean,
   unsafePerm?: boolean,
+  include: IncludedDependencies,
 
   // proxy
   proxy?: string,
@@ -83,6 +85,7 @@ export interface PnpmOptions {
   lockfileDirectory?: string,
 
   // cannot be specified via configs
+  latest?: boolean,
   update?: boolean,
   reporter?: (logObj: LogBase) => void,
   packageManager?: {

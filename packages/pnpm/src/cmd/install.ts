@@ -1,5 +1,8 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getSaveType, safeReadPackageFromDir } from '@pnpm/utils'
+import {
+  getSaveType,
+  safeReadPackageFromDir,
+} from '@pnpm/utils'
 import {
   install,
   mutateModules,
@@ -11,6 +14,7 @@ import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspa
 import getPinnedVersion from '../getPinnedVersion'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
+import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
 import { recursive } from './recursive'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -52,21 +56,40 @@ export default async function installCmd (
     store: store.path,
     storeController: store.ctrl,
   }
+
+  let manifest = await safeReadPackageFromDir(opts.prefix)
+  if (manifest === null) {
+    if (opts.update) {
+      const err = new Error('No package.json found')
+      err['code'] = 'ERR_PNPM_NO_IMPORTER_MANIFEST' // tslint:disable-line
+      throw err
+    }
+    manifest = {}
+  }
+
+  if (opts.update && opts.latest) {
+    if (!input || !input.length) {
+      input = updateToLatestSpecsFromManifest(manifest, opts.include)
+    } else {
+      input = createLatestSpecs(input, manifest)
+    }
+    delete installOpts.include
+  }
   if (!input || !input.length) {
-    await install(await readPackageJsonFromDir(opts.prefix), installOpts)
+    await install(manifest, installOpts)
   } else {
-    const [{ manifest }] = await mutateModules([
+    const [updatedImporter] = await mutateModules([
       {
         bin: installOpts.bin,
         dependencySelectors: input,
-        manifest: await safeReadPackageFromDir(opts.prefix) || {},
+        manifest,
         mutation: 'installSome',
         pinnedVersion: getPinnedVersion(opts),
         prefix: installOpts.prefix,
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
-    await writePkg(opts.prefix, manifest)
+    await writePkg(opts.prefix, updatedImporter.manifest)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {
