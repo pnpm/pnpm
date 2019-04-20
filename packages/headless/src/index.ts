@@ -48,7 +48,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { PackageJson, Registries } from '@pnpm/types'
+import { DependencyManifest, ImporterManifest, Registries } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
@@ -75,9 +75,9 @@ export interface HeadlessOptions {
     bin: string,
     buildIndex: number,
     hoistedAliases: {[depPath: string]: string[]}
+    manifest: ImporterManifest,
     modulesDir: string,
     id: string,
-    pkg: PackageJson,
     prefix: string,
     pruneDirectDependencies?: boolean,
     shamefullyFlatten: boolean,
@@ -121,7 +121,7 @@ export default async (opts: HeadlessOptions) => {
   const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
 
   for (const importer of opts.importers) {
-    if (!satisfiesPackageJson(wantedLockfile, importer.pkg, importer.id)) {
+    if (!satisfiesPackageJson(wantedLockfile, importer.manifest, importer.id)) {
       const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
         path.relative(opts.lockfileDirectory, path.join(importer.prefix, 'package.json')))
       err['code'] = 'ERR_PNPM_OUTDATED_LOCKFILE' // tslint:disable-line
@@ -256,17 +256,17 @@ export default async (opts: HeadlessOptions) => {
     // this needs to be logged because otherwise install summary won't be printed
     packageJsonLogger.debug({
       prefix: importer.prefix,
-      updated: importer.pkg,
+      updated: importer.manifest,
     })
   }))
 
   if (opts.ignoreScripts) {
     for (const importer of opts.importers) {
-      if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
-        (importer.pkg.scripts.preinstall || importer.pkg.scripts.prepublish ||
-          importer.pkg.scripts.install ||
-          importer.pkg.scripts.postinstall ||
-          importer.pkg.scripts.prepare)
+      if (opts.ignoreScripts && importer.manifest && importer.manifest.scripts &&
+        (importer.manifest.scripts.preinstall || importer.manifest.scripts.prepublish ||
+          importer.manifest.scripts.install ||
+          importer.manifest.scripts.postinstall ||
+          importer.manifest.scripts.prepare)
       ) {
         opts.pendingBuilds.push(importer.id)
       }
@@ -381,7 +381,7 @@ async function linkRootPackages (
           const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
           const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
           const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
-          const linkedPackage = await readPackageFromDir(packageDir)
+          const linkedPackage = await readPackageFromDir(packageDir) as DependencyManifest
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
             fromDependenciesField: isDev && 'devDependencies' ||
               isOptional && 'optionalDependencies' ||

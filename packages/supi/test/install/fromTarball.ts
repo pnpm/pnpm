@@ -1,5 +1,4 @@
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -8,8 +7,9 @@ import { testDefaults } from '../utils'
 const test = promisifyTape(tape)
 
 test('tarball from npm registry', async (t: tape.Test) => {
-  const project = prepare(t)
-  await addDependenciesToPackage(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
 
   const m = project.requireModule('is-array')
 
@@ -17,13 +17,13 @@ test('tarball from npm registry', async (t: tape.Test) => {
 
   await project.storeHas('localhost+4873/is-array/1.0.1')
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
-  t.deepEqual(pkgJson.dependencies, { 'is-array': 'http://localhost:4873/is-array/-/is-array-1.0.1.tgz' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'is-array': 'http://localhost:4873/is-array/-/is-array-1.0.1.tgz' }, 'has been added to dependencies in package.json')
 })
 
 test('tarball not from npm registry', async (t) => {
-  const project = prepare(t)
-  await addDependenciesToPackage(['https://github.com/hegemonic/taffydb/tarball/master'], await testDefaults())
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['https://github.com/hegemonic/taffydb/tarball/master'], await testDefaults())
 
   const m = project.requireModule('taffydb')
 
@@ -33,8 +33,9 @@ test('tarball not from npm registry', async (t) => {
 })
 
 test('tarballs from GitHub (is-negative)', async (t) => {
-  const project = prepare(t)
-  await addDependenciesToPackage(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], await testDefaults())
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], await testDefaults())
 
   const m = project.requireModule('is-negative')
 

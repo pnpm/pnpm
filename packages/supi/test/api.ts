@@ -18,7 +18,7 @@ test('API', (t) => {
 // tslint:disable-next-line:no-string-literal
 test['skip']('install fails when all saving types are false', async (t: test.Test) => {
   try {
-    await pnpm.install(await testDefaults({ save: false, saveDev: false, saveOptional: false }))
+    await pnpm.install({}, await testDefaults({ save: false, saveDev: false, saveOptional: false }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.message, 'Cannot install with save/saveDev/saveOptional all being equal false')
@@ -35,7 +35,7 @@ test('install fails on optional = true but production = false', async (t: test.T
         optionalDependencies: true,
       },
     })
-    await pnpm.install(opts)
+    await pnpm.install({}, opts)
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.message, 'Optional dependencies cannot be installed without production dependencies')

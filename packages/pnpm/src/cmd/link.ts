@@ -1,4 +1,6 @@
 import { StoreController } from '@pnpm/package-store'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { safeReadPackageFromDir } from '@pnpm/utils'
 import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -42,7 +44,10 @@ export default async (
 
   // pnpm link
   if (!input || !input.length) {
-    await linkToGlobal(cwd, linkOpts)
+    await linkToGlobal(cwd, {
+      ...linkOpts,
+      manifest: await safeReadPackageFromDir(opts.globalPrefix) || {}
+    })
     return
   }
 
@@ -71,18 +76,26 @@ export default async (
   await Promise.all(
     pkgPaths.map((prefix) => installLimit(async () => {
       const s = await createStoreController(storeControllerCache, opts)
-      await install({
-        ...await getConfigs({ ...opts.cliArgs, prefix }, {
-          command: ['link'],
-          excludeReporter: true,
-        }),
-        localPackages,
-        store: s.path,
-        storeController: s.ctrl,
-      } as InstallOptions)
+      await install(
+        await readPackageJsonFromDir(prefix), {
+          ...await getConfigs(
+            { ...opts.cliArgs, prefix },
+            {
+              command: ['link'],
+              excludeReporter: true,
+            },
+          ),
+          localPackages,
+          store: s.path,
+          storeController: s.ctrl,
+        } as InstallOptions,
+      )
     })),
   )
-  await link(pkgPaths, path.join(cwd, 'node_modules'), linkOpts)
+  await link(pkgPaths, path.join(cwd, 'node_modules'), {
+    ...linkOpts,
+    manifest: await readPackageJsonFromDir(cwd),
+  })
 
   await Promise.all(
     Array.from(storeControllerCache.values())

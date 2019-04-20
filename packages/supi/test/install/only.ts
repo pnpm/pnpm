@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import fs = require('mz/fs')
 import path = require('path')
 import { install } from 'supi'
@@ -10,7 +10,9 @@ import { testDefaults } from '../utils'
 const test = promisifyTape(tape)
 
 test('production install (with --production flag)', async (t: tape.Test) => {
-  const project = prepare(t, {
+  const project = prepareEmpty(t)
+
+  await install({
     dependencies: {
       rimraf: '2.6.2',
     },
@@ -18,9 +20,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
       '@rstacruz/tap-spec': '4.1.1',
       'once': '^1.4.0', // once is also a transitive dependency of rimraf
     },
-  })
-
-  await install(await testDefaults({
+  }, await testDefaults({
     include: {
       dependencies: true,
       devDependencies: false,
@@ -42,7 +42,9 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 })
 
 test('install dev dependencies only', async (t: tape.Test) => {
-  const project = prepare(t, {
+  const project = prepareEmpty(t)
+
+  const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
       'once': '^1.4.0',
@@ -50,9 +52,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
     devDependencies: {
       inflight: '1.0.6',
     },
-  })
-
-  await install(await testDefaults({
+  }, await testDefaults({
     include: {
       dependencies: false,
       devDependencies: true,
@@ -76,7 +76,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   }
 
   // Repeat normal installation adds missing deps to node_modules
-  await install(await testDefaults())
+  await install(manifest, await testDefaults())
 
   await project.has('once')
 
@@ -87,7 +87,11 @@ test('install dev dependencies only', async (t: tape.Test) => {
 })
 
 test('fail if installing different types of dependencies in a project that uses an external lockfile', async (t: tape.Test) => {
-  const project = prepare(t, {
+  const project = prepareEmpty(t)
+
+  const lockfileDirectory = path.resolve('..')
+
+  const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
       'once': '^1.4.0',
@@ -95,11 +99,7 @@ test('fail if installing different types of dependencies in a project that uses 
     devDependencies: {
       inflight: '1.0.6',
     },
-  })
-
-  const lockfileDirectory = path.resolve('..')
-
-  await install(await testDefaults({
+  }, await testDefaults({
     include: {
       dependencies: false,
       devDependencies: true,
@@ -116,7 +116,7 @@ test('fail if installing different types of dependencies in a project that uses 
   let err!: Error & { code: string }
 
   try {
-    await install(await testDefaults({
+    await install(manifest, await testDefaults({
       include: {
         dependencies: true,
         devDependencies: true,

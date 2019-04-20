@@ -2,7 +2,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  PackageJson,
+  ImporterManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -24,7 +24,7 @@ export interface Importer {
   id: string,
   modulesDir: string,
   nonLinkedPackages: WantedDependency[],
-  pkg?: PackageJson,
+  manifest?: ImporterManifest,
   prefix: string,
   shamefullyFlatten: boolean,
 }
@@ -105,7 +105,7 @@ export default async function (
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,
       parentNodeId: ROOT_NODE_ID,
-      preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
+      preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
       resolvedDependencies: {
         ...lockfileImporter.dependencies,
         ...lockfileImporter.devDependencies,
@@ -120,7 +120,7 @@ export default async function (
     // TODO: in a new major version of pnpm (maybe 3)
     // all dependencies should be resolved for all projects
     // even for those that don't use external lockfiles
-    if (!importer.usesExternalLockfile || !importer.pkg) {
+    if (!importer.usesExternalLockfile || !importer.manifest) {
       directNonLinkedDepsByImporterId[importer.id] = newDirectDeps
     } else {
       directNonLinkedDepsByImporterId[importer.id] = [
@@ -130,7 +130,7 @@ export default async function (
             ...resolveCtx,
             updateDepth: -1,
           },
-          getWantedDependencies(importer.pkg).filter((wantedDep) => newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)),
+          getWantedDependencies(importer.manifest).filter((wantedDep) => newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)),
           {
             ...resolveOpts,
           },

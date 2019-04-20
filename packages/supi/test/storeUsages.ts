@@ -1,5 +1,5 @@
 import assertStore from '@pnpm/assert-store'
-import prepare from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   storeAdd,
@@ -13,10 +13,10 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('find usages for single package in store and in a project', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   // Install deps
-  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults())
   await project.storeHas('is-negative', '2.1.0')
 
   // Find usages
@@ -32,10 +32,10 @@ test('find usages for single package in store and in a project', async (t: tape.
 })
 
 test('find usages for single package in store (by version) and in a project', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   // Install deps
-  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults())
   await project.storeHas('is-negative', '2.1.0')
 
   // Find usages
@@ -51,7 +51,7 @@ test('find usages for single package in store (by version) and in a project', as
 })
 
 test('find usages for package not in store', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
   const opts = await testDefaults()
   const store = assertStore(t, opts.store)
 
@@ -65,14 +65,12 @@ test('find usages for package not in store', async (t: tape.Test) => {
 })
 
 test('find usages of packages in store (multiple queries)', async (t: tape.Test) => {
-  const project = prepare(t)
-
-  const packages = ['is-negative', 'is-odd']
+  const project = prepareEmpty(t)
 
   // Install deps
-  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults())
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults())
   await project.storeHas('is-negative', '2.1.0')
-  await addDependenciesToPackage(['is-odd@3.0.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['is-odd@3.0.0'], await testDefaults())
   await project.storeHas('is-odd', '3.0.0')
 
   // Find usages
@@ -101,7 +99,7 @@ test('find usages of packages in store (multiple queries)', async (t: tape.Test)
 })
 
 test('find usages for package in store but not in any projects', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
   const opts = await testDefaults()
   const registries = opts.registries || {
     default: 'null'
@@ -133,7 +131,7 @@ test('find usages for package in store but not in any projects', async (t: tape.
 })
 
 test('find usages for multiple packages in store but not in any projects', async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
   const opts = await testDefaults()
   const registries = opts.registries || {
     default: 'null'

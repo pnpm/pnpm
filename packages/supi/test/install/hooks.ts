@@ -1,10 +1,8 @@
 import { Lockfile } from '@pnpm/lockfile-file'
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
-  install,
   PackageManifest,
 } from 'supi'
 import tape = require('tape')
@@ -18,21 +16,21 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  function readPackageHook (pkg: PackageManifest) {
-    switch (pkg.name) {
+  function readPackageHook (manifest: PackageManifest) {
+    switch (manifest.name) {
       case 'pkg-with-1-dep':
-        if (!pkg.dependencies) {
+        if (!manifest.dependencies) {
           throw new Error('pkg-with-1-dep expected to have a dependencies field')
         }
-        pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+        manifest.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
         break
     }
-    return pkg
+    return manifest
   }
 
   const afterAllResolved = sinon.spy((lockfile: Lockfile) => {
@@ -40,7 +38,7 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
     return lockfile
   })
 
-  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({
     hooks: {
       afterAllResolved,
       readPackage: readPackageHook,
@@ -53,28 +51,4 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
 
   const wantedLockfile = await project.loadLockfile()
   t.equal(wantedLockfile['foo'], 'foo', 'the lockfile object has been updated by the hook') // tslint:disable-line:no-string-literal
-})
-
-test('readPackage hook overrides project package', async (t: tape.Test) => {
-  const project = prepare(t, {
-    name: 'test-read-package-hook',
-  })
-
-  function readPackageHook (pkg: PackageManifest) {
-    switch (pkg.name) {
-      case 'test-read-package-hook':
-        pkg.dependencies = { 'is-positive': '1.0.0' }
-        break
-    }
-    return pkg
-  }
-
-  await install(await testDefaults({
-    hooks: { readPackage: readPackageHook },
-  }))
-
-  await project.has('is-positive')
-
-  const packageJson = await readPackageJsonFromDir(process.cwd())
-  t.notOk(packageJson.dependencies, 'dependencies added by the hooks not saved in package.json')
 })

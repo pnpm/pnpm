@@ -1,6 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import { copy } from 'fs-extra'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -25,8 +24,8 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('scoped modules from a directory', async (t: tape.Test) => {
-  const project = prepare(t)
-  await addDependenciesToPackage([local('local-scoped-pkg')], await testDefaults())
+  const project = prepareEmpty(t)
+  await addDependenciesToPackage({}, [local('local-scoped-pkg')], await testDefaults())
 
   const m = project.requireModule('@scope/local-scoped-pkg')
 
@@ -34,14 +33,13 @@ test('scoped modules from a directory', async (t: tape.Test) => {
 })
 
 test('local file', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
-  await addDependenciesToPackage(['file:../local-pkg'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], await testDefaults())
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
-  t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
+  t.deepEqual(manifest.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
 
@@ -59,14 +57,13 @@ test('local file', async (t: tape.Test) => {
 })
 
 test('local file via link:', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
-  await addDependenciesToPackage(['link:../local-pkg'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], await testDefaults())
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
-  t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
+  t.deepEqual(manifest.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
 
@@ -84,16 +81,15 @@ test('local file via link:', async (t: tape.Test) => {
 })
 
 test('local file with symlinked node_modules', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
   await fs.mkdir(path.join('..', 'node_modules'))
   await symlinkDir(path.join('..', 'node_modules'), 'node_modules')
 
-  await addDependenciesToPackage(['file:../local-pkg'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], await testDefaults())
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
-  t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
+  t.deepEqual(manifest.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
 
@@ -111,8 +107,8 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 })
 
 test('package with a broken symlink', async (t) => {
-  const project = prepare(t)
-  await addDependenciesToPackage([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults())
+  const project = prepareEmpty(t)
+  await addDependenciesToPackage({}, [pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults())
 
   const m = project.requireModule('has-broken-symlink')
 
@@ -120,16 +116,15 @@ test('package with a broken symlink', async (t) => {
 })
 
 test('tarball local package', async (t: tape.Test) => {
-  const project = prepare(t)
-  await addDependenciesToPackage([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
+  const project = prepareEmpty(t)
+  const manifest = await addDependenciesToPackage({}, [pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
 
   const m = project.requireModule('tar-pkg')
 
   t.equal(m(), 'tar-pkg', 'tarPkg() is available')
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const pkgSpec = `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`
-  t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(lockfile.packages[lockfile.dependencies['tar-pkg']], {
@@ -144,23 +139,22 @@ test('tarball local package', async (t: tape.Test) => {
 })
 
 test('tarball local package from project directory', async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      'tar-pkg': 'file:tar-pkg-1.0.0.tgz',
-    },
-  })
+  const project = prepareEmpty(t)
 
   await copy(path.join(pathToLocalPkg('tar-pkg'), 'tar-pkg-1.0.0.tgz'), path.resolve('tar-pkg-1.0.0.tgz'))
 
-  await install(await testDefaults())
+  const manifest = await install({
+    dependencies: {
+      'tar-pkg': 'file:tar-pkg-1.0.0.tgz',
+    },
+  }, await testDefaults())
 
   const m = project.requireModule('tar-pkg')
 
   t.equal(m(), 'tar-pkg', 'tarPkg() is available')
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
   const pkgSpec = `file:tar-pkg-1.0.0.tgz`
-  t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
   t.equal(lockfile.dependencies['tar-pkg'], pkgSpec)
@@ -176,16 +170,16 @@ test('tarball local package from project directory', async (t: tape.Test) => {
 })
 
 test('update tarball local package when its integrity changes', async (t) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
-  await addDependenciesToPackage(['../tar.tgz'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
 
   const lockfile1 = await project.loadLockfile()
   t.equal(lockfile1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
-  await install(await testDefaults())
+  await install(manifest, await testDefaults())
 
   const lockfile2 = await project.loadLockfile()
   t.equal(lockfile2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')

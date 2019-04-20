@@ -1,4 +1,4 @@
-import { PackageJson } from '@pnpm/types'
+import { DependencyManifest } from '@pnpm/types'
 
 /**
  * tarball hosted remotely
@@ -29,7 +29,7 @@ export type Resolution =
 export interface ResolveResult {
   id: string,
   resolution: Resolution,
-  package?: PackageJson,
+  package?: DependencyManifest,
   latest?: string,
   normalizedPref?: string, // is null for npm-hosted dependencies
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string,
@@ -39,7 +39,7 @@ export interface LocalPackages {
   [name: string]: {
     [version: string]: {
       directory: string,
-      package: PackageJson,
+      package: DependencyManifest,
     },
   },
 }

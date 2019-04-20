@@ -1,8 +1,7 @@
 import assertProject from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
-import { preparePackages } from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import sinon = require('sinon')
 import {
@@ -20,31 +19,39 @@ const testOnly = promisifyTape(tape.only)
 test('install only the dependencies of the specified importer', async (t) => {
   const projects = preparePackages(t, [
     {
-      name: 'project-1',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
+      location: 'project-1',
+      package: { name: 'project-1' },
     },
     {
-      name: 'project-2',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
+      location: 'project-2',
+      package: { name: 'project-2' },
     },
   ])
 
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
@@ -64,37 +71,45 @@ test('install only the dependencies of the specified importer', async (t) => {
 test('dependencies of other importers are not pruned when installing for a subset of importers', async (t) => {
   const projects = preparePackages(t, [
     {
-      name: 'project-1',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
+      location: 'project-1',
+      package: { name: 'project-1' },
     },
     {
-      name: 'project-2',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
+      location: 'project-2',
+      package: { name: 'project-2' },
     },
   ])
 
-  await mutateModules([
+  const [{ manifest }] = await mutateModules([
     {
       buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ], await testDefaults())
 
-  await addDependenciesToPackage(['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
     lockfileDirectory: process.cwd(),
     prefix: path.resolve('project-1'),
   }))
@@ -117,38 +132,46 @@ test('dependencies of other importers are not pruned when installing for a subse
 test('dependencies of other importers are not pruned when (headless) installing for a subset of importers', async (t) => {
   const projects = preparePackages(t, [
     {
-      name: 'project-1',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
+      location: 'project-1',
+      package: { name: 'project-1' },
     },
     {
-      name: 'project-2',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
+      location: 'project-2',
+      package: { name: 'project-2' },
     },
   ])
 
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ]
-  await mutateModules(importers, await testDefaults())
+  const [{ manifest }] = await mutateModules(importers, await testDefaults())
 
-  await addDependenciesToPackage(['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
     lockfileDirectory: process.cwd(),
     lockfileOnly: true,
     prefix: path.resolve('project-1'),
@@ -165,61 +188,59 @@ test('dependencies of other importers are not pruned when (headless) installing 
 })
 
 test('adding a new dev dependency to project that uses a shared lockfile', async (t) => {
-  const projects = preparePackages(t, [
-    {
-      name: 'project-1',
-      version: '1.0.0',
+  prepareEmpty(t)
 
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
-    },
-  ])
-
-  await mutateModules([
+  let [{ manifest }] = await mutateModules([
     {
       buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
   ], await testDefaults())
-  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
-  const pkg = await readPackageJsonFromDir(path.resolve('project-1'))
-
-  t.deepEqual(pkg.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
-  t.deepEqual(pkg.devDependencies, { 'is-negative': '1.0.0' }, 'dev deps have a new dependency in package.json')
+  t.deepEqual(manifest.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
+  t.deepEqual(manifest.devDependencies, { 'is-negative': '1.0.0' }, 'dev deps have a new dependency in package.json')
 })
 
-test('headless install is used when package link to another package in the workspace', async (t) => {
-  const projects = preparePackages(t, [
-    {
-      name: 'project-1',
-      version: '1.0.0',
+test('headless install is used when package ink to another package in the workspace', async (t) => {
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
 
-      dependencies: {
-        'is-positive': '1.0.0',
-        'project-2': 'file:../project-2',
-      },
+    dependencies: {
+      'is-positive': '1.0.0',
+      'project-2': 'file:../project-2',
     },
-    {
-      name: 'project-2',
-      version: '1.0.0',
+  }
+  const pkg2 = {
+    name: 'project-2',
+    version: '1.0.0',
 
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
+    dependencies: {
+      'is-negative': '1.0.0',
     },
-  ])
+  }
+  const projects = preparePackages(t, [pkg1, pkg2])
 
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
+      manifest: pkg1,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
+      manifest: pkg2,
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
@@ -241,28 +262,28 @@ test('headless install is used when package link to another package in the works
 })
 
 test('current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile', async (t) => {
-  const projects = preparePackages(t, [
-    {
-      name: 'project-1',
-      version: '1.0.0',
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
 
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
+    dependencies: {
+      'is-positive': '1.0.0',
     },
-    {
-      name: 'project-2',
-      version: '1.0.0',
+  }
+  const pkg2 = {
+    name: 'project-2',
+    version: '1.0.0',
 
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
+    dependencies: {
+      'is-negative': '1.0.0',
     },
-  ])
+  }
+  preparePackages(t, [pkg1, pkg2])
 
   await mutateModules([
     {
       buildIndex: 0,
+      manifest: pkg1,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
@@ -271,6 +292,7 @@ test('current lockfile contains only installed dependencies when adding a new im
   await mutateModules([
     {
       buildIndex: 0,
+      manifest: pkg2,
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },

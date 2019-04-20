@@ -283,7 +283,7 @@ test('do not get confused by filtered dependencies when searching for dependents
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('install')
+  await execPnpm('recursive', 'install')
 
   process.chdir('project-2')
 
@@ -714,7 +714,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
   process.chdir('workspace-1')
 
-  await execPnpm('install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 

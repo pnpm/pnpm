@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare from '@pnpm/prepare'
+import { prepareEmpty } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import isInnerLink = require('is-inner-link')
 import path = require('path')
@@ -23,12 +23,7 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      'is-positive': '^1.0.0',
-      'is-subdir': '^1.0.0',
-    },
-  })
+  const project = prepareEmpty(t)
   process.chdir('..')
 
   await Promise.all([
@@ -47,20 +42,30 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
 
   const opts = await testDefaults({ store: path.resolve('.store') })
 
-  await link(
+  let manifest = await link(
     ['is-subdir', 'is-positive'],
     path.join('project', 'node_modules'),
-    { ...opts, prefix: path.resolve('project') },
+    {
+      ...opts,
+      manifest: {
+        dependencies: {
+          'is-positive': '^1.0.0',
+          'is-subdir': '^1.0.0',
+        },
+      },
+      prefix: path.resolve('project'),
+    },
   )
 
   process.chdir('project')
 
-  await install(opts)
+  manifest = await install(manifest, opts)
 
   await mutateModules(
     [
       {
         dependencyNames: ['is-subdir'],
+        manifest,
         mutation: 'unlinkSome',
         prefix: process.cwd(),
       }
@@ -73,11 +78,11 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
 })
 
 test("don't update package when unlinking", async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
   const opts = await testDefaults({ prefix: process.cwd() })
-  await addDependenciesToPackage(['foo'], opts)
+  let manifest = await addDependenciesToPackage({}, ['foo'], opts)
 
   process.chdir('..')
 
@@ -86,7 +91,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
     version: '100.0.0',
   })
 
-  await link(['foo'], path.join('project', 'node_modules'), opts)
+  manifest = await link(['foo'], path.join('project', 'node_modules'), { ...opts, manifest })
   await addDistTag('foo', '100.1.0', 'latest')
 
   process.chdir('project')
@@ -94,6 +99,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
     [
       {
         dependencyNames: ['foo'],
+        manifest,
         mutation: 'unlinkSome',
         prefix: process.cwd(),
       }
@@ -105,11 +111,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
 })
 
 test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      foo: '^100.0.0',
-    },
-  })
+  const project = prepareEmpty(t)
 
   const opts = await testDefaults({ prefix: process.cwd() })
   process.chdir('..')
@@ -119,14 +121,22 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
     version: '100.0.0',
   })
 
-  await link(['foo'], path.join('project', 'node_modules'), opts)
+  const manifest = await link(['foo'], path.join('project', 'node_modules'), {
+    ...opts,
+    manifest: {
+      dependencies: {
+        foo: '^100.0.0',
+      },
+    },
+  })
   await addDistTag('foo', '100.1.0', 'latest')
 
   process.chdir('project')
-  await mutateModules(
+  const unlinkResult = await mutateModules(
     [
       {
         dependencyNames: ['foo'],
+        manifest,
         mutation: 'unlinkSome',
         prefix: process.cwd(),
       }
@@ -135,15 +145,11 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
   )
 
   t.equal(project.requireModule('foo/package.json').version, '100.1.0', 'latest foo is installed')
-  t.deepEqual((await readPackageJsonFromDir(process.cwd())).dependencies, { foo: '^100.0.0' }, 'package.json not updated')
+  t.deepEqual(unlinkResult[0].manifest.dependencies, { foo: '^100.0.0' }, 'package.json not updated')
 })
 
 test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      'is-subdir': '^1.0.0',
-    },
-  })
+  const project = prepareEmpty(t)
   const opts = await testDefaults({ prefix: process.cwd() })
   process.chdir('..')
 
@@ -161,13 +167,21 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
     }),
   ])
 
-  await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), opts)
+  const manifest = await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), {
+    ...opts,
+    manifest: {
+      dependencies: {
+        'is-subdir': '^1.0.0',
+      },
+    }
+  })
 
   process.chdir('project')
   await mutateModules(
     [
       {
         dependencyNames: ['is-subdir', 'is-positive'],
+        manifest,
         mutation: 'unlinkSome',
         prefix: process.cwd(),
       }
@@ -180,12 +194,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
 })
 
 test('unlink all packages', async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      '@zkochan/logger': '^0.1.0',
-      'is-subdir': '^1.0.0',
-    },
-  })
+  const project = prepareEmpty(t)
   const opts = await testDefaults({ prefix: process.cwd() })
   process.chdir('..')
 
@@ -203,11 +212,20 @@ test('unlink all packages', async (t: tape.Test) => {
     }),
   ])
 
-  await link(['is-subdir', 'logger'], path.join('project', 'node_modules'), opts)
+  const manifest = await link(['is-subdir', 'logger'], path.join('project', 'node_modules'), {
+    ...opts,
+    manifest: {
+      dependencies: {
+        '@zkochan/logger': '^0.1.0',
+        'is-subdir': '^1.0.0',
+      },
+    },
+  })
 
   await mutateModules(
     [
       {
+        manifest,
         mutation: 'unlink',
         prefix: path.resolve('project'),
       }
@@ -220,14 +238,15 @@ test('unlink all packages', async (t: tape.Test) => {
 })
 
 test("don't warn about scoped packages when running unlink w/o params", async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
 
-  await addDependenciesToPackage(['@zkochan/logger'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['@zkochan/logger'], await testDefaults())
 
   const reporter = sinon.spy()
   await mutateModules(
     [
       {
+        manifest,
         mutation: 'unlink',
         prefix: process.cwd(),
       }
@@ -242,16 +261,17 @@ test("don't warn about scoped packages when running unlink w/o params", async (t
 })
 
 test("don't unlink package that is not a link", async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults())
 
   await mutateModules(
     [
       {
         dependencyNames: ['is-positive'],
+        manifest,
         mutation: 'unlinkSome',
         prefix: process.cwd(),
       }
@@ -266,16 +286,17 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
 })
 
 test("don't unlink package that is not a link when independent-leaves = true", async (t: tape.Test) => {
-  const project = prepare(t)
+  prepareEmpty(t)
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({ independentLeaves: true }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: true }))
 
   await mutateModules(
     [
       {
         dependencyNames: ['is-positive'],
+        manifest,
         mutation: 'unlinkSome',
         prefix: process.cwd(),
       }

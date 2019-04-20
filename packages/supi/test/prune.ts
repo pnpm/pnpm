@@ -1,6 +1,5 @@
 import { RootLog } from '@pnpm/core-loggers'
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import path = require('path')
 import sinon = require('sinon')
 import {
@@ -11,30 +10,25 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writePkg = require('write-pkg')
 import { pathToLocalPkg, testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('prune removes extraneous packages', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   const opts = await testDefaults()
-  await addDependenciesToPackage(['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
-  await addDependenciesToPackage(['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
-  await addDependenciesToPackage(['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
-  await addDependenciesToPackage(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
-  await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), opts)
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
+  manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
+  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
+  manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
+  manifest = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, manifest, prefix: process.cwd() })
 
   await project.has('hello-world-js-bin') // external link added
 
-  const pkg = await readPackageJsonFromDir(process.cwd())
-
-  delete pkg.dependencies!['is-positive']
-  delete pkg.dependencies!['@zkochan/logger']
-
-  await writePkg(pkg)
+  delete manifest.dependencies!['is-positive']
+  delete manifest.dependencies!['@zkochan/logger']
 
   const reporter = sinon.spy()
 
@@ -42,6 +36,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
     [
       {
         buildIndex: 0,
+        manifest,
         mutation: 'install',
         prefix: process.cwd(),
         pruneDirectDependencies: true,
@@ -83,12 +78,12 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 })
 
 test('prune removes dev dependencies in production', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
-  await addDependenciesToPackage(['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  await addDependenciesToPackage(['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  await install(await testDefaults({
+  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await install(manifest, await testDefaults({
     include: {
       dependencies: true,
       devDependencies: false,

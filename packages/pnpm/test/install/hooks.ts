@@ -404,3 +404,32 @@ test('readPackage hook normalizes the package manifest', async (t: tape.Test) =>
 
   t.pass('code in pnpmfile did not fail')
 })
+
+test('readPackage hook overrides project package', async (t: tape.Test) => {
+  const project = prepare(t, {
+    name: 'test-read-package-hook',
+  })
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {
+          switch (pkg.name) {
+            case 'test-read-package-hook':
+              pkg.dependencies = { 'is-positive': '1.0.0' }
+              break
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  await execPnpm('install')
+
+  await project.has('is-positive')
+
+  const pkg = await import(path.resolve('package.json'))
+  t.notOk(pkg.dependencies, 'dependencies added by the hooks not saved in package.json')
+})

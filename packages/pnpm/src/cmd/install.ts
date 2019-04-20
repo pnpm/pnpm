@@ -1,9 +1,11 @@
-import { getSaveType } from '@pnpm/utils'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { getSaveType, safeReadPackageFromDir } from '@pnpm/utils'
 import {
   install,
   mutateModules,
   rebuild,
 } from 'supi'
+import writePkg = require('write-pkg')
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
@@ -51,18 +53,20 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
   if (!input || !input.length) {
-    await install(installOpts)
+    await install(await readPackageJsonFromDir(opts.prefix), installOpts)
   } else {
-    await mutateModules([
+    const [{ manifest }] = await mutateModules([
       {
         bin: installOpts.bin,
         dependencySelectors: input,
+        manifest: await safeReadPackageFromDir(opts.prefix) || {},
         mutation: 'installSome',
         pinnedVersion: getPinnedVersion(opts),
         prefix: installOpts.prefix,
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
+    await writePkg(opts.prefix, manifest)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {
@@ -84,6 +88,17 @@ export default async function installCmd (
 
     if (opts.ignoreScripts) return
 
-    await rebuild([{ buildIndex: 0, prefix: opts.prefix }], { ...opts, pending: true } as any) // tslint:disable-line:no-any
+    await rebuild(
+      [
+        {
+          buildIndex: 0,
+          manifest: await readPackageJsonFromDir(opts.prefix),
+          prefix: opts.prefix,
+        },
+      ], {
+        ...opts,
+        pending: true,
+      } as any, // tslint:disable-line:no-any
+    )
   }
 }

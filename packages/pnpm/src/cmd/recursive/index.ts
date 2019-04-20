@@ -1,6 +1,6 @@
-import { stageLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
-import { PackageJson } from '@pnpm/types'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
@@ -11,6 +11,7 @@ import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
+import R = require('ramda')
 import readIniFile = require('read-ini-file')
 import {
   addDependenciesToPackage,
@@ -22,6 +23,7 @@ import {
   rebuildPkgs,
   uninstall,
 } from 'supi'
+import writePkg = require('write-pkg')
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
@@ -98,7 +100,7 @@ export default async (
 }
 
 export async function recursive (
-  allPkgs: Array<{path: string, manifest: PackageJson}>,
+  allPkgs: Array<{path: string, manifest: DependencyManifest}>,
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
@@ -114,7 +116,7 @@ export async function recursive (
   }
 
   const pkgGraphResult = createPkgGraph(allPkgs)
-  let pkgs: Array<{path: string, manifest: PackageJson}>
+  let pkgs: Array<{path: string, manifest: ImporterManifest}>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
@@ -194,22 +196,28 @@ export async function recursive (
 
   const memReadLocalConfigs = mem(readLocalConfigs)
 
-  function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, prefix: string }>
-    chunks.forEach((prefixes: string[], buildIndex) => {
+  async function getImporters () {
+    const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>
+    await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
-      prefixes.forEach((prefix) => {
-        importers.push({ buildIndex, prefix })
-      })
-    })
+      return Promise.all(
+        prefixes.map(async (prefix) => {
+          importers.push({
+            buildIndex,
+            manifest: await readPackageJsonFromDir(prefix),
+            prefix,
+          })
+        })
+      )
+    }))
     return importers
   }
 
   if (cmdFullName !== 'rebuild') {
     if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
-      let importers = getImporters()
+      let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
       if (importers.length === 0) return true
@@ -217,6 +225,7 @@ export async function recursive (
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 ? 'install' : 'installSome')
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
+        const manifest = await readPackageJsonFromDir(prefix)
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -224,6 +233,7 @@ export async function recursive (
           case 'uninstallSome':
             return {
               dependencyNames: input,
+              manifest,
               mutation,
               prefix,
               shamefullyFlatten,
@@ -233,6 +243,7 @@ export async function recursive (
             return {
               allowNew: cmdFullName === 'install',
               dependencySelectors: input,
+              manifest,
               mutation,
               pinnedVersion: getPinnedVersion({
                 saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
@@ -244,6 +255,7 @@ export async function recursive (
             } as MutatedImporter
           case 'install':
             return {
+              manifest,
               buildIndex,
               mutation,
               prefix,
@@ -251,11 +263,14 @@ export async function recursive (
             } as MutatedImporter
         }
       }))
-      await mutateModules(mutatedImporters, {
+      const mutatedPkgs = await mutateModules(mutatedImporters, {
         ...installOpts,
         hooks,
         storeController: store.ctrl,
       })
+      await Promise.all(
+        mutatedPkgs.map(({ manifest, prefix }) => writePkg(prefix, manifest))
+      )
       return true
     }
 
@@ -269,10 +284,10 @@ export async function recursive (
         action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
         break
       case 'uninstall':
-        action = uninstall.bind(null, input)
+        action = R.flip(uninstall).bind(null, input)
         break
       default:
-        action = input.length === 0 ? install : addDependenciesToPackage.bind(null, input)
+        action = input.length === 0 ? install : R.flip(addDependenciesToPackage).bind(null, input)
         break
     }
     const limitInstallation = pLimit(opts.workspaceConcurrency)
@@ -284,19 +299,23 @@ export async function recursive (
             return
           }
           const localConfigs = await memReadLocalConfigs(prefix)
-          await action({
-            ...installOpts,
-            ...localConfigs,
-            bin: path.join(prefix, 'node_modules', '.bin'),
-            hooks,
-            ignoreScripts: true,
-            prefix,
-            rawNpmConfig: {
-              ...installOpts.rawNpmConfig,
+          const newPkg = await action(
+            await readPackageJsonFromDir(prefix),
+            {
+              ...installOpts,
               ...localConfigs,
+              bin: path.join(prefix, 'node_modules', '.bin'),
+              hooks,
+              ignoreScripts: true,
+              prefix,
+              rawNpmConfig: {
+                ...installOpts.rawNpmConfig,
+                ...localConfigs,
+              },
+              storeController,
             },
-            storeController,
-          })
+          )
+          await writePkg(prefix, newPkg)
           result.passes++
         } catch (err) {
           logger.info(err)
@@ -329,7 +348,7 @@ export async function recursive (
       : (importers: any, opts: any) => rebuildPkgs(importers, input, opts) // tslint:disable-line
     )
     if (opts.lockfileDirectory) {
-      const importers = getImporters()
+      const importers = await getImporters()
       await action(
         importers,
         {
@@ -349,7 +368,13 @@ export async function recursive (
             }
             const localConfigs = await memReadLocalConfigs(prefix)
             await action(
-              [{ buildIndex: 0, prefix }],
+              [
+                {
+                  buildIndex: 0,
+                  manifest: await readPackageJsonFromDir(prefix),
+                  prefix,
+                },
+              ],
               {
                 ...installOpts,
                 ...localConfigs,
@@ -388,10 +413,11 @@ export async function recursive (
   return true
 }
 
-function unlink (opts: any) { // tslint:disable-line:no-any
+async function unlink (manifest: ImporterManifest, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
+        manifest,
         mutation: 'unlink',
         prefix: opts.prefix,
       },
@@ -400,11 +426,12 @@ function unlink (opts: any) { // tslint:disable-line:no-any
   )
 }
 
-function unlinkPkgs (dependencyNames: string[], opts: any) { // tslint:disable-line:no-any
+async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
         dependencyNames,
+        manifest,
         mutation: 'unlinkSome',
         prefix: opts.prefix,
       },

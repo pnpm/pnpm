@@ -1,10 +1,10 @@
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { PackageJson } from '@pnpm/types'
+import { DependencyManifest } from '@pnpm/types'
 import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 
-export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: PackageJson}>> => {
+export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: DependencyManifest}>> => {
   const packagesManifest = await requirePackagesManifest(workspaceRoot)
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
@@ -30,7 +30,7 @@ async function requirePackagesManifest (dir: string): Promise<{packages: string[
 }
 
 export function arrayOfLocalPackagesToMap (
-  pkgs: Array<{path: string, manifest: PackageJson}>,
+  pkgs: Array<{path: string, manifest: DependencyManifest}>,
 ) {
   return pkgs.reduce((acc, pkg) => {
     if (!acc[pkg.manifest.name]) {

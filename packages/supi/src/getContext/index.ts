@@ -5,16 +5,13 @@ import {
   IncludedDependencies,
   Modules,
 } from '@pnpm/modules-yaml'
-import readManifests from '@pnpm/read-manifests'
+import readImportersContext from '@pnpm/read-importers-context'
 import {
   DEPENDENCIES_FIELDS,
-  PackageJson,
+  ImporterManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import {
-  safeReadPackageFromDir as safeReadPkgFromDir,
-} from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
@@ -28,9 +25,9 @@ export interface PnpmContext<T> {
   importers: Array<{
     bin: string,
     hoistedAliases: {[depPath: string]: string[]}
+    manifest: ImporterManifest,
     modulesDir: string,
     id: string,
-    pkg: PackageJson,
     prefix: string,
     shamefullyFlatten: boolean,
   } & T>,
@@ -47,6 +44,7 @@ export interface PnpmContext<T> {
 
 export interface ImportersOptions {
   bin?: string,
+  manifest: ImporterManifest,
   prefix: string,
   shamefullyFlatten?: boolean,
 }
@@ -68,12 +66,12 @@ export default async function getContext<T> (
     useLockfile: boolean,
   },
 ): Promise<PnpmContext<T>> {
-  const manifests = await readManifests(importers, opts.lockfileDirectory, {
+  const importersContext = await readImportersContext(importers, opts.lockfileDirectory, {
     shamefullyFlatten: opts.shamefullyFlatten,
   })
 
-  if (manifests.modules) {
-    await validateNodeModules(manifests.modules, manifests.importers, {
+  if (importersContext.modules) {
+    await validateNodeModules(importersContext.modules, importersContext.importers, {
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
@@ -84,43 +82,36 @@ export default async function getContext<T> (
 
   await mkdirp(opts.store)
 
-  manifests.importers.forEach((importer) => {
+  importers.forEach((importer) => {
     packageJsonLogger.debug({
-      initial: importer.pkg,
+      initial: importer.manifest,
       prefix: importer.prefix,
     })
   })
   if (opts.hooks && opts.hooks.readPackage) {
-    manifests.importers = manifests.importers.map((importer) => ({
+    importers = importers.map((importer) => ({
       ...importer,
-      pkg: opts.hooks!.readPackage!(importer.pkg),
+      manifest: opts.hooks!.readPackage!(importer.manifest),
     }))
   }
 
-  const importerOptionsByPrefix = importers.reduce((prev, curr) => {
-    prev[curr.prefix] = curr
-    return prev
-  }, {})
   const ctx: PnpmContext<T> = {
-    importers: manifests.importers.map((importer) => ({
-      ...importerOptionsByPrefix[importer.prefix],
-      ...importer,
-    })),
-    include: opts.include || manifests.include,
+    importers: importersContext.importers,
+    include: opts.include || importersContext.include,
     lockfileDirectory: opts.lockfileDirectory,
-    modulesFile: manifests.modules,
-    pendingBuilds: manifests.pendingBuilds,
+    modulesFile: importersContext.modules,
+    pendingBuilds: importersContext.pendingBuilds,
     registries: {
       ...opts.registries,
-      ...manifests.registries,
+      ...importersContext.registries,
     },
-    skipped: manifests.skipped,
+    skipped: importersContext.skipped,
     storePath: opts.store,
-    virtualStoreDir: manifests.virtualStoreDir,
+    virtualStoreDir: importersContext.virtualStoreDir,
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
-      importers: manifests.importers,
+      importers: importersContext.importers,
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
@@ -227,9 +218,9 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   hoistedAliases: {[depPath: string]: string[]}
+  manifest: ImporterManifest,
   modulesDir: string,
   importerId: string,
-  pkg: PackageJson,
   prefix: string,
   include: IncludedDependencies,
   modulesFile: Modules | null,
@@ -243,6 +234,7 @@ export interface PnpmSingleContext {
 }
 
 export async function getContextForSingleImporter (
+  manifest: ImporterManifest,
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
@@ -259,7 +251,15 @@ export async function getContextForSingleImporter (
     useLockfile: boolean,
   },
 ): Promise<PnpmSingleContext> {
-  const manifests = await readManifests(
+  const {
+    importers,
+    include,
+    modules,
+    pendingBuilds,
+    registries,
+    skipped,
+    virtualStoreDir,
+  } = await readImportersContext(
     [
       {
         prefix: opts.prefix,
@@ -273,12 +273,12 @@ export async function getContextForSingleImporter (
 
   const storePath = opts.store
 
-  const importer = manifests.importers[0]
+  const importer = importers[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
 
-  if (manifests.modules) {
-    await validateNodeModules(manifests.modules, manifests.importers, {
+  if (modules) {
+    await validateNodeModules(modules, importers, {
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
@@ -287,28 +287,24 @@ export async function getContextForSingleImporter (
     })
   }
 
-  const files = await Promise.all([
-    safeReadPkgFromDir(opts.prefix),
-    mkdirp(storePath),
-  ])
-  const pkg = files[0] || {} as PackageJson
+  await mkdirp(storePath)
   const ctx: PnpmSingleContext = {
     hoistedAliases: importer.hoistedAliases,
     importerId,
-    include: opts.include || manifests.include,
+    include: opts.include || include,
     lockfileDirectory: opts.lockfileDirectory,
+    manifest: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(manifest) : manifest,
     modulesDir,
-    modulesFile: manifests.modules,
-    pendingBuilds: manifests.pendingBuilds,
-    pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
+    modulesFile: modules,
+    pendingBuilds,
     prefix: opts.prefix,
     registries: {
       ...opts.registries,
-      ...manifests.registries,
+      ...registries,
     },
-    skipped: manifests.skipped,
+    skipped,
     storePath,
-    virtualStoreDir: manifests.virtualStoreDir,
+    virtualStoreDir,
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
@@ -319,7 +315,7 @@ export async function getContextForSingleImporter (
     }),
   }
   packageJsonLogger.debug({
-    initial: pkg,
+    initial: manifest,
     prefix: opts.prefix,
   })
 

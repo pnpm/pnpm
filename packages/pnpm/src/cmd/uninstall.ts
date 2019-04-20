@@ -1,7 +1,9 @@
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import {
   mutateModules,
   uninstall,
 } from 'supi'
+import writePkg = require('write-pkg')
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import { PnpmOptions } from '../types'
@@ -16,17 +18,24 @@ export default async function uninstallCmd (
     storeController: store.ctrl,
   })
   if (opts.lockfileDirectory === opts.prefix) {
-    return uninstall(input, uninstallOpts)
+    const manifest = await uninstall(await readPackageJsonFromDir(opts.prefix), input, uninstallOpts)
+    await writePkg(opts.prefix, manifest)
+    return
   }
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
     : undefined
-  return mutateModules([
-    {
-      bin: opts.bin,
-      dependencyNames: input,
-      mutation: 'uninstallSome',
-      prefix: opts.prefix,
-    },
-  ], uninstallOpts)
+  const [{ manifest }] = await mutateModules(
+    [
+      {
+        bin: opts.bin,
+        dependencyNames: input,
+        manifest: await readPackageJsonFromDir(opts.prefix),
+        mutation: 'uninstallSome',
+        prefix: opts.prefix,
+      },
+    ],
+    uninstallOpts,
+  )
+  await writePkg(opts.prefix, manifest)
 }

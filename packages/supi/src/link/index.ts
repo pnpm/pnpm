@@ -15,7 +15,8 @@ import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  PackageJson,
+  DependencyManifest,
+  ImporterManifest,
 } from '@pnpm/types'
 import {
   getSaveType,
@@ -39,6 +40,7 @@ export default async function link (
   destModules: string,
   maybeOpts: LinkOptions & {
     linkToBin?: string,
+    prefix: string,
   },
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -47,11 +49,11 @@ export default async function link (
   }
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts)
+  const ctx = await getContextForSingleImporter(opts.manifest, opts)
 
   const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
   const oldLockfile = R.clone(ctx.currentLockfile)
-  const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
+  const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
   const saveType = getSaveType(opts)
 
@@ -64,28 +66,28 @@ export default async function link (
       linkFromPath = linkFrom.path
       linkFromAlias = linkFrom.alias
     }
-    const linkedPkg = await loadJsonFile<PackageJson>(path.join(linkFromPath, 'package.json'))
+    const linkedPkg = await loadJsonFile<DependencyManifest>(path.join(linkFromPath, 'package.json'))
     specsToUpsert.push({
       name: linkedPkg.name,
       pref: getPref(linkedPkg.name, linkedPkg.name, linkedPkg.version, {
         pinnedVersion: opts.pinnedVersion,
       }),
-      saveType: (saveType || ctx.pkg && guessDependencyType(linkedPkg.name, ctx.pkg)) as DependenciesField,
+      saveType: (saveType || ctx.manifest && guessDependencyType(linkedPkg.name, ctx.manifest)) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
     const addLinkOpts = {
       linkedPkgName: linkFromAlias || linkedPkg.name,
+      manifest: ctx.manifest,
       packagePath,
-      pkg: ctx.pkg,
     }
     addLinkToLockfile(ctx.currentLockfile.importers[importerId], addLinkOpts)
     addLinkToLockfile(ctx.wantedLockfile.importers[importerId], addLinkOpts)
 
     linkedPkgs.push({
       alias: linkFromAlias || linkedPkg.name,
+      manifest: linkedPkg,
       path: linkFromPath,
-      pkg: linkedPkg,
     })
   }
 
@@ -120,24 +122,27 @@ export default async function link (
   // Otherwise would've been removed
   for (const linkedPkg of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
-    const stu = specsToUpsert.find((s) => s.name === linkedPkg.pkg.name)
+    const stu = specsToUpsert.find((s) => s.name === linkedPkg.manifest.name)
     await symlinkDirectRootDependency(linkedPkg.path, destModules, linkedPkg.alias, {
       fromDependenciesField: stu && stu.saveType || saveType,
-      linkedPackage: linkedPkg.pkg,
+      linkedPackage: linkedPkg.manifest,
       prefix: opts.prefix,
     })
   }
 
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
-  await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.pkg, location: p.path })), linkToBin, {
+  await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {
     warn: (message: string) => logger.warn({ message, prefix: opts.prefix }),
   })
 
+  let newPkg!: ImporterManifest
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
-    const newPkg = await save(opts.prefix, specsToUpsert)
+    newPkg = await save(opts.prefix, opts.manifest, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
     }
+  } else {
+    newPkg = opts.manifest
   }
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.useLockfile) {
@@ -151,6 +156,8 @@ export default async function link (
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
+
+  return newPkg
 }
 
 function addLinkToLockfile (
@@ -158,13 +165,13 @@ function addLinkToLockfile (
   opts: {
     linkedPkgName: string,
     packagePath: string,
-    pkg?: PackageJson,
+    manifest?: ImporterManifest,
   },
 ) {
   const id = `link:${opts.packagePath}`
   let addedTo: DependenciesField | undefined
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!addedTo && opts.pkg && opts.pkg[depType] && opts.pkg[depType]![opts.linkedPkgName]) {
+    if (!addedTo && opts.manifest && opts.manifest[depType] && opts.manifest[depType]![opts.linkedPkgName]) {
       addedTo = depType
       lockfileImporter[depType] = lockfileImporter[depType] || {}
       lockfileImporter[depType]![opts.linkedPkgName] = id
@@ -174,9 +181,9 @@ function addLinkToLockfile (
   }
 
   // package.json might not be available when linking to global
-  if (!opts.pkg) return
+  if (!opts.manifest) return
 
-  const availableSpec = getSpecFromPackageJson(opts.pkg, opts.linkedPkgName)
+  const availableSpec = getSpecFromPackageJson(opts.manifest, opts.linkedPkgName)
   if (availableSpec) {
     lockfileImporter.specifiers[opts.linkedPkgName] = availableSpec
   } else {

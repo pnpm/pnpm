@@ -35,7 +35,8 @@ import {
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  PackageJson,
+  DependencyManifest,
+  ImporterManifest,
   Registries,
 } from '@pnpm/types'
 import {
@@ -54,7 +55,6 @@ import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import semver = require('semver')
-import writePkg = require('write-pkg')
 import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
@@ -76,29 +76,36 @@ import linkPackages, {
 } from './link'
 import { absolutePathToRef } from './lockfile'
 
-export type DependenciesMutation = {
-  buildIndex: number,
-  mutation: 'install',
-  pruneDirectDependencies?: boolean,
-} | {
-  allowNew?: boolean,
-  dependencySelectors: string[],
-  mutation: 'installSome',
-  pruneDirectDependencies?: boolean,
-  pinnedVersion?: 'major' | 'minor' | 'patch',
-  targetDependenciesField?: DependenciesField,
-} | {
-  mutation: 'uninstallSome',
-  dependencyNames: string[],
-  targetDependenciesField?: DependenciesField,
-} | {
-  mutation: 'unlink',
-} | {
-  mutation: 'unlinkSome',
-  dependencyNames: string[],
-}
+export type DependenciesMutation = (
+  {
+    buildIndex: number,
+    mutation: 'install',
+    pruneDirectDependencies?: boolean,
+  } | {
+    allowNew?: boolean,
+    dependencySelectors: string[],
+    mutation: 'installSome',
+    pruneDirectDependencies?: boolean,
+    pinnedVersion?: 'major' | 'minor' | 'patch',
+    targetDependenciesField?: DependenciesField,
+  } | {
+    mutation: 'uninstallSome',
+    dependencyNames: string[],
+    targetDependenciesField?: DependenciesField,
+  } | {
+    mutation: 'unlink',
+  } | {
+    mutation: 'unlinkSome',
+    dependencyNames: string[],
+  }
+) & (
+  {
+    manifest: ImporterManifest,
+  }
+)
 
-export function install (
+export async function install (
+  manifest: ImporterManifest,
   opts: InstallOptions & {
     preferredVersions?: {
       [packageName: string]: {
@@ -108,16 +115,18 @@ export function install (
     },
   },
 ) {
-  return mutateModules(
+  const importers = await mutateModules(
     [
       {
         buildIndex: 0,
+        manifest,
         mutation: 'install',
         prefix: opts.prefix || process.cwd(),
       },
     ],
     opts,
   )
+  return importers[0].manifest
 }
 
 export type MutatedImporter = ImportersOptions & DependenciesMutation
@@ -147,27 +156,30 @@ export async function mutateModules (
   const ctx = await getContext(importers, opts)
 
   for (const importer of ctx.importers) {
-    if (!importer.pkg) {
+    if (!importer.manifest) {
       throw new Error(`No package.json found in "${importer.prefix}"`)
     }
   }
 
+  let result!: Array<{ prefix: string, manifest: ImporterManifest }>
   if (opts.lock) {
-    await lock(ctx.lockfileDirectory, _install, {
+    result = await lock(ctx.lockfileDirectory, _install, {
       locks: opts.locks,
       prefix: ctx.lockfileDirectory,
       stale: opts.lockStaleDuration,
       storeController: opts.storeController,
     })
   } else {
-    await _install()
+    result = await _install()
   }
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
 
-  async function _install () {
+  return result
+
+  async function _install (): Promise<Array<{ prefix: string, manifest: ImporterManifest }>> {
     const installsOnly = importers.every((importer) => importer.mutation === 'install')
     if (
       !opts.lockfileOnly &&
@@ -181,13 +193,13 @@ export async function mutateModules (
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await pEvery(ctx.importers, async (importer) =>
           !hasLocalTarballDepsInRoot(ctx.wantedLockfile, importer.id) &&
-          satisfiesPackageJson(ctx.wantedLockfile, importer.pkg, importer.id) &&
-          linkedPackagesAreUpToDate(importer.pkg, ctx.wantedLockfile.importers[importer.id], importer.prefix, opts.localPackages)
+          satisfiesPackageJson(ctx.wantedLockfile, importer.manifest, importer.id) &&
+          linkedPackagesAreUpToDate(importer.manifest, ctx.wantedLockfile.importers[importer.id], importer.prefix, opts.localPackages)
         )
       )
     ) {
       if (!ctx.existsWantedLockfile) {
-        if (ctx.importers.some((importer) => pkgHasDependencies(importer.pkg))) {
+        if (ctx.importers.some((importer) => pkgHasDependencies(importer.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
       } else {
@@ -206,8 +218,8 @@ export async function mutateModules (
             buildIndex: number,
             hoistedAliases: {[depPath: string]: string[]}
             id: string,
+            manifest: ImporterManifest,
             modulesDir: string,
-            pkg: PackageJson,
             prefix: string,
             pruneDirectDependencies?: boolean,
             shamefullyFlatten: boolean,
@@ -230,13 +242,13 @@ export async function mutateModules (
           userAgent: opts.userAgent,
           wantedLockfile: ctx.wantedLockfile,
         })
-        return
+        return importers
       }
     }
 
     const importersToInstall = [] as ImporterToUpdate[]
 
-    const importersToBeInstalled = ctx.importers.filter((importer) => importer.mutation === 'install') as Array<{ buildIndex: number, prefix: string, pkg: PackageJson, modulesDir: string }>
+    const importersToBeInstalled = ctx.importers.filter((importer) => importer.mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
     const scriptsOpts = {
       rawNpmConfig: opts.rawNpmConfig,
       stdio: opts.ownLifecycleHooksStdio,
@@ -272,9 +284,9 @@ export async function mutateModules (
           break
         }
         case 'installSome': {
-          const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.pkg)
-          const optionalDependencies = importer.targetDependenciesField ? {} : importer.pkg.optionalDependencies || {}
-          const devDependencies = importer.targetDependenciesField ? {} : importer.pkg.devDependencies || {}
+          const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.manifest)
+          const optionalDependencies = importer.targetDependenciesField ? {} : importer.manifest.optionalDependencies || {}
+          const devDependencies = importer.targetDependenciesField ? {} : importer.manifest.devDependencies || {}
           const wantedDeps = parseWantedDependencies(importer.dependencySelectors, {
             allowNew: importer.allowNew !== false,
             currentPrefs,
@@ -302,7 +314,7 @@ export async function mutateModules (
             packageDirs,
             (packageDir: string) => isExternalLink(ctx.storePath, importer.modulesDir, packageDir),
           )
-          const allDeps = getAllDependenciesFromPackage(importer.pkg)
+          const allDeps = getAllDependenciesFromPackage(importer.manifest)
           const packagesToInstall: string[] = []
           for (const pkgName of externalPackages) {
             await rimraf(path.join(importer.modulesDir, pkgName))
@@ -310,7 +322,7 @@ export async function mutateModules (
               packagesToInstall.push(pkgName)
             }
           }
-          if (!packagesToInstall.length) return
+          if (!packagesToInstall.length) return importers
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
@@ -319,7 +331,7 @@ export async function mutateModules (
         }
         case 'unlinkSome': {
           const packagesToInstall: string[] = []
-          const allDeps = getAllDependenciesFromPackage(importer.pkg)
+          const allDeps = getAllDependenciesFromPackage(importer.manifest)
           for (const depName of importer.dependencyNames) {
             try {
               if (!await isExternalLink(ctx.storePath, importer.modulesDir, depName)) {
@@ -337,7 +349,7 @@ export async function mutateModules (
               packagesToInstall.push(depName)
             }
           }
-          if (!packagesToInstall.length) return
+          if (!packagesToInstall.length) return importers
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
@@ -348,17 +360,17 @@ export async function mutateModules (
     }
 
     async function installCase (importer: any) { // tslint:disable-line:no-any
-      const wantedDeps = getWantedDependencies(importer.pkg)
+      const wantedDeps = getWantedDependencies(importer.manifest)
 
       if (ctx.wantedLockfile && ctx.wantedLockfile.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDeps)
       }
-      const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
-      if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
-        (importer.pkg.scripts.preinstall || importer.pkg.scripts.prepublish ||
-          importer.pkg.scripts.install ||
-          importer.pkg.scripts.postinstall ||
-          importer.pkg.scripts.prepare)
+      const scripts = !opts.ignoreScripts && importer.manifest && importer.manifest.scripts || {}
+      if (opts.ignoreScripts && importer.manifest && importer.manifest.scripts &&
+        (importer.manifest.scripts.preinstall || importer.manifest.scripts.prepublish ||
+          importer.manifest.scripts.install ||
+          importer.manifest.scripts.postinstall ||
+          importer.manifest.scripts.prepare)
       ) {
         ctx.pendingBuilds.push(importer.id)
       }
@@ -396,7 +408,7 @@ export async function mutateModules (
       // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
       !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
     )
-    await installInContext(importersToInstall, ctx, {
+    const result = await installInContext(importersToInstall, ctx, {
       ...opts,
       makePartialCurrentLockfile,
       update: opts.update || !installsOnly,
@@ -410,6 +422,8 @@ export async function mutateModules (
         scriptsOpts,
       )
     }
+
+    return result
   }
 }
 
@@ -421,11 +435,11 @@ async function isExternalLink (store: string, modules: string, pkgName: string) 
   return !link.isInner && !isSubdir(store, link.target)
 }
 
-function pkgHasDependencies (pkg: PackageJson) {
+function pkgHasDependencies (manifest: ImporterManifest) {
   return Boolean(
-    R.keys(pkg.dependencies).length ||
-    R.keys(pkg.devDependencies).length ||
-    R.keys(pkg.optionalDependencies).length
+    R.keys(manifest.dependencies).length ||
+    R.keys(manifest.devDependencies).length ||
+    R.keys(manifest.optionalDependencies).length
   )
 }
 
@@ -488,7 +502,7 @@ function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDe
 }
 
 async function linkedPackagesAreUpToDate (
-  pkg: PackageJson,
+  manifest: ImporterManifest,
   lockfileImporter: LockfileImporter,
   prefix: string,
   localPackages?: LocalPackages,
@@ -496,7 +510,7 @@ async function linkedPackagesAreUpToDate (
   const localPackagesByDirectory = localPackages ? getLocalPackagesByDirectory(localPackages) : {}
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = lockfileImporter[depField]
-    const pkgDeps = pkg[depField]
+    const pkgDeps = manifest[depField]
     if (!importerDeps || !pkgDeps) continue
     const depNames = Object.keys(importerDeps)
     for (const depName of depNames) {
@@ -538,6 +552,7 @@ function refIsLocalTarball (ref: string) {
 }
 
 export async function addDependenciesToPackage (
+  manifest: ImporterManifest,
   dependencySelectors: string[],
   opts: InstallOptions & {
     allowNew?: boolean,
@@ -546,11 +561,12 @@ export async function addDependenciesToPackage (
     targetDependenciesField?: DependenciesField,
   },
 ) {
-  return mutateModules(
+  const importers = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
         dependencySelectors,
+        manifest,
         mutation: 'installSome',
         pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
@@ -562,6 +578,7 @@ export async function addDependenciesToPackage (
       ...opts,
       lockfileDirectory: opts.lockfileDirectory || opts.prefix,
     })
+  return importers[0].manifest
 }
 
 type ImporterToUpdate = {
@@ -569,10 +586,10 @@ type ImporterToUpdate = {
   hoistedAliases: {[depPath: string]: string[]},
   id: string,
   linkedPackages: Array<WantedDependency & {alias: string}>,
+  manifest: ImporterManifest,
   modulesDir: string,
   newPkgRawSpecs: string[],
   nonLinkedPackages: WantedDependency[],
-  pkg: PackageJson,
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
@@ -625,8 +642,7 @@ async function installInContext (
     importers
       .map(async (importer) => {
         if (importer.mutation !== 'uninstallSome') return
-        const pkgJsonPath = path.join(importer.prefix, 'package.json')
-        importer.pkg = await removeDeps(pkgJsonPath, importer.dependencyNames, {
+        importer.manifest = await removeDeps(importer.manifest, importer.dependencyNames, {
           prefix: importer.prefix,
           saveType: importer.targetDependenciesField,
         })
@@ -696,10 +712,10 @@ async function installInContext (
 
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
-    let newPkg: PackageJson | undefined = importer.pkg
+    let newPkg: ImporterManifest | undefined = importer.manifest
     let writePackageJson!: boolean
     if (importer.updatePackageJson && importer.mutation === 'installSome') {
-      if (!importer.pkg) {
+      if (!importer.manifest) {
         throw new Error('Cannot save because no package.json found')
       }
       writePackageJson = true
@@ -725,6 +741,7 @@ async function installInContext (
       }
       newPkg = await save(
         importer.prefix,
+        importer.manifest,
         specsToUsert,
         { dryRun: true },
       )
@@ -732,7 +749,7 @@ async function installInContext (
       writePackageJson = false
       packageJsonLogger.debug({
         prefix: importer.prefix,
-        updated: importer.pkg,
+        updated: importer.manifest,
       })
     }
 
@@ -747,10 +764,10 @@ async function installInContext (
       )
     }
 
-    const topParents = importer.pkg
+    const topParents = importer.manifest
       ? await getTopParents(
           R.difference(
-            R.keys(getAllDependenciesFromPackage(importer.pkg)),
+            R.keys(getAllDependenciesFromPackage(importer.manifest)),
             importer.newPkgRawSpecs && resolvedImporter.directDependencies
               .filter((directDep) => importer.newPkgRawSpecs.includes(directDep.specRaw))
               .map((directDep) => directDep.alias) || [],
@@ -765,8 +782,8 @@ async function installInContext (
       hoistedAliases: importer.hoistedAliases,
       id: importer.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
+      manifest: newPkg || importer.manifest,
       modulesDir: importer.modulesDir,
-      pkg: newPkg || importer.pkg,
       prefix: importer.prefix,
       pruneDirectDependencies: importer.pruneDirectDependencies,
       removePackages: importer.removePackages,
@@ -848,12 +865,6 @@ async function installInContext (
     }
   }
 
-  await Promise.all(
-    importersToLink
-      .filter((importer) => importer.writePackageJson)
-      .map((importer) => writePkg(path.join(importer.prefix, 'package.json'), importer.pkg))
-  )
-
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
     await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
@@ -906,6 +917,8 @@ async function installInContext (
   summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
   await opts.storeController.close()
+
+  return importersToLink.map((importer) => ({ prefix: importer.prefix, manifest: importer.manifest }))
 }
 
 const limitLinking = pLimit(16)
@@ -945,7 +958,7 @@ function modulesIsUpToDate (
 }
 
 function addDirectDependenciesToLockfile (
-  newPkg: PackageJson,
+  newManifest: ImporterManifest,
   lockfileImporter: LockfileImporter,
   linkedPackages: Array<WantedDependency & {alias: string}>,
   directDependencies: Array<{
@@ -969,7 +982,7 @@ function addDirectDependenciesToLockfile (
   }
 
   linkedPackages.forEach((linkedPkg) => {
-    newLockfileImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg, linkedPkg.alias)
+    newLockfileImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newManifest, linkedPkg.alias)
   })
 
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
@@ -977,9 +990,9 @@ function addDirectDependenciesToLockfile (
     return acc
   }, {})
 
-  const optionalDependencies = R.keys(newPkg.optionalDependencies)
-  const dependencies = R.difference(R.keys(newPkg.dependencies), optionalDependencies)
-  const devDependencies = R.difference(R.difference(R.keys(newPkg.devDependencies), optionalDependencies), dependencies)
+  const optionalDependencies = R.keys(newManifest.optionalDependencies)
+  const dependencies = R.difference(R.keys(newManifest.dependencies), optionalDependencies)
+  const devDependencies = R.difference(R.difference(R.keys(newManifest.devDependencies), optionalDependencies), dependencies)
   const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
 
   for (const alias of allDeps) {
@@ -998,7 +1011,7 @@ function addDirectDependenciesToLockfile (
       } else {
         newLockfileImporter.dependencies[dep.alias] = ref
       }
-      newLockfileImporter.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias)
+      newLockfileImporter.specifiers[dep.alias] = getSpecFromPackageJson(newManifest, dep.alias)
     } else if (lockfileImporter.specifiers[alias]) {
       newLockfileImporter.specifiers[alias] = lockfileImporter.specifiers[alias]
       if (lockfileImporter.dependencies && lockfileImporter.dependencies[alias]) {
@@ -1011,13 +1024,13 @@ function addDirectDependenciesToLockfile (
     }
   }
 
-  alignDependencyTypes(newPkg, newLockfileImporter)
+  alignDependencyTypes(newManifest, newLockfileImporter)
 
   return newLockfileImporter
 }
 
-function alignDependencyTypes (pkg: PackageJson, lockfileImporter: LockfileImporter) {
-  const depTypesOfAliases = getAliasToDependencyTypeMap(pkg)
+function alignDependencyTypes (manifest: ImporterManifest, lockfileImporter: LockfileImporter) {
+  const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
 
   // Aligning the dependency types in pnpm-lock.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
@@ -1030,11 +1043,11 @@ function alignDependencyTypes (pkg: PackageJson, lockfileImporter: LockfileImpor
   }
 }
 
-function getAliasToDependencyTypeMap (pkg: PackageJson) {
+function getAliasToDependencyTypeMap (manifest: ImporterManifest) {
   const depTypesOfAliases = {}
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!pkg[depType]) continue
-    for (const alias of Object.keys(pkg[depType] || {})) {
+    if (!manifest[depType]) continue
+    for (const alias of Object.keys(manifest[depType] || {})) {
       if (!depTypesOfAliases[alias]) {
         depTypesOfAliases[alias] = depType
       }
@@ -1047,8 +1060,8 @@ async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir),
   )
-  return pkgs.filter(Boolean).map((pkg: PackageJson) => ({
-    name: pkg.name,
-    version: pkg.version,
+  return pkgs.filter(Boolean).map((manifest: DependencyManifest) => ({
+    name: manifest.name,
+    version: manifest.version,
   }))
 }

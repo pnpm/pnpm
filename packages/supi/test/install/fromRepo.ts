@@ -1,7 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
-import prepare from '@pnpm/prepare'
-import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { prepareEmpty } from '@pnpm/prepare'
 import isCI = require('is-ci')
 import path = require('path')
 import exists = require('path-exists')
@@ -18,23 +17,23 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('from a github repo', async (t: tape.Test) => {
-  const project = prepare(t)
-  await addDependenciesToPackage(['kevva/is-negative'], await testDefaults())
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['kevva/is-negative'], await testDefaults())
 
   const m = project.requireModule('is-negative')
 
   t.ok(m, 'isNegative() is available')
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
-  t.deepEqual(pkgJson.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
 })
 
 test('from a github repo with different name via named installation', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage({}, ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
 
   const m = project.requireModule('say-hi')
 
@@ -51,8 +50,7 @@ test('from a github repo with different name via named installation', async (t: 
 
   t.equal(m, 'Hi', 'dep is available')
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
-  t.deepEqual(pkgJson.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(lockfile.dependencies, {
@@ -65,15 +63,15 @@ test('from a github repo with different name via named installation', async (t: 
 
 // This used to fail. Maybe won't be needed once api/install.ts gets refactored and covered with dedicated unit tests
 test('from a github repo with different name', async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
-    },
-  })
+  const project = prepareEmpty(t)
 
   const reporter = sinon.spy()
 
-  await install(await testDefaults({ reporter }))
+  const manifest = await install({
+    dependencies: {
+      'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    },
+  }, await testDefaults({ reporter }))
 
   const m = project.requireModule('say-hi')
 
@@ -90,8 +88,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 
   t.equal(m, 'Hi', 'dep is available')
 
-  const pkgJson = await readPackageJsonFromDir(process.cwd())
-  t.deepEqual(pkgJson.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(lockfile.dependencies, {
@@ -103,9 +100,9 @@ test('from a github repo with different name', async (t: tape.Test) => {
 })
 
 test('a subdependency is from a github repo with different name', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepareEmpty(t)
 
-  await addDependenciesToPackage(['has-aliased-git-dependency'], await testDefaults())
+  await addDependenciesToPackage({}, ['has-aliased-git-dependency'], await testDefaults())
 
   const m = project.requireModule('has-aliased-git-dependency')
 
@@ -129,8 +126,8 @@ test('from a git repo', async (t: tape.Test) => {
     t.skip('not testing the SSH GIT access via CI')
     return t.end()
   }
-  const project = prepare(t)
-  await addDependenciesToPackage(['git+ssh://git@github.com/kevva/is-negative.git'], await testDefaults())
+  const project = prepareEmpty(t)
+  await addDependenciesToPackage({}, ['git+ssh://git@github.com/kevva/is-negative.git'], await testDefaults())
 
   const m = project.requireModule('is-negative')
 
@@ -142,9 +139,9 @@ test('from a git repo', async (t: tape.Test) => {
 const isTravis = process.env.TRAVIS === 'true'
 if (!isTravis) {
   test('from a non-github git repo', async (t: tape.Test) => {
-    const project = prepare(t)
+    const project = prepareEmpty(t)
 
-    await addDependenciesToPackage(['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], await testDefaults())
+    await addDependenciesToPackage({}, ['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], await testDefaults())
 
     const m = project.requireModule('ikt')
 

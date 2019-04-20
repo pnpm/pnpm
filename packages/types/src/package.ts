@@ -40,10 +40,9 @@ export type PackageScripts = {
   postshrinkwrap?: string,
 }
 
-export interface PackageJson {
-  name: string,
-  version: string,
-  private?: boolean,
+interface BaseManifest {
+  name?: string,
+  version?: string,
   bin?: PackageBin,
   directories?: {
     bin?: string,
@@ -64,26 +63,22 @@ export interface PackageJson {
   os?: string[],
 }
 
-// Most of the fields in PackageManifest are also in PackageJson
-// except the `deprecated` field
-export interface PackageManifest {
+export type DependencyManifest = BaseManifest & {
   name: string,
   version: string,
-  bin?: PackageBin,
-  directories?: {
-    bin?: string,
-  },
-  dependencies?: Dependencies,
-  devDependencies?: Dependencies,
-  optionalDependencies?: Dependencies,
-  peerDependencies?: Dependencies,
-  bundleDependencies?: string[],
-  bundledDependencies?: string[],
-  engines?: {
-    node?: string,
-    npm?: string,
-  },
-  cpu?: string[],
-  os?: string[],
+}
+
+// TODO: rename to ImporterManifest
+export type ImporterManifest = BaseManifest & {
+  private?: boolean,
+}
+
+export type PackageJson = BaseManifest & {
+  private?: boolean,
+}
+
+export type PackageManifest = BaseManifest & {
+  name: string,
+  version: string,
   deprecated?: string,
 }
