@@ -1172,7 +1172,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       p-limit: 2.2.0
-      p-queue: 4.0.0
+      p-queue: 5.0.0
       path-exists: 4.0.0
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
@@ -1233,7 +1233,7 @@ importers:
       nock: 10.0.6
       normalize-path: 3.0.0
       p-limit: 2.2.0
-      p-queue: 4.0.0
+      p-queue: 5.0.0
       path-exists: 4.0.0
       rename-overwrite: 2.0.1
       rimraf: 2.6.3
@@ -1344,7 +1344,6 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/minimatch': 3.0.3
       '@types/mz': 0.0.32
-      '@types/p-any': 1.1.2
       '@zkochan/libnpx': 10.0.0
       archy: 1.0.0
       camelcase: 5.3.1
@@ -1357,7 +1356,7 @@ importers:
       dir-is-case-sensitive: 1.0.0
       execa: 1.0.0
       find-packages: 4.0.1
-      get-port: 4.2.0
+      get-port: 5.0.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
       is-ci: 2.0.0
@@ -1416,7 +1415,7 @@ importers:
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
-      p-any: 1.1.0
+      p-any: 2.1.0
       path-exists: 4.0.0
       pnpm: 'link:'
       pnpm-registry-mock: 2.11.0
@@ -1467,7 +1466,6 @@ importers:
       '@types/mz': ^0.0.32
       '@types/node': '*'
       '@types/nopt': 3.0.29
-      '@types/p-any': 1.1.2
       '@types/ramda': 0.25.34
       '@types/retry': 0.12.0
       '@types/semver': 6.0.0
@@ -1490,7 +1488,7 @@ importers:
       execa: 1.0.0
       exists-link: 2.0.0
       find-packages: 4.0.1
-      get-port: 4.2.0
+      get-port: 5.0.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
       is-ci: 2.0.0
@@ -1509,7 +1507,7 @@ importers:
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       npm-scripts-info: 0.3.9
-      p-any: 1.1.0
+      p-any: 2.1.0
       p-filter: 2.1.0
       p-limit: 2.2.0
       path-absolute: 1.0.1
@@ -1863,7 +1861,6 @@ importers:
       '@types/mz': 0.0.32
       '@types/node': 11.13.5
       '@types/nopt': 3.0.29
-      '@types/p-series': 1.0.2
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
       '@types/semver': 6.0.0
@@ -1984,7 +1981,6 @@ importers:
       '@types/mz': 0.0.32
       '@types/node': '*'
       '@types/nopt': 3.0.29
-      '@types/p-series': 1.0.2
       '@types/ramda': 0.25.34
       '@types/rc': 1.1.0
       '@types/semver': 6.0.0
@@ -2649,12 +2645,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-YPqAUqoleOgbPhPK+hKIb7IHzKPCok2Kype/DBfJqenzvZjsR0V+uwZMS1FHcCKzSgn8g0J+y2q+g6yjJsAN0g==
-  /@sindresorhus/is/0.15.0:
-    dev: false
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-lu8BpxjAtRCAo5ifytTpCPCj99LF7o/2Myn+NXyNCBqvPYn7Pjd76AMmUB5l7XF1U6t0hcWrlEM5ESufW7wAeA==
   /@sinonjs/commons/1.4.0:
     dependencies:
       type-detect: 4.0.8
@@ -2680,10 +2670,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-+iTbntw2IZPb/anVDbypzfQa+ay64MW0Zo8aJ8gZPWMMK6/OubMVb6lUPMagqjOPnmtauXnFCACVl3O7ogjeqQ==
-  /@types/aggregate-error/1.0.0:
-    dev: false
-    resolution:
-      integrity: sha512-IcFSztsIxbL8XWGqsT6l4XbzvrOWS+b44MNtzAYTvxGPITTtioKNgUO3vKABLGcJciViaNOxBZl4MlpZEG1pJg==
   /@types/archy/0.0.31:
     dev: false
     resolution:
@@ -2790,19 +2776,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-Nd8y/5t/7CRakPYiyPzr/IAfYusy1FkcZYFEAcoMZkwpJv2n4Wm+olW+e7xBdHEXhOnWdG9ddbar0gqZWS4x5Q==
-  /@types/p-any/1.1.2:
-    dependencies:
-      '@types/aggregate-error': 1.0.0
-    dev: false
-    resolution:
-      integrity: sha512-Lm/tV8QgjMtiooDoO9qNsPgWiZowtO4hZ18q9p0PQ/jSsQbwGASW1s1I/sx0yXClfY24d+ONlViFuq6kiCghqw==
-  /@types/p-series/1.0.2:
-    dependencies:
-      p-series: 2.1.0
-    deprecated: 'This is a stub types definition. p-series provides its own type definitions, so you do not need this installed.'
-    dev: false
-    resolution:
-      integrity: sha512-LR/y9zMx+zg/xQxqaImPGDd14ezXVBi27d9FxlMfiYNkFUFvrryuBEcsGgLS8SXCdrUkUTGzIeiA3FVeCib4Ew==
   /@types/path-exists/3.0.0:
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
@@ -3048,15 +3021,15 @@ packages:
       node: '>= 8.0.0'
     resolution:
       integrity: sha512-McCjHBAI3FGTy9XOMDr/8qzXK4VBL3h+O/TqlBdsyiwX21SdPCQhPIX0Y1HS5ctO5m2maVQRJWEn0IrzKRB6oQ==
-  /aggregate-error/1.0.0:
+  /aggregate-error/3.0.0:
     dependencies:
-      clean-stack: 1.3.0
+      clean-stack: 2.1.0
       indent-string: 3.2.0
     dev: true
     engines:
-      node: '>=4'
+      node: '>=8'
     resolution:
-      integrity: sha1-iINE2tAiCnLjr1CQYRf0h3GSX6w=
+      integrity: sha512-yKD9kEoJIR+2IFqhMwayIBgheLYbB3PS2OBhWae1L/ODTd/JF/30cW0bc9TqzRL3k4U41Dieu3BF4I29p8xesA==
   /ajv/6.10.0:
     dependencies:
       fast-deep-equal: 2.0.1
@@ -4004,12 +3977,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-qOhPa/Fj7s6TY8H8esGu5QNpMMQxz79h+urzrNYN6mn+9BnxlDGf5QZ+XeCDsxSjPqsSR56XOZOJmpeurnLMeg==
-  /clean-stack/1.3.0:
+  /clean-stack/2.1.0:
     dev: true
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha1-noIVAa6XmYbEax1m0tQy2y/UrjE=
+      integrity: sha512-uQWrpRm+iZZUCAp7ZZJQbd4Za9I3AjR/3YTjmcnAtkauaIm/T5CT6U8zVI6e60T6OANqBFAzuR9/HB3NzuZCRA==
   /cli-box/5.0.0:
     dependencies:
       ansi-parser: 3.0.0
@@ -5329,12 +5302,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-POrVRGyS9X5w+855/H46JGVYBGuVgJXyIkbsTCzW+sv5x2qH+rfQjc7652DzkgOskF+cqLevA2En7V0hu0gZCg==
-  /get-port/4.2.0:
+  /get-port/5.0.0:
+    dependencies:
+      type-fest: 0.3.1
     dev: false
     engines:
-      node: '>=6'
+      node: '>=8'
     resolution:
-      integrity: sha512-/b3jarXkH8KJoOMQc3uVGHASwGLPq3gSFJ7tgJm2diza+bydJPTGOibin2steecKeOylE8oY2JERlVWkAJO6yw==
+      integrity: sha512-imzMU0FjsZqNa6BqOjbbW6w5BivHIuQKopjpPqcnx0AVHJQKCxK1O+Ab3OrVXhrekqfVMjwA9ZYu062R+KcIsQ==
   /get-proxy/2.1.0:
     dependencies:
       npm-conf: 1.1.3
@@ -7703,14 +7678,22 @@ packages:
     dev: false
     resolution:
       integrity: sha1-sptrsq11acTmb67yjLXXQ2EXnLQ=
-  /p-any/1.1.0:
+  /p-any/2.1.0:
     dependencies:
-      p-some: 2.0.1
+      p-cancelable: 2.0.0
+      p-some: 4.1.0
+      type-fest: 0.3.1
     dev: true
     engines:
-      node: '>=4'
+      node: '>=8'
     resolution:
-      integrity: sha512-Ef0tVa4CZ5pTAmKn+Cg3w8ABBXh+hHO1aV8281dKOoUHfX+3tjG2EaFcC+aZyagg9b4EYGsHEjz21DnEE8Og2g==
+      integrity: sha512-JAERcaMBLYKMq+voYw36+x5Dgh47+/o7yuv2oQYuSSUml4YeqJEFznBrY2UeEkoSHqBua6hz518n/PsowTYLLg==
+  /p-cancelable/2.0.0:
+    dev: true
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-wvPXDmbMmu2ksjkB4Z3nZWTSkJEb9lqVdMaCKpZUGJG9TMiNp9XcbG3fn9fPKjem04fJMJnXoyFPk2FmgiaiNg==
   /p-defer/1.0.0:
     dev: false
     engines:
@@ -7786,37 +7769,23 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-y3b8Kpd8OAN444hxfBbFfj1FY/RjtTd8tzYwhUqNYXx0fXx2iX4maP4Qr6qhIKbQXI02wTLAda4fYUbDagTUFw==
-  /p-queue/4.0.0:
+  /p-queue/5.0.0:
     dependencies:
       eventemitter3: 3.1.0
     dev: false
     engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-3cRXXn3/O0o3+eVmUroJPSj/esxoEFIm0ZOno/T+NzG/VZgPOqQ8WKmlNqubSEpZmCIngEy34unkHGg83ZIBmg==
-  /p-reduce/2.1.0:
-    dev: false
-    engines:
       node: '>=8'
     resolution:
-      integrity: sha512-2USApvnsutq8uoxZBGbbWM0JIYLiEMJ9RlaN7fAzVNb9OZN0SHjjTTfIcb667XynS5Y1VhwDJVDa72TnPzAYWw==
-  /p-series/2.1.0:
+      integrity: sha512-6QfeouDf236N+MAxHch0CVIy8o/KBnmhttKjxZoOkUlzqU+u9rZgEyXH3OdckhTgawbqf5rpzmyR+07+Lv0+zg==
+  /p-some/4.1.0:
     dependencies:
-      '@sindresorhus/is': 0.15.0
-      p-reduce: 2.1.0
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-vEAnkG1ikRT1kPBrKwpj7AFYQkd1hjt/oHeppxtpoPxy5gEt+OWiHZJN3tMqvFa+UJfVwO3lwHoMUpMYBLKnaQ==
-  /p-some/2.0.1:
-    dependencies:
-      aggregate-error: 1.0.0
+      aggregate-error: 3.0.0
+      p-cancelable: 2.0.0
     dev: true
     engines:
-      node: '>=4'
+      node: '>=8'
     resolution:
-      integrity: sha1-Zdh8ixVO289SIdFnd4ttLhUPbwY=
+      integrity: sha512-MF/HIbq6GeBqTrTIl5OJubzkGU+qfFhAFi0gnTAK6rgEIJIknEiABHOTtQu4e6JiXjIwuMPMUFQzyHh5QjCl1g==
   /p-try/1.0.0:
     dev: true
     engines:

@@ -69,22 +69,6 @@
       "allowedVersions": "0.25.34"
     },
     {
-      "packageNames": ["p-any"],
-      "allowedVersions": "<2"
-    },
-    {
-      "packageNames": ["@types/p-any"],
-      "allowedVersions": "1.1.2"
-    },
-    {
-      "packageNames": ["get-port"],
-      "allowedVersions": "<5"
-    },
-    {
-      "packageNames": ["p-queue"],
-      "allowedVersions": "<5"
-    },
-    {
       "packageNames": ["agentkeepalive"],
       "allowedVersions": "4.0.0"
     }

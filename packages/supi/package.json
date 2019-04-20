@@ -50,7 +50,6 @@
     "@types/mz": "0.0.32",
     "@types/node": "*",
     "@types/nopt": "3.0.29",
-    "@types/p-series": "1.0.2",
     "@types/ramda": "0.25.34",
     "@types/rc": "1.1.0",
     "@types/semver": "6.0.0",
