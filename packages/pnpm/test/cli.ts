@@ -81,6 +81,30 @@ test('update', async function (t: tape.Test) {
   t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
 })
 
+testOnly('update --latest', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await Promise.all([
+    addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0')
+
+  await execPnpm('update', '--latest')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
+
+  const lockfile = await project.loadLockfile()
+  t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
+  t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
+
+  const pkg = await readPackage(process.cwd())
+  // TODO: Should it preserve specs? That might be a different issue
+  t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
+  t.equal(pkg.dependencies && pkg.dependencies['bar'], '^100.1.0')
+})
+
 test('deep update', async function (t: tape.Test) {
   const project = prepare(t)
 

@@ -83,6 +83,7 @@ export interface PnpmOptions {
   lockfileDirectory?: string,
 
   // cannot be specified via configs
+  latest?: boolean,
   update?: boolean,
   reporter?: (logObj: LogBase) => void,
   packageManager?: {

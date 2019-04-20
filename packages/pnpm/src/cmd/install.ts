@@ -1,5 +1,9 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getSaveType, safeReadPackageFromDir } from '@pnpm/utils'
+import {
+  getAllDependenciesFromPackage,
+  getSaveType,
+  safeReadPackageFromDir,
+} from '@pnpm/utils'
 import {
   install,
   mutateModules,
@@ -53,7 +57,23 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
   if (!input || !input.length) {
-    await install(await readPackageJsonFromDir(opts.prefix), installOpts)
+    const manifest = await readPackageJsonFromDir(opts.prefix)
+    if (opts.update && opts.latest) {
+      const allDeps = getAllDependenciesFromPackage(manifest)
+      const [updatedImporter] = await mutateModules([
+        {
+          bin: installOpts.bin,
+          dependencySelectors: Object.keys(allDeps).map((depName) => `${depName}@latest`),
+          manifest: await safeReadPackageFromDir(opts.prefix) || {},
+          mutation: 'installSome',
+          pinnedVersion: getPinnedVersion(opts),
+          prefix: installOpts.prefix,
+        },
+      ], installOpts)
+      await writePkg(opts.prefix, updatedImporter.manifest)
+    } else {
+      await install(manifest, installOpts)
+    }
   } else {
     const [{ manifest }] = await mutateModules([
       {

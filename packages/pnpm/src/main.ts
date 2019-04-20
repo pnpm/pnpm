@@ -87,6 +87,7 @@ export default async function run (argv: string[]) {
     'd': ['--loglevel', 'info'],
     'dd': ['--loglevel', 'verbose'],
     'ddd': ['--loglevel', 'silly'],
+    'L': ['--latest'],
     'noreg': ['--no-registry'],
     'N': ['--no-registry'],
     'r': ['--recursive'],
