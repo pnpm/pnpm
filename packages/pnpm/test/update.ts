@@ -80,6 +80,30 @@ test('update --latest specific dependency', async function (t: tape.Test) {
   t.equal(pkg.dependencies && pkg.dependencies['foo'], '100.0.0')
 })
 
+test('update --latest --prod', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await Promise.all([
+    addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+  ])
+
+  await execPnpm('install', '-D', 'dep-of-pkg-with-1-dep@100.0.0')
+  await execPnpm('install', '-P', 'bar@100.0.0')
+
+  await execPnpm('update', '--latest', '--prod')
+
+  const lockfile = await project.readLockfile()
+  t.equal(lockfile.devDependencies['dep-of-pkg-with-1-dep'], '100.0.0')
+  t.equal(lockfile.dependencies['bar'], '100.1.0')
+
+  const pkg = await readPackage(process.cwd())
+  t.equal(pkg.devDependencies && pkg.devDependencies['dep-of-pkg-with-1-dep'], '100.0.0')
+  t.equal(pkg.dependencies && pkg.dependencies['bar'], '^100.1.0')
+
+  await project.has('dep-of-pkg-with-1-dep') // not pruned
+})
+
 test('recursive update --latest on projects that do not share a lockfile', async (t: tape.Test) => {
   await Promise.all([
     addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
@@ -131,6 +155,73 @@ test('recursive update --latest on projects that do not share a lockfile', async
   const lockfile2 = await projects['project-2'].readLockfile()
   t.equal(lockfile2.dependencies['bar'], '100.1.0')
   t.equal(lockfile2.dependencies['foo'], '100.1.0')
+})
+
+test('recursive update --latest --prod on projects that do not share a lockfile', async (t: tape.Test) => {
+  await Promise.all([
+    addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('foo', '100.1.0', 'latest'),
+  ])
+
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'dep-of-pkg-with-1-dep': '100.0.0',
+      },
+      devDependencies: {
+        'foo': '100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'foo': '100.0.0',
+      },
+      devDependencies: {
+        'bar': '100.0.0',
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+
+  await execPnpm('recursive', 'update', '--latest', '--prod')
+
+  const manifest1 = await readPackage(path.resolve('project-1'))
+  t.deepEqual(manifest1.dependencies, {
+    'dep-of-pkg-with-1-dep': '^101.0.0',
+  })
+  t.deepEqual(manifest1.devDependencies, {
+    'foo': '100.0.0'
+  })
+
+  const lockfile1 = await projects['project-1'].readLockfile()
+  t.equal(lockfile1.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
+  t.equal(lockfile1.devDependencies['foo'], '100.0.0')
+
+  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('foo')
+
+  const manifest2 = await readPackage(path.resolve('project-2'))
+  t.deepEqual(manifest2.dependencies, {
+    'foo': '^100.1.0',
+  })
+  t.deepEqual(manifest2.devDependencies, {
+    'bar': '100.0.0',
+  })
+
+  const lockfile2 = await projects['project-2'].readLockfile()
+  t.equal(lockfile2.devDependencies['bar'], '100.0.0')
+  t.equal(lockfile2.dependencies['foo'], '100.1.0')
+
+  await projects['project-2'].has('bar')
+  await projects['project-2'].has('foo')
 })
 
 test('recursive update --latest specific dependency on projects that do not share a lockfile', async (t: tape.Test) => {
@@ -236,6 +327,71 @@ test('recursive update --latest on projects with a shared a lockfile', async (t:
   t.equal(lockfile.importers['project-1'].dependencies['foo'], '100.1.0')
   t.equal(lockfile.importers['project-2'].dependencies['bar'], '100.1.0')
   t.equal(lockfile.importers['project-2'].dependencies['foo'], '100.1.0')
+})
+
+test('recursive update --latest --prod on projects with a shared a lockfile', async (t: tape.Test) => {
+  await Promise.all([
+    addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('foo', '100.1.0', 'latest'),
+  ])
+
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'dep-of-pkg-with-1-dep': '100.0.0',
+      },
+      devDependencies: {
+        'foo': '100.0.0',
+      }
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'foo': '100.0.0',
+      },
+      devDependencies: {
+        'bar': '100.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm('recursive', 'install')
+
+  await execPnpm('recursive', 'update', '--latest', '--prod')
+
+  const manifest1 = await readPackage(path.resolve('project-1'))
+  t.deepEqual(manifest1.dependencies, {
+    'dep-of-pkg-with-1-dep': '^101.0.0',
+  })
+  t.deepEqual(manifest1.devDependencies, {
+    'foo': '100.0.0'
+  })
+
+  const manifest2 = await readPackage(path.resolve('project-2'))
+  t.deepEqual(manifest2.dependencies, {
+    'foo': '^100.1.0',
+  })
+  t.deepEqual(manifest2.devDependencies, {
+    'bar': '100.0.0',
+  })
+
+  const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // tslint:disable-line
+  t.equal(lockfile.importers['project-1'].dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
+  t.equal(lockfile.importers['project-1'].devDependencies['foo'], '100.0.0')
+  t.equal(lockfile.importers['project-2'].devDependencies['bar'], '100.0.0')
+  t.equal(lockfile.importers['project-2'].dependencies['foo'], '100.1.0')
+
+  await projects['project-1'].has('dep-of-pkg-with-1-dep')
+  await projects['project-1'].has('foo')
+  await projects['project-2'].has('foo')
+  await projects['project-2'].has('bar')
 })
 
 test('recursive update --latest specific dependency on projects with a shared a lockfile', async (t: tape.Test) => {

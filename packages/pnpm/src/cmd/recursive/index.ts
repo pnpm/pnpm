@@ -217,6 +217,10 @@ export async function recursive (
   }
 
   const updateToLatest = opts.update && opts.latest
+  const include = opts.include
+  if (updateToLatest) {
+    delete opts.include
+  }
 
   if (cmdFullName !== 'rebuild') {
     if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
@@ -235,7 +239,7 @@ export async function recursive (
         let currentInput = [...input]
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
-            currentInput = updateToLatestSpecsFromManifest(manifest)
+            currentInput = updateToLatestSpecsFromManifest(manifest, include)
           } else {
             currentInput = currentInput.map((selector) => {
               if (selector.includes('@', 1)) {
@@ -307,7 +311,7 @@ export async function recursive (
           let currentInput = [...input]
           if (updateToLatest) {
             if (!currentInput || !currentInput.length) {
-              currentInput = updateToLatestSpecsFromManifest(manifest)
+              currentInput = updateToLatestSpecsFromManifest(manifest, include)
             } else {
               currentInput = currentInput.map((selector) => {
                 if (selector.includes('@', 1)) {

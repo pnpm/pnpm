@@ -1,3 +1,4 @@
+import { DependenciesField } from './misc'
 import {
   PackageJson,
   PackageManifest,
@@ -7,13 +8,18 @@ export interface LogBase {
   level: 'debug' | 'info' | 'warn' | 'error',
 }
 
+export type IncludedDependencies = {
+  [dependenciesField in DependenciesField]: boolean
+}
+
 export interface PnpmOptions {
   rawNpmConfig?: object,
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   prefix?: string,
   bin?: string,
-  ignoreScripts?: boolean
+  ignoreScripts?: boolean,
+  include?: IncludedDependencies,
   save?: boolean,
   saveProd?: boolean,
   saveDev?: boolean,

@@ -1,4 +1,5 @@
 import {
+  IncludedDependencies,
   LogBase,
   PackageManifest,
   Registries,
@@ -40,6 +41,7 @@ export interface PnpmOptions {
   registry?: string,
   optional?: boolean,
   unsafePerm?: boolean,
+  include: IncludedDependencies,
 
   // proxy
   proxy?: string,

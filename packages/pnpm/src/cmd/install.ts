@@ -69,7 +69,7 @@ export default async function installCmd (
 
   if (opts.update && opts.latest) {
     if (!input || !input.length) {
-      input = updateToLatestSpecsFromManifest(manifest)
+      input = updateToLatestSpecsFromManifest(manifest, opts.include)
     } else {
       input = input.map((selector) => {
         if (selector.includes('@', 1)) {
@@ -78,6 +78,7 @@ export default async function installCmd (
         return `${selector}@latest`
       })
     }
+    delete installOpts.include
   }
   if (!input || !input.length) {
     await install(manifest, installOpts)
@@ -86,7 +87,7 @@ export default async function installCmd (
       {
         bin: installOpts.bin,
         dependencySelectors: input,
-        manifest: await safeReadPackageFromDir(opts.prefix) || {},
+        manifest,
         mutation: 'installSome',
         pinnedVersion: getPinnedVersion(opts),
         prefix: installOpts.prefix,
