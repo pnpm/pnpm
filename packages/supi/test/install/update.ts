@@ -26,7 +26,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('peer-c', '1.0.0', 'latest'),
   ])
 
-  const pkg = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
@@ -36,7 +36,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('foobarqar', '1.0.1', 'latest'),
   ])
 
-  await install(pkg, await testDefaults({ update: true, depth: 0 }))
+  await install(manifest, await testDefaults({ update: true, depth: 0 }))
 
   const lockfile = await project.loadLockfile()
 
@@ -53,9 +53,9 @@ test('preserve subdeps on update', async (t: tape.Test) => {
 test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['has-pkg-with-peer-only'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['has-pkg-with-peer-only'], await testDefaults())
 
-  await install(pkg, await testDefaults({ update: true, depth: Infinity }))
+  await install(manifest, await testDefaults({ update: true, depth: Infinity }))
 
   t.pass('did not fail')
 })
@@ -77,11 +77,11 @@ test('update dependency when external lockfile directory is used', async (t: tap
   await addDistTag('foo', '100.0.0', 'latest')
 
   const lockfileDirectory = path.resolve('..')
-  const pkg = await addDependenciesToPackage({}, ['foo'], await testDefaults({ lockfileDirectory }))
+  const manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ lockfileDirectory }))
 
   await addDistTag('foo', '100.1.0', 'latest')
 
-  await install(pkg, await testDefaults({ update: true, depth: 0, lockfileDirectory }))
+  await install(manifest, await testDefaults({ update: true, depth: 0, lockfileDirectory }))
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 

@@ -32,7 +32,7 @@ test("don't fail when peer dependency is fetched from GitHub", async (t) => {
 test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const opts = await testDefaults()
-  let pkg = await addDependenciesToPackage({}, ['using-ajv'], opts)
+  let manifest = await addDependenciesToPackage({}, ['using-ajv'], opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
@@ -44,12 +44,12 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   // testing that peers are reinstalled correctly using info from the lockfile
   await rimraf('node_modules')
   await rimraf(path.resolve('..', '.store'))
-  pkg = await install(pkg, await testDefaults())
+  manifest = await install(manifest, await testDefaults())
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  await addDependenciesToPackage(pkg, ['using-ajv'], await testDefaults({ update: true }))
+  await addDependenciesToPackage(manifest, ['using-ajv'], await testDefaults({ update: true }))
 
   const lockfile = await project.loadLockfile()
 
@@ -66,13 +66,13 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 test('nothing is needlessly removed from node_modules', async (t: tape.Test) => {
   prepareEmpty(t)
   const opts = await testDefaults()
-  const pkg = await addDependenciesToPackage({}, ['using-ajv', 'ajv-keywords@1.5.0'], opts)
+  const manifest = await addDependenciesToPackage({}, ['using-ajv', 'ajv-keywords@1.5.0'], opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is present')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  await uninstall(pkg, ['ajv-keywords'], opts)
+  await uninstall(manifest, ['ajv-keywords'], opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency link is not removed')
   t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is removed')
@@ -128,7 +128,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
 test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['ajv@4.10.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['ajv@4.10.0'], await testDefaults())
 
   await mkdir('pkg')
 
@@ -136,7 +136,7 @@ test('warning is not reported if the peer dependency can be required from a node
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage(pkg, ['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
+  await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -197,9 +197,9 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
 test('top peer dependency is not linked on subsequent install', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['ajv@4.10.4'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4'], await testDefaults())
 
-  await addDependenciesToPackage(pkg, ['ajv-keywords@1.5.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults())
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
   t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency is not linked')
@@ -216,7 +216,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
@@ -238,7 +238,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   // this part was failing. See issue: https://github.com/pnpm/pnpm/issues/1201
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
-  await install(pkg, await testDefaults({ update: true, depth: 100 }))
+  await install(manifest, await testDefaults({ update: true, depth: 100 }))
 })
 
 test('peer dependencies are linked when running two separate named installations', async (t: tape.Test) => {
@@ -246,8 +246,8 @@ test('peer dependencies are linked when running two separate named installations
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
-  await addDependenciesToPackage(pkg, ['abc-parent-with-ab'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['abc-parent-with-ab'], await testDefaults())
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
@@ -410,12 +410,12 @@ test('peer dependency is grouped correctly with peer installed via separate inst
   const reporter = sinon.spy()
   const lockfileDirectory = path.resolve('..')
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'abc': '1.0.0',
     },
   }, await testDefaults({ reporter, lockfileDirectory }))
-  await addDependenciesToPackage(pkg, ['peer-c@2.0.0'], await testDefaults({ reporter, lockfileDirectory }))
+  await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ reporter, lockfileDirectory }))
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc', '1.0.0_peer-c@2.0.0', NM, 'dep-of-pkg-with-1-dep')))
 })
@@ -426,7 +426,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
 
-  let pkg = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
+  let manifest = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -442,7 +442,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 
-  pkg = await install(pkg, await testDefaults({ lockfileDirectory }))
+  manifest = await install(manifest, await testDefaults({ lockfileDirectory }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -463,8 +463,8 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     [
       {
         dependencyNames: ['ajv'],
+        manifest,
         mutation: 'uninstallSome',
-        pkg,
         prefix: process.cwd(),
       },
     ],
@@ -492,7 +492,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
 
-  const pkg = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ lockfileDirectory }))
+  const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -508,7 +508,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
     })
   }
 
-  await addDependenciesToPackage(pkg, ['ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
+  await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -531,7 +531,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
 
-  const pkg = await addDependenciesToPackage({}, ['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ lockfileDirectory }))
+  const manifest = await addDependenciesToPackage({}, ['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -547,7 +547,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
     })
   }
 
-  await addDependenciesToPackage(pkg, ['peer-c@2.0.0'], await testDefaults({ lockfileDirectory }))
+  await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ lockfileDirectory }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -574,10 +574,10 @@ test('regular dependencies are not removed on update from transitive packages th
   await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
-  const pkg = await addDependenciesToPackage({}, ['abc-grand-parent-with-c@1.0.0'], await testDefaults({ lockfileDirectory }))
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c@1.0.0'], await testDefaults({ lockfileDirectory }))
 
   await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
-  await install(pkg, await testDefaults({ lockfileDirectory, update: true, depth: 2 }))
+  await install(manifest, await testDefaults({ lockfileDirectory, update: true, depth: 2 }))
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc-parent-with-ab', '1.0.1_peer-c@1.0.1', NM, 'is-positive')))
 })
@@ -591,8 +591,8 @@ test('peer dependency is resolved from parent package', async (t) => {
   await mutateModules([
     {
       dependencySelectors: ['tango@1.0.0'],
+      manifest: {},
       mutation: 'installSome',
-      pkg: {},
       prefix: path.resolve('pkg'),
     },
   ], await testDefaults())
@@ -613,8 +613,8 @@ test('peer dependency is resolved from parent package via its alias', async (t) 
   await mutateModules([
     {
       dependencySelectors: ['tango@npm:tango-tango@1.0.0'],
+      manifest: {},
       mutation: 'installSome',
-      pkg: {},
       prefix: path.resolve('pkg'),
     },
   ], await testDefaults())

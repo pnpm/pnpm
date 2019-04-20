@@ -3,7 +3,6 @@ import { prepareEmpty } from '@pnpm/prepare'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
-  install,
   PackageManifest,
 } from 'supi'
 import tape = require('tape')
@@ -22,16 +21,16 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  function readPackageHook (pkg: PackageManifest) {
-    switch (pkg.name) {
+  function readPackageHook (manifest: PackageManifest) {
+    switch (manifest.name) {
       case 'pkg-with-1-dep':
-        if (!pkg.dependencies) {
+        if (!manifest.dependencies) {
           throw new Error('pkg-with-1-dep expected to have a dependencies field')
         }
-        pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+        manifest.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
         break
     }
-    return pkg
+    return manifest
   }
 
   const afterAllResolved = sinon.spy((lockfile: Lockfile) => {

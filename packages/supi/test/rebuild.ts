@@ -25,7 +25,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
-  const pkg = await addDependenciesToPackage({}, pkgs, await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage({}, pkgs, await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
@@ -37,7 +37,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
     [
       {
         buildIndex: 0,
-        pkg,
+        manifest,
         prefix: process.cwd(),
       },
     ],
@@ -72,9 +72,9 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
   prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
-  const pkg = await addDependenciesToPackage({}, ['link:../local-pkg', 'is-positive'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg', 'is-positive'], await testDefaults())
 
-  await rebuild([{ buildIndex: 0, pkg, prefix: process.cwd() }], await testDefaults())
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults())
 
   // see related issue https://github.com/pnpm/pnpm/issues/1155
   t.pass('rebuild did not fail')
@@ -82,7 +82,7 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
 
 test('rebuilds specific dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const pkg = await addDependenciesToPackage(
+  const manifest = await addDependenciesToPackage(
     {},
     [
       'pre-and-postinstall-scripts-example',
@@ -91,7 +91,7 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
     await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }),
   )
 
-  await rebuildPkgs([{ pkg, prefix: process.cwd() }], ['install-scripts-example-for-pnpm'], await testDefaults())
+  await rebuildPkgs([{ manifest, prefix: process.cwd() }], ['install-scripts-example-for-pnpm'], await testDefaults())
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
@@ -105,8 +105,8 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
 
 test('rebuild with pending option', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  let pkg = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
-  pkg = await addDependenciesToPackage(pkg, ['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
+  let manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
+  manifest = await addDependenciesToPackage(manifest, ['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
@@ -120,7 +120,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild([{ buildIndex: 0, pkg, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -146,7 +146,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
 test('rebuild dependencies in correct order', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.ok(modules)
@@ -155,7 +155,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, pkg, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -167,7 +167,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
 test('rebuild dependencies in correct order when node_modules uses independent-leaves', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true, independentLeaves: true }))
+  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true, independentLeaves: true }))
 
   let modules = await project.loadModules()
   t.ok(modules)
@@ -176,7 +176,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, pkg, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true }, independentLeaves: true }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true }, independentLeaves: true }))
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -234,22 +234,22 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
   const importers = [
     {
       buildIndex: 1,
-      pkg: pkgs[2],
+      manifest: pkgs[2],
       prefix: path.resolve('project-3'),
     },
     {
       buildIndex: 1,
-      pkg: pkgs[1],
+      manifest: pkgs[1],
       prefix: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
-      pkg: pkgs[0],
+      manifest: pkgs[0],
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
-      pkg: pkgs[3],
+      manifest: pkgs[3],
       prefix: path.resolve('project-0'),
     },
   ]
@@ -270,7 +270,7 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
 test('rebuild links bins', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['has-generated-bins-as-dep', 'generated-bins'], await testDefaults({ ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep', 'generated-bins'], await testDefaults({ ignoreScripts: true }))
 
   t.notOk(await exists(path.resolve('node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/.bin/cmd2')))
@@ -279,7 +279,7 @@ test('rebuild links bins', async (t: tape.Test) => {
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2')))
 
-  await rebuild([{ buildIndex: 0, pkg, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')

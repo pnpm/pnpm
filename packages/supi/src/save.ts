@@ -2,14 +2,14 @@ import { packageJsonLogger } from '@pnpm/core-loggers'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  PackageJson,
+  ImporterManifest,
 } from '@pnpm/types'
 import path = require('path')
 import writePkg = require('write-pkg')
 
 export default async function save (
   prefix: string,
-  packageJson: PackageJson,
+  packageJson: ImporterManifest,
   packageSpecs: Array<{
     name: string,
     pref?: string,
@@ -18,12 +18,12 @@ export default async function save (
   opts?: {
     dryRun?: boolean,
   }
-): Promise<PackageJson> {
+): Promise<ImporterManifest> {
   const pkgJsonPath = path.join(prefix, 'package.json')
 
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
-      const spec = packageSpec.pref || findSpec(packageSpec.name, packageJson as PackageJson)
+      const spec = packageSpec.pref || findSpec(packageSpec.name, packageJson as ImporterManifest)
       if (spec) {
         packageJson[packageSpec.saveType] = packageJson[packageSpec.saveType] || {}
         packageJson[packageSpec.saveType]![packageSpec.name] = spec
@@ -34,7 +34,7 @@ export default async function save (
         })
       }
     } else if (packageSpec.pref) {
-      const usedDepType = guessDependencyType(packageSpec.name, packageJson as PackageJson) || 'dependencies'
+      const usedDepType = guessDependencyType(packageSpec.name, packageJson as ImporterManifest) || 'dependencies'
       packageJson[usedDepType] = packageJson[usedDepType] || {}
       packageJson[usedDepType]![packageSpec.name] = packageSpec.pref
     }
@@ -47,15 +47,15 @@ export default async function save (
     prefix,
     updated: packageJson,
   })
-  return packageJson as PackageJson
+  return packageJson as ImporterManifest
 }
 
-function findSpec (depName: string, pkg: PackageJson): string | undefined {
-  const foundDepType = guessDependencyType(depName, pkg)
-  return foundDepType && pkg[foundDepType]![depName]
+function findSpec (depName: string, manifest: ImporterManifest): string | undefined {
+  const foundDepType = guessDependencyType(depName, manifest)
+  return foundDepType && manifest[foundDepType]![depName]
 }
 
-export function guessDependencyType (depName: string, pkg: PackageJson): DependenciesField | undefined {
+export function guessDependencyType (depName: string, manifest: ImporterManifest): DependenciesField | undefined {
   return DEPENDENCIES_FIELDS
-    .find((depField) => Boolean(pkg[depField] && pkg[depField]![depName]))
+    .find((depField) => Boolean(manifest[depField] && manifest[depField]![depName]))
 }

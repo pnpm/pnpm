@@ -19,13 +19,13 @@ const testOnly = promisifyTape(tape.only)
 test('from a github repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['kevva/is-negative'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['kevva/is-negative'], await testDefaults())
 
   const m = project.requireModule('is-negative')
 
   t.ok(m, 'isNegative() is available')
 
-  t.deepEqual(pkg.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
 })
 
 test('from a github repo with different name via named installation', async (t: tape.Test) => {
@@ -33,7 +33,7 @@ test('from a github repo with different name via named installation', async (t: 
 
   const reporter = sinon.spy()
 
-  const pkg = await addDependenciesToPackage({}, ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage({}, ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
 
   const m = project.requireModule('say-hi')
 
@@ -50,7 +50,7 @@ test('from a github repo with different name via named installation', async (t: 
 
   t.equal(m, 'Hi', 'dep is available')
 
-  t.deepEqual(pkg.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(lockfile.dependencies, {
@@ -67,7 +67,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
     },
@@ -88,7 +88,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 
   t.equal(m, 'Hi', 'dep is available')
 
-  t.deepEqual(pkg.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd' }, 'has been added to dependencies in package.json')
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(lockfile.dependencies, {

@@ -16,31 +16,31 @@ const testOnly = promisifyTape(tape.only)
 
 test('save to package.json (rimraf@2.5.1)', async (t) => {
   const project = prepareEmpty(t)
-  const pkg = await addDependenciesToPackage({}, ['rimraf@^2.5.1'], await testDefaults({ save: true }))
+  const manifest = await addDependenciesToPackage({}, ['rimraf@^2.5.1'], await testDefaults({ save: true }))
 
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
 
-  t.deepEqual(pkg.dependencies, { rimraf: '^2.5.1' }, 'rimraf has been added to dependencies')
+  t.deepEqual(manifest.dependencies, { rimraf: '^2.5.1' }, 'rimraf has been added to dependencies')
 })
 
 // NOTE: this works differently for global installations. See similar tests in global.ts
 test("don't override existing spec in package.json on named installation", async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  let pkg = await addDependenciesToPackage({
+  let manifest = await addDependenciesToPackage({
     dependencies: {
       'is-negative': '^1.0.0', // this will be updated
       'is-positive': '^2.0.0', // this will be kept as no newer version is available from the range
       'sec': 'sindresorhus/sec',
     },
   }, ['is-positive'], await testDefaults())
-  pkg = await addDependenciesToPackage(pkg, ['is-negative'], await testDefaults())
-  pkg = await addDependenciesToPackage(pkg, ['sec'], await testDefaults())
+  manifest = await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults())
+  manifest = await addDependenciesToPackage(manifest, ['sec'], await testDefaults())
 
   t.equal(project.requireModule('is-positive/package.json').version, '2.0.0')
   t.equal(project.requireModule('is-negative/package.json').version, '1.0.1')
 
-  t.deepEqual(pkg.dependencies, {
+  t.deepEqual(manifest.dependencies, {
     'is-negative': '^1.0.1',
     'is-positive': '^2.0.0',
     'sec': 'github:sindresorhus/sec',
@@ -49,12 +49,12 @@ test("don't override existing spec in package.json on named installation", async
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async (t) => {
   const project = prepareEmpty(t)
-  const pkg = await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  const manifest = await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tapSpec() is available')
 
-  t.deepEqual(pkg.devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
+  t.deepEqual(manifest.devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
 })
 
 test('dependency should not be added to package.json if it is already there', async (t: tape.Test) => {
@@ -62,7 +62,7 @@ test('dependency should not be added to package.json if it is already there', as
   await addDistTag('bar', '100.0.0', 'latest')
 
   const project = prepareEmpty(t)
-  const pkg = await addDependenciesToPackage({
+  const manifest = await addDependenciesToPackage({
     devDependencies: {
       foo: '^100.0.0',
     },
@@ -71,7 +71,7 @@ test('dependency should not be added to package.json if it is already there', as
     },
   }, ['foo', 'bar'], await testDefaults())
 
-  t.deepEqual(pkg, {
+  t.deepEqual(manifest, {
     devDependencies: {
       foo: '^100.0.0',
     },
@@ -94,7 +94,7 @@ test('dependencies should be updated in the fields where they already are', asyn
   await addDistTag('bar', '100.1.0', 'latest')
 
   prepareEmpty(t)
-  const pkg = await addDependenciesToPackage({
+  const manifest = await addDependenciesToPackage({
     devDependencies: {
       foo: '^100.0.0',
     },
@@ -103,7 +103,7 @@ test('dependencies should be updated in the fields where they already are', asyn
     },
   }, ['foo@latest', 'bar@latest'], await testDefaults())
 
-  t.deepEqual(pkg, {
+  t.deepEqual(manifest, {
     devDependencies: {
       foo: '^100.1.0',
     },
@@ -119,7 +119,7 @@ test('dependency should be removed from the old field when installing it as a di
   await addDistTag('qar', '100.0.0', 'latest')
 
   const project = prepareEmpty(t)
-  let pkg = await addDependenciesToPackage({
+  let manifest = await addDependenciesToPackage({
     dependencies: {
       foo: '^100.0.0',
     },
@@ -130,10 +130,10 @@ test('dependency should be removed from the old field when installing it as a di
       qar: '^100.0.0',
     },
   }, ['foo'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['bar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['qar'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['bar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['qar'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
-  t.deepEqual(pkg, {
+  t.deepEqual(manifest, {
     dependencies: {
       bar: '^100.0.0',
     },
@@ -145,9 +145,9 @@ test('dependency should be removed from the old field when installing it as a di
     },
   }, 'dependencies moved around correctly')
 
-  pkg = await addDependenciesToPackage(pkg, ['bar', 'foo', 'qar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['bar', 'foo', 'qar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
 
-  t.deepEqual(pkg, {
+  t.deepEqual(manifest, {
     dependencies: {
       bar: '^100.0.0',
       foo: '^100.0.0',
@@ -164,10 +164,10 @@ test('dependency should be removed from the old field when installing it as a di
 
   t.comment('manually editing package.json. Converting all prod deps to dev deps')
 
-  pkg.devDependencies = pkg.dependencies
-  delete pkg.dependencies
+  manifest.devDependencies = manifest.dependencies
+  delete manifest.dependencies
 
-  await install(pkg, await testDefaults())
+  await install(manifest, await testDefaults())
 
   {
     const lockfile = await project.loadCurrentLockfile()
@@ -178,7 +178,7 @@ test('dependency should be removed from the old field when installing it as a di
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const pkg = await addDependenciesToPackage({}, ['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
+  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
   const m1 = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m1 === 'function', 'tapSpec() is available')
@@ -190,13 +190,13 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
     '@rstacruz/tap-spec': '4.1.1',
     'rimraf': '2.5.1',
   }
-  t.deepEqual(pkg.dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
-  t.deepEqual(Object.keys(pkg.dependencies!).sort(), Object.keys(expectedDeps).sort(), 'tap-spec and rimraf have been added to dependencies in sorted order')
+  t.deepEqual(manifest.dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
+  t.deepEqual(Object.keys(manifest.dependencies!).sort(), Object.keys(expectedDeps).sort(), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
 
 test('save to package.json with save prefix ~', async (t: tape.Test) => {
   prepareEmpty(t)
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
-  t.deepEqual(pkg.dependencies, { 'pkg-with-1-dep': '~100.0.0' }, 'rimraf have been added to dependencies')
+  t.deepEqual(manifest.dependencies, { 'pkg-with-1-dep': '~100.0.0' }, 'rimraf have been added to dependencies')
 })

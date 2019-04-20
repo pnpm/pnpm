@@ -34,7 +34,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  const pkg = await install(
+  const manifest = await install(
     {
       dependencies: {
         'dep-of-pkg-with-1-dep': '100.0.0',
@@ -42,7 +42,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
     },
     await testDefaults(),
   )
-  await addDependenciesToPackage(pkg, ['pkg-with-1-dep'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['pkg-with-1-dep'], await testDefaults())
 
   const lockfile = await project.loadLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])

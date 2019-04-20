@@ -18,24 +18,24 @@ export default async function uninstallCmd (
     storeController: store.ctrl,
   })
   if (opts.lockfileDirectory === opts.prefix) {
-    const pkg = await uninstall(await readPackageJsonFromDir(opts.prefix), input, uninstallOpts)
-    await writePkg(opts.prefix, pkg)
+    const manifest = await uninstall(await readPackageJsonFromDir(opts.prefix), input, uninstallOpts)
+    await writePkg(opts.prefix, manifest)
     return
   }
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
     : undefined
-  const [{ pkg }] = await mutateModules(
+  const [{ manifest }] = await mutateModules(
     [
       {
         bin: opts.bin,
         dependencyNames: input,
+        manifest: await readPackageJsonFromDir(opts.prefix),
         mutation: 'uninstallSome',
-        pkg: await readPackageJsonFromDir(opts.prefix),
         prefix: opts.prefix,
       },
     ],
     uninstallOpts,
   )
-  await writePkg(opts.prefix, pkg)
+  await writePkg(opts.prefix, manifest)
 }

@@ -65,32 +65,32 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'p1',
 
         dependencies: {
           'is-positive': '^3.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('p1'),
     },
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'p2',
 
         dependencies: {
           'is-negative': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('p2'),
     },
   ]
   await mutateModules(importers, await testDefaults())
 
-  importers[0].pkg = {
+  importers[0].manifest = {
     dependencies: {
       'is-positive': '^3.1.0',
     },
@@ -107,7 +107,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
 test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is available`, async (t) => {
   const project = prepareEmpty(t)
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'is-positive': '^3.0.0',
     },
@@ -115,7 +115,7 @@ test(`frozen-lockfile: should successfully install when ${WANTED_LOCKFILE} is av
 
   await project.hasNot('is-positive')
 
-  await install(pkg, await testDefaults({ frozenLockfile: true }))
+  await install(manifest, await testDefaults({ frozenLockfile: true }))
 
   await project.has('is-positive')
 })
@@ -138,7 +138,7 @@ test(`frozen-lockfile: should fail if no ${WANTED_LOCKFILE} is present`, async (
 test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
   const project = prepareEmpty(t)
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'is-positive': '^3.0.0',
     },
@@ -147,7 +147,7 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
   await project.hasNot('is-positive')
 
   const reporter = sinon.spy()
-  await install(pkg, await testDefaults({ reporter, preferFrozenLockfile: true }))
+  await install(manifest, await testDefaults({ reporter, preferFrozenLockfile: true }))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -200,7 +200,7 @@ test(`frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and p
 test(`prefer-frozen-lockfile+shamefully-flatten: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
   const project = prepareEmpty(t)
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'pkg-with-1-dep': '100.0.0',
     },
@@ -209,7 +209,7 @@ test(`prefer-frozen-lockfile+shamefully-flatten: should prefer headless installa
   await project.hasNot('pkg-with-1-dep')
 
   const reporter = sinon.spy()
-  await install(pkg, await testDefaults({
+  await install(manifest, await testDefaults({
     preferFrozenLockfile: true,
     reporter,
     shamefullyFlatten: true,
@@ -246,26 +246,26 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'p1',
 
         dependencies: {
           p2: 'link:../p2',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('p1'),
     },
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'p2',
 
         dependencies: {
           'is-negative': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('p2'),
     },
   ]

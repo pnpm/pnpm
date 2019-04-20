@@ -365,8 +365,8 @@ function resolvePeers (
   return resolvedPeers
 }
 
-function packageFriendlyId (pkg: {name: string, version: string}) {
-  return `${pkg.name}@${pkg.version}`
+function packageFriendlyId (manifest: {name: string, version: string}) {
+  return `${manifest.name}@${manifest.version}`
 }
 
 function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTree) {

@@ -18,7 +18,7 @@ import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import shamefullyFlattenGraph from '@pnpm/shamefully-flatten'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { PackageJson, Registries } from '@pnpm/types'
+import { ImporterManifest, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import fs = require('mz/fs')
 import pLimit = require('p-limit')
@@ -44,8 +44,8 @@ export interface Importer {
   hoistedAliases: {[depPath: string]: string[]},
   id: string,
   linkedDependencies: LinkedDependency[],
+  manifest: ImporterManifest,
   modulesDir: string,
-  pkg: PackageJson,
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
@@ -210,7 +210,7 @@ export default async function linkPackages (
 
   await Promise.all(importers.map((importer) => {
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
-    const { modulesDir, pkg, prefix } = importer
+    const { manifest, modulesDir, prefix } = importer
     return Promise.all(
       R.keys(directAbsolutePathsByAlias)
         .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
@@ -221,8 +221,8 @@ export default async function linkPackages (
             (await symlinkDependency(depGraphNode.peripheralLocation, modulesDir, rootAlias)).reused
           ) return
 
-          const isDev = pkg.devDependencies && pkg.devDependencies[depGraphNode.name]
-          const isOptional = pkg.optionalDependencies && pkg.optionalDependencies[depGraphNode.name]
+          const isDev = manifest.devDependencies && manifest.devDependencies[depGraphNode.name]
+          const isOptional = manifest.optionalDependencies && manifest.optionalDependencies[depGraphNode.name]
           rootLogger.debug({
             added: {
               dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',

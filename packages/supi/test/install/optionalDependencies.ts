@@ -63,7 +63,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
-  let pkg = await install({
+  let manifest = await install({
     optionalDependencies: {
       'not-compatible-with-any-os': '*',
     },
@@ -100,7 +100,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   t.comment('a previously skipped package is successfully installed')
 
-  pkg = await addDependenciesToPackage(pkg, ['dep-of-optional-pkg'], await testDefaults())
+  manifest = await addDependenciesToPackage(manifest, ['dep-of-optional-pkg'], await testDefaults())
 
   await project.has('dep-of-optional-pkg')
 
@@ -111,7 +111,17 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   await rimraf('node_modules')
 
-  await mutateModules([{ buildIndex: 0, mutation: 'install', pkg, prefix: process.cwd() }], await testDefaults({ frozenLockfile: true }))
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        prefix: process.cwd(),
+      },
+    ],
+    await testDefaults({ frozenLockfile: true }),
+  )
 
   await project.hasNot('not-compatible-with-any-os')
   await project.has('dep-of-optional-pkg')
@@ -191,7 +201,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
 
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
@@ -217,8 +227,8 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
     [
       {
         buildIndex: 0,
+        manifest,
         mutation: 'install',
-        pkg,
         prefix: process.cwd(),
       },
     ],
@@ -237,7 +247,7 @@ test('only that package is skipped which is an optional dependency only and not 
   prepareEmpty(t)
   const reporter = sinon.spy()
 
-  const pkg = await addDependenciesToPackage({}, ['peer-c@1.0.1', 'has-optional-dep-with-peer', 'not-compatible-with-any-os-and-has-peer'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage({}, ['peer-c@1.0.1', 'has-optional-dep-with-peer', 'not-compatible-with-any-os-and-has-peer'], await testDefaults({ reporter }))
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
@@ -250,8 +260,8 @@ test('only that package is skipped which is an optional dependency only and not 
     [
       {
         buildIndex: 0,
+        manifest,
         mutation: 'install',
-        pkg,
         prefix: process.cwd(),
       },
     ],
@@ -348,7 +358,7 @@ test('only skip optional dependencies', async (t: tape.Test) => {
 test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'pre-and-postinstall-scripts-example': '1.0.0',
     },
@@ -361,7 +371,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.
 
   await rebuild([{
     buildIndex: 0,
-    pkg,
+    manifest,
     prefix: process.cwd(),
   }], await testDefaults({ pending: true, reporter }))
 
@@ -382,12 +392,11 @@ test('skip optional dependency that does not support the current OS, when doing 
     },
   ])
 
-  const [{ pkg }] = await mutateModules(
+  const [{ manifest }] = await mutateModules(
     [
       {
         buildIndex: 0,
-        mutation: 'install',
-        pkg: {
+        manifest: {
           name: 'project1',
           version: '1.0.0',
 
@@ -395,12 +404,12 @@ test('skip optional dependency that does not support the current OS, when doing 
             'not-compatible-with-any-os': '*',
           },
         },
+        mutation: 'install',
         prefix: path.resolve('project1'),
       },
       {
         buildIndex: 0,
-        mutation: 'install',
-        pkg: {
+        manifest: {
           name: 'project2',
           version: '1.0.0',
 
@@ -408,6 +417,7 @@ test('skip optional dependency that does not support the current OS, when doing 
             'pkg-with-1-dep': '100.0.0',
           },
         },
+        mutation: 'install',
         prefix: path.resolve('project2'),
       },
     ],
@@ -421,8 +431,8 @@ test('skip optional dependency that does not support the current OS, when doing 
     [
       {
         buildIndex: 0,
+        manifest,
         mutation: 'install',
-        pkg,
         prefix: path.resolve('project1'),
       },
     ],

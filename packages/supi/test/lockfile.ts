@@ -160,10 +160,10 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   const project = prepareEmpty(t)
 
   // dependends on react-onclickoutside@5.9.0
-  let pkg = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ save: true }))
 
   // dependends on react-onclickoutside@0.3.4
-  await addDependenciesToPackage(pkg, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   t.equal(
     project.requireModule('.localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
@@ -303,14 +303,14 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async (t
 
   const reporter = sinon.spy()
 
-  const pkg = await addDependenciesToPackage({
+  const manifest = await addDependenciesToPackage({
     dependencies: {
       '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
     },
   }, ['is-positive'], await testDefaults({ reporter }))
-  await install(pkg, await testDefaults({ reporter }))
+  await install(manifest, await testDefaults({ reporter }))
 
   t.notOk(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
 
@@ -323,7 +323,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   // const fooProgress = sinon.match({
   //   name: 'pnpm:progress',
   //   status: 'resolving',
-  //   pkg: {
+  //   manifest: {
   //     name: 'foo',
   //   },
   // })
@@ -331,11 +331,11 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   const pkgs = ['foo', 'bar', 'qar']
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
 
-  let pkg = await addDependenciesToPackage({}, ['foo'], await testDefaults({ save: true, reporter }))
+  let manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ save: true, reporter }))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
-  pkg = await addDependenciesToPackage(pkg, ['bar'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['qar'], await testDefaults({ addDependenciesToPackage: 'devDependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['foobar'], await testDefaults({ save: true }))
+  manifest = await addDependenciesToPackage(manifest, ['bar'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['qar'], await testDefaults({ addDependenciesToPackage: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['foobar'], await testDefaults({ save: true }))
 
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
@@ -352,7 +352,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
 
   // shouldn't care about what the registry in npmrc is
   // the one in lockfile should be used
-  await install(pkg, await testDefaults({
+  await install(manifest, await testDefaults({
     rawNpmConfig: {
       registry: 'https://registry.npmjs.org',
     },
@@ -375,7 +375,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -395,7 +395,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
 
-  await install(pkg, await testDefaults())
+  await install(manifest, await testDefaults())
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
@@ -403,19 +403,19 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
 test("recreates lockfile if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  let pkg = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['is-positive@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['map-obj@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))
+  let manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-positive@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['map-obj@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))
 
   const lockfile1 = await project.loadLockfile()
   t.equal(lockfile1.dependencies['is-negative'], '1.0.0')
   t.equal(lockfile1.specifiers['is-negative'], '1.0.0')
 
-  pkg.dependencies!['is-negative'] = '^2.1.0'
-  pkg.devDependencies!['is-positive'] = '^2.0.0'
-  pkg.optionalDependencies!['map-obj'] = '1.0.1'
+  manifest.dependencies!['is-negative'] = '^2.1.0'
+  manifest.devDependencies!['is-positive'] = '^2.0.0'
+  manifest.optionalDependencies!['map-obj'] = '1.0.1'
 
-  await install(pkg, await testDefaults())
+  await install(manifest, await testDefaults())
 
   const lockfile = await project.loadLockfile()
 
@@ -432,7 +432,7 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
 test('repeat install with lockfile should not mutate lockfile when dependency has version specified with v prefix', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['highmaps-release@5.0.11'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['highmaps-release@5.0.11'], await testDefaults())
 
   const lockfile1 = await project.loadLockfile()
 
@@ -440,7 +440,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
 
   await rimraf('node_modules')
 
-  await install(pkg, await testDefaults())
+  await install(manifest, await testDefaults())
 
   const lockfile2 = await project.loadLockfile()
 
@@ -452,11 +452,11 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
 
   t.pass('installed pkg-with-1-dep')
 
-  await addDependenciesToPackage(pkg, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   t.pass('installed optional dependency which is also a dependency of pkg-with-1-dep')
 
@@ -470,8 +470,8 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
-  await addDependenciesToPackage(pkg, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 
   const lockfile = await project.loadLockfile()
 
@@ -552,11 +552,11 @@ test('scoped module from different registry', async (t: tape.Test) => {
 test('repeat install with no inner lockfile should not rewrite packages in node_modules', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults())
 
   await rimraf(CURRENT_LOCKFILE)
 
-  await install(pkg, await testDefaults())
+  await install(manifest, await testDefaults())
 
   const m = project.requireModule('is-negative')
   t.ok(m)
@@ -570,7 +570,7 @@ test['skip']('installing from lockfile when using npm enterprise', async (t: tap
 
   const opts = await testDefaults({ registry: 'https://npm-registry.compass.com/' })
 
-  const pkg = await addDependenciesToPackage({}, ['is-positive@3.1.0'], opts)
+  const manifest = await addDependenciesToPackage({}, ['is-positive@3.1.0'], opts)
 
   const lockfile = await project.loadLockfile()
 
@@ -599,7 +599,7 @@ test['skip']('installing from lockfile when using npm enterprise', async (t: tap
   await rimraf(opts.store)
   await rimraf('node_modules')
 
-  await install(pkg, opts)
+  await install(manifest, opts)
 
   await project.has('is-positive')
 })
@@ -647,8 +647,8 @@ test('packages are placed in devDependencies even if they are present as non-dev
 test('updating package that has a github-hosted dependency', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['has-github-dep@1'], await testDefaults())
-  await addDependenciesToPackage(pkg, ['has-github-dep@latest'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['has-github-dep@1'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['has-github-dep@latest'], await testDefaults())
 
   t.pass('installation of latest did not fail')
 })
@@ -656,8 +656,8 @@ test('updating package that has a github-hosted dependency', async (t: tape.Test
 test('updating package that has deps with peers', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['abc-grand-parent-with-c@0'], await testDefaults())
-  await addDependenciesToPackage(pkg, ['abc-grand-parent-with-c@1'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c@0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['abc-grand-parent-with-c@1'], await testDefaults())
 
   t.pass('installation of latest did not fail')
 })
@@ -688,8 +688,8 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
 test('dev properties are correctly updated on named install', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  await addDependenciesToPackage(pkg, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
+  const manifest = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], `there are 0 packages with dev property in ${WANTED_LOCKFILE}`)
@@ -698,8 +698,8 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
 test('optional properties are correctly updated on named install', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  await addDependenciesToPackage(pkg, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
+  const manifest = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], `there are 0 packages with optional property in ${WANTED_LOCKFILE}`)
@@ -767,11 +767,11 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
 test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  let pkg!: PackageJson
+  let manifest!: PackageJson
   {
     const reporter = sinon.spy()
 
-    pkg = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ reporter }))
+    manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ reporter }))
 
     t.notOk(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `no warning about ignoring ${WANTED_LOCKFILE}`)
   }
@@ -779,7 +779,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
   {
     const reporter = sinon.spy()
 
-    await uninstall(pkg, ['is-positive'], await testDefaults({ useLockfile: false, reporter }))
+    await uninstall(manifest, ['is-positive'], await testDefaults({ useLockfile: false, reporter }))
 
     t.ok(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
   }
@@ -803,8 +803,8 @@ test('fail when installing with useLockfile: false and lockfileOnly: true', asyn
 test("don't remove packages during named install when useLockfile: false", async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ useLockfile: false }))
-  await addDependenciesToPackage(pkg, ['is-negative'], await testDefaults({ useLockfile: false }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ useLockfile: false }))
+  await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ useLockfile: false }))
 
   await project.has('is-positive')
   await project.has('is-negative')
@@ -874,7 +874,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   const store = path.resolve('..', '.store')
 
-  const pkg = await addDependenciesToPackage(
+  const manifest = await addDependenciesToPackage(
     {},
     [
       'pkg-with-1-dep',
@@ -923,7 +923,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('project-2')
 
-  await addDependenciesToPackage(pkg, ['is-positive'], await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }))
+  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
@@ -1029,14 +1029,14 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     [
       {
         buildIndex: 0,
+        manifest: pkg1,
         mutation: 'install',
-        pkg: pkg1,
         prefix: path.resolve('pkg1'),
       },
       {
         buildIndex: 0,
+        manifest: pkg2,
         mutation: 'install',
-        pkg: pkg2,
         prefix: path.resolve('pkg2'),
       },
     ],
@@ -1051,11 +1051,11 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
 test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was removed`, async (t) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['lodash@4.17.11', 'underscore@1.9.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['lodash@4.17.11', 'underscore@1.9.0'], await testDefaults())
 
   await rimraf(WANTED_LOCKFILE)
 
-  await addDependenciesToPackage(pkg, ['underscore@1.9.1'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['underscore@1.9.1'], await testDefaults())
 
   await project.has('lodash')
   await project.has('underscore')

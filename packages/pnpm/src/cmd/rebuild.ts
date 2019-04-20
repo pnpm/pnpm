@@ -22,7 +22,7 @@ export default async function (
       [
         {
           buildIndex: 0,
-          pkg: await readPackageJsonFromDir(rebuildOpts.prefix),
+          manifest: await readPackageJsonFromDir(rebuildOpts.prefix),
           prefix: rebuildOpts.prefix,
         },
       ],
@@ -32,7 +32,7 @@ export default async function (
   await rebuildPkgs(
     [
       {
-        pkg: await readPackageJsonFromDir(rebuildOpts.prefix),
+        manifest: await readPackageJsonFromDir(rebuildOpts.prefix),
         prefix: rebuildOpts.prefix,
       },
     ],

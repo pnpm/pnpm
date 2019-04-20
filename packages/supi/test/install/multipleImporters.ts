@@ -31,8 +31,7 @@ test('install only the dependencies of the specified importer', async (t) => {
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'project-1',
         version: '1.0.0',
 
@@ -40,12 +39,12 @@ test('install only the dependencies of the specified importer', async (t) => {
           'is-positive': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'project-2',
         version: '1.0.0',
 
@@ -53,6 +52,7 @@ test('install only the dependencies of the specified importer', async (t) => {
           'is-negative': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ]
@@ -80,11 +80,10 @@ test('dependencies of other importers are not pruned when installing for a subse
     },
   ])
 
-  const [{ pkg }] = await mutateModules([
+  const [{ manifest }] = await mutateModules([
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'project-1',
         version: '1.0.0',
 
@@ -92,12 +91,12 @@ test('dependencies of other importers are not pruned when installing for a subse
           'is-positive': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'project-2',
         version: '1.0.0',
 
@@ -105,11 +104,12 @@ test('dependencies of other importers are not pruned when installing for a subse
           'is-negative': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ], await testDefaults())
 
-  await addDependenciesToPackage(pkg, ['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
     lockfileDirectory: process.cwd(),
     prefix: path.resolve('project-1'),
   }))
@@ -144,8 +144,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'project-1',
         version: '1.0.0',
 
@@ -153,12 +152,12 @@ test('dependencies of other importers are not pruned when (headless) installing 
           'is-positive': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'project-2',
         version: '1.0.0',
 
@@ -166,12 +165,13 @@ test('dependencies of other importers are not pruned when (headless) installing 
           'is-negative': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ]
-  const [{ pkg }] = await mutateModules(importers, await testDefaults())
+  const [{ manifest }] = await mutateModules(importers, await testDefaults())
 
-  await addDependenciesToPackage(pkg, ['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
     lockfileDirectory: process.cwd(),
     lockfileOnly: true,
     prefix: path.resolve('project-1'),
@@ -190,11 +190,10 @@ test('dependencies of other importers are not pruned when (headless) installing 
 test('adding a new dev dependency to project that uses a shared lockfile', async (t) => {
   prepareEmpty(t)
 
-  let [{ pkg }] = await mutateModules([
+  let [{ manifest }] = await mutateModules([
     {
       buildIndex: 0,
-      mutation: 'install',
-      pkg: {
+      manifest: {
         name: 'project-1',
         version: '1.0.0',
 
@@ -202,13 +201,14 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
           'is-positive': '1.0.0',
         },
       },
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
   ], await testDefaults())
-  pkg = await addDependenciesToPackage(pkg, ['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
-  t.deepEqual(pkg.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
-  t.deepEqual(pkg.devDependencies, { 'is-negative': '1.0.0' }, 'dev deps have a new dependency in package.json')
+  t.deepEqual(manifest.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
+  t.deepEqual(manifest.devDependencies, { 'is-negative': '1.0.0' }, 'dev deps have a new dependency in package.json')
 })
 
 test('headless install is used when package ink to another package in the workspace', async (t) => {
@@ -234,14 +234,14 @@ test('headless install is used when package ink to another package in the worksp
   const importers: MutatedImporter[] = [
     {
       buildIndex: 0,
+      manifest: pkg1,
       mutation: 'install',
-      pkg: pkg1,
       prefix: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
+      manifest: pkg2,
       mutation: 'install',
-      pkg: pkg2,
       prefix: path.resolve('project-2'),
     },
   ]
@@ -283,8 +283,8 @@ test('current lockfile contains only installed dependencies when adding a new im
   await mutateModules([
     {
       buildIndex: 0,
+      manifest: pkg1,
       mutation: 'install',
-      pkg: pkg1,
       prefix: path.resolve('project-1'),
     },
   ], await testDefaults({ lockfileOnly: true }))
@@ -292,8 +292,8 @@ test('current lockfile contains only installed dependencies when adding a new im
   await mutateModules([
     {
       buildIndex: 0,
+      manifest: pkg2,
       mutation: 'install',
-      pkg: pkg2,
       prefix: path.resolve('project-2'),
     },
   ], await testDefaults())

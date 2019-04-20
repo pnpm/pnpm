@@ -1,10 +1,10 @@
-import { PackageJson } from '@pnpm/types'
+import { ImporterManifest } from '@pnpm/types'
 import runGroups from 'run-groups'
 import runLifecycleHook from './runLifecycleHook'
 
 export default async function runLifecycleHooksConcurrently (
   stages: string[],
-  importers: Array<{ buildIndex: number, pkg: PackageJson, prefix: string, modulesDir: string }>,
+  importers: Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string, modulesDir: string }>,
   childConcurrency: number,
   opts: {
     rawNpmConfig: object,
@@ -12,7 +12,7 @@ export default async function runLifecycleHooksConcurrently (
     unsafePerm: boolean,
   },
 ) {
-  const importersByBuildIndex = new Map<number, Array<{ prefix: string, pkg: PackageJson, modulesDir: string }>>()
+  const importersByBuildIndex = new Map<number, Array<{ prefix: string, manifest: ImporterManifest, modulesDir: string }>>()
   for (const importer of importers) {
     if (!importersByBuildIndex.has(importer.buildIndex)) {
       importersByBuildIndex.set(importer.buildIndex, [importer])
@@ -22,7 +22,7 @@ export default async function runLifecycleHooksConcurrently (
   }
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort()
   const groups = sortedBuildIndexes.map((buildIndex) => {
-    const importers = importersByBuildIndex.get(buildIndex) as Array<{ prefix: string, pkg: PackageJson, modulesDir: string }>
+    const importers = importersByBuildIndex.get(buildIndex) as Array<{ prefix: string, manifest: ImporterManifest, modulesDir: string }>
     return importers.map((importer) =>
       async () => {
         const runLifecycleHookOpts = {
@@ -34,8 +34,8 @@ export default async function runLifecycleHooksConcurrently (
           unsafePerm: opts.unsafePerm,
         }
         for (const stage of stages) {
-          if (!importer.pkg.scripts || !importer.pkg.scripts[stage]) continue
-          await runLifecycleHook(stage, importer.pkg, runLifecycleHookOpts)
+          if (!importer.manifest.scripts || !importer.manifest.scripts[stage]) continue
+          await runLifecycleHook(stage, importer.manifest, runLifecycleHookOpts)
         }
       }
     )

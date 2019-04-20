@@ -19,16 +19,16 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults()
-  let pkg = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
-  pkg = await addDependenciesToPackage(pkg, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
-  pkg = await addDependenciesToPackage(pkg, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
-  pkg = await addDependenciesToPackage(pkg, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
-  pkg = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, pkg, prefix: process.cwd() })
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
+  manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
+  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
+  manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
+  manifest = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, manifest, prefix: process.cwd() })
 
   await project.has('hello-world-js-bin') // external link added
 
-  delete pkg.dependencies!['is-positive']
-  delete pkg.dependencies!['@zkochan/logger']
+  delete manifest.dependencies!['is-positive']
+  delete manifest.dependencies!['@zkochan/logger']
 
   const reporter = sinon.spy()
 
@@ -36,8 +36,8 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
     [
       {
         buildIndex: 0,
+        manifest,
         mutation: 'install',
-        pkg,
         prefix: process.cwd(),
         pruneDirectDependencies: true,
       },
@@ -80,10 +80,10 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 test('prune removes dev dependencies in production', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  let pkg = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  pkg = await addDependenciesToPackage(pkg, ['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  await install(pkg, await testDefaults({
+  let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await install(manifest, await testDefaults({
     include: {
       dependencies: true,
       devDependencies: false,

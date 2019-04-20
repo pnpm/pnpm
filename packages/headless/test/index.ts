@@ -239,7 +239,7 @@ test('installing with independent-leaves and shamefully-flatten', async (t) => {
 
   await headless(await testDefaults({
     importers: await Promise.all(
-      importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix), })),
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
     independentLeaves: true,
     lockfileDirectory: prefix,
@@ -644,7 +644,7 @@ test('using side effects cache and shamefully-flatten', async (t) => {
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     importers: await Promise.all(
-      importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix), })),
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
     lockfileDirectory: prefix,
     sideEffectsCacheRead: true,
@@ -688,7 +688,7 @@ test('installing in a workspace', async (t) => {
   )
 
   importers = await Promise.all(
-    importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix) })),
+    importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix) })),
   )
 
   await headless(await testDefaults({
@@ -735,7 +735,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
 
   await headless(await testDefaults({
     importers: await Promise.all(
-      importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix), })),
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
     independentLeaves: true,
     lockfileDirectory: workspaceFixture,

@@ -1,5 +1,5 @@
 import { StoreController } from '@pnpm/store-controller-types'
-import { PackageJson, Registries } from '@pnpm/types'
+import { ImporterManifest, Registries } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { ReporterFunction } from '../types'
@@ -16,7 +16,7 @@ export interface LinkOptions {
   saveDev?: boolean,
   saveOptional?: boolean,
   storeController: StoreController,
-  pkg: PackageJson,
+  manifest: ImporterManifest,
   prefix?: string,
   shamefullyFlatten?: boolean,
   independentLeaves?: boolean,

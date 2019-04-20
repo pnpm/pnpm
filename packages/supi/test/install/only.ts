@@ -44,7 +44,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 test('install dev dependencies only', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
       'once': '^1.4.0',
@@ -76,7 +76,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   }
 
   // Repeat normal installation adds missing deps to node_modules
-  await install(pkg, await testDefaults())
+  await install(manifest, await testDefaults())
 
   await project.has('once')
 
@@ -91,7 +91,7 @@ test('fail if installing different types of dependencies in a project that uses 
 
   const lockfileDirectory = path.resolve('..')
 
-  const pkg = await install({
+  const manifest = await install({
     dependencies: {
       'is-positive': '1.0.0',
       'once': '^1.4.0',
@@ -116,7 +116,7 @@ test('fail if installing different types of dependencies in a project that uses 
   let err!: Error & { code: string }
 
   try {
-    await install(pkg, await testDefaults({
+    await install(manifest, await testDefaults({
       include: {
         dependencies: true,
         devDependencies: true,

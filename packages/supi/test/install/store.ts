@@ -13,7 +13,7 @@ test('repeat install with corrupted `store.json` should work', async (t: tape.Te
   const project = prepareEmpty(t)
 
   const opts = await testDefaults()
-  const pkg = await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)
+  const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], opts)
 
   await rimraf('node_modules')
 
@@ -23,7 +23,7 @@ test('repeat install with corrupted `store.json` should work', async (t: tape.Te
   // in the store, it is overwritten.
   await writeJsonFile(path.join(opts.store, '2', 'store.json'), {})
 
-  await install(pkg, opts)
+  await install(manifest, opts)
 
   const m = project.requireModule('is-negative')
   t.ok(m)

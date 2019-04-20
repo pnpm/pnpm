@@ -18,7 +18,7 @@ import {
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import { PackageJson } from '@pnpm/types'
+import { ImporterManifest } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
@@ -59,14 +59,14 @@ function findPackages (
 // TODO: move this logic to separate package as this is also used in dependencies-hierarchy
 function matches (
   searched: PackageSelector[],
-  pkg: {name: string, version?: string},
+  manifest: {name: string, version?: string},
 ) {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
-      return pkg.name === searchedPkg
+      return manifest.name === searchedPkg
     }
-    return searchedPkg.name === pkg.name && !!pkg.version &&
-      semver.satisfies(pkg.version, searchedPkg.range)
+    return searchedPkg.name === manifest.name && !!manifest.version &&
+      semver.satisfies(manifest.version, searchedPkg.range)
   })
 }
 
@@ -76,7 +76,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildPkgs (
-  importers: Array<{ pkg: PackageJson, prefix: string }>,
+  importers: Array<{ manifest: ImporterManifest, prefix: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
@@ -122,7 +122,7 @@ export async function rebuildPkgs (
 }
 
 export async function rebuild (
-  importers: Array<{ buildIndex: number, pkg: PackageJson, prefix: string }>,
+  importers: Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>,
   maybeOpts: RebuildOptions,
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -161,7 +161,7 @@ export async function rebuild (
     scriptsOpts,
   )
   for (const importer of ctx.importers) {
-    if (importer.pkg && importer.pkg.scripts && (!opts.pending || ctx.pendingBuilds.includes(importer.id))) {
+    if (importer.manifest && importer.manifest.scripts && (!opts.pending || ctx.pendingBuilds.includes(importer.id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(importer.id), 1)
     }
   }

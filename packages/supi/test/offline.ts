@@ -21,12 +21,12 @@ test('offline installation fails when package meta not found in local registry m
 test('offline installation fails when package tarball not found in local registry mirror', async (t) => {
   prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['is-positive@3.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['is-positive@3.0.0'], await testDefaults())
 
   await rimraf('node_modules')
 
   try {
-    await addDependenciesToPackage(pkg, ['is-positive@3.1.0'], await testDefaults({}, { offline: true }, { offline: true }))
+    await addDependenciesToPackage(manifest, ['is-positive@3.1.0'], await testDefaults({}, { offline: true }, { offline: true }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'ERR_PNPM_NO_OFFLINE_TARBALL', 'failed with correct error code')
@@ -36,11 +36,11 @@ test('offline installation fails when package tarball not found in local registr
 test('successful offline installation', async (t) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['is-positive@3.0.0'], await testDefaults({ save: true }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive@3.0.0'], await testDefaults({ save: true }))
 
   await rimraf('node_modules')
 
-  await install(pkg, await testDefaults({}, { offline: true }, { offline: true }))
+  await install(manifest, await testDefaults({}, { offline: true }, { offline: true }))
 
   const m = project.requireModule('is-positive')
   t.ok(typeof m === 'function', 'module is available')

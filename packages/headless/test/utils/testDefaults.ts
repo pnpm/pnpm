@@ -68,7 +68,7 @@ export default async function testDefaults (
     engineStrict: false,
     force: false,
     importers: opts.importers ? opts.importers : await Promise.all(
-      importers.map(async (importer) => ({ ...importer, pkg: await readPackageJsonFromDir(importer.prefix) }))
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix) }))
     ),
     include,
     independentLeaves: false,

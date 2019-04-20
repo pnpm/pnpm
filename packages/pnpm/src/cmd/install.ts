@@ -55,18 +55,18 @@ export default async function installCmd (
   if (!input || !input.length) {
     await install(await readPackageJsonFromDir(opts.prefix), installOpts)
   } else {
-    const [{ pkg }] = await mutateModules([
+    const [{ manifest }] = await mutateModules([
       {
         bin: installOpts.bin,
         dependencySelectors: input,
+        manifest: await safeReadPackageFromDir(opts.prefix) || {},
         mutation: 'installSome',
         pinnedVersion: getPinnedVersion(opts),
-        pkg: await safeReadPackageFromDir(opts.prefix) || {},
         prefix: installOpts.prefix,
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
-    await writePkg(opts.prefix, pkg)
+    await writePkg(opts.prefix, manifest)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {
@@ -92,7 +92,7 @@ export default async function installCmd (
       [
         {
           buildIndex: 0,
-          pkg: await readPackageJsonFromDir(opts.prefix),
+          manifest: await readPackageJsonFromDir(opts.prefix),
           prefix: opts.prefix,
         },
       ], {

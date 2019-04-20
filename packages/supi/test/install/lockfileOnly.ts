@@ -18,13 +18,13 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' })
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
 
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
   await project.hasNot('pkg-with-1-dep')
 
-  t.ok(pkg.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
+  t.ok(manifest.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
 
   const lockfile = await project.loadLockfile()
   t.ok(lockfile.dependencies['pkg-with-1-dep'])
@@ -35,7 +35,7 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   t.notOk(currentLockfile, 'current lockfile not created')
 
   t.comment(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
-  await install(pkg, opts)
+  await install(manifest, opts)
 
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
@@ -48,8 +48,8 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
-  const pkg = await addDependenciesToPackage({}, ['is-positive'], await testDefaults())
-  await addDependenciesToPackage(pkg, ['rimraf@2.5.1'], await testDefaults({
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['rimraf@2.5.1'], await testDefaults({
     lockfileOnly: true,
     reporter,
   }))
@@ -63,7 +63,7 @@ test('warn when installing with lockfileOnly = true and node_modules exists', as
   await project.storeHas('rimraf', '2.5.1')
   await project.hasNot('rimraf')
 
-  t.ok(pkg.dependencies!.rimraf, 'the new dependency added to package.json')
+  t.ok(manifest.dependencies!.rimraf, 'the new dependency added to package.json')
 
   const lockfile = await project.loadLockfile()
   t.ok(lockfile.dependencies.rimraf)

@@ -36,10 +36,10 @@ const ncp = promisify(ncpCB.ncp)
 test('uninstall package with no dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  let pkg = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
 
   const reporter = sinon.spy()
-  pkg = await uninstall(pkg, ['is-negative'], await testDefaults({ save: true, reporter }))
+  manifest = await uninstall(manifest, ['is-negative'], await testDefaults({ save: true, reporter }))
 
   t.ok(reporter.calledWithMatch({
     initial: {
@@ -80,7 +80,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
 
   await project.hasNot('is-negative')
 
-  t.deepEqual(pkg.dependencies, {}, 'is-negative has been removed from dependencies')
+  t.deepEqual(manifest.dependencies, {}, 'is-negative has been removed from dependencies')
 })
 
 test('uninstall a dependency that is not present in node_modules', async (t) => {
@@ -100,33 +100,33 @@ test('uninstall a dependency that is not present in node_modules', async (t) => 
 
 test('uninstall scoped package', async (t) => {
   const project = prepareEmpty(t)
-  let pkg = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
-  pkg = await uninstall(pkg, ['@zkochan/logger'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
+  manifest = await uninstall(manifest, ['@zkochan/logger'], await testDefaults({ save: true }))
 
   await project.storeHas('@zkochan/logger', '0.1.0')
 
   await project.hasNot('@zkochan/logger')
 
-  t.deepEqual(pkg.dependencies, {}, '@zkochan/logger has been removed from dependencies')
+  t.deepEqual(manifest.dependencies, {}, '@zkochan/logger has been removed from dependencies')
 })
 
 test('uninstall tarball dependency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const opts = await testDefaults({ save: true })
 
-  let pkg = await addDependenciesToPackage({}, ['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
-  pkg = await uninstall(pkg, ['is-array'], opts)
+  let manifest = await addDependenciesToPackage({}, ['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
+  manifest = await uninstall(manifest, ['is-array'], opts)
 
   await project.storeHas('is-array', '1.0.1')
   await project.hasNot('is-array')
 
-  t.deepEqual(pkg.dependencies, {}, 'is-array has been removed from dependencies')
+  t.deepEqual(manifest.dependencies, {}, 'is-array has been removed from dependencies')
 })
 
 test('uninstall package with dependencies and do not touch other deps', async (t) => {
   const project = prepareEmpty(t)
-  let pkg = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
-  pkg = await uninstall(pkg, ['camelcase-keys'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
+  manifest = await uninstall(manifest, ['camelcase-keys'], await testDefaults({ save: true }))
 
   await storePrune(await testDefaults())
 
@@ -142,7 +142,7 @@ test('uninstall package with dependencies and do not touch other deps', async (t
   await project.storeHas('is-negative', '2.1.0')
   await project.has('is-negative')
 
-  t.deepEqual(pkg.dependencies, { 'is-negative': '2.1.0' }, 'camelcase-keys has been removed from dependencies')
+  t.deepEqual(manifest.dependencies, { 'is-negative': '2.1.0' }, 'camelcase-keys has been removed from dependencies')
 
   const lockfile = await project.loadLockfile()
   t.deepEqual(lockfile.dependencies, {
@@ -155,8 +155,8 @@ test('uninstall package with dependencies and do not touch other deps', async (t
 
 test('uninstall package with its bin files', async (t) => {
   prepareEmpty(t)
-  let pkg = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ save: true }))
-  await uninstall(pkg, ['sh-hello-world'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ save: true }))
+  await uninstall(manifest, ['sh-hello-world'], await testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
   let stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
@@ -168,14 +168,14 @@ test('uninstall package with its bin files', async (t) => {
 
 test('relative link is uninstalled', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ pkg: {}, prefix: process.cwd() })
+  const opts = await testDefaults({ manifest: {}, prefix: process.cwd() })
 
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  const pkg = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { prefix: string, pkg: PackageJson }))
-  await uninstall(pkg, [linkedPkgName], opts)
+  const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { prefix: string, manifest: PackageJson }))
+  await uninstall(manifest, [linkedPkgName], opts)
 
   await project.hasNot(linkedPkgName)
 })
@@ -183,13 +183,13 @@ test('relative link is uninstalled', async (t: tape.Test) => {
 test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const pkg = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))
 
   const modules1 = await project.loadModules()
   t.ok(modules1)
   t.equal(modules1!.pendingBuilds.length, 2, 'install should update pendingBuilds')
 
-  await uninstall(pkg, ['with-postinstall-b'], await testDefaults({ save: true }))
+  await uninstall(manifest, ['with-postinstall-b'], await testDefaults({ save: true }))
 
   const modules2 = await project.loadModules()
   t.ok(modules2)
@@ -224,14 +224,14 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
     [
       {
         buildIndex: 0,
+        manifest: pkgs[0],
         mutation: 'install',
-        pkg: pkgs[0],
         prefix: path.resolve('project-1'),
       },
       {
         buildIndex: 0,
+        manifest: pkgs[1],
         mutation: 'install',
-        pkg: pkgs[1],
         prefix: path.resolve('project-2'),
       },
     ],
@@ -309,8 +309,8 @@ test('uninstall remove modules that is not in package.json', async (t) => {
     [
       {
         dependencyNames: ['foo'],
+        manifest: {},
         mutation: 'uninstallSome',
-        pkg: {},
         prefix: process.cwd(),
       },
     ],

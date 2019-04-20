@@ -46,7 +46,7 @@ export default async (
   if (!input || !input.length) {
     await linkToGlobal(cwd, {
       ...linkOpts,
-      pkg: await safeReadPackageFromDir(opts.globalPrefix) || {}
+      manifest: await safeReadPackageFromDir(opts.globalPrefix) || {}
     })
     return
   }
@@ -94,7 +94,7 @@ export default async (
   )
   await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,
-    pkg: await readPackageJsonFromDir(cwd),
+    manifest: await readPackageJsonFromDir(cwd),
   })
 
   await Promise.all(

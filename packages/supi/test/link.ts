@@ -36,7 +36,7 @@ test('relative link', async (t: tape.Test) => {
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
   await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults({
-    pkg: {
+    manifest: {
       dependencies: {
         'hello-world-js-bin': '*',
       },
@@ -88,12 +88,12 @@ test('relative link is not rewritten by argumentless install', async (t: tape.Te
   const opts = await testDefaults()
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  const pkg = await link(
+  const manifest = await link(
     [linkedPkgPath],
     path.join(process.cwd(), 'node_modules'),
     {
       ...opts,
-      pkg: {},
+      manifest: {},
       prefix: process.cwd(),
       reporter,
     }) // tslint:disable-line:no-any
@@ -111,7 +111,7 @@ test('relative link is not rewritten by argumentless install', async (t: tape.Te
     prefix: process.cwd(),
   } as RootLog), 'linked root dependency logged')
 
-  await install(pkg, opts)
+  await install(manifest, opts)
 
   t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal, 'link is not removed by installation')
 })
@@ -126,12 +126,12 @@ test('relative link is rewritten by named installation to regular dependency', a
   const opts = await testDefaults()
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  let pkg = await link(
+  let manifest = await link(
     [linkedPkgPath],
     path.join(process.cwd(), 'node_modules'),
     {
       ...opts,
-      pkg: {},
+      manifest: {},
       prefix: process.cwd(),
       reporter,
     },
@@ -150,9 +150,9 @@ test('relative link is rewritten by named installation to regular dependency', a
     prefix: process.cwd(),
   } as RootLog), 'linked root dependency logged')
 
-  pkg = await addDependenciesToPackage(pkg, ['hello-world-js-bin'], opts)
+  manifest = await addDependenciesToPackage(manifest, ['hello-world-js-bin'], opts)
 
-  t.deepEqual(pkg.dependencies, { 'hello-world-js-bin': '^1.0.0' })
+  t.deepEqual(manifest.dependencies, { 'hello-world-js-bin': '^1.0.0' })
 
   t.notOk(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
@@ -177,7 +177,7 @@ test('global link', async (t: tape.Test) => {
   process.chdir(linkedPkgPath)
   const globalPrefix = path.resolve('..', 'global')
   const globalBin = path.resolve('..', 'global', 'bin')
-  await linkToGlobal(process.cwd(), { ...opts, globalPrefix, globalBin, pkg: {} }) // tslint:disable-line:no-any
+  await linkToGlobal(process.cwd(), { ...opts, globalPrefix, globalBin, manifest: {} }) // tslint:disable-line:no-any
 
   await isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
 
@@ -187,7 +187,7 @@ test('global link', async (t: tape.Test) => {
 
   process.chdir(projectPath)
 
-  await linkFromGlobal([linkedPkgName], process.cwd(), { ...opts, globalPrefix, pkg: {} }) // tslint:disable-line:no-any
+  await linkFromGlobal([linkedPkgName], process.cwd(), { ...opts, globalPrefix, manifest: {} }) // tslint:disable-line:no-any
 
   await project.isExecutable('.bin/hello-world-js-bin')
 })
@@ -198,7 +198,7 @@ test('failed linking should not create empty folder', async (t: tape.Test) => {
   const globalPrefix = path.resolve('..', 'global')
 
   try {
-    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({ globalPrefix, pkg: {} }))
+    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({ globalPrefix, manifest: {} }))
     t.fail('should have failed')
   } catch (err) {
     t.notOk(await exists(path.join(globalPrefix, 'node_modules', 'does-not-exist')))
@@ -210,11 +210,11 @@ test('node_modules is pruned after linking', async (t: tape.Test) => {
 
   await writeJsonFile('../is-positive/package.json', { name: 'is-positive', version: '1.0.0' })
 
-  const pkg = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
 
   t.ok(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'))
 
-  await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ pkg, prefix: process.cwd() }))
+  await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, prefix: process.cwd() }))
 
   t.notOk(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'), 'pruned')
 })
@@ -247,7 +247,7 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
   const linkFrom = path.join(app1, `/packages/public/bar`)
   const linkTo = path.join(app2, `/packages/public/foo`, 'node_modules')
 
-  await link([linkFrom], linkTo, await testDefaults({ pkg: {}, prefix: process.cwd() }))
+  await link([linkFrom], linkTo, await testDefaults({ manifest: {}, prefix: process.cwd() }))
 
   const linkToRelLink = await fs.readlink(path.join(linkTo, 'bar'))
 

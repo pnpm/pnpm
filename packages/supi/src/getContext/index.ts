@@ -8,7 +8,7 @@ import {
 import readImportersContext from '@pnpm/read-importers-context'
 import {
   DEPENDENCIES_FIELDS,
-  PackageJson,
+  ImporterManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -25,9 +25,9 @@ export interface PnpmContext<T> {
   importers: Array<{
     bin: string,
     hoistedAliases: {[depPath: string]: string[]}
+    manifest: ImporterManifest,
     modulesDir: string,
     id: string,
-    pkg: PackageJson,
     prefix: string,
     shamefullyFlatten: boolean,
   } & T>,
@@ -44,7 +44,7 @@ export interface PnpmContext<T> {
 
 export interface ImportersOptions {
   bin?: string,
-  pkg: PackageJson,
+  manifest: ImporterManifest,
   prefix: string,
   shamefullyFlatten?: boolean,
 }
@@ -84,14 +84,14 @@ export default async function getContext<T> (
 
   importers.forEach((importer) => {
     packageJsonLogger.debug({
-      initial: importer.pkg,
+      initial: importer.manifest,
       prefix: importer.prefix,
     })
   })
   if (opts.hooks && opts.hooks.readPackage) {
     importers = importers.map((importer) => ({
       ...importer,
-      pkg: opts.hooks!.readPackage!(importer.pkg),
+      manifest: opts.hooks!.readPackage!(importer.manifest),
     }))
   }
 
@@ -218,9 +218,9 @@ export interface PnpmSingleContext {
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   hoistedAliases: {[depPath: string]: string[]}
+  manifest: ImporterManifest,
   modulesDir: string,
   importerId: string,
-  pkg: PackageJson,
   prefix: string,
   include: IncludedDependencies,
   modulesFile: Modules | null,
@@ -234,7 +234,7 @@ export interface PnpmSingleContext {
 }
 
 export async function getContextForSingleImporter (
-  pkg: PackageJson,
+  manifest: ImporterManifest,
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
@@ -293,10 +293,10 @@ export async function getContextForSingleImporter (
     importerId,
     include: opts.include || include,
     lockfileDirectory: opts.lockfileDirectory,
+    manifest: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(manifest) : manifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,
-    pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
     registries: {
       ...opts.registries,
@@ -315,7 +315,7 @@ export async function getContextForSingleImporter (
     }),
   }
   packageJsonLogger.debug({
-    initial: pkg,
+    initial: manifest,
     prefix: opts.prefix,
   })
 

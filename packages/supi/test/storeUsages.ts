@@ -68,9 +68,9 @@ test('find usages of packages in store (multiple queries)', async (t: tape.Test)
   const project = prepareEmpty(t)
 
   // Install deps
-  let pkg = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults())
+  let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults())
   await project.storeHas('is-negative', '2.1.0')
-  await addDependenciesToPackage(pkg, ['is-odd@3.0.0'], await testDefaults())
+  await addDependenciesToPackage(manifest, ['is-odd@3.0.0'], await testDefaults())
   await project.storeHas('is-odd', '3.0.0')
 
   // Find usages

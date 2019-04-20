@@ -8,8 +8,8 @@ export default async (input: string[], opts: PnpmOptions) => {
   return mutateModules([
     {
       buildIndex: 0,
+      manifest: await readPackageJsonFromDir(process.cwd()),
       mutation: 'install',
-      pkg: await readPackageJsonFromDir(process.cwd()),
       prefix: process.cwd(),
       pruneDirectDependencies: true,
     },

@@ -1,6 +1,6 @@
 import logger from '@pnpm/logger'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { DependencyManifest, PackageJson } from '@pnpm/types'
+import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
@@ -116,7 +116,7 @@ export async function recursive (
   }
 
   const pkgGraphResult = createPkgGraph(allPkgs)
-  let pkgs: Array<{path: string, manifest: PackageJson}>
+  let pkgs: Array<{path: string, manifest: ImporterManifest}>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
@@ -197,7 +197,7 @@ export async function recursive (
   const memReadLocalConfigs = mem(readLocalConfigs)
 
   async function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, pkg: PackageJson, prefix: string }>
+    const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>
     await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
@@ -206,7 +206,7 @@ export async function recursive (
         prefixes.map(async (prefix) => {
           importers.push({
             buildIndex,
-            pkg: await readPackageJsonFromDir(prefix),
+            manifest: await readPackageJsonFromDir(prefix),
             prefix,
           })
         })
@@ -225,7 +225,7 @@ export async function recursive (
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 ? 'install' : 'installSome')
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
-        const pkg = await readPackageJsonFromDir(prefix)
+        const manifest = await readPackageJsonFromDir(prefix)
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -233,8 +233,8 @@ export async function recursive (
           case 'uninstallSome':
             return {
               dependencyNames: input,
+              manifest,
               mutation,
-              pkg,
               prefix,
               shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
@@ -243,21 +243,21 @@ export async function recursive (
             return {
               allowNew: cmdFullName === 'install',
               dependencySelectors: input,
+              manifest,
               mutation,
               pinnedVersion: getPinnedVersion({
                 saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
                 savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
               }),
-              pkg,
               prefix,
               shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter
           case 'install':
             return {
+              manifest,
               buildIndex,
               mutation,
-              pkg,
               prefix,
               shamefullyFlatten,
             } as MutatedImporter
@@ -269,7 +269,7 @@ export async function recursive (
         storeController: store.ctrl,
       })
       await Promise.all(
-        mutatedPkgs.map(({ pkg, prefix }) => writePkg(prefix, pkg))
+        mutatedPkgs.map(({ manifest, prefix }) => writePkg(prefix, manifest))
       )
       return true
     }
@@ -371,7 +371,7 @@ export async function recursive (
               [
                 {
                   buildIndex: 0,
-                  pkg: await readPackageJsonFromDir(prefix),
+                  manifest: await readPackageJsonFromDir(prefix),
                   prefix,
                 },
               ],
@@ -413,12 +413,12 @@ export async function recursive (
   return true
 }
 
-async function unlink (pkg: PackageJson, opts: any) { // tslint:disable-line:no-any
+async function unlink (manifest: ImporterManifest, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
+        manifest,
         mutation: 'unlink',
-        pkg,
         prefix: opts.prefix,
       },
     ],
@@ -426,13 +426,13 @@ async function unlink (pkg: PackageJson, opts: any) { // tslint:disable-line:no-
   )
 }
 
-async function unlinkPkgs (dependencyNames: string[], pkg: PackageJson, opts: any) { // tslint:disable-line:no-any
+async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
         dependencyNames,
+        manifest,
         mutation: 'unlinkSome',
-        pkg,
         prefix: opts.prefix,
       },
     ],

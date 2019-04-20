@@ -9,7 +9,7 @@ import { prune } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { pruneLockfile } from '@pnpm/prune-lockfile'
 import { shamefullyFlattenByLockfile } from '@pnpm/shamefully-flatten'
-import { PackageJson } from '@pnpm/types'
+import { ImporterManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
@@ -22,7 +22,7 @@ import extendOptions, {
 import removeDeps from './removeDeps'
 
 export default async function uninstall (
-  pkg: PackageJson,
+  manifest: ImporterManifest,
   pkgsToUninstall: string[],
   maybeOpts: UninstallOptions,
 ) {
@@ -33,28 +33,28 @@ export default async function uninstall (
 
   const opts = await extendOptions(maybeOpts)
 
-  let newPkg!: PackageJson
+  let newManifest!: ImporterManifest
   if (opts.lock) {
-    newPkg = await lock(opts.prefix, _uninstall, {
+    newManifest = await lock(opts.prefix, _uninstall, {
       locks: opts.locks,
       prefix: opts.prefix,
       stale: opts.lockStaleDuration,
       storeController: opts.storeController,
     })
   } else {
-    newPkg = await _uninstall()
+    newManifest = await _uninstall()
   }
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
 
-  return newPkg
+  return newManifest
 
   async function _uninstall () {
-    const ctx = await getContextForSingleImporter(pkg, opts)
+    const ctx = await getContextForSingleImporter(manifest, opts)
 
-    if (!ctx.pkg) {
+    if (!ctx.manifest) {
       throw new Error('No package.json found - cannot uninstall')
     }
 
@@ -70,7 +70,7 @@ export async function uninstallInContext (
   const makePartialCurrentLockfile = !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
 
   const saveType = getSaveType(opts)
-  const pkg = await removeDeps(ctx.pkg, pkgsToUninstall, { prefix: opts.prefix, saveType })
+  const pkg = await removeDeps(ctx.manifest, pkgsToUninstall, { prefix: opts.prefix, saveType })
   const newLockfile = pruneLockfile(ctx.wantedLockfile, pkg, ctx.importerId, {
     defaultRegistry: ctx.registries.default,
     warn: (message) => logger.warn({ message, prefix: ctx.prefix }),

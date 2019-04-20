@@ -28,7 +28,7 @@ test('a package that need authentication', async (t: tape.Test) => {
     '//localhost:4873/:_authToken': data.token,
     'registry': 'http://localhost:4873/',
   }
-  const pkg = await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
+  const manifest = await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
     rawNpmConfig,
   }, {
     rawNpmConfig,
@@ -47,7 +47,7 @@ test('a package that need authentication', async (t: tape.Test) => {
     '//localhost:4873/:_authToken': data.token,
     'registry': 'https://registry.npmjs.org/',
   }
-  await addDependenciesToPackage(pkg, ['needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage(manifest, ['needs-auth'], await testDefaults({}, {
     rawNpmConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
@@ -114,7 +114,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
   }, {
     rawNpmConfig,
   })
-  const pkg = await addDependenciesToPackage({}, ['@private/foo'], opts)
+  const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
   await project.has('@private/foo')
 
@@ -129,7 +129,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
   }, {
     rawNpmConfig,
   })
-  await addDependenciesToPackage(pkg, ['@private/foo'], opts)
+  await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
   await project.has('@private/foo')
 })
@@ -201,7 +201,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     rawNpmConfig,
   })
 
-  const pkg = await addDependenciesToPackage({}, ['needs-auth'], opts)
+  const manifest = await addDependenciesToPackage({}, ['needs-auth'], opts)
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.registry'))
@@ -218,7 +218,7 @@ test('a package that need authentication reuses authorization tokens for tarball
   }, {
     rawNpmConfig,
   })
-  await install(pkg, opts)
+  await install(manifest, opts)
 
   const m = project.requireModule('needs-auth')
 

@@ -1,8 +1,8 @@
 import { PackageJson } from '@pnpm/types'
 
-export default (pkg: PackageJson, depName: string) => {
-  return pkg.dependencies && pkg.dependencies[depName]
-    || pkg.devDependencies && pkg.devDependencies[depName]
-    || pkg.optionalDependencies && pkg.optionalDependencies[depName]
+export default (manifest: PackageJson, depName: string) => {
+  return manifest.dependencies && manifest.dependencies[depName]
+    || manifest.devDependencies && manifest.devDependencies[depName]
+    || manifest.optionalDependencies && manifest.optionalDependencies[depName]
     || ''
 }

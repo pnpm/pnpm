@@ -16,13 +16,13 @@ test('should fail to update when requests are cached', async (t) => {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, metaCache }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true, metaCache }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await install(pkg, await testDefaults({ depth: 1, metaCache, update: true }))
+  await install(manifest, await testDefaults({ depth: 1, metaCache, update: true }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -32,13 +32,13 @@ test('should not cache when cache is not used', async (t: tape.Test) => {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  const pkg = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ save: true }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await install(pkg, await testDefaults({ depth: 1, update: true }))
+  await install(manifest, await testDefaults({ depth: 1, update: true }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
