@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,14 +37,14 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
     "@pnpm/read-package-json": "2.0.1",
-    "@pnpm/types": "3.0.0",
+    "@pnpm/types": "3.1.0",
     "@types/archy": "0.0.31",
     "@types/node": "*",
     "@types/ramda": "0.25.39",
     "@zkochan/npm-package-arg": "1.0.2",
     "archy": "1.0.0",
     "chalk": "2.4.2",
-    "dependencies-hierarchy": "5.0.3",
+    "dependencies-hierarchy": "5.0.4",
     "p-limit": "2.2.0",
     "ramda": "0.26.1"
   },

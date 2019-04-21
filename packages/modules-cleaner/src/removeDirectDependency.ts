@@ -3,7 +3,7 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import binify from '@pnpm/package-bins'
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, DependencyManifest } from '@pnpm/types'
 import { safeReadPackageFromDir } from '@pnpm/utils'
 import path = require('path')
 import rimraf = require('rimraf-then')
@@ -51,7 +51,7 @@ async function removeBins (
   },
 ) {
   const uninstalledPkgPath = path.join(opts.modulesDir, uninstalledPkg)
-  const uninstalledPkgJson = await safeReadPackageFromDir(uninstalledPkgPath)
+  const uninstalledPkgJson = await safeReadPackageFromDir(uninstalledPkgPath) as DependencyManifest
 
   if (!uninstalledPkgJson) return
   const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)

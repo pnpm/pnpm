@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolver-base",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Types for pnpm-compatible resolvers",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -27,7 +27,7 @@
   "license": "MIT",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolver-base#readme",
   "dependencies": {
-    "@pnpm/types": "3.0.0"
+    "@pnpm/types": "3.1.0"
   },
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",

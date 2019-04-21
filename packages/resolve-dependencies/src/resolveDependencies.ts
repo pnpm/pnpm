@@ -27,7 +27,6 @@ import {
 } from '@pnpm/store-controller-types'
 import {
   Dependencies,
-  PackageJson,
   PackageManifest,
   ReadPackageHook,
   Registries,
@@ -166,7 +165,7 @@ export interface ResolvedPackage {
   dev: boolean,
   optional: boolean,
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
+  fetchingRawManifest?: Promise<PackageManifest>,
   finishing: Promise<void>,
   path: string,
   specRaw: string,

@@ -677,7 +677,7 @@ async function linkAllBins (
               .filter((dep) => dep.hasBin)
               .map(async (dep) => ({
                 location: dep.peripheralLocation,
-                manifest: await readPackageFromDir(dep.peripheralLocation),
+                manifest: await readPackageFromDir(dep.peripheralLocation) as DependencyManifest,
               })),
           )
 

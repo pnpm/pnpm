@@ -6,7 +6,7 @@
   "typings": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "2.0.0",
-    "@pnpm/modules-yaml": "3.0.0",
+    "@pnpm/modules-yaml": "3.0.1",
     "@types/mkdirp": "0.5.2",
     "@types/node": "*",
     "@types/tape": "4.2.33",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -41,14 +41,14 @@
   },
   "dependencies": {
     "@pnpm/constants": "1.0.0",
-    "@pnpm/lockfile-file": "1.0.2",
-    "@pnpm/npm-resolver": "3.0.5",
+    "@pnpm/lockfile-file": "1.0.3",
+    "@pnpm/npm-resolver": "3.0.6",
     "@pnpm/read-package-json": "2.0.1",
     "@pnpm/store-path": "1.0.4",
-    "@pnpm/types": "3.0.0",
-    "@pnpm/utils": "0.10.2",
+    "@pnpm/types": "3.1.0",
+    "@pnpm/utils": "0.10.3",
     "@types/node": "*",
-    "dependency-path": "3.0.2"
+    "dependency-path": "3.0.3"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

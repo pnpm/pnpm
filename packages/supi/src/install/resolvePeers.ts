@@ -6,7 +6,7 @@ import {
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
-import { Dependencies, PackageJson } from '@pnpm/types'
+import { Dependencies, PackageManifest } from '@pnpm/types'
 import {
   createNodeId,
   ROOT_NODE_ID,
@@ -29,7 +29,7 @@ export interface DependenciesGraphNode {
   centralLocation: string,
   modules: string,
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
+  fetchingRawManifest?: Promise<PackageManifest>,
   resolution: Resolution,
   peripheralLocation: string,
   children: {[alias: string]: string},

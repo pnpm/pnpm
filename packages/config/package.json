@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "description": "Gets configs for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/config#readme",
   "dependencies": {
-    "@pnpm/types": "3.0.0",
+    "@pnpm/types": "3.1.0",
     "@types/node": "*",
     "@types/which": "1.3.1",
     "@zkochan/npm-conf": "1.2.4",

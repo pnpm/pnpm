@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,9 +34,9 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "dependencies": {
-    "@pnpm/config": "3.1.1",
-    "@pnpm/core-loggers": "3.0.0",
-    "@pnpm/types": "3.0.0",
+    "@pnpm/config": "3.2.0",
+    "@pnpm/core-loggers": "3.0.1",
+    "@pnpm/types": "3.1.0",
     "@types/common-tags": "1.8.0",
     "@types/node": "*",
     "@types/ramda": "0.25.34",

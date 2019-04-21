@@ -5,7 +5,7 @@ import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { StoreController } from '@pnpm/store-controller-types'
-import { DependencyManifest, PackageJson } from '@pnpm/types'
+import { DependencyManifest, PackageManifest } from '@pnpm/types'
 import graphSequencer = require('graph-sequencer')
 import path = require('path')
 import R = require('ramda')
@@ -149,7 +149,7 @@ function getSubgraphToBuild (
 }
 
 export interface DependenciesGraphNode {
-  fetchingRawManifest?: Promise<PackageJson>,
+  fetchingRawManifest?: Promise<PackageManifest>,
   hasBundledDependencies: boolean,
   peripheralLocation: string,
   children: {[alias: string]: string},
@@ -202,7 +202,7 @@ export async function linkBinsOfDependencies (
         const dep = depGraph[childrenToLink[alias]]
         return {
           location: dep.peripheralLocation,
-          manifest: dep.fetchingRawManifest && (await dep.fetchingRawManifest) || await readPackageFromDir(dep.peripheralLocation),
+          manifest: dep.fetchingRawManifest && (await dep.fetchingRawManifest) || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
         }
       }),
   )
