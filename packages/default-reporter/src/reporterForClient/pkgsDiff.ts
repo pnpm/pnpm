@@ -21,6 +21,7 @@ export const propertyByDependencyType = {
   dev: 'devDependencies',
   nodeModulesOnly: 'node_modules',
   optional: 'optionalDependencies',
+  peer: 'peerDependencies',
   prod: 'dependencies',
 }
 
@@ -75,6 +76,7 @@ export default function (
     dev: {},
     nodeModulesOnly: {},
     optional: {},
+    peer: {},
     prod: {},
   } as {
     dev: Map<PackageDiff>,
@@ -99,7 +101,7 @@ export default function (
       const initialPackageJson = removeOptionalFromProdDeps(packageJsons['initial'])
       const updatedPackageJson = removeOptionalFromProdDeps(packageJsons['updated'])
 
-      for (const depType of ['prod', 'optional', 'dev']) {
+      for (const depType of ['peer', 'prod', 'optional', 'dev']) {
         const prop = propertyByDependencyType[depType]
         const initialDeps = R.keys(initialPackageJson[prop])
         const updatedDeps = R.keys(updatedPackageJson[prop])

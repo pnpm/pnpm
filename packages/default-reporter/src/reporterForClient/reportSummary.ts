@@ -40,7 +40,7 @@ export default (
   return most.combine(
     (pkgsDiff) => {
       let msg = ''
-      for (const depType of ['prod', 'optional', 'dev', 'nodeModulesOnly']) {
+      for (const depType of ['prod', 'optional', 'peer', 'dev', 'nodeModulesOnly']) {
         const diffs = R.values(pkgsDiff[depType])
         if (diffs.length) {
           msg += EOL
