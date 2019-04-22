@@ -284,7 +284,9 @@ export async function recursive (
         storeController: store.ctrl,
       })
       await Promise.all(
-        mutatedPkgs.map(({ manifest, prefix }) => writePkg(prefix, manifest))
+        mutatedPkgs
+          .filter((mutatedPkg, index) => mutatedImporters[index].mutation !== 'install')
+          .map(({ manifest, prefix }) => writePkg(prefix, manifest))
       )
       return true
     }
@@ -342,7 +344,9 @@ export async function recursive (
               storeController,
             },
           )
-          await writePkg(prefix, newPkg)
+          if (action !== install) {
+            await writePkg(prefix, newPkg)
+          }
           result.passes++
         } catch (err) {
           logger.info(err)
