@@ -81,6 +81,7 @@ export default async function installCmd (
         dependencySelectors: input,
         manifest,
         mutation: 'installSome',
+        peer: opts.savePeer,
         pinnedVersion: getPinnedVersion(opts),
         prefix: installOpts.prefix,
         targetDependenciesField: getSaveType(installOpts),

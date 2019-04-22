@@ -12,8 +12,9 @@ export default async function save (
   packageJson: ImporterManifest,
   packageSpecs: Array<{
     name: string,
+    peer?: boolean,
     pref?: string,
-    saveType?: DependenciesField,
+    saveType?: DependenciesField | 'peerDependencies',
   }>,
   opts?: {
     dryRun?: boolean,
@@ -32,6 +33,10 @@ export default async function save (
             delete packageJson[deptype]![packageSpec.name]
           }
         })
+        if (packageSpec.peer === true) {
+          packageJson.peerDependencies = packageJson.peerDependencies || {}
+          packageJson.peerDependencies[packageSpec.name] = spec
+        }
       }
     } else if (packageSpec.pref) {
       const usedDepType = guessDependencyType(packageSpec.name, packageJson as ImporterManifest) || 'dependencies'

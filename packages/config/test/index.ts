@@ -297,3 +297,41 @@ test('when runnning a global command inside a workspace, the workspace should be
 
   t.end()
 })
+
+test('throw error if --save-prod is used with --save-peer', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'save-peer': true,
+        'save-prod': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'A package cannot be a peer dependency and a prod dependency at the same time')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
+    t.end()
+  }
+})
+
+test('throw error if --save-optional is used with --save-peer', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'save-optional': true,
+        'save-peer': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'A package cannot be a peer dependency and an optional dependency at the same time')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
+    t.end()
+  }
+})

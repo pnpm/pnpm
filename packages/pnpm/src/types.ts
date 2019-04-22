@@ -23,6 +23,7 @@ export interface PnpmOptions {
   saveProd?: boolean,
   saveDev?: boolean,
   saveOptional?: boolean,
+  savePeer?: boolean,
   scope: string, // TODO: deprecate this flag
   production?: boolean,
   development?: boolean,

@@ -625,3 +625,34 @@ test('peer dependency is resolved from parent package via its alias', async (t) 
     '/tango-tango/1.0.0_tango@1.0.0',
   ])
 })
+
+test('peer dependency is saved', async (t) => {
+  prepareEmpty(t)
+
+  let manifest = await addDependenciesToPackage(
+    {},
+    ['is-positive@1.0.0'],
+    await testDefaults({
+      peer: true,
+      targetDependenciesField: 'devDependencies',
+    }),
+  )
+
+  t.deepEqual(
+    manifest,
+    {
+      devDependencies: { 'is-positive': '1.0.0' },
+      peerDependencies: { 'is-positive': '1.0.0' },
+    },
+  )
+
+  manifest = await uninstall(manifest, ['is-positive'], await testDefaults())
+
+  t.deepEqual(
+    manifest,
+    {
+      devDependencies: {},
+      peerDependencies: {},
+    },
+  )
+})
