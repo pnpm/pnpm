@@ -713,12 +713,10 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: ImporterManifest | undefined = importer.manifest
-    let writePackageJson!: boolean
     if (importer.updatePackageJson && importer.mutation === 'installSome') {
       if (!importer.manifest) {
         throw new Error('Cannot save because no package.json found')
       }
-      writePackageJson = true
       const specsToUsert = <any>resolvedImporter.directDependencies // tslint:disable-line
         .filter((dep) => importer.newPkgRawSpecs.includes(dep.specRaw))
         .map((dep) => {
@@ -746,7 +744,6 @@ async function installInContext (
         { dryRun: true },
       )
     } else {
-      writePackageJson = false
       packageJsonLogger.debug({
         prefix: importer.prefix,
         updated: importer.manifest,
@@ -790,7 +787,6 @@ async function installInContext (
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
       usesExternalLockfile: importer.usesExternalLockfile,
-      writePackageJson,
     }
   }))
 
