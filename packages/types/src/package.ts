@@ -40,6 +40,12 @@ export type PackageScripts = {
   postshrinkwrap?: string,
 }
 
+export interface PeerDependenciesMeta {
+  [dependencyName: string]: {
+    optional?: boolean,
+  },
+}
+
 interface BaseManifest {
   name?: string,
   version?: string,
@@ -51,6 +57,7 @@ interface BaseManifest {
   devDependencies?: Dependencies,
   optionalDependencies?: Dependencies,
   peerDependencies?: Dependencies,
+  peerDependenciesMeta?: PeerDependenciesMeta,
   bundleDependencies?: string[],
   bundledDependencies?: string[],
   scripts?: PackageScripts,

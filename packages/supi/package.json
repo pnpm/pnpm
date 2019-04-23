@@ -114,7 +114,7 @@
     "npm-scripts-info": "0.3.9",
     "path-exists": "4.0.0",
     "path-name": "1.0.0",
-    "pnpm-registry-mock": "2.11.0",
+    "pnpm-registry-mock": "2.12.0",
     "read-yaml-file": "1.1.0",
     "rimraf": "2.6.3",
     "sepia": "2.0.2",

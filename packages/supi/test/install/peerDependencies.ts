@@ -656,3 +656,49 @@ test('peer dependency is saved', async (t) => {
     },
   )
 })
+
+test('warning is not reported when cannot resolve optional peer dependency', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  const reporter = sinon.spy()
+
+  await addDependenciesToPackage({}, ['abc-optional-peers@1.0.0', 'peer-c@2.0.0'], await testDefaults({ reporter }))
+
+  {
+    const logMatcher = sinon.match({
+      message: 'abc-optional-peers@1.0.0 requires a peer of peer-a@^1.0.0 but none was installed.',
+    })
+    const reportedTimes = reporter.withArgs(logMatcher).callCount
+
+    t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+  }
+
+  {
+    const logMatcher = sinon.match({
+      message: 'abc-optional-peers@1.0.0 requires a peer of peer-b@^1.0.0 but none was installed.',
+    })
+    const reportedTimes = reporter.withArgs(logMatcher).callCount
+
+    t.equal(reportedTimes, 0, 'warning is not logged about unresolved optional peer dep')
+  }
+
+  {
+    const logMatcher = sinon.match({
+      message: 'abc-optional-peers@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.',
+    })
+    const reportedTimes = reporter.withArgs(logMatcher).callCount
+
+    t.equal(reportedTimes, 1, 'warning is logged bad version number of optional peer dep')
+  }
+
+  const lockfile = await project.readLockfile()
+
+  t.deepEqual(lockfile.packages['/abc-optional-peers/1.0.0'].peerDependenciesMeta, {
+    'peer-b': {
+      optional: true,
+    },
+    'peer-c': {
+      optional: true,
+    },
+  })
+})

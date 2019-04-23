@@ -73,6 +73,11 @@ export interface PackageSnapshot {
   peerDependencies?: {
     [name: string]: string,
   },
+  peerDependenciesMeta?: {
+    [name: string]: {
+      optional: true,
+    },
+  },
   bundledDependencies?: {
     [name: string]: string,
   },
