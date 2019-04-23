@@ -28,6 +28,7 @@ import {
 import {
   Dependencies,
   PackageManifest,
+  PeerDependenciesMeta,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -181,6 +182,7 @@ export interface ResolvedPackage {
   additionalInfo: {
     deprecated?: string,
     peerDependencies?: Dependencies,
+    peerDependenciesMeta?: PeerDependenciesMeta,
     bundleDependencies?: string[],
     bundledDependencies?: string[],
     engines?: {
@@ -755,6 +757,7 @@ function getResolvedPackage (
       engines: options.pkg.engines,
       os: options.pkg.os,
       peerDependencies,
+      peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
     dev: options.wantedDependency.dev,
     engineCache: !options.force && options.pkgResponse.body['cacheByEngine'] && options.pkgResponse.body['cacheByEngine'][ENGINE_NAME], // tslint:disable-line:no-string-literal

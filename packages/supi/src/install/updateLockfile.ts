@@ -7,7 +7,11 @@ import {
   ResolvedDependencies,
 } from '@pnpm/prune-lockfile'
 import { Resolution } from '@pnpm/resolver-base'
-import { Dependencies, Registries } from '@pnpm/types'
+import {
+  Dependencies,
+  PeerDependenciesMeta,
+  Registries,
+} from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import R = require('ramda')
@@ -60,6 +64,7 @@ function toLockfileDependency (
   pkg: {
     deprecated?: string,
     peerDependencies?: Dependencies,
+    peerDependenciesMeta?: PeerDependenciesMeta,
     bundleDependencies?: string[],
     bundledDependencies?: string[],
     engines?: {
@@ -131,6 +136,17 @@ function toLockfileDependency (
   }
   if (pkg.peerDependencies) {
     result['peerDependencies'] = pkg.peerDependencies
+  }
+  if (pkg.peerDependenciesMeta) {
+    const normalizedPeerDependenciesMeta = {}
+    for (const peer of Object.keys(pkg.peerDependenciesMeta)) {
+      if (pkg.peerDependenciesMeta[peer].optional) {
+        normalizedPeerDependenciesMeta[peer] = { optional: true }
+      }
+    }
+    if (Object.keys(normalizedPeerDependenciesMeta).length) {
+      result['peerDependenciesMeta'] = normalizedPeerDependenciesMeta
+    }
   }
   if (pkg.engines) {
     for (const engine of R.keys(pkg.engines)) {

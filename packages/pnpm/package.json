@@ -116,7 +116,7 @@
     "p-any": "2.1.0",
     "path-exists": "4.0.0",
     "pnpm": "link:",
-    "pnpm-registry-mock": "2.11.0",
+    "pnpm-registry-mock": "2.12.0",
     "retry": "0.12.0",
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",

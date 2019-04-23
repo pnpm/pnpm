@@ -324,6 +324,13 @@ function resolvePeers (
           version,
         }
       } catch (err) {
+        if (
+          ctx.node.resolvedPackage.additionalInfo.peerDependenciesMeta &&
+          ctx.node.resolvedPackage.additionalInfo.peerDependenciesMeta[peerName] &&
+          ctx.node.resolvedPackage.additionalInfo.peerDependenciesMeta[peerName].optional === true
+        ) {
+          continue
+        }
         const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
         const message = oneLine`
           ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.resolvedPackage)}

@@ -582,7 +582,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.3.2
@@ -636,7 +636,7 @@ importers:
       npm-run-all: 4.1.5
       p-limit: 2.2.0
       path-exists: 4.0.0
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1097,7 +1097,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       tape: 4.10.1
       ts-node: 8.0.3_typescript@3.4.4
       tslint: 5.16.0_typescript@3.4.4
@@ -1119,7 +1119,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-run-all: 4.1.5
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       tape: 4.10.1
       ts-node: 8.0.3
       tslint: 5.16.0
@@ -1418,7 +1418,7 @@ importers:
       p-any: 2.1.0
       path-exists: 4.0.0
       pnpm: 'link:'
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       retry: 0.12.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -1516,7 +1516,7 @@ importers:
       pkgs-graph: 3.0.0
       pnpm: 'link:'
       pnpm-file-reporter: 0.1.0
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1924,7 +1924,7 @@ importers:
       npm-scripts-info: 0.3.9
       path-exists: 4.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
       sepia: 2.0.2
@@ -2020,7 +2020,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       path-name: 1.0.0
-      pnpm-registry-mock: 2.11.0
+      pnpm-registry-mock: 2.12.0
       ramda: 0.26.1
       read-yaml-file: 1.1.0
       remove-all-except-outer-links: 2.0.0
@@ -2985,7 +2985,7 @@ packages:
       integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
   /accepts/1.3.5:
     dependencies:
-      mime-types: 2.1.23
+      mime-types: 2.1.24
       negotiator: 0.6.1
     dev: true
     engines:
@@ -4129,7 +4129,7 @@ packages:
       integrity: sha512-Rd3se6QB+sO1TwqZjscQrurpEPIfO0/yYnSin6Q/rD3mOutHvUrCAhJub3r90uNb+SESBuE0QYoB90YdfatsRg==
   /compressible/2.0.16:
     dependencies:
-      mime-db: 1.39.0
+      mime-db: 1.40.0
     dev: true
     engines:
       node: '>= 0.6'
@@ -5162,7 +5162,7 @@ packages:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.7
-      mime-types: 2.1.23
+      mime-types: 2.1.24
     engines:
       node: '>= 0.12'
     resolution:
@@ -5557,7 +5557,7 @@ packages:
       node: '>=0.4.7'
     hasBin: true
     optionalDependencies:
-      uglify-js: 3.5.5
+      uglify-js: 3.5.6
     resolution:
       integrity: sha512-l2jRuU1NAWK6AW5qqcTATWQJvNPEwkM7NEKSiv/gqOsoSQbVoWyqVEY5GS+XPQ88zLNmqASRpzfdm8d79hJS+w==
   /har-schema/2.0.0:
@@ -6894,18 +6894,18 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-MWikgl9n9M3w+bpsY3He8L+w9eF9338xRl8IAO5viDizwSzziFEyUzo2xrrloB64ADbTf8uA8vRqqttDTOmccg==
-  /mime-db/1.39.0:
+  /mime-db/1.40.0:
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-DTsrw/iWVvwHH+9Otxccdyy0Tgiil6TWK/xhfARJZF/QFhwOgZgOIvA2/VIGpM8U7Q8z5nDmdDWC6tuVMJNibw==
-  /mime-types/2.1.23:
+      integrity: sha512-jYdeOMPy9vnxEqFRRo6ZvTZ8d9oPb+k18PKoYNYUe2stVEBPPwsln/qWzdbmaIvnhZ9v2P+CuecK+fpUfsV2mA==
+  /mime-types/2.1.24:
     dependencies:
-      mime-db: 1.39.0
+      mime-db: 1.40.0
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-ROk/m+gMVSrRxTkMlaQOvFmFmYDc7sZgrjjM76abqmd2Cc5fCV7jAMA5XUccEtJ3cYiYdgixUVI+fApc2LkXlw==
+      integrity: sha512-WaFHS3MCl5fapm3oLxU4eYDw77IQM2ACcxQ9RIxfaC3ooc6PFuBMGZZsYpvoXS5D5QTWPieo1jjLdAm3TBP3cQ==
   /mime/1.4.1:
     dev: true
     hasBin: true
@@ -8073,7 +8073,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-registry-mock/2.11.0:
+  /pnpm-registry-mock/2.12.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -8084,7 +8084,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-c1cOVtuDutugSgWp5Et02x+JBJXAKGmPF59ADuYocLbZETUJ/s9ZtHarfAN+eEq5BZEXgA0o8u1hPYxVTk286w==
+      integrity: sha512-AShuGitIFypw1XGBgCNNxYN9dpD4aRyUH8euRYdXqsdRVYgzsy+G1w+eI5s9ADu6Zhv7AGIhepbl6yWKqzcxWA==
   /posix-character-classes/0.1.1:
     dev: false
     engines:
@@ -8559,7 +8559,7 @@ packages:
       is-typedarray: 1.0.0
       isstream: 0.1.2
       json-stringify-safe: 5.0.1
-      mime-types: 2.1.23
+      mime-types: 2.1.24
       oauth-sign: 0.9.0
       performance-now: 2.1.0
       qs: 6.5.2
@@ -9786,7 +9786,7 @@ packages:
   /type-is/1.6.16:
     dependencies:
       media-typer: 0.3.0
-      mime-types: 2.1.23
+      mime-types: 2.1.24
     dev: true
     engines:
       node: '>= 0.6'
@@ -9812,7 +9812,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
-  /uglify-js/3.5.5:
+  /uglify-js/3.5.6:
     dependencies:
       commander: 2.20.0
       source-map: 0.6.1
@@ -9822,7 +9822,7 @@ packages:
     hasBin: true
     optional: true
     resolution:
-      integrity: sha512-e58FqZzPwaLODQetDQKlvErZaGkh1UmzP8YwU0aG65NLourKNtwVyDG8tkIyUU0vqWzxaikSvTaxrCSscmvqvQ==
+      integrity: sha512-YDKRX8F0Y+Jr7LhoVk0n4G7ltR3Y7qFAj+DtVBthlOgCcIj1hyMigCfousVfn9HKmvJ+qiFlLDwaHx44/e5ZKw==
   /uid-number/0.0.6:
     dev: false
     resolution:
