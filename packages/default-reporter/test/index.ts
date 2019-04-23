@@ -275,6 +275,52 @@ test('prints summary for global installation', t => {
   })
 })
 
+test('prints added peer dependency', t => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      configs: {
+        prefix,
+      } as PnpmConfigs,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  packageJsonLogger.debug({
+    initial: {},
+    prefix,
+  })
+  packageJsonLogger.debug({
+    prefix,
+    updated: {
+      devDependencies: {
+        'is-negative': '^1.0.0',
+      },
+      peerDependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+  })
+  summaryLogger.debug({ prefix })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, EOL + stripIndents`
+        ${h1('peerDependencies:')}
+        ${ADD} is-negative ${versionColor('^1.0.0')}
+
+        ${h1('devDependencies:')}
+        ${ADD} is-negative ${versionColor('^1.0.0')}
+        ` + '\n')
+    },
+  })
+})
+
 test('prints summary correctly when the same package is specified both in optional and prod dependencies', t => {
   const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
   const output$ = toOutput$({

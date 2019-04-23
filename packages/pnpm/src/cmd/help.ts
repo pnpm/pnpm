@@ -30,9 +30,10 @@ function getHelpText (command: string) {
 
         Options:
 
-          -P, --save-prod                    save package to your \`dependencies\`
+          -P, --save-prod                    save package to your \`dependencies\`. The default behavior
           -D, --save-dev                     save package to your \`devDependencies\`
           -O, --save-optional                save package to your \`optionalDependencies\`
+          --save-peer                        save package to your \`peerDependencies\` and \`devDependencies\`
           -E, --save-exact                   install exact version
           -g, --global                       install as a global package
           -r                                 run installation recursively in every package found in subdirectories

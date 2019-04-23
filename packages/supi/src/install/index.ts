@@ -85,6 +85,7 @@ export type DependenciesMutation = (
     allowNew?: boolean,
     dependencySelectors: string[],
     mutation: 'installSome',
+    peer?: boolean,
     pruneDirectDependencies?: boolean,
     pinnedVersion?: 'major' | 'minor' | 'patch',
     targetDependenciesField?: DependenciesField,
@@ -556,6 +557,7 @@ export async function addDependenciesToPackage (
   dependencySelectors: string[],
   opts: InstallOptions & {
     allowNew?: boolean,
+    peer?: boolean,
     prefix?: string,
     pinnedVersion?: 'major' | 'minor' | 'patch',
     targetDependenciesField?: DependenciesField,
@@ -568,6 +570,7 @@ export async function addDependenciesToPackage (
         dependencySelectors,
         manifest,
         mutation: 'installSome',
+        peer: opts.peer,
         pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
         shamefullyFlatten: opts.shamefullyFlatten,
@@ -722,6 +725,7 @@ async function installInContext (
         .map((dep) => {
           return {
             name: dep.alias,
+            peer: importer.peer,
             pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
               pinnedVersion: importer.pinnedVersion,
               rawSpec: dep.specRaw,
@@ -733,6 +737,7 @@ async function installInContext (
         if (pkgToInstall.alias && !specsToUsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
           specsToUsert.push({
             name: pkgToInstall.alias,
+            peer: importer.peer,
             saveType: importer.targetDependenciesField,
           })
         }

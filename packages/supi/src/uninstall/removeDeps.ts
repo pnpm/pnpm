@@ -30,6 +30,11 @@ export default async function (
         })
       })
   }
+  if (packageJson.peerDependencies) {
+    for (const removedDependency of removedPackages) {
+      delete packageJson.peerDependencies[removedDependency]
+    }
+  }
 
   packageJsonLogger.debug({
     prefix: opts.prefix,

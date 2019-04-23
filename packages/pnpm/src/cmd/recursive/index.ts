@@ -183,6 +183,7 @@ export async function recursive (
   const installOpts = Object.assign(opts, {
     localPackages,
     ownLifecycleHooksStdio: 'pipe',
+    peer: opts.savePeer,
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
       && pkgs.length === allPkgs.length,
     store: store.path,
@@ -260,6 +261,7 @@ export async function recursive (
               dependencySelectors: currentInput,
               manifest,
               mutation,
+              peer: opts.savePeer,
               pinnedVersion: getPinnedVersion({
                 saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
                 savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
