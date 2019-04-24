@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/shamefully-flatten",
   "description": "Flattening a node_modules created by pnpm",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -47,14 +47,14 @@
   },
   "dependencies": {
     "@pnpm/constants": "1.0.0",
-    "@pnpm/lockfile-types": "1.0.0",
-    "@pnpm/lockfile-utils": "1.0.4",
+    "@pnpm/lockfile-types": "1.1.0",
+    "@pnpm/lockfile-utils": "1.0.5",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/symlink-dependency": "2.0.3",
-    "@pnpm/types": "3.1.0",
+    "@pnpm/symlink-dependency": "2.0.4",
+    "@pnpm/types": "3.2.0",
     "@types/node": "*",
     "@types/ramda": "0.25.34",
-    "dependency-path": "3.0.3",
+    "dependency-path": "3.0.4",
     "ramda": "0.26.1"
   }
 }

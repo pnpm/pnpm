@@ -1,9 +1,9 @@
 {
   "name": "@pnpm/lockfile-types",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Types for the pnpm-lock.yaml lockfile",
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "files": [
     "index.d.ts"

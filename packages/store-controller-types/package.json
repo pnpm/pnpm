@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "Types for the store controller",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
     "typescript": "3.4.5"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "3.1.1",
-    "@pnpm/types": "3.1.0"
+    "@pnpm/resolver-base": "3.1.2",
+    "@pnpm/types": "3.2.0"
   }
 }

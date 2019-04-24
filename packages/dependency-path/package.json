@@ -1,6 +1,6 @@
 {
   "name": "dependency-path",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependency-path#readme",
   "dependencies": {
-    "@pnpm/types": "3.1.0",
+    "@pnpm/types": "3.2.0",
     "@types/semver": "6.0.0",
     "encode-registry": "1.1.0",
     "semver": "6.0.0"
