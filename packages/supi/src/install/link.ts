@@ -452,7 +452,8 @@ async function selectNewFromWantedDeps (
         const depPath = dp.resolve(opts.registries, wantedRelDepPath)
         const depNode = depGraph[depPath]
         if (!depNode) return
-        if (prevRelDepPaths.has(wantedRelDepPath) && !depNode.independent) {
+        if (prevRelDepPaths.has(wantedRelDepPath)) {
+          if (depNode.independent) return
           if (await fs.exists(depNode.peripheralLocation)) {
             return
           }
