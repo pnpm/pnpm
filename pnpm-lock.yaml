@@ -3575,7 +3575,7 @@ packages:
       on-finished: 2.3.0
       qs: 6.5.2
       raw-body: 2.3.3
-      type-is: 1.6.16
+      type-is: 1.6.17
     dev: true
     engines:
       node: '>= 0.8'
@@ -4127,19 +4127,19 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Rd3se6QB+sO1TwqZjscQrurpEPIfO0/yYnSin6Q/rD3mOutHvUrCAhJub3r90uNb+SESBuE0QYoB90YdfatsRg==
-  /compressible/2.0.16:
+  /compressible/2.0.17:
     dependencies:
       mime-db: 1.40.0
     dev: true
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-JQfEOdnI7dASwCuSPWIeVYwc/zMsu/+tRhoUvEfXz2gxOA2DNjmG5vhtFdBlhWPPGo+RdT9S3tgc/uH5qgDiiA==
+      integrity: sha512-BGHeLCK1GV7j1bSmQQAi26X+GgWcTjLr/0tzSvMCl3LH1w1IJ4PFSPoV5316b30cneTziC+B1a+3OjoSUcQYmw==
   /compression/1.7.3:
     dependencies:
       accepts: 1.3.5
       bytes: 3.0.0
-      compressible: 2.0.16
+      compressible: 2.0.17
       debug: 2.6.9
       on-headers: 1.0.2
       safe-buffer: 5.1.2
@@ -4951,7 +4951,7 @@ packages:
       serve-static: 1.13.2
       setprototypeof: 1.1.0
       statuses: 1.4.0
-      type-is: 1.6.16
+      type-is: 1.6.17
       utils-merge: 1.0.1
       vary: 1.1.2
     dev: true
@@ -5557,7 +5557,7 @@ packages:
       node: '>=0.4.7'
     hasBin: true
     optionalDependencies:
-      uglify-js: 3.5.7
+      uglify-js: 3.5.8
     resolution:
       integrity: sha512-l2jRuU1NAWK6AW5qqcTATWQJvNPEwkM7NEKSiv/gqOsoSQbVoWyqVEY5GS+XPQ88zLNmqASRpzfdm8d79hJS+w==
   /har-schema/2.0.0:
@@ -7221,7 +7221,6 @@ packages:
     dependencies:
       '@most/multicast': 1.3.0_most@1.7.3
       '@most/prelude': 1.7.2
-      most: 1.7.3_most@1.7.3
       symbol-observable: 1.2.0
     dev: false
     peerDependencies:
@@ -9668,9 +9667,7 @@ packages:
       integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
   /tslint-config-standard/8.0.1_tslint@5.16.0+typescript@3.4.5:
     dependencies:
-      tslint: 5.16.0_typescript@3.4.5
       tslint-eslint-rules: 5.4.0_tslint@5.16.0+typescript@3.4.5
-      typescript: 3.4.5
     peerDependencies:
       tslint: '*'
       typescript: '*'
@@ -9754,7 +9751,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-IwzA/LSfD2vC1/YDYMv/zHP4rDF1usCwllsDpbolT3D4fUepIO7f9K70jjmUewU/LmGUKJcwcVtDCpnKk4BPMw==
-  /type-is/1.6.16:
+  /type-is/1.6.17:
     dependencies:
       media-typer: 0.3.0
       mime-types: 2.1.24
@@ -9762,7 +9759,7 @@ packages:
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-HRkVv/5qY2G6I8iab9cI7v1bOIdhm94dVjQCPFElW9W+3GeDOSHmy2EBYe4VTApuzolPcmgFTN3ftVJRKR2J9Q==
+      integrity: sha512-jYZzkOoAPVyQ9vlZ4xEJ4BBbHC4a7hbY1xqyCPe6AiQVVqfbZEulJm0VpqK4B+096O1VQi0l6OBGH210ejx/bA==
   /typedarray/0.0.6:
     dev: true
     resolution:
@@ -9783,7 +9780,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
-  /uglify-js/3.5.7:
+  /uglify-js/3.5.8:
     dependencies:
       commander: 2.20.0
       source-map: 0.6.1
@@ -9793,7 +9790,7 @@ packages:
     hasBin: true
     optional: true
     resolution:
-      integrity: sha512-GCgJx3BBuaf/QMvBBkhoHDh4SVsHCC3ILEzriPw4FgJJKCuxVBSYLRkDlmT3uhXyGWKs3VN5r0mCkBIZaHWu3w==
+      integrity: sha512-GFSjB1nZIzoIq70qvDRtWRORHX3vFkAnyK/rDExc0BN7r9+/S+Voz3t/fwJuVfjppAMz+ceR2poE7tkhvnVwQQ==
   /uid-number/0.0.6:
     dev: false
     resolution:
