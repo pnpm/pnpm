@@ -593,8 +593,12 @@ async function resolveDependency (
   let prepare!: boolean
   let hasBin!: boolean
   if (
-    ctx.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath
-    && !pkgResponse.body.updated
+    ctx.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath &&
+    !pkgResponse.body.updated &&
+    // peerDependencies field is also used for transitive peer dependencies which should not be linked
+    // That's why we cannot omit reading package.json of such dependencies.
+    // This can be removed if we implement something like peerDependenciesMeta.transitive: true
+    !options.dependencyLockfile.peerDependencies
   ) {
     useManifestInfoFromLockfile = true
     prepare = options.dependencyLockfile.prepare === true

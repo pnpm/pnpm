@@ -604,6 +604,39 @@ test('peer dependency is resolved from parent package', async (t) => {
   ])
 })
 
+test('transitive peerDependencies field does not break the lockfile on subsequent named install', async (t) => {
+  preparePackages(t, [
+    {
+      name: 'pkg',
+    }
+  ])
+  const [{ manifest }] = await mutateModules([
+    {
+      dependencySelectors: ['most@1.7.3'],
+      manifest: {},
+      mutation: 'installSome',
+      prefix: path.resolve('pkg'),
+    },
+  ], await testDefaults())
+
+  await mutateModules([
+    {
+      dependencySelectors: ['is-positive'],
+      manifest,
+      mutation: 'installSome',
+      prefix: path.resolve('pkg'),
+    },
+  ], await testDefaults())
+
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+
+  t.deepEqual(Object.keys(lockfile.packages!['/most/1.7.3_most@1.7.3'].dependencies!), [
+    '@most/multicast',
+    '@most/prelude',
+    'symbol-observable'
+  ])
+})
+
 test('peer dependency is resolved from parent package via its alias', async (t) => {
   preparePackages(t, [
     {
