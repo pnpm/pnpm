@@ -13,11 +13,6 @@ declare module 'normalize-newline' {
   export = anything;
 }
 
-declare module 'pretty-bytes' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'stacktracey' {
   const anything: any;
   export = anything;
