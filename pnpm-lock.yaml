@@ -1528,7 +1528,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.32.1
+      supi: 0.32.2
       symlink-dir: 3.0.2
       tape: 4.10.1
       tape-promise: 4.0.0
@@ -1964,7 +1964,7 @@ importers:
       '@pnpm/read-importers-context': 1.0.1
       '@pnpm/read-modules-dir': 2.0.0
       '@pnpm/read-package-json': 2.0.1
-      '@pnpm/resolve-dependencies': 6.1.0
+      '@pnpm/resolve-dependencies': 6.1.1
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/shamefully-flatten': 3.0.6
       '@pnpm/store-controller-types': 3.0.3
