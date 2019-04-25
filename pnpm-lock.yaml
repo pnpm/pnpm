@@ -171,7 +171,7 @@ importers:
       common-tags: 1.8.0
       most: 1.7.3_most@1.7.3
       normalize-path: 3.0.0
-      pretty-bytes: 5.1.0
+      pretty-bytes: 5.2.0
       pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
@@ -218,7 +218,7 @@ importers:
       most: 1.7.3
       normalize-newline: 3.0.0
       normalize-path: 3.0.0
-      pretty-bytes: 5.1.0
+      pretty-bytes: 5.2.0
       pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
@@ -2308,12 +2308,12 @@ importers:
       '@commitlint/cli': 7.5.2
       '@commitlint/config-conventional': 7.5.0
       '@commitlint/prompt-cli': 7.5.0
-      husky: 2.0.0
+      husky: 2.1.0
     specifiers:
       '@commitlint/cli': 7.5.2
       '@commitlint/config-conventional': 7.5.0
       '@commitlint/prompt-cli': 7.5.0
-      husky: 2.0.0
+      husky: 2.1.0
   utils/tslint-config:
     dependencies:
       tslint-config-standard: 8.0.1_tslint@5.16.0+typescript@3.4.5
@@ -5737,7 +5737,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
-  /husky/2.0.0:
+  /husky/2.1.0:
     dependencies:
       cosmiconfig: 5.2.0
       execa: 1.0.0
@@ -5755,7 +5755,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-YvSQ5UQHNfqm+g+P1sFTkPI23nEe0gbKXdv5ZTRStYSVdAYyH1iypFilAMVqXLXnjGtb6lBuR/2Sf5FkwCNY2Q==
+      integrity: sha512-FHsqdIJPmQX/89Xg/761RMFCPSNNG2eiQMxChGP081NTohHexEuu/4nYh5m4TcFKq4xm+DqaGp8J/EUnkzL1Aw==
   /iconv-lite/0.4.23:
     dependencies:
       safer-buffer: 2.1.2
@@ -7221,6 +7221,7 @@ packages:
     dependencies:
       '@most/multicast': 1.3.0_most@1.7.3
       '@most/prelude': 1.7.2
+      most: 1.7.3_most@1.7.3
       symbol-observable: 1.2.0
     dev: false
     peerDependencies:
@@ -8075,12 +8076,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-1PRWKwzjaW5BrFLQ4ALlemNdxtw=
-  /pretty-bytes/5.1.0:
+  /pretty-bytes/5.2.0:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-wa5+qGVg9Yt7PB6rYm3kXlKzgzgivYTLRandezh43jjRqgyDyP+9YxfJpJiLs9yKD1WeU8/OvtToWpW7255FtA==
+      integrity: sha512-ujANBhiUsl9AhREUDUEY1GPOharMGm8x8juS7qOHybcLi7XsKfrYQ88hSly1l2i0klXHTDYrlL8ihMCG55Dc3w==
   /pretty-ms/2.1.0:
     dependencies:
       is-finite: 1.0.2
@@ -9667,7 +9668,9 @@ packages:
       integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
   /tslint-config-standard/8.0.1_tslint@5.16.0+typescript@3.4.5:
     dependencies:
+      tslint: 5.16.0_typescript@3.4.5
       tslint-eslint-rules: 5.4.0_tslint@5.16.0+typescript@3.4.5
+      typescript: 3.4.5
     peerDependencies:
       tslint: '*'
       typescript: '*'
