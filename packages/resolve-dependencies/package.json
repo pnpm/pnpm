@@ -45,7 +45,7 @@
     "dependency-path": "3.0.4",
     "path-exists": "4.0.0",
     "ramda": "0.26.1",
-    "replace-string": "2.0.0",
+    "replace-string": "3.0.0",
     "semver": "6.0.0",
     "version-selector-type": "2.0.1"
   },

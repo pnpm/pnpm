@@ -75,7 +75,7 @@
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
     "remove-all-except-outer-links": "2.0.0",
-    "replace-string": "2.0.0",
+    "replace-string": "3.0.0",
     "resolve-link-target": "1.0.1",
     "rimraf-then": "1.0.1",
     "run-groups": "2.0.0",
