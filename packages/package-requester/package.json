@@ -63,7 +63,7 @@
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
     "@pnpm/tslint-config": "0.0.0",
     "@types/ncp": "2.0.1",
-    "@types/nock": "9.3.1",
+    "@types/nock": "10.0.0",
     "@types/sinon": "^7.0.10",
     "@types/tape": "4.2.33",
     "delay": "4.2.0",
