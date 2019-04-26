@@ -1027,7 +1027,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/nock': 9.3.1
+      '@types/nock': 10.0.0
       '@types/normalize-path': 3.0.0
       '@types/path-exists': 3.0.0
       '@types/ssri': 6.0.1
@@ -1049,7 +1049,7 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/load-json-file': ^2.0.7
-      '@types/nock': ^9.1.1
+      '@types/nock': ^10.0.0
       '@types/node': '*'
       '@types/normalize-path': ^3.0.0
       '@types/path-exists': ^3.0.0
@@ -1186,7 +1186,7 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/ncp': 2.0.1
-      '@types/nock': 9.3.1
+      '@types/nock': 10.0.0
       '@types/sinon': 7.0.11
       '@types/tape': 4.2.33
       delay: 4.2.0
@@ -1219,7 +1219,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
-      '@types/nock': 9.3.1
+      '@types/nock': 10.0.0
       '@types/node': '*'
       '@types/sinon': ^7.0.10
       '@types/tape': 4.2.33
@@ -2095,7 +2095,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/tarball-fetcher': 'link:'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/nock': 9.3.1
+      '@types/nock': 10.0.0
       '@types/tape': 4.2.33
       nock: 10.0.6
       tape: 4.10.1
@@ -2110,7 +2110,7 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@types/graceful-fs': ^4.1.2
       '@types/mz': ^0.0.32
-      '@types/nock': 9.3.1
+      '@types/nock': 10.0.0
       '@types/node': '*'
       '@types/retry': ^0.12.0
       '@types/rimraf': ^2.0.2
@@ -2737,12 +2737,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-TeiJ7uvv/92ugSqZ0v9l0eNXzutlki0aK+R1K5bfA5SYUil46ITlxLW4iNTCf55P4L5weCmaOdtxGeGWvudwPg==
-  /@types/nock/9.3.1:
+  /@types/nock/10.0.0:
     dependencies:
       '@types/node': 11.13.8
     dev: true
     resolution:
-      integrity: sha512-eOVHXS5RnWOjTVhu3deCM/ruy9E6JCgeix2g7wpFiekQh3AaEAK1cz43tZDukKmtSmQnwvSySq7ubijCA32I7Q==
+      integrity: sha512-DJM4sOEUeGzqjDkMtCubuN8zQ9gUxzPC+WVMzK2X4q6Kc5pnRFWcm8gkk4JNsDs7Zs6jjVf+dNYbNOii8fzPLA==
   /@types/node-fetch/2.3.3:
     dependencies:
       '@types/node': 11.13.8
