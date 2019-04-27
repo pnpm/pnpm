@@ -79,7 +79,7 @@
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
     "runPrepareFixtures": "cd test/fixtures && node ../../../pnpm/lib/bin/pnpm.js m i --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
-    "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
+    "prepareFixtures": "pnpm-registry-mock prepare && npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
     "@pnpm/build-modules": "1.0.3",
