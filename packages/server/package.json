@@ -46,7 +46,7 @@
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "mz": "2.7.0",
-    "node-fetch": "2.3.0",
+    "node-fetch": "2.4.1",
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
     "tape": "4.10.1",
