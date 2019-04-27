@@ -78,7 +78,7 @@
     "test": "npm run lint && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
-    "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js m i --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
+    "runPrepareFixtures": "cd test/fixtures && node ../../../pnpm/lib/bin/pnpm.js m i --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
     "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
