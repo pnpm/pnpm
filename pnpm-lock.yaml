@@ -347,8 +347,8 @@ importers:
       typescript: 3.4.5
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 4.0.0_node-fetch@2.3.0
-      node-fetch: 2.3.0
+      '@zeit/fetch-retry': 4.0.0_node-fetch@2.4.1
+      node-fetch: 2.4.1
       node-fetch-unix: 2.3.0
     devDependencies:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -362,7 +362,7 @@ importers:
       '@zeit/fetch-retry': 4.0.0
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
-      node-fetch: 2.3.0
+      node-fetch: 2.4.1
       node-fetch-unix: 2.3.0
       rimraf: ^2.6.2
       tslint: 5.16.0
@@ -1740,7 +1740,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
-      node-fetch: 2.3.0
+      node-fetch: 2.4.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       tape: 4.10.1
@@ -1767,7 +1767,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
-      node-fetch: 2.3.0
+      node-fetch: 2.4.1
       p-limit: 2.2.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -2890,11 +2890,11 @@ packages:
       npm: '>=3'
     resolution:
       integrity: sha512-AjEo5LXk4Yf0SaXSc3y4i1t+wxY552O7WrVJPtnC6H7nUsSrygg/ODCG1RSKelskOq6b5p/LyXnsTkmCFXyjDQ==
-  /@zeit/fetch-retry/4.0.0_node-fetch@2.3.0:
+  /@zeit/fetch-retry/4.0.0_node-fetch@2.4.1:
     dependencies:
       async-retry: 1.2.3
       debug: 3.2.6
-      node-fetch: 2.3.0
+      node-fetch: 2.4.1
     dev: false
     peerDependencies:
       node-fetch: '*'
@@ -7348,11 +7348,11 @@ packages:
       node: 4.x || >=6.0.0
     resolution:
       integrity: sha512-ngVgjZl1n1dZRR8BIX/UKU3Q0cfkQ4byUVcV132xW/+zPF79sVo2td2576mzIGJibi7E0Azcx2gpy66BoV2hrg==
-  /node-fetch/2.3.0:
+  /node-fetch/2.4.1:
     engines:
       node: 4.x || >=6.0.0
     resolution:
-      integrity: sha512-MOd8pV3fxENbryESLgVIeaGKrdl+uaYhCSSVkjeOb/31/njTpcis5aWfdqgNlHIrKOLRbMnfPINPOML2CIFeXA==
+      integrity: sha512-P9UbpFK87NyqBZzUuDBDz4f6Yiys8xm8j7ACDbi6usvFm6KItklQUKjeoqTrYS/S1k6I8oaOC2YLLDr/gg26Mw==
   /node-gyp/3.8.0:
     dependencies:
       fstream: 1.0.11
