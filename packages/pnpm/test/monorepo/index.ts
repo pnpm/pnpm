@@ -2,7 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'

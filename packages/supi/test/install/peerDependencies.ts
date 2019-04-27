@@ -2,7 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import mkdir = require('mkdirp-promise')
 import path = require('path')
 import exists = require('path-exists')

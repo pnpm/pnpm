@@ -1,7 +1,7 @@
 import assertStore from '@pnpm/assert-store'
 import { tempDir } from '@pnpm/prepare'
 import fs = require('fs')
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import { storeAdd } from 'supi'
 import tape = require('tape')

@@ -4,7 +4,7 @@ import logger, {
 } from '@pnpm/logger'
 import chalk from 'chalk'
 import { stripIndent, stripIndents } from 'common-tags'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import StackTracey = require('stacktracey')

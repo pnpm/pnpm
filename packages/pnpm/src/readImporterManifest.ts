@@ -1,5 +1,5 @@
 import { ImporterManifest } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 
 export async function readImporterManifest (filename: string) {

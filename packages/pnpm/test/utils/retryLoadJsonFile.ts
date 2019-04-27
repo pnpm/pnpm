@@ -1,4 +1,4 @@
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import retry = require('retry')
 
 export default <T>(filePath: string): Promise<T> => {

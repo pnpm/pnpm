@@ -7,7 +7,7 @@ import { ResolveFunction } from '@pnpm/resolver-base'
 import createFetcher from '@pnpm/tarball-fetcher'
 import { PackageJson } from '@pnpm/types'
 import delay from 'delay'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import nock = require('nock')

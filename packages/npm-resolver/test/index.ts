@@ -1,5 +1,5 @@
 import createResolveFromNpm from '@pnpm/npm-resolver'
-import loadJsonFile, { sync as loadJsonFileSync } from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import nock = require('nock')
 import path = require('path')
 import exists = require('path-exists')
@@ -7,10 +7,10 @@ import test = require('tape')
 import tempy = require('tempy')
 
 // tslint:disable:no-any
-const isPositiveMeta = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'is-positive.json'))
-const isPositiveMetaWithDeprecated = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
-const isPositiveMetaFull = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'is-positive-full.json'))
-const sindresorhusIsMeta = loadJsonFileSync<any>(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
+const isPositiveMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
+const isPositiveMetaFull = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'is-positive-full.json'))
+const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
 // tslint:enable:no-any
 
 const registry = 'https://registry.npmjs.org/'

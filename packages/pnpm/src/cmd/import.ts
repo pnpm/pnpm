@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import { install } from 'supi'

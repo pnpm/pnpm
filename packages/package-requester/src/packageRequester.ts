@@ -26,7 +26,7 @@ import {
   PackageJson,
   StoreIndex,
 } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import PQueue = require('p-queue')

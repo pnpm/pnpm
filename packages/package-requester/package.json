@@ -34,7 +34,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/check-package": "3.0.0",
+    "@pnpm/check-package": "3.0.1",
     "@pnpm/core-loggers": "3.0.2",
     "@pnpm/fetcher-base": "3.0.3",
     "@pnpm/pkgid-to-filename": "2.0.0",
@@ -44,7 +44,7 @@
     "@pnpm/types": "3.2.0",
     "@types/mz": "0.0.32",
     "@types/node": "*",
-    "load-json-file": "5.3.0",
+    "load-json-file": "6.0.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "p-limit": "2.2.0",

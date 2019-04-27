@@ -1,7 +1,7 @@
 import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import pLimit, { Limit } from 'p-limit'
 import path = require('path')
 import url = require('url')

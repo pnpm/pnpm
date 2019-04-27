@@ -1,7 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LifecycleLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
 import PATH = require('path-name')

@@ -1,12 +1,12 @@
 import prepare from '@pnpm/prepare'
 import { PackageJson } from '@pnpm/types'
-import { sync as loadJsonFileSync } from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 
-const basicPackageJson = loadJsonFileSync<PackageJson>(path.join(__dirname, '../utils/simple-package.json'))
+const basicPackageJson = loadJsonFile.sync<PackageJson>(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
 test['only'] = promisifyTape(tape.only)
 

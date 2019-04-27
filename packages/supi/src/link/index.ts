@@ -21,7 +21,7 @@ import {
 import {
   getSaveType,
 } from '@pnpm/utils'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')

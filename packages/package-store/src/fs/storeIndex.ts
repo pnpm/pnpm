@@ -1,5 +1,5 @@
 import { StoreIndex } from '@pnpm/types'
-import loadJsonFile from 'load-json-file'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import writeJsonFile, { sync as writeJsonFileSync } from 'write-json-file'
 
