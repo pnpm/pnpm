@@ -102,8 +102,8 @@ test('retry when tarball size does not match content-length', async t => {
 })
 
 test('redownload incomplete cached tarballs', async t => {
-  if (process.version.startsWith('v10.')) {
-    // TODO: investigate why the following error happens on Node 10:
+  if (+process.version.split('.')[0].substr(1) >= 10) {
+    // TODO: investigate why the following error happens on Node>=10:
     // node[30990]: ../src/node_file.cc:1715:void node::fs::WriteBuffer(const v8::FunctionCallbackInfo<v8::Value>&): Assertion `args[3]->IsInt32()' failed.
     t.skip('This test is skipped on Node.js 10')
     t.end()
