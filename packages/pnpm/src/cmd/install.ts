@@ -1,10 +1,12 @@
+import readImporterManifest from '@pnpm/read-importer-manifest'
 import { getSaveType } from '@pnpm/utils'
+import writeImporterManifest from '@pnpm/write-importer-manifest'
+import path = require('path')
 import {
   install,
   mutateModules,
   rebuild,
 } from 'supi'
-import writePkg = require('write-pkg')
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
@@ -54,7 +56,7 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
 
-  let manifest = await safeReadImporterManifestFromDir(opts.prefix)
+  let { manifest, fileName } = await readImporterManifest(opts.prefix)
   if (manifest === null) {
     if (opts.update) {
       const err = new Error('No package.json found')
@@ -87,7 +89,7 @@ export default async function installCmd (
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
-    await writePkg(opts.prefix, updatedImporter.manifest)
+    await writeImporterManifest(path.join(opts.prefix, fileName), updatedImporter.manifest)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {
