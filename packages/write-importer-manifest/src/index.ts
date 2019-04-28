@@ -3,6 +3,7 @@ import writeJsonFile = require('write-json-file')
 import writeJson5File = require('write-json5-file')
 import writeYamlFile = require('write-yaml-file')
 
+// TODO: normalize before save + preserve indent
 export default function writeImporterManifest (filePath: string, manifest: ImporterManifest): Promise<void> {
   switch (filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()) {
     case 'json5':
