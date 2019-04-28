@@ -81,8 +81,7 @@
     "semver": "6.0.0",
     "symlink-dir": "3.0.2",
     "validate-npm-package-name": "3.0.0",
-    "version-selector-type": "2.0.1",
-    "write-pkg": "3.2.0"
+    "version-selector-type": "2.0.1"
   },
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",

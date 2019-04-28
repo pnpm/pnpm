@@ -1887,7 +1887,6 @@ importers:
       symlink-dir: 3.0.2
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
-      write-pkg: 3.2.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
@@ -2034,7 +2033,6 @@ importers:
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
       write-json-file: 3.2.0
-      write-pkg: 3.2.0
       write-yaml-file: 2.0.0
   packages/symlink-dependency:
     dependencies:

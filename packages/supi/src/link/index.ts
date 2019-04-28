@@ -203,11 +203,13 @@ export async function linkFromGlobal (
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
   const linkFromPkgs = pkgNames.map((pkgName) => path.join(globalPkgPath, 'node_modules', pkgName))
-  await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
+  const newManifest = await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
+
+  return newManifest
 }
 
 export async function linkToGlobal (
@@ -224,7 +226,7 @@ export async function linkToGlobal (
   maybeOpts.lockfileDirectory = maybeOpts.lockfileDirectory || maybeOpts.globalPrefix
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
-  await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {
+  const newManifest = await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {
     ...opts,
     linkToBin: maybeOpts.globalBin,
     prefix: maybeOpts.globalPrefix,
@@ -233,4 +235,6 @@ export async function linkToGlobal (
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
+
+  return newManifest
 }

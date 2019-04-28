@@ -11,6 +11,7 @@ import {
   linkToGlobal,
   LocalPackages,
 } from 'supi'
+import writePkg = require('write-pkg')
 import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfigs from '../getConfigs'
@@ -44,10 +45,12 @@ export default async (
 
   // pnpm link
   if (!input || !input.length) {
-    await linkToGlobal(cwd, {
+    const manifest = await safeReadPackageFromDir(opts.globalPrefix) || {}
+    const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
-      manifest: await safeReadPackageFromDir(opts.globalPrefix) || {}
+      manifest,
     })
+    await writePkg(opts.globalPrefix, newManifest)
     return
   }
 
@@ -92,10 +95,12 @@ export default async (
       )
     })),
   )
-  await link(pkgPaths, path.join(cwd, 'node_modules'), {
+  const currentManifest = await readImporterManifestFromDir(cwd)
+  const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,
-    manifest: await readImporterManifestFromDir(cwd),
+    manifest: currentManifest,
   })
+  await writePkg(cwd, newManifest)
 
   await Promise.all(
     Array.from(storeControllerCache.values())

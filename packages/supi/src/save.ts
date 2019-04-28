@@ -4,8 +4,6 @@ import {
   DependenciesField,
   ImporterManifest,
 } from '@pnpm/types'
-import path = require('path')
-import writePkg = require('write-pkg')
 
 export default async function save (
   prefix: string,
@@ -20,8 +18,6 @@ export default async function save (
     dryRun?: boolean,
   }
 ): Promise<ImporterManifest> {
-  const pkgJsonPath = path.join(prefix, 'package.json')
-
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
       const spec = packageSpec.pref || findSpec(packageSpec.name, packageJson as ImporterManifest)
@@ -45,9 +41,6 @@ export default async function save (
     }
   })
 
-  if (!opts || opts.dryRun !== true) {
-    await writePkg(pkgJsonPath, packageJson)
-  }
   packageJsonLogger.debug({
     prefix,
     updated: packageJson,
