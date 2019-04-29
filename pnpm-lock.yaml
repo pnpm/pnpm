@@ -1872,6 +1872,7 @@ importers:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
+      '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 'link:../read-package-json'
@@ -1980,6 +1981,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/prune-lockfile': 1.0.4
+      '@pnpm/read-importer-manifest': 0.0.0
       '@pnpm/read-importers-context': 1.0.1
       '@pnpm/read-modules-dir': 2.0.0
       '@pnpm/read-package-json': 2.0.1

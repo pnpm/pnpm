@@ -35,6 +35,7 @@
     "@pnpm/package-requester": "7.0.6",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/prune-lockfile": "1.0.4",
+    "@pnpm/read-importer-manifest": "0.0.0",
     "@pnpm/read-importers-context": "1.0.1",
     "@pnpm/read-modules-dir": "2.0.0",
     "@pnpm/read-package-json": "2.0.1",
