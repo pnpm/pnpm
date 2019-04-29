@@ -1,4 +1,4 @@
-import readImporterManifest, { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
+import { readImporterManifestOnly, tryReadImporterManifest } from '@pnpm/read-importer-manifest'
 import { getSaveType } from '@pnpm/utils'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
 import path = require('path')
@@ -114,7 +114,7 @@ export default async function installCmd (
       [
         {
           buildIndex: 0,
-          manifest: (await readImporterManifest(opts.prefix)).manifest,
+          manifest: await readImporterManifestOnly(opts.prefix),
           prefix: opts.prefix,
         },
       ], {

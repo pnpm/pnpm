@@ -5,9 +5,9 @@ import {
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
 import createResolver from '@pnpm/npm-resolver'
-import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import resolveStore from '@pnpm/store-path'
-import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, ImporterManifest, Registries } from '@pnpm/types'
 import { normalizeRegistries } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 
@@ -103,8 +103,8 @@ async function _outdated (
 ): Promise<OutdatedPackage[]> {
   const registries = normalizeRegistries(opts.registries)
   const lockfileDirectory = opts.lockfileDirectory || pkgPath
-  const pkg = await readPackageFromDir(pkgPath)
-  if (packageHasNoDeps(pkg)) return []
+  const manifest = await readImporterManifestOnly(pkgPath)
+  if (packageHasNoDeps(manifest)) return []
   const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
     || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   if (!wantedLockfile) {
@@ -211,11 +211,10 @@ async function _outdated (
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
 }
 
-// tslint:disable-next-line:no-any
-function packageHasNoDeps (pkg: any) {
-  return (!pkg.dependencies || isEmpty(pkg.dependencies))
-    && (!pkg.devDependencies || isEmpty(pkg.devDependencies))
-    && (!pkg.optionalDependencies || isEmpty(pkg.optionalDependencies))
+function packageHasNoDeps (manifest: ImporterManifest) {
+  return (!manifest.dependencies || isEmpty(manifest.dependencies))
+    && (!manifest.devDependencies || isEmpty(manifest.devDependencies))
+    && (!manifest.optionalDependencies || isEmpty(manifest.optionalDependencies))
 }
 
 function isEmpty (obj: object) {

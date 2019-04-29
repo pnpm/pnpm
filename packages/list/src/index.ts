@@ -1,11 +1,10 @@
+import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { Registries } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import dh, {
   forPackages as dhForPackages,
   PackageSelector,
 } from 'dependencies-hierarchy'
-import path = require('path')
-import readPkg from './readPkg'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
 
@@ -55,7 +54,7 @@ export async function forPackages (
   })
 
   const print = getPrinter(opts.parseable)
-  const entryPkg = await readPkg(path.resolve(projectPath, 'package.json'))
+  const entryPkg = await readImporterManifestOnly(projectPath)
   return print({
     name: entryPkg.name,
     path: projectPath,
@@ -90,7 +89,7 @@ export default async function (
     })
 
   const print = getPrinter(opts.parseable)
-  const entryPkg = await readPkg(path.resolve(projectPath, 'package.json'))
+  const entryPkg = await readImporterManifestOnly(projectPath)
   return print({
     name: entryPkg.name,
     path: projectPath,

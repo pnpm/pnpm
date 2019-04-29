@@ -20,6 +20,11 @@ export default async function readImporterManifest (importerDir: string): Promis
   throw err
 }
 
+export async function readImporterManifestOnly (importerDir: string): Promise<ImporterManifest> {
+  const { manifest } = await readImporterManifest(importerDir)
+  return manifest
+}
+
 export async function tryReadImporterManifest (importerDir: string): Promise<{
   fileName: string
   manifest: ImporterManifest | null
