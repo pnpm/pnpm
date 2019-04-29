@@ -6,7 +6,7 @@ import RecursiveSummary from './recursiveSummary'
 
 export default async (
   packageChunks: string[][],
-  graph: {[id: string]: PackageNode},
+  graph: {[id: string]: PackageNode<{ fileName: string }>},
   args: string[],
   cmd: string,
   opts: {
@@ -31,7 +31,7 @@ export default async (
             cwd: prefix,
             env: {
               ...process.env,
-              PNPM_PACKAGE_NAME: graph[prefix].manifest.name,
+              PNPM_PACKAGE_NAME: graph[prefix].package.manifest.name,
             },
             stdio: 'inherit',
           })

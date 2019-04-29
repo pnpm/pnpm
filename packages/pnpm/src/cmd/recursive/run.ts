@@ -8,7 +8,7 @@ import RecursiveSummary from './recursiveSummary'
 
 export default async (
   packageChunks: string[][],
-  graph: {[id: string]: PackageNode},
+  graph: {[id: string]: PackageNode<{ fileName: string }>},
   args: string[],
   cmd: string,
   opts: {
@@ -35,8 +35,8 @@ export default async (
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = graph[prefix] as {manifest: PackageJson, path: string}
-        if (!pkg.manifest.scripts || !pkg.manifest.scripts[scriptName]) {
+        const pkg = graph[prefix] as {package: {manifest: PackageJson, path: string}}
+        if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
           return
         }
         hasCommand++
@@ -49,12 +49,12 @@ export default async (
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }
-          if (pkg.manifest.scripts[`pre${scriptName}`]) {
-            await runLifecycleHooks(`pre${scriptName}`, pkg.manifest, lifecycleOpts)
+          if (pkg.package.manifest.scripts[`pre${scriptName}`]) {
+            await runLifecycleHooks(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
-          await runLifecycleHooks(scriptName, pkg.manifest, lifecycleOpts)
-          if (pkg.manifest.scripts[`post${scriptName}`]) {
-            await runLifecycleHooks(`post${scriptName}`, pkg.manifest, lifecycleOpts)
+          await runLifecycleHooks(scriptName, pkg.package.manifest, lifecycleOpts)
+          if (pkg.package.manifest.scripts[`post${scriptName}`]) {
+            await runLifecycleHooks(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
           result.passes++
         } catch (err) {

@@ -1,5 +1,4 @@
 import logger from '@pnpm/logger'
-import readImporterManifest, { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
@@ -101,7 +100,7 @@ export default async (
 }
 
 export async function recursive (
-  allPkgs: Array<{path: string, manifest: DependencyManifest}>,
+  allPkgs: Array<{fileName: string, path: string, manifest: DependencyManifest}>,
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
@@ -117,7 +116,7 @@ export async function recursive (
   }
 
   const pkgGraphResult = createPkgGraph(allPkgs)
-  let pkgs: Array<{path: string, manifest: ImporterManifest}>
+  let pkgs: Array<{fileName: string, path: string, manifest: ImporterManifest}>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
@@ -127,6 +126,13 @@ export async function recursive (
 
   if (pkgs.length === 0) {
     return false
+  }
+  const manifestsByPath: { [path: string]: { manifest: ImporterManifest, fileName: string } } = {}
+  for (const pkg of pkgs) {
+    manifestsByPath[pkg.path] = {
+      fileName: pkg.fileName,
+      manifest: pkg.manifest,
+    }
   }
 
   scopeLogger.debug({
@@ -208,7 +214,7 @@ export async function recursive (
         prefixes.map(async (prefix) => {
           importers.push({
             buildIndex,
-            manifest: await readImporterManifestOnly(prefix),
+            manifest: manifestsByPath[prefix].manifest,
             prefix,
           })
         })
@@ -224,6 +230,7 @@ export async function recursive (
   }
 
   if (cmdFullName !== 'rebuild') {
+    // For a workspace with shared lockfile
     if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
       let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
@@ -234,7 +241,7 @@ export async function recursive (
       const fileNames = [] as string[]
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }, index) => {
         const localConfigs = await memReadLocalConfigs(prefix)
-        const { manifest, fileName } = await readImporterManifest(prefix)
+        const { manifest, fileName } = manifestsByPath[prefix]
         fileNames[index] = fileName
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
@@ -308,7 +315,7 @@ export async function recursive (
             return
           }
 
-          const { manifest, fileName } = await readImporterManifest(prefix)
+          const { manifest, fileName } = manifestsByPath[prefix]
           let currentInput = [...input]
           if (updateToLatest) {
             if (!currentInput || !currentInput.length) {
@@ -406,7 +413,7 @@ export async function recursive (
               [
                 {
                   buildIndex: 0,
-                  manifest: await readImporterManifestOnly(prefix),
+                  manifest: manifestsByPath[prefix].manifest,
                   prefix,
                 },
               ],
@@ -475,7 +482,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
   )
 }
 
-function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
+function sortPackages (pkgGraph: {[nodeId: string]: PackageNode<{ fileName: string }>}): string[][] {
   const keys = Object.keys(pkgGraph)
   const setOfKeys = new Set(keys)
   const graph = new Map(

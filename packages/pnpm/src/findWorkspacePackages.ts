@@ -4,7 +4,7 @@ import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 
-export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: DependencyManifest}>> => {
+export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: DependencyManifest, fileName: string}>> => {
   const packagesManifest = await requirePackagesManifest(workspaceRoot)
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [

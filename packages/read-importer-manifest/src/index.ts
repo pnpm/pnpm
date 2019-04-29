@@ -32,7 +32,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   try {
     return {
       fileName: 'package.json',
-      manifest: await readJsonFile<ImporterManifest>(path.join(importerDir, 'package.json')),
+      manifest: await readPackageJson(path.join(importerDir, 'package.json')),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
@@ -40,7 +40,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   try {
     return {
       fileName: 'package.json5',
-      manifest: await readJson5File<ImporterManifest>(path.join(importerDir, 'package.json5')),
+      manifest: await readPackageJson5(path.join(importerDir, 'package.json5')),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
@@ -48,10 +48,44 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   try {
     return {
       fileName: 'package.yaml',
-      manifest: await readYamlFile<ImporterManifest>(path.join(importerDir, 'package.yaml')),
+      manifest: await readPackageYaml(path.join(importerDir, 'package.yaml')),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
   return { fileName: 'package.json', manifest: null }
+}
+
+export async function readExactImporterManifest (manifestPath: string) {
+  const base = path.basename(manifestPath).toLowerCase()
+  switch (base) {
+    case 'package.json':
+      return {
+        fileName: 'package.json',
+        manifest: await readPackageJson(manifestPath),
+      }
+    case 'package.json5':
+      return {
+        fileName: 'package.json5',
+        manifest: await readPackageJson5(manifestPath),
+      }
+    case 'package.yaml':
+      return {
+        fileName: 'package.yaml',
+        manifest: await readPackageYaml(manifestPath),
+      }
+  }
+  throw new Error(`Not supported manifest name "${base}"`)
+}
+
+function readPackageJson (filePath: string) {
+  return readJsonFile<ImporterManifest>(filePath)
+}
+
+function readPackageJson5 (filePath: string) {
+  return readJson5File<ImporterManifest>(filePath)
+}
+
+function readPackageYaml (filePath: string) {
+  return readYamlFile<ImporterManifest>(filePath)
 }

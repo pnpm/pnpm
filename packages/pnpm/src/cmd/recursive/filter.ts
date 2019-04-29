@@ -5,7 +5,7 @@ import R = require('ramda')
 import { PackageSelector } from '../../parsePackageSelectors'
 
 interface PackageGraph {
-  [id: string]: PackageNode,
+  [id: string]: PackageNode<{ fileName: string }>,
 }
 
 interface Graph {
@@ -72,7 +72,7 @@ function matchPackages (
   graph: PackageGraph,
   pattern: string,
 ) {
-  return R.keys(graph).filter((id) => graph[id].manifest.name && minimatch(graph[id].manifest.name, pattern))
+  return R.keys(graph).filter((id) => graph[id].package.manifest.name && minimatch(graph[id].package.manifest.name, pattern))
 }
 
 function matchPackagesByPath (

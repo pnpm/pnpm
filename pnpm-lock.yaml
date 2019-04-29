@@ -461,6 +461,34 @@ importers:
       typescript: 3.4.5
       write-yaml-file: 2.0.0
       yaml-tag: 1.1.0
+  packages/find-packages:
+    dependencies:
+      '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
+      '@types/node': 10.14.6
+      fast-glob: 2.2.6
+      p-filter: 2.1.0
+    devDependencies:
+      '@types/tape': 4.2.33
+      find-packages: 'link:'
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      tape: 4.10.1
+      ts-node: 8.1.0_typescript@3.4.5
+      tslint: 5.16.0_typescript@3.4.5
+      typescript: 3.4.5
+    specifiers:
+      '@pnpm/read-importer-manifest': 0.0.0
+      '@types/node': ^10.12.18
+      '@types/tape': ^4.2.29
+      fast-glob: ^2.0.4
+      find-packages: 'link:'
+      mos: ^2.0.0-alpha.3
+      mos-plugin-readme: ^1.0.4
+      p-filter: ^2.0.0
+      tape: ^4.6.3
+      ts-node: ^8.0.1
+      tslint: ^5.0.0
+      typescript: ^3.0.0
   packages/git-fetcher:
     dependencies:
       '@types/node': 11.13.8
@@ -1026,7 +1054,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/nock': 10.0.0
+      '@types/nock': 10.0.1
       '@types/normalize-path': 3.0.0
       '@types/path-exists': 3.0.0
       '@types/ssri': 6.0.1
@@ -1320,6 +1348,32 @@ importers:
       tslint: 5.16.0
       typescript: 3.4.5
       write-json-file: 3.2.0
+  packages/pkgs-graph:
+    dependencies:
+      '@types/node': 11.13.8
+      '@types/ramda': 0.26.8
+      '@types/semver': 5.5.0
+      '@zkochan/npm-package-arg': 1.0.2
+      ramda: 0.26.1
+      semver: 6.0.0
+    devDependencies:
+      '@types/tape': 4.2.33
+      pkgs-graph: 'link:'
+      tape: 4.10.1
+      ts-node: 8.1.0_typescript@3.4.5
+      typescript: 3.4.5
+    specifiers:
+      '@types/node': '*'
+      '@types/ramda': ^0.26.0
+      '@types/semver': ^5.3.31
+      '@types/tape': ^4.2.29
+      '@zkochan/npm-package-arg': ^1.0.0
+      pkgs-graph: 'link:'
+      ramda: ^0.26.0
+      semver: ^6.0.0
+      tape: ^4.6.3
+      ts-node: ^8.0.3
+      typescript: ^3.0.0
   packages/pnpm:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -1355,7 +1409,7 @@ importers:
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.0
       execa: 1.0.0
-      find-packages: 4.0.1
+      find-packages: 'link:../find-packages'
       get-port: 5.0.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1374,7 +1428,7 @@ importers:
       p-limit: 2.2.0
       path-absolute: 1.0.1
       path-name: 1.0.0
-      pkgs-graph: 3.0.0
+      pkgs-graph: 'link:../pkgs-graph'
       pnpm-file-reporter: 0.1.0
       process-exists: 3.1.0
       ramda: 0.26.1
@@ -2619,7 +2673,7 @@ packages:
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
       '@types/node': 11.13.8
-      '@types/ramda': 0.26.8
+      '@types/ramda': 0.26.6
       '@zkochan/cmd-shim': 3.1.0
       arr-flatten: 1.1.0
       is-subdir: 1.0.3
@@ -2794,6 +2848,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-DJM4sOEUeGzqjDkMtCubuN8zQ9gUxzPC+WVMzK2X4q6Kc5pnRFWcm8gkk4JNsDs7Zs6jjVf+dNYbNOii8fzPLA==
+  /@types/nock/10.0.1:
+    dependencies:
+      '@types/node': 11.13.8
+    dev: true
+    resolution:
+      integrity: sha512-3Dbkj/f0HxuvyYfInbQCHLASFyjnNUcidabwrbhJDMZOXXznNyQpzsBgZnY2K+c43OekqWvZ+tDjGsGTKm1d5g==
   /@types/node-fetch/2.3.3:
     dependencies:
       '@types/node': 11.13.8
@@ -2878,7 +2938,7 @@ packages:
       integrity: sha512-Sf5NnDETSFGTHXIfG4zTTczRFhGEjSCfwfvHZ5oFmyX0fUA5BJKV/hdQ2zDnfcC6WXvE78ZTh+/18VzMyMM1QQ==
   /@types/tape/4.2.33:
     dependencies:
-      '@types/node': 10.14.6
+      '@types/node': 11.13.8
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/touch/3.1.1:
@@ -5127,17 +5187,6 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha512-Y1GUDo39ez4aHAw7MysnUD5JzYX+WaIj8I57kO3aEPT1fFRL4sr7mjei97FgnwhAyyzRYmQZaTHb2+9uZ1dPtg==
-  /find-packages/4.0.1:
-    dependencies:
-      '@pnpm/read-package-json': 2.0.1
-      '@types/node': 10.14.6
-      fast-glob: 2.2.6
-      p-filter: 2.1.0
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-1qtGZL3BATaXYhYvH80CDgdy+5vVXLFGXMvJsJq00/E+/sIYd6BM/2V+hOq2VyR8Fe02k/v3pdl32TuLgyvSFg==
   /find-up/1.1.2:
     dependencies:
       path-exists: 2.1.0
@@ -8017,19 +8066,6 @@ packages:
       node: '>= 0.4.0'
     resolution:
       integrity: sha1-tUGO8EOd5UJfxJlQQtztFPsqhP8=
-  /pkgs-graph/3.0.0:
-    dependencies:
-      '@types/node': 11.13.8
-      '@types/ramda': 0.26.8
-      '@types/semver': 5.5.0
-      '@zkochan/npm-package-arg': 1.0.2
-      ramda: 0.26.1
-      semver: 6.0.0
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-GHjcGMs15Q3FtX9/aggZZuntrJpxSRXMYJNLsIveoaAZDGU89y7MBdaJr8PL9Qut71najIIzkfUHGmQZkWRWLA==
   /please-upgrade-node/3.1.1:
     dependencies:
       semver-compare: 1.0.0
