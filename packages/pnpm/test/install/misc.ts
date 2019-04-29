@@ -2,7 +2,6 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { prepareEmpty } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import caw = require('caw')
 import crossSpawn = require('cross-spawn')
 import delay = require('delay')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
@@ -13,7 +12,6 @@ import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
 import semver = require('semver')
-import 'sepia'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -21,13 +19,8 @@ import {
   execPnpmSync,
 } from '../utils'
 
-const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
-
-if (!caw() && !IS_WINDOWS) {
-  process.env.VCR_MODE = 'cache'
-}
 
 test('bin files are found by lifecycle scripts', t => {
   const project = prepare(t, {

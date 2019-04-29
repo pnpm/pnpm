@@ -1402,7 +1402,6 @@ importers:
       '@types/update-notifier': 2.5.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
-      caw: 2.0.1
       deep-require-cwd: 1.0.0
       exists-link: 2.0.0
       mkdirp: 0.5.1
@@ -1418,7 +1417,6 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       semver: 6.0.0
-      sepia: 2.0.2
       symlink-dir: 3.0.2
       tape: 4.10.1
       tape-promise: 4.0.0
@@ -1471,7 +1469,6 @@ importers:
       byline: 5.0.0
       camelcase: 5.3.1
       camelcase-keys: 5.2.0
-      caw: 2.0.1
       chalk: 2.4.2
       common-tags: 1.8.0
       cross-spawn: 6.0.5
@@ -1519,7 +1516,6 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       semver: 6.0.0
-      sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
       supi: 0.32.2
@@ -1850,19 +1846,15 @@ importers:
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
-      '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
       '@types/mz': 0.0.32
       '@types/node': 11.13.8
-      '@types/nopt': 3.0.29
       '@types/ramda': 0.25.34
-      '@types/rc': 1.1.0
       '@types/semver': 6.0.0
       '@zkochan/npm-package-arg': 1.0.2
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
       encode-registry: 1.1.0
-      execa: 1.0.0
       get-npm-tarball-url: 2.0.1
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1880,11 +1872,9 @@ importers:
       path-absolute: 1.0.1
       ramda: 0.26.1
       remove-all-except-outer-links: 2.0.0
-      resolve-link-target: 1.0.1
       rimraf-then: 1.0.1
       run-groups: 2.0.0
       semver: 6.0.0
-      symlink-dir: 3.0.2
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
     devDependencies:
@@ -1903,10 +1893,10 @@ importers:
       '@types/sinon': 7.0.11
       '@types/tape': 4.2.33
       anonymous-npm-registry-client: 0.1.2
-      caw: 2.0.1
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
       dir-is-case-sensitive: 1.0.0
+      execa: 1.0.0
       exists-link: 2.0.0
       fs-extra: 7.0.1
       is-windows: 1.0.2
@@ -1918,10 +1908,11 @@ importers:
       path-name: 1.0.0
       pnpm-registry-mock: 2.12.0
       read-yaml-file: 1.1.0
+      resolve-link-target: 1.0.1
       rimraf: 2.6.3
-      sepia: 2.0.2
       sinon: 7.3.2
       supi: 'link:'
+      symlink-dir: 3.0.2
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 8.1.0_typescript@3.4.5
@@ -1965,22 +1956,18 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.4
-      '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
       '@types/fs-extra': 5.0.5
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
       '@types/node': '*'
-      '@types/nopt': 3.0.29
       '@types/ramda': 0.25.34
-      '@types/rc': 1.1.0
       '@types/semver': 6.0.0
       '@types/sinon': ^7.0.10
       '@types/tape': 4.2.33
       '@zkochan/npm-package-arg': 1.0.2
       anonymous-npm-registry-client: 0.1.2
-      caw: 2.0.1
       common-tags: 1.8.0
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
@@ -2021,7 +2008,6 @@ importers:
       rimraf-then: 1.0.1
       run-groups: 2.0.0
       semver: 6.0.0
-      sepia: 2.0.2
       sinon: 7.3.2
       supi: 'link:'
       symlink-dir: 3.0.2
@@ -2557,7 +2543,7 @@ packages:
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
       '@types/node': 11.13.8
-      '@types/ramda': 0.26.6
+      '@types/ramda': 0.26.8
       '@zkochan/cmd-shim': 3.1.0
       arr-flatten: 1.1.0
       is-subdir: 1.0.3
@@ -2662,6 +2648,7 @@ packages:
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 11.13.8
+    dev: true
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/common-tags/1.8.0:
@@ -2752,6 +2739,7 @@ packages:
     resolution:
       integrity: sha512-56wEJWXZs+3XXoTe/OCpdZ6czrONhy+6hT0GdPOb7HvudLTMJ1T5tuZPs37K5cPR5t+J9+vLPFDQgUQ8NWJE1w==
   /@types/nopt/3.0.29:
+    dev: true
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/normalize-package-data/2.4.0:
@@ -2788,10 +2776,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-PSMkNNhB900U2xcyndlkVjJeCXpVtf1yod0Kdq/ArsLDIE0tW8pLBChmQeJs4o4dfp3AEP+AGm6zIseZPU4ndA==
-  /@types/rc/1.1.0:
-    dev: false
-    resolution:
-      integrity: sha512-qw1q31xPnaeExbOA1daA3nfeKW2uZQN4Xg8QqZDM3vsXPHK/lyDpjWXJQIcrByRDcBzZJ3ccchSMMTDtCWgFpA==
   /@types/retry/0.12.0:
     resolution:
       integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==
@@ -2969,7 +2953,7 @@ packages:
   /abbrev/1.1.1:
     resolution:
       integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
-  /accepts/1.3.5:
+  /accepts/1.3.6:
     dependencies:
       mime-types: 2.1.24
       negotiator: 0.6.1
@@ -2977,7 +2961,7 @@ packages:
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha1-63d99gEXI6OxTopywIBcjoZ0a9I=
+      integrity: sha512-QsaoUD2dpVpjENy8JFpQnXP9vyzoZPmAoKrE3S6HtSB7qzSebkJNnmdY4p004FQUSSiHXPueENpoeuUW/7a8Ig==
   /acorn/3.0.4:
     dev: true
     engines:
@@ -3842,17 +3826,6 @@ packages:
   /caseless/0.12.0:
     resolution:
       integrity: sha1-G2gcIf+EAzyCZUMJBolCDRhxUdw=
-  /caw/2.0.1:
-    dependencies:
-      get-proxy: 2.1.0
-      isurl: 1.0.0
-      tunnel-agent: 0.6.0
-      url-to-options: 1.0.1
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-Cg8/ZSBEa8ZVY9HspcGUYaK63d/bN7rqS3CYCzEGUxuYv6UlmcjzDUz2fCFFHyTvUW5Pk0I+3hkA3iXlIj6guA==
   /ccount/1.0.3:
     dev: true
     resolution:
@@ -4123,7 +4096,7 @@ packages:
       integrity: sha512-BGHeLCK1GV7j1bSmQQAi26X+GgWcTjLr/0tzSvMCl3LH1w1IJ4PFSPoV5316b30cneTziC+B1a+3OjoSUcQYmw==
   /compression/1.7.3:
     dependencies:
-      accepts: 1.3.5
+      accepts: 1.3.6
       bytes: 3.0.0
       compressible: 2.0.17
       debug: 2.6.9
@@ -4153,6 +4126,7 @@ packages:
     dependencies:
       ini: 1.3.5
       proto-list: 1.2.4
+    dev: false
     resolution:
       integrity: sha512-a1eOIcu8+7lUInge4Rpf/n4Krkf3Dd9lqhljRzII1/Zno/kRtUWnznPO3jOKBmTEktkt3fkxisUcivoj0ebzoA==
   /configstore/2.1.0:
@@ -4910,7 +4884,7 @@ packages:
       integrity: sha1-t3c14xXOMPa27/D4OwQVGiJEliI=
   /express/4.16.4:
     dependencies:
-      accepts: 1.3.5
+      accepts: 1.3.6
       array-flatten: 1.1.1
       body-parser: 1.18.3
       content-disposition: 0.5.2
@@ -5296,14 +5270,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-imzMU0FjsZqNa6BqOjbbW6w5BivHIuQKopjpPqcnx0AVHJQKCxK1O+Ab3OrVXhrekqfVMjwA9ZYu062R+KcIsQ==
-  /get-proxy/2.1.0:
-    dependencies:
-      npm-conf: 1.1.3
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-zmZIaQTWnNQb4R4fJUEp/FC51eZsc6EkErspy3xtIYStaq8EB/hDIWipxsal+E8rz0qD7f2sL/NA9Xee4RInJw==
   /get-source/1.0.33:
     dependencies:
       data-uri-to-buffer: 2.0.1
@@ -5594,21 +5560,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tdRU3CGZriJWmfNGfloH87lVuv0=
-  /has-symbol-support-x/1.4.2:
-    dev: true
-    resolution:
-      integrity: sha512-3ToOva++HaW+eCpgqZrCfN51IPB+7bJNVT6CUATzueB5Heb8o6Nam0V3HG5dlDvZU1Gn5QLcbahiKw/XVk5JJw==
   /has-symbols/1.0.0:
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-uhqPGvKg/DllD1yFA2dwQSIGO0Q=
-  /has-to-string-tag-x/1.4.1:
-    dependencies:
-      has-symbol-support-x: 1.4.2
-    dev: true
-    resolution:
-      integrity: sha512-vdbKfmw+3LoOYVr+mtxHaX5a96+0f3DljYd8JOqvOLsf5mw2Otda2qCDT9qRqLAhrjyQ0h7ual5nOiASpsGNFw==
   /has-unicode/2.0.1:
     resolution:
       integrity: sha1-4Ob+aijPUROIVeCG0Wkedx3iqLk=
@@ -6229,15 +6185,6 @@ packages:
   /isstream/0.1.2:
     resolution:
       integrity: sha1-R+Y/evVa+m+S4VAOaQ64uFKcCZo=
-  /isurl/1.0.0:
-    dependencies:
-      has-to-string-tag-x: 1.4.1
-      is-object: 1.0.1
-    dev: true
-    engines:
-      node: '>= 4'
-    resolution:
-      integrity: sha512-1P/yWsxPlDtn7QeRD+ULKQPaIaN6yF368GZ2vDfv0AL0NwpStafjWCDDdn0k8wgFMWpVAqG7oJhxHnlud42i9w==
   /iterate-object/1.3.3:
     dev: false
     resolution:
@@ -6451,12 +6398,6 @@ packages:
     dev: false
     resolution:
       integrity: sha1-O/63LSTL/Dd1LwFTn5AG1xHZvpM=
-  /levenshtein/1.0.2:
-    dev: true
-    engines:
-      '0': node >=0.2.0
-    resolution:
-      integrity: sha1-zQLosyB1ZF3c9dBZ4C76kY+fs+w=
   /load-json-file/1.1.0:
     dependencies:
       graceful-fs: 4.1.15
@@ -7440,15 +7381,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-0v6T4851b72ykk5zEtFoN4QX/Fqyk7pouIj9xZyAvAe9jlDhAwT4z6FlwsoQCHjeuK2EGUoAwy/F4y4B1uZq9A==
-  /npm-conf/1.1.3:
-    dependencies:
-      config-chain: 1.1.12
-      pify: 3.0.0
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-Yic4bZHJOt9RCFbRP3GgpqhScOY4HH3V2P8yBj6CeYq118Qr+BLXqT2JvpJ00mryLESpgOxf5XlFv4ZjXxLScw==
   /npm-package-arg/4.2.1:
     dependencies:
       hosted-git-info: 2.7.1
@@ -8134,6 +8066,7 @@ packages:
     resolution:
       integrity: sha1-FZ+wYZPTIAP0s2kd0uwaY0qoDR0=
   /proto-list/1.2.4:
+    dev: false
     resolution:
       integrity: sha1-IS1b/hMYMGpCD2QCuOJv85ZHqEk=
   /proxy-addr/2.0.5:
@@ -8613,7 +8546,6 @@ packages:
   /resolve-link-target/1.0.1:
     dependencies:
       graceful-fs: 4.1.15
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -8841,14 +8773,6 @@ packages:
       node: '>= 0.8.0'
     resolution:
       integrity: sha512-E64YFPUssFHEFBvpbbjr44NCLtI1AohxQ8ZSiJjQLskAdKuriYEP6VyGEsRDH8ScozGpkaX1BGvhanqCwkcEZw==
-  /sepia/2.0.2:
-    dependencies:
-      levenshtein: 1.0.2
-    dev: true
-    engines:
-      node: '>=0.8'
-    resolution:
-      integrity: sha1-UxC7c1fn1H5cLSDlTAKGXa/sUoU=
   /serve-static/1.13.2:
     dependencies:
       encodeurl: 1.0.2
@@ -9951,12 +9875,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-evjzA2Rem9eaJy56FKxovAYJ2nM=
-  /url-to-options/1.0.1:
-    dev: true
-    engines:
-      node: '>= 4'
-    resolution:
-      integrity: sha1-FQWgOiiaSMvXpDTvuu7FBV9WM6k=
   /use/3.1.1:
     dev: false
     engines:

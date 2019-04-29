@@ -7,25 +7,20 @@ import {
   StatsLog,
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
-import caw = require('caw')
-import crossSpawn = require('cross-spawn')
 import deepRequireCwd = require('deep-require-cwd')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
-import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
 import semver = require('semver')
-import 'sepia'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  uninstall,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -36,15 +31,10 @@ import {
   testDefaults,
 } from '../utils'
 
-const spawnSync = crossSpawn.sync
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 const IS_WINDOWS = isWindows()
-
-if (!caw() && !IS_WINDOWS) {
-  process.env.VCR_MODE = 'cache'
-}
 
 test('small with dependencies (rimraf)', async (t: tape.Test) => {
   const project = prepareEmpty(t)

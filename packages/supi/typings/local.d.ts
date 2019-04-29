@@ -3,11 +3,6 @@ declare module 'camelcase' {
   export = anything;
 }
 
-declare module 'caw' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'cross-spawn' {
   const anything: any;
   export = anything;
