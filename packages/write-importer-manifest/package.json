@@ -35,6 +35,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/write-importer-manifest#readme",
   "dependencies": {
     "@pnpm/types": "^3.0.0",
+    "sort-keys": "2.0.0",
     "write-json-file": "3.2.0",
     "write-json5-file": "2.0.0",
     "write-yaml-file": "2.0.0"

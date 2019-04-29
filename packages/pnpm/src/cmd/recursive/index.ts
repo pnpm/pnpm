@@ -1,6 +1,8 @@
 import logger from '@pnpm/logger'
+import readImporterManifest, { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
+import writeImporterManifest from '@pnpm/write-importer-manifest'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import isSubdir = require('is-subdir')
@@ -22,14 +24,12 @@ import {
   rebuildPkgs,
   uninstall,
 } from 'supi'
-import writePkg = require('write-pkg')
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
 import getPinnedVersion from '../../getPinnedVersion'
 import { scopeLogger } from '../../loggers'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
-import { readImporterManifestFromDir } from '../../readImporterManifest'
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
@@ -208,7 +208,7 @@ export async function recursive (
         prefixes.map(async (prefix) => {
           importers.push({
             buildIndex,
-            manifest: await readImporterManifestFromDir(prefix),
+            manifest: await readImporterManifestOnly(prefix),
             prefix,
           })
         })
@@ -231,9 +231,11 @@ export async function recursive (
       if (importers.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDirectory, opts)
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
-      const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
+      const fileNames = [] as string[]
+      const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }, index) => {
         const localConfigs = await memReadLocalConfigs(prefix)
-        const manifest = await readImporterManifestFromDir(prefix)
+        const { manifest, fileName } = await readImporterManifest(prefix)
+        fileNames[index] = fileName
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -288,7 +290,7 @@ export async function recursive (
       await Promise.all(
         mutatedPkgs
           .filter((mutatedPkg, index) => mutatedImporters[index].mutation !== 'install')
-          .map(({ manifest, prefix }) => writePkg(prefix, manifest))
+          .map(({ manifest, prefix }, index) => writeImporterManifest(path.join(prefix, fileNames[index]), manifest))
       )
       return true
     }
@@ -306,7 +308,7 @@ export async function recursive (
             return
           }
 
-          const manifest = await readImporterManifestFromDir(prefix)
+          const { manifest, fileName } = await readImporterManifest(prefix)
           let currentInput = [...input]
           if (updateToLatest) {
             if (!currentInput || !currentInput.length) {
@@ -330,7 +332,7 @@ export async function recursive (
           }
 
           const localConfigs = await memReadLocalConfigs(prefix)
-          const newPkg = await action(
+          const newManifest = await action(
             manifest,
             {
               ...installOpts,
@@ -347,7 +349,7 @@ export async function recursive (
             },
           )
           if (action !== install) {
-            await writePkg(prefix, newPkg)
+            await writeImporterManifest(path.join(prefix, fileName), newManifest)
           }
           result.passes++
         } catch (err) {
@@ -404,7 +406,7 @@ export async function recursive (
               [
                 {
                   buildIndex: 0,
-                  manifest: await readImporterManifestFromDir(prefix),
+                  manifest: await readImporterManifestOnly(prefix),
                   prefix,
                 },
               ],

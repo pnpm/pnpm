@@ -1,6 +1,6 @@
+import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { mutateModules } from 'supi'
 import createStoreController from '../createStoreController'
-import { readImporterManifestFromDir } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async function (input: string[], opts: PnpmOptions) {
@@ -14,7 +14,7 @@ export default async function (input: string[], opts: PnpmOptions) {
     return mutateModules([
       {
         dependencyNames: input,
-        manifest: await readImporterManifestFromDir(opts.prefix),
+        manifest: await readImporterManifestOnly(opts.prefix),
         mutation: 'unlinkSome',
         prefix: opts.prefix,
       },
@@ -22,7 +22,7 @@ export default async function (input: string[], opts: PnpmOptions) {
   }
   return mutateModules([
     {
-      manifest: await readImporterManifestFromDir(opts.prefix),
+      manifest: await readImporterManifestOnly(opts.prefix),
       mutation: 'unlink',
       prefix: opts.prefix,
     },

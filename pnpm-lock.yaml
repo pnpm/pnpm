@@ -2222,6 +2222,7 @@ importers:
   packages/write-importer-manifest:
     dependencies:
       '@pnpm/types': 'link:../types'
+      sort-keys: 2.0.0
       write-json-file: 3.2.0
       write-json5-file: 2.0.0
       write-yaml-file: 2.0.0
@@ -2245,6 +2246,7 @@ importers:
       '@types/tape': ^4.2.31
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
+      sort-keys: 2.0.0
       tape: ^4.8.0
       tempy: 0.3.0
       ts-node: 8.1.0

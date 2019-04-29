@@ -1,10 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import { install } from 'supi'
 import createStoreController from '../createStoreController'
-import { readImporterManifestFromDir } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async function installCmd (
@@ -26,7 +26,7 @@ export default async function installCmd (
     store: store.path,
     storeController: store.ctrl,
   }
-  await install(await readImporterManifestFromDir(opts.prefix), installOpts)
+  await install(await readImporterManifestOnly(opts.prefix), installOpts)
 }
 
 async function readNpmLockfile (prefix: string) {
