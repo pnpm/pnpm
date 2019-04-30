@@ -1,6 +1,4 @@
 import readImporterManifest from '@pnpm/read-importer-manifest'
-import writeImporterManifest from '@pnpm/write-importer-manifest'
-import path = require('path')
 import {
   mutateModules,
   uninstall,
@@ -19,9 +17,9 @@ export default async function uninstallCmd (
     storeController: store.ctrl,
   })
   if (opts.lockfileDirectory === opts.prefix) {
-    const { manifest, fileName } = await readImporterManifest(opts.prefix)
+    const { manifest, writeImporterManifest } = await readImporterManifest(opts.prefix)
     const newManifest = await uninstall(manifest, input, uninstallOpts)
-    await writeImporterManifest(path.join(opts.prefix, fileName), newManifest)
+    await writeImporterManifest(newManifest)
     return
   }
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
@@ -40,5 +38,5 @@ export default async function uninstallCmd (
     ],
     uninstallOpts,
   )
-  await writeImporterManifest(path.join(opts.prefix, currentManifest.fileName), mutationResult.manifest)
+  await currentManifest.writeImporterManifest(mutationResult.manifest)
 }

@@ -4,18 +4,18 @@ import { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
 import { PackageSelector } from '../../parsePackageSelectors'
 
-interface PackageGraph {
-  [id: string]: PackageNode<{ fileName: string }>,
+interface PackageGraph<T> {
+  [id: string]: PackageNode<T>,
 }
 
 interface Graph {
   [nodeId: string]: string[],
 }
 
-export function filterGraph (
-  pkgGraph: PackageGraph,
+export function filterGraph<T> (
+  pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
-): PackageGraph {
+): PackageGraph<T> {
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()
@@ -46,7 +46,7 @@ export function filterGraph (
   return R.pick(Array.from(walked), pkgGraph)
 }
 
-function pkgGraphToGraph (pkgGraph: PackageGraph): Graph {
+function pkgGraphToGraph<T> (pkgGraph: PackageGraph<T>): Graph {
   const graph: Graph = {}
   Object.keys(pkgGraph).forEach((nodeId) => {
     graph[nodeId] = pkgGraph[nodeId].dependencies
@@ -68,15 +68,15 @@ function reverseGraph (graph: Graph): Graph {
   return reversedGraph
 }
 
-function matchPackages (
-  graph: PackageGraph,
+function matchPackages<T> (
+  graph: PackageGraph<T>,
   pattern: string,
 ) {
   return R.keys(graph).filter((id) => graph[id].package.manifest.name && minimatch(graph[id].package.manifest.name, pattern))
 }
 
-function matchPackagesByPath (
-  graph: PackageGraph,
+function matchPackagesByPath<T> (
+  graph: PackageGraph<T>,
   pathStartsWith: string,
 ) {
   return R.keys(graph).filter((location) => isSubdir(pathStartsWith, location))

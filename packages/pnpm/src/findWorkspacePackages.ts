@@ -1,10 +1,10 @@
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { DependencyManifest } from '@pnpm/types'
+import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 
-export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: DependencyManifest, fileName: string}>> => {
+export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>> => {
   const packagesManifest = await requirePackagesManifest(workspaceRoot)
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [

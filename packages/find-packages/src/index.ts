@@ -28,6 +28,7 @@ async function findPkgs (
 
   return pFilter(
     paths
+      .sort()
       .map((manifestPath) => path.join(root, manifestPath))
       .map(async (manifestPath) => {
         try {

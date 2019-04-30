@@ -1,7 +1,6 @@
 import logger from '@pnpm/logger'
 import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
-import writeImporterManifest from '@pnpm/write-importer-manifest'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import isSubdir = require('is-subdir')
@@ -100,7 +99,7 @@ export default async (
 }
 
 export async function recursive (
-  allPkgs: Array<{fileName: string, path: string, manifest: DependencyManifest}>,
+  allPkgs: Array<{path: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>,
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
@@ -116,7 +115,7 @@ export async function recursive (
   }
 
   const pkgGraphResult = createPkgGraph(allPkgs)
-  let pkgs: Array<{fileName: string, path: string, manifest: ImporterManifest}>
+  let pkgs: Array<{path: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
@@ -127,11 +126,11 @@ export async function recursive (
   if (pkgs.length === 0) {
     return false
   }
-  const manifestsByPath: { [path: string]: { manifest: ImporterManifest, fileName: string } } = {}
+  const manifestsByPath: { [path: string]: { manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> } } = {}
   for (const pkg of pkgs) {
     manifestsByPath[pkg.path] = {
-      fileName: pkg.fileName,
       manifest: pkg.manifest,
+      writeImporterManifest: pkg.writeImporterManifest,
     }
   }
 
@@ -238,11 +237,11 @@ export async function recursive (
       if (importers.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDirectory, opts)
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
-      const fileNames = [] as string[]
+      const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
       const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }, index) => {
         const localConfigs = await memReadLocalConfigs(prefix)
-        const { manifest, fileName } = manifestsByPath[prefix]
-        fileNames[index] = fileName
+        const { manifest, writeImporterManifest } = manifestsByPath[prefix]
+        writeImporterManifests[index] = writeImporterManifest
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -297,7 +296,7 @@ export async function recursive (
       await Promise.all(
         mutatedPkgs
           .filter((mutatedPkg, index) => mutatedImporters[index].mutation !== 'install')
-          .map(({ manifest, prefix }, index) => writeImporterManifest(path.join(prefix, fileNames[index]), manifest))
+          .map(({ manifest, prefix }, index) => writeImporterManifests[index](manifest))
       )
       return true
     }
@@ -315,7 +314,7 @@ export async function recursive (
             return
           }
 
-          const { manifest, fileName } = manifestsByPath[prefix]
+          const { manifest, writeImporterManifest } = manifestsByPath[prefix]
           let currentInput = [...input]
           if (updateToLatest) {
             if (!currentInput || !currentInput.length) {
@@ -356,7 +355,7 @@ export async function recursive (
             },
           )
           if (action !== install) {
-            await writeImporterManifest(path.join(prefix, fileName), newManifest)
+            await writeImporterManifest(newManifest)
           }
           result.passes++
         } catch (err) {
@@ -482,7 +481,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
   )
 }
 
-function sortPackages (pkgGraph: {[nodeId: string]: PackageNode<{ fileName: string }>}): string[][] {
+function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[][] {
   const keys = Object.keys(pkgGraph)
   const setOfKeys = new Set(keys)
   const graph = new Map(

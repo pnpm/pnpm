@@ -3,7 +3,6 @@ import readImporterManifest, {
   readImporterManifestOnly,
   tryReadImporterManifest,
 } from '@pnpm/read-importer-manifest'
-import writeImporterManifest from '@pnpm/write-importer-manifest'
 import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -47,12 +46,12 @@ export default async (
 
   // pnpm link
   if (!input || !input.length) {
-    const { manifest, fileName } = await tryReadImporterManifest(opts.globalPrefix)
+    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalPrefix)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       manifest: manifest || {},
     })
-    await writeImporterManifest(path.join(opts.globalPrefix, fileName), newManifest)
+    await writeImporterManifest(newManifest)
     return
   }
 
@@ -97,12 +96,12 @@ export default async (
       )
     })),
   )
-  const { manifest, fileName } = await readImporterManifest(cwd)
+  const { manifest, writeImporterManifest } = await readImporterManifest(cwd)
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,
     manifest,
   })
-  await writeImporterManifest(path.join(cwd, fileName), newManifest)
+  await writeImporterManifest(newManifest)
 
   await Promise.all(
     Array.from(storeControllerCache.values())

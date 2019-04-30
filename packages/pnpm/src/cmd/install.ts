@@ -1,7 +1,5 @@
 import { readImporterManifestOnly, tryReadImporterManifest } from '@pnpm/read-importer-manifest'
 import { getSaveType } from '@pnpm/utils'
-import writeImporterManifest from '@pnpm/write-importer-manifest'
-import path = require('path')
 import {
   install,
   mutateModules,
@@ -55,7 +53,7 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
 
-  let { manifest, fileName } = await tryReadImporterManifest(opts.prefix)
+  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix)
   if (manifest === null) {
     if (opts.update) {
       const err = new Error('No package.json found')
@@ -88,7 +86,7 @@ export default async function installCmd (
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
-    await writeImporterManifest(path.join(opts.prefix, fileName), updatedImporter.manifest)
+    await writeImporterManifest(updatedImporter.manifest)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {

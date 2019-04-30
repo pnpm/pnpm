@@ -8,7 +8,6 @@ import crossSpawn = require('cross-spawn')
 import delay = require('delay')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import fs = require('fs')
-import isWindows = require('is-windows')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')

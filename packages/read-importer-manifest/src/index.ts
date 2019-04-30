@@ -1,18 +1,22 @@
 import { ImporterManifest } from '@pnpm/types'
-import readJsonFile = require('load-json-file')
+import writeImporterManifest from '@pnpm/write-importer-manifest'
+import detectIndent = require('detect-indent')
 import path = require('path')
-import readJson5File = require('read-json5-file')
 import readYamlFile from 'read-yaml-file'
+import {
+  readJson5File,
+  readJsonFile,
+} from './readFile'
 
 export default async function readImporterManifest (importerDir: string): Promise<{
-  fileName: string
   manifest: ImporterManifest
+  writeImporterManifest: (manifest: ImporterManifest) => Promise<void>
 }> {
   const result = await tryReadImporterManifest(importerDir)
   if (result.manifest !== null) {
     return result as {
-      fileName: string
       manifest: ImporterManifest
+      writeImporterManifest: (manifest: ImporterManifest) => Promise<void>
     }
   }
   const err = new Error(`No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
@@ -26,64 +30,74 @@ export async function readImporterManifestOnly (importerDir: string): Promise<Im
 }
 
 export async function tryReadImporterManifest (importerDir: string): Promise<{
-  fileName: string
   manifest: ImporterManifest | null
+  writeImporterManifest: (manifest: ImporterManifest) => Promise<void>
 }> {
   try {
+    const filePath = path.join(importerDir, 'package.json')
+    const { data, text } = await readJsonFile(filePath)
+    const indent = detectIndent(text).indent
     return {
-      fileName: 'package.json',
-      manifest: await readPackageJson(path.join(importerDir, 'package.json')),
+      manifest: data,
+      writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(filePath, manifest, { indent }),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
   try {
+    const filePath = path.join(importerDir, 'package.json5')
+    const { data, text } = await readJson5File(filePath)
+    const indent = detectIndent(text).indent
     return {
-      fileName: 'package.json5',
-      manifest: await readPackageJson5(path.join(importerDir, 'package.json5')),
+      manifest: data,
+      writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(filePath, manifest, { indent }),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
   try {
+    const filePath = path.join(importerDir, 'package.yaml')
     return {
-      fileName: 'package.yaml',
-      manifest: await readPackageYaml(path.join(importerDir, 'package.yaml')),
+      manifest: await readPackageYaml(filePath),
+      writeImporterManifest: writeImporterManifest.bind(null, filePath),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
-  return { fileName: 'package.json', manifest: null }
+  const filePath = path.join(importerDir, 'package.json')
+  return {
+    manifest: null,
+    writeImporterManifest: writeImporterManifest.bind(null, filePath),
+  }
 }
 
 export async function readExactImporterManifest (manifestPath: string) {
   const base = path.basename(manifestPath).toLowerCase()
   switch (base) {
-    case 'package.json':
+    case 'package.json': {
+      const { data, text } = await readJsonFile(manifestPath)
+      const indent = detectIndent(text).indent
       return {
-        fileName: 'package.json',
-        manifest: await readPackageJson(manifestPath),
+        manifest: data,
+        writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(manifestPath, manifest, { indent }),
       }
-    case 'package.json5':
+    }
+    case 'package.json5': {
+      const { data, text } = await readJson5File(manifestPath)
+      const indent = detectIndent(text).indent
       return {
-        fileName: 'package.json5',
-        manifest: await readPackageJson5(manifestPath),
+        manifest: data,
+        writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(manifestPath, manifest, { indent }),
       }
-    case 'package.yaml':
+    }
+    case 'package.yaml': {
       return {
-        fileName: 'package.yaml',
         manifest: await readPackageYaml(manifestPath),
+        writeImporterManifest: writeImporterManifest.bind(null, manifestPath),
       }
+    }
   }
   throw new Error(`Not supported manifest name "${base}"`)
-}
-
-function readPackageJson (filePath: string) {
-  return readJsonFile<ImporterManifest>(filePath)
-}
-
-function readPackageJson5 (filePath: string) {
-  return readJson5File<ImporterManifest>(filePath)
 }
 
 function readPackageYaml (filePath: string) {
