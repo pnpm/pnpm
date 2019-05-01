@@ -1,12 +1,18 @@
 import { ImporterManifest } from '@pnpm/types'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
 import detectIndent = require('detect-indent')
+import fs = require('fs')
+import { Stats } from 'fs'
+import isWindows = require('is-windows')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
+import { promisify } from 'util'
 import {
   readJson5File,
   readJsonFile,
 } from './readFile'
+
+const stat = promisify(fs.stat)
 
 export default async function readImporterManifest (importerDir: string): Promise<{
   manifest: ImporterManifest
@@ -63,6 +69,20 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
+  }
+  if (isWindows()) {
+    // ENOTDIR isn't used on Windows, but pnpm expects it.
+    let s: Stats | undefined
+    try {
+      s = await stat(importerDir)
+    } catch (err) {
+      // Ignore
+    }
+    if (s && !s.isDirectory()) {
+      const err = new Error(`"${importerDir}" is not a directory`)
+      err['code'] = 'ENOTDIR' // tslint:disable-line
+      throw err
+    }
   }
   const filePath = path.join(importerDir, 'package.json')
   return {
