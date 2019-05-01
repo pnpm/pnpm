@@ -11,6 +11,7 @@ import {
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
+import readImporterManifest from '@pnpm/read-importer-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
@@ -21,7 +22,6 @@ import {
 import {
   getSaveType,
 } from '@pnpm/utils'
-import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -66,18 +66,18 @@ export default async function link (
       linkFromPath = linkFrom.path
       linkFromAlias = linkFrom.alias
     }
-    const linkedPkg = await loadJsonFile<DependencyManifest>(path.join(linkFromPath, 'package.json'))
+    const { manifest } = await readImporterManifest(linkFromPath) as { manifest: DependencyManifest }
     specsToUpsert.push({
-      name: linkedPkg.name,
-      pref: getPref(linkedPkg.name, linkedPkg.name, linkedPkg.version, {
+      name: manifest.name,
+      pref: getPref(manifest.name, manifest.name, manifest.version, {
         pinnedVersion: opts.pinnedVersion,
       }),
-      saveType: (saveType || ctx.manifest && guessDependencyType(linkedPkg.name, ctx.manifest)) as DependenciesField,
+      saveType: (saveType || ctx.manifest && guessDependencyType(manifest.name, ctx.manifest)) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
     const addLinkOpts = {
-      linkedPkgName: linkFromAlias || linkedPkg.name,
+      linkedPkgName: linkFromAlias || manifest.name,
       manifest: ctx.manifest,
       packagePath,
     }
@@ -85,8 +85,8 @@ export default async function link (
     addLinkToLockfile(ctx.wantedLockfile.importers[importerId], addLinkOpts)
 
     linkedPkgs.push({
-      alias: linkFromAlias || linkedPkg.name,
-      manifest: linkedPkg,
+      alias: linkFromAlias || manifest.name,
+      manifest,
       path: linkFromPath,
     })
   }

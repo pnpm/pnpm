@@ -1,9 +1,9 @@
+import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
 import createStoreController from '../createStoreController'
-import { readImporterManifestFromDir } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async function (
@@ -22,7 +22,7 @@ export default async function (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestFromDir(rebuildOpts.prefix),
+          manifest: await readImporterManifestOnly(rebuildOpts.prefix),
           prefix: rebuildOpts.prefix,
         },
       ],
@@ -32,7 +32,7 @@ export default async function (
   await rebuildPkgs(
     [
       {
-        manifest: await readImporterManifestFromDir(rebuildOpts.prefix),
+        manifest: await readImporterManifestOnly(rebuildOpts.prefix),
         prefix: rebuildOpts.prefix,
       },
     ],

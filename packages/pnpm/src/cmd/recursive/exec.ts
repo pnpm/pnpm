@@ -4,9 +4,9 @@ import pLimit = require('p-limit')
 import { PackageNode } from 'pkgs-graph'
 import RecursiveSummary from './recursiveSummary'
 
-export default async (
+export default async <T> (
   packageChunks: string[][],
-  graph: {[id: string]: PackageNode},
+  graph: {[id: string]: PackageNode<T>},
   args: string[],
   cmd: string,
   opts: {
@@ -31,7 +31,7 @@ export default async (
             cwd: prefix,
             env: {
               ...process.env,
-              PNPM_PACKAGE_NAME: graph[prefix].manifest.name,
+              PNPM_PACKAGE_NAME: graph[prefix].package.manifest.name,
             },
             stdio: 'inherit',
           })

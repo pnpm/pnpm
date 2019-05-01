@@ -1,4 +1,4 @@
-import readPackageJson from '@pnpm/read-package-json'
+import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import {
   DirectoryResolution,
   ResolveResult,
@@ -6,7 +6,6 @@ import {
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import fs = require('graceful-fs')
-import path = require('path')
 import ssri = require('ssri')
 import parsePref from './parsePref'
 
@@ -44,9 +43,9 @@ export default async function resolveLocal (
     }
   }
 
-  let localPkg!: DependencyManifest
+  let localDependencyManifest!: DependencyManifest
   try {
-    localPkg = await readPackageJson(path.join(spec.fetchSpec, 'package.json')) as DependencyManifest
+    localDependencyManifest = await readImporterManifestOnly(spec.fetchSpec) as DependencyManifest
   } catch (internalErr) {
     switch (internalErr.code) {
       case 'ENOTDIR': {
@@ -67,7 +66,7 @@ export default async function resolveLocal (
   return {
     id: spec.id,
     normalizedPref: spec.normalizedPref,
-    package: localPkg,
+    package: localDependencyManifest,
     resolution: {
       directory: spec.dependencyPath,
       type: 'directory',

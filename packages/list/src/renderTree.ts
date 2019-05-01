@@ -9,8 +9,8 @@ const sortPackages = R.sortBy(R.path(['pkg', 'name']) as (pkg: object) => R.Ord)
 
 export default async function (
   project: {
-    name: string,
-    version: string,
+    name?: string,
+    version?: string,
     path: string,
   },
   tree: PackageNode[],

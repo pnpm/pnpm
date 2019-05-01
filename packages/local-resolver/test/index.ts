@@ -105,7 +105,7 @@ test('fail when resolving from not existing directory', async t => {
     t.fail()
   } catch (err) {
     t.ok(err)
-    t.equal(err.code, 'ERR_PNPM_DIRECTORY_HAS_NO_PACKAGE_JSON')
+    t.equal(err.code, 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND')
     t.end()
   }
 })

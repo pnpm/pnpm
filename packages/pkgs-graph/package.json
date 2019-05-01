@@ -1,0 +1,48 @@
+{
+  "name": "pkgs-graph",
+  "version": "3.0.0",
+  "description": "Create a graph from an array of packages",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "test": "npm run tsc && pnpm run lint && ts-node test --type-check",
+    "tsc": "tsc",
+    "prepublishOnly": "npm run tsc"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/pkgs-graph",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=8.15"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pkgs-graph#readme",
+  "devDependencies": {
+    "@pnpm/tslint-config": "0.0.0",
+    "@types/tape": "^4.2.29",
+    "better-path-resolve": "1.0.0",
+    "pkgs-graph": "link:",
+    "tape": "^4.6.3",
+    "ts-node": "^8.0.3",
+    "tslint": "5.16.0",
+    "typescript": "^3.0.0"
+  },
+  "dependencies": {
+    "@types/node": "*",
+    "@types/ramda": "^0.26.0",
+    "@types/semver": "^5.3.31",
+    "@zkochan/npm-package-arg": "^1.0.0",
+    "ramda": "^0.26.0",
+    "semver": "^6.0.0"
+  }
+}

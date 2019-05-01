@@ -5,8 +5,8 @@ const sortPackages = R.sortBy(R.prop('name'))
 
 export default async function (
   project: {
-    name: string,
-    version: string,
+    name?: string,
+    version?: string,
     path: string,
   },
   tree: PackageNode[],

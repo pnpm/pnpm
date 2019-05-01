@@ -173,11 +173,6 @@ declare module 'pnpm-registry-mock' {
   export = anything;
 }
 
-declare module 'read-package-json' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'ssri' {
   const anything: any;
   export = anything;

@@ -1,5 +1,8 @@
 import { StoreController } from '@pnpm/package-store'
-import { safeReadPackageFromDir } from '@pnpm/utils'
+import readImporterManifest, {
+  readImporterManifestOnly,
+  tryReadImporterManifest,
+} from '@pnpm/read-importer-manifest'
 import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -11,11 +14,9 @@ import {
   linkToGlobal,
   LocalPackages,
 } from 'supi'
-import writePkg = require('write-pkg')
 import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfigs from '../getConfigs'
-import { readImporterManifestFromDir } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 const installLimit = pLimit(4)
@@ -45,12 +46,12 @@ export default async (
 
   // pnpm link
   if (!input || !input.length) {
-    const manifest = await safeReadPackageFromDir(opts.globalPrefix) || {}
+    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalPrefix)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
-      manifest,
+      manifest: manifest || {},
     })
-    await writePkg(opts.globalPrefix, newManifest)
+    await writeImporterManifest(newManifest)
     return
   }
 
@@ -80,7 +81,7 @@ export default async (
     pkgPaths.map((prefix) => installLimit(async () => {
       const s = await createStoreController(storeControllerCache, opts)
       await install(
-        await readImporterManifestFromDir(prefix), {
+        await readImporterManifestOnly(prefix), {
           ...await getConfigs(
             { ...opts.cliArgs, prefix },
             {
@@ -95,12 +96,12 @@ export default async (
       )
     })),
   )
-  const currentManifest = await readImporterManifestFromDir(cwd)
+  const { manifest, writeImporterManifest } = await readImporterManifest(cwd)
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,
-    manifest: currentManifest,
+    manifest,
   })
-  await writePkg(cwd, newManifest)
+  await writeImporterManifest(newManifest)
 
   await Promise.all(
     Array.from(storeControllerCache.values())

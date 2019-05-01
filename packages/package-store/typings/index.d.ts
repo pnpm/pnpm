@@ -108,11 +108,6 @@ declare module '@zkochan/cmd-shim' {
   export = anything;
 }
 
-declare module 'write-pkg' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'is-windows' {
   function isWindows(): boolean;
   export = isWindows;

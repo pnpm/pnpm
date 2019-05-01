@@ -1,0 +1,11 @@
+{
+  "extends": "../../utils/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "lib"
+  },
+  "include": [
+    "src/**/*.ts",
+    "typings/**/*.d.ts",
+    "test/typings/**/*.d.ts"
+  ]
+}

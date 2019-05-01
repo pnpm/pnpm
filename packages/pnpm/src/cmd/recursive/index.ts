@@ -22,14 +22,12 @@ import {
   rebuildPkgs,
   uninstall,
 } from 'supi'
-import writePkg = require('write-pkg')
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
 import getPinnedVersion from '../../getPinnedVersion'
 import { scopeLogger } from '../../loggers'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
-import { readImporterManifestFromDir } from '../../readImporterManifest'
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
@@ -101,7 +99,7 @@ export default async (
 }
 
 export async function recursive (
-  allPkgs: Array<{path: string, manifest: DependencyManifest}>,
+  allPkgs: Array<{path: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>,
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
@@ -117,7 +115,7 @@ export async function recursive (
   }
 
   const pkgGraphResult = createPkgGraph(allPkgs)
-  let pkgs: Array<{path: string, manifest: ImporterManifest}>
+  let pkgs: Array<{path: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
@@ -127,6 +125,13 @@ export async function recursive (
 
   if (pkgs.length === 0) {
     return false
+  }
+  const manifestsByPath: { [path: string]: { manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> } } = {}
+  for (const pkg of pkgs) {
+    manifestsByPath[pkg.path] = {
+      manifest: pkg.manifest,
+      writeImporterManifest: pkg.writeImporterManifest,
+    }
   }
 
   scopeLogger.debug({
@@ -208,7 +213,7 @@ export async function recursive (
         prefixes.map(async (prefix) => {
           importers.push({
             buildIndex,
-            manifest: await readImporterManifestFromDir(prefix),
+            manifest: manifestsByPath[prefix].manifest,
             prefix,
           })
         })
@@ -224,6 +229,7 @@ export async function recursive (
   }
 
   if (cmdFullName !== 'rebuild') {
+    // For a workspace with shared lockfile
     if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
       let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
@@ -231,9 +237,11 @@ export async function recursive (
       if (importers.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDirectory, opts)
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
-      const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
+      const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
+      const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }, index) => {
         const localConfigs = await memReadLocalConfigs(prefix)
-        const manifest = await readImporterManifestFromDir(prefix)
+        const { manifest, writeImporterManifest } = manifestsByPath[prefix]
+        writeImporterManifests[index] = writeImporterManifest
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -288,7 +296,7 @@ export async function recursive (
       await Promise.all(
         mutatedPkgs
           .filter((mutatedPkg, index) => mutatedImporters[index].mutation !== 'install')
-          .map(({ manifest, prefix }) => writePkg(prefix, manifest))
+          .map(({ manifest, prefix }, index) => writeImporterManifests[index](manifest))
       )
       return true
     }
@@ -306,7 +314,7 @@ export async function recursive (
             return
           }
 
-          const manifest = await readImporterManifestFromDir(prefix)
+          const { manifest, writeImporterManifest } = manifestsByPath[prefix]
           let currentInput = [...input]
           if (updateToLatest) {
             if (!currentInput || !currentInput.length) {
@@ -330,7 +338,7 @@ export async function recursive (
           }
 
           const localConfigs = await memReadLocalConfigs(prefix)
-          const newPkg = await action(
+          const newManifest = await action(
             manifest,
             {
               ...installOpts,
@@ -347,7 +355,7 @@ export async function recursive (
             },
           )
           if (action !== install) {
-            await writePkg(prefix, newPkg)
+            await writeImporterManifest(newManifest)
           }
           result.passes++
         } catch (err) {
@@ -404,7 +412,7 @@ export async function recursive (
               [
                 {
                   buildIndex: 0,
-                  manifest: await readImporterManifestFromDir(prefix),
+                  manifest: manifestsByPath[prefix].manifest,
                   prefix,
                 },
               ],
@@ -473,7 +481,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
   )
 }
 
-function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
+function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[][] {
   const keys = Object.keys(pkgGraph)
   const setOfKeys = new Set(keys)
   const graph = new Map(

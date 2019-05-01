@@ -1,11 +1,10 @@
+import readImporterManifest from '@pnpm/read-importer-manifest'
 import {
   mutateModules,
   uninstall,
 } from 'supi'
-import writePkg = require('write-pkg')
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
-import { readImporterManifestFromDir } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async function uninstallCmd (
@@ -18,24 +17,26 @@ export default async function uninstallCmd (
     storeController: store.ctrl,
   })
   if (opts.lockfileDirectory === opts.prefix) {
-    const manifest = await uninstall(await readImporterManifestFromDir(opts.prefix), input, uninstallOpts)
-    await writePkg(opts.prefix, manifest)
+    const { manifest, writeImporterManifest } = await readImporterManifest(opts.prefix)
+    const newManifest = await uninstall(manifest, input, uninstallOpts)
+    await writeImporterManifest(newManifest)
     return
   }
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
     : undefined
-  const [{ manifest }] = await mutateModules(
+  const currentManifest = await readImporterManifest(opts.prefix)
+  const [mutationResult] = await mutateModules(
     [
       {
         bin: opts.bin,
         dependencyNames: input,
-        manifest: await readImporterManifestFromDir(opts.prefix),
+        manifest: currentManifest.manifest,
         mutation: 'uninstallSome',
         prefix: opts.prefix,
       },
     ],
     uninstallOpts,
   )
-  await writePkg(opts.prefix, manifest)
+  await currentManifest.writeImporterManifest(mutationResult.manifest)
 }
