@@ -40,32 +40,41 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   writeImporterManifest: (manifest: ImporterManifest) => Promise<void>
 }> {
   try {
-    const filePath = path.join(importerDir, 'package.json')
-    const { data, text } = await readJsonFile(filePath)
-    const indent = detectIndent(text).indent
+    const manifestPath = path.join(importerDir, 'package.json')
+    const { data, text } = await readJsonFile(manifestPath)
+    const { indent } = detectIndent(text)
     return {
       manifest: data,
-      writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(filePath, manifest, { indent }),
+      writeImporterManifest: createManifestWriter({
+        indent,
+        initialManifest: data,
+        manifestPath,
+      }),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
   try {
-    const filePath = path.join(importerDir, 'package.json5')
-    const { data, text } = await readJson5File(filePath)
-    const indent = detectIndent(text).indent
+    const manifestPath = path.join(importerDir, 'package.json5')
+    const { data, text } = await readJson5File(manifestPath)
+    const { indent } = detectIndent(text)
     return {
       manifest: data,
-      writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(filePath, manifest, { indent }),
+      writeImporterManifest: createManifestWriter({
+        indent,
+        initialManifest: data,
+        manifestPath,
+      }),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
   try {
-    const filePath = path.join(importerDir, 'package.yaml')
+    const manifestPath = path.join(importerDir, 'package.yaml')
+    const manifest = await readPackageYaml(manifestPath)
     return {
-      manifest: await readPackageYaml(filePath),
-      writeImporterManifest: writeImporterManifest.bind(null, filePath),
+      manifest,
+      writeImporterManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
@@ -96,24 +105,33 @@ export async function readExactImporterManifest (manifestPath: string) {
   switch (base) {
     case 'package.json': {
       const { data, text } = await readJsonFile(manifestPath)
-      const indent = detectIndent(text).indent
+      const { indent } = detectIndent(text)
       return {
         manifest: data,
-        writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(manifestPath, manifest, { indent }),
+        writeImporterManifest: createManifestWriter({
+          indent,
+          initialManifest: data,
+          manifestPath,
+        }),
       }
     }
     case 'package.json5': {
       const { data, text } = await readJson5File(manifestPath)
-      const indent = detectIndent(text).indent
+      const { indent } = detectIndent(text)
       return {
         manifest: data,
-        writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(manifestPath, manifest, { indent }),
+        writeImporterManifest: createManifestWriter({
+          indent,
+          initialManifest: data,
+          manifestPath,
+        }),
       }
     }
     case 'package.yaml': {
+      const manifest = await readPackageYaml(manifestPath)
       return {
-        manifest: await readPackageYaml(manifestPath),
-        writeImporterManifest: writeImporterManifest.bind(null, manifestPath),
+        manifest,
+        writeImporterManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
       }
     }
   }
@@ -122,4 +140,19 @@ export async function readExactImporterManifest (manifestPath: string) {
 
 function readPackageYaml (filePath: string) {
   return readYamlFile<ImporterManifest>(filePath)
+}
+
+function createManifestWriter (
+  opts: {
+    initialManifest: ImporterManifest,
+    indent?: string | number | null | undefined,
+    manifestPath: string,
+  },
+): ((manifest: ImporterManifest) => Promise<void>) {
+  const stringifiedInitialManifest = JSON.stringify(opts.initialManifest)
+  return async (updatedManifest: ImporterManifest) => {
+    if (stringifiedInitialManifest !== JSON.stringify(updatedManifest)) {
+      return writeImporterManifest(opts.manifestPath, updatedManifest, { indent: opts.indent })
+    }
+  }
 }

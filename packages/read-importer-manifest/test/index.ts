@@ -7,6 +7,7 @@ import { promisify } from 'util'
 
 const writeFile = promisify(fs.writeFile)
 const readFile = promisify(fs.readFile)
+const stat = promisify(fs.stat)
 
 const fixtures = path.join(__dirname, 'fixtures')
 
@@ -87,5 +88,23 @@ test('preserve space indentation in json5 file', async (t) => {
 
   const rawManifest = await readFile('package.json5', 'utf8')
   t.equal(rawManifest, "{\n  name: 'foo',\n  dependencies: {\n    bar: '1.0.0',\n  },\n}\n")
+  t.end()
+})
+
+test('do not save manifest if it had no changes', async (t) => {
+  process.chdir(tempy.directory())
+
+  await writeFile('package.json5', JSON.stringify({ dependencies: { foo: '*', bar: '*' } }), 'utf8')
+
+  const { manifest, writeImporterManifest } = await readImporterManifest(process.cwd())
+
+  const stat1 = await stat('package.json5')
+
+  await writeImporterManifest(manifest)
+
+  const stat2 = await stat('package.json5')
+
+  t.deepEqual(stat1.ino, stat2.ino, 'manifest was not resaved')
+
   t.end()
 })
