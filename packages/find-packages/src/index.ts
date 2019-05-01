@@ -18,7 +18,7 @@ async function findPkgs (
   },
 ) {
   opts = opts || {}
-  const globOpts = {...opts, cwd: root }
+  const globOpts = { ...opts, cwd: root }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
   globOpts.patterns = opts.patterns
     ? normalizePatterns(opts.patterns)

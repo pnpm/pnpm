@@ -1,7 +1,8 @@
-import path = require('path')
-import semver = require('semver')
-import R = require('ramda')
+///<reference path="../typings/index.d.ts"/>
 import npa = require('@zkochan/npm-package-arg')
+import path = require('path')
+import R = require('ramda')
+import semver = require('semver')
 
 export type Manifest = {
   name: string,
@@ -36,15 +37,15 @@ export default function<T> (pkgs: Array<Package & T>): {
   const graph = Object.keys(pkgMap)
     .reduce((acc, pkgSpec) => {
       acc[pkgSpec] = {
+        dependencies: createNode(pkgMap[pkgSpec]),
         package: pkgMap[pkgSpec],
-        dependencies: createNode(pkgMap[pkgSpec])
       }
       return acc
     }, {})
 
-  return {graph, unmatched}
+  return { graph, unmatched }
 
-  function createNode(pkg: Package): string[] {
+  function createNode (pkg: Package): string[] {
     const dependencies = Object.assign({},
       pkg.manifest.devDependencies,
       pkg.manifest.optionalDependencies,
@@ -52,7 +53,7 @@ export default function<T> (pkgs: Array<Package & T>): {
 
     return Object.keys(dependencies)
       .map(depName => {
-        let spec
+        let spec!: { fetchSpec: string, type: string }
         try {
           spec = npa.resolve(depName, dependencies[depName], pkg.path)
         } catch (err) {
@@ -80,7 +81,7 @@ export default function<T> (pkgs: Array<Package & T>): {
         }
         const matched = semver.maxSatisfying(versions, range)
         if (!matched) {
-          unmatched.push({pkgName: depName, range})
+          unmatched.push({ pkgName: depName, range })
           return ''
         }
         const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === matched)
@@ -90,7 +91,7 @@ export default function<T> (pkgs: Array<Package & T>): {
   }
 }
 
-function createPkgMap(pkgs: Package[]): {
+function createPkgMap (pkgs: Package[]): {
   [pkgId: string]: Package
 } {
   const pkgMap = {}

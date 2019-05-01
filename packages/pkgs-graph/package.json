@@ -8,14 +8,12 @@
     "lib"
   ],
   "scripts": {
-    "test": "npm run tsc && ts-node test --type-check",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "test": "npm run tsc && pnpm run lint && ts-node test --type-check",
     "tsc": "tsc",
     "prepublishOnly": "npm run tsc"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/zkochan/pkgs-graph.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/pkgs-graph",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -23,18 +21,20 @@
   },
   "license": "MIT",
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "bugs": {
-    "url": "https://github.com/zkochan/pkgs-graph/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/zkochan/pkgs-graph#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pkgs-graph#readme",
   "devDependencies": {
+    "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "^4.2.29",
     "better-path-resolve": "1.0.0",
     "pkgs-graph": "link:",
     "tape": "^4.6.3",
     "ts-node": "^8.0.3",
+    "tslint": "5.16.0",
     "typescript": "^3.0.0"
   },
   "dependencies": {

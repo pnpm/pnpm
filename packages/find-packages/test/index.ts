@@ -1,6 +1,6 @@
-import test = require('tape')
 import findPackages from 'find-packages'
 import path = require('path')
+import test = require('tape')
 
 const fixtures = path.join(__dirname, 'fixtures')
 
@@ -16,7 +16,7 @@ test('finds package', async t => {
 
 test('finds packages by patterns', async t => {
   const root = path.join(fixtures, 'many-pkgs')
-  const pkgs = await findPackages(root, {patterns: ['components/**']})
+  const pkgs = await findPackages(root, { patterns: ['components/**'] })
 
   t.equal(pkgs.length, 2)
   t.ok(pkgs[0].path)
@@ -29,7 +29,7 @@ test('finds packages by patterns', async t => {
 
 test('ignore packages by patterns', async t => {
   const root = path.join(fixtures, 'many-pkgs')
-  const pkgs = await findPackages(root, {patterns: ['**', '!libs/**']})
+  const pkgs = await findPackages(root, { patterns: ['**', '!libs/**'] })
 
   t.equal(pkgs.length, 2)
   t.ok(pkgs[0].path)

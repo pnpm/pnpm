@@ -468,6 +468,7 @@ importers:
       fast-glob: 2.2.6
       p-filter: 2.1.0
     devDependencies:
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       find-packages: 'link:'
       mos: 2.0.0-alpha.3
@@ -478,6 +479,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/read-importer-manifest': 0.0.0
+      '@pnpm/tslint-config': 0.0.0
       '@types/node': ^10.12.18
       '@types/tape': ^4.2.29
       fast-glob: ^2.0.4
@@ -1357,13 +1359,16 @@ importers:
       ramda: 0.26.1
       semver: 6.0.0
     devDependencies:
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
       tape: 4.10.1
       ts-node: 8.1.0_typescript@3.4.5
+      tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tslint-config': 0.0.0
       '@types/node': '*'
       '@types/ramda': ^0.26.0
       '@types/semver': ^5.3.31
@@ -1375,6 +1380,7 @@ importers:
       semver: ^6.0.0
       tape: ^4.6.3
       ts-node: ^8.0.3
+      tslint: 5.16.0
       typescript: ^3.0.0
   packages/pnpm:
     dependencies:
