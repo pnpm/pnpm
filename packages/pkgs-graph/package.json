@@ -31,6 +31,7 @@
   "homepage": "https://github.com/zkochan/pkgs-graph#readme",
   "devDependencies": {
     "@types/tape": "^4.2.29",
+    "better-path-resolve": "1.0.0",
     "pkgs-graph": "link:",
     "tape": "^4.6.3",
     "ts-node": "^8.0.3",

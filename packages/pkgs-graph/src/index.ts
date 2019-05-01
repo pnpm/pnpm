@@ -1,3 +1,4 @@
+import path = require('path')
 import semver = require('semver')
 import R = require('ramda')
 import npa = require('@zkochan/npm-package-arg')
@@ -59,7 +60,7 @@ export default function<T> (pkgs: Array<Package & T>): {
         }
 
         if (spec.type === 'directory') {
-          const matchedPkg = R.values(pkgMap).find(pkg => pkg.path === spec.fetchSpec)
+          const matchedPkg = R.values(pkgMap).find(pkg => path.relative(pkg.path, spec.fetchSpec) === '')
           if (!matchedPkg) {
             return ''
           }

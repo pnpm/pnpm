@@ -1358,6 +1358,7 @@ importers:
       semver: 6.0.0
     devDependencies:
       '@types/tape': 4.2.33
+      better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
       tape: 4.10.1
       ts-node: 8.1.0_typescript@3.4.5
@@ -1368,6 +1369,7 @@ importers:
       '@types/semver': ^5.3.31
       '@types/tape': ^4.2.29
       '@zkochan/npm-package-arg': ^1.0.0
+      better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
       ramda: ^0.26.0
       semver: ^6.0.0
