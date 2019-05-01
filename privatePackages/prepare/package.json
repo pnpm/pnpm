@@ -13,7 +13,7 @@
     "@types/write-pkg": "3.1.0",
     "mkdirp": "0.5.1",
     "tape": "4.10.1",
-    "write-pkg": "3.2.0"
+    "write-pkg": "4.0.0"
   },
   "devDependencies": {
     "rimraf": "2.6.3",

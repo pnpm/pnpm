@@ -93,7 +93,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
       }
     },
     async writePackageJson (pkgJson: object) {
-      await writePkg(projectPath, pkgJson)
+      await writePkg(projectPath, pkgJson as any) // tslint:disable-line
     },
   }
 }

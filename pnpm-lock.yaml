@@ -347,8 +347,8 @@ importers:
       typescript: 3.4.5
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 4.0.0_node-fetch@2.4.1
-      node-fetch: 2.4.1
+      '@zeit/fetch-retry': 4.0.0_node-fetch@2.5.0
+      node-fetch: 2.5.0
       node-fetch-unix: 2.3.0
     devDependencies:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -362,7 +362,7 @@ importers:
       '@zeit/fetch-retry': 4.0.0
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
-      node-fetch: 2.4.1
+      node-fetch: 2.5.0
       node-fetch-unix: 2.3.0
       rimraf: ^2.6.2
       tslint: 5.16.0
@@ -1204,7 +1204,7 @@ importers:
       path-exists: 4.0.0
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
       write-json-file: 3.2.0
     devDependencies:
       '@pnpm/local-resolver': 'link:../local-resolver'
@@ -1214,7 +1214,7 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/ncp': 2.0.1
-      '@types/nock': 10.0.0
+      '@types/nock': 10.0.1
       '@types/sinon': 7.0.11
       '@types/tape': 4.2.33
       delay: 4.2.0
@@ -1247,7 +1247,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
-      '@types/nock': 10.0.0
+      '@types/nock': ^10.0.0
       '@types/node': '*'
       '@types/sinon': ^7.0.10
       '@types/tape': 4.2.33
@@ -1267,7 +1267,7 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.3.2
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
       tape: 4.10.1
       tempy: 0.3.0
       ts-node: 8.1.0
@@ -1483,14 +1483,14 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       semver: 6.0.0
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 8.1.0_typescript@3.4.5
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
       write-json-file: 3.2.0
-      write-pkg: 3.2.0
+      write-pkg: 4.0.0
       write-yaml-file: 2.0.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1587,7 +1587,7 @@ importers:
       signal-exit: 3.0.2
       strip-color: 0.1.0
       supi: 0.32.2
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
       tape: 4.10.1
       tape-promise: 4.0.0
       text-table: 0.2.0
@@ -1598,7 +1598,7 @@ importers:
       update-notifier: 2.5.0
       version-selector-type: 2.0.1
       write-json-file: 3.2.0
-      write-pkg: 3.2.0
+      write-pkg: 4.0.0
       write-yaml-file: 2.0.0
   packages/prune-lockfile:
     dependencies:
@@ -1639,7 +1639,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       '@types/detect-indent': 5.0.0
-      detect-indent: 5.0.0
+      detect-indent: 6.0.0
       graceful-fs: 4.1.15
       is-windows: 1.0.2
       json5: 2.1.0
@@ -1671,7 +1671,7 @@ importers:
       '@types/json5': 0.0.30
       '@types/node': ^10.3.2
       '@types/tape': ^4.2.31
-      detect-indent: 5.0.0
+      detect-indent: 6.0.0
       graceful-fs: 4.1.15
       is-windows: 1.0.2
       json5: 2.1.0
@@ -1848,7 +1848,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
-      node-fetch: 2.4.1
+      node-fetch: 2.5.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       tape: 4.10.1
@@ -1875,7 +1875,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
-      node-fetch: 2.4.1
+      node-fetch: 2.5.0
       p-limit: 2.2.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -2031,7 +2031,7 @@ importers:
       rimraf: 2.6.3
       sinon: 7.3.2
       supi: 'link:'
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 8.1.0_typescript@3.4.5
@@ -2130,7 +2130,7 @@ importers:
       semver: 6.0.0
       sinon: 7.3.2
       supi: 'link:'
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
       tape: 4.10.1
       tape-promise: 4.0.0
       ts-node: 8.1.0
@@ -2148,7 +2148,7 @@ importers:
       '@types/node': 11.13.8
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -2166,7 +2166,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       rimraf: 2.6.3
-      symlink-dir: 3.0.2
+      symlink-dir: 3.0.3
       ts-node: 8.1.0
       tslint: 5.16.0
       typescript: 3.4.5
@@ -2193,7 +2193,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/tarball-fetcher': 'link:'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/nock': 10.0.0
+      '@types/nock': 10.0.1
       '@types/tape': 4.2.33
       nock: 10.0.6
       tape: 4.10.1
@@ -2208,7 +2208,7 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@types/graceful-fs': ^4.1.2
       '@types/mz': ^0.0.32
-      '@types/nock': 10.0.0
+      '@types/nock': ^10.0.0
       '@types/node': '*'
       '@types/retry': ^0.12.0
       '@types/rimraf': ^2.0.2
@@ -2351,7 +2351,7 @@ importers:
       path-exists: 4.0.0
       read-yaml-file: 1.1.0
       tape: 4.10.1
-      write-pkg: 3.2.0
+      write-pkg: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:'
       rimraf: 2.6.3
@@ -2378,7 +2378,7 @@ importers:
       ts-node: 8.1.0
       tslint: 5.16.0
       typescript: 3.4.5
-      write-pkg: 3.2.0
+      write-pkg: 4.0.0
   privatePackages/assert-store:
     dependencies:
       '@pnpm/assert-store': 'link:'
@@ -2413,7 +2413,7 @@ importers:
       '@types/write-pkg': 3.1.0
       mkdirp: 0.5.1
       tape: 4.10.1
-      write-pkg: 3.2.0
+      write-pkg: 4.0.0
     devDependencies:
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
@@ -2434,7 +2434,7 @@ importers:
       tslint-config-standard: 8.0.1
       tslint-eslint-rules: 5.4.0
       typescript: 3.4.5
-      write-pkg: 3.2.0
+      write-pkg: 4.0.0
   tools:
     devDependencies:
       '@commitlint/cli': 7.5.2
@@ -2876,12 +2876,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-TeiJ7uvv/92ugSqZ0v9l0eNXzutlki0aK+R1K5bfA5SYUil46ITlxLW4iNTCf55P4L5weCmaOdtxGeGWvudwPg==
-  /@types/nock/10.0.0:
-    dependencies:
-      '@types/node': 11.13.8
-    dev: true
-    resolution:
-      integrity: sha512-DJM4sOEUeGzqjDkMtCubuN8zQ9gUxzPC+WVMzK2X4q6Kc5pnRFWcm8gkk4JNsDs7Zs6jjVf+dNYbNOii8fzPLA==
   /@types/nock/10.0.1:
     dependencies:
       '@types/node': 11.13.8
@@ -2900,14 +2894,14 @@ packages:
   /@types/node/11.13.8:
     resolution:
       integrity: sha512-szA3x/3miL90ZJxUCzx9haNbK5/zmPieGraZEe4WI+3srN0eGLiT22NXeMHmyhNEopn+IrxqMc7wdVwvPl8meg==
-  /@types/node/8.10.47:
+  /@types/node/8.10.48:
     dev: false
     resolution:
-      integrity: sha512-HshJQ2myCc05qYuR99HvJRK5rWOPwKLumVDrpizY58OJUVEgRwd7RtxqDOOi350VGxFI8hrCtjR7IaDfo0S12Q==
-  /@types/node/9.6.47:
+      integrity: sha512-c35YEBTkL4rzXY2ucpSKy+UYHjUBIIkuJbWYbsGIrKLEWU5dgJMmLkkIb3qeC3O3Tpb1ZQCwecscvJTDjDjkRw==
+  /@types/node/9.6.48:
     dev: false
     resolution:
-      integrity: sha512-56wEJWXZs+3XXoTe/OCpdZ6czrONhy+6hT0GdPOb7HvudLTMJ1T5tuZPs37K5cPR5t+J9+vLPFDQgUQ8NWJE1w==
+      integrity: sha512-velR2CyDrHC1WFheHr5Jm25mdCMs0BXJRp6u0zf8PF9yeOy4Xff5sJeusWS7xOmhAoezlSq8LJ0+9M5H7YkTdw==
   /@types/nopt/3.0.29:
     dev: true
     resolution:
@@ -3032,11 +3026,11 @@ packages:
       npm: '>=3'
     resolution:
       integrity: sha512-AjEo5LXk4Yf0SaXSc3y4i1t+wxY552O7WrVJPtnC6H7nUsSrygg/ODCG1RSKelskOq6b5p/LyXnsTkmCFXyjDQ==
-  /@zeit/fetch-retry/4.0.0_node-fetch@2.4.1:
+  /@zeit/fetch-retry/4.0.0_node-fetch@2.5.0:
     dependencies:
       async-retry: 1.2.3
       debug: 3.2.6
-      node-fetch: 2.4.1
+      node-fetch: 2.5.0
     dev: false
     peerDependencies:
       node-fetch: '*'
@@ -3123,15 +3117,15 @@ packages:
   /abbrev/1.1.1:
     resolution:
       integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
-  /accepts/1.3.6:
+  /accepts/1.3.7:
     dependencies:
       mime-types: 2.1.24
-      negotiator: 0.6.1
+      negotiator: 0.6.2
     dev: true
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-QsaoUD2dpVpjENy8JFpQnXP9vyzoZPmAoKrE3S6HtSB7qzSebkJNnmdY4p004FQUSSiHXPueENpoeuUW/7a8Ig==
+      integrity: sha512-Il80Qs2WjYlJIBNzNkK6KYqlVMTbZLXgHx2oT0pU/fjRHyEp+PEfEPY0R3WCwAGVOtauxh1hOxNgIf5bv7dQpA==
   /acorn/3.0.4:
     dev: true
     engines:
@@ -4266,7 +4260,7 @@ packages:
       integrity: sha512-BGHeLCK1GV7j1bSmQQAi26X+GgWcTjLr/0tzSvMCl3LH1w1IJ4PFSPoV5316b30cneTziC+B1a+3OjoSUcQYmw==
   /compression/1.7.3:
     dependencies:
-      accepts: 1.3.6
+      accepts: 1.3.7
       bytes: 3.0.0
       compressible: 2.0.17
       debug: 2.6.9
@@ -4553,7 +4547,7 @@ packages:
       integrity: sha1-hTz6D3y+L+1d4gMmuN1YEDX24vA=
   /data-uri-to-buffer/2.0.1:
     dependencies:
-      '@types/node': 8.10.47
+      '@types/node': 8.10.48
     dev: false
     resolution:
       integrity: sha512-OkVVLrerfAKZlW2ZZ3Ve2y65jgiWqBKsTfUIAFbn8nVbPcCZg6l6gikKlEYv0kXcmzqGm6mFq/Jf2vriuEkv8A==
@@ -4747,6 +4741,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-OHHMCmoALow+Wzz38zYmRnXwa50=
+  /detect-indent/6.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-oSyFlqaTHCItVRGK5RmrmjB+CmaMOW7IaNA/kdxqhoa6d17j/5ce9O9eWXmV/KEdRwqpQA+Vqe8a8Bsybu4YnA==
   /diable/4.0.2:
     dependencies:
       bug-killer: 4.4.4
@@ -4973,10 +4973,10 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-Qa4u62XvpiJorr/qg6x9eSmbCIc=
-  /eventemitter3/3.1.0:
+  /eventemitter3/3.1.2:
     dev: false
     resolution:
-      integrity: sha512-ivIvhpq/Y0uSjcHDcOIccjmYjGLcP09MFGE7ysAwkAvkXfpZlC985pH2/ui64DKazbTW/4kN3yqozUxlXzI6cA==
+      integrity: sha512-tvtQIeLVHjDkJYnzf2dgVMxfuSGJeM/7UCG17TT4EumTfNtF+0nebF/4zWOIkCreAbtNqhGEboB6BWrwqNaw4Q==
   /events-to-array/1.1.2:
     dev: true
     resolution:
@@ -5054,7 +5054,7 @@ packages:
       integrity: sha1-t3c14xXOMPa27/D4OwQVGiJEliI=
   /express/4.16.4:
     dependencies:
-      accepts: 1.3.6
+      accepts: 1.3.7
       array-flatten: 1.1.1
       body-parser: 1.18.3
       content-disposition: 0.5.2
@@ -5668,7 +5668,7 @@ packages:
       node: '>=0.4.7'
     hasBin: true
     optionalDependencies:
-      uglify-js: 3.5.9
+      uglify-js: 3.5.10
     resolution:
       integrity: sha512-l2jRuU1NAWK6AW5qqcTATWQJvNPEwkM7NEKSiv/gqOsoSQbVoWyqVEY5GS+XPQ88zLNmqASRpzfdm8d79hJS+w==
   /har-schema/2.0.0:
@@ -6769,6 +6769,7 @@ packages:
   /make-dir/1.3.0:
     dependencies:
       pify: 3.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -7394,12 +7395,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-BvWDYMTDuVW9Rn3cha5FEaOQekw=
-  /negotiator/0.6.1:
+  /negotiator/0.6.2:
     dev: true
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha1-KzJxhOiZIQEXeyhWP7XnECrNDKk=
+      integrity: sha512-hZXc7K2e+PgeI1eDBe/10Ard4ekbfrrqG8Ep+8Jmf4JID2bNg7NvCPOZN+kfF574pFQI7mum2AUqDidoKqcTOw==
   /nerf-dart/1.0.0:
     dev: false
     resolution:
@@ -7444,11 +7445,11 @@ packages:
       node: 4.x || >=6.0.0
     resolution:
       integrity: sha512-ngVgjZl1n1dZRR8BIX/UKU3Q0cfkQ4byUVcV132xW/+zPF79sVo2td2576mzIGJibi7E0Azcx2gpy66BoV2hrg==
-  /node-fetch/2.4.1:
+  /node-fetch/2.5.0:
     engines:
       node: 4.x || >=6.0.0
     resolution:
-      integrity: sha512-P9UbpFK87NyqBZzUuDBDz4f6Yiys8xm8j7ACDbi6usvFm6KItklQUKjeoqTrYS/S1k6I8oaOC2YLLDr/gg26Mw==
+      integrity: sha512-YuZKluhWGJwCcUu4RlZstdAxr8bFfOVHakc1mplwHkk8J+tqM1Y5yraYvIUpeX8aY7+crCwiELJq7Vl0o0LWXw==
   /node-gyp/3.8.0:
     dependencies:
       fstream: 1.0.11
@@ -7835,7 +7836,7 @@ packages:
       integrity: sha512-y3b8Kpd8OAN444hxfBbFfj1FY/RjtTd8tzYwhUqNYXx0fXx2iX4maP4Qr6qhIKbQXI02wTLAda4fYUbDagTUFw==
   /p-queue/5.0.0:
     dependencies:
-      eventemitter3: 3.1.0
+      eventemitter3: 3.1.2
     dev: false
     engines:
       node: '>=8'
@@ -8115,7 +8116,7 @@ packages:
   /pnpm-file-reporter/0.1.0:
     dependencies:
       '@types/graceful-fs': 4.1.3
-      '@types/node': 9.6.47
+      '@types/node': 9.6.48
       graceful-fs: 4.1.15
       json2yaml: 1.1.0
       path-exists: 3.0.0
@@ -9448,21 +9449,18 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-e900nM8RRtGhlV36KGEU9k65K3mPb1WV70OdjfxlG2EAuM1noi/E/BaW/uMhL7bPEssK8QV57vN3esixjUvcXQ==
-  /symlink-dir/3.0.2:
+  /symlink-dir/3.0.3:
     dependencies:
-      '@types/mz': 0.0.32
-      '@types/node': 11.13.8
       better-path-resolve: 1.0.0
       graceful-fs: 4.1.15
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
-      mz: 2.7.0
       rename-overwrite: 2.0.1
     engines:
       node: '>=8'
     hasBin: true
     resolution:
-      integrity: sha512-FjZGwbQYV73MjfuRWNjqkH2tTt79mFlvZYogJY4LCfDOm7PYgN/ODHAkh8GPbpD7B7QtDjyPm9Zu/8DHmp7I0Q==
+      integrity: sha512-RC06YFlKqaP2MFXJEUhgNQiD1XrQ9cKN0A4Lvk+Gp3upSXimns80HsCxKwSI5olEfJgOKuG/9uUMEsUp2ErHvQ==
   /tap-parser/1.3.2:
     dependencies:
       events-to-array: 1.1.2
@@ -9856,7 +9854,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
-  /uglify-js/3.5.9:
+  /uglify-js/3.5.10:
     dependencies:
       commander: 2.20.0
       source-map: 0.6.1
@@ -9866,7 +9864,7 @@ packages:
     hasBin: true
     optional: true
     resolution:
-      integrity: sha512-WpT0RqsDtAWPNJK955DEnb6xjymR8Fn0OlK4TT4pS0ASYsVPqr5ELhgwOwLCP5J5vHeJ4xmMmz3DEgdqC10JeQ==
+      integrity: sha512-/GTF0nosyPLbdJBd+AwYiZ+Hu5z8KXWnO0WCGt1BQ/u9Iamhejykqmz5o1OHJ53+VAk6xVxychonnApDjuqGsw==
   /uid-number/0.0.6:
     dev: false
     resolution:
@@ -10249,18 +10247,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-LV3+lqvDyIkFfJOXGqQAXvtUgTQ=
-  /write-json-file/2.3.0:
-    dependencies:
-      detect-indent: 5.0.0
-      graceful-fs: 4.1.15
-      make-dir: 1.3.0
-      pify: 3.0.0
-      sort-keys: 2.0.0
-      write-file-atomic: 2.4.2
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-K2TIozAE1UuGmMdtWFp3zrYdoy8=
   /write-json-file/3.2.0:
     dependencies:
       detect-indent: 5.0.0
@@ -10293,14 +10279,15 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-rriqnU14jh2JPfsIVJaLVDqRn1c=
-  /write-pkg/3.2.0:
+  /write-pkg/4.0.0:
     dependencies:
       sort-keys: 2.0.0
-      write-json-file: 2.3.0
+      type-fest: 0.4.1
+      write-json-file: 3.2.0
     engines:
-      node: '>=4'
+      node: '>=8'
     resolution:
-      integrity: sha512-tX2ifZ0YqEFOF1wjRW2Pk93NLsj02+n1UP5RvO6rCs0K6R2g1padvf006cY74PQJKMGS2r42NK7FD0dG6Y6paw==
+      integrity: sha512-v2UQ+50TNf2rNHJ8NyWttfm/EJUBWMJcx6ZTYZr6Qp52uuegWw/lBkCtCbnYZEmPRNL61m+u67dAmGxo+HTULA==
   /write-yaml-file/2.0.0:
     dependencies:
       graceful-fs: 4.1.15
