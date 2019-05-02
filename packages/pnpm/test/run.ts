@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import prepare, { prepareWithYamlManifest } from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpmSync } from './utils'
@@ -7,7 +7,7 @@ const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('pnpm run: returns correct exit code', async (t: tape.Test) => {
-  const project = prepare(t, {
+  prepare(t, {
     scripts: {
       exit0: 'exit 0',
       exit1: 'exit 1',
@@ -20,6 +20,18 @@ test('pnpm run: returns correct exit code', async (t: tape.Test) => {
 
 test('pass the args to the command that is specfied in the build script', async t => {
   prepare(t, {
+    scripts: {
+      test: 'ts-node test'
+    },
+  })
+
+  const result = execPnpmSync('run', 'test', '--', '--flag=true')
+
+  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "--flag=true"/), 'command was successful')
+})
+
+test('pass the args to the command that is specfied in the build script of a package.yaml manifest', async t => {
+  prepareWithYamlManifest(t, {
     scripts: {
       test: 'ts-node test'
     },
