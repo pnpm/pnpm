@@ -405,36 +405,37 @@ function getHelpText (command: string) {
 
         Commands:
 
+          - import
           - install
-          - update
-          - uninstall
+          - install-test
           - link
-          - unlink
           - list
           - outdated
           - prune
-          - install-test
-          - store add
-          - store status
-          - store prune
-          - root
           - rebuild
-          - import
+          - root
+          - uninstall
+          - unlink
+          - update
 
-          - recursive unlink
+          - recursive exec
           - recursive install
-          - recursive update
-          - recursive uninstall
           - recursive list
           - recursive outdated
+          - recursive rebuild
           - recursive run
           - recursive test
-          - recursive rebuild
-          - recursive exec
+          - recursive uninstall
+          - recursive unlink
+          - recursive update
 
           - server start
-          - server stop
           - server status
+          - server stop
+
+          - store add
+          - store prune
+          - store status
 
         Other commands are passed through to npm
       `
