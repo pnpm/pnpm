@@ -17,7 +17,7 @@ export default async function (
 ) {
   const manifest = await readImporterManifestOnly(opts.prefix)
   const scriptName = args[0]
-  if (!manifest.scripts || !manifest.scripts[scriptName]) {
+  if (scriptName !== 'start' && (!manifest.scripts || !manifest.scripts[scriptName])) {
     const err = new Error(`Missing script: ${scriptName}`)
     err['code'] = 'ERR_PNPM_NO_SCRIPT'
     throw err
@@ -32,11 +32,11 @@ export default async function (
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
-  if (manifest.scripts[`pre${scriptName}`]) {
+  if (manifest.scripts && manifest.scripts[`pre${scriptName}`]) {
     await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
   }
   await runLifecycleHooks(scriptName, manifest, lifecycleOpts)
-  if (manifest.scripts[`post${scriptName}`]) {
+  if (manifest.scripts && manifest.scripts[`post${scriptName}`]) {
     await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
   }
 }

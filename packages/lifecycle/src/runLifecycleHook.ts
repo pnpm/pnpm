@@ -30,11 +30,13 @@ export default async function runLifecycleHook (
   }
 
   const m = { _id: getId(manifest), ...manifest }
+  m.scripts = { ...m.scripts }
+
+  if (stage === 'start' && !m.scripts.start) {
+    m.scripts.start = 'node server.js'
+  }
   if (opts.args && opts.args.length && m.scripts && m.scripts[stage]) {
-    m.scripts = {
-      ...m.scripts,
-      [stage]: `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`,
-    }
+    m.scripts[stage] = `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`
   }
   return lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawNpmConfig,

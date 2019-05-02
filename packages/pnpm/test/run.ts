@@ -1,4 +1,5 @@
 import prepare, { prepareWithYamlManifest } from '@pnpm/prepare'
+import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpmSync } from './utils'
@@ -64,4 +65,14 @@ test('start: pass the args to the command that is specfied in the build script o
   const result = execPnpmSync('start', '--', '--flag=true')
 
   t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "--flag=true"/), 'command was successful')
+})
+
+test('start: run "node server.js" by default', async t => {
+  prepareWithYamlManifest(t)
+
+  await fs.writeFile('server.js', 'console.log("Hello world!")', 'utf8')
+
+  const result = execPnpmSync('start')
+
+  t.ok((result.stdout as Buffer).toString('utf8').match(/Hello world!/), 'command was successful')
 })
