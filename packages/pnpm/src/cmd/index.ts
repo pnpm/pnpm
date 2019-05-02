@@ -12,6 +12,7 @@ import root from './root'
 import run from './run'
 import server from './server'
 import store from './store'
+import test from './test'
 import uninstall from './uninstall'
 import unlink from './unlink'
 import update from './update'
@@ -31,6 +32,7 @@ export default {
   run,
   server,
   store,
+  test,
   uninstall,
   unlink,
   update,

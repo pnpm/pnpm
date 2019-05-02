@@ -63,15 +63,6 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
     case 'xmas':
       await passThruToNpm()
       break
-    case 't':
-    case 'tst':
-    case 'test':
-      if (argv.includes('--filter')) {
-        await runPnpm()
-      } else {
-        await passThruToNpm()
-      }
-      break
     default:
       await runPnpm()
       break
