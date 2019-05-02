@@ -53,3 +53,15 @@ test('test: pass the args to the command that is specfied in the build script of
 
   t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "--flag=true"/), 'command was successful')
 })
+
+test('start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async t => {
+  prepareWithYamlManifest(t, {
+    scripts: {
+      start: 'ts-node test'
+    },
+  })
+
+  const result = execPnpmSync('start', '--', '--flag=true')
+
+  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "--flag=true"/), 'command was successful')
+})

@@ -11,6 +11,7 @@ import recursive from './recursive'
 import root from './root'
 import run from './run'
 import server from './server'
+import start from './start'
 import store from './store'
 import test from './test'
 import uninstall from './uninstall'
@@ -31,6 +32,7 @@ export default {
   root,
   run,
   server,
+  start,
   store,
   test,
   uninstall,

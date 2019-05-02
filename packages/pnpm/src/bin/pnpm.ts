@@ -50,7 +50,6 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
     case 'set':
     case 'star':
     case 'stars':
-    case 'start':
     case 'stop':
     case 'team':
     case 'token':
