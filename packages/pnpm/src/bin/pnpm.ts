@@ -66,8 +66,6 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
     case 't':
     case 'tst':
     case 'test':
-    case 'run':
-    case 'run-script':
       if (argv.includes('--filter')) {
         await runPnpm()
       } else {

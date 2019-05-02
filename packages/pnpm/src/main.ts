@@ -181,6 +181,7 @@ export default async function run (argv: string[]) {
       optionalDependencies: opts.optional !== false,
     }
     opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
+    opts.argv = cliConf.argv
     if (opts.filter) {
       Array.prototype.push.apply(opts.filter, filterArgs)
     } else {

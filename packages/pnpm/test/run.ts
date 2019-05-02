@@ -4,6 +4,7 @@ import promisifyTape from 'tape-promise'
 import { execPnpmSync } from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('pnpm run: returns correct exit code', async (t: tape.Test) => {
   const project = prepare(t, {

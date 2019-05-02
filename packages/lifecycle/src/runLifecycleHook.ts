@@ -1,13 +1,14 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
-import { PackageJson } from '@pnpm/types'
+import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import lifecycle = require('@zkochan/npm-lifecycle')
 
 function noop () {} // tslint:disable-line:no-empty
 
 export default async function runLifecycleHook (
   stage: string,
-  pkg: PackageJson,
+  manifest: ImporterManifest | DependencyManifest,
   opts: {
+    args?: string[],
     depPath: string,
     optional?: boolean,
     pkgRoot: string,
@@ -22,13 +23,20 @@ export default async function runLifecycleHook (
     lifecycleLogger.debug({
       depPath: opts.depPath,
       optional,
-      script: pkg.scripts![stage],
+      script: manifest.scripts![stage],
       stage,
       wd: opts.pkgRoot,
     })
   }
 
-  return lifecycle(pkg, stage, opts.pkgRoot, {
+  const m = { _id: getId(manifest), ...manifest }
+  if (opts.args && opts.args.length && m.scripts && m.scripts[stage]) {
+    m.scripts = {
+      ...m.scripts,
+      [stage]: `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`,
+    }
+  }
+  return lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawNpmConfig,
     dir: opts.rootNodeModulesDir,
     log: {
@@ -75,4 +83,14 @@ export default async function runLifecycleHook (
         return
     }
   }
+}
+
+function getId (manifest: ImporterManifest | DependencyManifest) {
+  if (!manifest.name) {
+    return undefined
+  }
+  if (!manifest.version) {
+    return manifest.name
+  }
+  return `${manifest.name}@${manifest.version}`
 }
