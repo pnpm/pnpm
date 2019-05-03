@@ -1,8 +1,8 @@
 import { PnpmOptions } from '../types'
 import install from './install'
-import runNpm from './runNpm'
+import { test } from './run'
 
 export default async function (input: string[], opts: PnpmOptions) {
   await install(input, opts)
-  runNpm(['test'])
+  await test(input, opts)
 }

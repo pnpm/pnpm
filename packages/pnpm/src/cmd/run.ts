@@ -13,7 +13,6 @@ export default async function run (
       remain: string[],
     },
   },
-  command: string,
 ) {
   const manifest = await readImporterManifestOnly(opts.prefix)
   const scriptName = args[0]
@@ -52,9 +51,8 @@ export async function start (
       remain: string[],
     },
   },
-  command: string,
 ) {
-  return run(['start', ...args], opts, 'start')
+  return run(['start', ...args], opts)
 }
 
 export async function stop (
@@ -68,9 +66,8 @@ export async function stop (
       remain: string[],
     },
   },
-  command: string,
 ) {
-  return run(['stop', ...args], opts, 'stop')
+  return run(['stop', ...args], opts)
 }
 
 export async function test (
@@ -84,9 +81,8 @@ export async function test (
       remain: string[],
     },
   },
-  command: string,
 ) {
-  return run(['test', ...args], opts, 'test')
+  return run(['test', ...args], opts)
 }
 
 export async function restart (
@@ -100,9 +96,8 @@ export async function restart (
       remain: string[],
     },
   },
-  command: string,
 ) {
-  await stop(args, opts, command)
-  await run(['restart', ...args], opts, 'restart')
-  await start(args, opts, command)
+  await stop(args, opts)
+  await run(['restart', ...args], opts)
+  await start(args, opts)
 }

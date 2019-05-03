@@ -217,8 +217,12 @@ function getHelpText (command: string) {
 
     case 'install-test':
       return stripIndent`
-        This command runs an \`npm install\` followed immediately by an \`npm test\`.
-        It takes exactly the same arguments as \`npm install\`.
+        pnpm install-test
+
+        Aliases: it
+
+        Runs a \`pnpm install\` followed immediately by a \`pnpm test\`.
+        It takes exactly the same arguments as \`pnpm install\`.
       `
 
     case 'store':

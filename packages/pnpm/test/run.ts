@@ -1,4 +1,7 @@
-import prepare, { prepareWithYamlManifest } from '@pnpm/prepare'
+import prepare, {
+  prepareWithJson5Manifest,
+  prepareWithYamlManifest,
+} from '@pnpm/prepare'
 import fs = require('mz/fs')
 import path = require('path')
 import tape = require('tape')
@@ -93,17 +96,17 @@ test('stop: pass the args to the command that is specfied in the build script', 
 test('restart: run stop, restart and start', async (t: tape.Test) => {
   prepare(t, {
     scripts: {
+      poststop: `node -e "process.stdout.write('poststop')" | json-append ./output.json`,
       prestop: `node -e "process.stdout.write('prestop')" | json-append ./output.json`,
       stop: `node -e "process.stdout.write('stop')" | json-append ./output.json`,
-      poststop: `node -e "process.stdout.write('poststop')" | json-append ./output.json`,
 
+      postrestart: `node -e "process.stdout.write('postrestart')" | json-append ./output.json`,
       prerestart: `node -e "process.stdout.write('prerestart')" | json-append ./output.json`,
       restart: `node -e "process.stdout.write('restart')" | json-append ./output.json`,
-      postrestart: `node -e "process.stdout.write('postrestart')" | json-append ./output.json`,
 
+      poststart: `node -e "process.stdout.write('poststart')" | json-append ./output.json`,
       prestart: `node -e "process.stdout.write('prestart')" | json-append ./output.json`,
       start: `node -e "process.stdout.write('start')" | json-append ./output.json`,
-      poststart: `node -e "process.stdout.write('poststart')" | json-append ./output.json`,
     },
   })
 
@@ -121,5 +124,27 @@ test('restart: run stop, restart and start', async (t: tape.Test) => {
     'prestart',
     'start',
     'poststart',
+  ])
+})
+
+test('install-test: install dependencies and runs tests', async (t: tape.Test) => {
+  prepareWithJson5Manifest(t, {
+    dependencies: {
+      'json-append': '1',
+    },
+    scripts: {
+      posttest: `node -e "process.stdout.write('posttest')" | json-append ./output.json`,
+      pretest: `node -e "process.stdout.write('pretest')" | json-append ./output.json`,
+      test: `node -e "process.stdout.write('test')" | json-append ./output.json`,
+    },
+  })
+
+  await execPnpm('install-test')
+
+  const scriptsRan = await import(path.resolve('output.json'))
+  t.deepEqual(scriptsRan, [
+    'pretest',
+    'test',
+    'posttest',
   ])
 })
