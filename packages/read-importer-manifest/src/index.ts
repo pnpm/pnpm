@@ -14,15 +14,19 @@ import {
 
 const stat = promisify(fs.stat)
 
+type WriteImporterManifest = (manifest: ImporterManifest, force?: boolean) => Promise<void>
+
 export default async function readImporterManifest (importerDir: string): Promise<{
+  fileName: string,
   manifest: ImporterManifest
-  writeImporterManifest: (manifest: ImporterManifest) => Promise<void>
+  writeImporterManifest: WriteImporterManifest
 }> {
   const result = await tryReadImporterManifest(importerDir)
   if (result.manifest !== null) {
     return result as {
+      fileName: string,
       manifest: ImporterManifest
-      writeImporterManifest: (manifest: ImporterManifest) => Promise<void>
+      writeImporterManifest: WriteImporterManifest
     }
   }
   const err = new Error(`No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
@@ -36,14 +40,16 @@ export async function readImporterManifestOnly (importerDir: string): Promise<Im
 }
 
 export async function tryReadImporterManifest (importerDir: string): Promise<{
+  fileName: string,
   manifest: ImporterManifest | null
-  writeImporterManifest: (manifest: ImporterManifest) => Promise<void>
+  writeImporterManifest: WriteImporterManifest
 }> {
   try {
     const manifestPath = path.join(importerDir, 'package.json')
     const { data, text } = await readJsonFile(manifestPath)
     const { indent } = detectIndent(text)
     return {
+      fileName: 'package.json',
       manifest: data,
       writeImporterManifest: createManifestWriter({
         indent,
@@ -59,6 +65,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
     const { data, text } = await readJson5File(manifestPath)
     const { indent } = detectIndent(text)
     return {
+      fileName: 'package.json5',
       manifest: data,
       writeImporterManifest: createManifestWriter({
         indent,
@@ -73,6 +80,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
     const manifestPath = path.join(importerDir, 'package.yaml')
     const manifest = await readPackageYaml(manifestPath)
     return {
+      fileName: 'package.yaml',
       manifest,
       writeImporterManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
@@ -95,6 +103,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   }
   const filePath = path.join(importerDir, 'package.json')
   return {
+    fileName: 'package.json',
     manifest: null,
     writeImporterManifest: writeImporterManifest.bind(null, filePath),
   }
@@ -148,10 +157,10 @@ function createManifestWriter (
     indent?: string | number | null | undefined,
     manifestPath: string,
   },
-): ((manifest: ImporterManifest) => Promise<void>) {
+): (WriteImporterManifest) {
   const stringifiedInitialManifest = JSON.stringify(opts.initialManifest)
-  return async (updatedManifest: ImporterManifest) => {
-    if (stringifiedInitialManifest !== JSON.stringify(updatedManifest)) {
+  return async (updatedManifest: ImporterManifest, force?: boolean) => {
+    if (force === true || stringifiedInitialManifest !== JSON.stringify(updatedManifest)) {
       return writeImporterManifest(opts.manifestPath, updatedManifest, { indent: opts.indent })
     }
   }

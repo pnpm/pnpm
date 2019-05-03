@@ -215,6 +215,13 @@ function getHelpText (command: string) {
         Removes extraneous packages
       `
 
+    case 'publish':
+      return stripIndent`
+        pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]
+
+        Publishes a package to the npm registry.
+      `
+
     case 'install-test':
       return stripIndent`
         pnpm install-test
@@ -474,6 +481,7 @@ function getHelpText (command: string) {
           - list
           - outdated
           - prune
+          - publish
           - rebuild
           - restart
           - root

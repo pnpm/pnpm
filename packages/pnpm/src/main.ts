@@ -38,6 +38,7 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'list'
   | 'outdated'
   | 'prune'
+  | 'publish'
   | 'rebuild'
   | 'recursive'
   | 'restart'
@@ -60,6 +61,7 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'update',
   'link',
   'prune',
+  'publish',
   'install-test',
   'restart',
   'server',
