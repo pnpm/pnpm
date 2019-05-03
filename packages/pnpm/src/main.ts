@@ -40,16 +40,19 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'prune'
   | 'rebuild'
   | 'recursive'
+  | 'restart'
   | 'root'
   | 'run'
   | 'server'
+  | 'start'
+  | 'stop'
   | 'store'
   | 'test'
   | 'uninstall'
   | 'unlink'
   | 'update'
 
-const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'test'])
+const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
 
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'install',
@@ -58,7 +61,10 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'link',
   'prune',
   'install-test',
+  'restart',
   'server',
+  'start',
+  'stop',
   'store',
   'list',
   'unlink',
@@ -181,6 +187,7 @@ export default async function run (argv: string[]) {
       optionalDependencies: opts.optional !== false,
     }
     opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
+    opts.argv = cliConf.argv
     if (opts.filter) {
       Array.prototype.push.apply(opts.filter, filterArgs)
     } else {

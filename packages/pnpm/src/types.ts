@@ -8,6 +8,11 @@ import {
 export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
 
 export interface PnpmOptions {
+  argv: {
+    cooked: string[],
+    original: string[],
+    remain: string[],
+  },
   bail: boolean,
   cliArgs: object,
   filter: string[],

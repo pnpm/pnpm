@@ -37,7 +37,8 @@ function getHelpText (command: string) {
           -E, --save-exact                   install exact version
           -g, --global                       install as a global package
           -r                                 run installation recursively in every package found in subdirectories
-                                             or in every workspace package, when executed inside a workspace
+                                             or in every workspace package, when executed inside a workspace.
+                                             For options that may be used with \`-r\`, see "pnpm help recursive"
           --store                            the location where all the packages are saved on the disk.
           --offline                          trigger an error if any required dependencies are not available in local store
           --prefer-offline                   skip staleness checks for cached data, but request missing data from the server
@@ -128,7 +129,8 @@ function getHelpText (command: string) {
 
         Options:
           -r                    uninstall from every package found in subdirectories
-                                or from every workspace package, when executed inside a workspace
+                                or from every workspace package, when executed inside a workspace.
+                                For options that may be used with \`-r\`, see "pnpm help recursive"
 
         Discouraged options:
           --shamefully-flatten  attempt to flatten the dependency tree, similar to what npm and Yarn do
@@ -154,7 +156,8 @@ function getHelpText (command: string) {
 
         Options:
           -r  unlink in every package found in subdirectories
-              or in every workspace package, when executed inside a workspace
+              or in every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"
       `
 
     case 'update':
@@ -166,7 +169,8 @@ function getHelpText (command: string) {
         Options:
 
           -r                    update in every package found in subdirectories
-                                or every workspace package, when executed inside a workspace
+                                or every workspace package, when executed inside a workspace.
+                                For options that may be used with \`-r\`, see "pnpm help recursive"
           -g, --global          update globally installed packages
           --depth               how deep should levels of dependencies be inspected
                                 0 is default, which means top-level dependencies
@@ -187,7 +191,8 @@ function getHelpText (command: string) {
         Options:
 
           -r                    perform command on every package in subdirectories
-                                or on every workspace package, when executed inside a workspace
+                                or on every workspace package, when executed inside a workspace.
+                                For options that may be used with \`-r\`, see "pnpm help recursive"
           --long                show extended information
           --parseable           show parseable output instead of tree view
           -g, --global          list packages in the global install prefix instead of in the current project
@@ -212,8 +217,12 @@ function getHelpText (command: string) {
 
     case 'install-test':
       return stripIndent`
-        This command runs an \`npm install\` followed immediately by an \`npm test\`.
-        It takes exactly the same arguments as \`npm install\`.
+        pnpm install-test
+
+        Aliases: it
+
+        Runs a \`pnpm install\` followed immediately by a \`pnpm test\`.
+        It takes exactly the same arguments as \`pnpm install\`.
       `
 
     case 'store':
@@ -269,7 +278,8 @@ function getHelpText (command: string) {
 
         Options:
           -r  check for outdated dependencies in every package found in subdirectories
-              or in every workspace package, when executed inside a workspace
+              or in every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"
       `
 
     case 'rebuild':
@@ -283,8 +293,60 @@ function getHelpText (command: string) {
         Options:
           -r         rebuild every package found in subdirectories
                      or every workspace package, when executed inside a workspace.
+                     For options that may be used with \`-r\`, see "pnpm help recursive"
           --pending  rebuild packages that were not build during installation.
                      Packages are not build when installing with the --ignore-scripts flag
+      `
+
+    case 'run':
+      return stripIndent`
+        pnpm run <command> [-- <args>...]
+
+        Aliases: run-script
+
+        Runs a defined package script.
+
+        Options:
+          -r         run the defined package script in every package found in subdirectories
+                     or every workspace package, when executed inside a workspace.
+                     For options that may be used with \`-r\`, see "pnpm help recursive"
+      `
+
+    case 'test':
+      return stripIndent`
+        pnpm test [-- <args>...]
+
+        Aliases: t, tst
+
+        Runs a package's "test" script, if one was provided.
+
+        Options:
+          -r         run the tests in every package found in subdirectories
+                     or every workspace package, when executed inside a workspace.
+                     For options that may be used with \`-r\`, see "pnpm help recursive"
+      `
+
+    case 'start':
+      return stripIndent`
+        pnpm start [-- <args>...]
+
+        Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
+        If no "start" property is specified on the "scripts" object, it will run node server.js.
+      `
+
+    case 'stop':
+      return stripIndent`
+        pnpm stop [-- <args>...]
+
+        Runs a package's "stop" script, if one was provided.
+      `
+
+    case 'restart':
+      return stripIndent`
+        pnpm restart [-- <args>...]
+
+        Restarts a package.
+        Runs a package's "stop", "restart", and "start" scripts, and associated pre- and post- scripts.
       `
 
     case 'server':
@@ -405,36 +467,42 @@ function getHelpText (command: string) {
 
         Commands:
 
+          - import
           - install
-          - update
-          - uninstall
+          - install-test
           - link
-          - unlink
           - list
           - outdated
           - prune
-          - install-test
-          - store add
-          - store status
-          - store prune
-          - root
           - rebuild
-          - import
+          - restart
+          - root
+          - run
+          - start
+          - stop
+          - test
+          - uninstall
+          - unlink
+          - update
 
-          - recursive unlink
+          - recursive exec
           - recursive install
-          - recursive update
-          - recursive uninstall
           - recursive list
           - recursive outdated
+          - recursive rebuild
           - recursive run
           - recursive test
-          - recursive rebuild
-          - recursive exec
+          - recursive uninstall
+          - recursive unlink
+          - recursive update
 
           - server start
-          - server stop
           - server status
+          - server stop
+
+          - store add
+          - store prune
+          - store status
 
         Other commands are passed through to npm
       `

@@ -43,15 +43,12 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
     case 'profile':
     case 'publish':
     case 'repo':
-    case 'restart':
     case 's':
     case 'se':
     case 'search':
     case 'set':
     case 'star':
     case 'stars':
-    case 'start':
-    case 'stop':
     case 'team':
     case 'token':
     case 'unpublish':
@@ -62,17 +59,6 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
     case 'whoami':
     case 'xmas':
       await passThruToNpm()
-      break
-    case 't':
-    case 'tst':
-    case 'test':
-    case 'run':
-    case 'run-script':
-      if (argv.includes('--filter')) {
-        await runPnpm()
-      } else {
-        await passThruToNpm()
-      }
       break
     default:
       await runPnpm()
