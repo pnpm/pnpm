@@ -40,17 +40,19 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'prune'
   | 'rebuild'
   | 'recursive'
+  | 'restart'
   | 'root'
   | 'run'
   | 'server'
   | 'start'
+  | 'stop'
   | 'store'
   | 'test'
   | 'uninstall'
   | 'unlink'
   | 'update'
 
-const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'start', 'test'])
+const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
 
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'install',
@@ -59,8 +61,10 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'link',
   'prune',
   'install-test',
+  'restart',
   'server',
   'start',
+  'stop',
   'store',
   'list',
   'unlink',

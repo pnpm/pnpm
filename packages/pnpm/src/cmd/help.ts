@@ -324,10 +324,25 @@ function getHelpText (command: string) {
 
     case 'start':
       return stripIndent`
-        pnpm test [-- <args>...]
+        pnpm start [-- <args>...]
 
-        This runs an arbitrary command specified in the package's "start" property of its "scripts" object.
+        Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
         If no "start" property is specified on the "scripts" object, it will run node server.js.
+      `
+
+    case 'stop':
+      return stripIndent`
+        pnpm stop [-- <args>...]
+
+        Runs a package's "stop" script, if one was provided.
+      `
+
+    case 'restart':
+      return stripIndent`
+        pnpm restart [-- <args>...]
+
+        Restarts a package.
+        Runs a package's "stop", "restart", and "start" scripts, and associated pre- and post- scripts.
       `
 
     case 'server':
@@ -456,9 +471,11 @@ function getHelpText (command: string) {
           - outdated
           - prune
           - rebuild
+          - restart
           - root
           - run
           - start
+          - stop
           - test
           - uninstall
           - unlink

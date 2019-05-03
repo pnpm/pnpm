@@ -9,11 +9,9 @@ import prune from './prune'
 import rebuild from './rebuild'
 import recursive from './recursive'
 import root from './root'
-import run from './run'
+import run, { restart, start, stop, test } from './run'
 import server from './server'
-import start from './start'
 import store from './store'
-import test from './test'
 import uninstall from './uninstall'
 import unlink from './unlink'
 import update from './update'
@@ -29,10 +27,12 @@ export default {
   prune,
   rebuild,
   recursive,
+  restart,
   root,
   run,
   server,
   start,
+  stop,
   store,
   test,
   uninstall,

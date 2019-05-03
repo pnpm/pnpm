@@ -43,14 +43,12 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
     case 'profile':
     case 'publish':
     case 'repo':
-    case 'restart':
     case 's':
     case 'se':
     case 'search':
     case 'set':
     case 'star':
     case 'stars':
-    case 'stop':
     case 'team':
     case 'token':
     case 'unpublish':
