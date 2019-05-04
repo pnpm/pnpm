@@ -1414,7 +1414,7 @@ importers:
       cross-spawn: 6.0.5
       delay: 4.2.0
       diable: 4.0.2
-      dir-is-case-sensitive: 1.0.0
+      dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
       find-packages: 'link:../find-packages'
       get-port: 5.0.0
@@ -1543,7 +1543,7 @@ importers:
       deep-require-cwd: 1.0.0
       delay: 4.2.0
       diable: 4.0.2
-      dir-is-case-sensitive: 1.0.0
+      dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
       exists-link: 2.0.0
       find-packages: 4.0.1
@@ -2014,7 +2014,7 @@ importers:
       anonymous-npm-registry-client: 0.1.2
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
-      dir-is-case-sensitive: 1.0.0
+      dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
       exists-link: 2.0.0
       fs-extra: 7.0.1
@@ -2092,7 +2092,7 @@ importers:
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
       dependency-path: 3.0.4
-      dir-is-case-sensitive: 1.0.0
+      dir-is-case-sensitive: 1.0.2
       encode-registry: 1.1.0
       execa: 1.0.0
       exists-link: 2.0.0
@@ -4514,7 +4514,6 @@ packages:
     resolution:
       integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
   /crypto-random-string/2.0.0:
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -4802,15 +4801,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-CISZwy/n83/l+I1K9eDxVkixe4OZLjgB/zq4eGJekmKxbNThpmY4QqzReGpe0csJ+eiMToOosoL3McZF2NHgjA==
-  /dir-is-case-sensitive/1.0.0:
+  /dir-is-case-sensitive/1.0.2:
     dependencies:
-      '@types/graceful-fs': 4.1.3
       graceful-fs: 4.1.15
-      path-temp: 1.0.0
+      path-temp: 2.0.0
     engines:
-      node: '>=8'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-6DPYmZv8dSPA9+w7koCfBeUzgER8rjvwOUj4cl+lgiKp8U3ssxgHdRJJrTvZzvBHYWLsWBV8eR3fbKywq+uzUg==
+      integrity: sha512-DBVqLBhjCy+nzs3WNCsJ+hWteyFyxZD5MQZmK1MgFZTZ1/iwxUkSdjdbGX05S02s7BQ9iNMnwmR4OcJ4Nkhp+A==
   /doctrine/0.7.2:
     dependencies:
       esutils: 1.1.6
@@ -8029,7 +8027,6 @@ packages:
   /path-temp/2.0.0:
     dependencies:
       unique-string: 2.0.0
-    dev: false
     engines:
       node: '>=8.15'
     resolution:
@@ -9939,7 +9936,6 @@ packages:
   /unique-string/2.0.0:
     dependencies:
       crypto-random-string: 2.0.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
