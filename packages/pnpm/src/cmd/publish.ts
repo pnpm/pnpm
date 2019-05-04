@@ -15,18 +15,42 @@ export default async function (
     return
   }
   const prefix = args.length && args[0] || process.cwd()
+
+  let _status!: number
+  await fakeRegularManifest(prefix, async () => {
+    const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
+    _status = status
+  })
+  if (_status !== 0) {
+    process.exit(_status)
+  }
+}
+
+export async function pack (
+  args: string[],
+  opts: PnpmOptions,
+  command: string,
+) {
+  let _status!: number
+  await fakeRegularManifest(opts.prefix, async () => {
+    const { status } = await runNpm(['pack', ...opts.argv.original.slice(1)])
+    _status = status
+  })
+  if (_status !== 0) {
+    process.exit(_status)
+  }
+}
+
+async function fakeRegularManifest (prefix: string, fn: () => Promise<void>) {
   const { fileName, manifest, writeImporterManifest } = await readImporterManifest(prefix)
   const exoticManifestFormat = fileName !== 'package.json'
   if (exoticManifestFormat) {
     await rimraf(path.join(prefix, fileName))
     await writeJsonFile(path.join(prefix, 'package.json'), manifest)
   }
-  const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
+  await fn()
   if (exoticManifestFormat) {
     await rimraf(path.join(prefix, 'package.json'))
     await writeImporterManifest(manifest, true)
-  }
-  if (status !== 0) {
-    process.exit(status)
   }
 }

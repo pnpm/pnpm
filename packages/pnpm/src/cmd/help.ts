@@ -215,6 +215,13 @@ function getHelpText (command: string) {
         Removes extraneous packages
       `
 
+    case 'pack':
+      return stripIndent`
+        pnpm pack
+
+        Creates a compressed gzip archive of package dependencies.
+      `
+
     case 'publish':
       return stripIndent`
         pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]
@@ -480,6 +487,7 @@ function getHelpText (command: string) {
           - link
           - list
           - outdated
+          - pack
           - prune
           - publish
           - rebuild

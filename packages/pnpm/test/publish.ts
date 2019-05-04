@@ -1,5 +1,6 @@
 import prepare, {
   prepareWithYamlManifest,
+  prepareWithJson5Manifest,
 } from '@pnpm/prepare'
 import exists = require('path-exists')
 import tape = require('tape')
@@ -37,16 +38,19 @@ test('publish: package with package.yaml', async (t: tape.Test) => {
 })
 
 test('publish: package with package.json5', async (t: tape.Test) => {
-  prepareWithYamlManifest(t, {
+  prepareWithJson5Manifest(t, {
     name: 'test-publish-package.json5',
     version: '0.0.0',
   })
 
   await execPnpm('publish', ...CREDENTIALS)
+
+  t.ok(await exists('package.json5'))
+  t.notOk(await exists('package.json'))
 })
 
 test('publish: package with package.json5 running publish from different folder', async (t: tape.Test) => {
-  prepareWithYamlManifest(t, {
+  prepareWithJson5Manifest(t, {
     name: 'test-publish-package.json5',
     version: '0.0.1',
   })
@@ -54,4 +58,7 @@ test('publish: package with package.json5 running publish from different folder'
   process.chdir('..')
 
   await execPnpm('publish', 'project', ...CREDENTIALS)
+
+  t.ok(await exists('project/package.json5'))
+  t.notOk(await exists('project/package.json'))
 })
