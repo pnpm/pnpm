@@ -1,6 +1,6 @@
 import prepare, {
-  prepareWithYamlManifest,
   prepareWithJson5Manifest,
+  prepareWithYamlManifest,
 } from '@pnpm/prepare'
 import exists = require('path-exists')
 import tape = require('tape')
