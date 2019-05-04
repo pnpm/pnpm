@@ -597,7 +597,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-importers-context': 'link:../read-importers-context'
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/fs-extra': 5.0.5
       '@types/mz': 0.0.32
@@ -645,7 +645,7 @@ importers:
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/shamefully-flatten': 3.0.6
       '@pnpm/store-controller-types': 3.0.3
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/symlink-dependency': 2.0.4
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
@@ -1112,7 +1112,7 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
@@ -1137,7 +1137,7 @@ importers:
       '@pnpm/npm-resolver': 3.0.7
       '@pnpm/outdated': 'link:'
       '@pnpm/read-importer-manifest': 0.0.0
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.4
@@ -1398,7 +1398,7 @@ importers:
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/archy': 0.0.31
@@ -1512,7 +1512,7 @@ importers:
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/server': 3.0.3
       '@pnpm/store-controller-types': 3.0.3
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.4
@@ -1999,7 +1999,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/common-tags': 1.8.0
       '@types/fs-extra': 5.0.5
@@ -2071,7 +2071,7 @@ importers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/shamefully-flatten': 3.0.6
       '@pnpm/store-controller-types': 3.0.3
-      '@pnpm/store-path': 1.0.4
+      '@pnpm/store-path': 2.0.0
       '@pnpm/symlink-dependency': 2.0.4
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
@@ -2757,21 +2757,19 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-7moikHv2ereM5ZYORmB2gix7yVqTMdsFvCFICxfhCfu6GdYPHZc42bTa0jvL+a5SU+sjggVOU+RvH1IneLIhzg==
-  /@pnpm/store-path/1.0.4:
+  /@pnpm/store-path/2.0.0:
     dependencies:
-      '@types/node': 10.14.6
-      '@types/touch': 3.1.1
       can-link: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       path-absolute: 1.0.1
-      path-temp: 1.0.0
-      root-link-target: 1.0.1
+      path-temp: 2.0.0
+      root-link-target: 2.0.0
       touch: 3.1.0
     engines:
-      node: '>=4'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-sGNnrjzNgzizIAiVIuXBQYWY8XvNBGUFbjEftIzKuXB/++Dr/JVinjLijm6iql7WDHolEf90pMNcBkL8Ni139w==
+      integrity: sha512-SKJ3oTcA10WTy+PDa1OwqGOrxA6GWXmLd+YQlYbhz8fZa2hu8v/KDfr64SWeYX/Vi9X3j9Wq937jVtdbxqaFIw==
   /@pnpm/types/3.2.0:
     dev: false
     engines:
@@ -2978,11 +2976,6 @@ packages:
       '@types/node': 12.0.0
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
-  /@types/touch/3.1.1:
-    dependencies:
-      '@types/node': 12.0.0
-    resolution:
-      integrity: sha512-6qjr7Erk0b9FkZSu17wUJaWhmzUgGfQuec7eIwl9cP7V/YO/k9IcMnHSwAjxAeadC5guq9rwHcoij7PT1RkO1w==
   /@types/update-notifier/2.5.0:
     dev: true
     resolution:
@@ -8017,13 +8010,6 @@ packages:
   /path-parse/1.0.6:
     resolution:
       integrity: sha512-GSmOT2EbHrINBf9SR7CDELwlJ8AENk3Qn7OikK4nFYAu3Ote2+JYNVvkpAEQm3/TLNEJFD/xZJjzyxg3KBWOzw==
-  /path-temp/1.0.0:
-    dependencies:
-      unique-string: 1.0.0
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-TeQgoH67RYUT3xt6WaRASbWyJmvrUnpeToQQT7RW+uighCh/gfs4VCO2/P8mIpjt6JsyJ6DxE6Q1FOJXVc3ANg==
   /path-temp/2.0.0:
     dependencies:
       unique-string: 2.0.0
@@ -8837,16 +8823,16 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-v2zoO4dRDRY0Ru6qV37WpvxYNeA=
-  /root-link-target/1.0.1:
+  /root-link-target/2.0.0:
     dependencies:
       can-link: 1.0.2
       graceful-fs: 4.1.15
       next-path: 1.0.0
-      path-temp: 1.0.0
+      path-temp: 2.0.0
     engines:
-      node: '>=4'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-FIuNwTKaZMndvVKGWDtMiwWoAW9Qs2Yh8gHz3ILHC9u7YBLRrvnfQeO8DQQq6+rdNmfCjM3oNLl6eQ6km5co0A==
+      integrity: sha512-4+sIB6u7zOK1bgYaLVdCNQ0/+LGiRRjogygO3xbXpT232ow2xlnP5CYhPxT3W8AQxD5KG+u/mIF8bDRgcch0xA==
   /run-async/0.1.0:
     dependencies:
       once: 1.4.0
