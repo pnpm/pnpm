@@ -42,6 +42,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages#readme",
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "12",
     "@types/tape": "^4.2.29",
     "find-packages": "link:",
     "mos": "^2.0.0-alpha.3",
@@ -53,7 +54,6 @@
   },
   "dependencies": {
     "@pnpm/read-importer-manifest": "0.0.0",
-    "@types/node": "^10.12.18",
     "fast-glob": "^2.0.4",
     "p-filter": "^2.0.0"
   }

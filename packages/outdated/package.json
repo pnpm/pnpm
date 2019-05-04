@@ -47,13 +47,13 @@
     "@pnpm/store-path": "1.0.4",
     "@pnpm/types": "3.2.0",
     "@pnpm/utils": "0.10.4",
-    "@types/node": "*",
     "dependency-path": "3.0.4"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/outdated": "link:",
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "*",
     "@types/tape": "4.2.33",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",

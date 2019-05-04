@@ -37,8 +37,6 @@
     "@pnpm/read-package-json": "2.0.1",
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",
-    "@types/node": "*",
-    "@types/ramda": "0.26.6",
     "graph-sequencer": "2.0.0",
     "ramda": "0.26.1",
     "run-groups": "2.0.0"
@@ -47,6 +45,8 @@
     "@pnpm/build-modules": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "*",
+    "@types/ramda": "0.26.6",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "rimraf": "2.6.3",

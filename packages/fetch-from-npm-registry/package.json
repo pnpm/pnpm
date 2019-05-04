@@ -8,7 +8,7 @@
     "lib"
   ],
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
@@ -30,11 +30,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch-from-npm-registry#readme",
   "dependencies": {
     "@pnpm/fetch": "1.0.0",
-    "@pnpm/npm-registry-agent": "1.0.1",
-    "@types/node": "*"
+    "@pnpm/npm-registry-agent": "1.0.1"
   },
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "*",
     "@types/tape": "^4.2.31",
     "fetch-from-npm-registry": "link:",
     "mos": "^2.0.0-alpha.3",

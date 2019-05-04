@@ -29,6 +29,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pkgs-graph#readme",
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "*",
+    "@types/ramda": "^0.26.0",
+    "@types/semver": "^6.0.0",
     "@types/tape": "^4.2.29",
     "better-path-resolve": "1.0.0",
     "pkgs-graph": "link:",
@@ -38,9 +41,6 @@
     "typescript": "^3.0.0"
   },
   "dependencies": {
-    "@types/node": "*",
-    "@types/ramda": "^0.26.0",
-    "@types/semver": "^5.3.31",
     "@zkochan/npm-package-arg": "^1.0.0",
     "ramda": "^0.26.0",
     "semver": "^6.0.0"

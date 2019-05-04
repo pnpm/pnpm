@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "engines": {
-    "node": ">=8"
+    "node": ">=8.15"
   },
   "files": [
     "lib"

@@ -38,8 +38,6 @@
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",
     "@pnpm/utils": "0.10.4",
-    "@types/node": "*",
-    "@types/ramda": "0.25.38",
     "dependency-path": "3.0.4",
     "fs-vacuum": "1.2.10",
     "ramda": "0.26.1",
@@ -49,6 +47,8 @@
     "@pnpm/logger": "2.1.0",
     "@pnpm/modules-cleaner": "link:",
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "*",
+    "@types/ramda": "0.25.38",
     "rimraf": "2.6.3",
     "tslint": "5.16.0",
     "typescript": "3.4.5"

@@ -22,6 +22,8 @@
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
     "@pnpm/utils": "link:",
+    "@types/mz": "0.0.32",
+    "@types/node": "*",
     "rimraf": "2.6.3",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
@@ -45,8 +47,6 @@
   "dependencies": {
     "@pnpm/read-package-json": "2.0.1",
     "@pnpm/types": "3.2.0",
-    "@types/mz": "0.0.32",
-    "@types/node": "*",
     "mz": "2.7.0",
     "normalize-registry-url": "1.0.0"
   }

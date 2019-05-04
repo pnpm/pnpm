@@ -21,6 +21,8 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
+    "@types/mz": "0.0.32",
+    "@types/node": "*",
     "rimraf": "2.6.3",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
@@ -48,8 +50,6 @@
   "dependencies": {
     "@pnpm/core-loggers": "3.0.2",
     "@pnpm/types": "3.2.0",
-    "@types/mz": "0.0.32",
-    "@types/node": "*",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "symlink-dir": "3.0.3"

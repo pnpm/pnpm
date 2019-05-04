@@ -33,8 +33,6 @@
   "dependencies": {
     "@pnpm/fetch": "1.0.0",
     "@pnpm/resolver-base": "3.1.2",
-    "@types/node": "*",
-    "@types/semver": "6.0.0",
     "graceful-git": "2.0.0",
     "hosted-git-info": "2.7.1",
     "semver": "6.0.0"
@@ -43,6 +41,8 @@
     "@pnpm/git-resolver": "link:",
     "@pnpm/tslint-config": "0.0.0",
     "@types/is-windows": "0.2.0",
+    "@types/node": "*",
+    "@types/semver": "6.0.0",
     "@types/tape": "^4.2.31",
     "is-windows": "1.0.2",
     "mos": "^2.0.0-alpha.3",
