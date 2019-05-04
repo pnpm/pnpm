@@ -496,7 +496,7 @@ importers:
       '@types/node': 12.0.0
       dint: 4.0.0
       execa: 1.0.0
-      path-temp: 1.0.0
+      path-temp: 2.0.0
       rimraf-then: 1.0.1
     devDependencies:
       '@pnpm/git-fetcher': 'link:'
@@ -515,7 +515,7 @@ importers:
       '@types/tape': ^4.2.31
       dint: 4.0.0
       execa: 1.0.0
-      path-temp: 1.0.0
+      path-temp: 2.0.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       tape: 4.10.1
@@ -1291,7 +1291,7 @@ importers:
       p-filter: 2.1.0
       p-limit: 2.2.0
       path-exists: 4.0.0
-      path-temp: 1.0.0
+      path-temp: 2.0.0
       ramda: 0.26.1
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
@@ -1339,7 +1339,7 @@ importers:
       p-filter: 2.1.0
       p-limit: 2.2.0
       path-exists: 4.0.0
-      path-temp: 1.0.0
+      path-temp: 2.0.0
       ramda: 0.26.1
       rename-overwrite: 2.0.1
       rimraf: 2.6.3
@@ -2179,7 +2179,7 @@ importers:
       mem: 4.3.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      path-temp: 1.0.0
+      path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 2.6.3
       ssri: 6.0.1
@@ -2220,7 +2220,7 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       nock: 10.0.6
-      path-temp: 1.0.0
+      path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 2.6.3
       ssri: 6.0.1
@@ -4513,6 +4513,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
+  /crypto-random-string/2.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-v1plID3y9r/lPhviJ1wrXpLeyUIGAZ2SHNYTEapm7/8A9nLPoyvVp3RK/EPFqn5kEznyWgYZNsRtYYIWbuG8KA==
   /csv-parser/1.12.1:
     dependencies:
       buffer-alloc: 1.2.0
@@ -8020,6 +8026,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-TeQgoH67RYUT3xt6WaRASbWyJmvrUnpeToQQT7RW+uighCh/gfs4VCO2/P8mIpjt6JsyJ6DxE6Q1FOJXVc3ANg==
+  /path-temp/2.0.0:
+    dependencies:
+      unique-string: 2.0.0
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-92olbatybjsHTGB2CUnAM7s0mU/27gcMfLNA7t09UftndUdxywlQKur3fzXEPpfLrgZD3I2Bt8+UmiL7YDEgXQ==
   /path-to-regexp/0.1.7:
     dev: true
     resolution:
@@ -9922,6 +9936,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
+  /unique-string/2.0.0:
+    dependencies:
+      crypto-random-string: 2.0.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-uNaeirEPvpZWSgzwsPGtU2zVSTrn/8L5q/IexZmH0eH6SA73CmAA5U4GwORTxQAZs95TAXLNqeLoPPNO5gZfWg==
   /unist-util-is/2.1.2:
     dev: true
     resolution:
