@@ -37,11 +37,9 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
     case 'login':
     case 'logout':
     case 'owner':
-    case 'pack':
     case 'ping':
     case 'prefix':
     case 'profile':
-    case 'publish':
     case 'repo':
     case 's':
     case 'se':
@@ -78,5 +76,6 @@ async function runPnpm () {
 
 async function passThruToNpm () {
   const runNpm = (await import('../cmd/runNpm')).default
-  runNpm(argv)
+  const { status } = runNpm(argv)
+  process.exit(status)
 }

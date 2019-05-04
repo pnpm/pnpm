@@ -84,7 +84,8 @@
     "text-table": "0.2.0",
     "tree-kill": "1.2.1",
     "update-notifier": "2.5.0",
-    "version-selector-type": "2.0.1"
+    "version-selector-type": "2.0.1",
+    "write-json-file": "3.2.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
@@ -127,7 +128,6 @@
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5",
-    "write-json-file": "3.2.0",
     "write-pkg": "4.0.0",
     "write-yaml-file": "2.0.0"
   },

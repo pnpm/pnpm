@@ -6,6 +6,7 @@ import link from './link'
 import list from './list'
 import outdated from './outdated'
 import prune from './prune'
+import publish, { pack } from './publish'
 import rebuild from './rebuild'
 import recursive from './recursive'
 import root from './root'
@@ -24,7 +25,9 @@ export default {
   link,
   list,
   outdated,
+  pack,
   prune,
+  publish,
   rebuild,
   recursive,
   restart,
