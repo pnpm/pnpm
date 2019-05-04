@@ -95,6 +95,7 @@
     "@pnpm/modules-yaml": "3.0.2",
     "@pnpm/package-requester": "7.0.7",
     "@pnpm/pkgid-to-filename": "2.0.0",
+    "@pnpm/read-importer-manifest": "1.0.0",
     "@pnpm/read-package-json": "2.0.2",
     "@pnpm/shamefully-flatten": "3.0.7",
     "@pnpm/store-controller-types": "3.0.3",

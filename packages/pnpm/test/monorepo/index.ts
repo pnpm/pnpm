@@ -511,7 +511,7 @@ test('recursive install with shared-workspace-lockfile builds workspace packages
         prepublish: jsonAppend('project-2-prepublish', '../output2.json'),
       },
     },
-  ])
+  ], { manifestFormat: 'YAML' })
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 

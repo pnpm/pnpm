@@ -18,6 +18,7 @@ import filterLockfile, {
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
+  getLockfileImporterId,
   Lockfile,
   PackageSnapshot,
   readCurrentLockfile,
@@ -41,6 +42,7 @@ import {
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { shamefullyFlattenByLockfile } from '@pnpm/shamefully-flatten'
 import {
@@ -247,6 +249,8 @@ export default async (opts: HeadlessOptions) => {
     await linkRootPackages(filteredLockfile, {
       importerId: importer.id,
       importerModulesDir: importer.modulesDir,
+      importers: opts.importers,
+      lockfileDirectory: opts.lockfileDirectory,
       prefix: importer.prefix,
       registries: opts.registries,
       rootDependencies: res.directDependenciesByImporterId[importer.id],
@@ -364,10 +368,16 @@ async function linkRootPackages (
     registries: Registries,
     importerId: string,
     importerModulesDir: string,
+    importers: Array<{ id: string, manifest: ImporterManifest }>,
+    lockfileDirectory: string,
     prefix: string,
     rootDependencies: {[alias: string]: string},
   },
 ) {
+  const importerManifestsByImporterId = {} as { [id: string]: ImporterManifest }
+  for (const importer of opts.importers) {
+    importerManifestsByImporterId[importer.id] = importer.manifest
+  }
   const lockfileImporter = lockfile.importers[opts.importerId]
   const allDeps = {
     ...lockfileImporter.devDependencies,
@@ -381,7 +391,14 @@ async function linkRootPackages (
           const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
           const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
           const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
-          const linkedPackage = await readPackageFromDir(packageDir) as DependencyManifest
+          const linkedPackage = await (async () => {
+            const importerId = getLockfileImporterId(opts.lockfileDirectory, packageDir)
+            if (importerManifestsByImporterId[importerId]) {
+              return importerManifestsByImporterId[importerId]
+            }
+            // TODO: cover this case with a test
+            return await readImporterManifestOnly(packageDir) as DependencyManifest
+          })() as DependencyManifest
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
             fromDependenciesField: isDev && 'devDependencies' ||
               isOptional && 'optionalDependencies' ||
