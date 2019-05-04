@@ -34,7 +34,7 @@
     "p-filter": "2.1.0",
     "p-limit": "2.2.0",
     "path-exists": "4.0.0",
-    "path-temp": "1.0.0",
+    "path-temp": "2.0.0",
     "ramda": "0.26.1",
     "rename-overwrite": "2.0.1",
     "rimraf-then": "1.0.1",
