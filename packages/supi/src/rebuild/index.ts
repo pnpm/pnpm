@@ -349,7 +349,10 @@ async function _rebuild (
   await Promise.all(importers.map((importer) => limitLinking(() => {
     const modules = path.join(importer.prefix, 'node_modules')
     const binPath = path.join(modules, '.bin')
-    return linkBins(modules, binPath, { warn })
+    return linkBins(modules, binPath, {
+      allowExoticManifests: true,
+      warn,
+    })
   })))
 
   return pkgsThatWereRebuilt

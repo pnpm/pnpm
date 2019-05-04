@@ -926,7 +926,7 @@ const limitLinking = pLimit(16)
 
 function linkBinsOfImporter ({ modulesDir, bin, prefix }: ImporterToLink) {
   const warn = (message: string) => logger.warn({ message, prefix })
-  return linkBins(modulesDir, bin, { warn })
+  return linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
 }
 
 async function linkAllBins (

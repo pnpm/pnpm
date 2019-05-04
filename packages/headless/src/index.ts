@@ -359,7 +359,10 @@ function linkBinsOfImporter (
   },
 ) {
   const warn = (message: string) => logger.warn({ message, prefix })
-  return linkBins(modulesDir, bin, { warn })
+  return linkBins(modulesDir, bin, {
+    allowExoticManifests: true,
+    warn,
+  })
 }
 
 async function linkRootPackages (

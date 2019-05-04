@@ -4,7 +4,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.1.0
+      '@pnpm/link-bins': 4.2.0
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -28,7 +28,7 @@ importers:
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/lifecycle': 6.1.0
-      '@pnpm/link-bins': 4.1.0
+      '@pnpm/link-bins': 4.2.0
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/store-controller-types': 3.0.3
@@ -571,7 +571,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.1.0
+      '@pnpm/link-bins': 4.2.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -632,7 +632,7 @@ importers:
       '@pnpm/filter-lockfile': 1.0.6
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 6.1.0
-      '@pnpm/link-bins': 4.1.0
+      '@pnpm/link-bins': 4.2.0
       '@pnpm/lockfile-file': 1.0.5
       '@pnpm/lockfile-utils': 1.0.6
       '@pnpm/logger': 2.1.0
@@ -1947,7 +1947,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.1.0
+      '@pnpm/link-bins': 4.2.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -2053,7 +2053,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 7.0.2
       '@pnpm/lifecycle': 6.1.0
-      '@pnpm/link-bins': 4.1.0
+      '@pnpm/link-bins': 4.2.0
       '@pnpm/lockfile-file': 1.0.5
       '@pnpm/lockfile-utils': 1.0.6
       '@pnpm/logger': 2.1.0
@@ -2699,10 +2699,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
-  /@pnpm/link-bins/4.1.0:
+  /@pnpm/link-bins/4.2.0:
     dependencies:
       '@pnpm/package-bins': 3.1.0
-      '@pnpm/read-package-json': 2.0.1
+      '@pnpm/read-importer-manifest': 1.0.0
+      '@pnpm/read-package-json': 2.0.2
       '@pnpm/types': 3.2.0
       '@zkochan/cmd-shim': 3.1.0
       arr-flatten: 1.1.0
@@ -2717,7 +2718,7 @@ packages:
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-FLbzNnazHjYJtaJyKwSHbP2hth5t0rNEJkU4HiSFC/se+eOitkh90AWdC8bCSN+YcB5ic1p9U5KXYSkOxiOeAg==
+      integrity: sha512-p69fQ6mEb6sRVXP+H086eT7uWyOb3vfH5a3JjOyrS416F7H+nmrzB8R5oz+5cU9E7C0PXIwK2VAL/wmTBENWzg==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.14.6
@@ -2745,15 +2746,30 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/read-package-json/2.0.1:
+  /@pnpm/read-importer-manifest/1.0.0:
+    dependencies:
+      '@pnpm/types': 3.2.0
+      '@pnpm/write-importer-manifest': 1.0.0
+      detect-indent: 6.0.0
+      graceful-fs: 4.1.15
+      is-windows: 1.0.2
+      json5: 2.1.0
+      read-yaml-file: 1.1.0
+      strip-bom: 4.0.0
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-3/8Zq4Ay/HNYr5oZWtZGWos88iwrP5Nagc2gPhP6Lcd2BELugV50rb1JjlP4eUpONSFHqjJixCXuLetoKzV/aw==
+  /@pnpm/read-package-json/2.0.2:
     dependencies:
       '@pnpm/types': 3.2.0
       read-package-json: 2.0.13
     dev: false
     engines:
-      node: '>=8'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-7moikHv2ereM5ZYORmB2gix7yVqTMdsFvCFICxfhCfu6GdYPHZc42bTa0jvL+a5SU+sjggVOU+RvH1IneLIhzg==
+      integrity: sha512-+4xjkIB7tFY+SyQ96q2Hnh7AFrWjyhI9995pfZmIRQh2QxUg6co1KSK5a75ULZaHqxEFb8/z8QkmbPAaHc3WOg==
   /@pnpm/store-path/2.0.0:
     dependencies:
       can-link: 1.0.2
@@ -2773,6 +2789,18 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-YuP9SY+txLd6oEVdE082EmtDE3XXknIKtMTH5UoWus2YkqArS2VXA89n6aoAQ3n0hq7txBiT4SNVyyJHGnBGGA==
+  /@pnpm/write-importer-manifest/1.0.0:
+    dependencies:
+      '@pnpm/types': 3.2.0
+      sort-keys: 2.0.0
+      write-json-file: 3.2.0
+      write-json5-file: 2.0.0
+      write-yaml-file: 2.0.0
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-pSfdxKI0j6Wop8x95wPJFNQ68nGD8WtJPg5srTCHbDsOtSJyn0PsXFoNoFCDgDpv9UvWPdKluhn5djGdYlpSZQ==
   /@sinonjs/commons/1.4.0:
     dependencies:
       type-detect: 4.0.8

@@ -5,6 +5,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
+import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import symlink from 'symlink-dir'
@@ -932,4 +933,38 @@ test('dependencies of workspace packages are built during headless installation'
     const generatedByPostinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
   }
+})
+
+test("linking the package's bin to another workspace package in a monorepo", async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'hello',
+      version: '1.0.0',
+
+      bin: 'index.js'
+    },
+    {
+      name: 'main',
+      version: '2.0.0',
+
+      dependencies: {
+        hello: '1.0.0',
+      },
+    },
+  ], { manifestFormat: 'YAML' })
+
+  await fs.writeFile('./hello/index.js', '#!/usr/bin/env node', 'utf8')
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('recursive', 'install')
+
+  await projects.main.isExecutable('.bin/hello')
+
+  t.ok(await exists('main/node_modules'))
+  await rimraf('main/node_modules')
+
+  await execPnpm('recursive', 'install', '--frozen-lockfile')
+
+  await projects.main.isExecutable('.bin/hello')
 })
