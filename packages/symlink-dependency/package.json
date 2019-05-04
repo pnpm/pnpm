@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",

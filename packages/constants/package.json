@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/constants",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "pnpm constants",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -28,6 +28,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/constants#readme",
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",
+    "@types/node": "*",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "rimraf": "2.6.3",
@@ -41,8 +42,5 @@
     "installation": {
       "useShortAlias": true
     }
-  },
-  "dependencies": {
-    "@types/node": "*"
   }
 }

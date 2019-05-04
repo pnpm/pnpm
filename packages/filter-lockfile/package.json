@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-lockfile",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -49,15 +49,15 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "1.0.0",
+    "@pnpm/constants": "1.0.1",
     "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/lockfile-utils": "1.0.5",
-    "@pnpm/package-is-installable": "2.0.4",
+    "@pnpm/lockfile-utils": "1.0.6",
+    "@pnpm/package-is-installable": "2.0.5",
     "@pnpm/types": "3.2.0",
     "@types/node": "*",
     "@types/ramda": "0.25.39",
     "@types/tape": "4.2.33",
-    "dependency-path": "3.0.4",
+    "dependency-path": "3.0.5",
     "ramda": "0.26.1"
   }
 }

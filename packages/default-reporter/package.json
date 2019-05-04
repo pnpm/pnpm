@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "dependencies": {
-    "@pnpm/config": "3.3.0",
+    "@pnpm/config": "3.3.1",
     "@pnpm/core-loggers": "3.0.2",
     "@pnpm/types": "3.2.0",
     "@zkochan/zen-push": "1.0.0",

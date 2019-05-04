@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-fetcher",
-  "version": "3.1.5",
+  "version": "3.1.6",
   "description": "pnpm's default package fetcher",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,9 +30,9 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/git-fetcher": "2.0.1",
+    "@pnpm/git-fetcher": "2.0.2",
     "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/tarball-fetcher": "3.1.5"
+    "@pnpm/tarball-fetcher": "3.1.6"
   },
   "devDependencies": {
     "@pnpm/default-fetcher": "link:",
