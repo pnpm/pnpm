@@ -96,7 +96,7 @@
     "anonymous-npm-registry-client": "0.1.2",
     "cross-spawn": "6.0.5",
     "deep-require-cwd": "1.0.0",
-    "dir-is-case-sensitive": "1.0.0",
+    "dir-is-case-sensitive": "1.0.2",
     "execa": "1.0.0",
     "exists-link": "2.0.0",
     "fs-extra": "7.0.1",
