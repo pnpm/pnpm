@@ -1,7 +1,4 @@
-import prepare, {
-  prepareWithJson5Manifest,
-  prepareWithYamlManifest,
-} from '@pnpm/prepare'
+import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
 import path = require('path')
 import tape = require('tape')
@@ -36,11 +33,11 @@ test('run: pass the args to the command that is specfied in the build script', a
 })
 
 test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t: tape.Test) => {
-  prepareWithYamlManifest(t, {
+  prepare(t, {
     scripts: {
       foo: 'ts-node test'
     },
-  })
+  }, { manifestFormat: 'YAML' })
 
   const result = execPnpmSync('run', 'foo', '--', '--flag=true')
 
@@ -48,11 +45,11 @@ test('run: pass the args to the command that is specfied in the build script of 
 })
 
 test('test: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t: tape.Test) => {
-  prepareWithYamlManifest(t, {
+  prepare(t, {
     scripts: {
       test: 'ts-node test'
     },
-  })
+  }, { manifestFormat: 'YAML' })
 
   const result = execPnpmSync('test', '--', '--flag=true')
 
@@ -60,11 +57,11 @@ test('test: pass the args to the command that is specfied in the build script of
 })
 
 test('start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t: tape.Test) => {
-  prepareWithYamlManifest(t, {
+  prepare(t, {
     scripts: {
       start: 'ts-node test'
     },
-  })
+  }, { manifestFormat: 'YAML' })
 
   const result = execPnpmSync('start', '--', '--flag=true')
 
@@ -72,7 +69,7 @@ test('start: pass the args to the command that is specfied in the build script o
 })
 
 test('start: run "node server.js" by default', async (t: tape.Test) => {
-  prepareWithYamlManifest(t)
+  prepare(t, {}, { manifestFormat: 'YAML' })
 
   await fs.writeFile('server.js', 'console.log("Hello world!")', 'utf8')
 
@@ -128,7 +125,7 @@ test('restart: run stop, restart and start', async (t: tape.Test) => {
 })
 
 test('install-test: install dependencies and runs tests', async (t: tape.Test) => {
-  prepareWithJson5Manifest(t, {
+  prepare(t, {
     dependencies: {
       'json-append': '1',
     },
@@ -137,7 +134,7 @@ test('install-test: install dependencies and runs tests', async (t: tape.Test) =
       pretest: `node -e "process.stdout.write('pretest')" | json-append ./output.json`,
       test: `node -e "process.stdout.write('test')" | json-append ./output.json`,
     },
-  })
+  }, { manifestFormat: 'JSON5' })
 
   await execPnpm('install-test')
 

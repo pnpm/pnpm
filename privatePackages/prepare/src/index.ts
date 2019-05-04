@@ -30,7 +30,10 @@ export function tempDir (t: Test) {
 export function preparePackages (
   t: Test,
   pkgs: Array<{ location: string, package: ImporterManifest } | ImporterManifest>,
-  pkgTmpPath?: string,
+  opts?: {
+    manifestFormat?: 'JSON' | 'JSON5' | 'YAML',
+    tempDir?: string,
+  }
 ): {
   [name: string]: {
     requireModule (pkgName: string): any // tslint:disable-line:no-any
@@ -47,15 +50,22 @@ export function preparePackages (
     writePackageJson (pkgJson: object): Promise<void>
   }
 } {
-  pkgTmpPath = pkgTmpPath || path.join(tempDir(t), 'project')
+  const pkgTmpPath = opts && opts.tempDir || path.join(tempDir(t), 'project')
+  const manifestFormat = opts && opts.manifestFormat
 
   const dirname = path.dirname(pkgTmpPath)
   const result = {}
   for (let aPkg of pkgs) {
     if (typeof aPkg['location'] === 'string') {
-      result[aPkg['package']['name']] = prepare(t, aPkg['package'], path.join(dirname, aPkg['location']))
+      result[aPkg['package']['name']] = prepare(t, aPkg['package'], {
+        manifestFormat,
+        tempDir: path.join(dirname, aPkg['location']),
+      })
     } else {
-      result[aPkg['name']] = prepare(t, aPkg as ImporterManifest, path.join(dirname, aPkg['name']))
+      result[aPkg['name']] = prepare(t, aPkg as ImporterManifest, {
+        manifestFormat,
+        tempDir: path.join(dirname, aPkg['name']),
+      })
     }
   }
   process.chdir('..')
@@ -63,49 +73,36 @@ export function preparePackages (
 }
 
 export default function prepare (
-  t: Test,
+  test: Test,
   manifest?: ImporterManifest,
-  pkgTmpPath?: string,
+  opts?: {
+    manifestFormat?: 'JSON' | 'JSON5' | 'YAML',
+    tempDir?: string,
+  }
 ) {
-  pkgTmpPath = pkgTmpPath || path.join(tempDir(t), 'project')
+  const dir = opts && opts.tempDir || path.join(tempDir(test), 'project')
 
-  mkdirp.sync(pkgTmpPath)
-  writePkg.sync(pkgTmpPath, { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
-  process.chdir(pkgTmpPath)
+  mkdirp.sync(dir)
+  switch (opts && opts.manifestFormat || 'JSON') {
+    case 'JSON':
+      writePkg.sync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
+      break
+    case 'JSON5':
+      writeJson5File(path.join(dir, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
+      break
+    case 'YAML':
+      writeYamlFile(path.join(dir, 'package.yaml'), { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
+      break
+  }
+  process.chdir(dir)
 
-  return assertProject(t, pkgTmpPath)
+  return assertProject(test, dir)
 }
 
 export function prepareEmpty (t: Test) {
   const pkgTmpPath = path.join(tempDir(t), 'project')
 
   mkdirp.sync(pkgTmpPath)
-  process.chdir(pkgTmpPath)
-
-  return assertProject(t, pkgTmpPath)
-}
-
-export function prepareWithYamlManifest (
-  t: Test,
-  manifest?: ImporterManifest,
-) {
-  const pkgTmpPath = path.join(tempDir(t), 'project')
-
-  mkdirp.sync(pkgTmpPath)
-  writeYamlFile(path.join(pkgTmpPath, 'package.yaml'), { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
-  process.chdir(pkgTmpPath)
-
-  return assertProject(t, pkgTmpPath)
-}
-
-export function prepareWithJson5Manifest (
-  t: Test,
-  manifest?: ImporterManifest,
-) {
-  const pkgTmpPath = path.join(tempDir(t), 'project')
-
-  mkdirp.sync(pkgTmpPath)
-  writeJson5File(path.join(pkgTmpPath, 'package.json5'), { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
   process.chdir(pkgTmpPath)
 
   return assertProject(t, pkgTmpPath)

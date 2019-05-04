@@ -1,7 +1,4 @@
-import prepare, {
-  prepareWithJson5Manifest,
-  prepareWithYamlManifest,
-} from '@pnpm/prepare'
+import prepare from '@pnpm/prepare'
 import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -26,10 +23,10 @@ test('publish: package with package.json', async (t: tape.Test) => {
 })
 
 test('publish: package with package.yaml', async (t: tape.Test) => {
-  prepareWithYamlManifest(t, {
+  prepare(t, {
     name: 'test-publish-package.yaml',
     version: '0.0.0',
-  })
+  }, { manifestFormat: 'YAML' })
 
   await execPnpm('publish', ...CREDENTIALS)
 
@@ -38,10 +35,10 @@ test('publish: package with package.yaml', async (t: tape.Test) => {
 })
 
 test('publish: package with package.json5', async (t: tape.Test) => {
-  prepareWithJson5Manifest(t, {
+  prepare(t, {
     name: 'test-publish-package.json5',
     version: '0.0.0',
-  })
+  }, { manifestFormat: 'JSON5' })
 
   await execPnpm('publish', ...CREDENTIALS)
 
@@ -50,10 +47,10 @@ test('publish: package with package.json5', async (t: tape.Test) => {
 })
 
 test('publish: package with package.json5 running publish from different folder', async (t: tape.Test) => {
-  prepareWithJson5Manifest(t, {
+  prepare(t, {
     name: 'test-publish-package.json5',
     version: '0.0.1',
-  })
+  }, { manifestFormat: 'JSON5' })
 
   process.chdir('..')
 
