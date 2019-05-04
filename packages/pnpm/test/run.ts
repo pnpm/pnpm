@@ -1,4 +1,5 @@
 import prepare from '@pnpm/prepare'
+import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
 import path = require('path')
 import tape = require('tape')
@@ -144,4 +145,25 @@ test('install-test: install dependencies and runs tests', async (t: tape.Test) =
     'test',
     'posttest',
   ])
+})
+
+test('"pnpm run" prints the list of available commands', async (t: tape.Test) => {
+  prepare(t, {
+    scripts: {
+      test: 'ts-node test',
+      foo: 'echo hi',
+    },
+  })
+
+  const result = execPnpmSync('run')
+
+  t.equal((result.stdout as Buffer).toString('utf8'), stripIndent`
+    Lifecycle scripts:
+      test
+        ts-node test
+
+    Commands available via "pnpm run":
+      foo
+        echo hi` + '\n',
+  )
 })

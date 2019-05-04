@@ -1,6 +1,8 @@
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
+import { ImporterManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
+import R = require('ramda')
 
 export default async function run (
   args: string[],
@@ -16,6 +18,10 @@ export default async function run (
 ) {
   const manifest = await readImporterManifestOnly(opts.prefix)
   const scriptName = args[0]
+  if (!scriptName) {
+    printProjectCommands(manifest)
+    return
+  }
   if (scriptName !== 'start' && (!manifest.scripts || !manifest.scripts[scriptName])) {
     const err = new Error(`Missing script: ${scriptName}`)
     err['code'] = 'ERR_PNPM_NO_SCRIPT'
@@ -38,6 +44,72 @@ export default async function run (
   if (manifest.scripts && manifest.scripts[`post${scriptName}`]) {
     await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
   }
+}
+
+const ALL_LIFECYCLE_SCRIPTS = new Set([
+  'prepublish',
+  'prepare',
+  'prepublishOnly',
+  'prepack',
+  'postpack',
+  'publish',
+  'postpublish',
+  'preinstall',
+  'install',
+  'postinstall',
+  'preuninstall',
+  'uninstall',
+  'postuninstall',
+  'preversion',
+  'version',
+  'postversion',
+  'pretest',
+  'test',
+  'posttest',
+  'prestop',
+  'stop',
+  'poststop',
+  'prestart',
+  'start',
+  'poststart',
+  'prerestart',
+  'restart',
+  'postrestart',
+  'preshrinkwrap',
+  'shrinkwrap',
+  'postshrinkwrap',
+])
+
+function printProjectCommands (manifest: ImporterManifest) {
+  const lifecycleScripts = [] as string[][]
+  const otherScripts = [] as string[][]
+
+  for (const [scriptName, script] of R.toPairs(manifest.scripts || {})) {
+    if (ALL_LIFECYCLE_SCRIPTS.has(scriptName)) {
+      lifecycleScripts.push([scriptName, script])
+    } else {
+      otherScripts.push([scriptName, script])
+    }
+  }
+
+  if (lifecycleScripts.length === 0 && otherScripts.length === 0) {
+    console.log(`There are no scripts specified.`)
+    return
+  }
+
+  let output = ''
+  if (lifecycleScripts.length > 0) {
+    output += `Lifecycle scripts:\n${renderCommands(lifecycleScripts)}`
+  }
+  if (otherScripts.length > 0) {
+    if (output !== '') output += '\n\n'
+    output += `Commands available via "pnpm run":\n${renderCommands(otherScripts)}`
+  }
+  console.log(output)
+}
+
+function renderCommands (commands: string[][]) {
+  return commands.map(([scriptName, script]) => `  ${scriptName}\n    ${script}`).join('\n')
 }
 
 export async function start (
