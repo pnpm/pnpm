@@ -4,7 +4,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.0.2
+      '@pnpm/link-bins': 4.1.0
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -28,7 +28,7 @@ importers:
       '@pnpm/constants': 1.0.0
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/lifecycle': 6.0.1
-      '@pnpm/link-bins': 4.0.2
+      '@pnpm/link-bins': 4.1.0
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/store-controller-types': 3.0.3
@@ -572,7 +572,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.0.2
+      '@pnpm/link-bins': 4.1.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -632,7 +632,7 @@ importers:
       '@pnpm/filter-lockfile': 1.0.5
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 6.0.1
-      '@pnpm/link-bins': 4.0.2
+      '@pnpm/link-bins': 4.1.0
       '@pnpm/lockfile-file': 1.0.4
       '@pnpm/lockfile-utils': 1.0.5
       '@pnpm/logger': 2.1.0
@@ -925,7 +925,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/package-bins': 3.0.1
+      '@pnpm/package-bins': 3.1.0
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -949,7 +949,7 @@ importers:
       '@pnpm/lockfile-utils': 1.0.5
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
-      '@pnpm/package-bins': 3.0.1
+      '@pnpm/package-bins': 3.1.0
       '@pnpm/read-modules-dir': 2.0.0
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/tslint-config': 0.0.0
@@ -1946,7 +1946,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.0.2
+      '@pnpm/link-bins': 4.1.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -2052,7 +2052,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 7.0.1
       '@pnpm/lifecycle': 6.0.1
-      '@pnpm/link-bins': 4.0.2
+      '@pnpm/link-bins': 4.1.0
       '@pnpm/lockfile-file': 1.0.4
       '@pnpm/lockfile-utils': 1.0.5
       '@pnpm/logger': 2.1.0
@@ -2698,14 +2698,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
-  /@pnpm/link-bins/4.0.2:
+  /@pnpm/link-bins/4.1.0:
     dependencies:
-      '@pnpm/package-bins': 3.0.1
+      '@pnpm/package-bins': 3.1.0
       '@pnpm/read-package-json': 2.0.1
       '@pnpm/types': 3.2.0
-      '@types/mz': 0.0.32
-      '@types/node': 11.13.10
-      '@types/ramda': 0.26.6
       '@zkochan/cmd-shim': 3.1.0
       arr-flatten: 1.1.0
       is-subdir: 1.0.3
@@ -2717,9 +2714,9 @@ packages:
       ramda: 0.26.1
     dev: false
     engines:
-      node: '>=8'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-69ZxoeiSRxtOOmeBlYXEOiNZPY0fTinePQhXmLcNE5g8+ZUGaSD6KKDWJ6fW2rSrc21m4hcuadpdoqVlyfA6/w==
+      integrity: sha512-FLbzNnazHjYJtaJyKwSHbP2hth5t0rNEJkU4HiSFC/se+eOitkh90AWdC8bCSN+YcB5ic1p9U5KXYSkOxiOeAg==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.14.6
@@ -2729,17 +2726,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/package-bins/3.0.1:
+  /@pnpm/package-bins/3.1.0:
     dependencies:
       '@pnpm/types': 3.2.0
-      '@types/mz': 0.0.32
-      mz: 2.7.0
+      graceful-fs: 4.1.15
       p-filter: 2.1.0
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-VaRpH+2g3p5dMgXtd2dunrpTaO775W29NIEM7mm3GXHZkLnMGTtQ0fDks22rSXTyH6tou5plW7pvpJq538p4vw==
+      integrity: sha512-zG0WHt4kA/8U3Q9OBBPf5bBNzcg2Z/W/HvC7RSsvmHrD3oo7aHzfg8ZHWTskAUCJCysZV09tNnvcUHnK6GLCOQ==
   /@pnpm/pkgid-to-filename/2.0.0:
     dependencies:
       normalize-path: 3.0.0
@@ -2896,10 +2892,6 @@ packages:
   /@types/node/10.14.6:
     resolution:
       integrity: sha512-Fvm24+u85lGmV4hT5G++aht2C5I4Z4dYlWZIh62FAfFO/TfzXtPpoLI6I7AuBWkIFqZCnhFOoTT7RjjaIL5Fjg==
-  /@types/node/11.13.10:
-    dev: false
-    resolution:
-      integrity: sha512-leUNzbFTMX94TWaIKz8N15Chu55F9QSH+INKayQr5xpkasBQBRF3qQXfo3/dOnMU/dEIit+Y/SU8HyOjq++GwA==
   /@types/node/12.0.0:
     resolution:
       integrity: sha512-Jrb/x3HT4PTJp6a4avhmJCDEVrPdqLfl3e8GGMbpkGGdwAV5UGlIs4vVEfsHHfylZVOKZWpOqmqFH8CbfOZ6kg==
@@ -2942,6 +2934,7 @@ packages:
     resolution:
       integrity: sha512-GJr1BOUjtdLexxQLhflMw1tCDav3csdUTC7twHx0GZUF9RTWGnJkYnUFAZE5cv1YnefgZabdfC8GvtJgVmQL7A==
   /@types/ramda/0.26.6:
+    dev: true
     resolution:
       integrity: sha512-AmTHEkGo/EEufYY7MRqlgI0HLsLiAnc02pKOTVzE2D9IHf6yH2Xz71ompfEnduuaFGplYrtIOFOUOLs0AbMj9Q==
   /@types/ramda/0.26.8:
