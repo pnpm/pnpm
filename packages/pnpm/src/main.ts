@@ -1,8 +1,8 @@
 // Map SIGINT & SIGTERM to process exit
 // so that lockfiles are removed automatically
 process
-  .once('SIGINT', () => process.exit(1))
-  .once('SIGTERM', () => process.exit(1))
+  .once('SIGINT', () => process.exit(0))
+  .once('SIGTERM', () => process.exit(0))
 
 // Patch the global fs module here at the app level
 import fs = require('fs')
