@@ -150,8 +150,8 @@ test('install-test: install dependencies and runs tests', async (t: tape.Test) =
 test('"pnpm run" prints the list of available commands', async (t: tape.Test) => {
   prepare(t, {
     scripts: {
-      test: 'ts-node test',
       foo: 'echo hi',
+      test: 'ts-node test',
     },
   })
 
