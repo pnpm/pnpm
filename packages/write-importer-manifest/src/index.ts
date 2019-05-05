@@ -4,7 +4,11 @@ import writeJsonFile = require('write-json-file')
 import writeJson5File = require('write-json5-file')
 import writeYamlFile = require('write-yaml-file')
 
-// TODO: normalize before save + preserve indent
+const YAML_FORMAT = {
+  noCompatMode: true,
+  noRefs: true,
+}
+
 export default function writeImporterManifest (
   filePath: string,
   manifest: ImporterManifest,
@@ -15,7 +19,7 @@ export default function writeImporterManifest (
     case 'json5':
       return writeJson5File(filePath, manifest, opts)
     case 'yaml':
-      return writeYamlFile(filePath, manifest)
+      return writeYamlFile(filePath, manifest, YAML_FORMAT)
     case 'json':
     default:
       return writeJsonFile(filePath, manifest, opts)
