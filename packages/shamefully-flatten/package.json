@@ -41,11 +41,11 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/shamefully-flatten",
   "scripts": {
-    "start": "npm run tsc -- --watch",
-    "test": "npm run tsc && npm run lint",
+    "start": "pnpm run tsc -- --watch",
+    "test": "pnpm run tsc && pnpm run lint",
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
     "@pnpm/constants": "1.0.1",

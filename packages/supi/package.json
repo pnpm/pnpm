@@ -155,18 +155,18 @@
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/supi",
   "scripts": {
     "info": "npm-scripts-info",
-    "start": "npm run tsc -- --watch",
+    "start": "pnpm run tsc -- --watch",
     "?commit": "echo 'Run Git commit wizard'",
     "commit": "commit",
     "commitmsg": "commitlint -e",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test",
-    "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
+    "test:e2e": "run-p -r pnpm-registry-mock test:tap",
     "pretest": "rimraf ../../../.tmp/ && pnpm-registry-mock prepare",
-    "test-with-preview": "npm run lint && preview && npm run test:e2e",
-    "test": "npm run lint && npm run tsc && npm run test:e2e",
+    "test-with-preview": "pnpm run lint && preview && pnpm run test:e2e",
+    "test": "pnpm run lint && pnpm run tsc && pnpm run test:e2e",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "pnpm run tsc"
   }
 }

@@ -9,9 +9,9 @@
   "typings": "lib/index.d.ts",
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "npm run tsc && npm run lint && ts-node test --type-check",
+    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "tsc": "tsc",
-    "prepublishOnly": "npm run tsc",
+    "prepublishOnly": "pnpm run tsc",
     "md": "mos"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages",

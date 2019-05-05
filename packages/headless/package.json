@@ -67,20 +67,20 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/headless",
   "scripts": {
-    "start": "npm run tsc -- --watch",
+    "start": "pnpm run tsc -- --watch",
     "commit": "commit",
     "commitmsg": "commitlint -e",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test",
-    "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
+    "test:e2e": "run-p -r pnpm-registry-mock test:tap",
     "pretest": "rimraf ../.tmp/ && pnpm-registry-mock prepare && ts-node test/pretest",
-    "test-with-preview": "npm run lint && npm run test:e2e",
-    "test": "npm run lint && npm run tsc && npm run test:e2e",
+    "test-with-preview": "pnpm run lint && pnpm run test:e2e",
+    "test": "pnpm run lint && pnpm run tsc && pnpm run test:e2e",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc",
+    "prepublishOnly": "pnpm run tsc",
     "runPrepareFixtures": "cd test/fixtures && node ../../../pnpm/lib/bin/pnpm.js m i --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
-    "prepareFixtures": "pnpm-registry-mock prepare && npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
+    "prepareFixtures": "pnpm-registry-mock prepare && run-p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
     "@pnpm/build-modules": "1.0.4",

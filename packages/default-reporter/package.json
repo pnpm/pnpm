@@ -10,11 +10,11 @@
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "pretty-test": "ts-node test | tap-diff",
-    "test": "npm run lint && npm run just-test",
+    "test": "pnpm run lint && pnpm run just-test",
     "just-test-preview": "ts-node test --type-check",
-    "just-test": "npm run tsc && ts-node test --type-check",
+    "just-test": "pnpm run tsc && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/default-reporter",
   "keywords": [

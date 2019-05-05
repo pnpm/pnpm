@@ -44,9 +44,9 @@
     "commitmsg": "commitlint -e",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc",
+    "prepublishOnly": "pnpm run tsc",
     "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-lockfile && cd ../../..",
-    "test": "npm run lint && npm run tsc && ts-node test"
+    "test": "pnpm run lint && pnpm run tsc && ts-node test"
   },
   "dependencies": {
     "@pnpm/assert-store": "link:",

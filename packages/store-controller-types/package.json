@@ -11,9 +11,9 @@
     "lib"
   ],
   "scripts": {
-    "test": "npm run tsc && tslint -c tslint.json -p .",
+    "test": "pnpm run tsc && tslint -c tslint.json -p .",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/store-controller-types",
   "keywords": [

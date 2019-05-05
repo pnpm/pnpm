@@ -39,9 +39,9 @@
     "lint": "tslint -c tslint.json --project .",
     "lint-test": "tslint -c tslint.json --project test",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc",
+    "prepublishOnly": "pnpm run tsc",
     "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-lockfile && cd ../../..",
-    "test": "npm run lint && npm run lint-test && npm run tsc && ts-node test"
+    "test": "pnpm run lint && pnpm run lint-test && pnpm run tsc && ts-node test"
   },
   "dependencies": {
     "@pnpm/assert-store": "1.0.0",

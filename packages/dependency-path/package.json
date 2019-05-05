@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "npm run tsc && pnpm link . && npm run lint && ts-node test.ts",
+    "test": "pnpm run tsc && pnpm link . && pnpm run lint && ts-node test.ts",
     "prepublishOnly": "tsc",
     "md": "mos",
     "tsc": "tsc"

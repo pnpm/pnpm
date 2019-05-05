@@ -8,12 +8,12 @@
     "lib"
   ],
   "scripts": {
-    "start": "npm run tsc -- --watch",
+    "start": "pnpm run tsc -- --watch",
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc --pretty",
-    "test": "npm run tsc && npm run lint && mos t",
+    "test": "pnpm run tsc && pnpm run lint && mos t",
     "md": "mos",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/fetcher-base",
   "keywords": [

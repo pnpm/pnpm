@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "prepublishOnly": "npm run tsc",
+    "prepublishOnly": "pnpm run tsc",
     "tsc": "rimraf lib && tsc",
     "test": "pnpm run tsc && pnpm run lint && ts-node test && node example"
   },
