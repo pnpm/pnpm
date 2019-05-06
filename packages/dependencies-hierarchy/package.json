@@ -11,10 +11,9 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "pretest": "cd fixtures && pnpm recursive install --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && cd ../fixtureWithLinks && pnpm recursive install --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile && cd ..",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check && mos t",
+    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "prepublishOnly": "tsc",
-    "tsc": "tsc",
-    "md": "tsc && mos"
+    "tsc": "tsc"
   },
   "engines": {
     "node": ">=8.15"
@@ -55,20 +54,9 @@
     "@types/semver": "6.0.0",
     "@types/tape": "4.2.33",
     "dependencies-hierarchy": "link:",
-    "mos": "2.0.0-alpha.3",
-    "mos-plugin-readme": "1.0.4",
-    "mos-tap-diff": "1.0.0",
     "tape": "4.10.1",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }

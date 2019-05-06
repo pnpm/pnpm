@@ -15,7 +15,6 @@
     "test": "pnpm run tsc && tslint --config tslint.json src/**/*.ts test/**/*.ts && pnpm run test:e2e",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
-    "md": "mos",
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test --type-check",
     "test:e2e": "run-p -r pnpm-registry-mock test:tap"
@@ -55,21 +54,11 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/node": "*",
     "@types/tape": "4.2.33",
-    "mos": "2.0.0-alpha.3",
-    "mos-plugin-readme": "1.0.4",
     "npm-run-all": "4.1.5",
     "pnpm-registry-mock": "2.12.0",
     "tape": "4.10.1",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }

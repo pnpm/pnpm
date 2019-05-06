@@ -13,8 +13,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
-    "test": "rimraf .store && pnpm run tsc && pnpm run lint && ts-node test --type-check && mos t",
-    "md": "mos",
+    "test": "rimraf .store && pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/server",
@@ -45,8 +44,6 @@
     "@types/tape": "4.2.33",
     "@types/uuid": "3.4.4",
     "is-port-reachable": "2.0.1",
-    "mos": "2.0.0-alpha.3",
-    "mos-plugin-readme": "1.0.4",
     "mz": "2.7.0",
     "node-fetch": "2.5.0",
     "rimraf": "2.6.3",
@@ -55,14 +52,6 @@
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   },
   "dependencies": {
     "@pnpm/fetch": "1.0.0",

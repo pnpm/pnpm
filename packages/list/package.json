@@ -10,7 +10,6 @@
   "scripts": {
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "md": "tsc && mos",
     "prepareFixtures": "cd test && pnpm recursive install --no-link-workspace-packages && cd ..",
     "prepublishOnly": "tsc",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
@@ -56,19 +55,9 @@
     "@types/ramda": "0.25.39",
     "@types/tape": "4.2.33",
     "common-tags": "1.8.0",
-    "mos": "2.0.0-alpha.3",
-    "mos-plugin-readme": "1.0.4",
     "tape": "4.10.1",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }

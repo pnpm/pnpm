@@ -11,7 +11,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "pnpm run tsc && mos test && tslint -c tslint.json -p .",
+    "test": "pnpm run tsc && tslint -c tslint.json -p .",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },
@@ -29,18 +29,8 @@
   "devDependencies": {
     "@pnpm/tslint-config": "0.0.0",
     "@types/node": "*",
-    "mos": "2.0.0-alpha.3",
-    "mos-plugin-readme": "1.0.4",
     "rimraf": "2.6.3",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }

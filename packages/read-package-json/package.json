@@ -14,8 +14,7 @@
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "test": "pnpm run lint && pnpm run tsc && ts-node test --type-check",
     "prepublishOnly": "tsc",
-    "tsc": "tsc",
-    "md": "mos"
+    "tsc": "tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/read-package-json",
   "keywords": [
@@ -42,19 +41,9 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/node": "^10.3.2",
     "@types/tape": "^4.2.31",
-    "mos": "^2.0.0-alpha.3",
-    "mos-plugin-readme": "^1.0.4",
     "tape": "^4.8.0",
     "ts-node": "8.1.0",
     "tslint": "^5.8.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }

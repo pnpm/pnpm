@@ -14,8 +14,7 @@
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "tsc": "rimraf lib && tsc",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check && mos t",
-    "md": "mos",
+    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/tarball-resolver",
@@ -32,20 +31,10 @@
     "@pnpm/tarball-resolver": "link:",
     "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "^4.2.31",
-    "mos": "^2.0.0-alpha.3",
-    "mos-plugin-readme": "^1.0.4",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }

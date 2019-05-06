@@ -14,7 +14,6 @@
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "tsc",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --ts-node",
-    "md": "mos",
     "prepublishOnly": "pnpm run tsc",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix"
   },
@@ -44,19 +43,9 @@
     "@types/graceful-fs": "4.1.3",
     "@types/node": "*",
     "@types/tape": "^4.2.31",
-    "mos": "^2.0.0-alpha.3",
-    "mos-plugin-readme": "^1.0.4",
     "tape": "^4.8.0",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }

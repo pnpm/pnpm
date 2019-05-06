@@ -11,22 +11,13 @@
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "tsc": "tsc",
-    "prepublishOnly": "pnpm run tsc",
-    "md": "mos"
+    "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages",
   "keywords": [
     "find",
     "package"
   ],
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
-  },
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -45,8 +36,6 @@
     "@types/node": "12",
     "@types/tape": "^4.2.29",
     "find-packages": "link:",
-    "mos": "^2.0.0-alpha.3",
-    "mos-plugin-readme": "^1.0.4",
     "tape": "^4.6.3",
     "ts-node": "^8.0.1",
     "tslint": "^5.0.0",

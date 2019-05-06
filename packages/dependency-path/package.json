@@ -11,7 +11,6 @@
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "test": "pnpm run tsc && pnpm link . && pnpm run lint && ts-node test.ts",
     "prepublishOnly": "tsc",
-    "md": "mos",
     "tsc": "tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/dependency-path",
@@ -42,19 +41,9 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/semver": "6.0.0",
     "@types/tape": "^4.2.30",
-    "mos": "^2.0.0-alpha.3",
-    "mos-plugin-readme": "^1.0.4",
     "tape": "4.10.1",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"
-  },
-  "mos": {
-    "plugins": [
-      "readme"
-    ],
-    "installation": {
-      "useShortAlias": true
-    }
   }
 }
