@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/constants": "1.0.1",
     "@pnpm/core-loggers": "3.0.2",
-    "@pnpm/lifecycle": "6.1.0",
+    "@pnpm/lifecycle": "6.1.1",
     "@pnpm/link-bins": "4.2.0",
     "@pnpm/read-package-json": "2.0.2",
     "@pnpm/store-controller-types": "3.0.3",
