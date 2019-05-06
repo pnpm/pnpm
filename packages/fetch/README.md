@@ -9,9 +9,9 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/fetch
+<pnpm|npm|yarn> add @pnpm/fetch
 ```
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

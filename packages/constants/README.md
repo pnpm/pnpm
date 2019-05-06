@@ -9,9 +9,9 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/constants
+<pnpm|npm|yarn> add @pnpm/constants
 ```
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

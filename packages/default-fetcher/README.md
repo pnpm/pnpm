@@ -9,9 +9,9 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/default-fetcher
+<pnpm|npm|yarn> add @pnpm/default-fetcher
 ```
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

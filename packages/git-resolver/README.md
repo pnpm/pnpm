@@ -6,11 +6,11 @@
 [![npm version](https://img.shields.io/npm/v/@pnpm/git-resolver.svg)](https://www.npmjs.com/package/@pnpm/git-resolver)
 <!--/@-->
 
-## Install
+## Installation
 
-Install it via npm.
-
-    npm install @pnpm/git-resolver
+```
+<pnpm|npm|yarn> add @pnpm/git-resolver
+```
 
 ## Usage
 
@@ -38,4 +38,4 @@ resolveFromNpm({
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

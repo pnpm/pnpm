@@ -9,9 +9,9 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/build-modules
+<pnpm|npm|yarn> add @pnpm/build-modules
 ```
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

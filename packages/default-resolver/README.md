@@ -9,9 +9,9 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/default-resolver
+<pnpm|npm|yarn> add @pnpm/default-resolver
 ```
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

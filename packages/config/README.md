@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/config
+<pnpm|npm|yarn> add @pnpm/config
 ```
 
 ## Usage
@@ -22,4 +22,4 @@ getConfigs().then(pnpmConfigs => console.log(pnpmConfigs))
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

@@ -48,4 +48,4 @@ Patterns to ignore when searching for packages. By default: `**/node_modules/**`
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io)
+MIT © [Zoltan Kochan](https://www.kochan.io)

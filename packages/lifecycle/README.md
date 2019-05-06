@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/logger @pnpm/lifecycle
+<pnpm|npm|yarn> add @pnpm/logger @pnpm/lifecycle
 ```
 
 ## Usage
@@ -47,4 +47,4 @@ await runPostinstallHooks({
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

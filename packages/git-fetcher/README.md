@@ -4,14 +4,12 @@
 
 [![npm version](https://img.shields.io/npm/v/@pnpm/git-fetcher.svg)](https://www.npmjs.com/package/@pnpm/git-fetcher)
 
-## Install
-
-Install it via npm.
+## Installation
 
 ```
-npm install @pnpm/git-fetcher
+<pnpm|npm|yarn> add @pnpm/git-fetcher
 ```
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

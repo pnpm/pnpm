@@ -2,10 +2,10 @@
 
 > The default reporter of pnpm
 
-## Install
+## Installation
 
 ```
-pnpm install @pnpm/default-reporter
+<pnpm|npm|yarn> add @pnpm/default-reporter
 ```
 
 ## Style Guide

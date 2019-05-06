@@ -8,11 +8,11 @@
 
 A symlinked `node_modules` is created when installing using [pnpm](https://github.com/pnpm/pnpm).
 
-## Install
+## Installation
 
-Install it via npm.
-
-    npm install dependencies-hierarchy
+```
+<pnpm|npm|yarn> add dependencies-hierarchy
+```
 
 ## Usage
 
@@ -90,4 +90,4 @@ Creates a dependency tree for a project's `node_modules`. Limits the results to 
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

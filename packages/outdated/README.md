@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/outdated
+<pnpm|npm|yarn> add @pnpm/outdated
 ```
 
 ## API

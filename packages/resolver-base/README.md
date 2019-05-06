@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/resolver-base
+<pnpm|npm|yarn> add @pnpm/resolver-base
 ```
 
 ## Usage
@@ -40,4 +40,4 @@ export async function (
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

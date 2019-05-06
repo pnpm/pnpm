@@ -6,11 +6,11 @@
 [![npm version](https://img.shields.io/npm/v/@pnpm/local-resolver.svg)](https://www.npmjs.com/package/@pnpm/local-resolver)
 <!--/@-->
 
-## Install
+## Installation
 
-Install it via npm.
-
-    npm install @pnpm/local-resolver
+```
+<pnpm|npm|yarn> add @pnpm/local-resolver
+```
 
 ## Usage
 
@@ -35,4 +35,4 @@ resolveFromLocal({pref: './example-package'}, {prefix: process.cwd()})
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

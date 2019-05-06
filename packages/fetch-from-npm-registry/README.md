@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S fetch-from-npm-registry
+<pnpm|npm|yarn> add fetch-from-npm-registry
 ```
 
 ## Usage
@@ -54,4 +54,4 @@ fetchFromNpmRegistry('https://registry.npmjs.org/is-positive')
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

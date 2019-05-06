@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/tarball-resolver
+<pnpm|npm|yarn> add @pnpm/tarball-resolver
 ```
 
 ## Usage
@@ -34,4 +34,4 @@ resolveFromTarball({pref: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.t
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

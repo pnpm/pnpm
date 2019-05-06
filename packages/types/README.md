@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/types
+<pnpm|npm|yarn> add @pnpm/types
 ```
 
 ## Usage
@@ -25,4 +25,4 @@ const pkg: PackageJson = {
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

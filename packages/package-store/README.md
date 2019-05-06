@@ -2,12 +2,10 @@
 
 > A storage for packages
 
-## Install
-
-Install it via npm.
+## Installation
 
 ```
-npm install @pnpm/package-store
+<pnpm|npm|yarn> add @pnpm/package-store
 ```
 
 ## License

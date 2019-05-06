@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/modules-yaml
+<pnpm|npm|yarn> add @pnpm/modules-yaml
 ```
 
 ## Usage
@@ -43,4 +43,4 @@ Writes a `.modules.yaml` file to the specified directory.
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

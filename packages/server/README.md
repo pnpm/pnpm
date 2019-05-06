@@ -9,9 +9,9 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/logger @pnpm/server
+<pnpm|npm|yarn> add @pnpm/logger @pnpm/server
 ```
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

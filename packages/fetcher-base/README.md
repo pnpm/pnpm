@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/fetcher-base
+<pnpm|npm|yarn> add @pnpm/fetcher-base
 ```
 
 ## Usage
@@ -38,4 +38,4 @@ export async function (
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

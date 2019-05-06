@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/read-package-json
+<pnpm|npm|yarn> add @pnpm/read-package-json
 ```
 
 ## Usage
@@ -36,4 +36,4 @@ const pkgJson = await readPackageJson('package.json')
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

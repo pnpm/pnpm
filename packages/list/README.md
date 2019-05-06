@@ -6,11 +6,11 @@
 [![npm version](https://img.shields.io/npm/v/@pnpm/list.svg)](https://www.npmjs.com/package/@pnpm/list)
 <!--/@-->
 
-## Install
+## Installation
 
-Install it via npm.
-
-    npm install @pnpm/list
+```
+<pnpm|npm|yarn> add @pnpm/list
+```
 
 ## Usage
 
@@ -68,4 +68,4 @@ Returns a string output similar to the `npm ls [<@scope>/]<pkg> ...` but for [pn
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

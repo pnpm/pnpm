@@ -22,4 +22,4 @@ const { manifest, fileName } = await readImporterManifest(process.cwd())
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

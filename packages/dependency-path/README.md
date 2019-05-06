@@ -12,7 +12,7 @@ Like `path` but for packages in a symlinked `node_modules`. Symlinked `node_modu
 ## Installation
 
 ```sh
-npm i -S dependency-path
+<pnpm|npm|yarn> add dependency-path
 ```
 
 ## Usage
@@ -50,4 +50,4 @@ console.log(dependencyPath.parse('/foo/2.0.0'))
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)

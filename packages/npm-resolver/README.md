@@ -6,11 +6,11 @@
 [![npm version](https://img.shields.io/npm/v/@pnpm/npm-resolver.svg)](https://www.npmjs.com/package/@pnpm/npm-resolver)
 <!--/@-->
 
-## Install
+## Installation
 
-Install it via npm.
-
-    npm install @pnpm/npm-resolver
+```
+<pnpm|npm|yarn> add @pnpm/npm-resolver
+```
 
 ## Usage
 
@@ -63,4 +63,4 @@ resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
 
 ## License
 
-[MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
+MIT © [Zoltan Kochan](https://www.kochan.io/)
