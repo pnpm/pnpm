@@ -14,6 +14,6 @@ build: off
 version: '{build}'
 test_script:
   - node --version
-  - npm --version
-  - npm t
+  - pnpm --version
+  - pnpm t
 skip_tags: true

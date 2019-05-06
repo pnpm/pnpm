@@ -19,7 +19,7 @@ script:
   # TODO: fix commitlint
   # - /bin/bash lint-commits.sh
   # - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
-  - npm t
+  - pnpm t
   - set +e
 env:
   global:
