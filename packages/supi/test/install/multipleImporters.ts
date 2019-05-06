@@ -252,7 +252,7 @@ test('headless install is used when package ink to another package in the worksp
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: 'Performing headless installation',
+    message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
   }), 'start of headless installation logged')
 

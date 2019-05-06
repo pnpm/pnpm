@@ -204,7 +204,7 @@ export async function mutateModules (
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
       } else {
-        logger.info({ message: 'Performing headless installation', prefix: opts.lockfileDirectory })
+        logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDirectory })
         await headless({
           currentEngine: {
             nodeVersion: opts.nodeVersion,

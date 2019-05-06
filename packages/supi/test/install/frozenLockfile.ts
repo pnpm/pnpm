@@ -151,7 +151,7 @@ test(`prefer-frozen-lockfile: should prefer headless installation when ${WANTED_
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: 'Performing headless installation',
+    message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
   }), 'start of headless installation logged')
 
@@ -178,7 +178,7 @@ test(`prefer-frozen-lockfile: should not prefer headless installation when ${WAN
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
-    message: 'Performing headless installation',
+    message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
   }), 'start of headless installation not logged')
 
@@ -217,7 +217,7 @@ test(`prefer-frozen-lockfile+shamefully-flatten: should prefer headless installa
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: 'Performing headless installation',
+    message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
   }), 'start of headless installation logged')
 
@@ -279,7 +279,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: 'Performing headless installation',
+    message: 'Lockfile is up-to-date, resolution step is skipped',
     name: 'pnpm',
   }), 'start of headless installation logged')
 
