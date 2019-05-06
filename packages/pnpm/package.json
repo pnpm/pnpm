@@ -42,7 +42,7 @@
     "@types/lru-cache": "^5.1.0",
     "@types/minimatch": "^3.0.3",
     "@types/mz": "^0.0.32",
-    "@zkochan/libnpx": "10.0.0",
+    "@zkochan/libnpx": "11.0.0",
     "archy": "1.0.0",
     "camelcase": "5.3.1",
     "camelcase-keys": "5.2.0",
