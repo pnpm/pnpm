@@ -572,7 +572,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/build-modules': 1.0.5
+      '@pnpm/build-modules': 1.0.7
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/default-fetcher': 'file:../default-fetcher'
@@ -1418,7 +1418,7 @@ importers:
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/default-fetcher': 3.1.6
-      '@pnpm/default-reporter': 3.1.1
+      '@pnpm/default-reporter': 3.2.0
       '@pnpm/default-resolver': 3.0.9
       '@pnpm/lifecycle': 6.1.1
       '@pnpm/list': 1.0.7
@@ -1507,7 +1507,7 @@ importers:
       semver: 6.0.0
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.33.1
+      supi: 0.33.2
       symlink-dir: 3.0.3
       tape: 4.10.1
       tape-promise: 4.0.0
@@ -1946,7 +1946,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/build-modules': 1.0.5
+      '@pnpm/build-modules': 1.0.7
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.2
@@ -1954,7 +1954,7 @@ importers:
       '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/filter-lockfile': 1.0.6
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 7.0.4
+      '@pnpm/headless': 7.0.5
       '@pnpm/lifecycle': 6.1.1
       '@pnpm/link-bins': 4.2.1
       '@pnpm/lockfile-file': 1.0.5
