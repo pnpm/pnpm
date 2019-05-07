@@ -50,7 +50,6 @@
     "@types/node": "*",
     "@types/ramda": "0.25.39",
     "@types/tape": "4.2.33",
-    "npm-scripts-info": "0.3.9",
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "tempy": "0.3.0",
@@ -77,7 +76,6 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/package-store",
   "scripts": {
-    "info": "npm-scripts-info",
     "start": "pnpm run tsc -- --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",

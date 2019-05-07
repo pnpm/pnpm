@@ -4,7 +4,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.2.0
+      '@pnpm/link-bins': 4.2.1
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -26,7 +26,7 @@ importers:
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/lifecycle': 6.1.1
-      '@pnpm/link-bins': 4.2.0
+      '@pnpm/link-bins': 4.2.1
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/store-controller-types': 3.0.3
@@ -519,7 +519,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.2.0
+      '@pnpm/link-bins': 4.2.1
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -580,7 +580,7 @@ importers:
       '@pnpm/filter-lockfile': 1.0.6
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 6.1.1
-      '@pnpm/link-bins': 4.2.0
+      '@pnpm/link-bins': 4.2.1
       '@pnpm/lockfile-file': 1.0.5
       '@pnpm/lockfile-utils': 1.0.6
       '@pnpm/logger': 2.1.0
@@ -1227,7 +1227,6 @@ importers:
       '@types/node': 12.0.0
       '@types/ramda': 0.25.39
       '@types/tape': 4.2.33
-      npm-scripts-info: 0.3.9
       rimraf: 2.6.3
       tape: 4.10.1
       tempy: 0.3.0
@@ -1256,7 +1255,6 @@ importers:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       ncp: 2.0.0
-      npm-scripts-info: 0.3.9
       p-filter: 2.1.0
       p-limit: 2.2.0
       path-exists: 4.0.0
@@ -1398,7 +1396,6 @@ importers:
       ncp: 2.0.0
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
-      npm-scripts-info: 0.3.9
       p-any: 2.1.0
       path-exists: 4.0.0
       pnpm: 'link:'
@@ -1490,7 +1487,6 @@ importers:
       nopt: 4.0.1
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
-      npm-scripts-info: 0.3.9
       p-any: 2.1.0
       p-filter: 2.1.0
       p-limit: 2.2.0
@@ -1855,7 +1851,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.2.0
+      '@pnpm/link-bins': 4.2.1
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
@@ -1931,7 +1927,6 @@ importers:
       mkdirp: 0.5.1
       ncp: 2.0.0
       npm-run-all: 4.1.5
-      npm-scripts-info: 0.3.9
       path-exists: 4.0.0
       path-name: 1.0.0
       pnpm-registry-mock: 2.12.0
@@ -1961,7 +1956,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 7.0.4
       '@pnpm/lifecycle': 6.1.1
-      '@pnpm/link-bins': 4.2.0
+      '@pnpm/link-bins': 4.2.1
       '@pnpm/lockfile-file': 1.0.5
       '@pnpm/lockfile-utils': 1.0.6
       '@pnpm/logger': 2.1.0
@@ -2021,7 +2016,6 @@ importers:
       ncp: 2.0.0
       normalize-path: 3.0.0
       npm-run-all: 4.1.5
-      npm-scripts-info: 0.3.9
       p-every: 2.0.0
       p-filter: 2.1.0
       p-limit: 2.2.0
@@ -2595,10 +2589,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
-  /@pnpm/link-bins/4.2.0:
+  /@pnpm/link-bins/4.2.1:
     dependencies:
       '@pnpm/package-bins': 3.1.0
-      '@pnpm/read-importer-manifest': 1.0.0
+      '@pnpm/read-importer-manifest': 1.0.1
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/types': 3.2.0
       '@zkochan/cmd-shim': 3.1.0
@@ -2614,7 +2608,7 @@ packages:
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-p69fQ6mEb6sRVXP+H086eT7uWyOb3vfH5a3JjOyrS416F7H+nmrzB8R5oz+5cU9E7C0PXIwK2VAL/wmTBENWzg==
+      integrity: sha512-OrcNzrldaX5jmYuZDImfFWGkdmIeibyoUm6Mw17xB17cr47l8LWFnUsOD80QtelAF8OFqT2MJCkfrSqIsnTjlg==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.14.6
@@ -2642,10 +2636,10 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/read-importer-manifest/1.0.0:
+  /@pnpm/read-importer-manifest/1.0.1:
     dependencies:
       '@pnpm/types': 3.2.0
-      '@pnpm/write-importer-manifest': 1.0.0
+      '@pnpm/write-importer-manifest': 1.0.1
       detect-indent: 6.0.0
       graceful-fs: 4.1.15
       is-windows: 1.0.2
@@ -2656,7 +2650,7 @@ packages:
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-3/8Zq4Ay/HNYr5oZWtZGWos88iwrP5Nagc2gPhP6Lcd2BELugV50rb1JjlP4eUpONSFHqjJixCXuLetoKzV/aw==
+      integrity: sha512-bI02SJN6HgUUJcc+rz8yzod9sRabA687r6vVWAkcieXp1iWq0Zx6vSonhPSwOtFdbFDcymcqama4Y/4L9aYdyA==
   /@pnpm/read-package-json/2.0.2:
     dependencies:
       '@pnpm/types': 3.2.0
@@ -2685,7 +2679,7 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-YuP9SY+txLd6oEVdE082EmtDE3XXknIKtMTH5UoWus2YkqArS2VXA89n6aoAQ3n0hq7txBiT4SNVyyJHGnBGGA==
-  /@pnpm/write-importer-manifest/1.0.0:
+  /@pnpm/write-importer-manifest/1.0.1:
     dependencies:
       '@pnpm/types': 3.2.0
       sort-keys: 2.0.0
@@ -2696,7 +2690,7 @@ packages:
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-pSfdxKI0j6Wop8x95wPJFNQ68nGD8WtJPg5srTCHbDsOtSJyn0PsXFoNoFCDgDpv9UvWPdKluhn5djGdYlpSZQ==
+      integrity: sha512-4poNzFxfgdMHIvFx4at0AVngxzLBJr0XCRuxmp3oRuQMElDoDEdEapuJj1OUNBYEJqKLHGTk1oLt6hTazfOIVg==
   /@sinonjs/commons/1.4.0:
     dependencies:
       type-detect: 4.0.8
@@ -6616,15 +6610,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-NakjLfo11wZ7TLLd8jV7GHFTbF8=
-  /npm-scripts-info/0.3.9:
-    dependencies:
-      chalk: 2.4.2
-      meow: 4.0.1
-      unquote: 1.1.1
-    dev: true
-    hasBin: true
-    resolution:
-      integrity: sha512-r3kftwUxThTxQoZ+RoR8xVIL1FOmqpCM6+7BH6jR4HPdigNbBs9Bg1nt3Qrqn2b8jj4NrE69+kWE3EkmNxkmkg==
   /npmlog/3.1.2:
     dependencies:
       are-we-there-yet: 1.1.5
@@ -8646,10 +8631,6 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha1-sr9O6FFKrmFltIF4KdIbLvSZBOw=
-  /unquote/1.1.1:
-    dev: true
-    resolution:
-      integrity: sha1-j97XMk7G6IoP+LkF58CYzcCG1UQ=
   /unset-value/1.0.0:
     dependencies:
       has-value: 0.3.1
