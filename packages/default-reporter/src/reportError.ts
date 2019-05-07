@@ -38,6 +38,8 @@ export default function reportError (logObj: Log) {
         return formatRecursiveCommandSummary(logObj['message'])
       case 'ERR_PNPM_BAD_TARBALL_SIZE':
         return reportBadTarballSize(err, logObj['message'])
+      case 'ELIFECYCLE':
+        return reportLifecycleError(logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -200,4 +202,19 @@ function reportBadTarballSize (err: Error, msg: object) {
     NOTE: You may also override configs via flags.
     For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\`
   `
+}
+
+function reportLifecycleError (
+  msg: {
+    stage: string,
+    errno?: number | string,
+  },
+) {
+  if (msg.stage === 'test') {
+    return formatErrorSummary('Test failed. See above for more details.')
+  }
+  if (typeof msg.errno === 'number') {
+    return formatErrorSummary(`Command failed with exit code ${msg.errno}.`)
+  }
+  return formatErrorSummary('Command failed.')
 }

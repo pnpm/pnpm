@@ -160,3 +160,70 @@ test('prints suggestions when an internet-connection related error happens', asy
   err['receivedSize'] = 99
   logger.error(err, err)
 })
+
+test('prints test error', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['run', 'test'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `${ERROR} ${chalk.red('Test failed. See above for more details.')}`)
+    },
+  })
+
+  const err = new Error('Tests failed')
+  err['stage'] = 'test'
+  err['code'] = 'ELIFECYCLE'
+  logger.error(err, err)
+})
+
+test('prints command error with exit code', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['run', 'lint'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `${ERROR} ${chalk.red('Command failed with exit code 100.')}`)
+    },
+  })
+
+  const err = new Error('Command failed')
+  err['errno'] = 100
+  err['stage'] = 'lint'
+  err['code'] = 'ELIFECYCLE'
+  logger.error(err, err)
+})
+
+test('prints command error without exit code', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['run', 'lint'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, `${ERROR} ${chalk.red('Command failed.')}`)
+    },
+  })
+
+  const err = new Error('Command failed')
+  err['stage'] = 'lint'
+  err['code'] = 'ELIFECYCLE'
+  logger.error(err, err)
+})
