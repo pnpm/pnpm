@@ -39,6 +39,7 @@
     "graceful-fs": "4.1.15",
     "is-windows": "1.0.2",
     "json5": "2.1.0",
+    "parse-json": "4.0.0",
     "read-yaml-file": "1.1.0",
     "strip-bom": "4.0.0"
   },
@@ -50,6 +51,7 @@
     "@types/is-windows": "0.2.0",
     "@types/json5": "0.0.30",
     "@types/node": "^10.3.2",
+    "@types/parse-json": "4.0.0",
     "@types/tape": "^4.2.31",
     "tape": "^4.8.0",
     "tempy": "0.3.0",

@@ -108,3 +108,48 @@ test('do not save manifest if it had no changes', async (t) => {
 
   t.end()
 })
+
+test('fail on invalid JSON', async (t) => {
+  let err!: Error
+  try {
+    await readImporterManifest(path.join(fixtures, 'invalid-package-json'))
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_JSON_PARSE')
+  t.ok(err.message.startsWith(`Unexpected string in JSON at position 20 while parsing '{  "name": "foo"  "version": "1.0.0"}' in `))
+
+  t.end()
+})
+
+test('fail on invalid JSON5', async (t) => {
+  let err!: Error
+  try {
+    await readImporterManifest(path.join(fixtures, 'invalid-package-json5'))
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_JSON5_PARSE')
+  t.ok(err.message.startsWith("JSON5: invalid character 'v' at 3:3 in"))
+
+  t.end()
+})
+
+test('fail on invalid YAML', async (t) => {
+  let err!: Error
+  try {
+    await readImporterManifest(path.join(fixtures, 'invalid-package-yaml'))
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_YAML_PARSE')
+  t.ok(err.message.startsWith('missed comma between flow collection entries at line 3, column 3:'))
+
+  t.end()
+})

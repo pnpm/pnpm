@@ -1563,6 +1563,7 @@ importers:
       graceful-fs: 4.1.15
       is-windows: 1.0.2
       json5: 2.1.0
+      parse-json: 4.0.0
       read-yaml-file: 1.1.0
       strip-bom: 4.0.0
     devDependencies:
@@ -1573,6 +1574,7 @@ importers:
       '@types/is-windows': 0.2.0
       '@types/json5': 0.0.30
       '@types/node': 10.14.6
+      '@types/parse-json': 4.0.0
       '@types/tape': 4.2.33
       tape: 4.10.1
       tempy: 0.3.0
@@ -1589,11 +1591,13 @@ importers:
       '@types/is-windows': 0.2.0
       '@types/json5': 0.0.30
       '@types/node': ^10.3.2
+      '@types/parse-json': 4.0.0
       '@types/tape': ^4.2.31
       detect-indent: 6.0.0
       graceful-fs: 4.1.15
       is-windows: 1.0.2
       json5: 2.1.0
+      parse-json: 4.0.0
       read-yaml-file: 1.1.0
       strip-bom: 4.0.0
       tape: ^4.8.0
@@ -2834,6 +2838,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-Nd8y/5t/7CRakPYiyPzr/IAfYusy1FkcZYFEAcoMZkwpJv2n4Wm+olW+e7xBdHEXhOnWdG9ddbar0gqZWS4x5Q==
+  /@types/parse-json/4.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-//oorEZjL6sbPcKUaCdIGlIUeH26mgzimjBB77G6XRgnDl/L5wOnpyBGRe/Mmf5CVW3PwEBE1NjiMZ/ssFh4wA==
   /@types/path-exists/3.0.0:
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==

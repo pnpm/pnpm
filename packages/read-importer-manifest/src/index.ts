@@ -147,8 +147,15 @@ export async function readExactImporterManifest (manifestPath: string) {
   throw new Error(`Not supported manifest name "${base}"`)
 }
 
-function readPackageYaml (filePath: string) {
-  return readYamlFile<ImporterManifest>(filePath)
+async function readPackageYaml (filePath: string) {
+  try {
+    return await readYamlFile<ImporterManifest>(filePath)
+  } catch (err) {
+    if (err.name !== 'YAMLException') throw err
+    err.message += `\nin ${filePath}`
+    err['code'] = 'ERR_PNPM_YAML_PARSE'
+    throw err
+  }
 }
 
 function createManifestWriter (
