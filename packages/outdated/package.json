@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -42,7 +42,7 @@
     "@pnpm/constants": "1.0.1",
     "@pnpm/lockfile-file": "1.0.5",
     "@pnpm/npm-resolver": "3.0.8",
-    "@pnpm/read-importer-manifest": "1.0.1",
+    "@pnpm/read-importer-manifest": "1.0.2",
     "@pnpm/store-path": "2.0.0",
     "@pnpm/types": "3.2.0",
     "@pnpm/utils": "0.10.5",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
-    "@pnpm/read-importer-manifest": "1.0.1",
+    "@pnpm/read-importer-manifest": "1.0.2",
     "@pnpm/read-package-json": "2.0.2",
     "@pnpm/types": "3.2.0",
     "@zkochan/npm-package-arg": "1.0.2",

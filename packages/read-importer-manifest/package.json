@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-importer-manifest",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Read an importer manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

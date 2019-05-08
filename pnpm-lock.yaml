@@ -232,7 +232,7 @@ importers:
     specifiers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/git-resolver': 2.0.6
-      '@pnpm/local-resolver': 2.0.6
+      '@pnpm/local-resolver': 2.0.7
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 3.0.8
       '@pnpm/resolver-base': 3.1.2
@@ -431,7 +431,7 @@ importers:
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
-      '@pnpm/read-importer-manifest': 1.0.1
+      '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/tslint-config': 0.0.0
       '@types/node': '12'
       '@types/tape': ^4.2.29
@@ -589,7 +589,7 @@ importers:
       '@pnpm/package-requester': 7.0.7
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-importer-manifest': 1.0.1
+      '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/read-importers-context': 'file:../read-importers-context'
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/shamefully-flatten': 3.0.7
@@ -696,7 +696,7 @@ importers:
     specifiers:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-importer-manifest': 1.0.1
+      '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
@@ -736,7 +736,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/local-resolver': 'link:'
-      '@pnpm/read-importer-manifest': 1.0.1
+      '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
@@ -1063,7 +1063,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 3.0.8
       '@pnpm/outdated': 'link:'
-      '@pnpm/read-importer-manifest': 1.0.1
+      '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/store-path': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
@@ -1419,16 +1419,16 @@ importers:
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/default-fetcher': 3.1.6
       '@pnpm/default-reporter': 3.2.0
-      '@pnpm/default-resolver': 3.0.9
+      '@pnpm/default-resolver': 3.0.10
       '@pnpm/lifecycle': 6.1.1
-      '@pnpm/list': 1.0.7
+      '@pnpm/list': 1.0.8
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 3.0.2
-      '@pnpm/outdated': 2.0.10
+      '@pnpm/outdated': 2.0.11
       '@pnpm/package-store': 4.0.7
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-importer-manifest': 1.0.1
+      '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/server': 3.0.4
       '@pnpm/store-controller-types': 3.0.3
@@ -1468,7 +1468,7 @@ importers:
       execa: 1.0.0
       exists-link: 2.0.0
       fast-glob: 2.2.6
-      find-packages: 5.0.1
+      find-packages: 5.0.2
       get-port: 5.0.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1507,7 +1507,7 @@ importers:
       semver: 6.0.0
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.33.2
+      supi: 0.33.3
       symlink-dir: 3.0.3
       tape: 4.10.1
       tape-promise: 4.0.0
@@ -1958,7 +1958,7 @@ importers:
       '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/filter-lockfile': 1.0.6
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 7.0.5
+      '@pnpm/headless': 7.0.6
       '@pnpm/lifecycle': 6.1.1
       '@pnpm/link-bins': 4.2.1
       '@pnpm/lockfile-file': 1.0.5
@@ -1971,7 +1971,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/prune-lockfile': 1.0.5
-      '@pnpm/read-importer-manifest': 1.0.1
+      '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/read-importers-context': 1.0.2
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/read-package-json': 2.0.2
