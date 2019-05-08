@@ -20,9 +20,7 @@ async function findPkgs (
   opts = opts || {}
   const globOpts = { ...opts, cwd: root }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
-  globOpts.patterns = opts.patterns
-    ? normalizePatterns(opts.patterns)
-    : ['**/package.{json,yaml,json5}']
+  globOpts.patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
 
   const paths: string[] = await fastGlob(globOpts.patterns, globOpts)
 
@@ -48,7 +46,21 @@ async function findPkgs (
 }
 
 function normalizePatterns (patterns: string[]) {
-  return patterns.map((pattern) => pattern.replace(/\/?$/, '/package.{json,yaml,json5}'))
+  const normalizedPatterns = []
+  for (const pattern of patterns) {
+    // We should add separate pattern for each extension
+    // for some reason, fast-glob is buggy with /package.{json,yaml,json5} pattern
+    normalizedPatterns.push(
+      pattern.replace(/\/?$/, '/package.json')
+    )
+    normalizedPatterns.push(
+      pattern.replace(/\/?$/, '/package.json5')
+    )
+    normalizedPatterns.push(
+      pattern.replace(/\/?$/, '/package.yaml')
+    )
+  }
+  return normalizedPatterns
 }
 
 // for backward compatibility
