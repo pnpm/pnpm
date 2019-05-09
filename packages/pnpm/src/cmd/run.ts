@@ -9,11 +9,6 @@ export default async function run (
   opts: {
     prefix: string,
     rawNpmConfig: object,
-    argv: {
-      cooked: string[],
-      original: string[],
-      remain: string[],
-    },
   },
 ) {
   const manifest = await readImporterManifestOnly(opts.prefix)
@@ -27,9 +22,8 @@ export default async function run (
     err['code'] = 'ERR_PNPM_NO_SCRIPT'
     throw err
   }
-  const dashDashIndex = opts.argv.cooked.indexOf('--')
   const lifecycleOpts = {
-    args: dashDashIndex === -1 ? [] : opts.argv.cooked.slice(dashDashIndex + 1),
+    args: args.slice(1),
     depPath: opts.prefix,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
