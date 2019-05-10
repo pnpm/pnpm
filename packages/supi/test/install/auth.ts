@@ -8,6 +8,7 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('a package that need authentication', async (t: tape.Test) => {
   const project = prepareEmpty(t)
@@ -55,6 +56,38 @@ test('a package that need authentication', async (t: tape.Test) => {
   }))
 
   await project.has('needs-auth')
+})
+
+test('installing a package that need authentication, using password', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  const client = new RegClient()
+
+  const data = await new Promise((resolve, reject) => {
+    client.adduser('http://localhost:4873', {
+      auth: {
+        email: 'foo@bar.com',
+        password: 'bar',
+        username: 'foo',
+      },
+    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  }) as {token: string}
+
+  const encodedPassword = Buffer.from('bar').toString('base64')
+  let rawNpmConfig = {
+    '//localhost:4873/:_password': encodedPassword,
+    '//localhost:4873/:username': 'foo',
+    'registry': 'http://localhost:4873/',
+  }
+  await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
+    rawNpmConfig,
+  }, {
+    rawNpmConfig,
+  }))
+
+  const m = project.requireModule('needs-auth')
+
+  t.ok(typeof m === 'function', 'needs-auth() is available')
 })
 
 test('a package that need authentication, legacy way', async (t: tape.Test) => {
