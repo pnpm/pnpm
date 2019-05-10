@@ -42,7 +42,7 @@
     "@types/lru-cache": "^5.1.0",
     "@types/minimatch": "^3.0.3",
     "@types/mz": "^0.0.32",
-    "@zkochan/libnpx": "11.0.0",
+    "@zkochan/libnpx": "11.0.1",
     "archy": "1.0.0",
     "camelcase": "5.3.1",
     "camelcase-keys": "5.2.0",
@@ -85,7 +85,7 @@
     "supi": "0.33.3",
     "text-table": "0.2.0",
     "tree-kill": "1.2.1",
-    "update-notifier": "2.5.0",
+    "update-notifier": "3.0.0",
     "version-selector-type": "2.0.1",
     "write-json-file": "3.2.0"
   },
