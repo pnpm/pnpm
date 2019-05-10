@@ -547,7 +547,7 @@ importers:
       '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/store-path': 2.0.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/fs-extra': 5.0.5
+      '@types/fs-extra': 5.1.0
       '@types/mz': 0.0.32
       '@types/node': 12.0.0
       '@types/path-exists': 3.0.0
@@ -599,7 +599,7 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
-      '@types/fs-extra': 5.0.5
+      '@types/fs-extra': 5.1.0
       '@types/mz': 0.0.32
       '@types/node': '*'
       '@types/path-exists': 3.0.0
@@ -1911,7 +1911,7 @@ importers:
       '@pnpm/store-path': 2.0.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 5.0.5
+      '@types/fs-extra': 5.1.0
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -1985,7 +1985,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 5.0.5
+      '@types/fs-extra': 5.1.0
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -2756,12 +2756,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
-  /@types/fs-extra/5.0.5:
+  /@types/fs-extra/5.1.0:
     dependencies:
       '@types/node': 12.0.0
     dev: true
     resolution:
-      integrity: sha512-w7iqhDH9mN8eLClQOYTkhdYUOSpp25eXxfc6VbFOGtzxW34JcvctH2bKjj4jD4++z4R5iO5D+pg48W2e03I65A==
+      integrity: sha512-AInn5+UBFIK9FK5xc9yP5e3TQSPNNgjHByqYcj9g5elVBnDQcQL7PlO1CIRy2gWlbwK7UPYqi7vRvFA44dCmYQ==
   /@types/glob/7.1.1:
     dependencies:
       '@types/events': 3.0.0

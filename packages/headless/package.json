@@ -28,7 +28,7 @@
     "@pnpm/read-importers-context": "file:../read-importers-context",
     "@pnpm/store-path": "2.0.0",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/fs-extra": "5.0.5",
+    "@types/fs-extra": "5.1.0",
     "@types/mz": "0.0.32",
     "@types/node": "*",
     "@types/path-exists": "3.0.0",
