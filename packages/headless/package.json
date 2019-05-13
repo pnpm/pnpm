@@ -37,7 +37,7 @@
     "@types/rimraf": "2.0.2",
     "@types/sinon": "^7.0.10",
     "@types/tape": "4.2.33",
-    "fs-extra": "7.0.1",
+    "fs-extra": "8.0.1",
     "is-windows": "1.0.2",
     "isexe": "2.0.0",
     "mz": "2.7.0",
