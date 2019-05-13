@@ -58,6 +58,7 @@
     "@pnpm/npm-resolver": "file:../npm-resolver",
     "@pnpm/package-requester": "link:",
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/mz": "0.0.32",
     "@types/ncp": "2.0.1",

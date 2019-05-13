@@ -95,6 +95,7 @@
     "@pnpm/modules-yaml": "3.0.2",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/read-package-json": "2.0.2",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@pnpm/write-importer-manifest": "1.0.1",
     "@types/byline": "4.2.31",

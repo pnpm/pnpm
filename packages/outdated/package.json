@@ -51,6 +51,7 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/outdated": "link:",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/node": "*",
     "@types/tape": "4.2.33",

@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/git-resolver": "link:",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/is-windows": "0.2.0",
     "@types/node": "*",

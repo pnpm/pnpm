@@ -14,6 +14,7 @@ importers:
     devDependencies:
       '@pnpm/build-modules': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/ramda': 0.26.6
@@ -30,6 +31,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/node': '*'
@@ -50,6 +52,7 @@ importers:
       which: 1.3.1
     devDependencies:
       '@pnpm/config': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
       '@types/node': 12.0.0
@@ -64,6 +67,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/config': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
@@ -83,12 +87,14 @@ importers:
       which: 1.3.1
   packages/constants:
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/node': '*'
       rimraf: 2.6.3
@@ -99,12 +105,14 @@ importers:
       '@pnpm/types': 'link:../types'
     devDependencies:
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       rimraf: 2.6.3
@@ -118,6 +126,7 @@ importers:
     devDependencies:
       '@pnpm/default-fetcher': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       rimraf: 2.6.3
@@ -131,6 +140,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-fetcher': 3.1.6
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.33
       rimraf: 2.6.3
@@ -161,6 +171,7 @@ importers:
     devDependencies:
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/common-tags': 1.8.0
       '@types/node': 12.0.0
@@ -181,6 +192,7 @@ importers:
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/common-tags': 1.8.0
@@ -222,6 +234,7 @@ importers:
     devDependencies:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       rimraf: 2.6.3
@@ -237,6 +250,7 @@ importers:
       '@pnpm/npm-resolver': 3.0.8
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-resolver': 2.0.3
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.33
       rimraf: 2.6.3
@@ -258,6 +272,7 @@ importers:
     devDependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/semver': 6.0.0
@@ -273,6 +288,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 3.0.2
       '@pnpm/read-modules-dir': 2.0.1
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -294,6 +310,7 @@ importers:
       encode-registry: 1.1.0
       semver: 6.0.0
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/semver': 6.0.0
       '@types/tape': 4.2.33
@@ -302,6 +319,7 @@ importers:
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/semver': 6.0.0
@@ -318,11 +336,13 @@ importers:
       node-fetch: 2.5.0
       node-fetch-unix: 2.3.0
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@zeit/fetch-retry': 4.0.0
       node-fetch: 2.5.0
@@ -335,6 +355,7 @@ importers:
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/tape': 4.2.33
@@ -347,6 +368,7 @@ importers:
     specifiers:
       '@pnpm/fetch': 1.0.0
       '@pnpm/npm-registry-agent': 1.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/node': '*'
       '@types/tape': ^4.2.31
@@ -360,12 +382,14 @@ importers:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/resolver-base': 3.1.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       rimraf: ^2.6.2
       tslint: 5.16.0
@@ -385,6 +409,7 @@ importers:
     devDependencies:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       tape: 4.10.1
@@ -401,6 +426,7 @@ importers:
       '@pnpm/lockfile-utils': 1.0.6
       '@pnpm/logger': 2.1.0
       '@pnpm/package-is-installable': 2.0.5
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/node': '*'
@@ -422,6 +448,7 @@ importers:
       fast-glob: 2.2.6
       p-filter: 2.1.0
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/tape': 4.2.33
@@ -432,6 +459,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/read-importer-manifest': 1.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/node': '12'
       '@types/tape': ^4.2.29
@@ -450,6 +478,7 @@ importers:
       rimraf-then: 1.0.1
     devDependencies:
       '@pnpm/git-fetcher': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/tape': 4.2.33
@@ -461,6 +490,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/git-fetcher': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/node': '*'
       '@types/tape': ^4.2.31
@@ -483,6 +513,7 @@ importers:
       semver: 6.0.0
     devDependencies:
       '@pnpm/git-resolver': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/is-windows': 0.2.0
       '@types/node': 12.0.0
@@ -498,6 +529,7 @@ importers:
       '@pnpm/fetch': 1.0.0
       '@pnpm/git-resolver': 'link:'
       '@pnpm/resolver-base': 3.1.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/is-windows': 0.2.0
       '@types/node': '*'
@@ -546,6 +578,7 @@ importers:
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/store-path': 2.0.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/fs-extra': 5.1.0
       '@types/mz': 0.0.32
@@ -596,6 +629,7 @@ importers:
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.0.0
       '@pnpm/symlink-dependency': 2.0.5
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -637,6 +671,7 @@ importers:
     devDependencies:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/rimraf': 2.0.2
@@ -653,6 +688,7 @@ importers:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 2.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/node': '*'
@@ -682,6 +718,7 @@ importers:
     devDependencies:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
@@ -698,6 +735,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/read-package-json': 2.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/archy': 0.0.31
@@ -726,6 +764,7 @@ importers:
       ssri: 6.0.1
     devDependencies:
       '@pnpm/local-resolver': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/graceful-fs': 4.1.3
       '@types/node': 12.0.0
@@ -738,6 +777,7 @@ importers:
       '@pnpm/local-resolver': 'link:'
       '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/resolver-base': 3.1.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/graceful-fs': 4.1.3
@@ -765,6 +805,7 @@ importers:
     devDependencies:
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/js-yaml': 3.12.1
       '@types/node': 12.0.0
@@ -783,6 +824,7 @@ importers:
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/js-yaml': '3'
@@ -806,10 +848,12 @@ importers:
       yaml-tag: 1.1.0
   packages/lockfile-types:
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       tslint: 5.16.0
       typescript: 3.4.5
@@ -823,6 +867,7 @@ importers:
       ramda: 0.26.1
     devDependencies:
       '@pnpm/lockfile-utils': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/js-yaml': 3.12.1
       '@types/node': 12.0.0
@@ -840,6 +885,7 @@ importers:
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 'link:'
       '@pnpm/resolver-base': 3.1.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/js-yaml': '3'
@@ -874,6 +920,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/ramda': 0.25.38
@@ -889,6 +936,7 @@ importers:
       '@pnpm/package-bins': 3.1.0
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -908,6 +956,7 @@ importers:
       write-yaml-file: 2.0.0
     devDependencies:
       '@pnpm/modules-yaml': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       rimraf: 2.6.3
@@ -918,6 +967,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/modules-yaml': 3.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/tape': 4.2.33
@@ -937,6 +987,7 @@ importers:
       lru-cache: 5.1.1
       socks-proxy-agent: 4.0.2
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/http-proxy-agent': 2.0.1
       '@types/lru-cache': 5.1.0
@@ -950,6 +1001,7 @@ importers:
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/http-proxy-agent': 2.0.1
       '@types/lru-cache': 5.1.0
@@ -986,6 +1038,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/nock': 10.0.2
       '@types/node': 12.0.0
@@ -1006,6 +1059,7 @@ importers:
       '@pnpm/logger': ^2.0.1
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolver-base': 3.1.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/nock': ^10.0.0
@@ -1048,6 +1102,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/outdated': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/tape': 4.2.33
@@ -1065,6 +1120,7 @@ importers:
       '@pnpm/outdated': 'link:'
       '@pnpm/read-importer-manifest': 1.0.2
       '@pnpm/store-path': 2.0.0
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -1085,6 +1141,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/package-is-installable': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/semver': 6.0.0
@@ -1098,6 +1155,7 @@ importers:
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/logger': 2.1.0
       '@pnpm/package-is-installable': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/node': '*'
@@ -1135,6 +1193,7 @@ importers:
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-requester': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
@@ -1166,6 +1225,7 @@ importers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
@@ -1222,6 +1282,7 @@ importers:
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-store': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
       '@types/node': 12.0.0
@@ -1245,6 +1306,7 @@ importers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
@@ -1275,6 +1337,7 @@ importers:
       ramda: 0.26.1
       semver: 6.0.0
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/ramda': 0.26.8
@@ -1287,6 +1350,7 @@ importers:
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/node': '*'
       '@types/ramda': ^0.26.0
@@ -1376,6 +1440,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/read-package-json': 'link:../read-package-json'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       '@types/byline': 4.2.31
@@ -1433,6 +1498,7 @@ importers:
       '@pnpm/server': 3.0.4
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.0.0
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -1530,6 +1596,7 @@ importers:
       ramda: 0.26.1
     devDependencies:
       '@pnpm/prune-lockfile': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/ramda': 0.25.39
       '@types/tape': 4.2.33
@@ -1543,6 +1610,7 @@ importers:
       '@pnpm/constants': 1.0.1
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/prune-lockfile': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/ramda': 0.25.39
@@ -1568,6 +1636,7 @@ importers:
       strip-bom: 4.0.0
     devDependencies:
       '@pnpm/read-importer-manifest': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/detect-indent': 5.0.0
       '@types/graceful-fs': 4.1.3
@@ -1583,6 +1652,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/read-importer-manifest': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': ^3.0.0
       '@pnpm/write-importer-manifest': 1.0.1
@@ -1613,6 +1683,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
     devDependencies:
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       rimraf: 2.6.3
@@ -1622,6 +1693,7 @@ importers:
       '@pnpm/lockfile-file': 1.0.5
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 3.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -1633,6 +1705,7 @@ importers:
     dependencies:
       mz: 2.7.0
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
       '@types/node': 12.0.0
@@ -1640,6 +1713,7 @@ importers:
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/mz': 0.0.32
       '@types/node': '*'
@@ -1653,6 +1727,7 @@ importers:
       read-package-json: 2.0.13
     devDependencies:
       '@pnpm/read-package-json': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 10.14.6
       '@types/tape': 4.2.33
@@ -1662,6 +1737,7 @@ importers:
       typescript: 3.4.5
     specifiers:
       '@pnpm/read-package-json': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': ^3.0.0
       '@types/node': ^10.3.2
@@ -1691,6 +1767,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/resolve-dependencies': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/ramda': 0.25.38
@@ -1708,6 +1785,7 @@ importers:
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -1727,11 +1805,13 @@ importers:
     dependencies:
       '@pnpm/types': 'link:../types'
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       rimraf: ^2.6.2
@@ -1751,6 +1831,7 @@ importers:
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
       '@types/node': 12.0.0
@@ -1775,6 +1856,7 @@ importers:
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
@@ -1805,6 +1887,7 @@ importers:
       ramda: 0.26.1
     devDependencies:
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/node': 12.0.0
       '@types/ramda': 0.25.34
@@ -1819,6 +1902,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 2.0.5
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/node': '*'
@@ -1834,12 +1918,14 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/resolver-base': 3.1.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       rimraf: 2.6.3
@@ -1909,6 +1995,7 @@ importers:
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/store-path': 2.0.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/common-tags': 1.8.0
       '@types/fs-extra': 5.1.0
@@ -1981,6 +2068,7 @@ importers:
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.0.0
       '@pnpm/symlink-dependency': 2.0.5
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
@@ -2056,6 +2144,7 @@ importers:
       symlink-dir: 3.0.3
     devDependencies:
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
       '@types/node': 12.0.0
@@ -2066,6 +2155,7 @@ importers:
     specifiers:
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
@@ -2094,6 +2184,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/tarball-fetcher': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/graceful-fs': 4.1.3
       '@types/mz': 0.0.32
@@ -2112,6 +2203,7 @@ importers:
       '@pnpm/fetcher-base': 3.0.3
       '@pnpm/logger': 2.1.0
       '@pnpm/tarball-fetcher': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/graceful-fs': ^4.1.2
       '@types/mz': ^0.0.32
@@ -2142,6 +2234,7 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
     devDependencies:
       '@pnpm/tarball-resolver': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       rimraf: 2.6.3
@@ -2152,6 +2245,7 @@ importers:
     specifiers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-resolver': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': ^4.2.31
       rimraf: ^2.6.2
@@ -2161,11 +2255,13 @@ importers:
       typescript: 3.4.5
   packages/types:
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       rimraf: 2.6.3
       tslint: 5.16.0
@@ -2178,6 +2274,7 @@ importers:
       normalize-registry-url: 1.0.0
     devDependencies:
       '@pnpm/logger': 2.1.0
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@pnpm/utils': 'link:'
       '@types/mz': 0.0.32
@@ -2188,6 +2285,7 @@ importers:
     specifiers:
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 2.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 'link:'
@@ -2206,6 +2304,7 @@ importers:
       write-json5-file: 2.0.0
       write-yaml-file: 2.0.0
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@pnpm/write-importer-manifest': 'link:'
       '@types/node': 10.14.6
@@ -2216,6 +2315,7 @@ importers:
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': ^3.0.0
       '@pnpm/write-importer-manifest': 'link:'
@@ -2249,6 +2349,7 @@ importers:
       write-pkg: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:'
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       rimraf: 2.6.3
       ts-node: 8.1.0_typescript@3.4.5
       tslint: 5.16.0_typescript@3.4.5
@@ -2258,6 +2359,7 @@ importers:
       '@pnpm/assert-store': 1.0.0
       '@pnpm/constants': 1.0.1
       '@pnpm/modules-yaml': 3.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@types/mz': 0.0.32
       '@types/node': '*'
       '@types/path-exists': 3.0.0
@@ -2283,12 +2385,14 @@ importers:
       path-exists: 4.0.0
       tape: 4.10.1
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       rimraf: 2.6.3
       ts-node: 8.1.0_typescript@3.4.5
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/assert-store': 'link:'
+      '@pnpm/tsconfig': 0.0.0
       '@types/node': '*'
       '@types/path-exists': 3.0.0
       '@types/tape': 4.2.33
@@ -2313,6 +2417,7 @@ importers:
       write-pkg: 4.0.0
       write-yaml-file: 2.0.0
     devDependencies:
+      '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       tslint-config-standard: 8.0.1_tslint@5.16.0+typescript@3.4.5
@@ -2321,6 +2426,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 2.0.0
       '@pnpm/modules-yaml': 3.0.2
+      '@pnpm/tsconfig': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/mkdirp': 0.5.2
       '@types/node': '*'

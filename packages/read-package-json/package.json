@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/read-package-json": "link:",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/node": "^10.3.2",
     "@types/tape": "^4.2.31",
