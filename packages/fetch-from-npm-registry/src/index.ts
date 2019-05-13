@@ -39,7 +39,7 @@ export default function (
     userAgent?: string,
   },
 ) {
-  return (url: string, opts?: {auth?: Auth}) => {
+  return async (url: string, opts?: {auth?: Auth}) => {
     const agent = npmRegistryAgent(url, {
       ...defaultOpts,
       ...opts,
@@ -54,14 +54,27 @@ export default function (
       }),
     }
 
-    return fetch(url, {
-      agent,
-      // if verifying integrity, node-fetch must not decompress
-      compress: false,
-      headers,
-      redirect: 'follow',
-      retry: defaultOpts.retry,
-    })
+    let redirects = 0
+    while (true) {
+      let response = await fetch(url, {
+        agent,
+        // if verifying integrity, node-fetch must not decompress
+        compress: false,
+        headers,
+        redirect: 'manual',
+        retry: defaultOpts.retry,
+      })
+      if (response.status !== 302 || redirects >= 20) return response
+
+      // This is a workaround to remove authorization headers on redirect.
+      // It is needed until node-fetch doesn't fix this
+      // or support a way to do it via an option.
+      // node-fetch issue: https://github.com/bitinn/node-fetch/issues/274
+      // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
+      redirects++
+      url = response.headers.get('location')
+      delete headers['authorization']
+    }
   }
 }
 
