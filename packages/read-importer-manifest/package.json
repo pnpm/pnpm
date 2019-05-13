@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@pnpm/read-importer-manifest": "link:",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/detect-indent": "5.0.0",
     "@types/graceful-fs": "4.1.3",

@@ -49,6 +49,7 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/resolve-dependencies": "link:",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/node": "*",
     "@types/ramda": "0.25.38",

@@ -38,6 +38,7 @@
   },
   "devDependencies": {
     "@pnpm/config": "link:",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "*",

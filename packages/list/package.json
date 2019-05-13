@@ -48,6 +48,7 @@
   "devDependencies": {
     "@pnpm/list": "link:",
     "@pnpm/logger": "2.1.0",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/archy": "0.0.31",
     "@types/common-tags": "1.8.0",

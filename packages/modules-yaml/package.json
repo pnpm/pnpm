@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/modules-yaml": "3.0.2",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.33",
     "rimraf": "2.6.3",

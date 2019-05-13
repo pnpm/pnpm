@@ -82,6 +82,7 @@
     "@pnpm/package-store": "file:../package-store",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/store-path": "2.0.0",
+    "@pnpm/tsconfig": "0.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/common-tags": "1.8.0",
     "@types/fs-extra": "5.1.0",
