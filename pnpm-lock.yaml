@@ -357,9 +357,11 @@ importers:
     devDependencies:
       '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/nock': 10.0.2
       '@types/node': 12.0.0
       '@types/tape': 4.2.33
       fetch-from-npm-registry: 'link:'
+      nock: 10.0.6
       rimraf: 2.6.3
       tape: 4.10.1
       ts-node: 8.1.0_typescript@3.4.5
@@ -370,9 +372,11 @@ importers:
       '@pnpm/npm-registry-agent': 1.0.2
       '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
+      '@types/nock': 10.0.2
       '@types/node': '*'
       '@types/tape': ^4.2.31
       fetch-from-npm-registry: 'link:'
+      nock: 10.0.6
       rimraf: ^2.6.2
       tape: 4.10.1
       ts-node: 8.1.0
@@ -2923,7 +2927,7 @@ packages:
       integrity: sha512-TeiJ7uvv/92ugSqZ0v9l0eNXzutlki0aK+R1K5bfA5SYUil46ITlxLW4iNTCf55P4L5weCmaOdtxGeGWvudwPg==
   /@types/nock/10.0.2:
     dependencies:
-      '@types/node': 12.0.0
+      '@types/node': 12.0.1
     dev: true
     resolution:
       integrity: sha512-jOdoZ3zVLmPWZOoPJDoks+Zo6GsogdZuVBWs8/prWau993qno5PPtukVXKfc+WtS/ROgTPWpiru92z2K6KFYgQ==
@@ -2939,6 +2943,10 @@ packages:
   /@types/node/12.0.0:
     resolution:
       integrity: sha512-Jrb/x3HT4PTJp6a4avhmJCDEVrPdqLfl3e8GGMbpkGGdwAV5UGlIs4vVEfsHHfylZVOKZWpOqmqFH8CbfOZ6kg==
+  /@types/node/12.0.1:
+    dev: true
+    resolution:
+      integrity: sha512-7sy7DKVJrCTbaAERJZq/CU12bzdmpjRr321/Ne9QmzhB3iZ//L16Cizcni5hHNbANxDbxwMb9EFoWkM8KPkp0A==
   /@types/node/8.10.48:
     dev: false
     resolution:

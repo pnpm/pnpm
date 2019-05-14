@@ -1,4 +1,5 @@
 import createRegClient from 'fetch-from-npm-registry'
+import nock = require('nock')
 import test = require('tape')
 
 test('fetchFromNpmRegistry', async t => {
@@ -16,5 +17,26 @@ test('fetchFromNpmRegistry fullMetadata', async t => {
   const metadata = await res.json()
   t.equal(metadata.name, 'is-positive')
   t.ok(metadata.versions['1.0.0'].scripts)
+  t.end()
+})
+
+test('authorization headers are removed before redirection', async (t) => {
+  nock('http://registry.pnpm.js.org/', {
+    reqheaders: { authorization: 'Bearer 123' },
+  })
+    .get('/is-positive')
+    .reply(302, '', { location: 'http://registry.other.org/is-positive' })
+  nock('http://registry.other.org/', { badheaders: ['authorization'] })
+    .get('/is-positive')
+    .reply(200, { ok: true })
+
+  const fetchFromNpmRegistry = createRegClient({ fullMetadata: true })
+  const res = await fetchFromNpmRegistry(
+    'http://registry.pnpm.js.org/is-positive',
+    { auth: { token: '123' } },
+  )
+
+  t.deepEqual(await res.json(), { ok: true })
+  t.ok(nock.isDone())
   t.end()
 })

@@ -5,6 +5,7 @@ const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+http
 
 const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*'
 const JSON_DOC = 'application/json'
+const MAX_FOLLOWED_REDIRECTS = 20
 
 export type Auth = (
   {token: string} |
@@ -39,7 +40,7 @@ export default function (
     userAgent?: string,
   },
 ) {
-  return (url: string, opts?: {auth?: Auth}) => {
+  return async (url: string, opts?: {auth?: Auth}) => {
     const agent = npmRegistryAgent(url, {
       ...defaultOpts,
       ...opts,
@@ -54,14 +55,29 @@ export default function (
       }),
     }
 
-    return fetch(url, {
-      agent,
-      // if verifying integrity, node-fetch must not decompress
-      compress: false,
-      headers,
-      redirect: 'follow',
-      retry: defaultOpts.retry,
-    })
+    let redirects = 0
+    while (true) {
+      let response = await fetch(url, {
+        agent,
+        // if verifying integrity, node-fetch must not decompress
+        compress: false,
+        headers,
+        redirect: 'manual',
+        retry: defaultOpts.retry,
+      })
+      if (!fetch.isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
+        return response
+      }
+
+      // This is a workaround to remove authorization headers on redirect.
+      // It is needed until node-fetch fixes this
+      // or supports a way to do it via an option.
+      // node-fetch issue: https://github.com/bitinn/node-fetch/issues/274
+      // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
+      redirects++
+      url = response.headers.get('location')
+      delete headers['authorization']
+    }
   }
 }
 
