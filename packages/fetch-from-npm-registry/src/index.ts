@@ -64,7 +64,7 @@ export default function (
         redirect: 'manual',
         retry: defaultOpts.retry,
       })
-      if (response.status !== 302 || redirects >= 20) return response
+      if (!fetch.isRedirect(response.status) || redirects >= 20) return response
 
       // This is a workaround to remove authorization headers on redirect.
       // It is needed until node-fetch doesn't fix this
