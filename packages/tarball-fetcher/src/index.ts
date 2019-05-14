@@ -140,6 +140,7 @@ async function fetchFromRemoteTarball (
         storeLogger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`)
         break
       case 'ENOENT':
+      case 'EINTEGRITY':
         break
       default:
         throw err
