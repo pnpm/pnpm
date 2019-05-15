@@ -2197,6 +2197,7 @@ importers:
       '@types/retry': 0.12.0
       '@types/rimraf': 2.0.2
       '@types/tape': 4.2.33
+      cp-file: 7.0.0
       nock: 10.0.6
       tape: 4.10.1
       tempy: 0.3.0
@@ -2216,6 +2217,7 @@ importers:
       '@types/retry': ^0.12.0
       '@types/rimraf': ^2.0.2
       '@types/tape': 4.2.33
+      cp-file: 7.0.0
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 2.0.3
       graceful-fs: 4.1.15
@@ -4167,7 +4169,6 @@ packages:
       make-dir: 3.0.0
       nested-error-stacks: 2.1.0
       p-event: 4.1.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -6265,7 +6266,6 @@ packages:
   /make-dir/3.0.0:
     dependencies:
       semver: 6.0.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -6643,7 +6643,6 @@ packages:
     resolution:
       integrity: sha1-5tq3/r9a2Bbqgc9cYpxaDr3nLBo=
   /nested-error-stacks/2.1.0:
-    dev: false
     resolution:
       integrity: sha512-AO81vsIO1k1sM4Zrd6Hu7regmJN1NSiAja10gc4bX3F0wd+9rQmcuHQaHVQCYIEC8iFXnE+mavh23GOt7wBgug==
   /next-path/1.0.0:
@@ -6984,7 +6983,6 @@ packages:
   /p-event/4.1.0:
     dependencies:
       p-timeout: 2.0.1
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -7078,7 +7076,6 @@ packages:
   /p-timeout/2.0.1:
     dependencies:
       p-finally: 1.0.0
-    dev: false
     engines:
       node: '>=4'
     resolution:

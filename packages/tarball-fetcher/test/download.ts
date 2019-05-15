@@ -1,6 +1,7 @@
 ///<reference path="../typings/index.d.ts" />
 import { LogBase, streamParser } from '@pnpm/logger'
 import createFetcher from '@pnpm/tarball-fetcher'
+import cpFile = require('cp-file')
 import { existsSync } from 'fs'
 import fs = require('mz/fs')
 import nock = require('nock')
@@ -63,6 +64,38 @@ test('fail when tarball size does not match content-length', async t => {
     t.ok(scope.isDone())
     t.end()
   }
+})
+
+test('redownload the tarball when the one in cache does not satisfy integrity', async t => {
+  const scope = nock(registry)
+    .get('/babel-helper-hoist-variables-6.24.1.tgz')
+    .times(1)
+    .replyWithFile(200, tarballPath, {
+      'Content-Length': tarballSize.toString(),
+    })
+
+  const cacheDir = tempy.directory()
+  t.comment(`temp dir ${cacheDir}`)
+
+  const cachedTarballLocation = path.join(cacheDir, 'cache.tgz')
+  await cpFile(
+    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+    cachedTarballLocation,
+  )
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: `${registry}babel-helper-hoist-variables-6.24.1.tgz`,
+  }
+  const { tempLocation } = await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
+    cachedTarballLocation,
+    prefix: process.cwd(),
+  })
+
+  t.equal((await import(path.join(tempLocation, 'package.json'))).version, '6.24.1')
+
+  t.ok(scope.isDone())
+  t.end()
 })
 
 test('retry when tarball size does not match content-length', async t => {

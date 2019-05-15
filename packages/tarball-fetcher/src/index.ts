@@ -9,6 +9,7 @@ import mem from 'mem'
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
+import rimraf = require('rimraf')
 import ssri = require('ssri')
 import * as unpackStream from 'unpack-stream'
 import createDownloader, { DownloadFunction } from './createDownloader'
@@ -185,6 +186,9 @@ async function fetchFromLocalTarball (
     ]))[0]
     return { filesIndex, tempLocation }
   } catch (err) {
+    rimraf(tempLocation, () => {
+      // ignore errors
+    })
     err.attempts = 1
     err.resource = tarball
     throw err

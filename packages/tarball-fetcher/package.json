@@ -57,6 +57,7 @@
     "@types/retry": "^0.12.0",
     "@types/rimraf": "^2.0.2",
     "@types/tape": "4.2.33",
+    "cp-file": "7.0.0",
     "nock": "10.0.6",
     "tape": "4.10.1",
     "tempy": "0.3.0",
