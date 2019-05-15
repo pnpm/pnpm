@@ -87,14 +87,63 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
     integrity: tarballIntegrity,
     tarball: `${registry}babel-helper-hoist-variables-6.24.1.tgz`,
   }
+
+  t.plan(3)
+  function reporter (log: LogBase & {level: string, name: string, message: string}) {
+    if (log.level === 'warn' && log.name === 'pnpm:store' && log.message.startsWith(`The cached tarball at "${cachedTarballLocation}"`)) {
+      t.pass('warning logged')
+    }
+  }
+  streamParser.on('data', reporter)
   const { tempLocation } = await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
     cachedTarballLocation,
     prefix: process.cwd(),
   })
+  streamParser.removeListener('data', reporter)
 
   t.equal((await import(path.join(tempLocation, 'package.json'))).version, '6.24.1')
 
   t.ok(scope.isDone())
+  t.end()
+})
+
+test('fail when the tarball in the cache does not pass integrity check in offline mode', async t => {
+  const cacheDir = tempy.directory()
+  t.comment(`temp dir ${cacheDir}`)
+
+  const cachedTarballLocation = path.join(cacheDir, 'cache.tgz')
+  await cpFile(
+    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+    cachedTarballLocation,
+  )
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: `${registry}babel-helper-hoist-variables-6.24.1.tgz`,
+  }
+
+  let err!: Error
+  try {
+    const fetch = createFetcher({
+      fetchRetries: 1,
+      fetchRetryMaxtimeout: 100,
+      fetchRetryMintimeout: 0,
+      offline: true,
+      rawNpmConfig: {
+        registry,
+      },
+      registry,
+    })
+    await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
+      cachedTarballLocation,
+      prefix: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_BAD_TARBALL_CHECKSUM')
   t.end()
 })
 
