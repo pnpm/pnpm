@@ -584,7 +584,7 @@ importers:
       '@pnpm/store-path': 2.0.0
       '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/fs-extra': 7.0.0
+      '@types/fs-extra': 5.1.0
       '@types/mz': 0.0.32
       '@types/node': 12.0.2
       '@types/path-exists': 3.0.0
@@ -592,7 +592,7 @@ importers:
       '@types/rimraf': 2.0.2
       '@types/sinon': 7.0.11
       '@types/tape': 4.2.33
-      fs-extra: 8.0.1
+      fs-extra: 7.0.1
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -637,7 +637,7 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
-      '@types/fs-extra': 7.0.0
+      '@types/fs-extra': 5.1.0
       '@types/mz': 0.0.32
       '@types/node': '*'
       '@types/path-exists': 3.0.0
@@ -646,7 +646,7 @@ importers:
       '@types/sinon': ^7.0.10
       '@types/tape': 4.2.33
       dependency-path: 3.0.5
-      fs-extra: 8.0.1
+      fs-extra: 7.0.1
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2002,7 +2002,7 @@ importers:
       '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 7.0.0
+      '@types/fs-extra': 5.1.0
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -2017,7 +2017,7 @@ importers:
       dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
       exists-link: 2.0.0
-      fs-extra: 8.0.1
+      fs-extra: 7.0.1
       is-windows: 1.0.2
       mkdirp: 0.5.1
       ncp: 2.0.0
@@ -2077,7 +2077,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 7.0.0
+      '@types/fs-extra': 5.1.0
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -2096,7 +2096,7 @@ importers:
       encode-registry: 1.1.0
       execa: 1.0.0
       exists-link: 2.0.0
-      fs-extra: 8.0.1
+      fs-extra: 7.0.1
       get-npm-tarball-url: 2.0.1
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -2870,12 +2870,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
-  /@types/fs-extra/7.0.0:
+  /@types/fs-extra/5.1.0:
     dependencies:
       '@types/node': 12.0.2
     dev: true
     resolution:
-      integrity: sha512-ndoMMbGyuToTy4qB6Lex/inR98nPiNHacsgMPvy+zqMLgSxbt8VtWpDArpGp69h1fEDQHn1KB+9DWD++wgbwYA==
+      integrity: sha512-AInn5+UBFIK9FK5xc9yP5e3TQSPNNgjHByqYcj9g5elVBnDQcQL7PlO1CIRy2gWlbwK7UPYqi7vRvFA44dCmYQ==
   /@types/glob/7.1.1:
     dependencies:
       '@types/events': 3.0.0
@@ -4994,7 +4994,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==
-  /fs-extra/8.0.1:
+  /fs-extra/7.0.1:
     dependencies:
       graceful-fs: 4.1.15
       jsonfile: 4.0.0
@@ -5003,7 +5003,7 @@ packages:
     engines:
       node: '>=6 <7 || >=8'
     resolution:
-      integrity: sha512-W+XLrggcDzlle47X/XnS7FXrXu9sDo+Ze9zpndeBxdgv88FHLm1HtmkhEwavruS6koanBjp098rUpHs65EmG7A==
+      integrity: sha512-YJDaCJZEnBmcbw13fvdAM9AwNOJwOzrE4pqMqBq5nFiEqXUqHwlK4B+3pUw6JNvfSPtX05xFHtYy/1ni01eGCw==
   /fs-minipass/1.2.6:
     dependencies:
       minipass: 2.3.5
