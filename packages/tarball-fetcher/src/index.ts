@@ -161,11 +161,7 @@ async function fetchFromRemoteTarball (
         }
         break
       default:
-        if (ctx.offline) {
-          throw new PnpmError('ERR_PNPM_NO_OFFLINE_TARBALL', `Could not read ${opts.cachedTarballLocation} in local registry mirror`)
-        }
-        storeLogger.warn(`Could not read the tarball at "${opts.cachedTarballLocation}". Redownloading.`)
-        break
+        throw err
     }
 
     const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
@@ -189,8 +185,8 @@ async function fetchFromLocalTarball (
     integrity?: string,
   }
 ): Promise<FetchResult> {
-  const tempLocation = pathTemp(dir)
   const tarballStream = fs.createReadStream(tarball)
+  const tempLocation = pathTemp(dir)
   try {
     const filesIndex = (await Promise.all([
       unpackStream.local(

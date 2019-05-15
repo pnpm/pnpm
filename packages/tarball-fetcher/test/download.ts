@@ -361,6 +361,74 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
   t.end()
 })
 
+test("don't fail when the cache tarball does not exist", async (t) => {
+  nock(registry)
+    .get('/foo.tgz')
+    .times(1)
+    .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
+      'Content-Length': '1194',
+    })
+
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('dir', 'cached')
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const resolution = {
+    integrity: await getFileIntegrity(tarballAbsoluteLocation),
+    tarball: `${registry}foo.tgz`,
+  }
+
+  const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
+    cachedTarballLocation,
+    prefix: process.cwd(),
+  })
+
+  t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
+  t.equal(typeof tempLocation, 'string', 'temp location returned')
+
+  t.end()
+})
+
+test('fail when the cache tarball does not exist in offline mode', async (t) => {
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('dir', 'cached')
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const resolution = {
+    integrity: await getFileIntegrity(tarballAbsoluteLocation),
+    tarball: `${registry}foo.tgz`,
+  }
+
+  let err!: Error
+  try {
+    const fetch = createFetcher({
+      fetchRetries: 1,
+      fetchRetryMaxtimeout: 100,
+      fetchRetryMintimeout: 0,
+      offline: true,
+      rawNpmConfig: {
+        registry,
+      },
+      registry,
+    })
+    await fetch.tarball(resolution, unpackTo, {
+      cachedTarballLocation,
+      prefix: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_NO_OFFLINE_TARBALL')
+
+  t.end()
+})
+
 test('retry on server error', async t => {
   const scope = nock(registry)
     .get('/foo.tgz')
