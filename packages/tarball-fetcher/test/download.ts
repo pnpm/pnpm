@@ -1,6 +1,7 @@
 ///<reference path="../typings/index.d.ts" />
 import { LogBase, streamParser } from '@pnpm/logger'
 import createFetcher from '@pnpm/tarball-fetcher'
+import cpFile = require('cp-file')
 import { existsSync } from 'fs'
 import fs = require('mz/fs')
 import nock = require('nock')
@@ -63,6 +64,87 @@ test('fail when tarball size does not match content-length', async t => {
     t.ok(scope.isDone())
     t.end()
   }
+})
+
+test('redownload the tarball when the one in cache does not satisfy integrity', async t => {
+  const scope = nock(registry)
+    .get('/babel-helper-hoist-variables-6.24.1.tgz')
+    .times(1)
+    .replyWithFile(200, tarballPath, {
+      'Content-Length': tarballSize.toString(),
+    })
+
+  const cacheDir = tempy.directory()
+  t.comment(`temp dir ${cacheDir}`)
+
+  const cachedTarballLocation = path.join(cacheDir, 'cache.tgz')
+  await cpFile(
+    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+    cachedTarballLocation,
+  )
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: `${registry}babel-helper-hoist-variables-6.24.1.tgz`,
+  }
+
+  t.plan(3)
+  function reporter (log: LogBase & {level: string, name: string, message: string}) {
+    if (log.level === 'warn' && log.name === 'pnpm:store' && log.message.startsWith(`The cached tarball at "${cachedTarballLocation}"`)) {
+      t.pass('warning logged')
+    }
+  }
+  streamParser.on('data', reporter)
+  const { tempLocation } = await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
+    cachedTarballLocation,
+    prefix: process.cwd(),
+  })
+  streamParser.removeListener('data', reporter)
+
+  t.equal((await import(path.join(tempLocation, 'package.json'))).version, '6.24.1')
+
+  t.ok(scope.isDone())
+  t.end()
+})
+
+test('fail when the tarball in the cache does not pass integrity check in offline mode', async t => {
+  const cacheDir = tempy.directory()
+  t.comment(`temp dir ${cacheDir}`)
+
+  const cachedTarballLocation = path.join(cacheDir, 'cache.tgz')
+  await cpFile(
+    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+    cachedTarballLocation,
+  )
+
+  const resolution = {
+    integrity: tarballIntegrity,
+    tarball: `${registry}babel-helper-hoist-variables-6.24.1.tgz`,
+  }
+
+  let err!: Error
+  try {
+    const fetch = createFetcher({
+      fetchRetries: 1,
+      fetchRetryMaxtimeout: 100,
+      fetchRetryMintimeout: 0,
+      offline: true,
+      rawNpmConfig: {
+        registry,
+      },
+      registry,
+    })
+    await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
+      cachedTarballLocation,
+      prefix: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_BAD_TARBALL_CHECKSUM')
+  t.end()
 })
 
 test('retry when tarball size does not match content-length', async t => {
@@ -275,6 +357,74 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
 
   t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
   t.equal(typeof tempLocation, 'string', 'temp location returned')
+
+  t.end()
+})
+
+test("don't fail when the cache tarball does not exist", async (t) => {
+  nock(registry)
+    .get('/foo.tgz')
+    .times(1)
+    .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
+      'Content-Length': '1194',
+    })
+
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('dir', 'cached')
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const resolution = {
+    integrity: await getFileIntegrity(tarballAbsoluteLocation),
+    tarball: `${registry}foo.tgz`,
+  }
+
+  const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
+    cachedTarballLocation,
+    prefix: process.cwd(),
+  })
+
+  t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
+  t.equal(typeof tempLocation, 'string', 'temp location returned')
+
+  t.end()
+})
+
+test('fail when the cache tarball does not exist in offline mode', async (t) => {
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('dir', 'cached')
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const resolution = {
+    integrity: await getFileIntegrity(tarballAbsoluteLocation),
+    tarball: `${registry}foo.tgz`,
+  }
+
+  let err!: Error
+  try {
+    const fetch = createFetcher({
+      fetchRetries: 1,
+      fetchRetryMaxtimeout: 100,
+      fetchRetryMintimeout: 0,
+      offline: true,
+      rawNpmConfig: {
+        registry,
+      },
+      registry,
+    })
+    await fetch.tarball(resolution, unpackTo, {
+      cachedTarballLocation,
+      prefix: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_NO_OFFLINE_TARBALL')
 
   t.end()
 })
