@@ -50,7 +50,7 @@ import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import pEvery from 'p-every'
 import pFilter = require('p-filter')
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')

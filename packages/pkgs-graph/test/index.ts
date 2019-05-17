@@ -1,3 +1,4 @@
+///<reference path="../../../typings/local.d.ts"/>
 import pathResolve = require('better-path-resolve')
 import createPkgGraph from 'pkgs-graph'
 import test = require('tape')

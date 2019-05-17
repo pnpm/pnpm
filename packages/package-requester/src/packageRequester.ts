@@ -28,7 +28,7 @@ import {
 } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
-import fs = require('mz/fs')
+import * as fs from 'mz/fs'
 import PQueue = require('p-queue')
 import path = require('path')
 import exists = require('path-exists')
@@ -566,8 +566,8 @@ export async function getCacheByEngine (storePath: string, id: string): Promise<
     return map
   }
 
-  const dirContents = (await fs.readdir(cacheRoot)).map((content) => path.join(cacheRoot, content))
-  await Promise.all(dirContents.map(async (dir) => {
+  const dirContents = (await fs.readdir(cacheRoot)).map((content: string) => path.join(cacheRoot, content))
+  await Promise.all(dirContents.map(async (dir: string) => {
     if (!(await fs.lstat(dir)).isDirectory()) {
       return
     }

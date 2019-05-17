@@ -1,4 +1,3 @@
-///<reference path="../typings/index.d.ts"/>
 import npa = require('@zkochan/npm-package-arg')
 import path = require('path')
 import R = require('ramda')

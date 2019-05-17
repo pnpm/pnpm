@@ -7,7 +7,7 @@ import isSubdir = require('is-subdir')
 import mem from 'mem'
 import fs = require('mz/fs')
 import pFilter = require('p-filter')
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import R = require('ramda')

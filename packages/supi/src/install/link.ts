@@ -21,7 +21,7 @@ import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-de
 import { ImporterManifest, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import fs = require('mz/fs')
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
 import { absolutePathToRef } from './lockfile'

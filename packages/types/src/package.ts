@@ -50,6 +50,7 @@ interface BaseManifest {
   name?: string,
   version?: string,
   bin?: PackageBin,
+  description?: string,
   directories?: {
     bin?: string,
   },
@@ -60,6 +61,8 @@ interface BaseManifest {
   peerDependenciesMeta?: PeerDependenciesMeta,
   bundleDependencies?: string[],
   bundledDependencies?: string[],
+  homepage?: string,
+  repository?: string | { url: string },
   scripts?: PackageScripts,
   config?: object,
   engines?: {

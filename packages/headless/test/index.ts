@@ -1,4 +1,4 @@
-///<reference path="../typings/index.d.ts" />
+///<reference path="../../../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {

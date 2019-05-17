@@ -1,5 +1,5 @@
 import readPackageJson from '@pnpm/read-package-json'
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 
 const limitPkgReads = pLimit(4)
 

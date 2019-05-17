@@ -1,4 +1,4 @@
-///<reference path="../typings/index.d.ts"/>
+///<reference path="../../../typings/index.d.ts"/>
 import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
 import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer, } from '@pnpm/server'

@@ -58,7 +58,10 @@ async function toArchyTree (
           pkg.description,
         ]
         if (pkg.repository) {
-          labelLines.push(pkg.repository.url)
+          labelLines.push(
+            typeof pkg.repository === 'string'
+              ? pkg.repository
+              : pkg.repository.url)
         }
         if (pkg.homepage) {
           labelLines.push(pkg.homepage)

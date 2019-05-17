@@ -1,4 +1,4 @@
-///<reference path="../typings/index.d.ts" />
+///<reference path="../../../typings/index.d.ts" />
 import { LogBase, streamParser } from '@pnpm/logger'
 import createFetcher from '@pnpm/tarball-fetcher'
 import cpFile = require('cp-file')

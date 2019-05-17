@@ -188,16 +188,18 @@ async function fetchFromLocalTarball (
   const tarballStream = fs.createReadStream(tarball)
   const tempLocation = pathTemp(dir)
   try {
-    const filesIndex = (await Promise.all([
-      unpackStream.local(
-        tarballStream,
-        tempLocation,
-        {
-          ignore: opts.ignore,
-        },
-      ),
-      opts.integrity && ssri.checkStream(tarballStream, opts.integrity),
-    ]))[0]
+    const filesIndex = (
+      await Promise.all([
+        unpackStream.local(
+          tarballStream,
+          tempLocation,
+          {
+            ignore: opts.ignore,
+          },
+        ),
+        opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // tslint:disable-line
+      ])
+    )[0]
     return { filesIndex, tempLocation }
   } catch (err) {
     rimraf(tempLocation, () => {

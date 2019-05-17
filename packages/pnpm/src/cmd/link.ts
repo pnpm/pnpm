@@ -3,7 +3,7 @@ import readImporterManifest, {
   readImporterManifestOnly,
   tryReadImporterManifest,
 } from '@pnpm/read-importer-manifest'
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')

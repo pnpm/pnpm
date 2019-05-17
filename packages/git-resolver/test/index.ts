@@ -1,4 +1,4 @@
-///<reference path="../typings/index.d.ts"/>
+///<reference path="../../../typings/index.d.ts"/>
 import createResolveFromGit from '@pnpm/git-resolver'
 import git = require('graceful-git')
 import isWindows = require('is-windows')

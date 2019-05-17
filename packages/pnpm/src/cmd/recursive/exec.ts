@@ -1,6 +1,6 @@
 import logger from '@pnpm/logger'
 import execa = require('execa')
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import { PackageNode } from 'pkgs-graph'
 import RecursiveSummary from './recursiveSummary'
 

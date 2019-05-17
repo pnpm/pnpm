@@ -1,4 +1,4 @@
-///<reference path="../typings/index.d.ts" />
+///<reference path="../../../typings/index.d.ts" />
 import localResolver from '@pnpm/local-resolver'
 import { streamParser } from '@pnpm/logger'
 import createResolver from '@pnpm/npm-resolver'

@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "dependencies": {
+    "@types/tape": "4.2.33"
+  }
+}

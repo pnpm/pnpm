@@ -8,7 +8,7 @@ import child_process = require('child_process')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import path = require('path')
 import exists = require('path-exists')
 import pathTemp = require('path-temp')

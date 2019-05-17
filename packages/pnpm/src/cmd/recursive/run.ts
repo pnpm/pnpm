@@ -2,7 +2,7 @@ import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
-import pLimit = require('p-limit')
+import pLimit from 'p-limit'
 import { PackageNode } from 'pkgs-graph'
 import RecursiveSummary from './recursiveSummary'
 
