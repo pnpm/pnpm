@@ -46,7 +46,7 @@
     "@types/uuid": "3.4.4",
     "is-port-reachable": "2.0.1",
     "mz": "2.7.0",
-    "node-fetch": "2.5.0",
+    "node-fetch": "2.6.0",
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
     "tape": "4.10.1",
