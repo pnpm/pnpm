@@ -165,7 +165,7 @@ importers:
       ramda: 0.26.1
       right-pad: 1.0.1
       semver: 6.0.0
-      stacktracey: 1.2.110
+      stacktracey: 1.2.112
       string-length: 3.1.0
       strip-ansi: 5.2.0
     devDependencies:
@@ -217,7 +217,7 @@ importers:
       right-pad: 1.0.1
       rimraf: 2.6.3
       semver: 6.0.0
-      stacktracey: 1.2.110
+      stacktracey: 1.2.112
       string-length: 3.1.0
       strip-ansi: 5.2.0
       tape: 4.10.1
@@ -332,8 +332,8 @@ importers:
       typescript: 3.4.5
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 4.0.0_node-fetch@2.5.0
-      node-fetch: 2.5.0
+      '@zeit/fetch-retry': 4.0.0_node-fetch@2.6.0
+      node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
     devDependencies:
       '@pnpm/tsconfig': 'link:../../utils/tsconfig'
@@ -345,7 +345,7 @@ importers:
       '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
       '@zeit/fetch-retry': 4.0.0
-      node-fetch: 2.5.0
+      node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
       rimraf: ^2.6.2
       tslint: 5.16.0
@@ -357,7 +357,7 @@ importers:
     devDependencies:
       '@pnpm/tsconfig': 'link:../../utils/tsconfig'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/nock': 10.0.2
+      '@types/nock': 10.0.3
       '@types/node': 12.0.2
       '@types/tape': 4.2.33
       fetch-from-npm-registry: 'link:'
@@ -372,7 +372,7 @@ importers:
       '@pnpm/npm-registry-agent': 1.0.2
       '@pnpm/tsconfig': 0.0.0
       '@pnpm/tslint-config': 0.0.0
-      '@types/nock': 10.0.2
+      '@types/nock': 10.0.3
       '@types/node': '*'
       '@types/tape': ^4.2.31
       fetch-from-npm-registry: 'link:'
@@ -1844,7 +1844,7 @@ importers:
       '@types/uuid': 3.4.4
       is-port-reachable: 2.0.1
       mz: 2.7.0
-      node-fetch: 2.5.0
+      node-fetch: 2.6.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       tape: 4.10.1
@@ -1870,7 +1870,7 @@ importers:
       '@types/uuid': 3.4.4
       is-port-reachable: 2.0.1
       mz: 2.7.0
-      node-fetch: 2.5.0
+      node-fetch: 2.6.0
       p-limit: 2.2.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
@@ -2929,12 +2929,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-TeiJ7uvv/92ugSqZ0v9l0eNXzutlki0aK+R1K5bfA5SYUil46ITlxLW4iNTCf55P4L5weCmaOdtxGeGWvudwPg==
-  /@types/nock/10.0.2:
-    dependencies:
-      '@types/node': 12.0.2
-    dev: true
-    resolution:
-      integrity: sha512-jOdoZ3zVLmPWZOoPJDoks+Zo6GsogdZuVBWs8/prWau993qno5PPtukVXKfc+WtS/ROgTPWpiru92z2K6KFYgQ==
   /@types/nock/10.0.3:
     dependencies:
       '@types/node': 12.0.2
@@ -3083,11 +3077,11 @@ packages:
       npm: '>=3'
     resolution:
       integrity: sha512-AjEo5LXk4Yf0SaXSc3y4i1t+wxY552O7WrVJPtnC6H7nUsSrygg/ODCG1RSKelskOq6b5p/LyXnsTkmCFXyjDQ==
-  /@zeit/fetch-retry/4.0.0_node-fetch@2.5.0:
+  /@zeit/fetch-retry/4.0.0_node-fetch@2.6.0:
     dependencies:
       async-retry: 1.2.3
       debug: 3.2.6
-      node-fetch: 2.5.0
+      node-fetch: 2.6.0
     dev: false
     peerDependencies:
       node-fetch: '*'
@@ -6687,11 +6681,11 @@ packages:
       node: 4.x || >=6.0.0
     resolution:
       integrity: sha512-ngVgjZl1n1dZRR8BIX/UKU3Q0cfkQ4byUVcV132xW/+zPF79sVo2td2576mzIGJibi7E0Azcx2gpy66BoV2hrg==
-  /node-fetch/2.5.0:
+  /node-fetch/2.6.0:
     engines:
       node: 4.x || >=6.0.0
     resolution:
-      integrity: sha512-YuZKluhWGJwCcUu4RlZstdAxr8bFfOVHakc1mplwHkk8J+tqM1Y5yraYvIUpeX8aY7+crCwiELJq7Vl0o0LWXw==
+      integrity: sha512-8dG4H5ujfvFiqDmVu9fQ5bOHUC15JMjMY/Zumv26oOvvVJjM67KF8koCWIabKQ1GJIa9r2mMZscBq/TbdOcmNA==
   /node-gyp/4.0.0:
     dependencies:
       glob: 7.1.4
@@ -8224,13 +8218,13 @@ packages:
     dev: false
     resolution:
       integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==
-  /stacktracey/1.2.110:
+  /stacktracey/1.2.112:
     dependencies:
       as-table: 1.0.38
       get-source: 1.0.34
     dev: false
     resolution:
-      integrity: sha512-5fl9sN0GgLfn3WBxAEkAYzGuJLJNwkaZHlmflZ3pa7L9mu78FIGxDILVUdFQd+zQKCjaf3uuYblv+IzvroobjA==
+      integrity: sha512-sdToNahkjEyqBhpb6GJ5zf5d6pHW491NQt4lONP68D8MPd9iYpacUTojOOcdeEPcCeuBP2mfOSzKDQHpulZi7A==
   /static-extend/0.1.2:
     dependencies:
       define-property: 0.2.5
