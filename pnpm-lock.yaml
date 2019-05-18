@@ -1489,7 +1489,7 @@ importers:
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/default-fetcher': 3.1.9
-      '@pnpm/default-reporter': 3.2.0
+      '@pnpm/default-reporter': 3.2.1
       '@pnpm/default-resolver': 3.0.11
       '@pnpm/lifecycle': 6.1.1
       '@pnpm/list': 1.0.8
@@ -1579,7 +1579,7 @@ importers:
       semver: 6.0.0
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.33.4
+      supi: 0.33.5
       symlink-dir: 3.0.3
       tape: 4.10.1
       tape-promise: 4.0.0
