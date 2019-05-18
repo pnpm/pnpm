@@ -263,6 +263,14 @@ function removeProtocol (url: string) {
 }
 
 function relativeTarball (tarball: string, registry: string) {
+  // It is important to save the tarball URL as "relative-path" (without the leading '/').
+  // Sometimes registries are located in a subdirectory of a website.
+  // For instance, https://mycompany.jfrog.io/mycompany/api/npm/npm-local/
+  // So the tarball location should be relative to the directory,
+  // it is not an absolute-path reference.
+  // So we add @mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz
+  // not /@mycompany/mypackage/-/@mycompany/mypackage-2.0.0.tgz
+  // Related issue: https://github.com/pnpm/pnpm/issues/1827
   if (tarball.substr(0, registry.length) === registry) {
     return tarball.substr(registry.length)
   }
