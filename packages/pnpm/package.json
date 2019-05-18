@@ -54,7 +54,7 @@
     "diable": "4.0.2",
     "dir-is-case-sensitive": "1.0.2",
     "execa": "1.0.0",
-    "fast-glob": "2.2.6",
+    "fast-glob": "2.2.7",
     "find-packages": "5.0.2",
     "get-port": "5.0.0",
     "graceful-fs": "4.1.15",
