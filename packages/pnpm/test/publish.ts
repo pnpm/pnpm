@@ -1,5 +1,6 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import fs = require('mz/fs')
+import path = require('path')
 import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -136,4 +137,71 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   process.chdir('..')
   t.notOk(await exists('project-100/LICENSE'))
   t.ok(await exists('project-200/LICENSE'))
+})
+
+test('publish: package with main, module, typings and types in publishConfig', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      name: 'test-publish-config',
+      version: '1.0.0',
+
+      main: './index.js',
+      module: './index.mjs',
+      types: `./types.d.ts`,
+      typings: `./typings.d.ts`,
+
+      publishConfig: {
+        main: './published.js',
+        module: './published.mjs',
+        types: `./published-types.d.ts`,
+        typings: `./published-typings.d.ts`,
+      },
+    },
+    {
+      name: 'test-publish-config-installation',
+      version: '1.0.0',
+    },
+  ])
+
+  process.chdir('test-publish-config')
+  await execPnpm('publish', ...CREDENTIALS)
+
+  const originalManifests = await import(path.resolve('package.json'))
+  t.deepEqual(originalManifests, {
+    name: 'test-publish-config',
+    version: '1.0.0',
+
+    main: './index.js',
+    module: './index.mjs',
+    types: `./types.d.ts`,
+    typings: `./typings.d.ts`,
+
+    publishConfig: {
+      main: './published.js',
+      module: './published.mjs',
+      types: `./published-types.d.ts`,
+      typings: `./published-typings.d.ts`,
+    },
+  })
+
+  process.chdir('../test-publish-config-installation')
+  await execPnpm('add', 'test-publish-config')
+
+  const publishedManifest = await import(path.resolve('node_modules/test-publish-config/package.json'))
+  t.deepEqual(publishedManifest, {
+    name: 'test-publish-config',
+    version: '1.0.0',
+
+    main: './published.js',
+    module: './published.mjs',
+    types: `./published-types.d.ts`,
+    typings: `./published-typings.d.ts`,
+
+    publishConfig: {
+      main: './published.js',
+      module: './published.mjs',
+      types: `./published-types.d.ts`,
+      typings: `./published-typings.d.ts`,
+    },
+  })
 })

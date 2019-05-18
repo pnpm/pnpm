@@ -1,8 +1,10 @@
 import readImporterManifest from '@pnpm/read-importer-manifest'
+import { ImporterManifest } from '@pnpm/types'
 import cpFile = require('cp-file')
 import fg = require('fast-glob')
 import fs = require('mz/fs')
 import path = require('path')
+import R = require('ramda')
 import rimraf = require('rimraf-then')
 import writeJsonFile = require('write-json-file')
 import { PnpmOptions } from '../types'
@@ -54,19 +56,38 @@ async function fakeRegularManifest (prefix: string, workspacePrefix: string, fn:
     ? await copyLicenses(workspacePrefix, prefix) : []
 
   const { fileName, manifest, writeImporterManifest } = await readImporterManifest(prefix)
-  const exoticManifestFormat = fileName !== 'package.json'
-  if (exoticManifestFormat) {
+  const publishManifest = makePublishManifest(manifest)
+  const replaceManifest = fileName !== 'package.json' || !R.equals(manifest, publishManifest)
+  if (replaceManifest) {
     await rimraf(path.join(prefix, fileName))
-    await writeJsonFile(path.join(prefix, 'package.json'), manifest)
+    await writeJsonFile(path.join(prefix, 'package.json'), publishManifest)
   }
   await fn()
-  if (exoticManifestFormat) {
+  if (replaceManifest) {
     await rimraf(path.join(prefix, 'package.json'))
     await writeImporterManifest(manifest, true)
   }
   await Promise.all(
     copiedLicenses.map((copiedLicense) => fs.unlink(copiedLicense))
   )
+}
+
+function makePublishManifest (originalManifest: ImporterManifest) {
+  if (!originalManifest.publishConfig) return originalManifest
+  const publishManifest = { ...originalManifest }
+  if (originalManifest.publishConfig.main) {
+    publishManifest.main = originalManifest.publishConfig.main
+  }
+  if (originalManifest.publishConfig.module) {
+    publishManifest.module = originalManifest.publishConfig.module
+  }
+  if (originalManifest.publishConfig.typings) {
+    publishManifest.typings = originalManifest.publishConfig.typings
+  }
+  if (originalManifest.publishConfig.types) {
+    publishManifest.types = originalManifest.publishConfig.types
+  }
+  return publishManifest
 }
 
 async function copyLicenses (sourceDir: string, destDir: string) {
