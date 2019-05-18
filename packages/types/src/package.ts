@@ -71,6 +71,16 @@ interface BaseManifest {
   },
   cpu?: string[],
   os?: string[],
+  main?: string,
+  module?: string,
+  typings?: string,
+  types?: string,
+  publishConfig?: {
+    main?: string,
+    module?: string,
+    typings?: string,
+    types?: string,
+  },
 }
 
 export type DependencyManifest = BaseManifest & {
