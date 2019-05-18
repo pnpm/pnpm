@@ -247,6 +247,11 @@ export default async (
     pnpmConfig.production = true
     pnpmConfig.development = true
   }
+  pnpmConfig.include = {
+    dependencies: pnpmConfig.production !== false,
+    devDependencies: pnpmConfig.development !== false,
+    optionalDependencies: pnpmConfig.optional !== false,
+  }
 
   if (typeof pnpmConfig.filter === 'string') {
     pnpmConfig.filter = (pnpmConfig.filter as string).split(' ')

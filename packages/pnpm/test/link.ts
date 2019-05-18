@@ -1,6 +1,6 @@
 import assertProject, { isExecutable } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -91,4 +91,31 @@ test('relative link', async (t: tape.Test) => {
 
   const currentLockfile = await project.readCurrentLockfile()
   t.equal(currentLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
+})
+
+test('link --production', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'target',
+      version: '1.0.0',
+    },
+    {
+      name: 'source',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  process.chdir('target')
+
+  await execPnpm('link', '--production', '../source')
+
+  await projects['source'].has('is-positive')
+  await projects['source'].hasNot('is-negative')
 })

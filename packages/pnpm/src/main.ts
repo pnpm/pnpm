@@ -185,11 +185,6 @@ export default async function run (argv: string[]) {
       command: subCmd ? [cmd, subCmd] : [cmd],
       excludeReporter: false,
     })
-    opts.include = {
-      dependencies: opts.production !== false,
-      devDependencies: opts.development !== false,
-      optionalDependencies: opts.optional !== false,
-    }
     opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
     opts.argv = cliConf.argv
     if (opts.filter) {
