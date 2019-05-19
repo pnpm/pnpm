@@ -5,7 +5,7 @@ import {
 } from '@pnpm/fetcher-base'
 import { storeLogger } from '@pnpm/logger'
 import getCredentialsByURI = require('credentials-by-uri')
-import mem from 'mem'
+import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')

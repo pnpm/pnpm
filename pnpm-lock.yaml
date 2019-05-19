@@ -266,7 +266,7 @@ importers:
   packages/dependency-path:
     dependencies:
       '@pnpm/types': 'link:../types'
-      encode-registry: 1.1.0
+      encode-registry: 2.0.0
       semver: 6.0.0
     devDependencies:
       '@types/semver': 6.0.0
@@ -277,7 +277,7 @@ importers:
     specifiers:
       '@pnpm/types': 3.2.0
       '@types/semver': 6.0.0
-      encode-registry: 1.1.0
+      encode-registry: 2.0.0
       semver: 6.0.0
       tape: 4.10.1
       ts-node: 8.1.0
@@ -863,10 +863,10 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
       credentials-by-uri: 1.0.0
-      encode-registry: 1.1.0
+      encode-registry: 2.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       load-json-file: 6.0.0
-      mem: 4.3.0
+      mem: 5.0.0
       normalize-path: 3.0.0
       p-limit: 2.2.0
       parse-npm-tarball-url: 2.0.0
@@ -901,10 +901,10 @@ importers:
       '@types/semver': 6.0.0
       '@types/ssri': ^6.0.0
       credentials-by-uri: 1.0.0
-      encode-registry: 1.1.0
+      encode-registry: 2.0.0
       fetch-from-npm-registry: 2.0.3
       load-json-file: 6.0.0
-      mem: 4.3.0
+      mem: 5.0.0
       nock: ^10.0.0
       normalize-path: 3.0.0
       p-limit: 2.2.0
@@ -1202,7 +1202,7 @@ importers:
       load-json-file: 6.0.0
       loud-rejection: 2.1.0
       lru-cache: 5.1.1
-      mem: 4.3.0
+      mem: 5.0.0
       minimatch: 3.0.4
       mkdirp-promise: 5.0.1
       mz: 2.7.0
@@ -1327,7 +1327,7 @@ importers:
       load-json-file: 6.0.0
       loud-rejection: 2.1.0
       lru-cache: 5.1.1
-      mem: 4.3.0
+      mem: 5.0.0
       minimatch: 3.0.4
       mkdirp: 0.5.1
       mkdirp-promise: 5.0.1
@@ -1684,7 +1684,7 @@ importers:
       '@zkochan/npm-package-arg': 1.0.2
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
-      encode-registry: 1.1.0
+      encode-registry: 2.0.0
       get-npm-tarball-url: 2.0.1
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1802,7 +1802,7 @@ importers:
       deep-require-cwd: 1.0.0
       dependency-path: 3.0.5
       dir-is-case-sensitive: 1.0.2
-      encode-registry: 1.1.0
+      encode-registry: 2.0.0
       execa: 1.0.0
       exists-link: 2.0.0
       fs-extra: 7.0.1
@@ -1880,7 +1880,7 @@ importers:
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       graceful-fs: 4.1.15
-      mem: 4.3.0
+      mem: 5.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       path-temp: 2.0.0
@@ -1918,7 +1918,7 @@ importers:
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 2.0.3
       graceful-fs: 4.1.15
-      mem: 4.3.0
+      mem: 5.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       nock: 10.0.6
@@ -4330,14 +4330,14 @@ packages:
     dev: false
     resolution:
       integrity: sha512-CwBLREIQ7LvYFB0WyRvwhq5N5qPhc6PMjD6bYggFlI5YyDgl+0vxq5VHbMOFqLg7hfWzmu8T5Z1QofhmTIhItA==
-  /encode-registry/1.1.0:
+  /encode-registry/2.0.0:
     dependencies:
-      mem: 3.0.1
+      mem: 5.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-we1k9/KE1067YXEyJzPg+kXlNFLk9/LT2IFP3VZgmANNwf8Bx+KdAVd1wxLpG8y7v6EgplVGTstmVNICwiaCNA==
+      integrity: sha512-0C9gD7hg/nF+IaXB0fl+45gKtoBenEcZJF+MDW6G8r4jjn5wGKnSILiJShaOb2nmcVskmoVkZvRISAlX7EpmQw==
   /encodeurl/1.0.2:
     dev: true
     engines:
@@ -6177,15 +6177,6 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-hxDXrwqmJvj/+hzgAWhUUmMlV0g=
-  /mem/3.0.1:
-    dependencies:
-      mimic-fn: 1.2.0
-      p-is-promise: 1.1.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-QKs47bslvOE0NbXOqG6lMxn6Bk0Iuw0vfrIeLykmQle2LkCw1p48dZDdzE+D88b/xqRJcZGcMNeDvSVma+NuIQ==
   /mem/4.3.0:
     dependencies:
       map-age-cleaner: 0.1.3
@@ -6196,6 +6187,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-qX2bG48pTqYRVmDB37rn/6PT7LcR8T7oAX3bf99u1Tt1nzxYfxkgqDwUwolPlXweM0XzBOBFzSx4kfp7KP1s/w==
+  /mem/5.0.0:
+    dependencies:
+      map-age-cleaner: 0.1.3
+      mimic-fn: 2.1.0
+      p-is-promise: 2.1.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-r0kKFSQy7ywj2AHxsCyRlIQqnqiazZBeOx6ZNVvfJtEEzqVMgvgp83tB30B9pcqfGDXXPHLuVgCXLwNE2Un6lQ==
   /memorystream/0.3.1:
     dev: true
     engines:
@@ -6875,12 +6876,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-P7z7FbiZpEEjs0ttzBi3JDNqLK4=
-  /p-is-promise/1.1.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
   /p-is-promise/2.1.0:
     dev: false
     engines:

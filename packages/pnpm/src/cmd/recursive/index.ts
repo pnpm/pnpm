@@ -4,7 +4,7 @@ import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import isSubdir = require('is-subdir')
-import mem from 'mem'
+import mem = require('mem')
 import fs = require('mz/fs')
 import pFilter = require('p-filter')
 import pLimit from 'p-limit'

@@ -49,7 +49,7 @@
     "@zkochan/npm-package-arg": "1.0.2",
     "common-tags": "1.8.0",
     "dependency-path": "3.0.5",
-    "encode-registry": "1.1.0",
+    "encode-registry": "2.0.0",
     "get-npm-tarball-url": "2.0.1",
     "graceful-fs": "4.1.15",
     "graph-sequencer": "2.0.0",
