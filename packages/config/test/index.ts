@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import getConfigs from '@pnpm/config'
 import fs = require('mz/fs')
 import path = require('path')

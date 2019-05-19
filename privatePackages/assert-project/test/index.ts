@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import test = require('tape')
 import assertProject from '@pnpm/assert-project'

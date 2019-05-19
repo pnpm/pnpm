@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import outdated, { forPackages as outdatedForPackages } from '@pnpm/outdated'
 import path = require('path')

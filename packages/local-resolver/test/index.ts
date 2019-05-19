@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import resolveFromLocal from '@pnpm/local-resolver'
 import path = require('path')
 import test = require('tape')

@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import createFetcher from '@pnpm/git-fetcher'
 import test = require('tape')
 import tempy = require('tempy')

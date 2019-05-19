@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import findPackages from 'find-packages'
 import path = require('path')
 import test = require('tape')

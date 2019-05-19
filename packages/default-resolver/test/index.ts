@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import createResolver from '@pnpm/default-resolver'
 import test = require('tape')
 

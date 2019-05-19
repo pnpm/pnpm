@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import writeImporterManifest from '@pnpm/write-importer-manifest'
 import fs = require('fs')
 import path = require('path')

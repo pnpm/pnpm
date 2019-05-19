@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import dh, { forPackages as dhForPackages, PackageNode } from 'dependencies-hierarchy'
 import path = require('path')

@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import runLifecycleHook, { runPostinstallHooks } from '@pnpm/lifecycle'
 import loadJsonFile = require('load-json-file')
 import path = require('path')

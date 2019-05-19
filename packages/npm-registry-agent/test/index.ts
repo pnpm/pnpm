@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import proxiquire = require('proxyquire')
 import test = require('tape')
 import getProcessEnv from '../lib/getProcessEnv'

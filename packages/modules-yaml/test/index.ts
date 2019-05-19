@@ -1,4 +1,5 @@
-import { Modules, read, write } from '@pnpm/modules-yaml'
+///<reference path="../../../typings/index.d.ts"/>
+import { read, write } from '@pnpm/modules-yaml'
 import test = require('tape')
 import tempy = require('tempy')
 

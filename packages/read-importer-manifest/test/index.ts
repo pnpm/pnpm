@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import readImporterManifest, { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
 import fs = require('graceful-fs')
 import path = require('path')

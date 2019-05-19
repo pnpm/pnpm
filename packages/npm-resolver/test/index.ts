@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import createResolveFromNpm from '@pnpm/npm-resolver'
 import loadJsonFile = require('load-json-file')
 import nock = require('nock')

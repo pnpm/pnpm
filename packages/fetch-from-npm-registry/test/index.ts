@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import createRegClient from 'fetch-from-npm-registry'
 import nock = require('nock')
 import test = require('tape')

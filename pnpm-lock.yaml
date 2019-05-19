@@ -2396,6 +2396,7 @@ importers:
       tape: 4.10.1
     devDependencies:
       '@pnpm/tsconfig': 'link:../../utils/tsconfig'
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       rimraf: 2.6.3
       ts-node: 8.1.0_typescript@3.4.5
       tslint: 5.16.0_typescript@3.4.5
@@ -2403,6 +2404,7 @@ importers:
     specifiers:
       '@pnpm/assert-store': 'link:'
       '@pnpm/tsconfig': 0.0.0
+      '@pnpm/tslint-config': 0.0.0
       '@types/node': '*'
       '@types/path-exists': 3.0.0
       '@types/tape': 4.2.33

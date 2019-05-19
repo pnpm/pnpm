@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import createFetcher from '@pnpm/default-fetcher'
 import test = require('tape')
 

@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import createResolver from '@pnpm/npm-resolver'
 import createStore, * as packageStore from '@pnpm/package-store'
 import { ResolveFunction } from '@pnpm/resolver-base'

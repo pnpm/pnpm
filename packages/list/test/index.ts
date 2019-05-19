@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts"/>
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import renderTree from '@pnpm/list/lib/renderTree'
 import chalk from 'chalk'
