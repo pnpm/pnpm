@@ -101,9 +101,11 @@ export default async (
 
   const workspaceManifestLocation = cliArgs['global'] // tslint:disable-line
     ? null
-    : await findUp(WORKSPACE_MANIFEST_FILENAME, {
-      cwd: cliArgs['prefix'] || process.cwd(), // tslint:disable-line
-    })
+    : (
+      await findUp(WORKSPACE_MANIFEST_FILENAME, {
+        cwd: cliArgs['prefix'] || process.cwd(), // tslint:disable-line
+      }) || null
+    )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
     'depth': command[command.length - 1] === 'list' ? 0 : Infinity,

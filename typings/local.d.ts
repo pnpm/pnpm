@@ -73,11 +73,6 @@ declare module 'anonymous-npm-registry-client' {
   export = anything;
 }
 
-declare module 'find-up' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'exists-link' {
   const anything: any;
   export = anything;
