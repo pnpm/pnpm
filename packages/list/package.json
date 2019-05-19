@@ -48,13 +48,9 @@
   "devDependencies": {
     "@pnpm/list": "link:",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
     "@types/archy": "0.0.31",
     "@types/common-tags": "1.8.0",
-    "@types/node": "*",
     "@types/ramda": "0.25.39",
-    "@types/tape": "4.2.33",
     "common-tags": "1.8.0",
     "tape": "4.10.1",
     "ts-node": "8.1.0",

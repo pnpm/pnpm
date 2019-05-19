@@ -32,10 +32,6 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages#readme",
   "devDependencies": {
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
-    "@types/node": "12",
-    "@types/tape": "^4.2.29",
     "find-packages": "link:",
     "tape": "^4.6.3",
     "ts-node": "^8.0.1",

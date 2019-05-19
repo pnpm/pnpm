@@ -38,12 +38,8 @@
   "devDependencies": {
     "@pnpm/lockfile-file": "link:",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
     "@types/js-yaml": "3",
-    "@types/node": "*",
     "@types/ramda": "0.25.39",
-    "@types/tape": "4.2.33",
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "tempy": "0.3.0",

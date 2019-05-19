@@ -9,8 +9,6 @@
     "@pnpm/modules-yaml": "3.0.2",
     "@pnpm/types": "3.2.0",
     "@types/mkdirp": "0.5.2",
-    "@types/node": "*",
-    "@types/tape": "4.2.33",
     "@types/write-pkg": "3.1.0",
     "mkdirp": "0.5.1",
     "tape": "4.10.1",
@@ -19,7 +17,6 @@
     "write-yaml-file": "2.0.0"
   },
   "devDependencies": {
-    "@pnpm/tsconfig": "0.0.0",
     "rimraf": "2.6.3",
     "tslint": "5.16.0",
     "tslint-config-standard": "8.0.1",

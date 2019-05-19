@@ -35,10 +35,6 @@
   },
   "devDependencies": {
     "@pnpm/git-fetcher": "link:",
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
-    "@types/node": "*",
-    "@types/tape": "^4.2.31",
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "tempy": "0.3.0",

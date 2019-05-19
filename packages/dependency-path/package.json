@@ -38,10 +38,7 @@
     "semver": "6.0.0"
   },
   "devDependencies": {
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
     "@types/semver": "6.0.0",
-    "@types/tape": "^4.2.30",
     "tape": "4.10.1",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",

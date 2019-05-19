@@ -38,8 +38,6 @@
   "devDependencies": {
     "@pnpm/filter-lockfile": "link:",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "tempy": "0.3.0",
@@ -55,9 +53,7 @@
     "@pnpm/lockfile-utils": "1.0.6",
     "@pnpm/package-is-installable": "2.0.5",
     "@pnpm/types": "3.2.0",
-    "@types/node": "*",
     "@types/ramda": "0.25.39",
-    "@types/tape": "4.2.33",
     "dependency-path": "3.0.5",
     "ramda": "0.26.1"
   }

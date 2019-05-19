@@ -40,11 +40,7 @@
     "write-yaml-file": "2.0.0"
   },
   "devDependencies": {
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
     "@pnpm/write-importer-manifest": "link:",
-    "@types/node": "^10.3.2",
-    "@types/tape": "^4.2.31",
     "tape": "^4.8.0",
     "tempy": "0.3.0",
     "ts-node": "8.1.0",

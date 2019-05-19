@@ -32,11 +32,7 @@
     "@pnpm/npm-registry-agent": "1.0.2"
   },
   "devDependencies": {
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
     "@types/nock": "10.0.3",
-    "@types/node": "*",
-    "@types/tape": "^4.2.31",
     "fetch-from-npm-registry": "link:",
     "nock": "10.0.6",
     "rimraf": "^2.6.2",

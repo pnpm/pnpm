@@ -38,9 +38,6 @@
   "devDependencies": {
     "@pnpm/default-resolver": "link:",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "4.2.33",
     "rimraf": "2.6.3",
     "tape": "4.10.1",
     "ts-node": "8.1.0",

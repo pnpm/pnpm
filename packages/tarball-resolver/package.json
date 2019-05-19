@@ -29,9 +29,6 @@
   },
   "devDependencies": {
     "@pnpm/tarball-resolver": "link:",
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "^4.2.31",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
     "ts-node": "8.1.0",

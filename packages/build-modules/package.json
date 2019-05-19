@@ -43,9 +43,6 @@
   "devDependencies": {
     "@pnpm/build-modules": "link:",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/tsconfig": "0.0.0",
-    "@pnpm/tslint-config": "0.0.0",
-    "@types/node": "*",
     "@types/ramda": "0.26.6",
     "rimraf": "2.6.3",
     "ts-node": "8.1.0",
