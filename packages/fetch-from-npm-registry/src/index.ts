@@ -41,12 +41,7 @@ export default function (
   },
 ) {
   return async (url: string, opts?: {auth?: Auth}) => {
-    const agent = npmRegistryAgent(url, {
-      ...defaultOpts,
-      ...opts,
-    } as any) // tslint:disable-line
     const headers = {
-      'connection': agent ? 'keep-alive' : 'close',
       'user-agent': USER_AGENT,
       ...getHeaders({
         auth: opts && opts.auth,
@@ -57,6 +52,11 @@ export default function (
 
     let redirects = 0
     while (true) {
+      const agent = npmRegistryAgent(url, {
+        ...defaultOpts,
+        ...opts,
+      } as any) // tslint:disable-line
+      headers['connection'] = agent ? 'keep-alive' : 'close'
       let response = await fetch(url, {
         agent,
         // if verifying integrity, node-fetch must not decompress
@@ -70,9 +70,6 @@ export default function (
       }
 
       // This is a workaround to remove authorization headers on redirect.
-      // It is needed until node-fetch fixes this
-      // or supports a way to do it via an option.
-      // node-fetch issue: https://github.com/bitinn/node-fetch/issues/274
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       redirects++
       url = response.headers.get('location')

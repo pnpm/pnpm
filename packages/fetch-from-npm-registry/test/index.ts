@@ -41,3 +41,13 @@ test('authorization headers are removed before redirection', async (t) => {
   t.ok(nock.isDone())
   t.end()
 })
+
+test('switch to the correct agent for requests on redirect from http: to https:', async (t) => {
+  const fetchFromNpmRegistry = createRegClient({ fullMetadata: true })
+
+  // We can test this on any endpoint that redirects from http: to https:
+  const { status } = await fetchFromNpmRegistry('http://pnpm.js.org/css/main.css')
+
+  t.equal(status, 200)
+  t.end()
+})
