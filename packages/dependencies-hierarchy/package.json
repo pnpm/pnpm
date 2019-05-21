@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "5.0.6",
+  "version": "5.0.7",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -41,7 +41,7 @@
     "@pnpm/read-modules-dir": "2.0.1",
     "@pnpm/types": "3.2.0",
     "@pnpm/utils": "0.10.5",
-    "dependency-path": "3.0.5",
+    "dependency-path": "3.0.6",
     "normalize-path": "3.0.0",
     "resolve-link-target": "1.0.1",
     "semver": "6.0.0"
