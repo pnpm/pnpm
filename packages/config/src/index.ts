@@ -4,6 +4,7 @@ import camelcase from 'camelcase'
 import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
+import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 import { PnpmConfigs } from './PnpmConfigs'
 
@@ -151,9 +152,11 @@ export default async (
     ...getScopeRegistries(pnpmConfig.rawNpmConfig),
   }
   const npmGlobalPrefix: string = pnpmConfig.rawNpmConfig['pnpm-prefix'] ||
-    (process.platform === 'win32' && process.env.APPDATA
-      ? path.join(process.env.APPDATA, 'npm')
-      : npmConfig.globalPrefix)
+    (
+      process.platform !== 'win32'
+        ? npmConfig.globalPrefix
+        : findBestGlobalPrefixOnWindows(npmConfig.globalPrefix, process.env)
+    )
   pnpmConfig.globalBin = process.platform === 'win32'
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
