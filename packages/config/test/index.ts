@@ -5,6 +5,8 @@ import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
 
+import './findBestGlobalPrefixOnWindows'
+
 delete process.env['npm_config_depth']
 
 test('getConfigs()', async (t) => {
