@@ -161,7 +161,7 @@ async function readPackageYaml (filePath: string) {
 function createManifestWriter (
   opts: {
     initialManifest: ImporterManifest,
-    indent?: string | number | null | undefined,
+    indent?: string | number | undefined,
     manifestPath: string,
   },
 ): (WriteImporterManifest) {

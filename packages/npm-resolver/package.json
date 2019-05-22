@@ -45,7 +45,7 @@
     "semver": "6.0.0",
     "ssri": "6.0.1",
     "version-selector-type": "2.0.1",
-    "write-json-file": "3.2.0"
+    "write-json-file": "4.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.1",

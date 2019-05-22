@@ -18,7 +18,7 @@ import symlink from 'symlink-dir'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
-import writeJsonFile from 'write-json-file'
+import writeJsonFile = require('write-json-file')
 import {
   pathToLocalPkg,
   testDefaults,

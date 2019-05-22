@@ -4,7 +4,7 @@ import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile from 'write-json-file'
+import writeJsonFile = require('write-json-file')
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)

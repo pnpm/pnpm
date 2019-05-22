@@ -38,7 +38,7 @@
     "ramda": "0.26.1",
     "rename-overwrite": "2.0.1",
     "rimraf-then": "1.0.1",
-    "write-json-file": "3.2.0"
+    "write-json-file": "4.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

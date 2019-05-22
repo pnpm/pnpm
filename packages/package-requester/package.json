@@ -50,7 +50,7 @@
     "rename-overwrite": "2.0.1",
     "rimraf-then": "1.0.1",
     "symlink-dir": "3.0.3",
-    "write-json-file": "3.2.0"
+    "write-json-file": "4.0.0"
   },
   "devDependencies": {
     "@pnpm/local-resolver": "file:../local-resolver",

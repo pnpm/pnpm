@@ -1,7 +1,7 @@
 import { StoreIndex } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
-import writeJsonFile, { sync as writeJsonFileSync } from 'write-json-file'
+import writeJsonFile = require('write-json-file')
 
 const STORE_JSON = 'store.json'
 
@@ -24,5 +24,5 @@ export function save (storePath: string, store: StoreIndex) {
 
 export function saveSync (storePath: string, store: StoreIndex) {
   const storeJsonPath = path.join(storePath, STORE_JSON)
-  return writeJsonFileSync(storeJsonPath, store)
+  return writeJsonFile.sync(storeJsonPath, store)
 }

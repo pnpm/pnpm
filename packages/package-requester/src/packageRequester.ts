@@ -35,7 +35,7 @@ import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
-import writeJsonFile from 'write-json-file'
+import writeJsonFile = require('write-json-file')
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 
@@ -464,10 +464,10 @@ function fetchToStore (
             Object.assign(acc, info)
             return acc
           }, {})
-        await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: null })
+        await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: undefined })
       } else {
         // TODO: save only filename: {size}
-        await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, { indent: null })
+        await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, { indent: undefined })
       }
       finishing.resolve(undefined)
 

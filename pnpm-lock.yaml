@@ -875,7 +875,7 @@ importers:
       semver: 6.0.0
       ssri: 6.0.1
       version-selector-type: 2.0.1
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:'
@@ -921,7 +921,7 @@ importers:
       tslint: 5.16.0
       typescript: 3.4.5
       version-selector-type: 2.0.1
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
   packages/outdated:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1003,7 +1003,7 @@ importers:
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
       symlink-dir: 3.0.3
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
     devDependencies:
       '@pnpm/local-resolver': 'link:../local-resolver'
       '@pnpm/logger': 2.1.0
@@ -1063,7 +1063,7 @@ importers:
       ts-node: 8.1.0
       tslint: 5.16.0
       typescript: 3.4.5
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
   packages/package-store:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1085,7 +1085,7 @@ importers:
       ramda: 0.26.1
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -1131,7 +1131,7 @@ importers:
       ts-node: 8.1.0
       tslint: 5.16.0
       typescript: 3.4.5
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
   packages/pkgs-graph:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
@@ -1226,7 +1226,7 @@ importers:
       tree-kill: 1.2.1
       update-notifier: 3.0.0
       version-selector-type: 2.0.1
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
@@ -1369,7 +1369,7 @@ importers:
       typescript: 3.4.5
       update-notifier: 3.0.0
       version-selector-type: 2.0.1
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
       write-pkg: 4.0.0
       write-yaml-file: 2.0.0
   packages/prune-lockfile:
@@ -1751,7 +1751,7 @@ importers:
       ts-node: 8.1.0_typescript@3.4.5
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
       write-yaml-file: 2.0.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1848,7 +1848,7 @@ importers:
       typescript: 3.4.5
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
       write-yaml-file: 2.0.0
   packages/symlink-dependency:
     dependencies:
@@ -1989,7 +1989,7 @@ importers:
     dependencies:
       '@pnpm/types': 'link:../types'
       sort-keys: 3.0.0
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
       write-json5-file: 2.0.0
       write-yaml-file: 2.0.0
     devDependencies:
@@ -2008,7 +2008,7 @@ importers:
       ts-node: 8.1.0
       tslint: ^5.8.0
       typescript: 3.4.5
-      write-json-file: 3.2.0
+      write-json-file: 4.0.0
       write-json5-file: 2.0.0
       write-yaml-file: 2.0.0
   privatePackages/assert-project:
@@ -3174,14 +3174,14 @@ packages:
   /babel-polyfill/6.26.0:
     dependencies:
       babel-runtime: 6.26.0
-      core-js: 2.6.6
+      core-js: 2.6.8
       regenerator-runtime: 0.10.5
     dev: true
     resolution:
       integrity: sha1-N5k3q8Z9eJWXCtxiHyhM2WbPIVM=
   /babel-runtime/6.26.0:
     dependencies:
-      core-js: 2.6.6
+      core-js: 2.6.8
       regenerator-runtime: 0.11.1
     dev: true
     resolution:
@@ -3835,10 +3835,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-Z29us8OZl8LuGsOpJP1hJHSPV40=
-  /core-js/2.6.6:
+  /core-js/2.6.8:
     dev: true
     resolution:
-      integrity: sha512-Mt/LaAym54NXnrjEMdo918cT2h70tqb/Yl7T3uPHQHRm5SxVoqlKmerUy4mL11k8saSBDWQ7ULIHxmeFyT3pfg==
+      integrity: sha512-RWlREFU74TEkdXzyl1bka66O3kYp8jeTXrvJZDzVVMH8AiHUSOFpL1yfhQJ+wHocAm1m+4971W1PPzfLuCv1vg==
   /core-util-is/1.0.2:
     resolution:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
@@ -4198,7 +4198,6 @@ packages:
     resolution:
       integrity: sha1-OHHMCmoALow+Wzz38zYmRnXwa50=
   /detect-indent/6.0.0:
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -4701,7 +4700,6 @@ packages:
   /find-up/4.0.0:
     dependencies:
       locate-path: 5.0.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -5059,7 +5057,7 @@ packages:
       node: '>=0.4.7'
     hasBin: true
     optionalDependencies:
-      uglify-js: 3.5.13
+      uglify-js: 3.5.15
     resolution:
       integrity: sha512-nvfrjqvt9xQ8Z/w0ijewdD/vvWDTOweBUm96NTr66Wfvo1mJenBLwcYmPs3TIBP5ruzYGD7Hx/DaM9RmhroGPw==
   /har-schema/2.0.0:
@@ -5255,7 +5253,7 @@ packages:
       find-up: 3.0.0
       get-stdin: 7.0.0
       is-ci: 2.0.0
-      pkg-dir: 4.1.0
+      pkg-dir: 4.2.0
       please-upgrade-node: 3.1.1
       read-pkg: 5.1.1
       run-node: 1.0.0
@@ -5590,7 +5588,6 @@ packages:
     resolution:
       integrity: sha1-caUMhCnfync8kqOQpKA7OfzVHT4=
   /is-plain-obj/2.0.0:
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -5972,7 +5969,6 @@ packages:
   /locate-path/5.0.0:
     dependencies:
       p-locate: 4.1.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -6933,7 +6929,6 @@ packages:
   /p-locate/4.1.0:
     dependencies:
       p-limit: 2.2.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -7157,14 +7152,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pkg-dir/4.1.0:
+  /pkg-dir/4.2.0:
     dependencies:
-      find-up: 3.0.0
+      find-up: 4.0.0
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-55k9QN4saZ8q518lE6EFgYiu95u3BWkSajCifhdQjvLvmr8IpnRbhI+UGpWJQfa0KzDguHeeWT1ccO1PmkOi3A==
+      integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==
   /pkginfo/0.4.1:
     dev: true
     engines:
@@ -8076,7 +8071,6 @@ packages:
   /sort-keys/3.0.0:
     dependencies:
       is-plain-obj: 2.0.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -8762,7 +8756,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
-  /uglify-js/3.5.13:
+  /uglify-js/3.5.15:
     dependencies:
       commander: 2.20.0
       source-map: 0.6.1
@@ -8772,7 +8766,7 @@ packages:
     hasBin: true
     optional: true
     resolution:
-      integrity: sha512-Lho+IJlquX6sdJgyKSJx/M9y4XbDd3ekPjD8S6HYmT5yVSwDtlSuca2w5hV4g2dIsp0Y/4orbfWxKexodmFv7w==
+      integrity: sha512-fe7aYFotptIddkwcm6YuA0HmknBZ52ZzOsUxZEdhhkSsz7RfjHDX2QDxwKTiv4JQ5t5NhfmpgAK+J7LiDhKSqg==
   /uid-number/0.0.6:
     dev: false
     resolution:
@@ -9144,6 +9138,17 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-3xZqT7Byc2uORAatYiP3DHUUAVEkNOswEWNs9H5KXiicRTvzYzYqKjYc4G7p+8pltvAw641lVByKVtMpf+4sYQ==
+  /write-json-file/4.0.0:
+    dependencies:
+      detect-indent: 6.0.0
+      graceful-fs: 4.1.15
+      make-dir: 3.0.0
+      sort-keys: 3.0.0
+      write-file-atomic: 2.4.2
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-ak8Ww3Me8G9jD1XcFyXV4HTX0HGISBrJu09JYx/v+WINBOdJAge7wVH1BGhOnJxaFM1ufUevjlrrgiZz8Vwj7w==
   /write-json5-file/2.0.0:
     dependencies:
       graceful-fs: 4.1.15

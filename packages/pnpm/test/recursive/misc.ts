@@ -7,7 +7,7 @@ import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile from 'write-json-file'
+import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,

@@ -12,7 +12,7 @@ const YAML_FORMAT = {
 export default function writeImporterManifest (
   filePath: string,
   manifest: ImporterManifest,
-  opts?: { indent?: string | number | null },
+  opts?: { indent?: string | number | undefined },
 ): Promise<void> {
   manifest = normalize(manifest)
   switch (filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()) {

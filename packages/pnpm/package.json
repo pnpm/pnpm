@@ -87,7 +87,7 @@
     "tree-kill": "1.2.1",
     "update-notifier": "3.0.0",
     "version-selector-type": "2.0.1",
-    "write-json-file": "3.2.0"
+    "write-json-file": "4.0.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",

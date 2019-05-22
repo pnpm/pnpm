@@ -5,7 +5,7 @@ import loadJsonFile = require('load-json-file')
 import pLimit, { Limit } from 'p-limit'
 import path = require('path')
 import url = require('url')
-import writeJsonFile from 'write-json-file'
+import writeJsonFile = require('write-json-file')
 import { RegistryPackageSpec } from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
