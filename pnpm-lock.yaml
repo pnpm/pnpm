@@ -167,7 +167,7 @@ importers:
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
-      '@pnpm/config': 3.3.3
+      '@pnpm/config': 3.3.4
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
@@ -1268,11 +1268,11 @@ importers:
       write-yaml-file: 2.0.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 3.3.3
+      '@pnpm/config': 3.3.4
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.2
       '@pnpm/default-fetcher': 3.1.10
-      '@pnpm/default-reporter': 3.2.3
+      '@pnpm/default-reporter': 3.2.4
       '@pnpm/default-resolver': 3.0.12
       '@pnpm/lifecycle': 6.1.1
       '@pnpm/list': 1.0.9
