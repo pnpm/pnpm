@@ -682,7 +682,7 @@ importers:
       ramda: 0.26.1
       read-yaml-file: 1.1.0
       rimraf-then: 1.0.1
-      write-file-atomic: 2.4.3
+      write-file-atomic: 3.0.0
     devDependencies:
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/logger': 2.1.0
@@ -716,7 +716,7 @@ importers:
       ts-node: 8.1.0
       tslint: 5.16.0
       typescript: 3.4.5
-      write-file-atomic: 2.4.3
+      write-file-atomic: 3.0.0
       write-yaml-file: 2.0.0
       yaml-tag: 1.1.0
   packages/lockfile-types:
@@ -8740,6 +8740,12 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==
+  /typedarray-to-buffer/3.1.5:
+    dependencies:
+      is-typedarray: 1.0.0
+    dev: false
+    resolution:
+      integrity: sha512-zdu8XMNEDepKKR+XYOXAVPtWui0ly0NtohUscw+UmaHiAWT8hrV1rr//H6V+0DvJ3OQ19S979M0laLfX8rm82Q==
   /typedarray/0.0.6:
     dev: true
     resolution:
@@ -9130,6 +9136,15 @@ packages:
       signal-exit: 3.0.2
     resolution:
       integrity: sha512-GaETH5wwsX+GcnzhPgKcKjJ6M2Cq3/iZp1WyY/X1CSqrW+jVNM9Y7D8EC2sM4ZG/V8wZlSniJnCKWPmBYAucRQ==
+  /write-file-atomic/3.0.0:
+    dependencies:
+      imurmurhash: 0.1.4
+      is-typedarray: 1.0.0
+      signal-exit: 3.0.2
+      typedarray-to-buffer: 3.1.5
+    dev: false
+    resolution:
+      integrity: sha512-EIgkf60l2oWsffja2Sf2AL384dx328c0B+cIYPTQq5q2rOYuDV00/iPFBOUiDKKwKMOhkymH8AidPaRvzfxY+Q==
   /write-json-file/3.2.0:
     dependencies:
       detect-indent: 5.0.0

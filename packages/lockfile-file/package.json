@@ -59,6 +59,6 @@
     "ramda": "0.26.1",
     "read-yaml-file": "1.1.0",
     "rimraf-then": "1.0.1",
-    "write-file-atomic": "2.4.3"
+    "write-file-atomic": "3.0.0"
   }
 }
