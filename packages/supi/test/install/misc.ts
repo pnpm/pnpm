@@ -750,7 +750,7 @@ test('self-require should work', async (t) => {
   t.ok(project.requireModule('uses-pkg-with-self-usage'))
 })
 
-test('install on project with lockfile and no node_modules', async (t: tape.Test) => {
+test['skip']('install on project with lockfile and no node_modules', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['is-negative'], await testDefaults())

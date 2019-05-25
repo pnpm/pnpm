@@ -276,7 +276,6 @@ export async function mutateModules (
             nonLinkedPackages: [],
             removePackages: importer.dependencyNames,
             updatePackageJson: true,
-            usesExternalLockfile: ctx.lockfileDirectory !== importer.prefix,
             wantedDeps: [],
           })
           break
@@ -304,7 +303,6 @@ export async function mutateModules (
             newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
             nonLinkedPackages: wantedDeps,
             updatePackageJson: true,
-            usesExternalLockfile: ctx.lockfileDirectory !== importer.prefix,
             wantedDeps,
           })
           break
@@ -396,7 +394,6 @@ export async function mutateModules (
         }),
         newPkgRawSpecs: [],
         updatePackageJson: false,
-        usesExternalLockfile: ctx.lockfileDirectory !== importer.prefix,
         wantedDeps,
       })
     }
@@ -598,7 +595,6 @@ type ImporterToUpdate = {
   removePackages?: string[],
   shamefullyFlatten: boolean,
   updatePackageJson: boolean,
-  usesExternalLockfile: boolean,
   wantedDeps: WantedDependency[],
 } & DependenciesMutation
 
@@ -791,7 +787,6 @@ async function installInContext (
       removePackages: importer.removePackages,
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
-      usesExternalLockfile: importer.usesExternalLockfile,
     }
   }))
 

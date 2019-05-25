@@ -78,7 +78,7 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
   t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is removed')
 })
 
-test('peer dependency is not grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
+test('peer dependency is grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -89,7 +89,7 @@ test('peer dependency is not grouped with dependent when the peer is a top depen
     message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
   }), 'no warning is logged about unresolved peer dep')
 
-  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv-keywords')), 'dependent is grouped with top peer dep')
 })
 
 test('warning is reported when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {
@@ -194,15 +194,15 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
   t.equal(err.message, 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.')
 })
 
-test('top peer dependency is not linked on subsequent install', async (t: tape.Test) => {
+test('top peer dependency is linked on subsequent install', async (t: tape.Test) => {
   prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4'], await testDefaults())
 
   await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults())
 
-  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
-  t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency is not linked')
+  t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependency without peer is prunned')
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
 })
 
 async function okFile (t: tape.Test, filename: string) {
@@ -227,10 +227,11 @@ test('peer dependencies are linked when running one named installation', async (
   await okFile(t, path.join(pkgVariation1, 'peer-c'))
   await okFile(t, path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_peer-a@1.0.0+peer-b@1.0.0', NM)
+  const pkgVariation2 = path.join(pkgVariationsDir + '_f101cfec1621b915239e5c82246da43c', NM)
   await okFile(t, path.join(pkgVariation2, 'abc'))
   await okFile(t, path.join(pkgVariation2, 'peer-a'))
   await okFile(t, path.join(pkgVariation2, 'peer-b'))
+  await okFile(t, path.join(pkgVariation2, 'peer-c'))
   await okFile(t, path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
 
   t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
@@ -258,7 +259,7 @@ test('peer dependencies are linked when running two separate named installations
   await okFile(t, path.join(pkgVariation1, 'peer-c'))
   await okFile(t, path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir + '_peer-a@1.0.0+peer-b@1.0.0', NM)
+  const pkgVariation2 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660', NM)
   await okFile(t, path.join(pkgVariation2, 'abc'))
   await okFile(t, path.join(pkgVariation2, 'peer-a'))
   await okFile(t, path.join(pkgVariation2, 'peer-b'))
@@ -333,7 +334,7 @@ test('run pre/postinstall scripts of each variations of packages with peer depen
   await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
   await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 
-  const pkgVariation2 = path.join(NM, '.localhost+4873', 'pkg-with-events-and-peers', '1.0.0', NM)
+  const pkgVariation2 = path.join(NM, '.localhost+4873', 'pkg-with-events-and-peers', '1.0.0_peer-c@2.0.0', NM)
   await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
   await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 })
@@ -365,7 +366,7 @@ test('package that has parent as peer dependency', async (t: tape.Test) => {
   const lockfile = await project.readLockfile()
 
   t.ok(lockfile.packages['/has-alpha-as-peer/1.0.0_alpha@1.0.0'])
-  t.ok(lockfile.packages['/has-alpha-as-peer/1.0.0'])
+  t.notOk(lockfile.packages['/has-alpha-as-peer/1.0.0'])
 })
 
 test('own peer installed in root as well is linked to root', async (t: tape.Test) => {

@@ -688,11 +688,19 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
 test('dev properties are correctly updated on named install', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['inflight@1.0.6'],
+    await testDefaults({ targetDependenciesField: 'devDependencies' }),
+  )
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const lockfile = await project.readLockfile()
-  t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], `there are 0 packages with dev property in ${WANTED_LOCKFILE}`)
+  t.deepEqual(
+    R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined'),
+    [],
+    `there are 0 packages with dev property in ${WANTED_LOCKFILE}`,
+  )
 })
 
 test('optional properties are correctly updated on named install', async (t: tape.Test) => {
