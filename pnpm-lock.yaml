@@ -1990,7 +1990,7 @@ importers:
       '@pnpm/types': 'link:../types'
       sort-keys: 3.0.0
       write-json-file: 4.0.0
-      write-json5-file: 2.0.0
+      write-json5-file: 2.0.1
       write-yaml-file: 2.0.0
     devDependencies:
       '@pnpm/write-importer-manifest': 'link:'
@@ -2009,7 +2009,7 @@ importers:
       tslint: ^5.8.0
       typescript: 3.4.5
       write-json-file: 4.0.0
-      write-json5-file: 2.0.0
+      write-json5-file: 2.0.1
       write-yaml-file: 2.0.0
   privatePackages/assert-project:
     dependencies:
@@ -2080,7 +2080,7 @@ importers:
       '@types/write-pkg': 3.1.0
       mkdirp: 0.5.1
       tape: 4.10.1
-      write-json5-file: 2.0.0
+      write-json5-file: 2.0.1
       write-pkg: 4.0.0
       write-yaml-file: 2.0.0
     devDependencies:
@@ -2102,7 +2102,7 @@ importers:
       tslint-config-standard: 8.0.1
       tslint-eslint-rules: 5.4.0
       typescript: 3.4.5
-      write-json5-file: 2.0.0
+      write-json5-file: 2.0.1
       write-pkg: 4.0.0
       write-yaml-file: 2.0.0
   tools:
@@ -9180,6 +9180,18 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-/HE7Pf9lu94TWA8lAweK57xeNARpclDRNqOFeMfZto8VipnCB8IHnFF72aJocpjFsBRcVOgOe4KcrRyawAQ07A==
+  /write-json5-file/2.0.1:
+    dependencies:
+      graceful-fs: 4.1.15
+      json5: 2.1.0
+      mkdirp: 0.5.1
+      sort-keys: 3.0.0
+      write-file-atomic: 3.0.0
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-pKfqU+egUw3SjwWzWvVjcd0V2duUSJmkOjzC8ttT94LkQZlVQ5fQJil+QzxCoCCLW3m3kr5dM03Pz+8PYl7VTw==
   /write-pkg/4.0.0:
     dependencies:
       sort-keys: 2.0.0
