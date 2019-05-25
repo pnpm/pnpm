@@ -710,6 +710,11 @@ async function resolveDependency (
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev || wantedDependency.dev
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional && wantedDependency.optional
 
+    // we need this for saving to package.json
+    if (options.currentDepth === 0 && !ctx.resolvedPackagesByPackageId[pkgResponse.body.id].specRaw) {
+      ctx.resolvedPackagesByPackageId[pkgResponse.body.id].specRaw = wantedDependency.raw
+    }
+
     ctx.pendingNodes.push({
       alias: wantedDependency.alias || pkg.name,
       depth: options.currentDepth,

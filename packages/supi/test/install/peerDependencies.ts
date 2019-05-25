@@ -727,7 +727,7 @@ test('warning is not reported when cannot resolve optional peer dependency', asy
 
   const lockfile = await project.readLockfile()
 
-  t.deepEqual(lockfile.packages['/abc-optional-peers/1.0.0'].peerDependenciesMeta, {
+  t.deepEqual(lockfile.packages['/abc-optional-peers/1.0.0_peer-c@2.0.0'].peerDependenciesMeta, {
     'peer-b': {
       optional: true,
     },
