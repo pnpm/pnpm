@@ -2,7 +2,7 @@ import { Dependencies, DependencyManifest, PackageJson } from '@pnpm/types'
 import depsFromPackage from './getAllDependenciesFromPackage'
 
 export interface WantedDependency {
-  alias?: string,
+  alias: string,
   pref: string, // package reference
   dev: boolean,
   optional: boolean,

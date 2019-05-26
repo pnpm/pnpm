@@ -127,7 +127,10 @@ export default async function (
             updateDepth: -1,
           },
           getWantedDependencies(importer.manifest)
-            .filter((wantedDep) => newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)),
+            .filter((wantedDep) => {
+              return newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)
+                && importer.nonLinkedPackages.some((nonLinked) => nonLinked.alias === wantedDep.alias)
+            }),
           {
             ...resolveOpts,
           },

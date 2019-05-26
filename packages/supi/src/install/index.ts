@@ -271,9 +271,18 @@ export async function mutateModules (
           importersToInstall.push({
             pruneDirectDependencies: false,
             ...importer,
-            linkedPackages: [],
+            ...await partitionLinkedPackages(
+              getWantedDependencies(importer.manifest).filter((wantedDep) => !importer.dependencyNames.includes(wantedDep.alias)),
+              {
+                localPackages: opts.localPackages,
+                lockfileOnly: opts.lockfileOnly,
+                modulesDir: importer.modulesDir,
+                prefix: importer.prefix,
+                storePath: ctx.storePath,
+                virtualStoreDir: ctx.virtualStoreDir,
+              },
+            ),
             newPkgRawSpecs: [],
-            nonLinkedPackages: [],
             removePackages: importer.dependencyNames,
             updatePackageJson: true,
             wantedDeps: [],
@@ -284,27 +293,7 @@ export async function mutateModules (
           break
         }
         case 'installSome': {
-          const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.manifest)
-          const optionalDependencies = importer.targetDependenciesField ? {} : importer.manifest.optionalDependencies || {}
-          const devDependencies = importer.targetDependenciesField ? {} : importer.manifest.devDependencies || {}
-          const wantedDeps = parseWantedDependencies(importer.dependencySelectors, {
-            allowNew: importer.allowNew !== false,
-            currentPrefs,
-            defaultTag: opts.tag,
-            dev: importer.targetDependenciesField === 'devDependencies',
-            devDependencies,
-            optional: importer.targetDependenciesField === 'optionalDependencies',
-            optionalDependencies,
-          })
-          importersToInstall.push({
-            pruneDirectDependencies: false,
-            ...importer,
-            linkedPackages: [],
-            newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
-            nonLinkedPackages: wantedDeps,
-            updatePackageJson: true,
-            wantedDeps,
-          })
+          await installSome(importer)
           break
         }
         case 'unlink': {
@@ -352,7 +341,7 @@ export async function mutateModules (
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
-          await installCase({ ...importer, mutation: 'install' })
+          await installSome({ ...importer, mutation: 'installSome', dependencySelectors: packagesToInstall }, false)
           break
         }
       }
@@ -394,6 +383,44 @@ export async function mutateModules (
         }),
         newPkgRawSpecs: [],
         updatePackageJson: false,
+        wantedDeps,
+      })
+    }
+
+    async function installSome (importer: any, updatePackageJson: boolean = true) { // tslint:disable-line:no-any
+      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.manifest)
+      const optionalDependencies = importer.targetDependenciesField ? {} : importer.manifest.optionalDependencies || {}
+      const devDependencies = importer.targetDependenciesField ? {} : importer.manifest.devDependencies || {}
+      const wantedDeps = parseWantedDependencies(importer.dependencySelectors, {
+        allowNew: importer.allowNew !== false,
+        currentPrefs,
+        defaultTag: opts.tag,
+        dev: importer.targetDependenciesField === 'devDependencies',
+        devDependencies,
+        optional: importer.targetDependenciesField === 'optionalDependencies',
+        optionalDependencies,
+      })
+      const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(
+        getWantedDependencies(importer.manifest),
+        {
+          localPackages: opts.localPackages,
+          lockfileOnly: opts.lockfileOnly,
+          modulesDir: importer.modulesDir,
+          prefix: importer.prefix,
+          storePath: ctx.storePath,
+          virtualStoreDir: ctx.virtualStoreDir,
+        },
+      )
+      importersToInstall.push({
+        pruneDirectDependencies: false,
+        ...importer,
+        linkedPackages: linkedPackages.filter((linkedPackage) => wantedDeps.every((wantedDep) => wantedDep.alias !== linkedPackage.alias)),
+        newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
+        nonLinkedPackages: [
+          ...wantedDeps,
+          ...nonLinkedPackages.filter((nonLinkedPackage) => !wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedPackage.alias)),
+        ],
+        updatePackageJson,
         wantedDeps,
       })
     }
