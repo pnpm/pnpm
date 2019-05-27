@@ -21,15 +21,21 @@ test('resolveFromGit() with commit', async (t) => {
 })
 
 test('resolveFromGit() with no commit', async (t) => {
-  const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' })
-  t.deepEqual(resolveResult, {
-    id: 'github.com/zkochan/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c',
-    normalizedPref: 'github:zkochan/is-negative',
-    resolution: {
-      tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
-    },
-    resolvedVia: 'git-repository',
-  })
+  // This is repeated twice because there was a bug which caused the normalizedPref
+  // to contain the commit hash on second call.
+  // The issue occured because .hosted field (which is class from the 'hosted-git-info' package)
+  // was mutated. A 'committish' field was added to it.
+  for (let i = 0; i < 2; i++) {
+    const resolveResult = await resolveFromGit({ pref: 'zkochan/is-negative' })
+    t.deepEqual(resolveResult, {
+      id: 'github.com/zkochan/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c',
+      normalizedPref: 'github:zkochan/is-negative',
+      resolution: {
+        tarball: 'https://codeload.github.com/zkochan/is-negative/tar.gz/1d7e288222b53a0cab90a331f1865220ec29560c',
+      },
+      resolvedVia: 'git-repository',
+    })
+  }
   t.end()
 })
 

@@ -106,7 +106,11 @@ async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // tsli
 
   return {
     fetchSpec: fetchSpec!,
-    hosted,
+    hosted: {
+      ...hosted,
+      _fill: hosted._fill,
+      tarball: hosted.tarball,
+    },
     normalizedPref: hosted.shortcut(),
     ...setGitCommittish(hosted.committish),
   }
