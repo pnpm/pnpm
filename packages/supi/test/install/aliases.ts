@@ -100,3 +100,13 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
     },
   }, `correct ${WANTED_LOCKFILE}`)
 })
+
+test('installing the same package via an alias and directly', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults())
+
+  t.deepEqual(manifest.dependencies, { negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
+
+  t.ok(typeof project.requireModule('negative') === 'function', 'negative() is available')
+  t.ok(typeof project.requireModule('is-negative') === 'function', 'isNegative() is available')
+})
