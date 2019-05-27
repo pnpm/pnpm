@@ -37,11 +37,11 @@ export default function parsePref (
     }
   }
   if (pref.startsWith(registry)) {
-    const parsed = parseNpmTarballUrl(pref)
-    if (parsed) {
+    const pkg = parseNpmTarballUrl(pref)
+    if (pkg) {
       return {
-        fetchSpec: parsed.pkg.version,
-        name: parsed.pkg.name,
+        fetchSpec: pkg.version,
+        name: pkg.name,
         normalizedPref: pref,
         type: 'version',
       }
