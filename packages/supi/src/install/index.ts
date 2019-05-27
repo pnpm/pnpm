@@ -720,7 +720,7 @@ async function installInContext (
       if (!importer.manifest) {
         throw new Error('Cannot save because no package.json found')
       }
-      const specsToUsert = <any>resolvedImporter.directDependencies // tslint:disable-line
+      const specsToUpsert = <any>resolvedImporter.directDependencies // tslint:disable-line
         .filter((dep) => importer.newPkgRawSpecs.includes(dep.specRaw))
         .map((dep) => {
           return {
@@ -734,8 +734,8 @@ async function installInContext (
           }
         })
       for (const pkgToInstall of importer.wantedDeps) {
-        if (pkgToInstall.alias && !specsToUsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
-          specsToUsert.push({
+        if (pkgToInstall.alias && !specsToUpsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
+          specsToUpsert.push({
             name: pkgToInstall.alias,
             peer: importer.peer,
             saveType: importer.targetDependenciesField,
@@ -745,7 +745,7 @@ async function installInContext (
       newPkg = await save(
         importer.prefix,
         importer.manifest,
-        specsToUsert,
+        specsToUpsert,
         { dryRun: true },
       )
     } else {
