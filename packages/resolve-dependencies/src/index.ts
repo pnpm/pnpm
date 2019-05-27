@@ -181,6 +181,7 @@ export default async function (
             ...ctx.dependenciesTree[dependency.nodeId].resolvedPackage,
             alias: dependency.alias,
             normalizedPref: dependency.normalizedPref,
+            specRaw: dependency.specRaw,
           })) as Array<{
             alias: string,
             optional: boolean,

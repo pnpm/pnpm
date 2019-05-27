@@ -157,6 +157,7 @@ export interface PkgAddress {
   pkg: PackageManifest,
   updated: boolean,
   useManifestInfoFromLockfile: boolean,
+  specRaw: string,
 }
 
 export interface ResolvedPackage {
@@ -169,7 +170,6 @@ export interface ResolvedPackage {
   fetchingRawManifest?: Promise<PackageManifest>,
   finishing: Promise<void>,
   path: string,
-  specRaw: string,
   name: string,
   version: string,
   peerDependencies: Dependencies,
@@ -710,11 +710,6 @@ async function resolveDependency (
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev || wantedDependency.dev
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional && wantedDependency.optional
 
-    // we need this for saving to package.json
-    if (options.currentDepth === 0) {
-      ctx.resolvedPackagesByPackageId[pkgResponse.body.id].specRaw = wantedDependency.raw
-    }
-
     ctx.pendingNodes.push({
       alias: wantedDependency.alias || pkg.name,
       depth: options.currentDepth,
@@ -730,6 +725,7 @@ async function resolveDependency (
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
+    specRaw: wantedDependency.raw, // we need this for saving to package.json
 
     // Next fields are actually only needed when isNew = true
     installable,
@@ -783,7 +779,6 @@ function getResolvedPackage (
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),
     resolution: options.pkgResponse.body.resolution,
-    specRaw: options.wantedDependency.raw,
     version: options.pkg.version,
   }
 }
