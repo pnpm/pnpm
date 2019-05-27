@@ -25,7 +25,7 @@ test('save to package.json (rimraf@2.5.1)', async (t) => {
 })
 
 // NOTE: this works differently for global installations. See similar tests in global.ts
-test['skip']("don't override existing spec in package.json on named installation", async (t: tape.Test) => {
+test("don't override existing spec in package.json on named installation", async (t: tape.Test) => {
   const project = prepareEmpty(t)
   let manifest = await addDependenciesToPackage({
     dependencies: {
