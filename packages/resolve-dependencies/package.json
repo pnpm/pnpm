@@ -43,7 +43,7 @@
     "path-exists": "4.0.0",
     "ramda": "0.26.1",
     "replace-string": "3.0.0",
-    "semver": "6.0.0",
+    "semver": "6.1.1",
     "version-selector-type": "2.0.1"
   },
   "devDependencies": {
