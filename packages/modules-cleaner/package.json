@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "3.0.9",
+  "version": "3.0.10",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -32,13 +32,13 @@
   "dependencies": {
     "@pnpm/core-loggers": "3.0.2",
     "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/lockfile-utils": "1.0.7",
+    "@pnpm/lockfile-utils": "1.0.8",
     "@pnpm/package-bins": "3.1.0",
     "@pnpm/read-modules-dir": "2.0.1",
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",
     "@pnpm/utils": "0.10.5",
-    "dependency-path": "3.0.6",
+    "dependency-path": "3.0.7",
     "fs-vacuum": "1.2.10",
     "ramda": "0.26.1",
     "rimraf-then": "1.0.1"
