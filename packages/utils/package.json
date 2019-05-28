@@ -19,7 +19,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/utils": "link:",
     "@types/mz": "0.0.32",
     "rimraf": "2.6.3",

@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@pnpm/default-reporter": "link:",
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@types/common-tags": "1.8.0",
     "@types/ramda": "0.25.34",
     "@types/semver": "6.0.0",

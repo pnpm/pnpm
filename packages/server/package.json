@@ -31,7 +31,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/npm-resolver": "file:../npm-resolver",
     "@pnpm/package-requester": "file:../package-requester",
     "@pnpm/package-store": "file:../package-store",

@@ -46,7 +46,7 @@
     "unpack-stream": "5.0.1"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/tarball-fetcher": "link:",
     "@types/graceful-fs": "^4.1.2",
     "@types/mz": "^0.0.32",

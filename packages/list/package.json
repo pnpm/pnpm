@@ -47,7 +47,7 @@
   },
   "devDependencies": {
     "@pnpm/list": "link:",
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@types/archy": "0.0.31",
     "@types/common-tags": "1.8.0",
     "@types/ramda": "0.25.39",

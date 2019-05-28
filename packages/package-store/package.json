@@ -41,7 +41,7 @@
     "write-json-file": "4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/npm-resolver": "file:../npm-resolver",
     "@pnpm/package-store": "link:",
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",

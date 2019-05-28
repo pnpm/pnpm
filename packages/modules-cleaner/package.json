@@ -44,7 +44,7 @@
     "rimraf-then": "1.0.1"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/modules-cleaner": "link:",
     "@types/ramda": "0.25.38",
     "rimraf": "2.6.3",

@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-file": "link:",
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@types/js-yaml": "3",
     "@types/ramda": "0.25.39",
     "rimraf": "2.6.3",

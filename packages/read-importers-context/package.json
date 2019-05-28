@@ -36,7 +36,7 @@
     "@pnpm/utils": "0.10.5"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "rimraf": "2.6.3",
     "tslint": "5.16.0",
     "typescript": "3.4.5"

@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@pnpm/constants": "1.0.1",
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@types/semver": "6.0.0",
     "dependencies-hierarchy": "link:",
     "tape": "4.10.1",

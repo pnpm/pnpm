@@ -47,7 +47,7 @@
     "version-selector-type": "2.0.1"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/resolve-dependencies": "link:",
     "@types/ramda": "0.25.38",
     "@types/semver": "6.0.0",

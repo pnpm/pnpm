@@ -54,7 +54,7 @@
   },
   "devDependencies": {
     "@pnpm/local-resolver": "file:../local-resolver",
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/npm-resolver": "file:../npm-resolver",
     "@pnpm/package-requester": "link:",
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",

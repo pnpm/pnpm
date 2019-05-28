@@ -23,7 +23,7 @@
     "@pnpm/default-fetcher": "file:../default-fetcher",
     "@pnpm/default-resolver": "file:../default-resolver",
     "@pnpm/headless": "link:",
-    "@pnpm/logger": "2.1.0",
+    "@pnpm/logger": "2.1.1",
     "@pnpm/package-store": "file:../package-store",
     "@pnpm/read-importers-context": "file:../read-importers-context",
     "@pnpm/store-path": "2.0.0",
