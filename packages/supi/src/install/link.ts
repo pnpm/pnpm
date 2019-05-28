@@ -51,7 +51,6 @@ export interface Importer {
   removePackages?: string[],
   shamefullyFlatten: boolean,
   topParents: Array<{name: string, version: string}>,
-  usesExternalLockfile: boolean,
 }
 
 export default async function linkPackages (
@@ -98,12 +97,7 @@ export default async function linkPackages (
     virtualStoreDir: opts.virtualStoreDir,
   })
   for (const importer of importers) {
-    if (!importer.usesExternalLockfile) continue
-
-    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
-    for (const alias of R.keys(directAbsolutePathsByAlias)) {
-      const depPath = directAbsolutePathsByAlias[alias]
-
+    for (const [alias, depPath] of R.toPairs(importersDirectAbsolutePathsByAlias[importer.id])) {
       const depNode = depGraph[depPath]
       if (depNode.isPure) continue
 
