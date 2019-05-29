@@ -1,7 +1,7 @@
 import assertProject from '@pnpm/assert-project'
 import { Modules } from '@pnpm/modules-yaml'
 import { ImporterManifest } from '@pnpm/types'
-import mkdirp = require('mkdirp')
+import makeDir = require('make-dir')
 import path = require('path')
 import { Test } from 'tape'
 import writePkg = require('write-pkg')
@@ -10,7 +10,7 @@ import { sync as writeJson5File } from 'write-json5-file'
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
 const tmpPath = path.join(__dirname, '..', '..', '..', '..', '.tmp')
-mkdirp.sync(tmpPath)
+makeDir.sync(tmpPath)
 
 let dirNumber = 0
 
@@ -18,7 +18,7 @@ export function tempDir (t: Test) {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
-  mkdirp.sync(tmpDir)
+  makeDir.sync(tmpDir)
 
   t.pass(`create testing dir ${dirname}`)
 
@@ -82,7 +82,7 @@ export default function prepare (
 ) {
   const dir = opts && opts.tempDir || path.join(tempDir(test), 'project')
 
-  mkdirp.sync(dir)
+  makeDir.sync(dir)
   switch (opts && opts.manifestFormat || 'JSON') {
     case 'JSON':
       writePkg.sync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
@@ -102,7 +102,7 @@ export default function prepare (
 export function prepareEmpty (t: Test) {
   const pkgTmpPath = path.join(tempDir(t), 'project')
 
-  mkdirp.sync(pkgTmpPath)
+  makeDir.sync(pkgTmpPath)
   process.chdir(pkgTmpPath)
 
   return assertProject(t, pkgTmpPath)

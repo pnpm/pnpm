@@ -32,7 +32,7 @@
     "@pnpm/constants": "1.0.1",
     "@pnpm/core-loggers": "3.0.2",
     "@pnpm/lifecycle": "6.1.1",
-    "@pnpm/link-bins": "4.2.1",
+    "@pnpm/link-bins": "4.3.1",
     "@pnpm/read-package-json": "2.0.2",
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",

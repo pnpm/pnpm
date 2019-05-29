@@ -48,8 +48,8 @@
   "dependencies": {
     "@pnpm/core-loggers": "3.0.2",
     "@pnpm/types": "3.2.0",
-    "mkdirp-promise": "5.0.1",
+    "make-dir": "3.0.0",
     "mz": "2.7.0",
-    "symlink-dir": "3.0.3"
+    "symlink-dir": "3.1.0"
   }
 }

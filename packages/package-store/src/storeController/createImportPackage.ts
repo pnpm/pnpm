@@ -5,7 +5,7 @@ import {
   PackageFilesResponse,
 } from '@pnpm/store-controller-types'
 import child_process = require('child_process')
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import pLimit from 'p-limit'
@@ -80,7 +80,7 @@ async function reflinkPkg (
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
     importingLogger.debug({ from, to, method: 'reflink' })
     const staging = pathTemp(path.dirname(to))
-    await mkdirp(staging)
+    await makeDir(staging)
     await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
     await renameOverwrite(staging, to)
   }
@@ -130,7 +130,7 @@ export async function copyPkg (
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
     importingLogger.debug({ from, to, method: 'copy' })
     const staging = pathTemp(path.dirname(to))
-    await mkdirp(staging)
+    await makeDir(staging)
     await ncp(from + '/.', staging)
     await renameOverwrite(staging, to)
   }

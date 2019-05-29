@@ -42,14 +42,14 @@
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",
     "load-json-file": "6.0.0",
-    "mkdirp-promise": "5.0.1",
+    "make-dir": "3.0.0",
     "mz": "2.7.0",
     "p-limit": "2.2.0",
     "p-queue": "5.0.0",
     "path-exists": "4.0.0",
     "rename-overwrite": "2.0.1",
     "rimraf-then": "1.0.1",
-    "symlink-dir": "3.0.3",
+    "symlink-dir": "3.1.0",
     "write-json-file": "4.0.0"
   },
   "devDependencies": {

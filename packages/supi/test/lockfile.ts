@@ -7,7 +7,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { PackageJson } from '@pnpm/types'
-import mkdir = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import path = require('path')
 import exists = require('path-exists')
 import { getIntegrity } from 'pnpm-registry-mock'
@@ -927,7 +927,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.packages![absDepPath].name, 'github-hosted package has name specified')
   }
 
-  await mkdir('project-2')
+  await makeDir('project-2')
 
   process.chdir('project-2')
 

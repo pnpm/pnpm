@@ -46,7 +46,7 @@
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5",
-    "write-yaml-file": "2.0.0",
+    "write-yaml-file": "3.0.1",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
@@ -54,7 +54,7 @@
     "@pnpm/lockfile-types": "1.1.0",
     "@pnpm/types": "3.2.0",
     "js-yaml": "3.13.1",
-    "mkdirp-promise": "5.0.1",
+    "make-dir": "3.0.0",
     "normalize-path": "3.0.0",
     "ramda": "0.26.1",
     "read-yaml-file": "1.1.0",

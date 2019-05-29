@@ -27,7 +27,7 @@ import {
   StoreIndex,
 } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import * as fs from 'mz/fs'
 import PQueue = require('p-queue')
 import path = require('path')
@@ -481,7 +481,7 @@ function fetchToStore (
       }
 
       const unpacked = path.join(target, 'node_modules', pkgName)
-      await mkdirp(path.dirname(unpacked))
+      await makeDir(path.dirname(unpacked))
 
       // rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end

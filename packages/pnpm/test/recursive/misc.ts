@@ -1,7 +1,7 @@
 import { preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
@@ -472,7 +472,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
     }
   ])
 
-  await mkdirp('node_modules')
+  await makeDir('node_modules')
   process.chdir('packages')
 
   await execPnpm('recursive', 'install')

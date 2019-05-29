@@ -5,7 +5,7 @@ import {
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import yaml = require('js-yaml')
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
@@ -39,7 +39,7 @@ export async function writeCurrentLockfile (
     forceSharedFormat?: boolean,
   },
 ) {
-  await mkdirp(path.join(pkgPath, 'node_modules'))
+  await makeDir(path.join(pkgPath, 'node_modules'))
   return writeLockfile(CURRENT_LOCKFILE, pkgPath, currentLockfile, opts)
 }
 
@@ -136,7 +136,7 @@ export default function writeLockfiles (
     return Promise.all([
       writeFileAtomic(wantedLockfilePath, yamlDoc),
       (async () => {
-        await mkdirp(path.dirname(currentLockfilePath))
+        await makeDir(path.dirname(currentLockfilePath))
         await writeFileAtomic(currentLockfilePath, yamlDoc)
       })(),
     ])
@@ -152,7 +152,7 @@ export default function writeLockfiles (
   return Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
     (async () => {
-      await mkdirp(path.dirname(currentLockfilePath))
+      await makeDir(path.dirname(currentLockfilePath))
       await writeFileAtomic(currentLockfilePath, currentYamlDoc)
     })(),
   ])

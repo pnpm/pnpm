@@ -43,7 +43,7 @@
     "@pnpm/lockfile-file": "1.0.6",
     "@pnpm/npm-resolver": "3.0.11",
     "@pnpm/read-importer-manifest": "1.0.3",
-    "@pnpm/store-path": "2.0.0",
+    "@pnpm/store-path": "2.1.0",
     "@pnpm/types": "3.2.0",
     "@pnpm/utils": "0.10.5",
     "dependency-path": "3.0.7"

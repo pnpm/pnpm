@@ -28,7 +28,7 @@
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",
     "load-json-file": "6.0.0",
-    "mkdirp-promise": "5.0.1",
+    "make-dir": "3.0.0",
     "mz": "2.7.0",
     "ncp": "2.0.0",
     "p-filter": "2.1.0",

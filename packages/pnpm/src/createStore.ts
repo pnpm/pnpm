@@ -4,7 +4,7 @@ import logger from '@pnpm/logger'
 import createStore from '@pnpm/package-store'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import LRU = require('lru-cache')
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import path = require('path')
 
 export default async (
@@ -46,7 +46,7 @@ export default async (
       maxAge: 120 * 1000, // 2 minutes
     }) as any, // tslint:disable-line:no-any
   }))
-  await mkdirp(sopts.store)
+  await makeDir(sopts.store)
   const fsIsCaseSensitive = await dirIsCaseSensitive(sopts.store)
   logger.debug({
     // An undefined field would cause a crash of the logger

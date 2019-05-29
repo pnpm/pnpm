@@ -1,7 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
@@ -90,7 +90,7 @@ test('do not fail on non-compatible store when forced during named installation'
 })
 
 async function saveModulesYaml (pnpmVersion: string, storePath: string) {
-  await mkdirp('node_modules')
+  await makeDir('node_modules')
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storePath}\nindependentLeaves: false`)
 }
 

@@ -36,8 +36,8 @@
     "@pnpm/types": "^3.0.0",
     "sort-keys": "3.0.0",
     "write-json-file": "4.0.0",
-    "write-json5-file": "2.0.0",
-    "write-yaml-file": "2.0.0"
+    "write-json5-file": "2.1.1",
+    "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
     "@pnpm/write-importer-manifest": "link:",

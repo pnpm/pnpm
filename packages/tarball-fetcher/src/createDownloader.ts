@@ -3,7 +3,7 @@ import logger from '@pnpm/logger'
 import createFetcher from 'fetch-from-npm-registry'
 import fs = require('graceful-fs')
 import { IncomingMessage } from 'http'
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import path = require('path')
 import pathTemp = require('path-temp')
 import retry = require('retry')
@@ -96,7 +96,7 @@ export default (
     generatePackageIntegrity?: boolean,
   }): Promise<FetchResult> {
     const saveToDir = path.dirname(saveto)
-    await mkdirp(saveToDir)
+    await makeDir(saveToDir)
 
     // If a tarball is hosted on a different place than the manifest, only send
     // credentials on `alwaysAuth`

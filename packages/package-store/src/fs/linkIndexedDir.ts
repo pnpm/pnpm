@@ -1,5 +1,5 @@
 import pnpmLogger, { storeLogger } from '@pnpm/logger'
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
@@ -27,7 +27,7 @@ async function tryLinkIndexedDir (existingDir: string, newDir: string, filenames
       alldirs.add(path.join(newDir, path.dirname(f)))
     })
   await Promise.all(
-    Array.from(alldirs).sort((d1, d2) => d1.length - d2.length).map((dir) => mkdirp(dir)),
+    Array.from(alldirs).sort((d1, d2) => d1.length - d2.length).map((dir) => makeDir(dir)),
   )
   let allLinked = true
   await Promise.all(

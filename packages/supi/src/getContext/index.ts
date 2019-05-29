@@ -12,7 +12,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
 import checkCompatibility from './checkCompatibility'
@@ -80,7 +80,7 @@ export default async function getContext<T> (
     })
   }
 
-  await mkdirp(opts.store)
+  await makeDir(opts.store)
 
   importers.forEach((importer) => {
     packageJsonLogger.debug({
@@ -287,7 +287,7 @@ export async function getContextForSingleImporter (
     })
   }
 
-  await mkdirp(storePath)
+  await makeDir(storePath)
   const ctx: PnpmSingleContext = {
     hoistedAliases: importer.hoistedAliases,
     importerId,

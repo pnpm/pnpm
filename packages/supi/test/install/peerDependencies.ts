@@ -3,7 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile = require('load-json-file')
-import mkdir = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import path = require('path')
 import exists = require('path-exists')
 import { addDistTag } from 'pnpm-registry-mock'
@@ -130,7 +130,7 @@ test('warning is not reported if the peer dependency can be required from a node
 
   const manifest = await addDependenciesToPackage({}, ['ajv@4.10.0'], await testDefaults())
 
-  await mkdir('pkg')
+  await makeDir('pkg')
 
   process.chdir('pkg')
 
@@ -423,7 +423,7 @@ test('peer dependency is grouped correctly with peer installed via separate inst
 
 test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
   prepareEmpty(t)
-  await mkdir('_')
+  await makeDir('_')
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
 
@@ -489,7 +489,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
 test('external lockfile: peer dependency is grouped with dependent even after a named update', async (t: tape.Test) => {
   prepareEmpty(t)
-  await mkdir('_')
+  await makeDir('_')
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
 
@@ -528,7 +528,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
 
 test('external lockfile: peer dependency is grouped with dependent even after a named update of the resolved package', async (t: tape.Test) => {
   prepareEmpty(t)
-  await mkdir('_')
+  await makeDir('_')
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
 
@@ -569,7 +569,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
 
 test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async (t: tape.Test) => {
   prepareEmpty(t)
-  await mkdir('_')
+  await makeDir('_')
   process.chdir('_')
   const lockfileDirectory = path.resolve('..')
   await addDistTag({ package: 'abc-parent-with-ab', version: '1.0.1', distTag: 'latest' })

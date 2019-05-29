@@ -1,7 +1,7 @@
 import logger from '@pnpm/logger'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
-import mkdirp = require('mkdirp-promise')
+import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 
@@ -31,7 +31,7 @@ export default async function safeIsInnerLink (
         prefix: opts.prefix,
       })
       const ignoredDir = path.join(importerModulesDir, '.ignored', depName)
-      await mkdirp(path.dirname(ignoredDir))
+      await makeDir(path.dirname(ignoredDir))
       await fs.rename(
         path.join(importerModulesDir, depName),
         ignoredDir,
