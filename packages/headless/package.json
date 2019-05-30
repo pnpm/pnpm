@@ -27,7 +27,7 @@
     "@pnpm/package-store": "file:../package-store",
     "@pnpm/read-importers-context": "file:../read-importers-context",
     "@pnpm/store-path": "2.1.0",
-    "@types/fs-extra": "5.1.0",
+    "@types/fs-extra": "7.0.0",
     "@types/mz": "0.0.32",
     "@types/path-exists": "3.0.0",
     "@types/ramda": "0.25.34",
