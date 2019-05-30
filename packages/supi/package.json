@@ -109,7 +109,7 @@
     "sinon": "7.3.2",
     "supi": "link:",
     "symlink-dir": "3.1.0",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "tape-promise": "4.0.0",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",

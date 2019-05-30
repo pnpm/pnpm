@@ -41,7 +41,7 @@
     "@types/js-yaml": "3",
     "@types/ramda": "0.25.39",
     "rimraf": "2.6.3",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "tempy": "0.3.0",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",

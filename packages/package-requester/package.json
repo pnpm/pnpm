@@ -68,7 +68,7 @@
     "normalize-path": "3.0.0",
     "rimraf": "2.6.3",
     "sinon": "7.3.2",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "tempy": "0.3.0",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",

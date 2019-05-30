@@ -36,7 +36,7 @@
     "fetch-from-npm-registry": "link:",
     "nock": "10.0.6",
     "rimraf": "^2.6.2",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "ts-node": "8.1.0",
     "tslint": "5.16.0",
     "typescript": "3.4.5"

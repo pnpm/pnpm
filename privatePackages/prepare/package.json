@@ -11,7 +11,7 @@
     "@types/mkdirp": "0.5.2",
     "@types/write-pkg": "3.1.0",
     "make-dir": "3.0.0",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "write-json5-file": "2.1.1",
     "write-pkg": "4.0.0",
     "write-yaml-file": "3.0.1"
