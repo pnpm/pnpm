@@ -427,7 +427,7 @@ async function linkRootPackages (
         if (relDepPath === null) return
         const pkgSnapshot = lockfile.packages && lockfile.packages[relDepPath]
         if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
-        const pkgId = pkgSnapshot.id || depPath
+        const pkgId = pkgSnapshot.id || depPath || undefined
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
         rootLogger.debug({
           added: {

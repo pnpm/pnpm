@@ -21,7 +21,7 @@ export default async function linkIndexedDir (existingDir: string, newDir: strin
 }
 
 async function tryLinkIndexedDir (existingDir: string, newDir: string, filenames: string[]) {
-  const alldirs = new Set()
+  const alldirs = new Set<string>()
   filenames
     .forEach((f) => {
       alldirs.add(path.join(newDir, path.dirname(f)))

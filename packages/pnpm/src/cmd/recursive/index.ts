@@ -549,7 +549,7 @@ function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[
 
 async function readLocalConfigs (prefix: string) {
   try {
-    const ini = await readIniFile(path.join(prefix, '.npmrc'))
+    const ini = await readIniFile(path.join(prefix, '.npmrc')) as { [key: string]: string }
     return camelcaseKeys(ini) as {[key: string]: string}
   } catch (err) {
     if (err.code !== 'ENOENT') throw err

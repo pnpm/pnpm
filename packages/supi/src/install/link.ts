@@ -438,7 +438,7 @@ async function selectNewFromWantedDeps (
     registries: Registries,
   },
 ) {
-  const newDeps = new Set()
+  const newDeps = new Set<string>()
   const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
   await Promise.all(
     wantedRelDepPaths.map(

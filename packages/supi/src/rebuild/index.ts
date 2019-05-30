@@ -261,7 +261,7 @@ async function _rebuild (
     })
   })
 
-  const nodesToBuildAndTransitive = new Set()
+  const nodesToBuildAndTransitive = new Set<string>()
   getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), { optional: opts.optional === true, pkgsToRebuild })
   const nodesToBuildAndTransitiveArray = Array.from(nodesToBuildAndTransitive)
 
@@ -269,7 +269,7 @@ async function _rebuild (
     const pkgSnapshot = pkgSnapshots[relDepPath]
     graph.set(relDepPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
       .map((pair) => dp.refToRelative(pair[1], pair[0]))
-      .filter((childRelDepPath) => nodesToBuildAndTransitive.has(childRelDepPath)))
+      .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
   const graphSequencerResult = graphSequencer({
     graph,

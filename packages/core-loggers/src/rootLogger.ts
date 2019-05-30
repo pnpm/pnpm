@@ -10,10 +10,12 @@ export type RootMessage = {
   prefix: string,
 } & ({
   added: {
+    id?: string,
     name: string,
     realName: string,
     version?: string,
     dependencyType?: DependencyType,
+    latest?: string,
     linkedFrom?: string,
   },
 } | {

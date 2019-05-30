@@ -118,8 +118,8 @@ function copyPackageSnapshots (
   },
 ): PackageSnapshots {
   const copiedPackages: PackageSnapshots = {}
-  const nonOptional = new Set()
-  const notProdOnly = new Set()
+  const nonOptional = new Set<string>()
+  const notProdOnly = new Set<string>()
 
   copyDependencySubGraph(copiedPackages, opts.devRelPaths, originalPackages, new Set(), opts.warn, {
     dev: true,

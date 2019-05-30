@@ -174,7 +174,6 @@ async function resolveAndFetch (
       }
       return {
         body: {
-          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
           isLocal: true,
           manifest: pkg,
@@ -559,7 +558,7 @@ async function fetcher (
 
 // TODO: cover with tests
 export async function getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>> {
-  const map = new Map()
+  const map = new Map<string, string>()
 
   const cacheRoot = path.join(storePath, id, 'side_effects')
   if (!await fs.exists(cacheRoot)) {

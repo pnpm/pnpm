@@ -95,7 +95,7 @@ export default function (
   )
 
   return most.combine(
-    (pkgsDiff, packageJsons) => {
+    (pkgsDiff, packageJsons: { initial?: PackageJson, updated?: PackageJson }) => {
       if (!packageJsons['initial'] || !packageJsons['updated']) return pkgsDiff
 
       const initialPackageJson = removeOptionalFromProdDeps(packageJsons['initial'])
