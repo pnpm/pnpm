@@ -1,4 +1,5 @@
 import { Resolution } from '@pnpm/resolver-base'
+import { IntegrityMap } from 'ssri'
 
 export interface FetchOptions {
   cachedTarballLocation: string,
@@ -21,6 +22,6 @@ export interface FetchResult {
 export interface FilesIndex {
   [filename: string]: {
     size: number,
-    generatingIntegrity: Promise<string>,
+    generatingIntegrity?: Promise<IntegrityMap>,
   },
 }

@@ -202,7 +202,7 @@ export default (
   }
 }
 
-function createIgnorer (tarballUrl: string, ignore?: (filename: string) => Boolean) {
+function createIgnorer (tarballUrl: string, ignore?: (filename: string) => boolean) {
   const lowercaseFiles = new Set<string>()
   if (ignore) {
     return (filename: string) => {

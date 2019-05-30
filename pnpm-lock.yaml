@@ -328,12 +328,14 @@ importers:
   packages/fetcher-base:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
+      '@types/ssri': 6.0.1
     devDependencies:
       rimraf: 2.6.3
       tslint: 5.16.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/resolver-base': 3.1.2
+      '@types/ssri': 6.0.1
       rimraf: ^2.6.2
       tslint: 5.16.0
       typescript: 3.4.5
@@ -1885,7 +1887,7 @@ importers:
       retry: 0.12.0
       rimraf: 2.6.3
       ssri: 6.0.1
-      unpack-stream: 5.0.1
+      unpack-stream: 6.0.0
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/tarball-fetcher': 'link:'
@@ -1929,7 +1931,7 @@ importers:
       ts-node: 8.1.0
       tslint: 5.16.0
       typescript: 3.4.5
-      unpack-stream: 5.0.1
+      unpack-stream: 6.0.0
   packages/tarball-resolver:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -2672,7 +2674,6 @@ packages:
     resolution:
       integrity: sha512-fo0MWpVPSUrnZZhp9wyu+hhI3VJ9+Jhs+PWrokBTg3d2ryNPDOAWF1csIhQuYWBTn7KdZzXpRgpX2o6cwOlPWg==
   /@types/ssri/6.0.1:
-    dev: true
     resolution:
       integrity: sha512-Sf5NnDETSFGTHXIfG4zTTczRFhGEjSCfwfvHZ5oFmyX0fUA5BJKV/hdQ2zDnfcC6WXvE78ZTh+/18VzMyMM1QQ==
   /@types/tape/4.2.33:
@@ -8908,17 +8909,17 @@ packages:
     dev: true
     resolution:
       integrity: sha1-HAgkFQSBvHoB1J6Y8exmjYJBLzs=
-  /unpack-stream/5.0.1:
+  /unpack-stream/6.0.0:
     dependencies:
-      '@types/node': 12.0.4
+      '@types/ssri': 6.0.1
       decompress-maybe: 1.0.0
       ssri: 6.0.1
       tar-fs: 2.0.0
     dev: false
     engines:
-      node: '>=8'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-MR9t86P3I8THidcbdwjH6Az4908rH/mDuwhDPMNYHdIfM0MPjYH4rJfUu9RlpraFHeMYW76bWyte7ug+80IrPw==
+      integrity: sha512-BJVLP4Vo+BE5r3mZdcioGFA1XHFUI1wmhy7ytlCicItn815lWZXGj4uxip3H7ou1UWBLFUDFBnX6t4ScvOVSEA==
   /unpipe/1.0.0:
     dev: true
     engines:
