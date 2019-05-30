@@ -491,7 +491,7 @@ importers:
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/store-path': 2.1.0
-      '@types/fs-extra': 5.1.0
+      '@types/fs-extra': 7.0.0
       '@types/mz': 0.0.32
       '@types/path-exists': 3.0.0
       '@types/ramda': 0.25.34
@@ -540,7 +540,7 @@ importers:
       '@pnpm/symlink-dependency': 2.0.5
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
-      '@types/fs-extra': 5.1.0
+      '@types/fs-extra': 7.0.0
       '@types/mz': 0.0.32
       '@types/path-exists': 3.0.0
       '@types/ramda': 0.25.34
@@ -1719,7 +1719,7 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/store-path': 2.1.0
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 5.1.0
+      '@types/fs-extra': 7.0.0
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -1789,7 +1789,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 5.1.0
+      '@types/fs-extra': 7.0.0
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -2526,12 +2526,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
-  /@types/fs-extra/5.1.0:
+  /@types/fs-extra/7.0.0:
     dependencies:
       '@types/node': 12.0.4
     dev: true
     resolution:
-      integrity: sha512-AInn5+UBFIK9FK5xc9yP5e3TQSPNNgjHByqYcj9g5elVBnDQcQL7PlO1CIRy2gWlbwK7UPYqi7vRvFA44dCmYQ==
+      integrity: sha512-ndoMMbGyuToTy4qB6Lex/inR98nPiNHacsgMPvy+zqMLgSxbt8VtWpDArpGp69h1fEDQHn1KB+9DWD++wgbwYA==
   /@types/glob/7.1.1:
     dependencies:
       '@types/events': 3.0.0
