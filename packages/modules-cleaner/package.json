@@ -33,7 +33,7 @@
     "@pnpm/core-loggers": "3.0.2",
     "@pnpm/lockfile-types": "1.1.0",
     "@pnpm/lockfile-utils": "1.0.8",
-    "@pnpm/package-bins": "3.1.0",
+    "@pnpm/package-bins": "3.1.1",
     "@pnpm/read-modules-dir": "2.0.1",
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",

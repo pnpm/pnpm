@@ -771,7 +771,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/package-bins': 3.1.0
+      '@pnpm/package-bins': 3.1.1
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -793,7 +793,7 @@ importers:
       '@pnpm/lockfile-utils': 1.0.8
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-cleaner': 'link:'
-      '@pnpm/package-bins': 3.1.0
+      '@pnpm/package-bins': 3.1.1
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/types': 3.2.0
@@ -2366,7 +2366,7 @@ packages:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
   /@pnpm/link-bins/4.3.1:
     dependencies:
-      '@pnpm/package-bins': 3.1.0
+      '@pnpm/package-bins': 3.1.1
       '@pnpm/read-importer-manifest': 1.0.3
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/types': 3.2.0
@@ -2392,16 +2392,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-fLrOS7e0J1ed7zJs3jE0U7Yee9t7KWSvHYz5v/+p7iBKJ2RBYtoWuLHiz9BilgCjFi2OkhbVFe7inN2+weLzgg==
-  /@pnpm/package-bins/3.1.0:
+  /@pnpm/package-bins/3.1.1:
     dependencies:
       '@pnpm/types': 3.2.0
       graceful-fs: 4.1.15
       p-filter: 2.1.0
     dev: false
     engines:
-      node: '>=8'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-zG0WHt4kA/8U3Q9OBBPf5bBNzcg2Z/W/HvC7RSsvmHrD3oo7aHzfg8ZHWTskAUCJCysZV09tNnvcUHnK6GLCOQ==
+      integrity: sha512-Iy3BEPXFBS1uaEhohjI2nLOXgGoACiyDEBPscY0myizk4fapOxyALCc5ysfLhFXa8lm6n7jMQdadVfahXDwgCw==
   /@pnpm/pkgid-to-filename/2.0.0:
     dependencies:
       normalize-path: 3.0.0
