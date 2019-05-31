@@ -1,4 +1,5 @@
 import assertStore from '@pnpm/assert-store'
+import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
@@ -95,11 +96,10 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   t.notOk(Object.keys(manifest.dependencies || {}).length, 'camelcase-keys has been removed from dependencies')
 
   // all dependencies are marked as dev
-  const lockfile = await project.readLockfile()
+  const lockfile = await project.readLockfile() as Lockfile
   t.notOk(R.isEmpty(lockfile.packages))
 
-  // tslint:disable-next-line:no-string-literal
-  R.toPairs(lockfile.packages).forEach((pair) => t.ok(pair[1]['dev'], `${pair[0]} is dev`))
+  R.toPairs(lockfile.packages || {}).forEach(([depPath, dep]) => t.ok(dep.dev, `${depPath} is dev`))
 
   await storePrune(await testDefaults())
 

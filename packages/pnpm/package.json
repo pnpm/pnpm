@@ -124,7 +124,7 @@
     "tape-promise": "4.0.0",
     "ts-node": "8.2.0",
     "tslint": "5.17.0",
-    "typescript": "3.4.5",
+    "typescript": "3.5.1",
     "write-pkg": "4.0.0",
     "write-yaml-file": "3.0.1"
   },
