@@ -35,6 +35,6 @@
   "devDependencies": {
     "rimraf": "^2.6.2",
     "tslint": "5.17.0",
-    "typescript": "3.4.5"
+    "typescript": "3.5.1"
   }
 }

@@ -29,7 +29,7 @@
   "devDependencies": {
     "rimraf": "2.6.3",
     "tslint": "5.17.0",
-    "typescript": "3.4.5"
+    "typescript": "3.5.1"
   },
   "dependencies": {
     "@pnpm/resolver-base": "3.1.2",
