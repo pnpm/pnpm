@@ -19,8 +19,8 @@
   "devDependencies": {
     "@pnpm/assert-project": "link:",
     "rimraf": "2.6.3",
-    "ts-node": "8.1.0",
-    "tslint": "5.16.0",
+    "ts-node": "8.2.0",
+    "tslint": "5.17.0",
     "typescript": "3.4.5"
   },
   "directories": {
@@ -55,7 +55,7 @@
     "mz": "2.7.0",
     "path-exists": "4.0.0",
     "read-yaml-file": "1.1.0",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "write-pkg": "4.0.0"
   }
 }

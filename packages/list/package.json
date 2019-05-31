@@ -52,9 +52,9 @@
     "@types/common-tags": "1.8.0",
     "@types/ramda": "0.25.39",
     "common-tags": "1.8.0",
-    "tape": "4.10.1",
-    "ts-node": "8.1.0",
-    "tslint": "5.16.0",
+    "tape": "4.10.2",
+    "ts-node": "8.2.0",
+    "tslint": "5.17.0",
     "typescript": "3.4.5"
   }
 }

@@ -50,10 +50,10 @@
     "@types/is-windows": "0.2.0",
     "@types/json5": "0.0.30",
     "@types/parse-json": "4.0.0",
-    "tape": "^4.8.0",
+    "tape": "4.10.2",
     "tempy": "0.3.0",
-    "ts-node": "8.1.0",
-    "tslint": "^5.8.0",
+    "ts-node": "8.2.0",
+    "tslint": "5.17.0",
     "typescript": "3.4.5"
   }
 }

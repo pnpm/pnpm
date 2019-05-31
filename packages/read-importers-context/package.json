@@ -38,7 +38,7 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
     "rimraf": "2.6.3",
-    "tslint": "5.16.0",
+    "tslint": "5.17.0",
     "typescript": "3.4.5"
   }
 }

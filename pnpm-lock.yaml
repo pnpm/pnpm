@@ -27,8 +27,8 @@ importers:
       '@pnpm/logger': 2.1.1
       '@types/ramda': 0.26.6
       rimraf: 2.6.3
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/build-modules': 'link:'
@@ -45,8 +45,8 @@ importers:
       ramda: 0.26.1
       rimraf: 2.6.3
       run-groups: 2.0.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/config:
     dependencies:
@@ -62,10 +62,10 @@ importers:
       '@types/which': 1.3.1
       mz: 2.7.0
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/config': 'link:'
@@ -78,20 +78,20 @@ importers:
       is-subdir: 1.0.3
       mz: 2.7.0
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       which: 1.3.1
   packages/constants:
     devDependencies:
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       rimraf: 2.6.3
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/core-loggers:
     dependencies:
@@ -99,13 +99,13 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.1
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/logger': 2.1.1
       '@pnpm/types': 3.2.0
       rimraf: 2.6.3
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/default-fetcher:
     dependencies:
@@ -116,9 +116,9 @@ importers:
       '@pnpm/default-fetcher': 'link:'
       '@pnpm/logger': 2.1.1
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/default-fetcher': 'link:'
@@ -127,9 +127,9 @@ importers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-fetcher': 3.1.9
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/default-reporter:
     dependencies:
@@ -162,9 +162,9 @@ importers:
       load-json-file: 6.0.0
       normalize-newline: 3.0.0
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/config': 3.3.4
@@ -195,9 +195,9 @@ importers:
       stacktracey: 1.2.112
       string-length: 3.1.0
       strip-ansi: 5.2.0
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/default-resolver:
     dependencies:
@@ -210,9 +210,9 @@ importers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/logger': 2.1.1
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/default-resolver': 'link:'
@@ -223,9 +223,9 @@ importers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-resolver': 2.0.3
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/dependencies-hierarchy:
     dependencies:
@@ -243,9 +243,9 @@ importers:
       '@pnpm/logger': 2.1.1
       '@types/semver': 6.0.0
       dependencies-hierarchy: 'link:'
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/constants': 1.0.1
@@ -261,9 +261,9 @@ importers:
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
       semver: 6.1.1
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/dependency-path:
     dependencies:
@@ -272,18 +272,18 @@ importers:
       semver: 6.1.1
     devDependencies:
       '@types/semver': 6.0.0
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/types': 3.2.0
       '@types/semver': 6.0.0
       encode-registry: 2.0.0
       semver: 6.1.1
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/fetch:
     dependencies:
@@ -292,14 +292,14 @@ importers:
       node-fetch-unix: 2.3.0
     devDependencies:
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@zeit/fetch-retry': 4.0.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
       rimraf: ^2.6.2
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/fetch-from-npm-registry:
     dependencies:
@@ -310,9 +310,9 @@ importers:
       fetch-from-npm-registry: 'link:'
       nock: 10.0.6
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/fetch': 1.0.0
@@ -321,9 +321,9 @@ importers:
       fetch-from-npm-registry: 'link:'
       nock: 10.0.6
       rimraf: ^2.6.2
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/fetcher-base:
     dependencies:
@@ -331,13 +331,13 @@ importers:
       '@types/ssri': 6.0.1
     devDependencies:
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/resolver-base': 3.1.2
       '@types/ssri': 6.0.1
       rimraf: ^2.6.2
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/filter-lockfile:
     dependencies:
@@ -353,10 +353,10 @@ importers:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 2.1.1
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -372,10 +372,10 @@ importers:
       dependency-path: 3.0.7
       ramda: 0.26.1
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -387,17 +387,17 @@ importers:
     devDependencies:
       find-packages: 'link:'
       tape: 4.10.2
-      ts-node: 8.2.0_typescript@3.5.1
-      tslint: 5.17.0_typescript@3.5.1
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.5.1
     specifiers:
       '@pnpm/read-importer-manifest': 1.0.3
       fast-glob: ^2.0.4
       find-packages: 'link:'
       p-filter: ^2.0.0
-      tape: ^4.6.3
-      ts-node: ^8.0.1
-      tslint: ^5.0.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: ^3.0.0
   packages/git-fetcher:
     dependencies:
@@ -408,10 +408,10 @@ importers:
     devDependencies:
       '@pnpm/git-fetcher': 'link:'
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/git-fetcher': 'link:'
@@ -420,10 +420,10 @@ importers:
       path-temp: 2.0.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/git-resolver:
     dependencies:
@@ -438,9 +438,9 @@ importers:
       '@types/semver': 6.0.0
       is-windows: 1.0.2
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/fetch': 1.0.0
@@ -453,9 +453,9 @@ importers:
       is-windows: 1.0.2
       rimraf: ^2.6.2
       semver: 6.1.1
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/headless:
     dependencies:
@@ -506,11 +506,11 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.3.2
-      tape: 4.10.1
+      tape: 4.10.2
       tape-promise: 4.0.0
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -559,11 +559,11 @@ importers:
       rimraf: 2.6.3
       rimraf-then: 1.0.1
       sinon: 7.3.2
-      tape: 4.10.1
+      tape: 4.10.2
       tape-promise: 4.0.0
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/lifecycle:
     dependencies:
@@ -580,9 +580,9 @@ importers:
       json-append: 1.1.1
       load-json-file: 6.0.0
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/core-loggers': 3.0.2
@@ -597,9 +597,9 @@ importers:
       path-exists: 4.0.0
       rimraf: 2.6.3
       run-groups: 2.0.0
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/list:
     dependencies:
@@ -619,9 +619,9 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.25.39
       common-tags: 1.8.0
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/list': 'link:'
@@ -639,9 +639,9 @@ importers:
       dependencies-hierarchy: 5.0.8
       p-limit: 2.2.0
       ramda: 0.26.1
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/local-resolver:
     dependencies:
@@ -656,8 +656,8 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/ssri': 6.0.1
       tape: 4.10.2
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/local-resolver': 'link:'
@@ -669,9 +669,9 @@ importers:
       graceful-fs: 4.1.15
       normalize-path: 3.0.0
       ssri: 6.0.1
-      tape: ^4.8.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/lockfile-file:
     dependencies:
@@ -691,10 +691,10 @@ importers:
       '@types/js-yaml': 3.12.1
       '@types/ramda': 0.25.39
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -713,20 +713,20 @@ importers:
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-file-atomic: 2.4.3
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
   packages/lockfile-types:
     devDependencies:
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/lockfile-utils:
     dependencies:
@@ -741,10 +741,10 @@ importers:
       '@types/js-yaml': 3.12.1
       '@types/ramda': 0.25.39
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -759,10 +759,10 @@ importers:
       get-npm-tarball-url: 2.0.1
       ramda: 0.26.1
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -785,7 +785,7 @@ importers:
       '@pnpm/modules-cleaner': 'link:'
       '@types/ramda': 0.25.38
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/core-loggers': 3.0.2
@@ -804,7 +804,7 @@ importers:
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/modules-yaml:
     dependencies:
@@ -814,20 +814,20 @@ importers:
     devDependencies:
       '@pnpm/modules-yaml': 'link:'
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/modules-yaml': 3.0.2
       '@pnpm/types': 3.2.0
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-yaml-file: 3.0.1
   packages/npm-registry-agent:
@@ -843,9 +843,9 @@ importers:
       '@types/proxyquire': 1.3.28
       proxyquire: 2.1.0
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@types/http-proxy-agent': 2.0.1
@@ -858,9 +858,9 @@ importers:
       proxyquire: 2.1.0
       rimraf: 2.6.3
       socks-proxy-agent: 4.0.2
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/npm-resolver:
     dependencies:
@@ -889,10 +889,10 @@ importers:
       nock: 10.0.6
       path-exists: 4.0.0
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/logger': 2.1.1
@@ -917,10 +917,10 @@ importers:
       rimraf: ^2.6.2
       semver: 6.1.1
       ssri: 6.0.1
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: ^0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       version-selector-type: 2.0.1
       write-json-file: 4.0.0
@@ -939,9 +939,9 @@ importers:
       '@pnpm/outdated': 'link:'
       npm-run-all: 4.1.5
       pnpm-registry-mock: 2.12.0
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/constants': 1.0.1
@@ -956,9 +956,9 @@ importers:
       dependency-path: 3.0.7
       npm-run-all: 4.1.5
       pnpm-registry-mock: 2.12.0
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/package-is-installable:
     dependencies:
@@ -970,9 +970,9 @@ importers:
       '@pnpm/package-is-installable': 'link:'
       '@types/semver': 6.0.0
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/core-loggers': 3.0.2
@@ -982,9 +982,9 @@ importers:
       '@types/semver': 6.0.0
       rimraf: 2.6.3
       semver: 6.1.1
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/package-requester:
     dependencies:
@@ -1022,10 +1022,10 @@ importers:
       normalize-path: 3.0.0
       rimraf: 2.6.3
       sinon: 7.3.2
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/check-package': 3.0.1
@@ -1060,10 +1060,10 @@ importers:
       rimraf-then: 1.0.1
       sinon: 7.3.2
       symlink-dir: 3.1.0
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-json-file: 4.0.0
   packages/package-store:
@@ -1096,10 +1096,10 @@ importers:
       '@types/mz': 0.0.32
       '@types/ramda': 0.25.39
       rimraf: 2.6.3
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/core-loggers': 3.0.2
@@ -1128,10 +1128,10 @@ importers:
       rename-overwrite: 2.0.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-json-file: 4.0.0
   packages/pkgs-graph:
@@ -1145,8 +1145,8 @@ importers:
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
       tape: 4.10.2
-      ts-node: 8.2.0_typescript@3.5.1
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.5.1
     specifiers:
       '@types/ramda': ^0.26.0
@@ -1156,9 +1156,9 @@ importers:
       pkgs-graph: 'link:'
       ramda: ^0.26.0
       semver: ^6.0.0
-      tape: ^4.6.3
-      ts-node: ^8.0.3
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: ^3.0.0
   packages/pnpm:
     dependencies:
@@ -1260,10 +1260,10 @@ importers:
       rimraf-then: 1.0.1
       semver: 6.1.1
       symlink-dir: 3.1.0
-      tape: 4.10.1
+      tape: 4.10.2
       tape-promise: 4.0.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
@@ -1360,12 +1360,12 @@ importers:
       strip-color: 0.1.0
       supi: 0.33.7-0
       symlink-dir: 3.1.0
-      tape: 4.10.1
+      tape: 4.10.2
       tape-promise: 4.0.0
       text-table: 0.2.0
       tree-kill: 1.2.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       update-notifier: 3.0.0
       version-selector-type: 2.0.1
@@ -1383,9 +1383,9 @@ importers:
       '@pnpm/prune-lockfile': 'link:'
       '@types/ramda': 0.25.39
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
       yaml-tag: 1.1.0
     specifiers:
@@ -1397,9 +1397,9 @@ importers:
       dependency-path: 3.0.7
       ramda: 0.26.1
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       yaml-tag: 1.1.0
   packages/read-importer-manifest:
@@ -1422,8 +1422,8 @@ importers:
       '@types/parse-json': 4.0.0
       tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.17.0_typescript@3.5.1
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/read-importer-manifest': 'link:'
@@ -1441,10 +1441,10 @@ importers:
       parse-json: 4.0.0
       read-yaml-file: 1.1.0
       strip-bom: 4.0.0
-      tape: ^4.8.0
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: ^5.8.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/read-importers-context:
     dependencies:
@@ -1455,7 +1455,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.1
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/lockfile-file': 1.0.6
@@ -1464,7 +1464,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
       rimraf: 2.6.3
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/read-modules-dir:
     dependencies:
@@ -1472,13 +1472,13 @@ importers:
     devDependencies:
       '@types/mz': 0.0.32
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@types/mz': 0.0.32
       mz: 2.7.0
       rimraf: 2.6.3
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/read-package-json:
     dependencies:
@@ -1487,16 +1487,16 @@ importers:
     devDependencies:
       '@pnpm/read-package-json': 'link:'
       tape: 4.10.2
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.17.0_typescript@3.5.1
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/read-package-json': 'link:'
       '@pnpm/types': ^3.0.0
       read-package-json: 2.0.13
-      tape: ^4.8.0
-      ts-node: 8.1.0
-      tslint: ^5.8.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/resolve-dependencies:
     dependencies:
@@ -1521,7 +1521,7 @@ importers:
       '@types/ramda': 0.25.38
       '@types/semver': 6.0.0
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/core-loggers': 3.0.2
@@ -1543,7 +1543,7 @@ importers:
       replace-string: 3.0.0
       rimraf: 2.6.3
       semver: 6.1.1
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
       version-selector-type: 2.0.1
   packages/resolver-base:
@@ -1551,12 +1551,12 @@ importers:
       '@pnpm/types': 'link:../types'
     devDependencies:
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/types': 3.2.0
       rimraf: ^2.6.2
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/server:
     dependencies:
@@ -1580,9 +1580,9 @@ importers:
       node-fetch: 2.6.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      tape: 4.10.1
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      tape: 4.10.2
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/fetch': 1.0.0
@@ -1603,9 +1603,9 @@ importers:
       p-limit: 2.2.0
       rimraf: 2.6.3
       rimraf-then: 1.0.1
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       uuid: 3.3.2
   packages/shamefully-flatten:
@@ -1622,8 +1622,8 @@ importers:
       '@pnpm/logger': 2.1.1
       '@types/ramda': 0.25.34
       rimraf: 2.6.3
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/constants': 1.0.1
@@ -1637,8 +1637,8 @@ importers:
       dependency-path: 3.0.7
       ramda: 0.26.1
       rimraf: 2.6.3
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/store-controller-types:
     dependencies:
@@ -1646,13 +1646,13 @@ importers:
       '@pnpm/types': 'link:../types'
     devDependencies:
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/types': 3.2.0
       rimraf: 2.6.3
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/supi:
     dependencies:
@@ -1745,10 +1745,10 @@ importers:
       sinon: 7.3.2
       supi: 'link:'
       symlink-dir: 3.1.0
-      tape: 4.10.1
+      tape: 4.10.2
       tape-promise: 4.0.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
       write-json-file: 4.0.0
       write-yaml-file: 3.0.1
@@ -1839,10 +1839,10 @@ importers:
       sinon: 7.3.2
       supi: 'link:'
       symlink-dir: 3.1.0
-      tape: 4.10.1
+      tape: 4.10.2
       tape-promise: 4.0.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
@@ -1859,8 +1859,8 @@ importers:
       '@pnpm/logger': 2.1.1
       '@types/mz': 0.0.32
       rimraf: 2.6.3
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/core-loggers': 3.0.2
@@ -1871,8 +1871,8 @@ importers:
       mz: 2.7.0
       rimraf: 2.6.3
       symlink-dir: 3.1.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/tarball-fetcher:
     dependencies:
@@ -1899,10 +1899,10 @@ importers:
       '@types/ssri': 6.0.1
       cp-file: 7.0.0
       nock: 10.0.6
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/fetcher-base': 3.0.3
@@ -1926,10 +1926,10 @@ importers:
       retry: 0.12.0
       rimraf: 2.6.3
       ssri: 6.0.1
-      tape: 4.10.1
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       unpack-stream: 6.0.0
   packages/tarball-resolver:
@@ -1939,25 +1939,25 @@ importers:
       '@pnpm/tarball-resolver': 'link:'
       rimraf: 2.6.3
       tape: 4.10.2
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-resolver': 'link:'
       rimraf: ^2.6.2
-      tape: ^4.8.0
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/types:
     devDependencies:
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       rimraf: 2.6.3
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/utils:
     dependencies:
@@ -1970,7 +1970,7 @@ importers:
       '@pnpm/utils': 'link:'
       '@types/mz': 0.0.32
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/logger': 2.1.1
@@ -1981,7 +1981,7 @@ importers:
       mz: 2.7.0
       normalize-registry-url: 1.0.0
       rimraf: 2.6.3
-      tslint: 5.16.0
+      tslint: 5.17.0
       typescript: 3.4.5
   packages/write-importer-manifest:
     dependencies:
@@ -1994,17 +1994,17 @@ importers:
       '@pnpm/write-importer-manifest': 'link:'
       tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.17.0_typescript@3.5.1
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/types': ^3.0.0
       '@pnpm/write-importer-manifest': 'link:'
       sort-keys: 3.0.0
-      tape: ^4.8.0
+      tape: 4.10.2
       tempy: 0.3.0
-      ts-node: 8.1.0
-      tslint: ^5.8.0
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-json-file: 4.0.0
       write-json5-file: 2.1.1
@@ -2022,13 +2022,13 @@ importers:
       mz: 2.7.0
       path-exists: 4.0.0
       read-yaml-file: 1.1.0
-      tape: 4.10.1
+      tape: 4.10.2
       write-pkg: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:'
       rimraf: 2.6.3
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/assert-project': 'link:'
@@ -2044,9 +2044,9 @@ importers:
       path-exists: 4.0.0
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
       write-pkg: 4.0.0
   privatePackages/assert-store:
@@ -2054,20 +2054,20 @@ importers:
       '@pnpm/assert-store': 'link:'
       '@types/path-exists': 3.0.0
       path-exists: 4.0.0
-      tape: 4.10.1
+      tape: 4.10.2
     devDependencies:
       rimraf: 2.6.3
-      ts-node: 8.1.0_typescript@3.4.5
-      tslint: 5.16.0_typescript@3.4.5
+      ts-node: 8.2.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/assert-store': 'link:'
       '@types/path-exists': 3.0.0
       path-exists: 4.0.0
       rimraf: 2.6.3
-      tape: 4.10.1
-      ts-node: 8.1.0
-      tslint: 5.16.0
+      tape: 4.10.2
+      ts-node: 8.2.0
+      tslint: 5.17.0
       typescript: 3.4.5
   privatePackages/prepare:
     dependencies:
@@ -2077,15 +2077,15 @@ importers:
       '@types/mkdirp': 0.5.2
       '@types/write-pkg': 3.1.0
       make-dir: 3.0.0
-      tape: 4.10.1
+      tape: 4.10.2
       write-json5-file: 2.1.1
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
     devDependencies:
       rimraf: 2.6.3
-      tslint: 5.16.0_typescript@3.4.5
-      tslint-config-standard: 8.0.1_tslint@5.16.0+typescript@3.4.5
-      tslint-eslint-rules: 5.4.0_tslint@5.16.0+typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
+      tslint-config-standard: 8.0.1_tslint@5.17.0+typescript@3.4.5
+      tslint-eslint-rules: 5.4.0_tslint@5.17.0+typescript@3.4.5
       typescript: 3.4.5
     specifiers:
       '@pnpm/assert-project': 2.0.0
@@ -2095,8 +2095,8 @@ importers:
       '@types/write-pkg': 3.1.0
       make-dir: 3.0.0
       rimraf: 2.6.3
-      tape: 4.10.1
-      tslint: 5.16.0
+      tape: 4.10.2
+      tslint: 5.17.0
       tslint-config-standard: 8.0.1
       tslint-eslint-rules: 5.4.0
       typescript: 3.4.5
@@ -2120,13 +2120,13 @@ importers:
     specifiers: {}
   utils/tslint-config:
     dependencies:
-      tslint-config-standard: 8.0.1_tslint@5.16.0+typescript@3.4.5
-      tslint-eslint-rules: 5.4.0_tslint@5.16.0+typescript@3.4.5
+      tslint-config-standard: 8.0.1_tslint@5.17.0+typescript@3.4.5
+      tslint-eslint-rules: 5.4.0_tslint@5.17.0+typescript@3.4.5
     devDependencies:
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       typescript: 3.4.5
     specifiers:
-      tslint: 5.16.0
+      tslint: 5.17.0
       tslint-config-standard: 8.0.1
       tslint-eslint-rules: 5.4.0
       typescript: 3.4.5
@@ -8401,24 +8401,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-mNi5yhWAKDuNgZCfFKeZbsXvraVOf+I8UZG+lf+aoRrzX4+jd4mpNBjYh16/VcpEMUtS0iFndBgnfxxZbtyLFw==
-  /tape/4.10.1:
-    dependencies:
-      deep-equal: 1.0.1
-      defined: 1.0.0
-      for-each: 0.3.3
-      function-bind: 1.1.1
-      glob: 7.1.4
-      has: 1.0.3
-      inherits: 2.0.3
-      minimist: 1.2.0
-      object-inspect: 1.6.0
-      resolve: 1.10.1
-      resumer: 0.0.0
-      string.prototype.trim: 1.1.2
-      through: 2.3.8
-    hasBin: true
-    resolution:
-      integrity: sha512-G0DywYV1jQeY3axeYnXUOt6ktnxS9OPJh97FGR3nrua8lhWi1zPflLxcAHavZ7Jf3qUfY7cxcVIVFa4mY2IY1w==
   /tape/4.10.2:
     dependencies:
       deep-equal: 1.0.1
@@ -8434,7 +8416,6 @@ packages:
       resumer: 0.0.0
       string.prototype.trim: 1.1.2
       through: 2.3.8
-    dev: true
     hasBin: true
     resolution:
       integrity: sha512-mgl23h7W2yuk3N85FOYrin2OvThTYWdwbk6XQ1pr2PMJieyW2FM/4Bu/+kD/wecb3aZ0Enm+Syinyq467OPq2w==
@@ -8634,29 +8615,13 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.1.0_typescript@3.4.5:
-    dependencies:
-      arg: 4.1.0
-      diff: 3.5.0
-      make-error: 1.3.5
-      source-map-support: 0.5.12
-      typescript: 3.4.5
-      yn: 3.1.0
-    dev: true
-    engines:
-      node: '>=4.2.0'
-    hasBin: true
-    peerDependencies:
-      typescript: '>=2.0'
-    resolution:
-      integrity: sha512-34jpuOrxDuf+O6iW1JpgTRDFynUZ1iEqtYruBqh35gICNjN8x+LpVcPAcwzLPi9VU6mdA3ym+x233nZmZp445A==
-  /ts-node/8.2.0_typescript@3.5.1:
+  /ts-node/8.2.0_typescript@3.4.5:
     dependencies:
       arg: 4.1.0
       diff: 4.0.1
       make-error: 1.3.5
       source-map-support: 0.5.12
-      typescript: 3.5.1
+      typescript: 3.4.5
       yn: 3.1.0
     dev: true
     engines:
@@ -8672,19 +8637,19 @@ packages:
   /tslib/1.9.3:
     resolution:
       integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
-  /tslint-config-standard/8.0.1_tslint@5.16.0+typescript@3.4.5:
+  /tslint-config-standard/8.0.1_tslint@5.17.0+typescript@3.4.5:
     dependencies:
-      tslint-eslint-rules: 5.4.0_tslint@5.16.0+typescript@3.4.5
+      tslint-eslint-rules: 5.4.0_tslint@5.17.0+typescript@3.4.5
     peerDependencies:
       tslint: '*'
       typescript: '*'
     resolution:
       integrity: sha512-OWG+NblgjQlVuUS/Dmq3ax2v5QDZwRx4L0kEuDi7qFY9UI6RJhhNfoCV1qI4el8Fw1c5a5BTrjQJP0/jhGXY/Q==
-  /tslint-eslint-rules/5.4.0_tslint@5.16.0+typescript@3.4.5:
+  /tslint-eslint-rules/5.4.0_tslint@5.17.0+typescript@3.4.5:
     dependencies:
       doctrine: 0.7.2
       tslib: 1.9.0
-      tslint: 5.16.0_typescript@3.4.5
+      tslint: 5.17.0_typescript@3.4.5
       tsutils: 3.12.0_typescript@3.4.5
       typescript: 3.4.5
     peerDependencies:
@@ -8692,7 +8657,7 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/5.16.0_typescript@3.4.5:
+  /tslint/5.17.0_typescript@3.4.5:
     dependencies:
       '@babel/code-frame': 7.0.0
       builtin-modules: 1.1.1
@@ -8714,44 +8679,11 @@ packages:
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
     resolution:
-      integrity: sha512-UxG2yNxJ5pgGwmMzPMYh/CCnCnh0HfPgtlVRDs1ykZklufFBL1ZoTlWFRz2NQjcoEiDoRp+JyT0lhBbbH/obyA==
-  /tslint/5.17.0_typescript@3.5.1:
-    dependencies:
-      '@babel/code-frame': 7.0.0
-      builtin-modules: 1.1.1
-      chalk: 2.4.2
-      commander: 2.20.0
-      diff: 3.5.0
-      glob: 7.1.4
-      js-yaml: 3.13.1
-      minimatch: 3.0.4
-      mkdirp: 0.5.1
-      resolve: 1.11.0
-      semver: 5.7.0
-      tslib: 1.9.3
-      tsutils: 2.29.0_typescript@3.5.1
-      typescript: 3.5.1
-    dev: true
-    engines:
-      node: '>=4.8.0'
-    hasBin: true
-    peerDependencies:
-      typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
-    resolution:
       integrity: sha512-pflx87WfVoYepTet3xLfDOLDm9Jqi61UXIKePOuca0qoAZyrGWonDG9VTbji58Fy+8gciUn8Bt7y69+KEVjc/w==
   /tsutils/2.29.0_typescript@3.4.5:
     dependencies:
       tslib: 1.9.3
       typescript: 3.4.5
-    peerDependencies:
-      typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
-    resolution:
-      integrity: sha512-g5JVHCIJwzfISaXpXE1qvNalca5Jwob6FjI4AoPlqMusJ6ftFE7IkkFoMhVLRgK+4Kx3gkzb8UZK5t5yTTvEmA==
-  /tsutils/2.29.0_typescript@3.5.1:
-    dependencies:
-      tslib: 1.9.3
-      typescript: 3.5.1
-    dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
     resolution:

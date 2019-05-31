@@ -36,10 +36,10 @@
   "devDependencies": {
     "@pnpm/modules-yaml": "3.0.2",
     "rimraf": "2.6.3",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "tempy": "0.3.0",
-    "ts-node": "8.1.0",
-    "tslint": "5.16.0",
+    "ts-node": "8.2.0",
+    "tslint": "5.17.0",
     "typescript": "3.4.5"
   }
 }

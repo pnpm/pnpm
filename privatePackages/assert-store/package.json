@@ -25,8 +25,8 @@
   ],
   "devDependencies": {
     "rimraf": "2.6.3",
-    "ts-node": "8.1.0",
-    "tslint": "5.16.0",
+    "ts-node": "8.2.0",
+    "tslint": "5.17.0",
     "typescript": "3.4.5"
   },
   "directories": {
@@ -52,6 +52,6 @@
     "@pnpm/assert-store": "link:",
     "@types/path-exists": "3.0.0",
     "path-exists": "4.0.0",
-    "tape": "4.10.1"
+    "tape": "4.10.2"
   }
 }

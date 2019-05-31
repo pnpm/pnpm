@@ -11,14 +11,14 @@
     "@types/mkdirp": "0.5.2",
     "@types/write-pkg": "3.1.0",
     "make-dir": "3.0.0",
-    "tape": "4.10.1",
+    "tape": "4.10.2",
     "write-json5-file": "2.1.1",
     "write-pkg": "4.0.0",
     "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
     "rimraf": "2.6.3",
-    "tslint": "5.16.0",
+    "tslint": "5.17.0",
     "tslint-config-standard": "8.0.1",
     "tslint-eslint-rules": "5.4.0",
     "typescript": "3.4.5"

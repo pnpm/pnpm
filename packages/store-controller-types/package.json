@@ -28,7 +28,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/store-controller-types#readme",
   "devDependencies": {
     "rimraf": "2.6.3",
-    "tslint": "5.16.0",
+    "tslint": "5.17.0",
     "typescript": "3.4.5"
   },
   "dependencies": {

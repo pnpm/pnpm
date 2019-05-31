@@ -32,9 +32,9 @@
     "@types/semver": "^6.0.0",
     "better-path-resolve": "1.0.0",
     "pkgs-graph": "link:",
-    "tape": "^4.6.3",
-    "ts-node": "^8.0.3",
-    "tslint": "5.16.0",
+    "tape": "4.10.2",
+    "ts-node": "8.2.0",
+    "tslint": "5.17.0",
     "typescript": "^3.0.0"
   },
   "dependencies": {
