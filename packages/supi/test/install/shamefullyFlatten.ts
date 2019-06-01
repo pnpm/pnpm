@@ -1,7 +1,7 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import fs = require('fs')
 import resolveLinkTarget = require('resolve-link-target')
-import { addDependenciesToPackage, install, uninstall } from 'supi'
+import { addDependenciesToPackage, install, mutateModules } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { addDistTag, testDefaults } from '../utils'
@@ -26,7 +26,14 @@ test('should remove flattened dependencies', async (t) => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['express'], await testDefaults({ shamefullyFlatten: true }))
-  await uninstall(manifest, ['express'], await testDefaults({ shamefullyFlatten: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['express'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ shamefullyFlatten: true }))
 
   await project.hasNot('express')
   await project.hasNot('debug')
@@ -50,7 +57,14 @@ test('should reflatten when uninstalling a package', async (t) => {
   // this installs debug@3.1.0 and express@4.16.0
   const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], await testDefaults({ shamefullyFlatten: true }))
   // uninstall debug@3.1.0 to check if debug@2.6.9 gets reflattened
-  await uninstall(manifest, ['debug'], await testDefaults({ shamefullyFlatten: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['debug'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ shamefullyFlatten: true }))
 
   t.equal(project.requireModule('debug/package.json').version, '2.6.9', 'debug was flattened after uninstall')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express did not get updated by flattening')
@@ -145,7 +159,14 @@ test('should remove aliased flattened dependencies', async (t) => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
-  await uninstall(manifest, ['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['pkg-with-1-aliased-dep'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ shamefullyFlatten: true }))
 
   await project.hasNot('pkg-with-1-aliased-dep')
   await project.hasNot('dep-of-pkg-with-1-dep')
@@ -220,7 +241,14 @@ test('should flatten correctly peer dependencies', async (t) => {
 test('should uninstall correctly peer dependencies', async (t) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
-  await uninstall(manifest, ['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['using-ajv'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ shamefullyFlatten: true }))
 
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
 })

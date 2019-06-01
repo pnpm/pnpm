@@ -7,10 +7,8 @@ import storeAdd from './storeAdd'
 import storePrune from './storePrune'
 import storeStatus from './storeStatus'
 import storeUsages from './storeUsages'
-import uninstall from './uninstall'
 export {
   link,
-  uninstall,
   storeStatus,
   storePrune,
   storeAdd,

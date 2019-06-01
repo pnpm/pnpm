@@ -26,19 +26,6 @@ npm install @pnpm/logger@1
 
 TODO
 
-### `supi.uninstall(pkgsToUninstall, [options])`
-
-Uninstalls a package, completely removing everything pnpm installed on its behalf.
-
-**Arguments:**
-
-* `pkgsToUninstall` - *String[]* - the package names to be uninstalled.
-* `options.saveProd` - *Boolean* - the package will be removed from `dependencies`.
-* `options.saveDev` - *Boolean* - the package will be removed from `devDependencies`.
-* `options.saveOptional` - *Boolean* - the package will be removed from `optionalDependencies`.
-* `options.global` - *Boolean* - the packages will be uninstalled globally.
-* `options.reporter` - *Function* - A function that listens for logs.
-
 ### `supi.link(linkFromPkgs, linkToNodeModules, [options])`
 
 Create symbolic links from the linked packages to the target package's `node_modules` (and its `node_modules/.bin`).

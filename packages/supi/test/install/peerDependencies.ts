@@ -14,7 +14,6 @@ import {
   addDependenciesToPackage,
   install,
   mutateModules,
-  uninstall,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -72,7 +71,14 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is present')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  await uninstall(manifest, ['ajv-keywords'], opts)
+  await mutateModules([
+    {
+      dependencyNames: ['ajv-keywords'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    }
+  ], opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency link is not removed')
   t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is removed')
@@ -680,10 +686,17 @@ test('peer dependency is saved', async (t) => {
     },
   )
 
-  manifest = await uninstall(manifest, ['is-positive'], await testDefaults())
+  const [mutatedImporter] = await mutateModules([
+    {
+      dependencyNames: ['is-positive'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults())
 
   t.deepEqual(
-    manifest,
+    mutatedImporter.manifest,
     {
       devDependencies: {},
       peerDependencies: {},

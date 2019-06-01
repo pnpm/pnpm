@@ -18,7 +18,6 @@ import {
   link,
   mutateModules,
   storePrune,
-  uninstall,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -39,7 +38,14 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
 
   const reporter = sinon.spy()
-  manifest = await uninstall(manifest, ['is-negative'], await testDefaults({ save: true, reporter }))
+  manifest = (await mutateModules([
+    {
+      dependencyNames: ['is-negative'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true, reporter })))[0].manifest
 
   t.ok(reporter.calledWithMatch({
     initial: {
@@ -87,7 +93,14 @@ test('uninstall a dependency that is not present in node_modules', async (t) => 
   prepareEmpty(t)
 
   const reporter = sinon.spy()
-  await uninstall({}, ['is-negative'], await testDefaults({ reporter }))
+  await mutateModules([
+    {
+      dependencyNames: ['is-negative'],
+      manifest: {},
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ reporter }))
 
   t.notOk(reporter.calledWithMatch({
     level: 'debug',
@@ -101,7 +114,14 @@ test('uninstall a dependency that is not present in node_modules', async (t) => 
 test('uninstall scoped package', async (t) => {
   const project = prepareEmpty(t)
   let manifest = await addDependenciesToPackage({}, ['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
-  manifest = await uninstall(manifest, ['@zkochan/logger'], await testDefaults({ save: true }))
+  manifest = (await mutateModules([
+    {
+      dependencyNames: ['@zkochan/logger'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true })))[0].manifest
 
   await project.storeHas('@zkochan/logger', '0.1.0')
 
@@ -115,7 +135,14 @@ test('uninstall tarball dependency', async (t: tape.Test) => {
   const opts = await testDefaults({ save: true })
 
   let manifest = await addDependenciesToPackage({}, ['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
-  manifest = await uninstall(manifest, ['is-array'], opts)
+  manifest = (await mutateModules([
+    {
+      dependencyNames: ['is-array'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], opts))[0].manifest
 
   await project.storeHas('is-array', '1.0.1')
   await project.hasNot('is-array')
@@ -126,7 +153,14 @@ test('uninstall tarball dependency', async (t: tape.Test) => {
 test('uninstall package with dependencies and do not touch other deps', async (t) => {
   const project = prepareEmpty(t)
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
-  manifest = await uninstall(manifest, ['camelcase-keys'], await testDefaults({ save: true }))
+  manifest = (await mutateModules([
+    {
+      dependencyNames: ['camelcase-keys'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true })))[0].manifest
 
   await storePrune(await testDefaults())
 
@@ -156,7 +190,14 @@ test('uninstall package with dependencies and do not touch other deps', async (t
 test('uninstall package with its bin files', async (t) => {
   prepareEmpty(t)
   let manifest = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ save: true }))
-  await uninstall(manifest, ['sh-hello-world'], await testDefaults({ save: true }))
+  manifest = (await mutateModules([
+    {
+      dependencyNames: ['sh-hello-world'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true })))[0].manifest
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
   let stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
@@ -175,7 +216,14 @@ test('relative link is uninstalled', async (t: tape.Test) => {
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
   const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { prefix: string, manifest: PackageJson }))
-  await uninstall(manifest, [linkedPkgName], opts)
+  await mutateModules([
+    {
+      dependencyNames: [linkedPkgName],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], opts)
 
   await project.hasNot(linkedPkgName)
 })
@@ -189,7 +237,14 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   t.ok(modules1)
   t.equal(modules1!.pendingBuilds.length, 2, 'install should update pendingBuilds')
 
-  await uninstall(manifest, ['with-postinstall-b'], await testDefaults({ save: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['with-postinstall-b'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true }))
 
   const modules2 = await project.readModulesManifest()
   t.ok(modules2)
@@ -258,9 +313,15 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
-  await uninstall(pkgs[0], ['is-positive', 'project-2'], await testDefaults({
+  await mutateModules([
+    {
+      dependencyNames: ['is-positive', 'project-2'],
+      manifest: pkgs[0],
+      mutation: 'uninstallSome',
+      prefix: path.resolve('project-1'),
+    },
+  ], await testDefaults({
     lockfileDirectory: process.cwd(),
-    prefix: path.resolve('project-1'),
     store,
   }))
 

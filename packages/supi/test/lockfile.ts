@@ -19,7 +19,6 @@ import {
   addDependenciesToPackage,
   install,
   mutateModules,
-  uninstall,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -787,7 +786,14 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
   {
     const reporter = sinon.spy()
 
-    await uninstall(manifest, ['is-positive'], await testDefaults({ useLockfile: false, reporter }))
+    await mutateModules([
+      {
+        dependencyNames: ['is-positive'],
+        manifest,
+        mutation: 'uninstallSome',
+        prefix: process.cwd(),
+      },
+    ], await testDefaults({ useLockfile: false, reporter }))
 
     t.ok(reporter.calledWithMatch(LOCKFILE_WARN_LOG), `warning about ignoring ${WANTED_LOCKFILE}`)
   }

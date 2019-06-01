@@ -1,5 +1,5 @@
 import logger from '@pnpm/logger'
-import { DependencyManifest, ImporterManifest } from '@pnpm/types'
+import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
@@ -20,7 +20,6 @@ import {
   mutateModules,
   rebuild,
   rebuildPkgs,
-  uninstall,
 } from 'supi'
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
@@ -330,7 +329,14 @@ export async function recursive (
               action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
               break
             case 'uninstall':
-              action = R.flip(uninstall).bind(null, currentInput)
+              action = (manifest: PackageManifest, opts: any) => mutateModules([ // tslint:disable-line:no-any
+                {
+                  dependencyNames: currentInput,
+                  manifest,
+                  mutation: 'uninstallSome',
+                  prefix,
+                },
+              ], opts)
               break
             default:
               action = currentInput.length === 0 ? install : R.flip(addDependenciesToPackage).bind(null, currentInput)

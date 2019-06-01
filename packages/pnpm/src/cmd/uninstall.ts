@@ -1,7 +1,6 @@
 import readImporterManifest from '@pnpm/read-importer-manifest'
 import {
   mutateModules,
-  uninstall,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
@@ -16,12 +15,6 @@ export default async function uninstallCmd (
     store: store.path,
     storeController: store.ctrl,
   })
-  if (opts.lockfileDirectory === opts.prefix) {
-    const { manifest, writeImporterManifest } = await readImporterManifest(opts.prefix)
-    const newManifest = await uninstall(manifest, input, uninstallOpts)
-    await writeImporterManifest(newManifest)
-    return
-  }
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
     : undefined

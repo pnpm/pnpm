@@ -5,8 +5,8 @@ import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
+  mutateModules,
   storePrune,
-  uninstall,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -19,7 +19,14 @@ test('remove unreferenced packages', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
-  await uninstall(manifest, ['is-negative'], await testDefaults({ save: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['is-negative'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true }))
 
   await project.storeHas('is-negative', '2.1.0')
 
@@ -68,7 +75,14 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   let manifest = await addDependenciesToPackage({}, ['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
   manifest = await addDependenciesToPackage(manifest, ['hastscript@3.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
-  manifest = await uninstall(manifest, ['camelcase-keys'], await testDefaults({ save: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['camelcase-keys'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true }))
 
   await project.storeHas('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')
@@ -97,7 +111,14 @@ test('keep dependencies used by others', async (t: tape.Test) => {
 test('keep dependency used by package', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['is-not-positive@1.0.0', 'is-positive@3.1.0'], await testDefaults({ save: true }))
-  await uninstall(manifest, ['is-not-positive'], await testDefaults({ save: true }))
+  await mutateModules([
+    {
+      dependencyNames: ['is-not-positive'],
+      manifest,
+      mutation: 'uninstallSome',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ save: true }))
 
   await storePrune(await testDefaults())
 
