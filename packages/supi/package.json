@@ -27,7 +27,7 @@
     "@pnpm/fs-locker": "1.0.3",
     "@pnpm/headless": "7.0.8",
     "@pnpm/lifecycle": "6.1.1",
-    "@pnpm/link-bins": "4.3.1",
+    "@pnpm/link-bins": "4.4.0",
     "@pnpm/lockfile-file": "1.0.6",
     "@pnpm/lockfile-utils": "1.0.8",
     "@pnpm/modules-cleaner": "3.0.10",
