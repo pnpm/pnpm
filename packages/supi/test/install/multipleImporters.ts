@@ -123,6 +123,7 @@ test('dependencies of other importers are not pruned when installing for a subse
   await rootNodeModules.has('.localhost+4873/is-negative/1.0.0')
 
   const lockfile = await rootNodeModules.readCurrentLockfile()
+  t.deepEqual(Object.keys(lockfile.importers), ['project-1', 'project-2'])
   t.deepEqual(Object.keys(lockfile.packages), [
     '/is-negative/1.0.0',
     '/is-positive/2.0.0',

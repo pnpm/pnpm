@@ -286,7 +286,7 @@ export default async function linkPackages (
     const importers = importerIds.reduce((acc, importerId) => {
       acc[importerId] = newWantedLockfile.importers[importerId]
       return acc
-    }, {})
+    }, opts.currentLockfile.importers)
     currentLockfile = { ...newWantedLockfile, packages, importers }
   } else if (
     opts.include.dependencies &&
