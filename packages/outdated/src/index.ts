@@ -157,7 +157,7 @@ async function _outdated (
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
           }
 
-          const currentRef = currentLockfile.importers[importerId][depType][packageName]
+          const currentRef = currentLockfile.importers[importerId] && currentLockfile.importers[importerId][depType][packageName]
           const currentRelative = currentRef && dp.refToRelative(currentRef, packageName)
           const current = currentRelative && dp.parse(currentRelative).version || currentRef
           const wanted = dp.parse(relativeDepPath).version || ref

@@ -1,0 +1,7 @@
+{
+  "name": "package",
+  "version": "0.0.0",
+  "dependencies": {
+    "pkg-with-1-dep": "100.0.0"
+  }
+}

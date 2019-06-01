@@ -130,6 +130,17 @@ test('outdated() on package with external lockfile', async (t) => {
   t.end()
 })
 
+test('outdated() on package with external lockfile when the package is not present in the node_modules/.pnpm-lock.yaml', async (t) => {
+  const outdatedPkgs = await outdated('./package-with-external-incomplete-lockfile/package', {
+    ...outdatedOpts,
+    lockfileDirectory: path.resolve('./package-with-external-incomplete-lockfile'),
+  })
+  t.deepEqual(outdatedPkgs, [
+    { latest: '1.0.0', packageName: 'pkg-with-1-dep', wanted: '100.0.0' },
+  ])
+  t.end()
+})
+
 test('outdated() on package that has one outdated dev dependency', async (t) => {
   const outdatedPkgs = await outdated('outdated-dev-dep', outdatedOpts)
   t.deepEqual(outdatedPkgs, [
