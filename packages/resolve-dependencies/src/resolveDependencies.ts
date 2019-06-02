@@ -214,10 +214,7 @@ export default async function resolveDependencies (
     localPackages?: LocalPackages,
   },
 ): Promise<PkgAddress[]> {
-  const {
-    extendedWantedDeps,
-    proceedAll,
-  } = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
+  const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     parentDependsOnPeers: options.parentDependsOnPeers,
     preferedDependencies: options.preferedDependencies,
     prefix: ctx.prefix,
@@ -244,7 +241,7 @@ export default async function resolveDependencies (
           const resolveDependencyOpts: ResolveDependencyOptions = {
             ...resolveDepOpts,
             ...extendedWantedDep.infoFromLockfile,
-            proceed: extendedWantedDep.proceed || proceedAll,
+            proceed: extendedWantedDep.proceed,
           }
           const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -344,10 +341,14 @@ function getDepsToResolve (
   const resolvedDependencies = options.resolvedDependencies || {}
   const preferedDependencies = options.preferedDependencies || {}
   const extendedWantedDeps = []
-  let proceedAll = options.parentDependsOnPeers
+  // The only reason we resolve children in case the package depends on peers
+  // is to get information about the existing dependencies, so that they can
+  // be merged with the resolved peers.
+  const proceedAll = options.parentDependsOnPeers
+  let allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
-    let proceed = options.parentDependsOnPeers
+    let proceed = proceedAll
 
     // If dependencies that were used by the previous version of the package
     // satisfy the newer version's requirements, then pnpm tries to keep
@@ -374,10 +375,11 @@ function getDepsToResolve (
       !proceedAll &&
       infoFromLockfile &&
       infoFromLockfile.dependencyLockfile &&
-      infoFromLockfile.dependencyLockfile.peerDependencies &&
-      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).length
+      infoFromLockfile.dependencyLockfile.peerDependencies
     ) {
-      proceedAll = true
+      Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
+        allPeers.add(peerName)
+      })
     }
     extendedWantedDeps.push({
       infoFromLockfile,
@@ -385,10 +387,14 @@ function getDepsToResolve (
       wantedDependency,
     })
   }
-  return {
-    extendedWantedDeps,
-    proceedAll,
+  if (!proceedAll && allPeers.size) {
+    for (const extendedWantedDep of extendedWantedDeps) {
+      if (!extendedWantedDep.proceed && allPeers.has(extendedWantedDep.wantedDependency.alias)) {
+        extendedWantedDep.proceed = true
+      }
+    }
   }
+  return extendedWantedDeps
 }
 
 function preferedSatisfiesWanted (
