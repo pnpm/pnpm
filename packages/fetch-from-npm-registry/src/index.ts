@@ -1,5 +1,6 @@
 import fetch from '@pnpm/fetch'
 import npmRegistryAgent from '@pnpm/npm-registry-agent'
+import { URL } from 'url'
 
 const USER_AGENT = 'pnpm' // or maybe make it `${pkg.name}/${pkg.version} (+https://npm.im/${pkg.name})`
 
@@ -57,7 +58,11 @@ export default function (
         ...opts,
       } as any) // tslint:disable-line
       headers['connection'] = agent ? 'keep-alive' : 'close'
-      let response = await fetch(url, {
+
+      // We should pass a URL object to node-fetch till this is not resolved:
+      // https://github.com/bitinn/node-fetch/issues/245
+      const urlObject = new URL(url)
+      let response = await fetch(urlObject, {
         agent,
         // if verifying integrity, node-fetch must not decompress
         compress: false,
