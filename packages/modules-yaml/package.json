@@ -34,7 +34,7 @@
     "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "3.0.2",
+    "@pnpm/modules-yaml": "3.0.3",
     "rimraf": "2.6.3",
     "tape": "4.10.2",
     "tempy": "0.3.0",

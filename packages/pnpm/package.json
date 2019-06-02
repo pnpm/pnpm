@@ -92,7 +92,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/modules-yaml": "3.0.2",
+    "@pnpm/modules-yaml": "3.0.3",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/read-package-json": "2.0.2",
     "@pnpm/write-importer-manifest": "2.0.0",

@@ -31,7 +31,7 @@
     "@pnpm/lockfile-file": "1.0.6",
     "@pnpm/lockfile-utils": "1.0.8",
     "@pnpm/modules-cleaner": "3.0.10",
-    "@pnpm/modules-yaml": "3.0.2",
+    "@pnpm/modules-yaml": "3.0.3",
     "@pnpm/package-requester": "7.0.8",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/prune-lockfile": "1.0.7",
