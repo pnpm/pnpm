@@ -6,11 +6,11 @@ import { RootLog } from '@pnpm/core-loggers'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { getIntegrity } from '@pnpm/registry-mock'
 import { PackageJson } from '@pnpm/types'
 import makeDir = require('make-dir')
 import path = require('path')
 import exists = require('path-exists')
-import { getIntegrity } from 'pnpm-registry-mock'
 import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')

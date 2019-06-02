@@ -1,7 +1,7 @@
 import assertProject from '@pnpm/assert-project'
 import prepare, { tempDir } from '@pnpm/prepare'
+import pnpmRegistryMock = require('@pnpm/registry-mock')
 import ncpCB = require('ncp')
-import pnpmRegistryMock = require('pnpm-registry-mock')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { promisify } from 'util'

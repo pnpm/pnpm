@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
-import { getIntegrity } from 'pnpm-registry-mock'
+import { getIntegrity } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

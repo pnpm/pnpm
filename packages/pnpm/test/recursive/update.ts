@@ -1,7 +1,7 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import { preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import fs = require('mz/fs')
-import { addDistTag } from 'pnpm-registry-mock'
 import readYamlFile from 'read-yaml-file'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

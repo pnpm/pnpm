@@ -143,7 +143,7 @@ declare namespace pnpmRegistryMock {
   function addDistTag (opts: {package: string, version: string, distTag: string}): Promise<void>
 }
 
-declare module 'pnpm-registry-mock' {
+declare module '@pnpm/registry-mock' {
   export = pnpmRegistryMock
 }
 

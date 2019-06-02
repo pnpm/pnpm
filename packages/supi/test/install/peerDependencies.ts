@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile = require('load-json-file')
 import makeDir = require('make-dir')
 import path = require('path')
 import exists = require('path-exists')
-import { addDistTag } from 'pnpm-registry-mock'
 import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')

@@ -1,5 +1,5 @@
 import { prepareEmpty } from '@pnpm/prepare'
-import pnpmRegistryMock = require('pnpm-registry-mock')
+import pnpmRegistryMock = require('@pnpm/registry-mock')
 import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
