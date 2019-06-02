@@ -33,6 +33,14 @@ test('update', async function (t: tape.Test) {
   t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
 })
 
+test('update should not install the dependency if it is not present already', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await execPnpm('update', 'is-positive')
+
+  project.hasNot('is-positive')
+})
+
 test('update --latest', async function (t: tape.Test) {
   const project = prepare(t)
 

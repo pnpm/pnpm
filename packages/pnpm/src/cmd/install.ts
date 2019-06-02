@@ -76,6 +76,7 @@ export default async function installCmd (
   } else {
     const [updatedImporter] = await mutateModules([
       {
+        allowNew: opts.allowNew,
         bin: installOpts.bin,
         dependencySelectors: input,
         manifest,
