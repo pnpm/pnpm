@@ -237,10 +237,10 @@ export async function recursive (
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDirectory, opts)
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
       const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
-      const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }, index) => {
+      const mutatedImporters = [] as MutatedImporter[]
+      await Promise.all(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
         const { manifest, writeImporterManifest } = manifestsByPath[prefix]
-        writeImporterManifests[index] = writeImporterManifest
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
@@ -250,20 +250,26 @@ export async function recursive (
             currentInput = updateToLatestSpecsFromManifest(manifest, include)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
+            if (!currentInput.length) {
+              installOpts.pruneLockfileImporters = false
+              return
+            }
           }
         }
+        writeImporterManifests.push(writeImporterManifest)
         switch (mutation) {
           case 'uninstallSome':
-            return {
+            mutatedImporters.push({
               dependencyNames: currentInput,
               manifest,
               mutation,
               prefix,
               shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
-            } as MutatedImporter
+            } as MutatedImporter)
+            return
           case 'installSome':
-            return {
+            mutatedImporters.push({
               allowNew: cmdFullName === 'install',
               dependencySelectors: currentInput,
               manifest,
@@ -276,15 +282,17 @@ export async function recursive (
               prefix,
               shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
-            } as MutatedImporter
+            } as MutatedImporter)
+            return
           case 'install':
-            return {
+            mutatedImporters.push({
               buildIndex,
               manifest,
               mutation,
               prefix,
               shamefullyFlatten,
-            } as MutatedImporter
+            } as MutatedImporter)
+            return
         }
       }))
       const mutatedPkgs = await mutateModules(mutatedImporters, {
@@ -320,6 +328,7 @@ export async function recursive (
               currentInput = updateToLatestSpecsFromManifest(manifest, include)
             } else {
               currentInput = createLatestSpecs(currentInput, manifest)
+              if (!currentInput.length) return
             }
           }
 

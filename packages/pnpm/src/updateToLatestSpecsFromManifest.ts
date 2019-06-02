@@ -24,21 +24,23 @@ export default function (manifest: ImporterManifest, include: IncludedDependenci
 
 export function createLatestSpecs (specs: string[], manifest: ImporterManifest) {
   const allDeps = getAllDependenciesFromPackage(manifest)
-  return specs.map((selector) => {
-    if (selector.includes('@', 1)) {
-      return selector
-    }
-    if (!allDeps[selector]) {
+  return specs
+    .filter((selector) => selector.includes('@')
+      ? allDeps[selector.substr(0, selector.indexOf('@', 1))]
+      : allDeps[selector]
+    )
+    .map((selector) => {
+      if (selector.includes('@', 1)) {
+        return selector
+      }
+      if (allDeps[selector].startsWith('npm:')) {
+        return `${selector}@${removeVersionFromSpec(allDeps[selector])}@latest`
+      }
+      if (!getVerSelType(allDeps[selector])) {
+        return selector
+      }
       return `${selector}@latest`
-    }
-    if (allDeps[selector].startsWith('npm:')) {
-      return `${selector}@${removeVersionFromSpec(allDeps[selector])}@latest`
-    }
-    if (!getVerSelType(allDeps[selector])) {
-      return selector
-    }
-    return `${selector}@latest`
-  })
+    })
 }
 
 function removeVersionFromSpec (spec: string) {
