@@ -122,3 +122,41 @@ test('recursive update --latest foo should only update packages that have foo', 
     t.deepEqual(Object.keys(lockfile.packages || {}), ['/bar/100.0.0'])
   }
 })
+
+test('recursive update in workspace should not add new dependencies', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  await execPnpm('recursive', 'update', 'is-positive')
+
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
+})
+
+test('recursive update should not add new dependencies', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+    },
+  ])
+
+  await execPnpm('recursive', 'update', 'is-positive')
+
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].hasNot('is-positive')
+})
