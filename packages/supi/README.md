@@ -11,13 +11,13 @@
 Install it via npm.
 
 ```
-npm install supi
+<pnpm|yarn|npm> add supi
 ```
 
 It also depends on `@pnpm/logger` version `1`, so install it as well via:
 
 ```
-npm install @pnpm/logger@1
+<pnpm|yarn|npm> add @pnpm/logger@1
 ```
 
 ## API

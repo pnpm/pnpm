@@ -9,7 +9,7 @@ the `package-lock.json` of npm or the `yarn.lock` of Yarn.
 ## Install
 
 ```
-npm i @pnpm/lockfile-file
+<pnpm|yarn|npm> add @pnpm/lockfile-file
 ```
 
 ## API

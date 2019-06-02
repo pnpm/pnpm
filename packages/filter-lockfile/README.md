@@ -5,7 +5,7 @@
 ## Install
 
 ```
-npm i @pnpm/filter-lockfile
+<pnpm|yarn|npm> add @pnpm/filter-lockfile
 ```
 
 ## License

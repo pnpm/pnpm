@@ -5,7 +5,7 @@
 ## Install
 
 ```
-npm i @pnpm/lockfile-utils
+<pnpm|yarn|npm> add @pnpm/lockfile-utils
 ```
 
 ## License
