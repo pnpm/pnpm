@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "3.2.5",
+  "version": "3.2.6",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/config": "3.3.4",
-    "@pnpm/core-loggers": "3.0.2",
+    "@pnpm/core-loggers": "3.0.3",
     "@pnpm/types": "3.2.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",

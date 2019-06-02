@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-importer-manifest",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Read an importer manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-importer-manifest#readme",
   "dependencies": {
     "@pnpm/types": "^3.0.0",
-    "@pnpm/write-importer-manifest": "2.0.0",
+    "@pnpm/write-importer-manifest": "2.0.1",
     "detect-indent": "6.0.0",
     "graceful-fs": "4.1.15",
     "is-windows": "1.0.2",
