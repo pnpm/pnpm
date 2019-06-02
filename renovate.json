@@ -25,6 +25,7 @@
     "@pnpm/lockfile-utils",
     "@pnpm/logger",
     "@pnpm/modules-cleaner",
+    "@pnpm/modules-yaml",
     "@pnpm/npm-registry-agent",
     "@pnpm/npm-resolver",
     "@pnpm/outdated",
