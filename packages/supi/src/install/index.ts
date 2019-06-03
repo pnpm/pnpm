@@ -508,6 +508,10 @@ async function partitionLinkedPackages (
       message: `${wantedDependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
       prefix: opts.prefix,
     })
+    wantedDependency['resolution'] = {
+      directory: isInnerLink,
+      type: 'directory',
+    }
     linkedPackages.push(wantedDependency as (WantedDependency & {alias: string}))
   }
   return {

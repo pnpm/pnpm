@@ -110,6 +110,7 @@ export interface ChildrenByParentId {
 
 export interface ResolutionContext {
   defaultTag: string,
+  directLinkedPackages: WantedDependency[],
   dryRun: boolean,
   resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
   outdatedDependencies: {[pkgId: string]: string},
@@ -496,6 +497,23 @@ async function resolveDependency (
   ctx: ResolutionContext,
   options: ResolveDependencyOptions,
 ): Promise<PkgAddress | null> {
+  if (options.currentDepth === 0 && !options.update) {
+    const linkedDep = ctx.directLinkedPackages.find((directLinkedPackage) => directLinkedPackage.alias === wantedDependency.alias)
+    if (linkedDep) {
+      ctx.linkedDependencies.push({
+        alias: linkedDep.alias,
+        dev: linkedDep.dev,
+        id: '', // pkgResponse.body.id,
+        name: '', // manifest.name,
+        normalizedPref: '', // pkgResponse.body.normalizedPref,
+        optional: linkedDep.optional,
+        resolution: linkedDep['resolution'],
+        specRaw: linkedDep.raw,
+        version: '', // manifest.version,
+      })
+      return null
+    }
+  }
   const update = Boolean(
     options.update ||
     options.localPackages &&

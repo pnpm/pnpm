@@ -21,7 +21,7 @@ import {
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test['skip']('unlink 1 package that exists in package.json', async (t: tape.Test) => {
+test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   process.chdir('..')
 

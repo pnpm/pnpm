@@ -27,6 +27,7 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 
 export interface Importer {
   id: string,
+  linkedPackages: WantedDependency[],
   modulesDir: string,
   nonLinkedPackages: WantedDependency[],
   manifest?: ImporterManifest,
@@ -98,6 +99,7 @@ export default async function (
     const linkedDependencies = [] as LinkedDependency[]
     const resolveCtx = {
       ...ctx,
+      directLinkedPackages: importer.linkedPackages,
       linkedDependencies,
       modulesDir: importer.modulesDir,
       prefix: importer.prefix,
@@ -116,8 +118,6 @@ export default async function (
       },
       updateDepth: importer.shamefullyFlatten ? Infinity : (typeof opts.updateDepth === 'number' ? opts.updateDepth : -1),
     }
-    // TODO: only new dependencies should have big depth.
-    // We know which are new. Those that are not in the manifest
     directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
       (!importer.manifest
