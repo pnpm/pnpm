@@ -128,7 +128,6 @@ export interface ResolutionContext {
   force: boolean,
   prefix: string,
   readPackageHook?: ReadPackageHook,
-  updateDepth: number,
   engineStrict: boolean,
   modulesDir: string,
   nodeVersion: string,
@@ -197,11 +196,12 @@ export interface ResolvedPackage {
 
 export default async function resolveDependencies (
   ctx: ResolutionContext,
-  wantedDependencies: WantedDependency[],
+  wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: {
     dependentId?: string,
     parentDependsOnPeers: boolean,
     parentNodeId: string,
+    updateDepth: number,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
     // If the package has been updated, the dependencies
@@ -230,7 +230,6 @@ export default async function resolveDependencies (
     parentNodeId: options.parentNodeId,
     preferredVersions: options.preferredVersions,
     readPackageHook: options.readPackageHook,
-    update: options.currentDepth <= ctx.updateDepth,
   }
   const postponedResolutionsQueue = ctx.resolutionStrategy === 'fewer-dependencies'
     ? [] as Array<(preferredVersions: PreferredVersions) => Promise<void>> : undefined
@@ -238,10 +237,14 @@ export default async function resolveDependencies (
     await Promise.all(
       extendedWantedDeps
         .map(async (extendedWantedDep) => {
+          const updateDepth = typeof extendedWantedDep.wantedDependency.updateDepth === 'number'
+            ? extendedWantedDep.wantedDependency.updateDepth : options.updateDepth
           const resolveDependencyOpts: ResolveDependencyOptions = {
             ...resolveDepOpts,
             ...extendedWantedDep.infoFromLockfile,
             proceed: extendedWantedDep.proceed,
+            update: options.currentDepth <= updateDepth,
+            updateDepth,
           }
           const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
@@ -274,6 +277,7 @@ export default async function resolveDependencies (
                   : undefined,
                 preferredVersions,
                 resolvedDependencies,
+                updateDepth,
               },
             )
             ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
@@ -328,7 +332,7 @@ export default async function resolveDependencies (
 }
 
 function getDepsToResolve (
-  wantedDependencies: WantedDependency[],
+  wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   wantedLockfile: Lockfile,
   options: {
     parentDependsOnPeers: boolean,
@@ -377,6 +381,7 @@ function getDepsToResolve (
       infoFromLockfile.dependencyLockfile &&
       infoFromLockfile.dependencyLockfile.peerDependencies
     ) {
+      proceed = true
       Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
         allPeers.add(peerName)
       })
@@ -481,6 +486,7 @@ type ResolveDependencyOptions = {
   parentIsInstallable?: boolean,
   preferredVersions: PreferredVersions,
   update: boolean,
+  updateDepth: number,
   proceed: boolean,
   localPackages?: LocalPackages,
 }
@@ -559,7 +565,7 @@ async function resolveDependency (
 
   if (
     !options.parentDependsOnPeer && !pkgResponse.body.updated &&
-    options.currentDepth === ctx.updateDepth &&
+    options.currentDepth === options.updateDepth &&
     currentLockfileContainsTheDep && !ctx.force
   ) {
     return null

@@ -369,19 +369,23 @@ export async function mutateModules (
           prefix: importer.prefix,
         })
       }
-
+      const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(wantedDeps, {
+        localPackages: opts.localPackages,
+        lockfileOnly: opts.lockfileOnly,
+        modulesDir: importer.modulesDir,
+        prefix: importer.prefix,
+        storePath: ctx.storePath,
+        virtualStoreDir: ctx.virtualStoreDir,
+      })
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        ...await partitionLinkedPackages(wantedDeps, {
-          localPackages: opts.localPackages,
-          lockfileOnly: opts.lockfileOnly,
-          modulesDir: importer.modulesDir,
-          prefix: importer.prefix,
-          storePath: ctx.storePath,
-          virtualStoreDir: ctx.virtualStoreDir,
-        }),
+        linkedPackages,
         newPkgRawSpecs: [],
+        nonLinkedPackages: nonLinkedPackages.map((wantedDep) => {
+          wantedDep['isNew'] = true // tslint:disable-line
+          return wantedDep
+        }),
         updatePackageJson: false,
         wantedDeps,
       })
@@ -399,6 +403,10 @@ export async function mutateModules (
         devDependencies,
         optional: importer.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
+      })
+      .map((wantedDep) => {
+        wantedDep['isNew'] = true // tslint:disable-line
+        return wantedDep
       })
       const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(
         getWantedDependencies(importer.manifest),

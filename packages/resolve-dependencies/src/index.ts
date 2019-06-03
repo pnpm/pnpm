@@ -6,7 +6,13 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import { createNodeId, getWantedDependencies, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
+import {
+  createNodeId,
+  getWantedDependencies,
+  nodeIdContainsSequence,
+  ROOT_NODE_ID,
+  WantedDependency,
+} from '@pnpm/utils'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, {
   ChildrenByParentId,
@@ -83,7 +89,6 @@ export default async function (
     sideEffectsCache: opts.sideEffectsCache,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
-    updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
   }
@@ -97,7 +102,6 @@ export default async function (
       modulesDir: importer.modulesDir,
       prefix: importer.prefix,
       resolutionStrategy: opts.resolutionStrategy || 'fast',
-      updateDepth: importer.shamefullyFlatten ? Infinity : ctx.updateDepth,
     }
     const resolveOpts = {
       currentDepth: 0,
@@ -110,33 +114,46 @@ export default async function (
         ...lockfileImporter.devDependencies,
         ...lockfileImporter.optionalDependencies,
       },
+      updateDepth: importer.shamefullyFlatten ? Infinity : (typeof opts.updateDepth === 'number' ? opts.updateDepth : -1),
     }
-    const newDirectDeps = await resolveDependencies(
+    // TODO: only new dependencies should have big depth.
+    // We know which are new. Those that are not in the manifest
+    directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
-      importer.nonLinkedPackages,
+      (!importer.manifest
+        ? importer.nonLinkedPackages
+        : [
+          ...importer.nonLinkedPackages.map((wantedDep) => !wantedDep['isNew'] ? { ...wantedDep, updateDepth: -1 } : wantedDep),
+          ...getWantedDependencies(importer.manifest)
+            .filter((wantedDep) => {
+              return importer.nonLinkedPackages.every((nonLinked) => nonLinked.alias !== wantedDep.alias)
+            })
+            .map((wantedDep) => ({ ...wantedDep, updateDepth: -1 }))
+        ]),
       resolveOpts,
     )
-    if (!importer.manifest) {
-      directNonLinkedDepsByImporterId[importer.id] = newDirectDeps
-    } else {
-      directNonLinkedDepsByImporterId[importer.id] = [
-        ...newDirectDeps,
-        ...await resolveDependencies(
-          {
-            ...resolveCtx,
-            updateDepth: -1,
-          },
-          getWantedDependencies(importer.manifest)
-            .filter((wantedDep) => {
-              return newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)
-                && importer.nonLinkedPackages.some((nonLinked) => nonLinked.alias === wantedDep.alias)
-            }),
-          {
-            ...resolveOpts,
-          },
-        ),
-      ]
-    }
+    // This if should be removed.
+    // if (!importer.manifest) {
+    //   directNonLinkedDepsByImporterId[importer.id] = newDirectDeps
+    // } else {
+    //   directNonLinkedDepsByImporterId[importer.id] = [
+    //     ...newDirectDeps,
+    //     ...await resolveDependencies(
+    //       {
+    //         ...resolveCtx,
+    //         updateDepth: -1,
+    //       },
+    //       getWantedDependencies(importer.manifest)
+    //         .filter((wantedDep) => {
+    //           return newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)
+    //             && importer.nonLinkedPackages.some((nonLinked) => nonLinked.alias === wantedDep.alias)
+    //         }),
+    //       {
+    //         ...resolveOpts,
+    //       },
+    //     ),
+    //   ]
+    // }
     linkedDependenciesByImporterId[importer.id] = linkedDependencies
   }))
 
