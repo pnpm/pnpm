@@ -51,7 +51,7 @@ test('should not override root packages with flattened dependencies', async (t) 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug did not get overridden by flattening')
 })
 
-test['skip']('should reflatten when uninstalling a package', async (t: tape.Test) => {
+test('should reflatten when uninstalling a package', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   // this installs debug@3.1.0 and express@4.16.0

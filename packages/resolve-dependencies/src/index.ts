@@ -123,37 +123,22 @@ export default async function (
       (!importer.manifest
         ? importer.nonLinkedPackages
         : [
-          ...importer.nonLinkedPackages.map((wantedDep) => !wantedDep['isNew'] ? { ...wantedDep, updateDepth: -1 } : wantedDep),
-          ...getWantedDependencies(importer.manifest)
-            .filter((wantedDep) => {
-              return importer.nonLinkedPackages.every((nonLinked) => nonLinked.alias !== wantedDep.alias)
-            })
-            .map((wantedDep) => ({ ...wantedDep, updateDepth: -1 }))
+          ...(
+            importer.shamefullyFlatten
+              ? importer.nonLinkedPackages
+              : importer.nonLinkedPackages.map((wantedDep) => !wantedDep['isNew'] ? { ...wantedDep, updateDepth: -1 } : wantedDep)
+          ),
+          ...(() => {
+            const deps = getWantedDependencies(importer.manifest)
+              .filter((wantedDep) => {
+                return importer.nonLinkedPackages.every((nonLinked) => nonLinked.alias !== wantedDep.alias)
+              })
+            if (importer.shamefullyFlatten) return deps
+            return deps.map((wantedDep) => ({ ...wantedDep, updateDepth: -1 }))
+          })()
         ]),
       resolveOpts,
     )
-    // This if should be removed.
-    // if (!importer.manifest) {
-    //   directNonLinkedDepsByImporterId[importer.id] = newDirectDeps
-    // } else {
-    //   directNonLinkedDepsByImporterId[importer.id] = [
-    //     ...newDirectDeps,
-    //     ...await resolveDependencies(
-    //       {
-    //         ...resolveCtx,
-    //         updateDepth: -1,
-    //       },
-    //       getWantedDependencies(importer.manifest)
-    //         .filter((wantedDep) => {
-    //           return newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)
-    //             && importer.nonLinkedPackages.some((nonLinked) => nonLinked.alias === wantedDep.alias)
-    //         }),
-    //       {
-    //         ...resolveOpts,
-    //       },
-    //     ),
-    //   ]
-    // }
     linkedDependenciesByImporterId[importer.id] = linkedDependencies
   }))
 
