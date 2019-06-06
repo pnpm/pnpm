@@ -45,7 +45,7 @@
     "make-dir": "3.0.0",
     "mz": "2.7.0",
     "p-limit": "2.2.0",
-    "p-queue": "5.0.0",
+    "p-queue": "6.0.1",
     "path-exists": "4.0.0",
     "rename-overwrite": "2.0.1",
     "rimraf-then": "1.0.1",

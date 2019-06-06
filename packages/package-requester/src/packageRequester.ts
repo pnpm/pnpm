@@ -29,7 +29,7 @@ import {
 import loadJsonFile = require('load-json-file')
 import makeDir = require('make-dir')
 import * as fs from 'mz/fs'
-import PQueue = require('p-queue')
+import PQueue from 'p-queue'
 import path = require('path')
 import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
