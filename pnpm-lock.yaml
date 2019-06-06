@@ -2108,12 +2108,12 @@ importers:
       '@commitlint/cli': 8.0.0
       '@commitlint/config-conventional': 8.0.0
       '@commitlint/prompt-cli': 8.0.0
-      husky: 2.3.0
+      husky: 2.4.0
     specifiers:
       '@commitlint/cli': 8.0.0
       '@commitlint/config-conventional': 8.0.0
       '@commitlint/prompt-cli': 8.0.0
-      husky: 2.3.0
+      husky: 2.4.0
   typings:
     specifiers: {}
   utils/tsconfig:
@@ -5260,7 +5260,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
-  /husky/2.3.0:
+  /husky/2.4.0:
     dependencies:
       cosmiconfig: 5.2.1
       execa: 1.0.0
@@ -5278,7 +5278,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-A/ZQSEILoq+mQM3yC3RIBSaw1bYXdkKnyyKVSUiJl+iBjVZc5LQEXdGY1ZjrDxC4IzfRPiJ0IqzEQGCN5TQa/A==
+      integrity: sha512-3k1wuZU20gFkphNWMjh2ISCFaqfbaLY7R9FST2Mj9HeRhUK9ydj9qQR8qfXlog3EctVGsyeilcZkIT7uBZDDVA==
   /iconv-lite/0.4.23:
     dependencies:
       safer-buffer: 2.1.2
