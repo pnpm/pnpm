@@ -1,3 +1,4 @@
+import { Lockfile } from '@pnpm/lockfile-types'
 import { preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
@@ -330,6 +331,53 @@ test('recursive installation of packages with hooks', async t => {
 
   const lockfile2 = await projects['project-2'].readLockfile()
   t.ok(lockfile2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+})
+
+test('recursive installation of packages in workspace ignores hooks in package', async t => {
+  // This test hangs on Appveyor for some reason
+  if (isCI && isWindows()) return
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  process.chdir('project-1')
+  const pnpmfile = `
+    module.exports = { hooks: { readPackage } }
+    function readPackage (pkg) {
+      pkg.dependencies = pkg.dependencies || {}
+      pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+      return pkg
+    }
+  `
+  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+
+  process.chdir('../project-2')
+  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+
+  process.chdir('..')
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
+
+  await execPnpm('recursive', 'install')
+
+  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  // tslint:disable-next-line: no-unnecessary-type-assertion
+  t.notOk(lockfile.packages!['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
 test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async t => {

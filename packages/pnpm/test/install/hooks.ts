@@ -1,8 +1,11 @@
-import prepare from '@pnpm/prepare'
+import { Lockfile } from '@pnpm/lockfile-types'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import fs = require('mz/fs')
 import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
   execPnpm,
@@ -143,6 +146,54 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async (t: tape.
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
+})
+
+test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    }
+  ])
+
+  const pnpmfile = `
+    module.exports = { hooks: { readPackage } }
+    function readPackage (pkg) {
+      pkg.dependencies = pkg.dependencies || {}
+      pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+      return pkg
+    }
+  `
+  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+
+  await execPnpm('recursive', 'install')
+
+  const storeDir = path.resolve('../store')
+
+  process.chdir('project-1')
+
+  await execPnpm('install', 'is-negative@1.0.0', '--store', storeDir)
+
+  await projects['project-1'].has('is-negative')
+  await projects['project-1'].has('is-positive')
+
+  process.chdir('..')
+
+  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  // tslint:disable: no-unnecessary-type-assertion
+  t.deepEqual(lockfile.packages!['/is-positive/1.0.0'].dependencies, {
+    'dep-of-pkg-with-1-dep': '100.1.0'
+  }, 'dep-of-pkg-with-1-dep is dependency of is-positive')
+  t.deepEqual(lockfile.packages!['/is-negative/1.0.0'].dependencies, {
+    'dep-of-pkg-with-1-dep': '100.1.0'
+  }, 'dep-of-pkg-with-1-dep is dependency of is-negative')
+  // tslint:enable: no-unnecessary-type-assertion
 })
 
 test('readPackage hook during update', async (t: tape.Test) => {
