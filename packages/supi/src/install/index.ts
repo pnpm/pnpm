@@ -271,17 +271,6 @@ export async function mutateModules (
           importersToInstall.push({
             pruneDirectDependencies: false,
             ...importer,
-            ...await partitionLinkedPackages(
-              getWantedDependencies(importer.manifest).filter((wantedDep) => !importer.dependencyNames.includes(wantedDep.alias)),
-              {
-                localPackages: opts.localPackages,
-                lockfileOnly: opts.lockfileOnly,
-                modulesDir: importer.modulesDir,
-                prefix: importer.prefix,
-                storePath: ctx.storePath,
-                virtualStoreDir: ctx.virtualStoreDir,
-              },
-            ),
             newPkgRawSpecs: [],
             removePackages: importer.dependencyNames,
             updatePackageJson: true,
@@ -369,23 +358,10 @@ export async function mutateModules (
           prefix: importer.prefix,
         })
       }
-      const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(wantedDeps, {
-        localPackages: opts.localPackages,
-        lockfileOnly: opts.lockfileOnly,
-        modulesDir: importer.modulesDir,
-        prefix: importer.prefix,
-        storePath: ctx.storePath,
-        virtualStoreDir: ctx.virtualStoreDir,
-      })
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        linkedPackages,
         newPkgRawSpecs: [],
-        nonLinkedPackages: nonLinkedPackages.map((wantedDep) => {
-          wantedDep['isNew'] = true // tslint:disable-line
-          return wantedDep
-        }),
         updatePackageJson: false,
         wantedDeps,
       })
@@ -404,30 +380,10 @@ export async function mutateModules (
         optional: importer.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
       })
-      .map((wantedDep) => {
-        wantedDep['isNew'] = true // tslint:disable-line
-        return wantedDep
-      })
-      const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(
-        getWantedDependencies(importer.manifest),
-        {
-          localPackages: opts.localPackages,
-          lockfileOnly: opts.lockfileOnly,
-          modulesDir: importer.modulesDir,
-          prefix: importer.prefix,
-          storePath: ctx.storePath,
-          virtualStoreDir: ctx.virtualStoreDir,
-        },
-      )
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        linkedPackages: linkedPackages.filter((linkedPackage) => wantedDeps.every((wantedDep) => wantedDep.alias !== linkedPackage.alias)),
         newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
-        nonLinkedPackages: [
-          ...wantedDeps,
-          ...nonLinkedPackages.filter((nonLinkedPackage) => !wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedPackage.alias)),
-        ],
         updatePackageJson,
         wantedDeps,
       })
@@ -624,11 +580,9 @@ type ImporterToUpdate = {
   bin: string,
   hoistedAliases: {[depPath: string]: string[]},
   id: string,
-  linkedPackages: Array<WantedDependency & {alias: string}>,
   manifest: ImporterManifest,
   modulesDir: string,
   newPkgRawSpecs: string[],
-  nonLinkedPackages: WantedDependency[],
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
@@ -705,7 +659,28 @@ async function installInContext (
     force: opts.force,
     hasManifestInLockfile,
     hooks: opts.hooks,
-    importers,
+    importers: await Promise.all(importers.map(async (importer) => {
+      const allDeps = getWantedDependencies(importer.manifest)
+      const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(allDeps, {
+        localPackages: opts.localPackages,
+        lockfileOnly: opts.lockfileOnly,
+        modulesDir: importer.modulesDir,
+        prefix: importer.prefix,
+        storePath: ctx.storePath,
+        virtualStoreDir: ctx.virtualStoreDir,
+      })
+      return {
+        ...importer,
+        linkedPackages,
+        nonLinkedPackages: [
+          ...importer.wantedDeps.map((wantedDep) => ({
+            ...wantedDep,
+            isNew: true,
+          })),
+          ...nonLinkedPackages.filter((nonLinkedPackage) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedPackage.alias)),
+        ],
+      }
+    })),
     localPackages: opts.localPackages,
     lockfileDirectory: opts.lockfileDirectory,
     nodeVersion: opts.nodeVersion,
@@ -795,7 +770,7 @@ async function installInContext (
       ctx.wantedLockfile.importers[importer.id] = addDirectDependenciesToLockfile(
         newPkg,
         lockfileImporter,
-        importer.linkedPackages,
+        resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
         ctx.registries,
       )
@@ -995,7 +970,7 @@ function modulesIsUpToDate (
 function addDirectDependenciesToLockfile (
   newManifest: ImporterManifest,
   lockfileImporter: LockfileImporter,
-  linkedPackages: Array<WantedDependency & {alias: string}>,
+  linkedPackages: Array<{alias: string}>,
   directDependencies: Array<{
     alias: string,
     optional: boolean,
