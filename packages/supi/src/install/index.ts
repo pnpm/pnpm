@@ -433,7 +433,7 @@ function pkgHasDependencies (manifest: ImporterManifest) {
 }
 
 async function partitionLinkedPackages (
-  wantedDeps: WantedDependency[],
+  dependencies: WantedDependency[],
   opts: {
     modulesDir: string,
     localPackages?: LocalPackages,
@@ -443,36 +443,36 @@ async function partitionLinkedPackages (
     virtualStoreDir: string,
   },
 ) {
-  const nonLinkedPackages: WantedDependency[] = []
-  const linkedPackages: Array<WantedDependency & {alias: string}> = []
-  for (const wantedDependency of wantedDeps) {
-    if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
-      nonLinkedPackages.push(wantedDependency)
+  const nonLinkedDependencies: WantedDependency[] = []
+  const linkedDependencies: Array<WantedDependency & {alias: string}> = []
+  for (const dependency of dependencies) {
+    if (!dependency.alias || opts.localPackages && opts.localPackages[dependency.alias]) {
+      nonLinkedDependencies.push(dependency)
       continue
     }
-    const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, wantedDependency.alias, {
+    const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
       prefix: opts.prefix,
       storePath: opts.storePath,
     })
     if (isInnerLink === true) {
-      nonLinkedPackages.push(wantedDependency)
+      nonLinkedDependencies.push(dependency)
       continue
     }
     // This info-log might be better to be moved to the reporter
     logger.info({
-      message: `${wantedDependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
+      message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
       prefix: opts.prefix,
     })
-    wantedDependency['resolution'] = {
+    dependency['resolution'] = {
       directory: isInnerLink,
       type: 'directory',
     }
-    linkedPackages.push(wantedDependency as (WantedDependency & {alias: string}))
+    linkedDependencies.push(dependency as (WantedDependency & {alias: string}))
   }
   return {
-    linkedPackages,
-    nonLinkedPackages,
+    linkedDependencies,
+    nonLinkedDependencies,
   }
 }
 
@@ -646,6 +646,29 @@ async function installInContext (
     stage: 'resolution_started',
   })
 
+  const defaultUpdateDepth = (() => {
+    // This can be remove from lockfile v4
+    if (!hasManifestInLockfile) {
+      // The lockfile has to be updated to contain
+      // the necessary info from package manifests
+      return Infinity
+    }
+    if (opts.force) return Infinity
+    if (opts.update) {
+      return opts.depth
+    }
+    if (
+      modulesIsUpToDate({
+        currentLockfile: ctx.currentLockfile,
+        defaultRegistry: ctx.registries.default,
+        skippedRelDepPaths: Array.from(ctx.skipped),
+        wantedLockfile: ctx.wantedLockfile,
+      })
+    ) {
+      return opts.repeatInstallDepth
+    }
+    return Infinity
+  })()
   const {
     dependenciesTree,
     outdatedDependencies,
@@ -661,7 +684,7 @@ async function installInContext (
     hooks: opts.hooks,
     importers: await Promise.all(importers.map(async (importer) => {
       const allDeps = getWantedDependencies(importer.manifest)
-      const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(allDeps, {
+      const { linkedDependencies, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
         localPackages: opts.localPackages,
         lockfileOnly: opts.lockfileOnly,
         modulesDir: importer.modulesDir,
@@ -669,16 +692,32 @@ async function installInContext (
         storePath: ctx.storePath,
         virtualStoreDir: ctx.virtualStoreDir,
       })
+      const depsToUpdate = importer.wantedDeps.map((wantedDep) => ({
+        ...wantedDep,
+        isNew: true,
+      }))
+      const existingDeps = nonLinkedDependencies
+        .filter((nonLinkedDependency) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedDependency.alias))
+      let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
+      if (!importer.manifest || importer.shamefullyFlatten) {
+        wantedDependencies = [
+          ...depsToUpdate,
+          ...existingDeps,
+        ]
+        .map((dep) => ({
+          ...dep,
+          updateDepth: importer.shamefullyFlatten ? Infinity : defaultUpdateDepth,
+        }))
+      } else {
+        wantedDependencies = [
+          ...depsToUpdate.map((dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
+          ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
+        ]
+      }
       return {
         ...importer,
-        linkedPackages,
-        nonLinkedPackages: [
-          ...importer.wantedDeps.map((wantedDep) => ({
-            ...wantedDep,
-            isNew: true,
-          })),
-          ...nonLinkedPackages.filter((nonLinkedPackage) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedPackage.alias)),
-        ],
+        linkedDependencies,
+        wantedDependencies,
       }
     })),
     localPackages: opts.localPackages,
@@ -691,29 +730,6 @@ async function installInContext (
     sideEffectsCache: opts.sideEffectsCacheRead,
     storeController: opts.storeController,
     tag: opts.tag,
-    updateDepth: (() => {
-      // This can be remove from lockfile v4
-      if (!hasManifestInLockfile) {
-        // The lockfile has to be updated to contain
-        // the necessary info from package manifests
-        return Infinity
-      }
-      if (opts.force) return Infinity
-      if (opts.update) {
-        return opts.depth
-      }
-      if (
-        modulesIsUpToDate({
-          currentLockfile: ctx.currentLockfile,
-          defaultRegistry: ctx.registries.default,
-          skippedRelDepPaths: Array.from(ctx.skipped),
-          wantedLockfile: ctx.wantedLockfile,
-        })
-      ) {
-        return opts.repeatInstallDepth
-      }
-      return Infinity
-    })(),
     virtualStoreDir: ctx.virtualStoreDir,
     wantedLockfile: ctx.wantedLockfile,
   })

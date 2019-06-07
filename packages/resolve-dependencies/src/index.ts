@@ -27,12 +27,11 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 
 export interface Importer {
   id: string,
-  linkedPackages: WantedDependency[],
-  modulesDir: string,
-  nonLinkedPackages: WantedDependency[],
+  linkedDependencies: WantedDependency[],
   manifest?: ImporterManifest,
+  modulesDir: string,
   prefix: string,
-  shamefullyFlatten: boolean,
+  wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
 }
 
 export default async function (
@@ -61,7 +60,6 @@ export default async function (
     tag: string,
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
-    updateDepth?: number,
     hasManifestInLockfile: boolean,
     localPackages: LocalPackages,
   },
@@ -99,7 +97,7 @@ export default async function (
     const linkedDependencies = [] as LinkedDependency[]
     const resolveCtx = {
       ...ctx,
-      directLinkedPackages: importer.linkedPackages,
+      directLinkedPackages: importer.linkedDependencies,
       linkedDependencies,
       modulesDir: importer.modulesDir,
       prefix: importer.prefix,
@@ -116,27 +114,11 @@ export default async function (
         ...lockfileImporter.devDependencies,
         ...lockfileImporter.optionalDependencies,
       },
-      updateDepth: importer.shamefullyFlatten ? Infinity : (typeof opts.updateDepth === 'number' ? opts.updateDepth : -1),
+      updateDepth: -1,
     }
     directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
-      (!importer.manifest
-        ? importer.nonLinkedPackages
-        : [
-          ...(
-            importer.shamefullyFlatten
-              ? importer.nonLinkedPackages
-              : importer.nonLinkedPackages.map((wantedDep) => !wantedDep['isNew'] ? { ...wantedDep, updateDepth: -1 } : wantedDep)
-          ),
-          ...(() => {
-            const deps = getWantedDependencies(importer.manifest)
-              .filter((wantedDep) => {
-                return importer.nonLinkedPackages.every((nonLinked) => nonLinked.alias !== wantedDep.alias)
-              })
-            if (importer.shamefullyFlatten) return deps
-            return deps.map((wantedDep) => ({ ...wantedDep, updateDepth: -1 }))
-          })()
-        ]),
+      importer.wantedDependencies,
       resolveOpts,
     )
     linkedDependenciesByImporterId[importer.id] = linkedDependencies
