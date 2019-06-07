@@ -1000,7 +1000,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       p-limit: 2.2.0
-      p-queue: 6.0.1
+      p-queue: 6.0.2
       path-exists: 4.0.0
       rename-overwrite: 2.0.1
       rimraf-then: 1.0.1
@@ -1053,7 +1053,7 @@ importers:
       nock: 10.0.6
       normalize-path: 3.0.0
       p-limit: 2.2.0
-      p-queue: 6.0.1
+      p-queue: 6.0.2
       path-exists: 4.0.0
       rename-overwrite: 2.0.1
       rimraf: 2.6.3
@@ -6944,7 +6944,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-y3b8Kpd8OAN444hxfBbFfj1FY/RjtTd8tzYwhUqNYXx0fXx2iX4maP4Qr6qhIKbQXI02wTLAda4fYUbDagTUFw==
-  /p-queue/6.0.1:
+  /p-queue/6.0.2:
     dependencies:
       eventemitter3: 3.1.2
       p-timeout: 3.1.0
@@ -6952,7 +6952,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-9Y06Mp2GkJsuH7SApSXK7CDf34ZSu09tPDI3bM4z+EiX6X4lYzZBNS7zlh6Pe550Ya906JQo834iVjKcDOsqqA==
+      integrity: sha512-KDmybfRp7PQXk6mRDCtbFWc1E6qUyIXLdmiCQbnKY8+DM0+PodWYLT4dPT/T4x4G+w4PHZXvMB3dZfLEI2vaFA==
   /p-some/4.1.0:
     dependencies:
       aggregate-error: 3.0.0
