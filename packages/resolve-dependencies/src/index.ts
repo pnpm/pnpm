@@ -1,4 +1,4 @@
-import { Lockfile } from '@pnpm/lockfile-types'
+import { DirectoryResolution, Lockfile } from '@pnpm/lockfile-types'
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
@@ -27,7 +27,9 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 
 export interface Importer {
   id: string,
-  linkedDependenciesByAlias: { [alias: string]: WantedDependency },
+  linkedDependenciesByAlias: {
+    [alias: string]: WantedDependency & { resolution: DirectoryResolution },
+  },
   manifest?: ImporterManifest,
   modulesDir: string,
   prefix: string,
@@ -107,7 +109,7 @@ export default async function (
         name: '', // manifest.name,
         normalizedPref: '', // pkgResponse.body.normalizedPref,
         optional: linkedDep.optional,
-        resolution: linkedDep['resolution'],
+        resolution: linkedDep.resolution,
         specRaw: linkedDep.raw,
         version: '', // manifest.version,
       }
