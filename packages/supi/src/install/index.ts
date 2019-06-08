@@ -444,7 +444,7 @@ async function partitionLinkedPackages (
   },
 ) {
   const nonLinkedDependencies: WantedDependency[] = []
-  const linkedDependencies: Array<WantedDependency & {alias: string}> = []
+  const linkedDependenciesByAlias = {} as { [alias: string]: WantedDependency }
   for (const dependency of dependencies) {
     if (!dependency.alias || opts.localPackages && opts.localPackages[dependency.alias]) {
       nonLinkedDependencies.push(dependency)
@@ -468,10 +468,10 @@ async function partitionLinkedPackages (
       directory: isInnerLink,
       type: 'directory',
     }
-    linkedDependencies.push(dependency as (WantedDependency & {alias: string}))
+    linkedDependenciesByAlias[dependency.alias] = dependency
   }
   return {
-    linkedDependencies,
+    linkedDependenciesByAlias,
     nonLinkedDependencies,
   }
 }
@@ -684,7 +684,7 @@ async function installInContext (
     hooks: opts.hooks,
     importers: await Promise.all(importers.map(async (importer) => {
       const allDeps = getWantedDependencies(importer.manifest)
-      const { linkedDependencies, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
+      const { linkedDependenciesByAlias, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
         localPackages: opts.localPackages,
         lockfileOnly: opts.lockfileOnly,
         modulesDir: importer.modulesDir,
@@ -716,7 +716,7 @@ async function installInContext (
       }
       return {
         ...importer,
-        linkedDependencies,
+        linkedDependenciesByAlias,
         wantedDependencies,
       }
     })),

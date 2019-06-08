@@ -8,11 +8,11 @@ import {
 } from '@pnpm/types'
 import {
   createNodeId,
-  getWantedDependencies,
   nodeIdContainsSequence,
   ROOT_NODE_ID,
   WantedDependency,
 } from '@pnpm/utils'
+import R = require('ramda')
 import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, {
   ChildrenByParentId,
@@ -27,7 +27,7 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 
 export interface Importer {
   id: string,
-  linkedDependencies: WantedDependency[],
+  linkedDependenciesByAlias: { [alias: string]: WantedDependency },
   manifest?: ImporterManifest,
   modulesDir: string,
   prefix: string,
@@ -94,10 +94,26 @@ export default async function (
 
   await Promise.all(opts.importers.map(async (importer) => {
     const lockfileImporter = opts.wantedLockfile.importers[importer.id]
-    const linkedDependencies = [] as LinkedDependency[]
+    const [linkedWantedDeps, wantedDeps] = R.partition(
+      (wantedDep) => wantedDep.updateDepth === -1 && !!importer.linkedDependenciesByAlias[wantedDep.alias],
+      importer.wantedDependencies,
+    )
+    const linkedDependencies = linkedWantedDeps.map((wd) => {
+      const linkedDep = importer.linkedDependenciesByAlias[wd.alias]
+      return {
+        alias: linkedDep.alias,
+        dev: linkedDep.dev,
+        id: '', // pkgResponse.body.id,
+        name: '', // manifest.name,
+        normalizedPref: '', // pkgResponse.body.normalizedPref,
+        optional: linkedDep.optional,
+        resolution: linkedDep['resolution'],
+        specRaw: linkedDep.raw,
+        version: '', // manifest.version,
+      }
+    })
     const resolveCtx = {
       ...ctx,
-      directLinkedPackages: importer.linkedDependencies,
       linkedDependencies,
       modulesDir: importer.modulesDir,
       prefix: importer.prefix,
@@ -118,7 +134,7 @@ export default async function (
     }
     directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
-      importer.wantedDependencies,
+      wantedDeps,
       resolveOpts,
     )
     linkedDependenciesByImporterId[importer.id] = linkedDependencies
