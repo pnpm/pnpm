@@ -15,7 +15,6 @@ import {
 } from '@pnpm/lifecycle'
 import linkBins from '@pnpm/link-bins'
 import {
-  DirectoryResolution,
   Lockfile,
   LockfileImporter,
   writeCurrentLockfile,
@@ -445,7 +444,7 @@ async function partitionLinkedPackages (
   },
 ) {
   const nonLinkedDependencies: WantedDependency[] = []
-  const linkedDependenciesByAlias = {} as { [alias: string]: WantedDependency & { resolution: DirectoryResolution } }
+  const linkedDependenciesByAlias = {} as { [alias: string]: WantedDependency }
   for (const dependency of dependencies) {
     if (!dependency.alias || opts.localPackages && opts.localPackages[dependency.alias]) {
       nonLinkedDependencies.push(dependency)
@@ -465,13 +464,7 @@ async function partitionLinkedPackages (
       message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
       prefix: opts.prefix,
     })
-    linkedDependenciesByAlias[dependency.alias] = {
-      ...dependency,
-      resolution: {
-        directory: isInnerLink,
-        type: 'directory',
-      },
-    }
+    linkedDependenciesByAlias[dependency.alias] = dependency
   }
   return {
     linkedDependenciesByAlias,
@@ -719,8 +712,8 @@ async function installInContext (
       }
       return {
         ...importer,
-        linkedDependenciesByAlias,
-        wantedDependencies,
+        wantedDependencies: wantedDependencies
+          .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedDependenciesByAlias[wantedDep.alias]),
       }
     })),
     localPackages: opts.localPackages,

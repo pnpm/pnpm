@@ -1,4 +1,4 @@
-import { DirectoryResolution, Lockfile } from '@pnpm/lockfile-types'
+import { Lockfile } from '@pnpm/lockfile-types'
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
@@ -27,9 +27,6 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 
 export interface Importer {
   id: string,
-  linkedDependenciesByAlias: {
-    [alias: string]: WantedDependency & { resolution: DirectoryResolution },
-  },
   manifest?: ImporterManifest,
   modulesDir: string,
   prefix: string,
@@ -96,24 +93,9 @@ export default async function (
 
   await Promise.all(opts.importers.map(async (importer) => {
     const lockfileImporter = opts.wantedLockfile.importers[importer.id]
-    const [linkedWantedDeps, wantedDeps] = R.partition(
-      (wantedDep) => wantedDep.updateDepth === -1 && !!importer.linkedDependenciesByAlias[wantedDep.alias],
-      importer.wantedDependencies,
-    )
-    const linkedDependencies = linkedWantedDeps.map((wd) => {
-      const linkedDep = importer.linkedDependenciesByAlias[wd.alias]
-      return {
-        alias: linkedDep.alias,
-        dev: linkedDep.dev,
-        id: '', // pkgResponse.body.id,
-        name: '', // manifest.name,
-        normalizedPref: '', // pkgResponse.body.normalizedPref,
-        optional: linkedDep.optional,
-        resolution: linkedDep.resolution,
-        specRaw: linkedDep.raw,
-        version: '', // manifest.version,
-      }
-    })
+    // This array will only contain the dependencies that should be linked in.
+    // The already linked-in dependencies will not be added.
+    const linkedDependencies = [] as LinkedDependency[]
     const resolveCtx = {
       ...ctx,
       linkedDependencies,
@@ -136,7 +118,7 @@ export default async function (
     }
     directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
-      wantedDeps,
+      importer.wantedDependencies,
       resolveOpts,
     )
     linkedDependenciesByImporterId[importer.id] = linkedDependencies
