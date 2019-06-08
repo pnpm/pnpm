@@ -445,7 +445,7 @@ async function partitionLinkedPackages (
   },
 ) {
   const nonLinkedDependencies: WantedDependency[] = []
-  const linkedDependenciesByAlias = {} as { [alias: string]: WantedDependency }
+  const linkedAliases = new Set<string>()
   for (const dependency of dependencies) {
     if (!dependency.alias || opts.localPackages && opts.localPackages[dependency.alias]) {
       nonLinkedDependencies.push(dependency)
@@ -465,10 +465,10 @@ async function partitionLinkedPackages (
       message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
       prefix: opts.prefix,
     })
-    linkedDependenciesByAlias[dependency.alias] = dependency
+    linkedAliases.add(dependency.alias)
   }
   return {
-    linkedDependenciesByAlias,
+    linkedAliases,
     nonLinkedDependencies,
   }
 }
@@ -933,7 +933,7 @@ async function toResolveImporter (
   importer: ImporterToUpdate,
 ) {
   const allDeps = getWantedDependencies(importer.manifest)
-  const { linkedDependenciesByAlias, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
+  const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
     localPackages: opts.localPackages,
     lockfileOnly: opts.lockfileOnly,
     modulesDir: importer.modulesDir,
@@ -967,7 +967,7 @@ async function toResolveImporter (
     ...importer,
     preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
     wantedDependencies: wantedDependencies
-      .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedDependenciesByAlias[wantedDep.alias]),
+      .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedAliases.has(wantedDep.alias)),
   }
 }
 
