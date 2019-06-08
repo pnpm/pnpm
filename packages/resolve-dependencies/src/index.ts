@@ -2,12 +2,15 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  ImporterManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import { createNodeId, getWantedDependencies, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
-import getPreferredVersionsFromPackage from './getPreferredVersions'
+import {
+  createNodeId,
+  nodeIdContainsSequence,
+  ROOT_NODE_ID,
+  WantedDependency,
+} from '@pnpm/utils'
 import resolveDependencies, {
   ChildrenByParentId,
   DependenciesTree,
@@ -22,19 +25,23 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 export interface Importer {
   id: string,
   modulesDir: string,
-  nonLinkedPackages: WantedDependency[],
-  manifest?: ImporterManifest,
+  preferredVersions?: {
+    [packageName: string]: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    },
+  },
   prefix: string,
-  shamefullyFlatten: boolean,
+  wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
 }
 
 export default async function (
+  importers: Importer[],
   opts: {
     currentLockfile: Lockfile,
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
-    importers: Importer[],
     hooks: {
       readPackage?: ReadPackageHook,
     },
@@ -44,17 +51,10 @@ export default async function (
     pnpmVersion: string,
     sideEffectsCache: boolean,
     lockfileDirectory: string,
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
     storeController: StoreController,
     tag: string,
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
-    updateDepth?: number,
     hasManifestInLockfile: boolean,
     localPackages: LocalPackages,
   },
@@ -83,13 +83,14 @@ export default async function (
     sideEffectsCache: opts.sideEffectsCache,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
-    updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
   }
 
-  await Promise.all(opts.importers.map(async (importer) => {
+  await Promise.all(importers.map(async (importer) => {
     const lockfileImporter = opts.wantedLockfile.importers[importer.id]
+    // This array will only contain the dependencies that should be linked in.
+    // The already linked-in dependencies will not be added.
     const linkedDependencies = [] as LinkedDependency[]
     const resolveCtx = {
       ...ctx,
@@ -97,46 +98,25 @@ export default async function (
       modulesDir: importer.modulesDir,
       prefix: importer.prefix,
       resolutionStrategy: opts.resolutionStrategy || 'fast',
-      updateDepth: importer.shamefullyFlatten ? Infinity : ctx.updateDepth,
     }
     const resolveOpts = {
       currentDepth: 0,
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,
       parentNodeId: ROOT_NODE_ID,
-      preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
+      preferredVersions: importer.preferredVersions || {},
       resolvedDependencies: {
         ...lockfileImporter.dependencies,
         ...lockfileImporter.devDependencies,
         ...lockfileImporter.optionalDependencies,
       },
+      updateDepth: -1,
     }
-    const newDirectDeps = await resolveDependencies(
+    directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
-      importer.nonLinkedPackages,
+      importer.wantedDependencies,
       resolveOpts,
     )
-    if (!importer.manifest) {
-      directNonLinkedDepsByImporterId[importer.id] = newDirectDeps
-    } else {
-      directNonLinkedDepsByImporterId[importer.id] = [
-        ...newDirectDeps,
-        ...await resolveDependencies(
-          {
-            ...resolveCtx,
-            updateDepth: -1,
-          },
-          getWantedDependencies(importer.manifest)
-            .filter((wantedDep) => {
-              return newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)
-                && importer.nonLinkedPackages.some((nonLinked) => nonLinked.alias === wantedDep.alias)
-            }),
-          {
-            ...resolveOpts,
-          },
-        ),
-      ]
-    }
     linkedDependenciesByImporterId[importer.id] = linkedDependencies
   }))
 
@@ -170,7 +150,7 @@ export default async function (
     },
   }
 
-  for (const importer of opts.importers) {
+  for (const importer of importers) {
     const directNonLinkedDeps = directNonLinkedDepsByImporterId[importer.id]
     const linkedDependencies = linkedDependenciesByImporterId[importer.id]
 

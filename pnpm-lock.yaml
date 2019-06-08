@@ -1514,7 +1514,6 @@ importers:
       ramda: 0.26.1
       replace-string: 3.0.0
       semver: 6.1.1
-      version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/resolve-dependencies': 'link:'
@@ -1545,7 +1544,6 @@ importers:
       semver: 6.1.1
       tslint: 5.17.0
       typescript: 3.5.1
-      version-selector-type: 2.0.1
   packages/resolver-base:
     dependencies:
       '@pnpm/types': 'link:../types'

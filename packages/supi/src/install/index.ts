@@ -69,6 +69,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
+import getPreferredVersionsFromPackage from './getPreferredVersions'
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -271,17 +272,6 @@ export async function mutateModules (
           importersToInstall.push({
             pruneDirectDependencies: false,
             ...importer,
-            ...await partitionLinkedPackages(
-              getWantedDependencies(importer.manifest).filter((wantedDep) => !importer.dependencyNames.includes(wantedDep.alias)),
-              {
-                localPackages: opts.localPackages,
-                lockfileOnly: opts.lockfileOnly,
-                modulesDir: importer.modulesDir,
-                prefix: importer.prefix,
-                storePath: ctx.storePath,
-                virtualStoreDir: ctx.virtualStoreDir,
-              },
-            ),
             newPkgRawSpecs: [],
             removePackages: importer.dependencyNames,
             updatePackageJson: true,
@@ -369,18 +359,9 @@ export async function mutateModules (
           prefix: importer.prefix,
         })
       }
-
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        ...await partitionLinkedPackages(wantedDeps, {
-          localPackages: opts.localPackages,
-          lockfileOnly: opts.lockfileOnly,
-          modulesDir: importer.modulesDir,
-          prefix: importer.prefix,
-          storePath: ctx.storePath,
-          virtualStoreDir: ctx.virtualStoreDir,
-        }),
         newPkgRawSpecs: [],
         updatePackageJson: false,
         wantedDeps,
@@ -400,26 +381,10 @@ export async function mutateModules (
         optional: importer.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
       })
-      const { linkedPackages, nonLinkedPackages } = await partitionLinkedPackages(
-        getWantedDependencies(importer.manifest),
-        {
-          localPackages: opts.localPackages,
-          lockfileOnly: opts.lockfileOnly,
-          modulesDir: importer.modulesDir,
-          prefix: importer.prefix,
-          storePath: ctx.storePath,
-          virtualStoreDir: ctx.virtualStoreDir,
-        },
-      )
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        linkedPackages: linkedPackages.filter((linkedPackage) => wantedDeps.every((wantedDep) => wantedDep.alias !== linkedPackage.alias)),
         newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
-        nonLinkedPackages: [
-          ...wantedDeps,
-          ...nonLinkedPackages.filter((nonLinkedPackage) => !wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedPackage.alias)),
-        ],
         updatePackageJson,
         wantedDeps,
       })
@@ -469,7 +434,7 @@ function pkgHasDependencies (manifest: ImporterManifest) {
 }
 
 async function partitionLinkedPackages (
-  wantedDeps: WantedDependency[],
+  dependencies: WantedDependency[],
   opts: {
     modulesDir: string,
     localPackages?: LocalPackages,
@@ -479,32 +444,32 @@ async function partitionLinkedPackages (
     virtualStoreDir: string,
   },
 ) {
-  const nonLinkedPackages: WantedDependency[] = []
-  const linkedPackages: Array<WantedDependency & {alias: string}> = []
-  for (const wantedDependency of wantedDeps) {
-    if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
-      nonLinkedPackages.push(wantedDependency)
+  const nonLinkedDependencies: WantedDependency[] = []
+  const linkedAliases = new Set<string>()
+  for (const dependency of dependencies) {
+    if (!dependency.alias || opts.localPackages && opts.localPackages[dependency.alias]) {
+      nonLinkedDependencies.push(dependency)
       continue
     }
-    const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, wantedDependency.alias, {
+    const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
       prefix: opts.prefix,
       storePath: opts.storePath,
     })
     if (isInnerLink === true) {
-      nonLinkedPackages.push(wantedDependency)
+      nonLinkedDependencies.push(dependency)
       continue
     }
     // This info-log might be better to be moved to the reporter
     logger.info({
-      message: `${wantedDependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
+      message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
       prefix: opts.prefix,
     })
-    linkedPackages.push(wantedDependency as (WantedDependency & {alias: string}))
+    linkedAliases.add(dependency.alias)
   }
   return {
-    linkedPackages,
-    nonLinkedPackages,
+    linkedAliases,
+    nonLinkedDependencies,
   }
 }
 
@@ -612,11 +577,9 @@ type ImporterToUpdate = {
   bin: string,
   hoistedAliases: {[depPath: string]: string[]},
   id: string,
-  linkedPackages: Array<WantedDependency & {alias: string}>,
   manifest: ImporterManifest,
   modulesDir: string,
   newPkgRawSpecs: string[],
-  nonLinkedPackages: WantedDependency[],
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
@@ -680,56 +643,65 @@ async function installInContext (
     stage: 'resolution_started',
   })
 
+  const defaultUpdateDepth = (() => {
+    // This can be remove from lockfile v4
+    if (!hasManifestInLockfile) {
+      // The lockfile has to be updated to contain
+      // the necessary info from package manifests
+      return Infinity
+    }
+    if (opts.force) return Infinity
+    if (opts.update) {
+      return opts.depth
+    }
+    if (
+      modulesIsUpToDate({
+        currentLockfile: ctx.currentLockfile,
+        defaultRegistry: ctx.registries.default,
+        skippedRelDepPaths: Array.from(ctx.skipped),
+        wantedLockfile: ctx.wantedLockfile,
+      })
+    ) {
+      return opts.repeatInstallDepth
+    }
+    return Infinity
+  })()
+  const _toResolveImporter = toResolveImporter.bind(null, {
+    defaultUpdateDepth,
+    localPackages: opts.localPackages,
+    lockfileOnly: opts.lockfileOnly,
+    preferredVersions: opts.preferredVersions,
+    storePath: ctx.storePath,
+    virtualStoreDir: ctx.virtualStoreDir,
+  })
   const {
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
-  } = await resolveDependencies({
-    currentLockfile: ctx.currentLockfile,
-    dryRun: opts.lockfileOnly,
-    engineStrict: opts.engineStrict,
-    force: opts.force,
-    hasManifestInLockfile,
-    hooks: opts.hooks,
-    importers,
-    localPackages: opts.localPackages,
-    lockfileDirectory: opts.lockfileDirectory,
-    nodeVersion: opts.nodeVersion,
-    pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    preferredVersions: opts.preferredVersions,
-    registries: opts.registries,
-    resolutionStrategy: opts.resolutionStrategy,
-    sideEffectsCache: opts.sideEffectsCacheRead,
-    storeController: opts.storeController,
-    tag: opts.tag,
-    updateDepth: (() => {
-      // This can be remove from lockfile v4
-      if (!hasManifestInLockfile) {
-        // The lockfile has to be updated to contain
-        // the necessary info from package manifests
-        return Infinity
-      }
-      if (opts.force) return Infinity
-      if (opts.update) {
-        return opts.depth
-      }
-      if (
-        modulesIsUpToDate({
-          currentLockfile: ctx.currentLockfile,
-          defaultRegistry: ctx.registries.default,
-          skippedRelDepPaths: Array.from(ctx.skipped),
-          wantedLockfile: ctx.wantedLockfile,
-        })
-      ) {
-        return opts.repeatInstallDepth
-      }
-      return Infinity
-    })(),
-    virtualStoreDir: ctx.virtualStoreDir,
-    wantedLockfile: ctx.wantedLockfile,
-  })
+  } = await resolveDependencies(
+    await Promise.all(importers.map((importer) => _toResolveImporter(importer))),
+    {
+      currentLockfile: ctx.currentLockfile,
+      dryRun: opts.lockfileOnly,
+      engineStrict: opts.engineStrict,
+      force: opts.force,
+      hasManifestInLockfile,
+      hooks: opts.hooks,
+      localPackages: opts.localPackages,
+      lockfileDirectory: opts.lockfileDirectory,
+      nodeVersion: opts.nodeVersion,
+      pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+      registries: opts.registries,
+      resolutionStrategy: opts.resolutionStrategy,
+      sideEffectsCache: opts.sideEffectsCacheRead,
+      storeController: opts.storeController,
+      tag: opts.tag,
+      virtualStoreDir: ctx.virtualStoreDir,
+      wantedLockfile: ctx.wantedLockfile,
+    },
+  )
 
   stageLogger.debug({
     prefix: ctx.lockfileDirectory,
@@ -783,7 +755,7 @@ async function installInContext (
       ctx.wantedLockfile.importers[importer.id] = addDirectDependenciesToLockfile(
         newPkg,
         lockfileImporter,
-        importer.linkedPackages,
+        resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
         ctx.registries,
       )
@@ -944,6 +916,61 @@ async function installInContext (
   return importersToLink.map((importer) => ({ prefix: importer.prefix, manifest: importer.manifest }))
 }
 
+async function toResolveImporter (
+  opts: {
+    defaultUpdateDepth: number,
+    localPackages: LocalPackages,
+    lockfileOnly: boolean,
+    storePath: string,
+    virtualStoreDir: string,
+    preferredVersions?: {
+      [packageName: string]: {
+        selector: string,
+        type: 'version' | 'range' | 'tag',
+      },
+    },
+  },
+  importer: ImporterToUpdate,
+) {
+  const allDeps = getWantedDependencies(importer.manifest)
+  const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
+    localPackages: opts.localPackages,
+    lockfileOnly: opts.lockfileOnly,
+    modulesDir: importer.modulesDir,
+    prefix: importer.prefix,
+    storePath: opts.storePath,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
+  const depsToUpdate = importer.wantedDeps.map((wantedDep) => ({
+    ...wantedDep,
+    isNew: true,
+  }))
+  const existingDeps = nonLinkedDependencies
+    .filter((nonLinkedDependency) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedDependency.alias))
+  let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
+  if (!importer.manifest || importer.shamefullyFlatten) {
+    wantedDependencies = [
+      ...depsToUpdate,
+      ...existingDeps,
+    ]
+    .map((dep) => ({
+      ...dep,
+      updateDepth: importer.shamefullyFlatten ? Infinity : opts.defaultUpdateDepth,
+    }))
+  } else {
+    wantedDependencies = [
+      ...depsToUpdate.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+      ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
+    ]
+  }
+  return {
+    ...importer,
+    preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
+    wantedDependencies: wantedDependencies
+      .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedAliases.has(wantedDep.alias)),
+  }
+}
+
 const limitLinking = pLimit(16)
 
 function linkBinsOfImporter ({ modulesDir, bin, prefix }: ImporterToLink) {
@@ -983,7 +1010,7 @@ function modulesIsUpToDate (
 function addDirectDependenciesToLockfile (
   newManifest: ImporterManifest,
   lockfileImporter: LockfileImporter,
-  linkedPackages: Array<WantedDependency & {alias: string}>,
+  linkedPackages: Array<{alias: string}>,
   directDependencies: Array<{
     alias: string,
     optional: boolean,
