@@ -36,12 +36,12 @@ export interface Importer {
 }
 
 export default async function (
+  importers: Importer[],
   opts: {
     currentLockfile: Lockfile,
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
-    importers: Importer[],
     hooks: {
       readPackage?: ReadPackageHook,
     },
@@ -87,7 +87,7 @@ export default async function (
     wantedLockfile: opts.wantedLockfile,
   }
 
-  await Promise.all(opts.importers.map(async (importer) => {
+  await Promise.all(importers.map(async (importer) => {
     const lockfileImporter = opts.wantedLockfile.importers[importer.id]
     // This array will only contain the dependencies that should be linked in.
     // The already linked-in dependencies will not be added.
@@ -150,7 +150,7 @@ export default async function (
     },
   }
 
-  for (const importer of opts.importers) {
+  for (const importer of importers) {
     const directNonLinkedDeps = directNonLinkedDepsByImporterId[importer.id]
     const linkedDependencies = linkedDependenciesByImporterId[importer.id]
 

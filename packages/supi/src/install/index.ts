@@ -666,70 +666,42 @@ async function installInContext (
     }
     return Infinity
   })()
+  const _toResolveImporter = toResolveImporter.bind(null, {
+    defaultUpdateDepth,
+    localPackages: opts.localPackages,
+    lockfileOnly: opts.lockfileOnly,
+    preferredVersions: opts.preferredVersions,
+    storePath: ctx.storePath,
+    virtualStoreDir: ctx.virtualStoreDir,
+  })
   const {
     dependenciesTree,
     outdatedDependencies,
     resolvedImporters,
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
-  } = await resolveDependencies({
-    currentLockfile: ctx.currentLockfile,
-    dryRun: opts.lockfileOnly,
-    engineStrict: opts.engineStrict,
-    force: opts.force,
-    hasManifestInLockfile,
-    hooks: opts.hooks,
-    importers: await Promise.all(importers.map(async (importer) => {
-      const allDeps = getWantedDependencies(importer.manifest)
-      const { linkedDependenciesByAlias, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
-        localPackages: opts.localPackages,
-        lockfileOnly: opts.lockfileOnly,
-        modulesDir: importer.modulesDir,
-        prefix: importer.prefix,
-        storePath: ctx.storePath,
-        virtualStoreDir: ctx.virtualStoreDir,
-      })
-      const depsToUpdate = importer.wantedDeps.map((wantedDep) => ({
-        ...wantedDep,
-        isNew: true,
-      }))
-      const existingDeps = nonLinkedDependencies
-        .filter((nonLinkedDependency) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedDependency.alias))
-      let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
-      if (!importer.manifest || importer.shamefullyFlatten) {
-        wantedDependencies = [
-          ...depsToUpdate,
-          ...existingDeps,
-        ]
-        .map((dep) => ({
-          ...dep,
-          updateDepth: importer.shamefullyFlatten ? Infinity : defaultUpdateDepth,
-        }))
-      } else {
-        wantedDependencies = [
-          ...depsToUpdate.map((dep) => ({ ...dep, updateDepth: defaultUpdateDepth })),
-          ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
-        ]
-      }
-      return {
-        ...importer,
-        preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
-        wantedDependencies: wantedDependencies
-          .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedDependenciesByAlias[wantedDep.alias]),
-      }
-    })),
-    localPackages: opts.localPackages,
-    lockfileDirectory: opts.lockfileDirectory,
-    nodeVersion: opts.nodeVersion,
-    pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    registries: opts.registries,
-    resolutionStrategy: opts.resolutionStrategy,
-    sideEffectsCache: opts.sideEffectsCacheRead,
-    storeController: opts.storeController,
-    tag: opts.tag,
-    virtualStoreDir: ctx.virtualStoreDir,
-    wantedLockfile: ctx.wantedLockfile,
-  })
+  } = await resolveDependencies(
+    await Promise.all(importers.map((importer) => _toResolveImporter(importer))),
+    {
+      currentLockfile: ctx.currentLockfile,
+      dryRun: opts.lockfileOnly,
+      engineStrict: opts.engineStrict,
+      force: opts.force,
+      hasManifestInLockfile,
+      hooks: opts.hooks,
+      localPackages: opts.localPackages,
+      lockfileDirectory: opts.lockfileDirectory,
+      nodeVersion: opts.nodeVersion,
+      pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+      registries: opts.registries,
+      resolutionStrategy: opts.resolutionStrategy,
+      sideEffectsCache: opts.sideEffectsCacheRead,
+      storeController: opts.storeController,
+      tag: opts.tag,
+      virtualStoreDir: ctx.virtualStoreDir,
+      wantedLockfile: ctx.wantedLockfile,
+    },
+  )
 
   stageLogger.debug({
     prefix: ctx.lockfileDirectory,
@@ -942,6 +914,61 @@ async function installInContext (
   await opts.storeController.close()
 
   return importersToLink.map((importer) => ({ prefix: importer.prefix, manifest: importer.manifest }))
+}
+
+async function toResolveImporter (
+  opts: {
+    defaultUpdateDepth: number,
+    localPackages: LocalPackages,
+    lockfileOnly: boolean,
+    storePath: string,
+    virtualStoreDir: string,
+    preferredVersions?: {
+      [packageName: string]: {
+        selector: string,
+        type: 'version' | 'range' | 'tag',
+      },
+    },
+  },
+  importer: ImporterToUpdate,
+) {
+  const allDeps = getWantedDependencies(importer.manifest)
+  const { linkedDependenciesByAlias, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
+    localPackages: opts.localPackages,
+    lockfileOnly: opts.lockfileOnly,
+    modulesDir: importer.modulesDir,
+    prefix: importer.prefix,
+    storePath: opts.storePath,
+    virtualStoreDir: opts.virtualStoreDir,
+  })
+  const depsToUpdate = importer.wantedDeps.map((wantedDep) => ({
+    ...wantedDep,
+    isNew: true,
+  }))
+  const existingDeps = nonLinkedDependencies
+    .filter((nonLinkedDependency) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedDependency.alias))
+  let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
+  if (!importer.manifest || importer.shamefullyFlatten) {
+    wantedDependencies = [
+      ...depsToUpdate,
+      ...existingDeps,
+    ]
+    .map((dep) => ({
+      ...dep,
+      updateDepth: importer.shamefullyFlatten ? Infinity : opts.defaultUpdateDepth,
+    }))
+  } else {
+    wantedDependencies = [
+      ...depsToUpdate.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+      ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
+    ]
+  }
+  return {
+    ...importer,
+    preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
+    wantedDependencies: wantedDependencies
+      .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedDependenciesByAlias[wantedDep.alias]),
+  }
 }
 
 const limitLinking = pLimit(16)
