@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "3.1.10",
+  "version": "3.1.11",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/fetcher-base": "3.0.4",
     "credentials-by-uri": "1.0.0",
-    "fetch-from-npm-registry": "2.0.4",
+    "fetch-from-npm-registry": "2.0.5",
     "graceful-fs": "4.1.15",
     "make-dir": "3.0.0",
     "mem": "5.0.0",

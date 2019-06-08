@@ -125,7 +125,7 @@ importers:
       '@pnpm/git-fetcher': 2.0.2
       '@pnpm/logger': 2.1.1
       '@pnpm/resolver-base': 3.1.2
-      '@pnpm/tarball-fetcher': 3.1.10
+      '@pnpm/tarball-fetcher': 3.1.11
       rimraf: 2.6.3
       tape: 4.10.2
       ts-node: 8.2.0
@@ -219,7 +219,7 @@ importers:
       '@pnpm/git-resolver': 2.0.7
       '@pnpm/local-resolver': 2.0.9
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.0.11
+      '@pnpm/npm-resolver': 3.0.12
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-resolver': 2.0.3
       rimraf: 2.6.3
@@ -528,7 +528,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-cleaner': 3.0.11
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/package-requester': 7.0.9
+      '@pnpm/package-requester': 7.0.10
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-importer-manifest': 1.0.4
@@ -906,7 +906,7 @@ importers:
       '@types/ssri': ^6.0.0
       credentials-by-uri: 1.0.0
       encode-registry: 2.0.0
-      fetch-from-npm-registry: 2.0.4
+      fetch-from-npm-registry: 2.0.5
       load-json-file: 6.0.0
       mem: 5.0.0
       nock: ^10.0.0
@@ -947,7 +947,7 @@ importers:
       '@pnpm/constants': 1.0.1
       '@pnpm/lockfile-file': 1.0.7
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.0.11
+      '@pnpm/npm-resolver': 3.0.12
       '@pnpm/outdated': 'link:'
       '@pnpm/read-importer-manifest': 1.0.4
       '@pnpm/registry-mock': 1.0.0
@@ -1107,7 +1107,7 @@ importers:
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'file:../npm-resolver'
-      '@pnpm/package-requester': 7.0.9
+      '@pnpm/package-requester': 7.0.10
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 3.1.2
@@ -1272,16 +1272,16 @@ importers:
       '@pnpm/config': 3.3.4
       '@pnpm/constants': 1.0.1
       '@pnpm/core-loggers': 3.0.3
-      '@pnpm/default-fetcher': 3.1.11
+      '@pnpm/default-fetcher': 3.1.12
       '@pnpm/default-reporter': 3.2.6
-      '@pnpm/default-resolver': 3.0.14
+      '@pnpm/default-resolver': 3.0.15
       '@pnpm/lifecycle': 6.1.2
       '@pnpm/list': 1.0.11
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/outdated': 2.0.15
-      '@pnpm/package-store': 4.0.9
+      '@pnpm/outdated': 2.0.16
+      '@pnpm/package-store': 4.0.10
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 1.0.4
       '@pnpm/read-package-json': 2.0.2
@@ -1358,7 +1358,7 @@ importers:
       semver: 6.1.1
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.33.7-1
+      supi: 0.33.7-2
       symlink-dir: 3.1.0
       tape: 4.10.2
       tape-promise: 4.0.0
@@ -1527,7 +1527,7 @@ importers:
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.9
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.0.11
+      '@pnpm/npm-resolver': 3.0.12
       '@pnpm/package-is-installable': 2.0.7
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 3.1.2
@@ -1761,7 +1761,7 @@ importers:
       '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/filter-lockfile': 1.0.9
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 7.0.9
+      '@pnpm/headless': 7.0.10
       '@pnpm/lifecycle': 6.1.2
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 1.0.7
@@ -1769,7 +1769,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-cleaner': 3.0.11
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/package-requester': 7.0.9
+      '@pnpm/package-requester': 7.0.10
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
@@ -1779,7 +1779,7 @@ importers:
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.0.0
-      '@pnpm/resolve-dependencies': 7.0.0-1
+      '@pnpm/resolve-dependencies': 7.0.0-2
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/shamefully-flatten': 3.0.10
       '@pnpm/store-controller-types': 3.0.3
@@ -1914,7 +1914,7 @@ importers:
       '@types/ssri': ^6.0.1
       cp-file: 7.0.0
       credentials-by-uri: 1.0.0
-      fetch-from-npm-registry: 2.0.4
+      fetch-from-npm-registry: 2.0.5
       graceful-fs: 4.1.15
       make-dir: 3.0.0
       mem: 5.0.0
