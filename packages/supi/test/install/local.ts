@@ -51,7 +51,7 @@ test('local file', async (t: tape.Test) => {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     specifiers: expectedSpecs,
   })
 })
@@ -75,7 +75,7 @@ test('local file via link:', async (t: tape.Test) => {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     specifiers: expectedSpecs,
   })
 })
@@ -101,7 +101,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     specifiers: expectedSpecs,
   })
 })

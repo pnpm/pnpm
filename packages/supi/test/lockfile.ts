@@ -55,7 +55,7 @@ test('lockfile has correct format', async (t: tape.Test) => {
   const lockfile = await project.readLockfile()
   const id = '/pkg-with-1-dep/100.0.0'
 
-  t.equal(lockfile.lockfileVersion, 5, 'correct lockfile version')
+  t.equal(lockfile.lockfileVersion, 5.1, 'correct lockfile version')
 
   t.ok(lockfile.specifiers, 'has specifiers field')
   t.ok(lockfile.dependencies, 'has dependencies field')
@@ -102,7 +102,7 @@ test('lockfile with scoped package', async (t: tape.Test) => {
     dependencies: {
       '@types/semver': '5.3.31',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
@@ -129,7 +129,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
     dependencies: {
       'is-negative': '2.1.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
@@ -190,7 +190,7 @@ test('lockfile removed when no deps in package.json', async (t: tape.Test) => {
     dependencies: {
       'is-negative': '2.1.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
@@ -217,7 +217,7 @@ test('lockfile is fixed when it does not match package.json', async (t: tape.Tes
       'is-negative': '2.1.0',
       'is-positive': '3.1.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
@@ -275,7 +275,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async (t
       'is-negative': '2.1.0',
       'is-positive': '3.1.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/@types/semver/5.3.31': {
         resolution: {
@@ -497,7 +497,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
       '@zkochan/foo': '1.0.0',
       'is-positive': '3.1.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/@foo/has-dep-from-same-scope/1.0.0': {
         dependencies: {
@@ -577,7 +577,7 @@ test['skip']('installing from lockfile when using npm enterprise', async (t: tap
     dependencies: {
       'is-positive': '3.1.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-positive/3.1.0': {
         dev: false,
@@ -742,7 +742,7 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
     dependencies: {
       'is-negative': '2.1.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
@@ -849,7 +849,7 @@ test('packages installed via tarball URL from the default registry are normalize
       'is-positive': 'registry.npmjs.org/is-positive/-/is-positive-1.0.0',
       'pkg-with-tarball-dep-from-registry': '1.0.0',
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/dep-of-pkg-with-1-dep/100.0.0': {
         dev: false,
@@ -910,7 +910,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     const lockfile = await readYamlFile(WANTED_LOCKFILE) as Lockfile
     const id = '/pkg-with-1-dep/100.0.0'
 
-    t.equal(lockfile.lockfileVersion, 5, 'correct lockfile version')
+    t.equal(lockfile.lockfileVersion, 5.1, 'correct lockfile version')
 
     t.ok(lockfile.importers)
     t.ok(lockfile.importers.project)
@@ -1011,7 +1011,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
         },
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-negative/2.1.0': {
         resolution: {

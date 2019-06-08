@@ -33,7 +33,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
           }
         }
       },
-      lockfileVersion: 5,
+      lockfileVersion: 5.1,
       packages: {
         '/bar/1.0.0': {
           resolution: { integrity: '' },
@@ -128,7 +128,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         }
       }
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/bar/1.0.0': {
         resolution: { integrity: '' },

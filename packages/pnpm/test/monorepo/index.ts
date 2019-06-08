@@ -675,7 +675,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   t.ok(lockfile['importers'] && lockfile['importers']['.'], `correct ${WANTED_LOCKFILE} format`)
-  t.equal(lockfile['lockfileVersion'], 5, `correct ${WANTED_LOCKFILE} version`)
+  t.equal(lockfile['lockfileVersion'], 5.1, `correct ${WANTED_LOCKFILE} version`)
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
@@ -732,7 +732,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
         },
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,

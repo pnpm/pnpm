@@ -344,7 +344,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
         },
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,

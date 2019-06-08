@@ -190,7 +190,7 @@ test('writeLockfiles()', async t => {
         },
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -229,7 +229,7 @@ test('writeLockfiles() when no specifiers but dependencies present', async t => 
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
   }
   await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
   t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
@@ -252,7 +252,7 @@ test('write does not use yaml anchors/aliases', async t => {
         },
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: yaml`
       /react-dnd/2.5.4/react@15.6.1:
         dependencies:

@@ -45,13 +45,13 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
-    t.equal(project1Lockfile.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+    t.equal(project1Lockfile.lockfileVersion, 5.1, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
     t.equal(project1Lockfile.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Lockfile.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveLockfile = await projects['is-positive'].readLockfile()
-  t.equal(isPositiveLockfile.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+  t.equal(isPositiveLockfile.lockfileVersion, 5.1, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })
 
 test('recursive unlink specific package', async (t: tape.Test) => {
@@ -91,11 +91,11 @@ test('recursive unlink specific package', async (t: tape.Test) => {
 
   {
     const project1Lockfile = await projects['project-1'].readLockfile()
-    t.equal(project1Lockfile.lockfileVersion, 5, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+    t.equal(project1Lockfile.lockfileVersion, 5.1, `project-1 has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
     t.equal(project1Lockfile.devDependencies['is-positive'], '1.0.0')
     t.ok(project1Lockfile.packages['/is-positive/1.0.0'])
   }
 
   const isPositiveLockfile = await projects['is-positive'].readLockfile()
-  t.equal(isPositiveLockfile.lockfileVersion, 5, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
+  t.equal(isPositiveLockfile.lockfileVersion, 5.1, `is-positive has correct lockfileVersion specified in ${WANTED_LOCKFILE}`)
 })

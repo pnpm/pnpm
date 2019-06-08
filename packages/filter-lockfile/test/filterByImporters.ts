@@ -31,7 +31,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
           }
         }
       },
-      lockfileVersion: 5,
+      lockfileVersion: 5.1,
       packages: {
         '/dev-dep/1.0.0': {
           dev: true,
@@ -96,7 +96,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         }
       }
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/prod-dep-dep/1.0.0': {
         resolution: { integrity: '' },
@@ -134,7 +134,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
             specifiers: {},
           },
         },
-        lockfileVersion: 5,
+        lockfileVersion: 5.1,
         packages: {
           '/prod-dep/1.0.0': {
             dependencies: {
@@ -184,7 +184,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
           specifiers: {},
         },
       },
-      lockfileVersion: 5,
+      lockfileVersion: 5.1,
       packages: {
         '/prod-dep/1.0.0': {
           dependencies: {
@@ -227,7 +227,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         specifiers: {},
       },
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/prod-dep/1.0.0': {
         dependencies: {
@@ -270,7 +270,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
           }
         }
       },
-      lockfileVersion: 5,
+      lockfileVersion: 5.1,
       packages: {
         '/dev-dep/1.0.0': {
           dev: true,
@@ -339,7 +339,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         }
       }
     },
-    lockfileVersion: 5,
+    lockfileVersion: 5.1,
     packages: {
       '/dev-dep/1.0.0': {
         dev: true,
