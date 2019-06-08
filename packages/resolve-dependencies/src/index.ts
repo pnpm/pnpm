@@ -2,7 +2,6 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  ImporterManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -12,8 +11,6 @@ import {
   ROOT_NODE_ID,
   WantedDependency,
 } from '@pnpm/utils'
-import R = require('ramda')
-import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, {
   ChildrenByParentId,
   DependenciesTree,
@@ -27,8 +24,13 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 
 export interface Importer {
   id: string,
-  manifest?: ImporterManifest,
   modulesDir: string,
+  preferredVersions?: {
+    [packageName: string]: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    },
+  },
   prefix: string,
   wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
 }
@@ -49,12 +51,6 @@ export default async function (
     pnpmVersion: string,
     sideEffectsCache: boolean,
     lockfileDirectory: string,
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
     storeController: StoreController,
     tag: string,
     virtualStoreDir: string,
@@ -108,7 +104,7 @@ export default async function (
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,
       parentNodeId: ROOT_NODE_ID,
-      preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
+      preferredVersions: importer.preferredVersions || {},
       resolvedDependencies: {
         ...lockfileImporter.dependencies,
         ...lockfileImporter.devDependencies,

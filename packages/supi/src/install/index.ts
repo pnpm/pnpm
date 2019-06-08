@@ -69,6 +69,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
+import getPreferredVersionsFromPackage from './getPreferredVersions'
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -712,6 +713,7 @@ async function installInContext (
       }
       return {
         ...importer,
+        preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
         wantedDependencies: wantedDependencies
           .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedDependenciesByAlias[wantedDep.alias]),
       }
@@ -720,7 +722,6 @@ async function installInContext (
     lockfileDirectory: opts.lockfileDirectory,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    preferredVersions: opts.preferredVersions,
     registries: opts.registries,
     resolutionStrategy: opts.resolutionStrategy,
     sideEffectsCache: opts.sideEffectsCacheRead,
