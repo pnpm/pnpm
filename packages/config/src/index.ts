@@ -265,5 +265,11 @@ export default async (
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache || pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
+  if (!pnpmConfig.ignoreScripts && pnpmConfig.workspacePrefix) {
+    pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspacePrefix, 'node_modules', '.bin')]
+  } else {
+    pnpmConfig.extraBinPaths = []
+  }
+
   return pnpmConfig
 }

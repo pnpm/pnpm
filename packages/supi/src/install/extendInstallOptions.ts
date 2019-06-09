@@ -15,6 +15,7 @@ import { ReporterFunction } from '../types'
 export interface BaseInstallOptions {
   forceSharedLockfile?: boolean,
   frozenLockfile?: boolean,
+  extraBinPaths?: string[],
   useLockfile?: boolean,
   lockfileOnly?: boolean,
   preferFrozenLockfile?: boolean,
@@ -69,6 +70,7 @@ export type InstallOptions = BaseInstallOptions & {
 export type StrictInstallOptions = BaseInstallOptions & {
   forceSharedLockfile: boolean,
   frozenLockfile: boolean,
+  extraBinPaths: string[],
   preferFrozenLockfile: boolean,
   shamefullyFlatten: boolean,
   useLockfile: boolean,

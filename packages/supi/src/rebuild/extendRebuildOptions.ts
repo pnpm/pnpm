@@ -7,6 +7,7 @@ import { ReporterFunction } from '../types'
 
 export interface RebuildOptions {
   childConcurrency?: number,
+  extraBinPaths?: string[],
   lockfileDirectory?: string,
   prefix?: string,
   sideEffectsCacheRead?: boolean,
@@ -36,6 +37,7 @@ export interface RebuildOptions {
 
 export type StrictRebuildOptions = RebuildOptions & {
   childConcurrency?: number,
+  extraBinPaths: string[],
   lockfileDirectory: string,
   prefix: string,
   store: string,

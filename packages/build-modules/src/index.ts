@@ -17,6 +17,7 @@ export default async (
   opts: {
     childConcurrency?: number,
     depsToBuild?: Set<string>,
+    extraBinPaths: string[],
     optional: boolean,
     prefix: string,
     rawNpmConfig: object,
@@ -61,6 +62,7 @@ async function buildDependency (
   depPath: string,
   depGraph: DependenciesGraph,
   opts: {
+    extraBinPaths?: string[],
     optional: boolean,
     prefix: string,
     rawNpmConfig: object,
@@ -76,6 +78,7 @@ async function buildDependency (
     await linkBinsOfDependencies(depNode, depGraph, opts)
     const hasSideEffects = await runPostinstallHooks({
       depPath,
+      extraBinPaths: opts.extraBinPaths,
       optional: depNode.optional,
       pkgRoot: depNode.peripheralLocation,
       prepare: depNode.prepare,
