@@ -12,7 +12,7 @@ import symlink from 'symlink-dir'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm } from '../utils'
+import { execPnpm, spawnPnpxSync } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -967,4 +967,31 @@ test("linking the package's bin to another workspace package in a monorepo", asy
   await execPnpm('recursive', 'install', '--frozen-lockfile')
 
   await projects.main.isExecutable('.bin/hello')
+})
+
+test('pnpx sees the bins from the root of the workspace', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      location: '.',
+      package: {
+        dependencies: {
+          'print-version': '2',
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('recursive', 'install')
+
+  process.chdir('project')
+
+  const result = spawnPnpxSync('print-version')
+
+  t.ok(result.stdout.toString().includes('2.0.0'))
 })
