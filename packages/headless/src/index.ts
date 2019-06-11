@@ -70,7 +70,7 @@ export interface HeadlessOptions {
     pnpmVersion: string,
   },
   engineStrict: boolean,
-  extraBinPaths: string[],
+  extraBinPaths?: string[],
   ignoreScripts: boolean,
   include: IncludedDependencies,
   independentLeaves: boolean,

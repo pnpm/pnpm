@@ -17,7 +17,7 @@ export default async (
   opts: {
     childConcurrency?: number,
     depsToBuild?: Set<string>,
-    extraBinPaths: string[],
+    extraBinPaths?: string[],
     optional: boolean,
     prefix: string,
     rawNpmConfig: object,
