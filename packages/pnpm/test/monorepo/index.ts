@@ -980,8 +980,16 @@ test('pnpx sees the bins from the root of the workspace', async (t: tape.Test) =
       },
     },
     {
-      name: 'project',
+      name: 'project-1',
       version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'print-version': '1',
+      },
     },
   ])
 
@@ -989,9 +997,13 @@ test('pnpx sees the bins from the root of the workspace', async (t: tape.Test) =
 
   await execPnpm('recursive', 'install')
 
-  process.chdir('project')
+  process.chdir('project-1')
 
   const result = spawnPnpxSync('print-version')
 
-  t.ok(result.stdout.toString().includes('2.0.0'))
+  t.ok(result.stdout.toString().includes('2.0.0'), 'bin from workspace root is found')
+
+  process.chdir('../project-2')
+
+  t.ok(spawnPnpxSync('print-version').stdout.toString().includes('1.0.0'), "workspace package's bin has priority")
 })
