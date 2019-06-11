@@ -70,6 +70,7 @@ export interface HeadlessOptions {
     pnpmVersion: string,
   },
   engineStrict: boolean,
+  extraBinPaths: string[],
   ignoreScripts: boolean,
   include: IncludedDependencies,
   independentLeaves: boolean,
@@ -294,6 +295,7 @@ export default async (opts: HeadlessOptions) => {
     }
     await buildModules(depGraph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
+      extraBinPaths: opts.extraBinPaths,
       optional: opts.include.optionalDependencies,
       prefix: opts.lockfileDirectory,
       rawNpmConfig: opts.rawNpmConfig,

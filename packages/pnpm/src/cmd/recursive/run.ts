@@ -13,6 +13,7 @@ export default async <T> (
   cmd: string,
   opts: {
     bail: boolean,
+    extraBinPaths: string[],
     workspaceConcurrency: number,
     unsafePerm: boolean,
     rawNpmConfig: object,
@@ -43,6 +44,7 @@ export default async <T> (
         try {
           const lifecycleOpts = {
             depPath: prefix,
+            extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
             rawNpmConfig: opts.rawNpmConfig,
             rootNodeModulesDir: await realNodeModulesDir(prefix),

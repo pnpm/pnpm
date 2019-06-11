@@ -151,6 +151,7 @@ export async function rebuild (
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
   const scriptsOpts = {
+    extraBinPaths: opts.extraBinPaths,
     rawNpmConfig: opts.rawNpmConfig,
     unsafePerm: opts.unsafePerm || false,
   }

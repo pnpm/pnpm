@@ -10,6 +10,7 @@ export default async function runLifecycleHook (
   opts: {
     args?: string[],
     depPath: string,
+    extraBinPaths?: string[],
     optional?: boolean,
     pkgRoot: string,
     rawNpmConfig: object,
@@ -41,6 +42,7 @@ export default async function runLifecycleHook (
   return lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawNpmConfig,
     dir: opts.rootNodeModulesDir,
+    extraBinPaths: opts.extraBinPaths || [],
     log: {
       clearProgress: noop,
       info: noop,

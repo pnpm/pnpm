@@ -213,6 +213,7 @@ export async function mutateModules (
           },
           currentLockfile: ctx.currentLockfile,
           engineStrict: opts.engineStrict,
+          extraBinPaths: opts.extraBinPaths,
           force: opts.force,
           ignoreScripts: opts.ignoreScripts,
           importers: ctx.importers as Array<{
@@ -252,6 +253,7 @@ export async function mutateModules (
 
     const importersToBeInstalled = ctx.importers.filter((importer) => importer.mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
     const scriptsOpts = {
+      extraBinPaths: opts.extraBinPaths,
       rawNpmConfig: opts.rawNpmConfig,
       stdio: opts.ownLifecycleHooksStdio,
       unsafePerm: opts.unsafePerm || false,
@@ -836,6 +838,7 @@ async function installInContext (
       await buildModules(result.depGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
+        extraBinPaths: opts.extraBinPaths,
         optional: opts.include.optionalDependencies,
         prefix: ctx.lockfileDirectory,
         rawNpmConfig: opts.rawNpmConfig,

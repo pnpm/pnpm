@@ -100,12 +100,10 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
-  const workspaceManifestLocation = cliArgs['global'] // tslint:disable-line
+  const workspacePrefix = cliArgs['global'] // tslint:disable-line
     ? null
     : (
-      await findUp(WORKSPACE_MANIFEST_FILENAME, {
-        cwd: cliArgs['prefix'] || process.cwd(), // tslint:disable-line
-      }) || null
+      await findWorkspacePrefix(cliArgs['prefix'] || process.cwd()) || null
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
@@ -131,7 +129,7 @@ export default async (
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'userconfig': npmDefaults.userconfig,
     'workspace-concurrency': 4,
-    'workspace-prefix': workspaceManifestLocation && path.dirname(workspaceManifestLocation),
+    'workspace-prefix': workspacePrefix,
   })
 
   process.execPath = originalExecPath
@@ -265,5 +263,16 @@ export default async (
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache || pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
+  if (!pnpmConfig.ignoreScripts && pnpmConfig.workspacePrefix) {
+    pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspacePrefix, 'node_modules', '.bin')]
+  } else {
+    pnpmConfig.extraBinPaths = []
+  }
+
   return pnpmConfig
+}
+
+export async function findWorkspacePrefix (prefix: string) {
+  const workspaceManifestLocation = await findUp(WORKSPACE_MANIFEST_FILENAME, { cwd: prefix })
+  return workspaceManifestLocation && path.dirname(workspaceManifestLocation)
 }

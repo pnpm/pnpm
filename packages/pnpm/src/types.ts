@@ -15,6 +15,7 @@ export interface PnpmOptions {
   },
   bail: boolean,
   cliArgs: object,
+  extraBinPaths: string[],
   filter: string[],
   rawNpmConfig: object,
   globalPrefix: string,

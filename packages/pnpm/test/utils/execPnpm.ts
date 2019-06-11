@@ -1,11 +1,11 @@
 import crossSpawn = require('cross-spawn')
 import path = require('path')
 
-const pnpmBinLocation = path.join(__dirname, '..', '..', 'bin', 'pnpm.js')
+const binDir = path.join(__dirname, '..', '..', 'bin')
+const pnpmBinLocation = path.join(binDir, 'pnpm.js')
+const pnpxBinLocation = path.join(binDir, 'pnpx.js')
 
-export default function (...args: string[]): Promise<void>
-export default async function () {
-  const args = Array.prototype.slice.call(arguments)
+export async function execPnpm (...args: string[]): Promise<void> {
   await new Promise((resolve, reject) => {
     const proc = spawn(args)
 
@@ -25,16 +25,40 @@ export function spawn (args: string[], opts?: {storeDir?: string}) {
   })
 }
 
+export async function execPnpx (...args: string[]): Promise<void> {
+  await new Promise((resolve, reject) => {
+    const proc = spawn(args)
+
+    proc.on('error', reject)
+
+    proc.on('close', (code: number) => {
+      if (code > 0) return reject(new Error('Exit code ' + code))
+      resolve()
+    })
+  })
+}
+
+export function spawnPnpx (args: string[], opts?: {storeDir?: string}) {
+  return crossSpawn.spawn('node', [pnpxBinLocation, ...args], {
+    env: createEnv(opts),
+    stdio: 'inherit',
+  })
+}
+
 export type ChildProcess = {
   status: number,
   stdout: Object,
   stderr: Object,
 }
 
-export function sync (...args: string[]): ChildProcess
-export function sync (): ChildProcess {
-  const args = Array.prototype.slice.call(arguments)
+export function sync (...args: string[]): ChildProcess {
   return crossSpawn.sync('node', [pnpmBinLocation, ...args], {
+    env: createEnv(),
+  })
+}
+
+export function spawnPnpxSync (...args: string[]): ChildProcess {
+  return crossSpawn.sync('node', [pnpxBinLocation, ...args], {
     env: createEnv(),
   })
 }

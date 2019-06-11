@@ -338,3 +338,49 @@ test('throw error if --save-optional is used with --save-peer', async (t) => {
     t.end()
   }
 })
+
+test('extraBinPaths', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+
+  {
+    const { extraBinPaths } = await getConfigs({
+      cliArgs: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.deepEqual(extraBinPaths, [], 'extraBinPaths is empty outside of a workspace')
+  }
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  {
+    const { extraBinPaths } = await getConfigs({
+      cliArgs: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.deepEqual(extraBinPaths, [path.resolve('node_modules/.bin')], 'extraBinPaths has the node_modules/.bin folder from the root of the workspace')
+  }
+
+  {
+    const { extraBinPaths } = await getConfigs({
+      cliArgs: {
+        'ignore-scripts': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.deepEqual(extraBinPaths, [], 'extraBinPaths is empty inside a workspace if scripts are ignored')
+  }
+
+  t.end()
+})

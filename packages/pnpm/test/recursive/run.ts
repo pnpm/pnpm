@@ -1,8 +1,10 @@
 import { preparePackages } from '@pnpm/prepare'
+import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import writeYamlFile = require('write-yaml-file')
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
@@ -280,4 +282,59 @@ test('`pnpm recursive run` should always trust the scripts', async (t: tape.Test
   const outputs = await import(path.resolve('output.json')) as string[]
 
   t.deepEqual(outputs, ['project'])
+})
+
+test('pnpm recursive run finds bins from the root of the workspace', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      location: '.',
+      package: {
+        dependencies: {
+          'json-append': '1',
+          'print-version': '2',
+        },
+      },
+    },
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      dependencies: {
+        'print-version': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-build')" | json-append ../build-output.json`,
+        postinstall: `node -e "process.stdout.write('project-postinstall')" | json-append ../postinstall-output.json`,
+        testBinPriority: 'print-version | json-append ../testBinPriority.json',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('recursive', 'install')
+
+  t.deepEqual(
+    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'))),
+    ['project-postinstall'],
+  )
+
+  await execPnpm('recursive', 'run', 'build')
+
+  const buildOutputs = await import(path.resolve('build-output.json')) as string[]
+  t.deepEqual(buildOutputs, ['project-build'])
+
+  await execPnpm('recursive', 'rebuild')
+
+  t.deepEqual(
+    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'))),
+    ['project-postinstall', 'project-postinstall'],
+  )
+
+  await execPnpm('recursive', 'run', 'testBinPriority')
+
+  t.deepEqual(
+    JSON.parse(await fs.readFile(path.resolve('testBinPriority.json'))),
+    ['1.0.0\n'],
+  )
 })

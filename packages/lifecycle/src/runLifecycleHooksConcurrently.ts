@@ -7,6 +7,7 @@ export default async function runLifecycleHooksConcurrently (
   importers: Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string, modulesDir: string }>,
   childConcurrency: number,
   opts: {
+    extraBinPaths?: string[],
     rawNpmConfig: object,
     stdio?: string,
     unsafePerm: boolean,
@@ -27,6 +28,7 @@ export default async function runLifecycleHooksConcurrently (
       async () => {
         const runLifecycleHookOpts = {
           depPath: importer.prefix,
+          extraBinPaths: opts.extraBinPaths,
           pkgRoot: importer.prefix,
           rawNpmConfig: opts.rawNpmConfig,
           rootNodeModulesDir: importer.modulesDir,

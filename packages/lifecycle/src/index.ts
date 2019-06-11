@@ -10,6 +10,7 @@ export { runLifecycleHooksConcurrently }
 export async function runPostinstallHooks (
   opts: {
     depPath: string,
+    extraBinPaths?: string[],
     optional?: boolean,
     pkgRoot: string,
     prepare?: boolean,
