@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "5.0.9",
+  "version": "5.0.10",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
-    "@pnpm/lockfile-file": "1.0.7",
+    "@pnpm/lockfile-file": "1.1.0",
     "@pnpm/modules-yaml": "3.0.3",
     "@pnpm/read-modules-dir": "2.0.1",
     "@pnpm/types": "3.2.0",
@@ -47,7 +47,7 @@
     "semver": "6.1.1"
   },
   "devDependencies": {
-    "@pnpm/constants": "1.0.1",
+    "@pnpm/constants": "1.1.0",
     "@pnpm/logger": "2.1.1",
     "@types/semver": "6.0.0",
     "dependencies-hierarchy": "link:",

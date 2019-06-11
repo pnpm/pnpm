@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-file",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "Read/write pnpm-lock.yaml files",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -50,7 +50,7 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "1.0.1",
+    "@pnpm/constants": "1.1.0",
     "@pnpm/lockfile-types": "1.1.0",
     "@pnpm/types": "3.2.0",
     "js-yaml": "3.13.1",

@@ -32,9 +32,9 @@ importers:
       typescript: 3.5.1
     specifiers:
       '@pnpm/build-modules': 'link:'
-      '@pnpm/constants': 1.0.1
+      '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
-      '@pnpm/lifecycle': 6.1.2
+      '@pnpm/lifecycle': 6.2.0
       '@pnpm/link-bins': 4.4.0
       '@pnpm/logger': 2.1.1
       '@pnpm/read-package-json': 2.0.2
@@ -167,7 +167,7 @@ importers:
       tslint: 5.17.0_typescript@3.5.1
       typescript: 3.5.1
     specifiers:
-      '@pnpm/config': 3.3.4
+      '@pnpm/config': 3.4.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.1
@@ -248,8 +248,8 @@ importers:
       tslint: 5.17.0_typescript@3.5.1
       typescript: 3.5.1
     specifiers:
-      '@pnpm/constants': 1.0.1
-      '@pnpm/lockfile-file': 1.0.7
+      '@pnpm/constants': 1.1.0
+      '@pnpm/lockfile-file': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
       '@pnpm/read-modules-dir': 2.0.1
@@ -361,7 +361,7 @@ importers:
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
     specifiers:
-      '@pnpm/constants': 1.0.1
+      '@pnpm/constants': 1.1.0
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.9
@@ -514,16 +514,16 @@ importers:
       typescript: 3.5.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/build-modules': 1.0.9
-      '@pnpm/constants': 1.0.1
+      '@pnpm/build-modules': 1.1.0
+      '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/filter-lockfile': 1.0.9
+      '@pnpm/filter-lockfile': 1.0.10
       '@pnpm/headless': 'link:'
-      '@pnpm/lifecycle': 6.1.2
+      '@pnpm/lifecycle': 6.2.0
       '@pnpm/link-bins': 4.4.0
-      '@pnpm/lockfile-file': 1.0.7
+      '@pnpm/lockfile-file': 1.1.0
       '@pnpm/lockfile-utils': 1.0.9
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-cleaner': 3.0.11
@@ -535,7 +535,7 @@ importers:
       '@pnpm/read-importers-context': 'file:../read-importers-context'
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.1.0
-      '@pnpm/shamefully-flatten': 3.0.10
+      '@pnpm/shamefully-flatten': 3.0.11
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.1.0
       '@pnpm/symlink-dependency': 2.0.6
@@ -636,7 +636,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.2
       common-tags: 1.8.0
-      dependencies-hierarchy: 5.0.9
+      dependencies-hierarchy: 5.0.10
       p-limit: 2.2.0
       ramda: 0.26.1
       tape: 4.10.2
@@ -699,7 +699,7 @@ importers:
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
     specifiers:
-      '@pnpm/constants': 1.0.1
+      '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
@@ -944,8 +944,8 @@ importers:
       tslint: 5.17.0_typescript@3.5.1
       typescript: 3.5.1
     specifiers:
-      '@pnpm/constants': 1.0.1
-      '@pnpm/lockfile-file': 1.0.7
+      '@pnpm/constants': 1.1.0
+      '@pnpm/lockfile-file': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 3.0.12
       '@pnpm/outdated': 'link:'
@@ -1269,18 +1269,18 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 3.3.4
-      '@pnpm/constants': 1.0.1
+      '@pnpm/config': 3.4.0
+      '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 3.1.12
-      '@pnpm/default-reporter': 3.2.6
+      '@pnpm/default-reporter': 3.2.7
       '@pnpm/default-resolver': 3.0.15
-      '@pnpm/lifecycle': 6.1.2
-      '@pnpm/list': 1.0.11
+      '@pnpm/lifecycle': 6.2.0
+      '@pnpm/list': 1.0.12
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/outdated': 2.0.16
+      '@pnpm/outdated': 2.0.17
       '@pnpm/package-store': 4.0.10
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 1.0.4
@@ -1358,7 +1358,7 @@ importers:
       semver: 6.1.1
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.33.7-2
+      supi: 0.33.7
       symlink-dir: 3.1.0
       tape: 4.10.2
       tape-promise: 4.0.0
@@ -1389,7 +1389,7 @@ importers:
       typescript: 3.5.1
       yaml-tag: 1.1.0
     specifiers:
-      '@pnpm/constants': 1.0.1
+      '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/prune-lockfile': 'link:'
       '@pnpm/types': 3.2.0
@@ -1458,7 +1458,7 @@ importers:
       tslint: 5.17.0_typescript@3.5.1
       typescript: 3.5.1
     specifiers:
-      '@pnpm/lockfile-file': 1.0.7
+      '@pnpm/lockfile-file': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
       '@pnpm/types': 3.2.0
@@ -1624,7 +1624,7 @@ importers:
       tslint: 5.17.0_typescript@3.5.1
       typescript: 3.5.1
     specifiers:
-      '@pnpm/constants': 1.0.1
+      '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.9
       '@pnpm/logger': 2.1.1
@@ -1753,18 +1753,18 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/build-modules': 1.0.9
+      '@pnpm/build-modules': 1.1.0
       '@pnpm/check-package': 3.0.1
-      '@pnpm/constants': 1.0.1
+      '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/filter-lockfile': 1.0.9
+      '@pnpm/filter-lockfile': 1.0.10
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 7.0.10
-      '@pnpm/lifecycle': 6.1.2
+      '@pnpm/headless': 7.1.0
+      '@pnpm/lifecycle': 6.2.0
       '@pnpm/link-bins': 4.4.0
-      '@pnpm/lockfile-file': 1.0.7
+      '@pnpm/lockfile-file': 1.1.0
       '@pnpm/lockfile-utils': 1.0.9
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-cleaner': 3.0.11
@@ -1773,15 +1773,15 @@ importers:
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/prune-lockfile': 1.0.7
+      '@pnpm/prune-lockfile': 1.1.0
       '@pnpm/read-importer-manifest': 1.0.4
-      '@pnpm/read-importers-context': 1.0.4
+      '@pnpm/read-importers-context': 1.0.5
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.1.0
-      '@pnpm/resolve-dependencies': 7.0.0-2
+      '@pnpm/resolve-dependencies': 7.0.0
       '@pnpm/resolver-base': 3.1.2
-      '@pnpm/shamefully-flatten': 3.0.10
+      '@pnpm/shamefully-flatten': 3.0.11
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.1.0
       '@pnpm/symlink-dependency': 2.0.6
@@ -2031,7 +2031,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': 1.0.0
-      '@pnpm/constants': 1.0.1
+      '@pnpm/constants': 1.1.0
       '@pnpm/modules-yaml': 3.0.3
       '@types/mz': 0.0.32
       '@types/path-exists': 3.0.0
