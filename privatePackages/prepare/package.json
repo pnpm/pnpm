@@ -18,10 +18,8 @@
   },
   "devDependencies": {
     "rimraf": "2.6.3",
-    "tslint": "5.17.0",
     "tslint-config-standard": "8.0.1",
-    "tslint-eslint-rules": "5.4.0",
-    "typescript": "3.5.1"
+    "tslint-eslint-rules": "5.4.0"
   },
   "scripts": {
     "lint": "tslint -c tslint.json --project .",

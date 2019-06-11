@@ -18,10 +18,7 @@
   ],
   "devDependencies": {
     "@pnpm/assert-project": "link:",
-    "rimraf": "2.6.3",
-    "ts-node": "8.2.0",
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
+    "rimraf": "2.6.3"
   },
   "directories": {
     "test": "test"

@@ -21,9 +21,5 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme",
-  "devDependencies": {
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
-  }
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme"
 }

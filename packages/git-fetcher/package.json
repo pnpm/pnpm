@@ -37,9 +37,6 @@
     "@pnpm/git-fetcher": "link:",
     "rimraf": "2.6.3",
     "tape": "4.10.2",
-    "tempy": "0.3.0",
-    "ts-node": "8.2.0",
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
+    "tempy": "0.3.0"
   }
 }

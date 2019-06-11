@@ -39,9 +39,6 @@
     "@pnpm/package-is-installable": "link:",
     "@types/semver": "6.0.0",
     "rimraf": "2.6.3",
-    "tape": "4.10.2",
-    "ts-node": "8.2.0",
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
+    "tape": "4.10.2"
   }
 }

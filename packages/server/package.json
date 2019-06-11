@@ -45,10 +45,7 @@
     "node-fetch": "2.6.0",
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
-    "tape": "4.10.2",
-    "ts-node": "8.2.0",
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
+    "tape": "4.10.2"
   },
   "dependencies": {
     "@pnpm/fetch": "1.0.0",

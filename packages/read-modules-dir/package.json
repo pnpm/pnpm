@@ -31,8 +31,6 @@
   },
   "devDependencies": {
     "@types/mz": "0.0.32",
-    "rimraf": "2.6.3",
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
+    "rimraf": "2.6.3"
   }
 }

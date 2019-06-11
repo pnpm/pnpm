@@ -33,8 +33,6 @@
     "node-fetch-unix": "2.3.0"
   },
   "devDependencies": {
-    "rimraf": "^2.6.2",
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
+    "rimraf": "^2.6.2"
   }
 }

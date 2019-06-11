@@ -44,9 +44,6 @@
     "@pnpm/build-modules": "link:",
     "@pnpm/logger": "2.1.1",
     "@types/ramda": "0.26.6",
-    "rimraf": "2.6.3",
-    "ts-node": "8.2.0",
-    "tslint": "5.17.0",
-    "typescript": "3.5.1"
+    "rimraf": "2.6.3"
   }
 }
