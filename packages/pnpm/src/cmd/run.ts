@@ -7,6 +7,7 @@ import R = require('ramda')
 export default async function run (
   args: string[],
   opts: {
+    extraBinPaths: string[],
     prefix: string,
     rawNpmConfig: object,
   },
@@ -25,6 +26,7 @@ export default async function run (
   const lifecycleOpts = {
     args: args.slice(1),
     depPath: opts.prefix,
+    extraBinPaths: opts.extraBinPaths,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
@@ -109,6 +111,7 @@ function renderCommands (commands: string[][]) {
 export async function start (
   args: string[],
   opts: {
+    extraBinPaths: string[],
     prefix: string,
     rawNpmConfig: object,
     argv: {
@@ -124,6 +127,7 @@ export async function start (
 export async function stop (
   args: string[],
   opts: {
+    extraBinPaths: string[],
     prefix: string,
     rawNpmConfig: object,
     argv: {
@@ -139,6 +143,7 @@ export async function stop (
 export async function test (
   args: string[],
   opts: {
+    extraBinPaths: string[],
     prefix: string,
     rawNpmConfig: object,
     argv: {
@@ -154,6 +159,7 @@ export async function test (
 export async function restart (
   args: string[],
   opts: {
+    extraBinPaths: string[],
     prefix: string,
     rawNpmConfig: object,
     argv: {

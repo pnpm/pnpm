@@ -321,8 +321,19 @@ test('pnpm recursive run finds bins from the root of the workspace', async (t: t
 
   await execPnpm('recursive', 'run', 'build')
 
-  const buildOutputs = await import(path.resolve('build-output.json')) as string[]
-  t.deepEqual(buildOutputs, ['project-build'])
+  t.deepEqual(
+    JSON.parse(await fs.readFile(path.resolve('build-output.json'))),
+    ['project-build'],
+  )
+
+  process.chdir('project')
+  await execPnpm('run', 'build')
+  process.chdir('..')
+
+  t.deepEqual(
+    JSON.parse(await fs.readFile(path.resolve('build-output.json'))),
+    ['project-build', 'project-build'],
+  )
 
   await execPnpm('recursive', 'rebuild')
 
