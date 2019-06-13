@@ -62,7 +62,7 @@
     "@types/ncp": "2.0.1",
     "@types/nock": "^10.0.0",
     "@types/sinon": "^7.0.10",
-    "delay": "4.2.0",
+    "delay": "4.3.0",
     "ncp": "2.0.0",
     "nock": "10.0.6",
     "normalize-path": "3.0.0",
