@@ -32,7 +32,7 @@ export default async function installCmd (
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
 
-  const prefix = opts.prefix || process.cwd()
+  const prefix = opts.lockfileDirectory || opts.prefix || process.cwd()
 
   const localPackages = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))

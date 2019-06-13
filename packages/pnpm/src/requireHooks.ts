@@ -16,9 +16,8 @@ export default function requireHooks (
   const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
   let globalHooks = globalPnpmfile && globalPnpmfile.hooks
 
-  const pnpmFile = (opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix))
+  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)
     || requirePnpmfile(path.join(prefix, 'pnpmfile.js'), prefix)
-    || (opts.workspacePrefix && requirePnpmfile(path.join(opts.workspacePrefix, 'pnpmfile.js'), prefix))
   let hooks = pnpmFile && pnpmFile.hooks
 
   if (!globalHooks && !hooks) return {}
