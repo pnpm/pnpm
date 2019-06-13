@@ -9,7 +9,6 @@ export default function requireHooks (
   prefix: string,
   opts: {
     globalPnpmfile?: string,
-    workspacePrefix?: string,
     pnpmfile?: string,
   },
 ) {

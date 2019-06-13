@@ -323,24 +323,14 @@ test('recursive installation of packages with hooks', async t => {
   await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
 
   process.chdir('..')
-  await fs.writeFile('pnpmfile.js', `
-    module.exports = { hooks: { readPackage } }
-    function readPackage (pkg) {
-      pkg.dependencies = pkg.dependencies || {}
-      pkg.dependencies['is-number'] = '1.0.0'
-      return pkg
-    }
-  `)
 
   await execPnpm('recursive', 'install')
 
   const lockfile1 = await projects['project-1'].readLockfile()
   t.ok(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
-  t.notOk(lockfile1.packages['/is-number/1.0.0'])
 
   const lockfile2 = await projects['project-2'].readLockfile()
   t.ok(lockfile2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
-  t.notOk(lockfile2.packages['/is-number/1.0.0'])
 })
 
 test('recursive installation of packages in workspace ignores hooks in packages', async t => {
@@ -437,24 +427,14 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
   await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
 
   process.chdir('..')
-  await fs.writeFile('pnpmfile.js', `
-    module.exports = { hooks: { readPackage } }
-    function readPackage (pkg) {
-      pkg.dependencies = pkg.dependencies || {}
-      pkg.dependencies['is-number'] = '1.0.0'
-      return pkg
-    }
-  `)
 
   await execPnpm('recursive', 'install', '--ignore-pnpmfile')
 
   const lockfile1 = await projects['project-1'].readLockfile()
   t.notOk(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
-  t.notOk(lockfile1.packages['/is-number/1.0.0'])
 
   const lockfile2 = await projects['project-2'].readLockfile()
   t.notOk(lockfile2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
-  t.notOk(lockfile2.packages['/is-number/1.0.0'])
 })
 
 test('running `pnpm recursive` on a subset of packages', async t => {
