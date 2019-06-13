@@ -172,9 +172,9 @@ test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test)
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
-  await execPnpm('recursive', 'install')
+  const storeDir = path.resolve('store')
 
-  const storeDir = path.resolve('../store')
+  await execPnpm('recursive', 'install', '--store', storeDir)
 
   process.chdir('project-1')
 
