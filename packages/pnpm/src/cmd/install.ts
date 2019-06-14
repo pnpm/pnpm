@@ -32,14 +32,14 @@ export default async function installCmd (
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
 
-  const prefix = opts.lockfileDirectory || opts.prefix || process.cwd()
+  const prefix = opts.prefix || process.cwd()
 
   const localPackages = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
     : undefined
 
   if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(prefix, opts)
+    opts.hooks = requireHooks(opts.lockfileDirectory || prefix, opts)
   }
   const store = await createStoreController(opts)
   const installOpts = {
