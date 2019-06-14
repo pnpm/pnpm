@@ -39,7 +39,7 @@ export default async function installCmd (
     : undefined
 
   if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(prefix, opts)
+    opts.hooks = requireHooks(opts.lockfileDirectory || prefix, opts)
   }
   const store = await createStoreController(opts)
   const installOpts = {
