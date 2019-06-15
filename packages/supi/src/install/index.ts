@@ -346,11 +346,15 @@ export async function mutateModules (
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDeps)
       }
       const scripts = !opts.ignoreScripts && importer.manifest && importer.manifest.scripts || {}
-      if (opts.ignoreScripts && importer.manifest && importer.manifest.scripts &&
-        (importer.manifest.scripts.preinstall || importer.manifest.scripts.prepublish ||
+      if (
+        opts.ignoreScripts && importer.manifest && importer.manifest.scripts &&
+        (
+          importer.manifest.scripts.preinstall ||
+          importer.manifest.scripts.prepublish ||
           importer.manifest.scripts.install ||
           importer.manifest.scripts.postinstall ||
-          importer.manifest.scripts.prepare)
+          importer.manifest.scripts.prepare
+        )
       ) {
         ctx.pendingBuilds.push(importer.id)
       }
@@ -916,7 +920,10 @@ async function installInContext (
 
   await opts.storeController.close()
 
-  return importersToLink.map((importer) => ({ prefix: importer.prefix, manifest: importer.manifest }))
+  return {
+    importers: importersToLink.map((importer) => ({ prefix: importer.prefix, manifest: importer.manifest })),
+    wantedLockfile: ctx.wantedLockfile,
+  }
 }
 
 async function toResolveImporter (

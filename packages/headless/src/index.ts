@@ -310,7 +310,13 @@ export default async (opts: HeadlessOptions) => {
   await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
   await Promise.all(opts.importers.map(linkBinsOfImporter))
 
-  if (currentLockfile && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredLockfile.importers).sort())) {
+  if (
+    currentLockfile &&
+    !R.equals(
+      opts.importers.map((importer) => importer.id).sort(),
+      Object.keys(filteredLockfile.importers).sort(),
+    )
+  ) {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
   await writeCurrentLockfile(lockfileDirectory, filteredLockfile)

@@ -610,6 +610,44 @@ importers:
       write-file-atomic: 2.4.3
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
+  packages/lockfile-to-pnp:
+    dependencies:
+      '@berry/pnp': 0.0.3
+      '@pnpm/config': 'link:../config'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
+      '@pnpm/store-path': 2.1.0
+      dependency-path: 'link:../dependency-path'
+      mz: 2.7.0
+      ramda: 0.26.1
+    devDependencies:
+      '@pnpm/lockfile-to-pnp': 'link:'
+      '@pnpm/logger': 2.1.1
+      '@pnpm/types': 'link:../types'
+      '@types/mz': 0.0.32
+      '@types/ramda': 0.25.39
+      rimraf: 2.6.3
+      tape: 4.10.2
+    specifiers:
+      '@berry/pnp': 0.0.3
+      '@pnpm/config': 3.4.0
+      '@pnpm/lockfile-file': 1.1.0
+      '@pnpm/lockfile-to-pnp': 'link:'
+      '@pnpm/lockfile-utils': 1.0.9
+      '@pnpm/logger': 2.1.1
+      '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/store-path': 2.1.0
+      '@pnpm/types': 3.2.0
+      '@types/mz': 0.0.32
+      '@types/ramda': 0.25.39
+      dependency-path: 3.0.7
+      mz: 2.7.0
+      ramda: 0.26.1
+      rimraf: 2.6.3
+      tape: 4.10.2
   packages/lockfile-types:
     specifiers: {}
   packages/lockfile-utils:
@@ -1855,6 +1893,22 @@ packages:
     dev: true
     resolution:
       integrity: sha512-UFMC4ZeFC48Tpvj7C8UgLvtkaUuovQX+5xNWrsIoMG8o2z+XFKjKaN9iVmS84dPwVN00W4wPmqvYoZF3EGAsfw==
+  /@berry/fslib/0.0.6:
+    dependencies:
+      '@berry/libzip': 0.0.4
+    dev: false
+    resolution:
+      integrity: sha512-gO1oyuKckzLPn44UZW3Bz91wVc/Zi0OGMI30zBfC+NcInqM1tyjOaQrzS+PvfH20QNcxUx+g0nIHMUq3Ck/C/A==
+  /@berry/libzip/0.0.4:
+    dev: false
+    resolution:
+      integrity: sha512-yX4CLbSLdAf5A16Qzh6lnXC0LrcMANOsEJSCQlCsq/PQG4gRsdU8vEpoXuOEtQEpNKSoLJQRKG06YlJ1Ud3YzQ==
+  /@berry/pnp/0.0.3:
+    dependencies:
+      '@berry/fslib': 0.0.6
+    dev: false
+    resolution:
+      integrity: sha512-q+UD3sK+zSJ/zX0OH5DnyvsWafq9aWyNCYqR2vwMdbUJl5hzDzid88wQvqoePrfb9vjGLhpLGP4hNqZSDphfXA==
   /@commitlint/cli/8.0.0:
     dependencies:
       '@commitlint/format': 8.0.0
