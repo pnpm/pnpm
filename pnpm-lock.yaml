@@ -908,7 +908,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
-      '@pnpm/fs-locker': 1.0.3
+      '@pnpm/fs-locker': 3.0.1
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -939,7 +939,7 @@ importers:
     specifiers:
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/fetcher-base': 3.0.4
-      '@pnpm/fs-locker': 1.0.3
+      '@pnpm/fs-locker': 3.0.1
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'file:../npm-resolver'
       '@pnpm/package-requester': 7.0.11
@@ -1429,7 +1429,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
-      '@pnpm/fs-locker': 1.0.3
+      '@pnpm/fs-locker': 3.0.1
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/link-bins': 4.4.0
@@ -1527,7 +1527,7 @@ importers:
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/filter-lockfile': 1.0.10
-      '@pnpm/fs-locker': 1.0.3
+      '@pnpm/fs-locker': 3.0.1
       '@pnpm/headless': 7.1.1
       '@pnpm/lifecycle': 6.2.0
       '@pnpm/link-bins': 4.4.0
@@ -2064,16 +2064,15 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-+m1O/rFyR0h60IrfoOKVuzwsZCYx4vYF5NFTMFzDNJ34D4EH8Y+nT/EIncAHQ6Awavz2I5FlhRbiYvWA2DZFbw==
-  /@pnpm/fs-locker/1.0.3:
+  /@pnpm/fs-locker/3.0.1:
     dependencies:
-      '@types/node': 10.14.9
-      mkdirp-promise: 5.0.1
-      proper-lockfile: 2.0.1
+      make-dir: 3.0.0
+      proper-lockfile: 3.2.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
+      integrity: sha512-o9d47i3E6XtVDIjxPjl9mg+phHnjScYtjhx5KiAZEcgV4nEjXCtnrQ8MjH8yjN8JVeCQH3FiioR1i+iD9DzkRw==
   /@pnpm/link-bins/4.4.0:
     dependencies:
       '@pnpm/package-bins': 3.1.1
@@ -2319,10 +2318,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-+bKtuxhj/TYSSP1r4CZhfmyA0vm/aDRQNo7vbAgf6/cZajn0SAniGGST07yvI4Q+q169WTa2/x9gEHfJrkcALw==
-  /@types/node/10.14.9:
-    dev: false
-    resolution:
-      integrity: sha512-NelG/dSahlXYtSoVPErrp06tYFrvzj8XLWmKA+X8x0W//4MqbUyZu++giUG/v0bjAT6/Qxa8IjodrfdACyb0Fg==
   /@types/node/12.0.8:
     resolution:
       integrity: sha512-b8bbUOTwzIY3V5vDTY1fIJ+ePKDUBqt2hC2woVGotdQQhG/2Sh62HOKHrT7ab+VerXAcPyAiTEipPu/FsreUtg==
@@ -6118,14 +6113,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-8ZItLHeEgaqEvd5lYBXfm4EZSFCX29Jb9K+lAHhDKzReKBQKj3R+7NOF6tjqYi9t4oI8VUfaWITJQm86wnXGNQ==
-  /mkdirp-promise/5.0.1:
-    dependencies:
-      mkdirp: 0.5.1
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-6bj2jlUsaKnBcTuEiD96HdA5uKE=
   /mkdirp/0.5.1:
     dependencies:
       minimist: 0.0.8
@@ -7001,15 +6988,14 @@ packages:
       '0': node >= 0.8.1
     resolution:
       integrity: sha1-AMLa7t2iDofjeCs0Stuhzd1q1wk=
-  /proper-lockfile/2.0.1:
+  /proper-lockfile/3.2.0:
     dependencies:
       graceful-fs: 4.1.15
-      retry: 0.10.1
+      retry: 0.12.0
+      signal-exit: 3.0.2
     dev: false
-    engines:
-      node: '>=4.0.0'
     resolution:
-      integrity: sha1-FZ+wYZPTIAP0s2kd0uwaY0qoDR0=
+      integrity: sha512-iMghHHXv2bsxl6NchhEaFck8tvX3F9cknEEh1SUpguUOBjN7PAAW9BLzmbc1g/mCD1gY3EE2EABBHPJfFdHFmA==
   /proto-list/1.2.4:
     dev: false
     resolution:
@@ -7500,6 +7486,7 @@ packages:
     resolution:
       integrity: sha512-TTlYpa+OL+vMMNG24xSlQGEJ3B/RzEfUlLct7b5G/ytav+wPrplCpVMFuwzXbkecJrb6IYo1iFb0S9v37754mg==
   /retry/0.10.1:
+    dev: true
     resolution:
       integrity: sha1-52OI0heZLCUnUCQdPTlW/tmNj/Q=
   /retry/0.12.0:

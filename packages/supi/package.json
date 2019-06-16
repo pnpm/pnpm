@@ -24,7 +24,7 @@
     "@pnpm/constants": "1.1.0",
     "@pnpm/core-loggers": "3.0.3",
     "@pnpm/filter-lockfile": "1.0.10",
-    "@pnpm/fs-locker": "1.0.3",
+    "@pnpm/fs-locker": "3.0.1",
     "@pnpm/headless": "7.1.1",
     "@pnpm/lifecycle": "6.2.0",
     "@pnpm/link-bins": "4.4.0",
