@@ -38,7 +38,7 @@
     "encode-registry": "2.0.0",
     "fetch-from-npm-registry": "2.0.5",
     "load-json-file": "6.0.0",
-    "mem": "5.0.0",
+    "mem": "5.1.0",
     "normalize-path": "3.0.0",
     "p-limit": "2.2.0",
     "parse-npm-tarball-url": "3.0.0",

@@ -732,7 +732,7 @@ importers:
       encode-registry: 2.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       load-json-file: 6.0.0
-      mem: 5.0.0
+      mem: 5.1.0
       normalize-path: 3.0.0
       p-limit: 2.2.0
       parse-npm-tarball-url: 3.0.0
@@ -767,7 +767,7 @@ importers:
       encode-registry: 2.0.0
       fetch-from-npm-registry: 2.0.5
       load-json-file: 6.0.0
-      mem: 5.0.0
+      mem: 5.1.0
       nock: ^10.0.0
       normalize-path: 3.0.0
       p-limit: 2.2.0
@@ -1033,7 +1033,7 @@ importers:
       loud-rejection: 2.1.0
       lru-cache: 5.1.1
       make-dir: 3.0.0
-      mem: 5.0.0
+      mem: 5.1.0
       minimatch: 3.0.4
       mz: 2.7.0
       nopt: 4.0.1
@@ -1155,7 +1155,7 @@ importers:
       loud-rejection: 2.1.0
       lru-cache: 5.1.1
       make-dir: 3.0.0
-      mem: 5.0.0
+      mem: 5.1.0
       minimatch: 3.0.4
       mz: 2.7.0
       ncp: 2.0.0
@@ -1357,7 +1357,7 @@ importers:
       '@pnpm/server': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 0.0.32
-      '@types/node-fetch': 2.3.6
+      '@types/node-fetch': 2.3.7
       '@types/uuid': 3.4.4
       is-port-reachable: 2.0.1
       mz: 2.7.0
@@ -1637,7 +1637,7 @@ importers:
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       graceful-fs: 4.1.15
       make-dir: 3.0.0
-      mem: 5.0.0
+      mem: 5.1.0
       mz: 2.7.0
       path-temp: 2.0.0
       retry: 0.12.0
@@ -1672,7 +1672,7 @@ importers:
       fetch-from-npm-registry: 2.0.5
       graceful-fs: 4.1.15
       make-dir: 3.0.0
-      mem: 5.0.0
+      mem: 5.1.0
       mz: 2.7.0
       nock: 10.0.6
       path-temp: 2.0.0
@@ -2150,7 +2150,7 @@ packages:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.3
-      verdaccio: 4.0.2
+      verdaccio: 4.0.3
     dev: true
     engines:
       node: '>=8.15'
@@ -2313,12 +2313,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-OthuN+2FuzfZO3yONJ/QVjKmLEuRagS9TV9lEId+WHL9KhftYG+/2z+pxlr0UgVVXSpVD8woie/3fzQn8ft/Ow==
-  /@types/node-fetch/2.3.6:
+  /@types/node-fetch/2.3.7:
     dependencies:
       '@types/node': 12.0.8
     dev: true
     resolution:
-      integrity: sha512-KuQEir6FTxAdrdPsTVPDukPRRJmZyVldu/1+ua6kF26lyvhK9Elq1mQJgDl7773H9XxCu8H8oEC0yQM06Cy3kg==
+      integrity: sha512-+bKtuxhj/TYSSP1r4CZhfmyA0vm/aDRQNo7vbAgf6/cZajn0SAniGGST07yvI4Q+q169WTa2/x9gEHfJrkcALw==
   /@types/node/10.14.9:
     dev: false
     resolution:
@@ -3226,7 +3226,7 @@ packages:
   /camelcase-keys/6.0.0:
     dependencies:
       camelcase: 5.3.1
-      map-obj: 4.0.0
+      map-obj: 4.1.0
       quick-lru: 4.0.1
     dev: false
     engines:
@@ -4083,7 +4083,7 @@ packages:
       integrity: sha512-CwBLREIQ7LvYFB0WyRvwhq5N5qPhc6PMjD6bYggFlI5YyDgl+0vxq5VHbMOFqLg7hfWzmu8T5Z1QofhmTIhItA==
   /encode-registry/2.0.0:
     dependencies:
-      mem: 5.0.0
+      mem: 5.1.0
     dev: false
     engines:
       node: '>=8.15'
@@ -5909,12 +5909,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-plzSkIepJZi4eRJXpSPgISIqwfk=
-  /map-obj/4.0.0:
+  /map-obj/4.1.0:
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-Cqo6mRdpHmRD95I1vMjIKAv4KnH8Sn2me3Q1+BOFPboOzT7x7qr8lhtRmFwNG48RDiouOhiRL+L92kMpeBLhWw==
+      integrity: sha512-glc9y00wgtwcDmp7GaE/0b0OnxpNJsVf3ael/An6Fe2Q51LLwN1er6sdomLRzz5h0+yMpiYLhWYF5R7HeqVd4g==
   /map-visit/1.0.0:
     dependencies:
       object-visit: 1.0.1
@@ -5946,7 +5946,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-qX2bG48pTqYRVmDB37rn/6PT7LcR8T7oAX3bf99u1Tt1nzxYfxkgqDwUwolPlXweM0XzBOBFzSx4kfp7KP1s/w==
-  /mem/5.0.0:
+  /mem/5.1.0:
     dependencies:
       map-age-cleaner: 0.1.3
       mimic-fn: 2.1.0
@@ -5955,7 +5955,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-r0kKFSQy7ywj2AHxsCyRlIQqnqiazZBeOx6ZNVvfJtEEzqVMgvgp83tB30B9pcqfGDXXPHLuVgCXLwNE2Un6lQ==
+      integrity: sha512-9egM8rCo4wKiKuTwK1nFlSk39HbgluK93EgUmmboF85CVuKp7PoAwK3C8krkJeeFiH/ltExwVxcu+i2dKZYtDw==
   /memorystream/0.3.1:
     dev: true
     engines:
@@ -8689,7 +8689,7 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-HI6AvstmpkyQp6mHHbCVrSu1rOFq/FND2V4gM7EhUtmOAoJjOmZENVGT87ZNf2mTQq8P4MRnfypBIjfutI3BAg==
-  /verdaccio/4.0.2:
+  /verdaccio/4.0.3:
     dependencies:
       '@verdaccio/local-storage': 2.1.0
       '@verdaccio/readme': 1.0.3
@@ -8728,7 +8728,7 @@ packages:
       npm: '>=5'
     hasBin: true
     resolution:
-      integrity: sha512-FBHEJDV3fQE09ZE4NB392LrH0AQeb28njDM2GWwL+rSxrGJrk3BrRKPELLz35IgQsAfV2h7ffk+Z4E9SZtM+aQ==
+      integrity: sha512-mLdREiwFmsT9yQpJjpqcUNGqJMrgh+3b3rgg8fW4+ClrVzzw40lqwKHVTlNGLuXIbE7B5wNEKr7vObtL/9JWvw==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
