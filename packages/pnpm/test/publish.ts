@@ -205,3 +205,57 @@ test('publish: package with main, module, typings and types in publishConfig', a
     },
   })
 })
+
+test['skip']('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      location: '.',
+      package: {
+        name: 'project-100',
+        version: '1.0.0',
+
+        dependencies: {
+          'json-append': '1',
+        },
+      },
+    },
+    {
+      name: 'test-publish-scripts',
+      version: '1.0.0',
+
+      scripts: {
+        prepublish: `node -e "process.stdout.write('prepublish')" | json-append ./output.json`,
+
+        prepare: `node -e "process.stdout.write('prepare')" | json-append ./output.json`,
+
+        prepublishOnly: `node -e "process.stdout.write('prepublishOnly')" | json-append ./output.json`,
+
+        prepack: `node -e "process.stdout.write('prepack')" | json-append ./output.json`,
+
+        postpack: `node -e "process.stdout.write('postpack')" | json-append ./output.json`,
+
+        publish: `node -e "process.stdout.write('publish')" | json-append ./output.json`,
+
+        postpublish: `node -e "process.stdout.write('postpublish')" | json-append ./output.json`,
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('test-publish-scripts')
+  await execPnpm('publish', ...CREDENTIALS)
+
+  t.deepEqual(
+    await import(path.resolve('output.json')),
+    [
+      'prepublish',
+      'prepare',
+      'prepublishOnly',
+      'prepack',
+      'postpack',
+      'publish',
+      'postpublish',
+    ],
+  )
+})
