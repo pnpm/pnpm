@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "2.0.17",
+  "version": "2.0.18",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -13,7 +13,7 @@
   "scripts": {
     "pretest": "registry-mock prepare",
     "test": "pnpm run tsc && tslint --config tslint.json src/**/*.ts test/**/*.ts && pnpm run test:e2e",
-    "prepublishOnly": "tsc",
+    "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc",
     "registry-mock": "registry-mock",
     "test:tap": "ts-node test --type-check",
@@ -41,7 +41,7 @@
   "dependencies": {
     "@pnpm/constants": "1.1.0",
     "@pnpm/lockfile-file": "1.1.0",
-    "@pnpm/npm-resolver": "3.0.12",
+    "@pnpm/npm-resolver": "3.0.13",
     "@pnpm/read-importer-manifest": "1.0.4",
     "@pnpm/store-path": "2.1.0",
     "@pnpm/types": "3.2.0",

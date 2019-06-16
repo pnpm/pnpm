@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "7.0.0",
+  "version": "7.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -33,7 +33,7 @@
     "@pnpm/core-loggers": "3.0.3",
     "@pnpm/lockfile-types": "1.1.0",
     "@pnpm/lockfile-utils": "1.0.9",
-    "@pnpm/npm-resolver": "3.0.12",
+    "@pnpm/npm-resolver": "3.0.13",
     "@pnpm/package-is-installable": "2.0.7",
     "@pnpm/resolver-base": "3.1.2",
     "@pnpm/store-controller-types": "3.0.3",
