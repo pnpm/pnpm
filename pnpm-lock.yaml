@@ -994,6 +994,7 @@ importers:
       '@pnpm/default-fetcher': 'link:../default-fetcher'
       '@pnpm/default-reporter': 'link:../default-reporter'
       '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/list': 'link:../list'
       '@pnpm/logger': 2.1.1
@@ -1042,7 +1043,6 @@ importers:
       path-absolute: 1.0.1
       path-name: 1.0.0
       pkgs-graph: 'link:../pkgs-graph'
-      pnpm-file-reporter: 0.1.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -1098,6 +1098,7 @@ importers:
       '@pnpm/default-fetcher': 3.1.13
       '@pnpm/default-reporter': 3.2.8
       '@pnpm/default-resolver': 3.0.16
+      '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 6.2.0
       '@pnpm/list': 1.0.12
       '@pnpm/lockfile-types': 1.1.0
@@ -1170,7 +1171,6 @@ importers:
       path-name: 1.0.0
       pkgs-graph: 4.0.0
       pnpm: 'link:'
-      pnpm-file-reporter: 0.1.0
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -2064,6 +2064,15 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-+m1O/rFyR0h60IrfoOKVuzwsZCYx4vYF5NFTMFzDNJ34D4EH8Y+nT/EIncAHQ6Awavz2I5FlhRbiYvWA2DZFbw==
+  /@pnpm/file-reporter/0.1.0:
+    dependencies:
+      graceful-fs: 4.1.15
+      path-exists: 4.0.0
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-CMPclTpDRqgT241w6yKt/e3Mer/L5wFCAKTG5rGlhRz7f3BGhbuj4nblIVB/BTXhJty34Y57gKg4gbu3FVeQIA==
   /@pnpm/fs-locker/3.0.1:
     dependencies:
       make-dir: 3.0.0
@@ -2264,6 +2273,7 @@ packages:
   /@types/graceful-fs/4.1.3:
     dependencies:
       '@types/node': 12.0.8
+    dev: true
     resolution:
       integrity: sha512-AiHRaEB50LQg0pZmm659vNBb9f4SJ0qrAnteuzhSeAUcJKxoYgEnprg/83kppCnc2zvtCKbdZry1a5pVY3lOTQ==
   /@types/http-proxy-agent/2.0.1:
@@ -2325,10 +2335,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-YX30JVx0PvSmJ3Eqr74fYLGeBxD+C7vIL20ek+GGGLJeUbVYRUW3EzyAXpIRA0K8c8o0UWqR/GwEFYiFoz1T8w==
-  /@types/node/9.6.49:
-    dev: false
-    resolution:
-      integrity: sha512-YY0Okyn4QXC4ugJI+Kng5iWjK8A6eIHiQVaGIhJkyn0YL6Iqo0E0tBC8BuhvYcBK87vykBijM5FtMnCqaa5anA==
   /@types/nopt/3.0.29:
     dev: true
     resolution:
@@ -5500,15 +5506,6 @@ packages:
   /json-stringify-safe/5.0.1:
     resolution:
       integrity: sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
-  /json2yaml/1.1.0:
-    dependencies:
-      remedial: 1.0.8
-    dev: false
-    engines:
-      node: '>= 0.2.0'
-    hasBin: true
-    resolution:
-      integrity: sha1-VBTZB/mBZYa4DFE+wuOusquBmmw=
   /json5/2.1.0:
     dependencies:
       minimist: 1.2.0
@@ -6921,18 +6918,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2qHaIQr2VLRFoxe2nASzsV6ef4yOOH+Fi9FBOVH6cqeSgUnoyySPZkxzLuzd+RYOQTRpROA0ztTMqxROKSb/nA==
-  /pnpm-file-reporter/0.1.0:
-    dependencies:
-      '@types/graceful-fs': 4.1.3
-      '@types/node': 9.6.49
-      graceful-fs: 4.1.15
-      json2yaml: 1.1.0
-      path-exists: 3.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
   /posix-character-classes/0.1.1:
     dev: false
     engines:
@@ -7269,10 +7254,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-8acYXXTI0AkQv6RAOjE3vOaIXZkT9wo4LOFbBKYQEEnnMNBpKqdUrI6S4NT0KPIo/WVvJ5tE/X5LF/TQUf0ekw==
-  /remedial/1.0.8:
-    dev: false
-    resolution:
-      integrity: sha512-/62tYiOe6DzS5BqVsNpH/nkGlX45C/Sp6V+NtiN6JQNS1Viay7cWkazmRkrQrdFj2eshDe96SIQNIoMxqhzBOg==
   /remove-all-except-outer-links/2.0.0:
     dependencies:
       is-subdir: 1.0.3
