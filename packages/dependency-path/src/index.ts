@@ -98,17 +98,24 @@ export function parse (dependencyPath: string) {
   const name = parts[0].startsWith('@')
     ? `${parts.shift()}/${parts.shift()}`
     : parts.shift()
-  let version = parts.shift()
-  if (version) {
-    const underscoreIndex = version.indexOf('_')
+  let versionWithSuffix = parts.shift()
+  if (versionWithSuffix) {
+    const underscoreIndex = versionWithSuffix.indexOf('_')
+    let version
+    let peersSuffix
     if (underscoreIndex !== -1) {
-      version = version.substr(0, underscoreIndex)
+      version = versionWithSuffix.substr(0, underscoreIndex)
+      peersSuffix = versionWithSuffix.substr(underscoreIndex + 1)
+    } else {
+      version = versionWithSuffix
+      peersSuffix = undefined
     }
     if (semver.valid(version)) {
       return {
         host,
         isAbsolute: _isAbsolute,
         name,
+        peersSuffix,
         version,
       }
     }

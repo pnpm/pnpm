@@ -9,6 +9,7 @@ export default (
     const pkgInfo = dp.parse(relDepPath)
     return {
       name: pkgInfo.name as string,
+      peersSuffix: pkgInfo.peersSuffix,
       version: pkgInfo.version as string,
     }
   }

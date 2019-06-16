@@ -71,7 +71,10 @@ test('lockfileToPackageRegistry', (t) => {
         .map(([pkgRef, packageInfo]) => {
           return [
             pkgRef,
-            { packageLocation: packageInfo.packageLocation, packageDependencies: Array.from(packageInfo.packageDependencies || new Map()) },
+            {
+              packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
+              packageLocation: packageInfo.packageLocation,
+            },
           ]
         })
     ]
@@ -119,7 +122,7 @@ test('lockfileToPackageRegistry', (t) => {
               ['dep1', '1.0.0'],
               ['dep2', ['foo', '2.0.0']],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/registry.npmjs.org/dep1/1.0.0/node_modules/dep1',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/dep1/1.0.0/node_modules/dep1',
           },
         ],
       ],
@@ -134,7 +137,7 @@ test('lockfileToPackageRegistry', (t) => {
               ['foo', '2.0.0'],
               ['qar', '3.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/registry.npmjs.org/foo/2.0.0/node_modules/foo',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/foo/2.0.0/node_modules/foo',
           },
         ],
       ],
@@ -148,7 +151,7 @@ test('lockfileToPackageRegistry', (t) => {
             packageDependencies: [
               ['qar', '2.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/registry.npmjs.org/qar/2.0.0/node_modules/qar',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/qar/2.0.0/node_modules/qar',
           },
         ],
         [
@@ -157,11 +160,121 @@ test('lockfileToPackageRegistry', (t) => {
             packageDependencies: [
               ['qar', '3.0.0'],
             ],
-            packageLocation: '/home/zoli/.pnpm-store/2/registry.npmjs.org/qar/3.0.0/node_modules/qar',
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/qar/3.0.0/node_modules/qar',
           }
         ]
       ]
+    ],
+  ])
+
+  t.end()
+})
+
+test('lockfileToPackageRegistry packages that have peer deps', (t) => {
+  const packageRegistry = lockfileToPackageRegistry({
+    importers: {
+      importer: {
+        dependencies: {
+          haspeer: '2.0.0_peer@1.0.0',
+          peer: '1.0.0',
+        },
+        specifiers: {},
+      },
+    },
+    lockfileVersion: 5,
+    packages: {
+      '/haspeer/2.0.0_peer@1.0.0': {
+        dependencies: {
+          peer: '1.0.0',
+        },
+        peerDependencies: {
+          peer: '^1.0.0',
+        },
+        resolution: {
+          integrity: '',
+        },
+      },
+      '/peer/1.0.0': {
+        resolution: {
+          integrity: '',
+        },
+      },
+    },
+  }, {
+    importerNames: {
+      importer: 'importer',
+    },
+    lockfileDirectory: '/home/zoli/src/proj',
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeDirectory: '/home/zoli/.pnpm-store/2',
+  })
+
+  const actual = Array
+  .from(packageRegistry.entries())
+  .map(([packageName, packageStoreMap]) => {
+    return [
+      packageName,
+      Array.from(packageStoreMap.entries())
+        .map(([pkgRef, packageInfo]) => {
+          return [
+            pkgRef,
+            {
+              packageDependencies: Array.from(packageInfo.packageDependencies || new Map()),
+              packageLocation: packageInfo.packageLocation,
+            },
+          ]
+        })
     ]
+  })
+
+  t.deepEqual(actual, [
+    [
+      'importer',
+      [
+        [
+          'importer',
+          {
+            packageDependencies: [
+              ['importer', 'importer'],
+              ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
+              ['peer', '1.0.0'],
+            ],
+            packageLocation: 'importer',
+          },
+        ],
+      ],
+    ],
+    [
+      'haspeer',
+      [
+        [
+          'virtual:2.0.0_peer@1.0.0#2.0.0',
+          {
+            packageDependencies: [
+              ['haspeer', 'virtual:2.0.0_peer@1.0.0#2.0.0'],
+              ['peer', '1.0.0']
+            ],
+            packageLocation: '../../.pnpm-store/2/virtual/haspeer-virtual-2.0.0_peer@1.0.0',
+          },
+        ],
+      ]
+    ],
+    [
+      'peer',
+      [
+        [
+          '1.0.0',
+          {
+            packageDependencies: [
+              ['peer', '1.0.0'],
+            ],
+            packageLocation: '../../.pnpm-store/2/registry.npmjs.org/peer/1.0.0/node_modules/peer',
+          },
+        ],
+      ],
+    ],
   ])
 
   t.end()

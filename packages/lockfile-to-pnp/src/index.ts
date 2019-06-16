@@ -91,7 +91,8 @@ export function lockfileToPackageRegistry (
     }
   }
   for (const [relDepPath, pkgSnapshot] of R.toPairs(lockfile.packages || {})) {
-    const { name, version } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+    const pnpVersion = toPnPVersion(version, peersSuffix)
     let packageStore = packageRegistry.get(name)
     if (!packageStore) {
       packageStore = new Map()
@@ -101,15 +102,24 @@ export function lockfileToPackageRegistry (
     const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
     // TODO: what about packages that are built?
     // Also, storeController has .getPackageLocation()
-    const packageLocation = path.relative(opts.lockfileDirectory, path.join(
-      opts.storeDirectory,
-      pkgIdToFilename(packageId, opts.lockfileDirectory),
-      'node_modules',
-      name,
-    ))
-    packageStore.set(version, {
+    let packageLocation
+    if (peersSuffix) {
+      packageLocation = path.relative(opts.lockfileDirectory, path.join(
+        opts.storeDirectory,
+        'virtual',
+        `${name}-virtual-${version}_${peersSuffix}`,
+      ))
+    } else {
+      packageLocation = path.relative(opts.lockfileDirectory, path.join(
+        opts.storeDirectory,
+        pkgIdToFilename(packageId, opts.lockfileDirectory),
+        'node_modules',
+        name,
+      ))
+    }
+    packageStore.set(pnpVersion, {
       packageDependencies: new Map([
-        [name, version],
+        [name, pnpVersion],
         ...(pkgSnapshot.dependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.dependencies) || []),
         ...(pkgSnapshot.optionalDependencies && toPackageDependenciesMap(lockfile, pkgSnapshot.optionalDependencies) || []),
       ]),
@@ -131,10 +141,19 @@ function toPackageDependenciesMap (
     if (importerId && ref.startsWith('link:')) {
       return [depAlias, path.join(importerId, ref.substr(5))]
     }
-    if (ref[0] !== '/') return [depAlias, ref]
     const relDepPath = refToRelative(ref, depAlias)
     if (!relDepPath) return [depAlias, ref]
-    const { name, version } = nameVerFromPkgSnapshot(relDepPath, lockfile.packages![relDepPath])
-    return [depAlias, [name, version]]
+    const { name, version, peersSuffix } = nameVerFromPkgSnapshot(relDepPath, lockfile.packages![relDepPath])
+    const pnpVersion = toPnPVersion(version, peersSuffix)
+    if (depAlias === name) {
+      return [depAlias, pnpVersion]
+    }
+    return [depAlias, [name, pnpVersion]]
   })
+}
+
+function toPnPVersion (version: string, peersSuffix: string | undefined) {
+  return peersSuffix
+    ? `virtual:${version}_${peersSuffix}#${version}`
+    : version
 }

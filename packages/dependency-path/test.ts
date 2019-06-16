@@ -24,6 +24,7 @@ test('parse()', t => {
     name: 'foo',
     version: '1.0.0',
     host: undefined,
+    peersSuffix: undefined,
   })
 
   t.deepEqual(parse('/@foo/bar/1.0.0'), {
@@ -31,6 +32,7 @@ test('parse()', t => {
     name: '@foo/bar',
     version: '1.0.0',
     host: undefined,
+    peersSuffix: undefined,
   })
 
   t.deepEqual(parse('registry.npmjs.org/foo/1.0.0'), {
@@ -38,6 +40,7 @@ test('parse()', t => {
     name: 'foo',
     version: '1.0.0',
     host: 'registry.npmjs.org',
+    peersSuffix: undefined,
   })
 
   t.deepEqual(parse('registry.npmjs.org/@foo/bar/1.0.0'), {
@@ -45,6 +48,7 @@ test('parse()', t => {
     name: '@foo/bar',
     version: '1.0.0',
     host: 'registry.npmjs.org',
+    peersSuffix: undefined,
   })
 
   t.deepEqual(parse('github.com/kevva/is-positive'), {
@@ -57,6 +61,7 @@ test('parse()', t => {
     name: 'foo',
     version: '1.0.0',
     host: 'example.com',
+    peersSuffix: undefined,
   })
 
   t.deepEqual(parse('example.com/foo/1.0.0_bar@2.0.0'), {
@@ -64,6 +69,7 @@ test('parse()', t => {
     name: 'foo',
     version: '1.0.0',
     host: 'example.com',
+    peersSuffix: 'bar@2.0.0',
   })
 
   t.throws(() => parse('/foo/bar'), /\/foo\/bar is an invalid relative dependency path/)
