@@ -1105,7 +1105,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
       '@pnpm/outdated': 2.0.18
-      '@pnpm/package-store': 4.0.11
+      '@pnpm/package-store': 4.0.12
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 1.0.4
       '@pnpm/read-package-json': 2.0.2
@@ -1145,7 +1145,7 @@ importers:
       execa: 1.0.0
       exists-link: 2.0.0
       fast-glob: 3.0.1
-      find-packages: 5.0.4
+      find-packages: 5.0.5
       get-port: 5.0.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
@@ -1181,7 +1181,7 @@ importers:
       semver: 6.1.1
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.33.8
+      supi: 0.33.9
       symlink-dir: 3.1.0
       tape: 4.10.2
       tape-promise: 4.0.0
