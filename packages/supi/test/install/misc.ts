@@ -21,6 +21,7 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -914,4 +915,28 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 
   t.ok(reporter.calledWithMatch(missingDepLog))
   t.ok(await import(path.resolve('node_modules/is-positive')))
+})
+
+test('do not update deps when lockfile is present', async (t) => {
+  await addDistTag('peer-a', '1.0.0', 'latest')
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['peer-a'], await testDefaults({ lockfileOnly: true }))
+
+  const initialLockfile = await project.readLockfile()
+
+  await addDistTag('peer-a', '1.0.1', 'latest')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      prefix: process.cwd(),
+    }
+  ], await testDefaults({ preferFrozenLockfile: false }))
+
+  const latestLockfile = await project.readLockfile()
+
+  t.deepEqual(initialLockfile, latestLockfile)
 })

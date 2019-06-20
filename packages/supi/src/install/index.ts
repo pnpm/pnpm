@@ -666,7 +666,7 @@ async function installInContext (
     ) {
       return opts.repeatInstallDepth
     }
-    return Infinity
+    return -1
   })()
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth,

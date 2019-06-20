@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { copy } from 'fs-extra'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -8,6 +9,7 @@ import path = require('path')
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
 } from 'supi'
 import symlinkDir = require('symlink-dir')
 import tape = require('tape')
@@ -183,4 +185,30 @@ test('update tarball local package when its integrity changes', async (t) => {
 
   const lockfile2 = await project.readLockfile()
   t.equal(lockfile2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1878
+test('do not update deps when installing in a project that has local tarball dep', async (t) => {
+  await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty(t)
+
+  await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  const manifest = await addDependenciesToPackage({}, ['../tar.tgz', 'peer-a'], await testDefaults({ lockfileOnly: true }))
+
+  const initialLockfile = await project.readLockfile()
+
+  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      prefix: process.cwd(),
+    }
+  ], await testDefaults())
+
+  const latestLockfile = await project.readLockfile()
+
+  t.deepEqual(initialLockfile, latestLockfile)
 })
