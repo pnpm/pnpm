@@ -361,6 +361,10 @@ export async function recursive (
               bin: path.join(prefix, 'node_modules', '.bin'),
               hooks,
               ignoreScripts: true,
+              pinnedVersion: getPinnedVersion({
+                saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
+                savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
+              }),
               prefix,
               rawNpmConfig: {
                 ...installOpts.rawNpmConfig,
