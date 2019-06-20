@@ -9,6 +9,6 @@ dependencies:
   '@types/node': '*'
   '@types/tape': ^4.2.31
 devDependencies:
-  ts-node: 8.2.0
+  ts-node: 8.3.0
   tslint: 5.17.0
   typescript: 3.5.2

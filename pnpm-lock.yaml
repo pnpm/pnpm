@@ -6,7 +6,7 @@ importers:
       '@types/node': 12.0.8
       '@types/tape': 4.2.33
     devDependencies:
-      ts-node: 8.2.0_typescript@3.5.2
+      ts-node: 8.3.0_typescript@3.5.2
       tslint: 5.17.0_typescript@3.5.2
       typescript: 3.5.2
     specifiers:
@@ -14,7 +14,7 @@ importers:
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': '*'
       '@types/tape': ^4.2.31
-      ts-node: 8.2.0
+      ts-node: 8.3.0
       tslint: 5.17.0
       typescript: 3.5.2
   packages/build-modules:
@@ -54,7 +54,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-conf': 1.2.4
       camelcase: 5.3.1
-      find-up: 4.0.0
+      find-up: 4.1.0
       is-subdir: 1.0.3
       which: 1.3.1
     devDependencies:
@@ -72,7 +72,7 @@ importers:
       '@types/which': 1.3.1
       '@zkochan/npm-conf': 1.2.4
       camelcase: 5.3.1
-      find-up: 4.0.0
+      find-up: 4.1.0
       is-subdir: 1.0.3
       mz: 2.7.0
       rimraf: 2.6.3
@@ -2167,7 +2167,7 @@ packages:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.3
-      verdaccio: 4.0.3
+      verdaccio: 4.0.4
     dev: true
     engines:
       node: '>=8.15'
@@ -3406,7 +3406,7 @@ packages:
   /concat-stream/1.6.2:
     dependencies:
       buffer-from: 1.1.1
-      inherits: 2.0.3
+      inherits: 2.0.4
       readable-stream: 2.3.6
       typedarray: 0.0.6
     dev: true
@@ -3602,7 +3602,7 @@ packages:
       buffer-from: 1.1.1
       generate-function: 1.1.0
       generate-object-property: 1.2.0
-      inherits: 2.0.3
+      inherits: 2.0.4
       minimist: 1.2.0
       ndjson: 1.5.0
     dev: false
@@ -3931,7 +3931,7 @@ packages:
   /duplexify/3.7.1:
     dependencies:
       end-of-stream: 1.4.1
-      inherits: 2.0.3
+      inherits: 2.0.4
       readable-stream: 2.3.6
       stream-shift: 1.0.0
     dev: false
@@ -4281,19 +4281,10 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-1yD6RmLI1XBfxugvORwlck6f75tYL+iR0jqwsOrOxMZyGYqUuDhJ0l4AXdO1iX/FTs9cBAMEk1gWSEx1kSbylg==
-  /find-up/4.0.0:
-    dependencies:
-      locate-path: 5.0.0
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-zoH7ZWPkRdgwYCDVoQTzqjG8JSPANhtvLhh4KVUHyKnaUJJrNeFmWIkTcNuJmR3GLMEmGYEf2S2bjgx26JTF+Q==
   /find-up/4.1.0:
     dependencies:
       locate-path: 5.0.0
       path-exists: 4.0.0
-    dev: true
     engines:
       node: '>=8'
     resolution:
@@ -4352,7 +4343,7 @@ packages:
       integrity: sha1-PYyt2Q2XZWn6g1qx+OSyOhBWBac=
   /from2/2.3.0:
     dependencies:
-      inherits: 2.0.3
+      inherits: 2.0.4
       readable-stream: 2.3.6
     dev: false
     resolution:
@@ -4542,7 +4533,7 @@ packages:
   /glob/6.0.4:
     dependencies:
       inflight: 1.0.6
-      inherits: 2.0.3
+      inherits: 2.0.4
       minimatch: 3.0.4
       once: 1.4.0
       path-is-absolute: 1.0.1
@@ -4553,7 +4544,7 @@ packages:
     dependencies:
       fs.realpath: 1.0.0
       inflight: 1.0.6
-      inherits: 2.0.3
+      inherits: 2.0.4
       minimatch: 3.0.4
       once: 1.4.0
       path-is-absolute: 1.0.1
@@ -4868,8 +4859,12 @@ packages:
     resolution:
       integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
   /inherits/2.0.3:
+    dev: true
     resolution:
       integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
+  /inherits/2.0.4:
+    resolution:
+      integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==
   /ini/1.3.5:
     resolution:
       integrity: sha512-RZY5huIKCMRWDUqZlEi72f/lmXKMvuszcMBduliQ3nnWbx9X/ZBQO7DijMEYS9EhHBb2qacRUMtC7svLwe0lcw==
@@ -6530,9 +6525,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-X11vso1oNLtyDa2j8fsMol2fph1+5PoQ4vpEc1it/rM8eLuRTmrmTg4jfn82WhNur241AYitgjKCgmlgMRZesw==
-  /process-nextick-args/2.0.0:
+  /process-nextick-args/2.0.1:
     resolution:
-      integrity: sha512-MtEC1TqN0EU5nephaJ4rAtThHtC86dNN9qCuEhtshvpVBkAW5ZO7BASN9REnF9eoXGcRub+pFuKEpOHE+HbEMw==
+      integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==
   /propagate/1.0.0:
     dev: true
     engines:
@@ -6580,9 +6575,9 @@ packages:
   /pseudomap/1.0.2:
     resolution:
       integrity: sha1-8FKijacOYYkX7wqKw0wa5aaChrM=
-  /psl/1.1.32:
+  /psl/1.1.33:
     resolution:
-      integrity: sha512-MHACAkHpihU/REGGPLj4sEfc/XKW2bheigvHO1dUqjaKigMp1C8+WLQYRGgeKFMsw5PMfegZcaN8IDXK/cD0+g==
+      integrity: sha512-LTDP2uSrsc7XCb5lO7A8BI1qYxRe/8EqlRvMeEl6rsnYAqDOl8xHR+8lSAIVfrNaSAlTPTNOCgNjWcoUL3AZsw==
   /pump/2.0.1:
     dependencies:
       end-of-stream: 1.4.1
@@ -6599,7 +6594,7 @@ packages:
   /pumpify/1.5.1:
     dependencies:
       duplexify: 3.7.1
-      inherits: 2.0.3
+      inherits: 2.0.4
       pump: 2.0.1
     dev: false
     resolution:
@@ -6749,9 +6744,9 @@ packages:
   /readable-stream/2.3.6:
     dependencies:
       core-util-is: 1.0.2
-      inherits: 2.0.3
+      inherits: 2.0.4
       isarray: 1.0.0
-      process-nextick-args: 2.0.0
+      process-nextick-args: 2.0.1
       safe-buffer: 5.1.2
       string_decoder: 1.1.1
       util-deprecate: 1.0.2
@@ -6759,7 +6754,7 @@ packages:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
   /readable-stream/3.4.0:
     dependencies:
-      inherits: 2.0.3
+      inherits: 2.0.4
       string_decoder: 1.2.0
       util-deprecate: 1.0.2
     dev: false
@@ -7387,7 +7382,7 @@ packages:
       integrity: sha512-Ttp5YvkGm5v9Ijagtaz1BnN+k9ObpvS0eIBblPMp2YWL8FBmi9qblQ9fexc2k/CXFgrTIteU3jAw3payCnwSTA==
   /string-to-stream/1.1.1:
     dependencies:
-      inherits: 2.0.3
+      inherits: 2.0.4
       readable-stream: 2.3.6
     dev: true
     resolution:
@@ -7563,7 +7558,7 @@ packages:
       function-bind: 1.1.1
       glob: 7.1.4
       has: 1.0.3
-      inherits: 2.0.3
+      inherits: 2.0.4
       minimist: 1.2.0
       object-inspect: 1.6.0
       resolve: 1.10.1
@@ -7587,7 +7582,7 @@ packages:
       bl: 3.0.0
       end-of-stream: 1.4.1
       fs-constants: 1.0.0
-      inherits: 2.0.3
+      inherits: 2.0.4
       readable-stream: 3.4.0
     dev: false
     resolution:
@@ -7711,7 +7706,7 @@ packages:
       integrity: sha512-TZ6TTfI5NtZnuyy/Kecv+CnoROnyXn2DN97LontgQpCwsX2XyLYCC0ENhYkehSOwAp8rTQKc/NUIF7BkQ5rKLA==
   /tough-cookie/2.4.3:
     dependencies:
-      psl: 1.1.32
+      psl: 1.1.33
       punycode: 1.4.1
     engines:
       node: '>=0.8'
@@ -7719,7 +7714,7 @@ packages:
       integrity: sha512-Q5srk/4vDM54WJsJio3XNn6K2sCG+CQ8G5Wz6bZhRZoAe/+TxjWB/GlFAnYEbkYVlON9FMk/fE3h2RLpPXo4lQ==
   /tough-cookie/2.5.0:
     dependencies:
-      psl: 1.1.32
+      psl: 1.1.33
       punycode: 2.1.1
     dev: true
     engines:
@@ -7749,7 +7744,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.2.0_typescript@3.5.2:
+  /ts-node/8.3.0_typescript@3.5.2:
     dependencies:
       arg: 4.1.0
       diff: 4.0.1
@@ -7764,7 +7759,7 @@ packages:
     peerDependencies:
       typescript: '>=2.0'
     resolution:
-      integrity: sha512-m8XQwUurkbYqXrKqr3WHCW310utRNvV5OnRVeISeea7LoCWVcdfeB/Ntl8JYWFh+WRoUAdBgESrzKochQt7sMw==
+      integrity: sha512-dyNS/RqyVTDcmNM4NIBAeDMpsAdaQ+ojdf0GOLqE6nwJOgzEkdRNzJywhDfwnuvB10oa6NLVG1rUJQCpRN7qoQ==
   /tslib/1.10.0:
     resolution:
       integrity: sha512-qOebF53frne81cf0S9B41ByenJ3/IuH8yJKngAX35CmiZySA0khhkovshKK+jGCaMnVomla7gVlIcc3EvKPbTQ==
@@ -8055,7 +8050,7 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-HI6AvstmpkyQp6mHHbCVrSu1rOFq/FND2V4gM7EhUtmOAoJjOmZENVGT87ZNf2mTQq8P4MRnfypBIjfutI3BAg==
-  /verdaccio/4.0.3:
+  /verdaccio/4.0.4:
     dependencies:
       '@verdaccio/local-storage': 2.1.0
       '@verdaccio/readme': 1.0.3
@@ -8094,7 +8089,7 @@ packages:
       npm: '>=5'
     hasBin: true
     resolution:
-      integrity: sha512-mLdREiwFmsT9yQpJjpqcUNGqJMrgh+3b3rgg8fW4+ClrVzzw40lqwKHVTlNGLuXIbE7B5wNEKr7vObtL/9JWvw==
+      integrity: sha512-IvPpofaZhaDSSsZFLUWGpxcE7/yrr5cH3pf/xYRf8j2WMLqS1oAH+VQdHR3f/DJQiQ8r2oPzoLCoxguK1M7mvQ==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
