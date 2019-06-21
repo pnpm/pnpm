@@ -39,7 +39,7 @@
   "devDependencies": {
     "@pnpm/git-resolver": "link:",
     "@types/is-windows": "0.2.0",
-    "@types/semver": "6.0.0",
+    "@types/semver": "6.0.1",
     "is-windows": "1.0.2",
     "rimraf": "^2.6.2",
     "tape": "4.10.2"

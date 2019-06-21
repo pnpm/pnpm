@@ -53,7 +53,7 @@
     "@types/nock": "^10.0.0",
     "@types/normalize-path": "^3.0.0",
     "@types/path-exists": "^3.0.0",
-    "@types/semver": "6.0.0",
+    "@types/semver": "6.0.1",
     "@types/ssri": "^6.0.0",
     "nock": "^10.0.0",
     "path-exists": "4.0.0",
