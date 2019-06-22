@@ -6,6 +6,7 @@ import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
 import path = require('path')
+import rimraf = require('rimraf-then')
 import {
   addDependenciesToPackage,
   install,
@@ -211,4 +212,26 @@ test('do not update deps when installing in a project that has local tarball dep
   const latestLockfile = await project.readLockfile()
 
   t.deepEqual(initialLockfile, latestLockfile)
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1882
+test(`frozen-lockfile: installation fails if the integrity of a tarball dependency changed`, async (t) => {
+  prepareEmpty(t)
+
+  await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
+
+  await rimraf('node_modules')
+
+  await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+
+  let err!: Error
+  try {
+    await install(manifest, await testDefaults({ frozenLockfile: true }))
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'EINTEGRITY')
 })

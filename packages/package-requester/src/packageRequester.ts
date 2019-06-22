@@ -34,6 +34,7 @@ import path = require('path')
 import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
+import ssri = require('ssri')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile = require('write-json-file')
 
@@ -373,7 +374,7 @@ function fetchToStore (
         !opts.force && targetExists &&
         (
           isLocalTarballDep === false ||
-          opts.resolution['integrity'] && await tarballSatisfiesIntegrity(opts.resolution['integrity'], target) // tslint:disable-line:no-string-literal
+          await tarballIsUpToDate(opts.resolution as any, target, opts.prefix) // tslint:disable-line
         )
       ) {
         // if target exists and it wasn't modified, then no need to refetch it
@@ -505,10 +506,27 @@ function fetchToStore (
   }
 }
 
-async function tarballSatisfiesIntegrity (wantedIntegrity: string, pkgInStoreLocation: string) {
+async function tarballIsUpToDate (
+  resolution: {
+    integrity?: string,
+    registry?: string,
+    tarball: string,
+  },
+  pkgInStoreLocation: string,
+  prefix: string,
+) {
+  let currentIntegrity!: string
   try {
-    const currentIntegrity = (await fs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8'))
-    return currentIntegrity === wantedIntegrity
+    currentIntegrity = (await fs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8'))
+  } catch (err) {
+    return false
+  }
+  if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
+
+  const tarball = path.join(prefix, resolution.tarball.slice(5))
+  const tarballStream = fs.createReadStream(tarball)
+  try {
+    return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
   } catch (err) {
     return false
   }
