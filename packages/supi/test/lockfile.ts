@@ -1074,3 +1074,30 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
   await project.has('lodash')
   await project.has('underscore')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1876
+test('existing dependencies are preserved when updating a lockfile to a newer format', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+
+  const initialLockfile = await project.readLockfile()
+  await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 })
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      prefix: process.cwd(),
+    }
+  ], await testDefaults())
+
+  const updatedLockfile = await project.readLockfile()
+
+  t.deepEqual(initialLockfile.packages, updatedLockfile.packages, 'dependency versions preserved')
+})
