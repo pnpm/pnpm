@@ -103,7 +103,7 @@
     "@types/nopt": "3.0.29",
     "@types/ramda": "0.25.34",
     "@types/retry": "0.12.0",
-    "@types/semver": "6.0.0",
+    "@types/semver": "6",
     "@types/update-notifier": "2.5.0",
     "anonymous-npm-registry-client": "0.1.2",
     "byline": "5.0.0",
