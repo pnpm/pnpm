@@ -656,16 +656,6 @@ async function installInContext (
     if (opts.update) {
       return opts.depth
     }
-    if (
-      modulesIsUpToDate({
-        currentLockfile: ctx.currentLockfile,
-        defaultRegistry: ctx.registries.default,
-        skippedRelDepPaths: Array.from(ctx.skipped),
-        wantedLockfile: ctx.wantedLockfile,
-      })
-    ) {
-      return opts.repeatInstallDepth
-    }
     return -1
   })()
   const _toResolveImporter = toResolveImporter.bind(null, {
@@ -992,22 +982,6 @@ async function linkAllBins (
   return Promise.all(
     depNodes.map((depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))),
   )
-}
-
-function modulesIsUpToDate (
-  opts: {
-    defaultRegistry: string,
-    currentLockfile: Lockfile,
-    wantedLockfile: Lockfile,
-    skippedRelDepPaths: string[],
-  }
-) {
-  const currentWithSkipped = [
-    ...R.keys(opts.currentLockfile.packages),
-    ...opts.skippedRelDepPaths,
-  ]
-  currentWithSkipped.sort()
-  return R.equals(R.keys(opts.wantedLockfile.packages), currentWithSkipped)
 }
 
 function addDirectDependenciesToLockfile (
