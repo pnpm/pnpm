@@ -55,8 +55,8 @@ export default async function (
     tag: string,
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
-    hasManifestInLockfile: boolean,
     localPackages: LocalPackages,
+    updateLockfile: boolean,
   },
 ) {
   const directNonLinkedDepsByImporterId = {} as {[id: string]: PkgAddress[]}
@@ -71,7 +71,6 @@ export default async function (
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
-    hasManifestInLockfile: opts.hasManifestInLockfile,
     lockfileDirectory: opts.lockfileDirectory,
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
@@ -83,6 +82,7 @@ export default async function (
     sideEffectsCache: opts.sideEffectsCache,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
+    updateLockfile: opts.updateLockfile,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
   }

@@ -117,7 +117,7 @@ export interface ResolutionContext {
   childrenByParentId: ChildrenByParentId,
   pendingNodes: PendingNode[],
   wantedLockfile: Lockfile,
-  hasManifestInLockfile: boolean,
+  updateLockfile: boolean,
   currentLockfile: Lockfile,
   lockfileDirectory: string,
   sideEffectsCache: boolean,
@@ -220,6 +220,7 @@ export default async function resolveDependencies (
     prefix: ctx.prefix,
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
+    updateLockfile: ctx.updateLockfile,
   })
   const resolveDepOpts = {
     currentDepth: options.currentDepth,
@@ -340,6 +341,7 @@ function getDepsToResolve (
     prefix: string,
     registries: Registries,
     resolvedDependencies?: ResolvedDependencies,
+    updateLockfile: boolean,
   },
 ) {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -348,7 +350,7 @@ function getDepsToResolve (
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
   // be merged with the resolved peers.
-  const proceedAll = options.parentDependsOnPeers
+  const proceedAll = options.parentDependsOnPeers || options.updateLockfile
   let allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
@@ -605,7 +607,7 @@ async function resolveDependency (
   let prepare!: boolean
   let hasBin!: boolean
   if (
-    ctx.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath &&
+    !options.update && options.dependencyLockfile && options.relDepPath &&
     !pkgResponse.body.updated &&
     // peerDependencies field is also used for transitive peer dependencies which should not be linked
     // That's why we cannot omit reading package.json of such dependencies.

@@ -611,9 +611,6 @@ async function installInContext (
     })
   }
 
-  // Avoid requesting package meta info from registry only when the lockfile version is at least the expected
-  const hasManifestInLockfile = ctx.wantedLockfile.lockfileVersion >= LOCKFILE_VERSION
-
   ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
   for (const importer of importers) {
     if (!ctx.wantedLockfile.importers[importer.id]) {
@@ -646,12 +643,6 @@ async function installInContext (
   })
 
   const defaultUpdateDepth = (() => {
-    // This can be remove from lockfile v4
-    if (!hasManifestInLockfile) {
-      // The lockfile has to be updated to contain
-      // the necessary info from package manifests
-      return Infinity
-    }
     if (opts.force) return Infinity
     if (opts.update) {
       return opts.depth
@@ -679,7 +670,6 @@ async function installInContext (
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       force: opts.force,
-      hasManifestInLockfile,
       hooks: opts.hooks,
       localPackages: opts.localPackages,
       lockfileDirectory: opts.lockfileDirectory,
@@ -690,6 +680,7 @@ async function installInContext (
       sideEffectsCache: opts.sideEffectsCacheRead,
       storeController: opts.storeController,
       tag: opts.tag,
+      updateLockfile: ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
     },
