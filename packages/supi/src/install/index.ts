@@ -62,7 +62,7 @@ import lock from '../lock'
 import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
-import save from '../save'
+import save, { PackageSpecObject } from '../save'
 import removeDeps from '../uninstall/removeDeps'
 import getPref from '../utils/getPref'
 import extendOptions, {
@@ -157,9 +157,9 @@ export async function mutateModules (
 
   const ctx = await getContext(importers, opts)
 
-  for (const importer of ctx.importers) {
-    if (!importer.manifest) {
-      throw new Error(`No package.json found in "${importer.prefix}"`)
+  for (const { manifest, prefix } of ctx.importers) {
+    if (!manifest) {
+      throw new Error(`No package.json found in "${prefix}"`)
     }
   }
 
@@ -251,7 +251,7 @@ export async function mutateModules (
 
     const importersToInstall = [] as ImporterToUpdate[]
 
-    const importersToBeInstalled = ctx.importers.filter((importer) => importer.mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
+    const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
     const scriptsOpts = {
       extraBinPaths: opts.extraBinPaths,
       rawNpmConfig: opts.rawNpmConfig,
@@ -386,7 +386,7 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
+        newPkgRawSpecs: wantedDeps.map(({ raw }) => raw),
         updatePackageJson,
         wantedDeps,
       })
@@ -482,13 +482,13 @@ function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDe
   importer.dependencies = importer.dependencies || {}
   importer.devDependencies = importer.devDependencies || {}
   importer.optionalDependencies = importer.optionalDependencies || {}
-  for (const wantedDep of wantedDeps) {
-    if (wantedDep.alias && importer.specifiers[wantedDep.alias] !== wantedDep.pref) {
-      if (importer.dependencies[wantedDep.alias] && !importer.dependencies[wantedDep.alias].startsWith('link:')) {
-        delete importer.dependencies[wantedDep.alias]
+  for (const { alias, pref } of wantedDeps) {
+    if (alias && importer.specifiers[alias] !== pref) {
+      if (importer.dependencies[alias] && !importer.dependencies[alias].startsWith('link:')) {
+        delete importer.dependencies[alias]
       }
-      delete importer.devDependencies[wantedDep.alias]
-      delete importer.optionalDependencies[wantedDep.alias]
+      delete importer.devDependencies[alias]
+      delete importer.optionalDependencies[alias]
     }
   }
 }
@@ -612,13 +612,13 @@ async function installInContext (
   }
 
   ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
-  for (const importer of importers) {
-    if (!ctx.wantedLockfile.importers[importer.id]) {
-      ctx.wantedLockfile.importers[importer.id] = { specifiers: {} }
+  for (const { id } of importers) {
+    if (!ctx.wantedLockfile.importers[id]) {
+      ctx.wantedLockfile.importers[id] = { specifiers: {} }
     }
   }
   if (opts.pruneLockfileImporters) {
-    const importerIds = new Set(importers.map((importer) => importer.id))
+    const importerIds = new Set(importers.map(({ id }) => id))
     for (const wantedImporter of Object.keys(ctx.wantedLockfile.importers)) {
       if (!importerIds.has(wantedImporter)) {
         delete ctx.wantedLockfile.importers[wantedImporter]
@@ -698,21 +698,19 @@ async function installInContext (
       if (!importer.manifest) {
         throw new Error('Cannot save because no package.json found')
       }
-      const specsToUpsert = <any>resolvedImporter.directDependencies // tslint:disable-line
-        .filter((dep) => importer.newPkgRawSpecs.includes(dep.specRaw))
-        .map((dep) => {
-          return {
-            name: dep.alias,
-            peer: importer.peer,
-            pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-              pinnedVersion: importer.pinnedVersion,
-              rawSpec: dep.specRaw,
-            }),
-            saveType: importer.targetDependenciesField,
-          }
-        })
+      const specsToUpsert: PackageSpecObject[] = resolvedImporter.directDependencies
+        .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
+        .map(({ alias, name, normalizedPref, specRaw, version }) => ({
+          name: alias,
+          peer: importer.peer,
+          pref: normalizedPref || getPref(alias, name, version, {
+            pinnedVersion: importer.pinnedVersion,
+            rawSpec: specRaw,
+          }),
+          saveType: importer.targetDependenciesField,
+        }))
       for (const pkgToInstall of importer.wantedDeps) {
-        if (pkgToInstall.alias && !specsToUpsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
+        if (pkgToInstall.alias && !specsToUpsert.some(({ name }) => name === pkgToInstall.alias)) {
           specsToUpsert.push({
             name: pkgToInstall.alias,
             peer: importer.peer,
@@ -749,8 +747,8 @@ async function installInContext (
           R.difference(
             R.keys(getAllDependenciesFromPackage(importer.manifest)),
             importer.newPkgRawSpecs && resolvedImporter.directDependencies
-              .filter((directDep) => importer.newPkgRawSpecs.includes(directDep.specRaw))
-              .map((directDep) => directDep.alias) || [],
+              .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
+              .map(({ alias }) => alias) || [],
           ),
           importer.modulesDir,
         )
@@ -887,17 +885,17 @@ async function installInContext (
       // skipped packages might have not been reanalized on a repeat install
       // so lets just ignore those by excluding nulls
       .filter(Boolean)
-      .map((pkg) => pkg.fetchingFiles),
+      .map(({ fetchingFiles }) => fetchingFiles),
   )
 
   // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByPackageId).map((installed) => installed.finishing))
+  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing))
 
   summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
   await opts.storeController.close()
 
-  return importersToLink.map((importer) => ({ prefix: importer.prefix, manifest: importer.manifest }))
+  return importersToLink.map(({ manifest, prefix }) => ({ prefix, manifest }))
 }
 
 async function toResolveImporter (
@@ -930,7 +928,7 @@ async function toResolveImporter (
     isNew: true,
   }))
   const existingDeps = nonLinkedDependencies
-    .filter((nonLinkedDependency) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedDependency.alias))
+    .filter(({ alias }) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
   if (!importer.manifest || importer.shamefullyFlatten) {
     wantedDependencies = [
@@ -951,7 +949,7 @@ async function toResolveImporter (
     ...importer,
     preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
     wantedDependencies: wantedDependencies
-      .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedAliases.has(wantedDep.alias)),
+      .filter(({ alias, updateDepth }) => updateDepth >= 0 || !linkedAliases.has(alias)),
   }
 }
 
@@ -1078,8 +1076,7 @@ async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir),
   )
-  return pkgs.filter(Boolean).map((manifest: DependencyManifest) => ({
-    name: manifest.name,
-    version: manifest.version,
-  }))
+  return pkgs
+    .filter(Boolean)
+    .map(({ name, version }: DependencyManifest) => ({ name, version }))
 }

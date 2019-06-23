@@ -150,18 +150,18 @@ export default async function (
     },
   }
 
-  for (const importer of importers) {
-    const directNonLinkedDeps = directNonLinkedDepsByImporterId[importer.id]
-    const linkedDependencies = linkedDependenciesByImporterId[importer.id]
+  for (const { id } of importers) {
+    const directNonLinkedDeps = directNonLinkedDepsByImporterId[id]
+    const linkedDependencies = linkedDependenciesByImporterId[id]
 
-    resolvedImporters[importer.id] = {
+    resolvedImporters[id] = {
       directDependencies: [
         ...directNonLinkedDeps
-          .map((dependency) => ({
-            ...ctx.dependenciesTree[dependency.nodeId].resolvedPackage,
-            alias: dependency.alias,
-            normalizedPref: dependency.normalizedPref,
-            specRaw: dependency.specRaw,
+          .map(({ alias, nodeId, normalizedPref, specRaw }) => ({
+            ...ctx.dependenciesTree[nodeId].resolvedPackage,
+            alias,
+            normalizedPref,
+            specRaw,
           })) as Array<{
             alias: string,
             optional: boolean,

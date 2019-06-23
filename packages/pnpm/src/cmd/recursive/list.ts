@@ -16,14 +16,14 @@ export default async (
   },
 ) => {
   const outputs = []
-  for (const pkg of pkgs) {
+  for (const { path } of pkgs) {
     try {
-      const output = await renderList(args, { ...opts, prefix: pkg.path, alwaysPrintRootPackage: opts.depth === -1 }, cmd)
+      const output = await renderList(args, { ...opts, prefix: path, alwaysPrintRootPackage: opts.depth === -1 }, cmd)
       if (!output) continue
       outputs.push(output)
     } catch (err) {
       logger.info(err)
-      err['prefix'] = pkg.path // tslint:disable-line:no-string-literal
+      err['prefix'] = path // tslint:disable-line:no-string-literal
       throw err
     }
   }

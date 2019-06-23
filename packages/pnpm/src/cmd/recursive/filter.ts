@@ -21,12 +21,12 @@ export function filterGraph<T> (
   const walkedDependents = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
   let reversedGraph: Graph | undefined
-  for (const selector of packageSelectors) {
-    const entryPackages = selector.selectBy === 'name'
-      ? matchPackages(pkgGraph, selector.matcher)
-      : matchPackagesByPath(pkgGraph, selector.matcher)
+  for (const { matcher, scope, selectBy } of packageSelectors) {
+    const entryPackages = selectBy === 'name'
+      ? matchPackages(pkgGraph, matcher)
+      : matchPackagesByPath(pkgGraph, matcher)
 
-    switch (selector.scope) {
+    switch (scope) {
       case 'dependencies':
         pickSubgraph(graph, entryPackages, walkedDependencies)
         continue

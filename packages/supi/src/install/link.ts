@@ -96,12 +96,12 @@ export default async function linkPackages (
     strictPeerDependencies: opts.strictPeerDependencies,
     virtualStoreDir: opts.virtualStoreDir,
   })
-  for (const importer of importers) {
-    for (const [alias, depPath] of R.toPairs(importersDirectAbsolutePathsByAlias[importer.id])) {
+  for (const { id } of importers) {
+    for (const [alias, depPath] of R.toPairs(importersDirectAbsolutePathsByAlias[id])) {
       const depNode = depGraph[depPath]
       if (depNode.isPure) continue
 
-      const lockfileImporter = opts.wantedLockfile.importers[importer.id]
+      const lockfileImporter = opts.wantedLockfile.importers[id]
       const ref = absolutePathToRef(depPath, {
         alias,
         realName: depNode.name,
@@ -122,13 +122,13 @@ export default async function linkPackages (
     ? opts.afterAllResolvedHook(newLockfile)
     : newLockfile
 
-  let depNodes = R.values(depGraph).filter((depNode) => {
-    const relDepPath = dp.relative(opts.registries, depNode.name, depNode.absolutePath)
+  let depNodes = R.values(depGraph).filter(({ absolutePath, name, packageId }) => {
+    const relDepPath = dp.relative(opts.registries, name, absolutePath)
     if (newWantedLockfile.packages && newWantedLockfile.packages[relDepPath] && !newWantedLockfile.packages[relDepPath].optional) {
       opts.skipped.delete(relDepPath)
       return true
     }
-    if (opts.wantedToBeSkippedPackageIds.has(depNode.packageId)) {
+    if (opts.wantedToBeSkippedPackageIds.has(packageId)) {
       opts.skipped.add(relDepPath)
       return false
     }
@@ -136,13 +136,13 @@ export default async function linkPackages (
     return true
   })
   if (!opts.include.dependencies) {
-    depNodes = depNodes.filter((depNode) => depNode.dev !== false || depNode.optional)
+    depNodes = depNodes.filter(({ dev, optional }) => dev !== false || optional)
   }
   if (!opts.include.devDependencies) {
-    depNodes = depNodes.filter((depNode) => depNode.dev !== true)
+    depNodes = depNodes.filter(({ dev }) => dev !== true)
   }
   if (!opts.include.optionalDependencies) {
-    depNodes = depNodes.filter((depNode) => !depNode.optional)
+    depNodes = depNodes.filter(({ optional }) => !optional)
   }
   const filterOpts = {
     include: opts.include,
@@ -166,7 +166,7 @@ export default async function linkPackages (
     stage: 'importing_started',
   })
 
-  const importerIds = importers.map((importer) => importer.id)
+  const importerIds = importers.map(({ id }) => id)
   const newCurrentLockfile = filterLockfileByImporters(newWantedLockfile, importerIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
@@ -195,15 +195,14 @@ export default async function linkPackages (
   })
 
   const rootDepsByDepPath = depNodes
-    .filter((depNode) => depNode.depth === 0)
+    .filter(({ depth }) => depth === 0)
     .reduce((acc, depNode) => {
       acc[depNode.absolutePath] = depNode
       return acc
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
 
-  await Promise.all(importers.map((importer) => {
-    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
-    const { manifest, modulesDir, prefix } = importer
+  await Promise.all(importers.map(({ id, manifest, modulesDir, prefix }) => {
+    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[id]
     return Promise.all(
       R.keys(directAbsolutePathsByAlias)
         .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
@@ -235,11 +234,11 @@ export default async function linkPackages (
     newWantedLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
-  await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {
-    const depNode = depGraph[pendingRequiresBuild.absoluteDepPath]
+  await Promise.all(pendingRequiresBuilds.map(async ({ absoluteDepPath, relativeDepPath }) => {
+    const depNode = depGraph[absoluteDepPath]
     if (!depNode.fetchingRawManifest) {
       // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${pendingRequiresBuild.absoluteDepPath}"`)
+      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${absoluteDepPath}"`)
     }
     const filesResponse = await depNode.fetchingFiles
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
@@ -252,8 +251,8 @@ export default async function linkPackages (
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
     // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (depNode.requiresBuild && newWantedLockfile.packages![pendingRequiresBuild.relativeDepPath]) {
-      newWantedLockfile.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
+    if (depNode.requiresBuild && newWantedLockfile.packages![relativeDepPath]) {
+      newWantedLockfile.packages![relativeDepPath].requiresBuild = true
     }
   }))
 
@@ -302,7 +301,7 @@ export default async function linkPackages (
   // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
     await Promise.all(
-      importers.filter((importer) => importer.shamefullyFlatten)
+      importers.filter(({ shamefullyFlatten }) => shamefullyFlatten)
         .map(async (importer) => {
           importer.hoistedAliases = await shamefullyFlattenGraph(
             depNodes.map((depNode) => ({
@@ -472,11 +471,11 @@ async function linkAllPkgs (
   },
 ) {
   return Promise.all(
-    depNodes.map(async (depNode) => {
-      const filesResponse = await depNode.fetchingFiles
+    depNodes.map(async ({ centralLocation, fetchingFiles, independent, peripheralLocation }) => {
+      const filesResponse = await fetchingFiles
 
-      if (depNode.independent) return
-      return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {
+      if (independent) return
+      return storeController.importPackage(centralLocation, peripheralLocation, {
         filesResponse,
         force: opts.force,
       })
@@ -494,31 +493,31 @@ async function linkAllModules (
 ) {
   return Promise.all(
     depNodes
-      .filter((depNode) => !depNode.independent)
-      .map(async (depNode) => {
+      .filter(({ independent }) => !independent)
+      .map(async ({ children, optionalDependencies, name, modules }) => {
         const childrenToLink = opts.optional
-          ? depNode.children
-          : R.keys(depNode.children)
+          ? children
+          : R.keys(children)
             .reduce((nonOptionalChildren, childAlias) => {
-              if (!depNode.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = depNode.children[childAlias]
+              if (!optionalDependencies.has(childAlias)) {
+                nonOptionalChildren[childAlias] = children[childAlias]
               }
               return nonOptionalChildren
             }, {})
 
         await Promise.all(
           R.keys(childrenToLink)
-            .map(async (alias) => {
-              const pkg = depGraph[childrenToLink[alias]]
+            .map(async (childAlias) => {
+              const pkg = depGraph[childrenToLink[childAlias]]
               if (!pkg.installable && pkg.optional) return
-              if (alias === depNode.name) {
+              if (childAlias === name) {
                 logger.warn({
-                  message: `Cannot link dependency with name ${alias} to ${depNode.modules}. Dependency's name should differ from the parent's name.`,
+                  message: `Cannot link dependency with name ${childAlias} to ${modules}. Dependency's name should differ from the parent's name.`,
                   prefix: opts.lockfileDirectory,
                 })
                 return
               }
-              await limitLinking(() => symlinkDependency(pkg.peripheralLocation, depNode.modules, alias))
+              await limitLinking(() => symlinkDependency(pkg.peripheralLocation, modules, childAlias))
             }),
         )
       }),

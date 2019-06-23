@@ -117,7 +117,7 @@ export async function recursive (
   let pkgs: Array<{path: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
-    pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+    pkgs = allPkgs.filter(({ path }) => pkgGraphResult.graph[path])
   } else {
     pkgs = allPkgs
   }
@@ -126,11 +126,8 @@ export async function recursive (
     return false
   }
   const manifestsByPath: { [path: string]: { manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> } } = {}
-  for (const pkg of pkgs) {
-    manifestsByPath[pkg.path] = {
-      manifest: pkg.manifest,
-      writeImporterManifest: pkg.writeImporterManifest,
-    }
+  for (const { manifest, path, writeImporterManifest } of pkgs) {
+    manifestsByPath[path] = { manifest, writeImporterManifest }
   }
 
   scopeLogger.debug({

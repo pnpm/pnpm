@@ -89,15 +89,14 @@ export default function (
   const depGraph: DependenciesGraph = {}
   const absolutePathsByNodeId = {}
 
-  for (const importer of opts.importers) {
-    const { directNodeIdsByAlias, topParents } = importer
+  for (const { directNodeIdsByAlias, topParents, prefix } of opts.importers) {
     const pkgsByName = Object.assign(
       R.fromPairs(
-        topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
-          parent.name,
+        topParents.map(({ name, version }: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
+          name,
           {
             depth: 0,
-            version: parent.version,
+            version,
           },
         ]),
       ),
@@ -118,7 +117,7 @@ export default function (
       depGraph,
       independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
-      prefix: importer.prefix,
+      prefix,
       purePkgs: new Set(),
       strictPeerDependencies: opts.strictPeerDependencies,
       virtualStoreDir: opts.virtualStoreDir,
@@ -133,9 +132,8 @@ export default function (
   })
 
   const importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}} = {}
-  for (const importer of opts.importers) {
-    const { directNodeIdsByAlias } = importer
-    importersDirectAbsolutePathsByAlias[importer.id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
+  for (const { directNodeIdsByAlias, id } of opts.importers) {
+    importersDirectAbsolutePathsByAlias[id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
       rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[directNodeIdsByAlias[alias]]
       return rootAbsolutePathsByAlias
     }, {})
@@ -389,18 +387,18 @@ interface ParentRef {
 
 function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: DependenciesTreeNode}>): ParentRefs {
   const pkgsByName: ParentRefs = {}
-  for (const node of nodes) {
-    pkgsByName[node.alias] = {
-      depth: node.node.depth,
-      nodeId: node.nodeId,
-      version: node.node.resolvedPackage.version,
+  for (const { alias, node, nodeId } of nodes) {
+    pkgsByName[alias] = {
+      depth: node.depth,
+      nodeId,
+      version: node.resolvedPackage.version,
     }
   }
   return pkgsByName
 }
 
 function createPeersFolderSuffix (peers: Array<{name: string, version: string}>) {
-  const folderName = peers.map((peer) => `${peer.name.replace('/', '+')}@${peer.version}`).sort().join('+')
+  const folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
 
   // We don't want the folder name to get too long.
   // Otherwise, an ENAMETOOLONG error might happen.

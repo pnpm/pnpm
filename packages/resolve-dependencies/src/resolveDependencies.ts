@@ -312,8 +312,8 @@ export default async function resolveDependencies (
     const newPreferredVersions = {
       ...options.preferredVersions,
     }
-    for (const pkgAddress of pkgAddresses) {
-      const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgAddress.pkgId]
+    for (const { pkgId } of pkgAddresses) {
+      const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
       if (newPreferredVersions[resolvedPackage.name] && newPreferredVersions[resolvedPackage.name].type !== 'tag') {
         newPreferredVersions[resolvedPackage.name] = {
           selector: `${newPreferredVersions[resolvedPackage.name].selector} || ${resolvedPackage.version}`,

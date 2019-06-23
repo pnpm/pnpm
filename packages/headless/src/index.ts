@@ -123,10 +123,10 @@ export default async (opts: HeadlessOptions) => {
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
 
-  for (const importer of opts.importers) {
-    if (!satisfiesPackageJson(wantedLockfile, importer.manifest, importer.id)) {
+  for (const { id, manifest, prefix } of opts.importers) {
+    if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
       const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
-        path.relative(opts.lockfileDirectory, path.join(importer.prefix, 'package.json')))
+        path.relative(opts.lockfileDirectory, path.join(prefix, 'package.json')))
       err['code'] = 'ERR_PNPM_OUTDATED_LOCKFILE' // tslint:disable-line
       throw err
     }
@@ -178,7 +178,7 @@ export default async (opts: HeadlessOptions) => {
     stage: 'importing_started',
   })
 
-  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.importers.map((importer) => importer.id), {
+  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.importers.map(({ id }) => id), {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -191,7 +191,7 @@ export default async (opts: HeadlessOptions) => {
     opts.force ? null : currentLockfile,
     {
       ...opts,
-      importerIds: opts.importers.map((importer) => importer.id),
+      importerIds: opts.importers.map(({ id }) => id),
       prefix: lockfileDirectory,
       skipped,
       virtualStoreDir,
@@ -246,48 +246,48 @@ export default async (opts: HeadlessOptions) => {
     }
   }))
 
-  await Promise.all(opts.importers.map(async (importer) => {
+  await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
     await linkRootPackages(filteredLockfile, {
-      importerId: importer.id,
-      importerModulesDir: importer.modulesDir,
+      importerId: id,
+      importerModulesDir: modulesDir,
       importers: opts.importers,
       lockfileDirectory: opts.lockfileDirectory,
-      prefix: importer.prefix,
+      prefix,
       registries: opts.registries,
-      rootDependencies: directDependenciesByImporterId[importer.id],
+      rootDependencies: directDependenciesByImporterId[id],
     })
 
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
     packageJsonLogger.debug({
-      prefix: importer.prefix,
-      updated: importer.manifest,
+      prefix,
+      updated: manifest,
     })
   }))
 
   if (opts.ignoreScripts) {
-    for (const importer of opts.importers) {
-      if (opts.ignoreScripts && importer.manifest && importer.manifest.scripts &&
-        (importer.manifest.scripts.preinstall || importer.manifest.scripts.prepublish ||
-          importer.manifest.scripts.install ||
-          importer.manifest.scripts.postinstall ||
-          importer.manifest.scripts.prepare)
+    for (const { id, manifest } of opts.importers) {
+      if (opts.ignoreScripts && manifest && manifest.scripts &&
+        (manifest.scripts.preinstall || manifest.scripts.prepublish ||
+          manifest.scripts.install ||
+          manifest.scripts.postinstall ||
+          manifest.scripts.prepare)
       ) {
-        opts.pendingBuilds.push(importer.id)
+        opts.pendingBuilds.push(id)
       }
     }
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     opts.pendingBuilds = opts.pendingBuilds
       .concat(
         depNodes
-          .filter((node) => node.requiresBuild)
-          .map((node) => node.relDepPath),
+          .filter(({ requiresBuild }) => requiresBuild)
+          .map(({ relDepPath }) => relDepPath),
       )
   } else {
     const directNodes = new Set<string>()
-    for (const importer of opts.importers) {
+    for (const { id } of opts.importers) {
       R
-        .values(directDependenciesByImporterId[importer.id])
+        .values(directDependenciesByImporterId[id])
         .filter((loc) => graph[loc])
         .forEach((loc) => {
           directNodes.add(loc)
@@ -310,7 +310,7 @@ export default async (opts: HeadlessOptions) => {
   await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
   await Promise.all(opts.importers.map(linkBinsOfImporter))
 
-  if (currentLockfile && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredLockfile.importers).sort())) {
+  if (currentLockfile && !R.equals(opts.importers.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
   await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
@@ -333,7 +333,7 @@ export default async (opts: HeadlessOptions) => {
   })
 
   // waiting till package requests are finished
-  await Promise.all(depNodes.map((depNode) => depNode.finishing))
+  await Promise.all(depNodes.map(({ finishing }) => finishing))
 
   summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
@@ -380,8 +380,8 @@ async function linkRootPackages (
   },
 ) {
   const importerManifestsByImporterId = {} as { [id: string]: ImporterManifest }
-  for (const importer of opts.importers) {
-    importerManifestsByImporterId[importer.id] = importer.manifest
+  for (const { id, manifest } of opts.importers) {
+    importerManifestsByImporterId[id] = manifest
   }
   const lockfileImporter = lockfile.importers[opts.importerId]
   const allDeps = {
@@ -696,10 +696,10 @@ async function linkAllBins (
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
-              .filter((dep) => dep.hasBin)
-              .map(async (dep) => ({
-                location: dep.peripheralLocation,
-                manifest: await readPackageFromDir(dep.peripheralLocation) as DependencyManifest,
+              .filter(({ hasBin }) => hasBin)
+              .map(async ({ peripheralLocation }) => ({
+                location: peripheralLocation,
+                manifest: await readPackageFromDir(peripheralLocation) as DependencyManifest,
               })),
           )
 
@@ -724,7 +724,7 @@ async function linkAllModules (
 ) {
   return Promise.all(
     depNodes
-      .filter((depNode) => !depNode.independent)
+      .filter(({ independent }) => !independent)
       .map(async (depNode) => {
         const childrenToLink = opts.optional
           ? depNode.children

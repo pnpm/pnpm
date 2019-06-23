@@ -206,12 +206,12 @@ function updateResolvedDeps (
 ) {
   const newResolvedDeps = R.fromPairs<string>(
     updatedDeps
-      .map((dep): R.KeyValuePair<string, string> => {
-        const depNode = depGraph[dep.depPath]
+      .map(({ alias, depPath }): R.KeyValuePair<string, string> => {
+        const depNode = depGraph[depPath]
         return [
-          dep.alias,
+          alias,
           absolutePathToRef(depNode.absolutePath, {
-            alias: dep.alias,
+            alias,
             realName: depNode.name,
             registries,
             resolution: depNode.resolution,

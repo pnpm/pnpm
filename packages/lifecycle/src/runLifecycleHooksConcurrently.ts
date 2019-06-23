@@ -24,20 +24,20 @@ export default async function runLifecycleHooksConcurrently (
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort()
   const groups = sortedBuildIndexes.map((buildIndex) => {
     const importers = importersByBuildIndex.get(buildIndex) as Array<{ prefix: string, manifest: ImporterManifest, modulesDir: string }>
-    return importers.map((importer) =>
+    return importers.map(({ manifest, modulesDir, prefix }) =>
       async () => {
         const runLifecycleHookOpts = {
-          depPath: importer.prefix,
+          depPath: prefix,
           extraBinPaths: opts.extraBinPaths,
-          pkgRoot: importer.prefix,
+          pkgRoot: prefix,
           rawNpmConfig: opts.rawNpmConfig,
-          rootNodeModulesDir: importer.modulesDir,
+          rootNodeModulesDir: modulesDir,
           stdio: opts.stdio,
           unsafePerm: opts.unsafePerm,
         }
         for (const stage of stages) {
-          if (!importer.manifest.scripts || !importer.manifest.scripts[stage]) continue
-          await runLifecycleHook(stage, importer.manifest, runLifecycleHookOpts)
+          if (!manifest.scripts || !manifest.scripts[stage]) continue
+          await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
         }
       }
     )

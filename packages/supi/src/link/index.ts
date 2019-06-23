@@ -120,12 +120,12 @@ export default async function link (
 
   // Linking should happen after removing orphans
   // Otherwise would've been removed
-  for (const linkedPkg of linkedPkgs) {
+  for (const { alias, manifest, path } of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
-    const stu = specsToUpsert.find((s) => s.name === linkedPkg.manifest.name)
-    await symlinkDirectRootDependency(linkedPkg.path, destModules, linkedPkg.alias, {
+    const stu = specsToUpsert.find((s) => s.name === manifest.name)
+    await symlinkDirectRootDependency(path, destModules, alias, {
       fromDependenciesField: stu && stu.saveType || saveType,
-      linkedPackage: linkedPkg.manifest,
+      linkedPackage: manifest,
       prefix: opts.prefix,
     })
   }
@@ -138,8 +138,8 @@ export default async function link (
   let newPkg!: ImporterManifest
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     newPkg = await save(opts.prefix, opts.manifest, specsToUpsert)
-    for (const specToUpsert of specsToUpsert) {
-      updatedWantedLockfile.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
+    for (const { name } of specsToUpsert) {
+      updatedWantedLockfile.importers[importerId].specifiers[name] = getSpecFromPackageJson(newPkg, name)
     }
   } else {
     newPkg = opts.manifest

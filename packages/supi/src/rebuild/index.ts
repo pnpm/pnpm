@@ -91,24 +91,24 @@ export async function rebuildPkgs (
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
-    const parsed = npa(arg)
-    if (parsed.raw === parsed.name) {
-      return parsed.name
+    const { fetchSpec, name, raw, type } = npa(arg)
+    if (raw === name) {
+      return name
     }
-    if (parsed.type !== 'version' && parsed.type !== 'range') {
+    if (type !== 'version' && type !== 'range') {
       throw new Error(`Invalid argument - ${arg}. Rebuild can only select by version or range`)
     }
     return {
-      name: parsed.name,
-      range: parsed.fetchSpec,
+      name,
+      range: fetchSpec,
     }
   })
 
   let pkgs = [] as string[]
-  for (const importer of importers) {
+  for (const { prefix } of importers) {
     pkgs = [
       ...pkgs,
-      ...findPackages(packages, searched, { prefix: importer.prefix }),
+      ...findPackages(packages, searched, { prefix }),
     ]
   }
 
@@ -161,9 +161,9 @@ export async function rebuild (
     opts.childConcurrency || 5,
     scriptsOpts,
   )
-  for (const importer of ctx.importers) {
-    if (importer.manifest && importer.manifest.scripts && (!opts.pending || ctx.pendingBuilds.includes(importer.id))) {
-      ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(importer.id), 1)
+  for (const { id, manifest } of ctx.importers) {
+    if (manifest && manifest.scripts && (!opts.pending || ctx.pendingBuilds.includes(id))) {
+      ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
     }
   }
 
@@ -171,11 +171,8 @@ export async function rebuild (
     ...ctx.modulesFile,
     importers: {
       ...ctx.modulesFile && ctx.modulesFile.importers,
-      ...ctx.importers.reduce((acc, importer) => {
-        acc[importer.id] = {
-          hoistedAliases: importer.hoistedAliases,
-          shamefullyFlatten: importer.shamefullyFlatten,
-        }
+      ...ctx.importers.reduce((acc, { id, hoistedAliases, shamefullyFlatten }) => {
+        acc[id] = { hoistedAliases, shamefullyFlatten }
         return acc
       }, {}),
     },
@@ -220,7 +217,7 @@ function getSubgraphToBuild (
       ...pkgSnapshot.dependencies,
       ...(opts.optional && pkgSnapshot.optionalDependencies || {}),
     })
-    .map((pair) => dp.refToRelative(pair[1], pair[0]))
+    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
 
     const childShouldBeBuilt = getSubgraphToBuild(pkgSnapshots, nextEntryNodes, nodesToBuildAndTransitive, walked, opts)
@@ -255,7 +252,7 @@ async function _rebuild (
       ...(opts.production && lockfileImporter.dependencies || {}),
       ...(opts.optional && lockfileImporter.optionalDependencies || {}),
     })
-    .map((pair) => dp.refToRelative(pair[1], pair[0]))
+    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null)
     .forEach((relDepPath) => {
       entryNodes.push(relDepPath as string)
@@ -269,7 +266,7 @@ async function _rebuild (
   for (const relDepPath of nodesToBuildAndTransitiveArray) {
     const pkgSnapshot = pkgSnapshots[relDepPath]
     graph.set(relDepPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
-      .map((pair) => dp.refToRelative(pair[1], pair[0]))
+      .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
       .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
   const graphSequencerResult = graphSequencer({
@@ -347,8 +344,8 @@ async function _rebuild (
         return linkBins(modules, binPath, { warn })
       })),
   )
-  await Promise.all(importers.map((importer) => limitLinking(() => {
-    const modules = path.join(importer.prefix, 'node_modules')
+  await Promise.all(importers.map(({ prefix }) => limitLinking(() => {
+    const modules = path.join(prefix, 'node_modules')
     const binPath = path.join(modules, '.bin')
     return linkBins(modules, binPath, {
       allowExoticManifests: true,
