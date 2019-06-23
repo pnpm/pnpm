@@ -186,7 +186,7 @@ export default async (opts: HeadlessOptions) => {
     includeIncompatiblePackages: opts.force === true,
     prefix: lockfileDirectory,
   })
-  const res = await lockfileToDepGraph(
+  const { directDependenciesByImporterId, graph } = await lockfileToDepGraph(
     filteredLockfile,
     opts.force ? null : currentLockfile,
     {
@@ -197,19 +197,19 @@ export default async (opts: HeadlessOptions) => {
       virtualStoreDir,
     } as LockfileToDepGraphOptions,
   )
-  const depGraph = res.graph
+  const depNodes = R.values(graph)
 
   statsLogger.debug({
-    added: Object.keys(depGraph).length,
+    added: depNodes.length,
     prefix: lockfileDirectory,
   })
 
   await Promise.all([
-    linkAllModules(depGraph, {
+    linkAllModules(depNodes, {
       lockfileDirectory: opts.lockfileDirectory,
       optional: opts.include.optionalDependencies,
     }),
-    linkAllPkgs(opts.storeController, R.values(depGraph), opts),
+    linkAllPkgs(opts.storeController, depNodes, opts),
   ])
 
   stageLogger.debug({
@@ -254,7 +254,7 @@ export default async (opts: HeadlessOptions) => {
       lockfileDirectory: opts.lockfileDirectory,
       prefix: importer.prefix,
       registries: opts.registries,
-      rootDependencies: res.directDependenciesByImporterId[importer.id],
+      rootDependencies: directDependenciesByImporterId[importer.id],
     })
 
     // Even though headless installation will never update the package.json
@@ -279,7 +279,7 @@ export default async (opts: HeadlessOptions) => {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     opts.pendingBuilds = opts.pendingBuilds
       .concat(
-        R.values(depGraph)
+        depNodes
           .filter((node) => node.requiresBuild)
           .map((node) => node.relDepPath),
       )
@@ -287,13 +287,13 @@ export default async (opts: HeadlessOptions) => {
     const directNodes = new Set<string>()
     for (const importer of opts.importers) {
       R
-        .values(res.directDependenciesByImporterId[importer.id])
-        .filter((loc) => depGraph[loc])
+        .values(directDependenciesByImporterId[importer.id])
+        .filter((loc) => graph[loc])
         .forEach((loc) => {
           directNodes.add(loc)
         })
     }
-    await buildModules(depGraph, Array.from(directNodes), {
+    await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
       extraBinPaths: opts.extraBinPaths,
       optional: opts.include.optionalDependencies,
@@ -307,7 +307,7 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
+  await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
   await Promise.all(opts.importers.map(linkBinsOfImporter))
 
   if (currentLockfile && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredLockfile.importers).sort())) {
@@ -333,7 +333,7 @@ export default async (opts: HeadlessOptions) => {
   })
 
   // waiting till package requests are finished
-  await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
+  await Promise.all(depNodes.map((depNode) => depNode.finishing))
 
   summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
@@ -716,14 +716,14 @@ async function linkAllBins (
 }
 
 async function linkAllModules (
-  depGraph: DependenciesGraph,
+  depNodes: DependenciesGraphNode[],
   opts: {
     optional: boolean,
     lockfileDirectory: string,
   },
 ) {
   return Promise.all(
-    R.values(depGraph)
+    depNodes
       .filter((depNode) => !depNode.independent)
       .map(async (depNode) => {
         const childrenToLink = opts.optional
