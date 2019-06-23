@@ -319,7 +319,7 @@ importers:
   packages/find-packages:
     dependencies:
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
-      fast-glob: 3.0.1
+      fast-glob: 3.0.2
       p-filter: 2.1.0
     devDependencies:
       find-packages: 'link:'
@@ -1026,7 +1026,7 @@ importers:
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
-      fast-glob: 3.0.1
+      fast-glob: 3.0.2
       find-packages: 'link:../find-packages'
       get-port: 5.0.0
       graceful-fs: 4.1.15
@@ -1148,7 +1148,7 @@ importers:
       dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
       exists-link: 2.0.0
-      fast-glob: 3.0.1
+      fast-glob: 3.0.2
       find-packages: 5.0.5
       get-port: 5.0.0
       graceful-fs: 4.1.15
@@ -2044,7 +2044,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-GM5ec7+xpkuXiCMyzhyENgH/xZ8t0nAMDBY0QOsVVD6TrZYjJKUnW1eaI18HHX8W+COWMwWR9c0zoPiBp9+tUg==
-  /@nodelib/fs.scandir/2.0.1:
+  /@nodelib/fs.scandir/2.1.0:
     dependencies:
       '@nodelib/fs.stat': 2.0.1
       run-parallel: 1.1.9
@@ -2052,22 +2052,22 @@ packages:
     engines:
       node: '>= 8'
     resolution:
-      integrity: sha512-p2mECeAoBC1G3PfTt65jKoNAd926rJTPg7RgsW7jR42Y1y/vrDkBcd9cvCKAUWB5aSaI3rBoYRE4qLw5sHjKeg==
+      integrity: sha512-yATT+eSfMUc2oKtIac0vWK+0ovBPHWOKb70T6T9pumO1RlTO2XcANsBezVNChVukQQtsufdkJI2I3AzwJU7WgA==
   /@nodelib/fs.stat/2.0.1:
     dev: false
     engines:
       node: '>= 8'
     resolution:
       integrity: sha512-+RqhBlLn6YRBGOIoVYthsG0J9dfpO79eJyN7BYBkZJtfqrBwf2KK+rD/M/yjZR6WBmIhAgOV7S60eCgaSWtbFw==
-  /@nodelib/fs.walk/1.1.1:
+  /@nodelib/fs.walk/1.2.1:
     dependencies:
-      '@nodelib/fs.scandir': 2.0.1
+      '@nodelib/fs.scandir': 2.1.0
       fastq: 1.6.0
     dev: false
     engines:
       node: '>= 8'
     resolution:
-      integrity: sha512-MmjNq20/nGuDyc4PUSpTiiu5Hg9Q9VfQR78CGf2Yquhws9SCm+XDdxYa1niRqeVHW9nP8DQSX+tlM8bLUNsUGA==
+      integrity: sha512-rMBtL6EsICU4MmZ4Kxo2r1Zx3RJgvf5AJf3ybH1zqJZrDv9hRS9hhDHS+VNdtFGQJG/vnRAk/ymZDGLxLWZFNQ==
   /@pnpm/check-package/3.0.1:
     dependencies:
       dint: 4.0.0
@@ -2845,12 +2845,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-iYUI2iIm84DfkEcoRWhJwVAaSw0=
-  /as-table/1.0.50:
+  /as-table/1.0.52:
     dependencies:
       printable-characters: 1.0.42
     dev: false
     resolution:
-      integrity: sha512-nkPjOZLy9UR1ifZGsZF2C4OzrKJVESrl61ksaSzOPtRRMPF851uouIxFATqnMYb+zhnEyIR4SpBmCox2dWzKrg==
+      integrity: sha512-Lw3OjVL9BDGSrU6RoK5aTm79SnrDY0Zvucxc+oOTqZrC2Sw575IhkOTPtvpzviliL/WJaCSWzJdKFdYeI+8wFg==
   /asn1/0.2.4:
     dependencies:
       safer-buffer: 2.1.2
@@ -4194,10 +4194,10 @@ packages:
   /fast-deep-equal/2.0.1:
     resolution:
       integrity: sha1-ewUhjd+WZ79/Nwv3/bLLFf3Qqkk=
-  /fast-glob/3.0.1:
+  /fast-glob/3.0.2:
     dependencies:
       '@nodelib/fs.stat': 2.0.1
-      '@nodelib/fs.walk': 1.1.1
+      '@nodelib/fs.walk': 1.2.1
       glob-parent: 5.0.0
       is-glob: 4.0.1
       merge2: 1.2.3
@@ -4206,7 +4206,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-JEHYHd9wWKgv5nyUTahP+Wv/F3eOTCFMyCdICKAnxxDRd3rbg3opIzhs6qOOHOvP2hS6jhzPwb/I9sfWCqK84g==
+      integrity: sha512-L5rSdcOWQssiO7D1CWPwL9CT1ZG90PGhYQEfKOL3OC95ChQDA0S6AuP7Zi9dhaOaUihUXZ2oUlW2xeisF0nAaQ==
   /fast-json-stable-stringify/2.0.0:
     resolution:
       integrity: sha1-1RQsDK7msRifh9OnYREGT4bIu/I=
@@ -7345,7 +7345,7 @@ packages:
       integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==
   /stacktracey/1.2.112:
     dependencies:
-      as-table: 1.0.50
+      as-table: 1.0.52
       get-source: 1.0.37
     dev: false
     resolution:
