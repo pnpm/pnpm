@@ -76,6 +76,7 @@ const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 export default async (
   opts: {
     cliArgs: object,
+    // The canonical names of commands. "pnpm i -r"=>"pnpm recursive install"
     command?: string[],
     packageManager: {
       name: string,
@@ -86,6 +87,21 @@ export default async (
   const packageManager = opts && opts.packageManager || { name: 'pnpm', version: 'undefined' }
   const cliArgs = opts && opts.cliArgs || {}
   const command = opts.command || []
+
+  switch (command[command.length - 1]) {
+    case 'update':
+      if (typeof cliArgs['frozen-lockfile'] !== 'undefined') {
+        const err = new Error('The "frozen-lockfile" option cannot be used with the "update" command')
+        err['code'] = 'ERR_PNPM_CONFIG_BAD_OPTION' // tslint:disable-line:no-string-literal
+        throw err
+      }
+      if (typeof cliArgs['prefer-frozen-lockfile'] !== 'undefined') {
+        const err = new Error('The "prefer-frozen-lockfile" option cannot be used with the "update" command')
+        err['code'] = 'ERR_PNPM_CONFIG_BAD_OPTION' // tslint:disable-line:no-string-literal
+        throw err
+      }
+      break
+  }
 
   // This is what npm does as well, overriding process.execPath with the resolved location of Node.
   // The value of process.execPath is changed only for the duration of config initialization.

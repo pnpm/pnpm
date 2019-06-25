@@ -5,6 +5,7 @@ process
   .once('SIGTERM', () => process.exit(0))
 
 // Patch the global fs module here at the app level
+import chalk from 'chalk'
 import fs = require('fs')
 import gfs = require('graceful-fs')
 
@@ -194,7 +195,8 @@ export default async function run (argv: string[]) {
     }
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
-    console.error(err.message)
+    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
+    console.log(`For help, run: pnpm help ${cmd}`)
     process.exit(1)
     return
   }

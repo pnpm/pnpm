@@ -384,3 +384,41 @@ test('extraBinPaths', async (t) => {
 
   t.end()
 })
+
+test('throw error on "update --frozen-lockfile"', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'frozen-lockfile': true,
+      },
+      command: ['update'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'The "frozen-lockfile" option cannot be used with the "update" command')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_BAD_OPTION')
+    t.end()
+  }
+})
+
+test('throw error on "update --prefer-frozen-lockfile"', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'prefer-frozen-lockfile': true,
+      },
+      command: ['update'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_BAD_OPTION')
+    t.end()
+  }
+})
