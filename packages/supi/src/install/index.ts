@@ -842,6 +842,18 @@ async function installInContext (
     }
   }
 
+  // waiting till the skipped packages are downloaded to the store
+  await Promise.all(
+    R.props<string, ResolvedPackage>(Array.from(ctx.skipped), resolvedPackagesByPackageId)
+      // skipped packages might have not been reanalized on a repeat install
+      // so lets just ignore those by excluding nulls
+      .filter(Boolean)
+      .map(({ fetchingFiles }) => fetchingFiles),
+  )
+
+  // waiting till package requests are finished
+  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing))
+
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
     await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
@@ -878,18 +890,6 @@ async function installInContext (
       })(),
     ])
   }
-
-  // waiting till the skipped packages are downloaded to the store
-  await Promise.all(
-    R.props<string, ResolvedPackage>(Array.from(ctx.skipped), resolvedPackagesByPackageId)
-      // skipped packages might have not been reanalized on a repeat install
-      // so lets just ignore those by excluding nulls
-      .filter(Boolean)
-      .map(({ fetchingFiles }) => fetchingFiles),
-  )
-
-  // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing))
 
   summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
