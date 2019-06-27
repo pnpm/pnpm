@@ -422,8 +422,8 @@ function preferedSatisfiesWanted (
     })
     return false
   }
-  const nameVer = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-  return semver.satisfies(nameVer.version, wantedDep.pref, true)
+  const { version } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+  return semver.satisfies(version, wantedDep.pref, true)
 }
 
 function getInfoFromLockfile (
@@ -512,7 +512,8 @@ async function resolveDependency (
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
-    await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}`)) &&
+    options.relDepPath && options.dependencyLockfile &&
+    await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
     (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias)))
   ) {
     return null
