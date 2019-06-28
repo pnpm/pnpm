@@ -58,7 +58,7 @@
     "fast-glob": "3.0.2",
     "find-packages": "5.0.5",
     "get-port": "5.0.0",
-    "graceful-fs": "4.1.15",
+    "graceful-fs": "4.2.0",
     "graph-sequencer": "2.0.0",
     "is-ci": "2.0.0",
     "is-subdir": "1.0.3",
