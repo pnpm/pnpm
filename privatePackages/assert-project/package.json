@@ -52,7 +52,7 @@
     "mz": "2.7.0",
     "path-exists": "4.0.0",
     "read-yaml-file": "1.1.0",
-    "tape": "4.10.2",
+    "tape": "4.11.0",
     "write-pkg": "4.0.0"
   }
 }

@@ -30,6 +30,6 @@
   "devDependencies": {
     "@pnpm/tarball-resolver": "link:",
     "rimraf": "^2.6.2",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }

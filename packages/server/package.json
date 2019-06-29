@@ -45,7 +45,7 @@
     "node-fetch": "2.6.0",
     "rimraf": "2.6.3",
     "rimraf-then": "1.0.1",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   },
   "dependencies": {
     "@pnpm/fetch": "1.0.0",

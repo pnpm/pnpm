@@ -39,6 +39,6 @@
     "@pnpm/package-is-installable": "link:",
     "@types/semver": "6",
     "rimraf": "2.6.3",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }

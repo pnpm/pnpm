@@ -51,6 +51,6 @@
     "@pnpm/logger": "2.1.1",
     "@types/semver": "6",
     "dependencies-hierarchy": "link:",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }

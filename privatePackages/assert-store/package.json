@@ -49,6 +49,6 @@
     "@pnpm/assert-store": "link:",
     "@types/path-exists": "3.0.0",
     "path-exists": "4.0.0",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }
