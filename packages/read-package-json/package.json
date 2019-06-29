@@ -38,6 +38,6 @@
   },
   "devDependencies": {
     "@pnpm/read-package-json": "link:",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }

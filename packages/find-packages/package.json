@@ -33,7 +33,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages#readme",
   "devDependencies": {
     "find-packages": "link:",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   },
   "dependencies": {
     "@pnpm/read-importer-manifest": "1.0.4",

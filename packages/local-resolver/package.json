@@ -41,6 +41,6 @@
     "@pnpm/local-resolver": "link:",
     "@types/graceful-fs": "4.1.3",
     "@types/ssri": "^6.0.1",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }
