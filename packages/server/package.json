@@ -39,7 +39,7 @@
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
     "@types/mz": "0.0.32",
     "@types/node-fetch": "2",
-    "@types/uuid": "3.4.4",
+    "@types/uuid": "3.4.5",
     "is-port-reachable": "2.0.1",
     "mz": "2.7.0",
     "node-fetch": "2.6.0",
