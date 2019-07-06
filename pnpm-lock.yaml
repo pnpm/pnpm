@@ -549,7 +549,7 @@ importers:
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       normalize-path: 3.0.0
       ssri: 6.0.1
     devDependencies:
@@ -564,7 +564,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@types/graceful-fs': 4.1.3
       '@types/ssri': ^6.0.1
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       normalize-path: 3.0.0
       ssri: 6.0.1
       tape: 4.11.0
@@ -1026,10 +1026,10 @@ importers:
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
-      fast-glob: 3.0.2
+      fast-glob: 3.0.4
       find-packages: 'link:../find-packages'
       get-port: 5.0.0
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       graph-sequencer: 2.0.0
       is-ci: 2.0.0
       is-subdir: 1.0.3
@@ -1148,10 +1148,10 @@ importers:
       dir-is-case-sensitive: 1.0.2
       execa: 1.0.0
       exists-link: 2.0.0
-      fast-glob: 3.0.2
+      fast-glob: 3.0.4
       find-packages: 5.0.5
       get-port: 5.0.0
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       graph-sequencer: 2.0.0
       is-ci: 2.0.0
       is-subdir: 1.0.3
@@ -1225,10 +1225,10 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       detect-indent: 6.0.0
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       is-windows: 1.0.2
       json5: 2.1.0
-      parse-json: 4.0.0
+      parse-json: 5.0.0
       read-yaml-file: 1.1.0
       strip-bom: 4.0.0
     devDependencies:
@@ -1250,10 +1250,10 @@ importers:
       '@types/json5': 0.0.30
       '@types/parse-json': 4.0.0
       detect-indent: 6.0.0
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       is-windows: 1.0.2
       json5: 2.1.0
-      parse-json: 4.0.0
+      parse-json: 5.0.0
       read-yaml-file: 1.1.0
       strip-bom: 4.0.0
       tape: 4.11.0
@@ -1460,7 +1460,7 @@ importers:
       dependency-path: 'link:../dependency-path'
       encode-registry: 2.0.0
       get-npm-tarball-url: 2.0.1
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       graph-sequencer: 2.0.0
       import-from: 3.0.0
       is-ci: 2.0.0
@@ -1578,7 +1578,7 @@ importers:
       exists-link: 2.0.0
       fs-extra: 7.0.1
       get-npm-tarball-url: 2.0.1
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       graph-sequencer: 2.0.0
       import-from: 3.0.0
       is-ci: 2.0.0
@@ -1639,7 +1639,7 @@ importers:
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       make-dir: 3.0.0
       mem: 5.1.1
       mz: 2.7.0
@@ -1674,7 +1674,7 @@ importers:
       cp-file: 7.0.0
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 2.0.5
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       make-dir: 3.0.0
       mem: 5.1.1
       mz: 2.7.0
@@ -1848,7 +1848,6 @@ packages:
   /@babel/code-frame/7.0.0:
     dependencies:
       '@babel/highlight': 7.5.0
-    dev: true
     resolution:
       integrity: sha512-OfC2uemaknXr87bdLUkWog7nYuliM9Ij5HUcajsVcMCpQrcLmtxRbVFTIqmcSkSeYRBFBRxs2FiUqFJDLdiebA==
   /@babel/highlight/7.5.0:
@@ -1856,7 +1855,6 @@ packages:
       chalk: 2.4.2
       esutils: 2.0.2
       js-tokens: 4.0.0
-    dev: true
     resolution:
       integrity: sha512-7dV4eu9gBxoM0dAnj/BCFDW9LFU0zvTrkq0ugM7pnHEgguOEeOz1so2ZghEdzviYzQEED0r4EAgpsBChKy1TRQ==
   /@commitlint/cli/8.0.0:
@@ -2079,7 +2077,7 @@ packages:
       integrity: sha512-+m1O/rFyR0h60IrfoOKVuzwsZCYx4vYF5NFTMFzDNJ34D4EH8Y+nT/EIncAHQ6Awavz2I5FlhRbiYvWA2DZFbw==
   /@pnpm/file-reporter/0.1.0:
     dependencies:
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       path-exists: 4.0.0
     dev: false
     engines:
@@ -2669,7 +2667,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
@@ -3428,7 +3426,7 @@ packages:
   /configstore/4.0.0:
     dependencies:
       dot-prop: 4.2.0
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       make-dir: 1.3.0
       unique-string: 1.0.0
       write-file-atomic: 2.4.3
@@ -3539,7 +3537,7 @@ packages:
       integrity: sha512-16ZvhVjVhEP75sMflsPtXcwbly+79os1zhBVcpRWNmnwifEbZChW+0URYING/A2ehBwp8i0pOXJYzdpiGO3Ivw==
   /cp-file/7.0.0:
     dependencies:
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       make-dir: 3.0.0
       nested-error-stacks: 2.1.0
       p-event: 4.1.0
@@ -3875,7 +3873,7 @@ packages:
       integrity: sha512-CISZwy/n83/l+I1K9eDxVkixe4OZLjgB/zq4eGJekmKxbNThpmY4QqzReGpe0csJ+eiMToOosoL3McZF2NHgjA==
   /dir-is-case-sensitive/1.0.2:
     dependencies:
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       path-temp: 2.0.0
     engines:
       node: '>=8.15'
@@ -4067,7 +4065,6 @@ packages:
     resolution:
       integrity: sha1-wBzKqa5LiXxtDD4hCuUvPHqEQ3U=
   /esutils/2.0.2:
-    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -4196,19 +4193,6 @@ packages:
   /fast-deep-equal/2.0.1:
     resolution:
       integrity: sha1-ewUhjd+WZ79/Nwv3/bLLFf3Qqkk=
-  /fast-glob/3.0.2:
-    dependencies:
-      '@nodelib/fs.stat': 2.0.1
-      '@nodelib/fs.walk': 1.2.2
-      glob-parent: 5.0.0
-      is-glob: 4.0.1
-      merge2: 1.2.3
-      micromatch: 4.0.2
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-L5rSdcOWQssiO7D1CWPwL9CT1ZG90PGhYQEfKOL3OC95ChQDA0S6AuP7Zi9dhaOaUihUXZ2oUlW2xeisF0nAaQ==
   /fast-glob/3.0.4:
     dependencies:
       '@nodelib/fs.stat': 2.0.1
@@ -4597,6 +4581,7 @@ packages:
     resolution:
       integrity: sha512-R7eWptXuGYxwijs0eV+v3o6+XH1IqVK8dJOEecQfTmkncw9AV4dcw/Dhxi8MdlqPthxxpZyizMzyg8RTmEsG+Q==
   /graceful-fs/4.1.15:
+    dev: false
     resolution:
       integrity: sha512-6uHUhOPEBgQ24HM+r6b/QwWfZq+yiFcipKFrOFiBEnWdy5sdzYoi+pJeQaPI5qOLRFqWmAXUPQNsielzdLoecA==
   /graceful-fs/4.2.0:
@@ -5002,7 +4987,7 @@ packages:
       integrity: sha1-bKiwe5nHeZgCWQDlVc7Y7YCHmoM=
   /is-inner-link/2.0.2:
     dependencies:
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       is-subdir: 1.0.3
       resolve-link-target: 1.0.1
     dev: false
@@ -5134,7 +5119,6 @@ packages:
     resolution:
       integrity: sha512-DximWbkke36cnrSfNJv6bgcB2QOMV9PRD2FiowwzCoMsh8RupFLdbNIzWe+cVDWT+NIMNJgGlB1dGxP6kpzGtA==
   /js-tokens/4.0.0:
-    dev: true
     resolution:
       integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==
   /js-yaml/3.13.1:
@@ -5330,6 +5314,10 @@ packages:
       node: '>= 0.8.0'
     resolution:
       integrity: sha1-OwmSTt+fCDwEkP3UwLxEIeBHZO4=
+  /lines-and-columns/1.1.6:
+    dev: false
+    resolution:
+      integrity: sha1-HADHQ7QzzQpOgHWPe2SldEDZ/wA=
   /load-json-file/4.0.0:
     dependencies:
       graceful-fs: 4.2.0
@@ -6356,6 +6344,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-vjX1Qlvh9/bHRxhPmKeIy5lHfuA=
+  /parse-json/5.0.0:
+    dependencies:
+      '@babel/code-frame': 7.0.0
+      error-ex: 1.3.2
+      json-parse-better-errors: 1.0.2
+      lines-and-columns: 1.1.6
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-OOY5b7PAEFV0E2Fir1KOkxchnZNCdowAJgQ5NuxjpBKTRP3pQhwkrkxqQjeoKJ+fO7bCpmIZaogI4eZGDMEGOw==
   /parse-npm-tarball-url/3.0.0:
     dependencies:
       semver: 6.2.0
@@ -6712,7 +6711,7 @@ packages:
       integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==
   /read-ini-file/2.0.0:
     dependencies:
-      graceful-fs: 4.1.15
+      graceful-fs: 4.2.0
       ini: 1.3.5
       pify: 4.0.1
       strip-bom: 3.0.0
