@@ -1362,7 +1362,7 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 0.0.32
       '@types/node-fetch': 2.3.7
-      '@types/uuid': 3.4.4
+      '@types/uuid': 3.4.5
       is-port-reachable: 2.0.1
       mz: 2.7.0
       node-fetch: 2.6.0
@@ -1381,7 +1381,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
       '@types/node-fetch': '2'
-      '@types/uuid': 3.4.4
+      '@types/uuid': '3'
       is-port-reachable: 2.0.1
       mz: 2.7.0
       node-fetch: 2.6.0
@@ -2420,12 +2420,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-YV+ZcSIiv30GhLM7WwxI+bsbcW34d3Yhl2JSFBNFL6qtfsoI9++hogxz+jTqeS86ynKcMUE0AsnLWQynfJnsfA==
-  /@types/uuid/3.4.4:
+  /@types/uuid/3.4.5:
     dependencies:
       '@types/node': 12.6.2
     dev: true
     resolution:
-      integrity: sha512-tPIgT0GUmdJQNSHxp0X2jnpQfBSTfGxUMc/2CXBU2mnyTFVYVa2ojpoQ74w0U2yn2vw3jnC640+77lkFFpdVDw==
+      integrity: sha512-MNL15wC3EKyw1VLF+RoVO4hJJdk9t/Hlv3rt1OL65Qvuadm4BYo6g9ZJQqoq7X8NBFSsQXgAujWciovh2lpVjA==
   /@types/which/1.3.1:
     dev: true
     resolution:
