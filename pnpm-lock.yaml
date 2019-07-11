@@ -244,13 +244,13 @@ importers:
       tape: 4.11.0
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 4.0.0_node-fetch@2.6.0
+      '@zeit/fetch-retry': 4.0.1_node-fetch@2.6.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
     devDependencies:
       rimraf: 2.6.3
     specifiers:
-      '@zeit/fetch-retry': 4.0.0
+      '@zeit/fetch-retry': 4.0.1
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
       rimraf: ^2.6.2
@@ -2490,7 +2490,7 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-VxuqUOycaFRwZ7RV6etvGECELvgZ1iO8KFZJlLVUWvrv218mAULZVacKyJ6i8FbLvaqxnx7lEUIEBzhz7KX/Iw==
-  /@zeit/fetch-retry/4.0.0_node-fetch@2.6.0:
+  /@zeit/fetch-retry/4.0.1_node-fetch@2.6.0:
     dependencies:
       async-retry: 1.2.3
       debug: 3.2.6
@@ -2499,7 +2499,7 @@ packages:
     peerDependencies:
       node-fetch: '*'
     resolution:
-      integrity: sha512-ALXnrCPpiVWha/L3Mm1klPhqmVTKmPQ2dmb5YIsSCrMBJugfhDb42kacVsvQ11vAFRE1LRaJ9Pmw16zEMvQnbw==
+      integrity: sha512-z9OFrhyKdp9oxQsISQU3Te6Gu3wjIXAYO4UaPiG6cFXY6Rxzxv71SyohsgozIXztGL9u4KsxxwpSNhGNnyHs2A==
   /@zkochan/cmd-shim/4.0.0:
     dependencies:
       is-windows: 1.0.2
