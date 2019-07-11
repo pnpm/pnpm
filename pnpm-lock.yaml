@@ -231,7 +231,7 @@ importers:
   packages/dependency-path:
     dependencies:
       '@pnpm/types': 'link:../types'
-      encode-registry: 2.0.0
+      encode-registry: 2.0.1
       semver: 6.2.0
     devDependencies:
       '@types/semver': 6.0.1
@@ -239,7 +239,7 @@ importers:
     specifiers:
       '@pnpm/types': 3.2.0
       '@types/semver': '6'
-      encode-registry: 2.0.0
+      encode-registry: 2.0.1
       semver: 6.2.0
       tape: 4.11.0
   packages/fetch:
@@ -729,7 +729,7 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
       credentials-by-uri: 1.0.0
-      encode-registry: 2.0.0
+      encode-registry: 2.0.1
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       load-json-file: 6.0.0
       mem: 5.1.1
@@ -764,7 +764,7 @@ importers:
       '@types/semver': '6'
       '@types/ssri': ^6.0.0
       credentials-by-uri: 1.0.0
-      encode-registry: 2.0.0
+      encode-registry: 2.0.1
       fetch-from-npm-registry: 2.0.5
       load-json-file: 6.0.0
       mem: 5.1.1
@@ -1458,7 +1458,7 @@ importers:
       '@zkochan/npm-package-arg': 1.0.2
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
-      encode-registry: 2.0.0
+      encode-registry: 2.0.1
       get-npm-tarball-url: 2.0.1
       graceful-fs: 4.2.0
       graph-sequencer: 2.0.0
@@ -1573,7 +1573,7 @@ importers:
       deep-require-cwd: 1.0.0
       dependency-path: 3.0.7
       dir-is-case-sensitive: 1.0.2
-      encode-registry: 2.0.0
+      encode-registry: 2.0.1
       execa: 2.0.3
       exists-link: 2.0.0
       fs-extra: 7.0.1
@@ -3958,14 +3958,14 @@ packages:
     dev: false
     resolution:
       integrity: sha512-CwBLREIQ7LvYFB0WyRvwhq5N5qPhc6PMjD6bYggFlI5YyDgl+0vxq5VHbMOFqLg7hfWzmu8T5Z1QofhmTIhItA==
-  /encode-registry/2.0.0:
+  /encode-registry/2.0.1:
     dependencies:
       mem: 5.1.1
     dev: false
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-0C9gD7hg/nF+IaXB0fl+45gKtoBenEcZJF+MDW6G8r4jjn5wGKnSILiJShaOb2nmcVskmoVkZvRISAlX7EpmQw==
+      integrity: sha512-LQFwVGlGotDZJGpd6MJN0IgkxUjO1CE+LF0O9NteFP8zMTeZwUiATpRRgS6wEiCA1DVoB5zsSMECzZs/LcJY7Q==
   /encodeurl/1.0.2:
     dev: true
     engines:
