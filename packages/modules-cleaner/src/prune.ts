@@ -2,6 +2,7 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import {
   Lockfile,
   LockfileImporter,
@@ -11,7 +12,11 @@ import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
-import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
+import {
+  DEPENDENCIES_FIELDS,
+  DependenciesField,
+  Registries,
+} from '@pnpm/types'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import path = require('path')
@@ -34,10 +39,12 @@ export default async function prune (
       removePackages?: string[],
       shamefullyFlatten: boolean,
     }>,
+    include: { [dependenciesField in DependenciesField]: boolean },
     newLockfile: Lockfile,
     oldLockfile: Lockfile,
     pruneStore?: boolean,
     registries: Registries,
+    skipped: Set<string>,
     virtualStoreDir: string,
     lockfileDirectory: string,
     storeController: StoreController,
@@ -86,7 +93,13 @@ export default async function prune (
     }))
   }))
 
-  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.oldLockfile.packages || {})
+  const selectedImporterIds = opts.importers.map((importer) => importer.id).sort()
+  // In case installation is done on a subset of importers,
+  // we may only prune dependencies that are used only by that subset of importers.
+  // Otherwise, we would break the node_modules.
+  const oldPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.oldLockfile.importers))
+    ? getPkgsDepPaths(opts.registries, opts.oldLockfile.packages || {})
+    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.oldLockfile, opts.include, opts.skipped)
   const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.newLockfile.packages || {})
 
   const oldDepPaths = Object.keys(oldPkgIdsByDepPaths)
@@ -172,4 +185,31 @@ function getPkgsDepPaths (
     pkgIdsByDepPath[depPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
   }
   return pkgIdsByDepPath
+}
+
+function getPkgsDepPathsOwnedOnlyByImporters (
+  importerIds: string[],
+  registries: Registries,
+  lockfile: Lockfile,
+  include: { [dependenciesField in DependenciesField]: boolean },
+  skipped: Set<string>,
+) {
+  const selected = filterLockfileByImporters(lockfile,
+    importerIds,
+    {
+      failOnMissingDependencies: false,
+      include,
+      registries,
+      skipped,
+    })
+  const other = filterLockfileByImporters(lockfile,
+    R.difference(Object.keys(lockfile.importers), importerIds),
+    {
+      failOnMissingDependencies: false,
+      include,
+      registries,
+      skipped,
+    })
+  const packagesOfSelectedOnly = R.pickAll(R.difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
+  return getPkgsDepPaths(registries, packagesOfSelectedOnly)
 }

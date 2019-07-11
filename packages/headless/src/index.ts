@@ -158,11 +158,13 @@ export default async (opts: HeadlessOptions) => {
     await prune({
       dryRun: false,
       importers: opts.importers,
+      include: opts.include,
       lockfileDirectory,
       newLockfile: filterLockfile(wantedLockfile, filterOpts),
       oldLockfile: currentLockfile,
       pruneStore: opts.pruneStore,
       registries: opts.registries,
+      skipped: opts.skipped,
       storeController: opts.storeController,
       virtualStoreDir,
     })

@@ -110,10 +110,16 @@ export default async function link (
         shamefullyFlatten: opts.shamefullyFlatten,
       },
     ],
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
     lockfileDirectory: opts.lockfileDirectory,
     newLockfile: updatedCurrentLockfile,
     oldLockfile,
     registries: ctx.registries,
+    skipped: new Set(),
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })

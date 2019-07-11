@@ -152,11 +152,13 @@ export default async function linkPackages (
   const removedDepPaths = await prune({
     dryRun: opts.dryRun,
     importers,
+    include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     newLockfile: filterLockfile(newWantedLockfile, filterOpts),
     oldLockfile: opts.currentLockfile,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
+    skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
   })

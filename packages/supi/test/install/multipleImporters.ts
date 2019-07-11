@@ -3,6 +3,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import path = require('path')
+import exists = require('path-exists')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
@@ -11,7 +12,8 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { testDefaults } from '../utils'
+import writeYamlFile = require('write-yaml-file')
+import { addDistTag, testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -302,4 +304,190 @@ test('current lockfile contains only installed dependencies when adding a new im
   const currentLockfile = await readCurrentLockfile(process.cwd(), { ignoreIncompatible: false })
 
   t.deepEqual(Object.keys(currentLockfile && currentLockfile.packages || {}), ['/is-negative/1.0.0'])
+})
+
+test('partial installation in a monorepo does not remove dependencies of other workspace packages', async (t: tape.Test) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  prepareEmpty(t)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: path.resolve('project-2'),
+    },
+  ], await testDefaults())
+
+  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+    importers: {
+      'project-1': {
+        dependencies: {
+          'is-positive': '1.0.0'
+        },
+        specifiers: {
+          'is-positive': '1.0.0'
+        },
+      },
+      'project-2': {
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0'
+        },
+        specifiers: {
+          'pkg-with-1-dep': '100.0.0'
+        },
+      },
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/dep-of-pkg-with-1-dep/100.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw=='
+        }
+      },
+      '/is-positive/1.0.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss='
+        },
+      },
+      '/pkg-with-1-dep/100.0.0': {
+        dependencies: {
+          'dep-of-pkg-with-1-dep': '100.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA=='
+        },
+      },
+    },
+  })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+  ], await testDefaults())
+
+  t.ok(await exists(path.resolve('node_modules/.localhost+4873/is-positive/2.0.0/node_modules/is-positive')))
+  t.ok(await exists(path.resolve('node_modules/.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/pkg-with-1-dep')))
+  t.ok(await exists(path.resolve('node_modules/.localhost+4873/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep')))
+})
+
+test('partial installation in a monorepo does not remove dependencies of other workspace packages when lockfile is frozen', async (t: tape.Test) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  prepareEmpty(t)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: path.resolve('project-2'),
+    },
+  ], await testDefaults())
+
+  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+    importers: {
+      'project-1': {
+        dependencies: {
+          'is-positive': '1.0.0'
+        },
+        specifiers: {
+          'is-positive': '1.0.0'
+        },
+      },
+      'project-2': {
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0'
+        },
+        specifiers: {
+          'pkg-with-1-dep': '100.0.0'
+        },
+      },
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/dep-of-pkg-with-1-dep/100.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw=='
+        }
+      },
+      '/is-positive/1.0.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss='
+        },
+      },
+      '/pkg-with-1-dep/100.0.0': {
+        dependencies: {
+          'dep-of-pkg-with-1-dep': '100.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA=='
+        },
+      },
+    },
+  })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+  ], await testDefaults({ frozenLockfile: true }))
+
+  t.ok(await exists(path.resolve('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive')))
+  t.ok(await exists(path.resolve('node_modules/.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/pkg-with-1-dep')))
+  t.ok(await exists(path.resolve('node_modules/.localhost+4873/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep')))
 })
