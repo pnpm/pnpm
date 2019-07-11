@@ -144,10 +144,9 @@ export default async function linkPackages (
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
-  const removedDepPaths = await prune({
+  const removedDepPaths = await prune(importers, {
     currentLockfile: opts.currentLockfile,
     dryRun: opts.dryRun,
-    importers,
     include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     pruneStore: opts.pruneStore,

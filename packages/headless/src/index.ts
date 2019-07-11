@@ -150,19 +150,21 @@ export default async (opts: HeadlessOptions) => {
 
   const skipped = opts.skipped || new Set<string>()
   if (currentLockfile) {
-    await prune({
-      currentLockfile,
-      dryRun: false,
-      importers: opts.importers,
-      include: opts.include,
-      lockfileDirectory,
-      pruneStore: opts.pruneStore,
-      registries: opts.registries,
-      skipped,
-      storeController: opts.storeController,
-      virtualStoreDir,
-      wantedLockfile,
-    })
+    await prune(
+      opts.importers,
+      {
+        currentLockfile,
+        dryRun: false,
+        include: opts.include,
+        lockfileDirectory,
+        pruneStore: opts.pruneStore,
+        registries: opts.registries,
+        skipped,
+        storeController: opts.storeController,
+        virtualStoreDir,
+        wantedLockfile,
+      },
+    )
   } else {
     statsLogger.debug({
       prefix: lockfileDirectory,

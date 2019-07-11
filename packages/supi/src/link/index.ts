@@ -99,9 +99,8 @@ export default async function link (
     warn,
   })
 
-  await prune({
-    currentLockfile,
-    importers: [
+  await prune(
+    [
       {
         bin: opts.bin,
         hoistedAliases: ctx.hoistedAliases,
@@ -111,18 +110,17 @@ export default async function link (
         shamefullyFlatten: opts.shamefullyFlatten,
       },
     ],
-    include: {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
+    {
+      currentLockfile,
+      include: ctx.include,
+      lockfileDirectory: opts.lockfileDirectory,
+      registries: ctx.registries,
+      skipped: ctx.skipped,
+      storeController: opts.storeController,
+      virtualStoreDir: ctx.virtualStoreDir,
+      wantedLockfile: updatedCurrentLockfile,
     },
-    lockfileDirectory: opts.lockfileDirectory,
-    registries: ctx.registries,
-    skipped: new Set(),
-    storeController: opts.storeController,
-    virtualStoreDir: ctx.virtualStoreDir,
-    wantedLockfile: updatedCurrentLockfile,
-  })
+  )
 
   // Linking should happen after removing orphans
   // Otherwise would've been removed
