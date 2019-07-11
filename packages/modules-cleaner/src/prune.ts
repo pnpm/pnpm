@@ -2,7 +2,7 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import { filterLockfileByImporters } from '@pnpm/filter-lockfile'
+import filterLockfile, { filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import {
   Lockfile,
   LockfileImporter,
@@ -40,8 +40,8 @@ export default async function prune (
       shamefullyFlatten: boolean,
     }>,
     include: { [dependenciesField in DependenciesField]: boolean },
-    newLockfile: Lockfile,
-    oldLockfile: Lockfile,
+    wantedLockfile: Lockfile,
+    currentLockfile: Lockfile,
     pruneStore?: boolean,
     registries: Registries,
     skipped: Set<string>,
@@ -51,9 +51,9 @@ export default async function prune (
   },
 ): Promise<Set<string>> {
   await Promise.all(opts.importers.map(async (importer) => {
-    const oldLockfileImporter = opts.oldLockfile.importers[importer.id] || {} as LockfileImporter
+    const oldLockfileImporter = opts.currentLockfile.importers[importer.id] || {} as LockfileImporter
     const oldPkgs = R.toPairs(mergeDependencies(oldLockfileImporter))
-    const newPkgs = R.toPairs(mergeDependencies(opts.newLockfile.importers[importer.id]))
+    const newPkgs = R.toPairs(mergeDependencies(opts.wantedLockfile.importers[importer.id]))
 
     const allCurrentPackages = new Set(
       (importer.pruneDirectDependencies || importer.removePackages && importer.removePackages.length)
@@ -97,10 +97,15 @@ export default async function prune (
   // In case installation is done on a subset of importers,
   // we may only prune dependencies that are used only by that subset of importers.
   // Otherwise, we would break the node_modules.
-  const oldPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.oldLockfile.importers))
-    ? getPkgsDepPaths(opts.registries, opts.oldLockfile.packages || {})
-    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.oldLockfile, opts.include, opts.skipped)
-  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.newLockfile.packages || {})
+  const oldPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.currentLockfile.importers))
+    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages || {})
+    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
+  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries,
+    filterLockfile(opts.wantedLockfile, {
+      include: opts.include,
+      registries: opts.registries,
+      skipped: opts.skipped,
+    }).packages || {})
 
   const oldDepPaths = Object.keys(oldPkgIdsByDepPaths)
   const newDepPaths = Object.keys(newPkgIdsByDepPaths)
@@ -115,7 +120,7 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      if (opts.oldLockfile.packages) {
+      if (opts.currentLockfile.packages) {
         await Promise.all(opts.importers.filter((importer) => importer.shamefullyFlatten).map((importer) => {
           const { bin, hoistedAliases, modulesDir, prefix } = importer
           return Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
