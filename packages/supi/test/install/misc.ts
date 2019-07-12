@@ -7,6 +7,7 @@ import {
   StatsLog,
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import { getIntegrity } from '@pnpm/registry-mock'
 import deepRequireCwd = require('deep-require-cwd')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
@@ -26,6 +27,7 @@ import {
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')
+import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
   local,
@@ -939,4 +941,88 @@ test('do not update deps when lockfile is present', async (t) => {
   const latestLockfile = await project.readLockfile()
 
   t.deepEqual(initialLockfile, latestLockfile)
+})
+
+test('all the subdeps of dependencies are linked when a node_modules is partially up-to-date', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'foobarqar': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults())
+
+  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+    dependencies: {
+      foobarqar: '1.0.1',
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/bar/100.0.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('bar', '100.0.0'),
+        },
+      },
+      '/foo/100.1.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('foo', '100.1.0'),
+        },
+      },
+      '/foobarqar/1.0.1': {
+        dependencies: {
+          'bar': '100.0.0',
+          'foo': '100.1.0',
+          'is-positive': '3.1.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('foobarqar', '1.0.1'),
+        },
+      },
+      '/is-positive/3.1.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+        },
+      },
+    },
+    specifiers: {
+      foobarqar: '1.0.1'
+    },
+  })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'foobarqar': '1.0.1',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ preferFrozenLockfile: false }))
+
+  t.deepEqual(
+    await fs.readdir(path.resolve('node_modules/.localhost+4873/foobarqar/1.0.1/node_modules')),
+    [
+      'bar',
+      'foo',
+      'foobarqar',
+      'is-positive',
+    ],
+  )
 })

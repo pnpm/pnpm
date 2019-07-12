@@ -148,6 +148,7 @@ const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.
 
 export interface PkgAddress {
   alias: string,
+  depIsLinked: boolean,
   isNew: boolean,
   nodeId: string,
   pkgId: string,
@@ -201,6 +202,7 @@ export default async function resolveDependencies (
     dependentId?: string,
     parentDependsOnPeers: boolean,
     parentNodeId: string,
+    proceed: boolean,
     updateDepth: number,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
@@ -218,6 +220,7 @@ export default async function resolveDependencies (
     parentDependsOnPeers: options.parentDependsOnPeers,
     preferedDependencies: options.preferedDependencies,
     prefix: ctx.prefix,
+    proceed: options.proceed,
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
     updateLockfile: ctx.updateLockfile,
@@ -277,6 +280,9 @@ export default async function resolveDependencies (
                   ? extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
                   : undefined,
                 preferredVersions,
+                // If the package is not linked, we should also gather information about its dependencies.
+                // After linking the package we'll need to symlink its dependencies.
+                proceed: !resolveDependencyResult.depIsLinked,
                 resolvedDependencies,
                 updateDepth,
               },
@@ -339,6 +345,7 @@ function getDepsToResolve (
     parentDependsOnPeers: boolean,
     preferedDependencies?: ResolvedDependencies,
     prefix: string,
+    proceed: boolean,
     registries: Registries,
     resolvedDependencies?: ResolvedDependencies,
     updateLockfile: boolean,
@@ -350,7 +357,7 @@ function getDepsToResolve (
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
   // be merged with the resolved peers.
-  const proceedAll = options.parentDependsOnPeers || options.updateLockfile
+  const proceedAll = options.proceed || options.parentDependsOnPeers || options.updateLockfile
   let allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
@@ -506,16 +513,15 @@ async function resolveDependency (
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath]) : undefined
-
-  if (
-    !proceed && options.depPath &&
+  const depIsLinked = Boolean(options.depPath &&
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
     options.relDepPath && options.dependencyLockfile &&
     await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
-    (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias)))
-  ) {
+    (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))))
+
+  if (!proceed && depIsLinked) {
     return null
   }
 
@@ -736,6 +742,7 @@ async function resolveDependency (
 
   return {
     alias: wantedDependency.alias || pkg.name,
+    depIsLinked,
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
