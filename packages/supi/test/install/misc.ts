@@ -1026,3 +1026,83 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     ],
   )
 })
+
+test('subdep symlinks are updated if the lockfile has new subdep versions specified', async (t: tape.Test) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  const project = prepareEmpty(t)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'parent-of-pkg-with-1-dep': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  t.deepEqual(
+    Object.keys(lockfile.packages),
+    [
+      '/dep-of-pkg-with-1-dep/100.0.0',
+      '/parent-of-pkg-with-1-dep/1.0.0',
+      '/pkg-with-1-dep/100.0.0',
+    ],
+  )
+
+  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+    dependencies: {
+      'parent-of-pkg-with-1-dep': '1.0.0',
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/dep-of-pkg-with-1-dep/100.1.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
+        },
+      },
+      '/parent-of-pkg-with-1-dep/1.0.0': {
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('parent-of-pkg-with-1-dep', '1.0.0'),
+        },
+      },
+      '/pkg-with-1-dep/100.0.0': {
+        dependencies: {
+          'dep-of-pkg-with-1-dep': '100.1.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('pkg-with-1-dep', '100.0.0'),
+        },
+      },
+    },
+    specifiers: {
+      'parent-of-pkg-with-1-dep': '1.0.0',
+    },
+  })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'parent-of-pkg-with-1-dep': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ preferFrozenLockfile: false }))
+
+  t.ok(await exists(path.resolve('node_modules/.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')))
+})
