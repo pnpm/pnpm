@@ -647,6 +647,7 @@ importers:
   packages/modules-cleaner:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/package-bins': 3.1.1
@@ -665,6 +666,7 @@ importers:
       rimraf: 2.6.3
     specifiers:
       '@pnpm/core-loggers': 3.0.3
+      '@pnpm/filter-lockfile': 1.0.10
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.9
       '@pnpm/logger': 2.1.1

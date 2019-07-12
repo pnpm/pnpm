@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "3.0.3",
+    "@pnpm/filter-lockfile": "1.0.10",
     "@pnpm/lockfile-types": "1.1.0",
     "@pnpm/lockfile-utils": "1.0.9",
     "@pnpm/package-bins": "3.1.1",

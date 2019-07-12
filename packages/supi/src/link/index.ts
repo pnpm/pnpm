@@ -52,7 +52,7 @@ export default async function link (
   const ctx = await getContextForSingleImporter(opts.manifest, opts)
 
   const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
-  const oldLockfile = R.clone(ctx.currentLockfile)
+  const currentLockfile = R.clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
   const saveType = getSaveType(opts)
@@ -99,8 +99,8 @@ export default async function link (
     warn,
   })
 
-  await prune({
-    importers: [
+  await prune(
+    [
       {
         bin: opts.bin,
         hoistedAliases: ctx.hoistedAliases,
@@ -110,13 +110,17 @@ export default async function link (
         shamefullyFlatten: opts.shamefullyFlatten,
       },
     ],
-    lockfileDirectory: opts.lockfileDirectory,
-    newLockfile: updatedCurrentLockfile,
-    oldLockfile,
-    registries: ctx.registries,
-    storeController: opts.storeController,
-    virtualStoreDir: ctx.virtualStoreDir,
-  })
+    {
+      currentLockfile,
+      include: ctx.include,
+      lockfileDirectory: opts.lockfileDirectory,
+      registries: ctx.registries,
+      skipped: ctx.skipped,
+      storeController: opts.storeController,
+      virtualStoreDir: ctx.virtualStoreDir,
+      wantedLockfile: updatedCurrentLockfile,
+    },
+  )
 
   // Linking should happen after removing orphans
   // Otherwise would've been removed

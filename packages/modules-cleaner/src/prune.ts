@@ -2,6 +2,7 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import filterLockfile, { filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import {
   Lockfile,
   LockfileImporter,
@@ -11,7 +12,11 @@ import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
-import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
+import {
+  DEPENDENCIES_FIELDS,
+  DependenciesField,
+  Registries,
+} from '@pnpm/types'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import path = require('path')
@@ -22,44 +27,46 @@ import removeDirectDependency from './removeDirectDependency'
 const vacuum = promisify(vacuumCB)
 
 export default async function prune (
+  importers: Array<{
+    bin: string,
+    hoistedAliases: {[depPath: string]: string[]},
+    id: string,
+    modulesDir: string,
+    prefix: string,
+    pruneDirectDependencies?: boolean,
+    removePackages?: string[],
+    shamefullyFlatten: boolean,
+  }>,
   opts: {
     dryRun?: boolean,
-    importers: Array<{
-      bin: string,
-      hoistedAliases: {[depPath: string]: string[]},
-      id: string,
-      modulesDir: string,
-      prefix: string,
-      pruneDirectDependencies?: boolean,
-      removePackages?: string[],
-      shamefullyFlatten: boolean,
-    }>,
-    newLockfile: Lockfile,
-    oldLockfile: Lockfile,
+    include: { [dependenciesField in DependenciesField]: boolean },
+    wantedLockfile: Lockfile,
+    currentLockfile: Lockfile,
     pruneStore?: boolean,
     registries: Registries,
+    skipped: Set<string>,
     virtualStoreDir: string,
     lockfileDirectory: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
-  await Promise.all(opts.importers.map(async (importer) => {
-    const oldLockfileImporter = opts.oldLockfile.importers[importer.id] || {} as LockfileImporter
-    const oldPkgs = R.toPairs(mergeDependencies(oldLockfileImporter))
-    const newPkgs = R.toPairs(mergeDependencies(opts.newLockfile.importers[importer.id]))
+  await Promise.all(importers.map(async ({ bin, id, modulesDir, prefix, pruneDirectDependencies, removePackages }) => {
+    const currentImporter = opts.currentLockfile.importers[id] || {} as LockfileImporter
+    const currentPkgs = R.toPairs(mergeDependencies(currentImporter))
+    const wantedPkgs = R.toPairs(mergeDependencies(opts.wantedLockfile.importers[id]))
 
     const allCurrentPackages = new Set(
-      (importer.pruneDirectDependencies || importer.removePackages && importer.removePackages.length)
-        ? (await readModulesDir(importer.modulesDir) || [])
+      (pruneDirectDependencies || removePackages && removePackages.length)
+        ? (await readModulesDir(modulesDir) || [])
         : [],
     )
     const depsToRemove = new Set([
-      ...(importer.removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
-      ...R.difference(oldPkgs, newPkgs).map(([depName]) => depName),
+      ...(removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
+      ...R.difference(currentPkgs, wantedPkgs).map(([depName]) => depName),
     ])
-    if (importer.pruneDirectDependencies) {
+    if (pruneDirectDependencies) {
       if (allCurrentPackages.size > 0) {
-        const newPkgsSet = new Set(newPkgs.map(([depName]) => depName))
+        const newPkgsSet = new Set(wantedPkgs.map(([depName]) => depName))
         for (const currentPackage of Array.from(allCurrentPackages)) {
           if (!newPkgsSet.has(currentPackage)) {
             depsToRemove.add(currentPackage)
@@ -68,13 +75,11 @@ export default async function prune (
       }
     }
 
-    const { bin, modulesDir, prefix } = importer
-
     return Promise.all(Array.from(depsToRemove).map((depName) => {
       return removeDirectDependency({
-        dependenciesField: oldLockfileImporter.devDependencies && oldLockfileImporter.devDependencies[depName] && 'devDependencies' ||
-          oldLockfileImporter.optionalDependencies && oldLockfileImporter.optionalDependencies[depName] && 'optionalDependencies' ||
-          oldLockfileImporter.dependencies && oldLockfileImporter.dependencies[depName] && 'dependencies' ||
+        dependenciesField: currentImporter.devDependencies && currentImporter.devDependencies[depName] && 'devDependencies' ||
+          currentImporter.optionalDependencies && currentImporter.optionalDependencies[depName] && 'optionalDependencies' ||
+          currentImporter.dependencies && currentImporter.dependencies[depName] && 'dependencies' ||
           undefined,
         name: depName,
       }, {
@@ -86,14 +91,25 @@ export default async function prune (
     }))
   }))
 
-  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.oldLockfile.packages || {})
-  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, opts.newLockfile.packages || {})
+  const selectedImporterIds = importers.map((importer) => importer.id).sort()
+  // In case installation is done on a subset of importers,
+  // we may only prune dependencies that are used only by that subset of importers.
+  // Otherwise, we would break the node_modules.
+  const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.currentLockfile.importers))
+    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages || {})
+    : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
+  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries,
+    filterLockfile(opts.wantedLockfile, {
+      include: opts.include,
+      registries: opts.registries,
+      skipped: opts.skipped,
+    }).packages || {})
 
-  const oldDepPaths = Object.keys(oldPkgIdsByDepPaths)
-  const newDepPaths = Object.keys(newPkgIdsByDepPaths)
+  const oldDepPaths = Object.keys(currentPkgIdsByDepPaths)
+  const newDepPaths = Object.keys(wantedPkgIdsByDepPaths)
 
   const orphanDepPaths = R.difference(oldDepPaths, newDepPaths)
-  const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, oldPkgIdsByDepPaths))
+  const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, currentPkgIdsByDepPaths))
 
   statsLogger.debug({
     prefix: opts.lockfileDirectory,
@@ -102,8 +118,8 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      if (opts.oldLockfile.packages) {
-        await Promise.all(opts.importers.filter((importer) => importer.shamefullyFlatten).map((importer) => {
+      if (opts.currentLockfile.packages) {
+        await Promise.all(importers.filter((importer) => importer.shamefullyFlatten).map((importer) => {
           const { bin, hoistedAliases, modulesDir, prefix } = importer
           return Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
             if (hoistedAliases[orphanDepPath]) {
@@ -142,7 +158,7 @@ export default async function prune (
     }
 
     const addedDepPaths = R.difference(newDepPaths, oldDepPaths)
-    const addedPkgIds = new Set(R.props<string, string>(addedDepPaths, newPkgIdsByDepPaths))
+    const addedPkgIds = new Set(R.props<string, string>(addedDepPaths, wantedPkgIdsByDepPaths))
 
     await opts.storeController.updateConnections(path.dirname(opts.virtualStoreDir), {
       addDependencies: Array.from(addedPkgIds),
@@ -172,4 +188,31 @@ function getPkgsDepPaths (
     pkgIdsByDepPath[depPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
   }
   return pkgIdsByDepPath
+}
+
+function getPkgsDepPathsOwnedOnlyByImporters (
+  importerIds: string[],
+  registries: Registries,
+  lockfile: Lockfile,
+  include: { [dependenciesField in DependenciesField]: boolean },
+  skipped: Set<string>,
+) {
+  const selected = filterLockfileByImporters(lockfile,
+    importerIds,
+    {
+      failOnMissingDependencies: false,
+      include,
+      registries,
+      skipped,
+    })
+  const other = filterLockfileByImporters(lockfile,
+    R.difference(Object.keys(lockfile.importers), importerIds),
+    {
+      failOnMissingDependencies: false,
+      include,
+      registries,
+      skipped,
+    })
+  const packagesOfSelectedOnly = R.pickAll(R.difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
+  return getPkgsDepPaths(registries, packagesOfSelectedOnly)
 }

@@ -149,23 +149,22 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const skipped = opts.skipped || new Set<string>()
-  const filterOpts = {
-    include: opts.include,
-    registries: opts.registries,
-    skipped,
-  }
   if (currentLockfile) {
-    await prune({
-      dryRun: false,
-      importers: opts.importers,
-      lockfileDirectory,
-      newLockfile: filterLockfile(wantedLockfile, filterOpts),
-      oldLockfile: currentLockfile,
-      pruneStore: opts.pruneStore,
-      registries: opts.registries,
-      storeController: opts.storeController,
-      virtualStoreDir,
-    })
+    await prune(
+      opts.importers,
+      {
+        currentLockfile,
+        dryRun: false,
+        include: opts.include,
+        lockfileDirectory,
+        pruneStore: opts.pruneStore,
+        registries: opts.registries,
+        skipped,
+        storeController: opts.storeController,
+        virtualStoreDir,
+        wantedLockfile,
+      },
+    )
   } else {
     statsLogger.debug({
       prefix: lockfileDirectory,
@@ -178,6 +177,11 @@ export default async (opts: HeadlessOptions) => {
     stage: 'importing_started',
   })
 
+  const filterOpts = {
+    include: opts.include,
+    registries: opts.registries,
+    skipped,
+  }
   const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.importers.map(({ id }) => id), {
     ...filterOpts,
     currentEngine: opts.currentEngine,

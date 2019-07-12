@@ -7,7 +7,7 @@ import {
   stageLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
-import filterLockfile, {
+import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
 import { Lockfile } from '@pnpm/lockfile-file'
@@ -144,21 +144,17 @@ export default async function linkPackages (
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
-  const filterOpts = {
-    include: opts.include,
-    registries: opts.registries,
-    skipped: opts.skipped,
-  }
-  const removedDepPaths = await prune({
+  const removedDepPaths = await prune(importers, {
+    currentLockfile: opts.currentLockfile,
     dryRun: opts.dryRun,
-    importers,
+    include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
-    newLockfile: filterLockfile(newWantedLockfile, filterOpts),
-    oldLockfile: opts.currentLockfile,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
+    skipped: opts.skipped,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
+    wantedLockfile: newWantedLockfile,
   })
 
   stageLogger.debug({
@@ -167,6 +163,11 @@ export default async function linkPackages (
   })
 
   const importerIds = importers.map(({ id }) => id)
+  const filterOpts = {
+    include: opts.include,
+    registries: opts.registries,
+    skipped: opts.skipped,
+  }
   const newCurrentLockfile = filterLockfileByImporters(newWantedLockfile, importerIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
