@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "tape": "4.11.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "1.0.0",
+    "@pnpm/fetch": "1.0.1",
     "@pnpm/store-controller-types": "3.0.3",
     "@pnpm/types": "3.2.0",
     "p-limit": "2.2.0",

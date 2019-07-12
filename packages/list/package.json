@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -11,7 +11,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "prepareFixtures": "cd test && pnpm recursive install --no-link-workspace-packages && cd ..",
-    "prepublishOnly": "tsc",
+    "prepublishOnly": "pnpm run tsc",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "tsc": "tsc"
   },
@@ -35,13 +35,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
-    "@pnpm/read-importer-manifest": "1.0.4",
+    "@pnpm/read-importer-manifest": "1.0.5",
     "@pnpm/read-package-json": "2.0.2",
     "@pnpm/types": "3.2.0",
     "@zkochan/npm-package-arg": "1.0.2",
     "archy": "1.0.0",
     "chalk": "2.4.2",
-    "dependencies-hierarchy": "5.0.10",
+    "dependencies-hierarchy": "5.0.11",
     "p-limit": "2.2.0",
     "ramda": "0.26.1"
   },

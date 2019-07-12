@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "5.0.10",
+  "version": "5.0.11",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -12,7 +12,7 @@
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "pretest": "cd fixtures && pnpm recursive install --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && cd ../fixtureWithLinks && pnpm recursive install --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile && cd ..",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "prepublishOnly": "tsc",
+    "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },
   "engines": {
@@ -41,7 +41,7 @@
     "@pnpm/read-modules-dir": "2.0.1",
     "@pnpm/types": "3.2.0",
     "@pnpm/utils": "0.10.5",
-    "dependency-path": "3.0.7",
+    "dependency-path": "3.0.8",
     "normalize-path": "3.0.0",
     "resolve-link-target": "1.0.1",
     "semver": "6.2.0"

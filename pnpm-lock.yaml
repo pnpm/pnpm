@@ -106,10 +106,10 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/default-fetcher': 'link:'
-      '@pnpm/git-fetcher': 2.0.2
+      '@pnpm/git-fetcher': 2.0.3
       '@pnpm/logger': 2.1.1
       '@pnpm/resolver-base': 3.1.2
-      '@pnpm/tarball-fetcher': 3.1.12
+      '@pnpm/tarball-fetcher': 3.1.13
       rimraf: 2.6.3
       tape: 4.11.0
   packages/default-reporter:
@@ -145,7 +145,7 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/config': 3.4.1
+      '@pnpm/config': 3.4.2
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.1
@@ -188,10 +188,10 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/default-resolver': 'link:'
-      '@pnpm/git-resolver': 2.0.7
-      '@pnpm/local-resolver': 2.0.9
+      '@pnpm/git-resolver': 2.0.8
+      '@pnpm/local-resolver': 2.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.0.13
+      '@pnpm/npm-resolver': 3.0.14
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/tarball-resolver': 2.0.3
       rimraf: 2.6.3
@@ -223,7 +223,7 @@ importers:
       '@pnpm/utils': 0.10.5
       '@types/semver': '6'
       dependencies-hierarchy: 'link:'
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
       semver: 6.2.0
@@ -265,7 +265,7 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/fetch': 1.0.0
+      '@pnpm/fetch': 1.0.1
       '@pnpm/npm-registry-agent': 1.0.2
       '@types/nock': 10.0.3
       fetch-from-npm-registry: 'link:'
@@ -304,12 +304,12 @@ importers:
       '@pnpm/constants': 1.1.0
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.9
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/package-is-installable': 2.0.7
+      '@pnpm/package-is-installable': 2.0.8
       '@pnpm/types': 3.2.0
       '@types/ramda': 0.25.39
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       ramda: 0.26.1
       rimraf: 2.6.3
       tape: 4.11.0
@@ -325,7 +325,7 @@ importers:
       find-packages: 'link:'
       tape: 4.11.0
     specifiers:
-      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/read-importer-manifest': 1.0.5
       fast-glob: ^3.0.0
       find-packages: 'link:'
       p-filter: ^2.0.0
@@ -365,7 +365,7 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/fetch': 1.0.0
+      '@pnpm/fetch': 1.0.1
       '@pnpm/git-resolver': 'link:'
       '@pnpm/resolver-base': 3.1.2
       '@types/is-windows': 0.2.0
@@ -435,23 +435,23 @@ importers:
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/filter-lockfile': 1.0.10
+      '@pnpm/filter-lockfile': 1.0.11
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 6.2.0
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.9
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-cleaner': 3.0.11
+      '@pnpm/modules-cleaner': 4.0.0
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/package-requester': 7.1.0
+      '@pnpm/package-requester': 7.1.1
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/read-importers-context': 'file:../read-importers-context'
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.1.0
-      '@pnpm/shamefully-flatten': 3.0.11
+      '@pnpm/shamefully-flatten': 3.0.12
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.1.0
       '@pnpm/symlink-dependency': 2.0.6
@@ -463,7 +463,7 @@ importers:
       '@types/ramda': 0.25.34
       '@types/rimraf': 2.0.2
       '@types/sinon': ^7.0.10
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       fs-extra: 7.0.1
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -530,7 +530,7 @@ importers:
     specifiers:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.1
-      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/types': 3.2.0
       '@types/archy': 0.0.31
@@ -540,7 +540,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.2
       common-tags: 1.8.0
-      dependencies-hierarchy: 5.0.10
+      dependencies-hierarchy: 5.0.11
       p-limit: 2.2.0
       ramda: 0.26.1
       tape: 4.11.0
@@ -559,7 +559,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/local-resolver': 'link:'
-      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/types': 3.2.0
       '@types/graceful-fs': 4.1.3
@@ -636,7 +636,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@types/js-yaml': '3'
       '@types/ramda': 0.25.39
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       get-npm-tarball-url: 2.0.1
       ramda: 0.26.1
       rimraf: 2.6.3
@@ -666,9 +666,9 @@ importers:
       rimraf: 2.6.3
     specifiers:
       '@pnpm/core-loggers': 3.0.3
-      '@pnpm/filter-lockfile': 1.0.10
+      '@pnpm/filter-lockfile': 1.0.11
       '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.9
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 3.1.1
@@ -677,7 +677,7 @@ importers:
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
       '@types/ramda': 0.25.38
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       fs-vacuum: 1.2.10
       ramda: 0.26.1
       rimraf: 2.6.3
@@ -767,7 +767,7 @@ importers:
       '@types/ssri': ^6.0.0
       credentials-by-uri: 1.0.0
       encode-registry: 2.0.1
-      fetch-from-npm-registry: 2.0.5
+      fetch-from-npm-registry: 2.0.6
       load-json-file: 6.0.0
       mem: 5.1.1
       nock: ^10.0.0
@@ -802,14 +802,14 @@ importers:
       '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-file': 1.1.0
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.0.13
+      '@pnpm/npm-resolver': 3.0.14
       '@pnpm/outdated': 'link:'
-      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/registry-mock': 1.1.0
       '@pnpm/store-path': 2.1.0
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       npm-run-all: 4.1.5
       tape: 4.11.0
   packages/package-is-installable:
@@ -948,7 +948,7 @@ importers:
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'file:../npm-resolver'
-      '@pnpm/package-requester': 7.1.0
+      '@pnpm/package-requester': 7.1.1
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 3.1.2
@@ -1098,25 +1098,25 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 3.4.1
+      '@pnpm/config': 3.4.2
       '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
-      '@pnpm/default-fetcher': 3.1.13
-      '@pnpm/default-reporter': 3.2.9
-      '@pnpm/default-resolver': 3.0.16
+      '@pnpm/default-fetcher': 3.1.14
+      '@pnpm/default-reporter': 3.2.10
+      '@pnpm/default-resolver': 3.0.17
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 6.2.0
-      '@pnpm/list': 1.0.12
+      '@pnpm/list': 1.0.13
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/outdated': 2.0.18
-      '@pnpm/package-store': 4.0.13
+      '@pnpm/outdated': 2.0.19
+      '@pnpm/package-store': 4.0.14
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.1.0
-      '@pnpm/server': 3.0.4
+      '@pnpm/server': 3.0.5
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.1.0
       '@pnpm/types': 3.2.0
@@ -1151,7 +1151,7 @@ importers:
       execa: 2.0.3
       exists-link: 2.0.0
       fast-glob: 3.0.4
-      find-packages: 5.0.5
+      find-packages: 5.0.6
       get-port: 5.0.0
       graceful-fs: 4.2.0
       graph-sequencer: 2.0.0
@@ -1187,7 +1187,7 @@ importers:
       semver: 6.2.0
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.34.0
+      supi: 0.34.1
       symlink-dir: 3.1.0
       tape: 4.11.0
       tape-promise: 4.0.0
@@ -1217,7 +1217,7 @@ importers:
       '@pnpm/prune-lockfile': 'link:'
       '@pnpm/types': 3.2.0
       '@types/ramda': 0.25.39
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       ramda: 0.26.1
       rimraf: 2.6.3
       tape: 4.11.0
@@ -1323,10 +1323,10 @@ importers:
     specifiers:
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.9
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.0.13
-      '@pnpm/package-is-installable': 2.0.7
+      '@pnpm/npm-resolver': 3.0.14
+      '@pnpm/package-is-installable': 2.0.8
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/store-controller-types': 3.0.3
@@ -1334,7 +1334,7 @@ importers:
       '@pnpm/utils': 0.10.5
       '@types/ramda': 0.25.38
       '@types/semver': '6'
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       path-exists: 4.0.0
       ramda: 0.26.1
       replace-string: 3.0.0
@@ -1372,7 +1372,7 @@ importers:
       rimraf-then: 1.0.1
       tape: 4.11.0
     specifiers:
-      '@pnpm/fetch': 1.0.0
+      '@pnpm/fetch': 1.0.1
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'file:../npm-resolver'
       '@pnpm/package-requester': 'file:../package-requester'
@@ -1409,13 +1409,13 @@ importers:
     specifiers:
       '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.9
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 2.0.6
       '@pnpm/types': 3.2.0
       '@types/ramda': 0.25.34
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       ramda: 0.26.1
       rimraf: 2.6.3
   packages/store-controller-types:
@@ -1532,29 +1532,29 @@ importers:
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/filter-lockfile': 1.0.10
+      '@pnpm/filter-lockfile': 1.0.11
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 7.1.2
+      '@pnpm/headless': 7.1.3
       '@pnpm/lifecycle': 6.2.0
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.9
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-cleaner': 3.0.11
+      '@pnpm/modules-cleaner': 4.0.0
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/package-requester': 7.1.0
+      '@pnpm/package-requester': 7.1.1
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/prune-lockfile': 1.1.0
-      '@pnpm/read-importer-manifest': 1.0.4
+      '@pnpm/prune-lockfile': 1.1.1
+      '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/read-importers-context': 1.0.5
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.1.0
-      '@pnpm/resolve-dependencies': 8.0.0
+      '@pnpm/resolve-dependencies': 8.0.1
       '@pnpm/resolver-base': 3.1.2
-      '@pnpm/shamefully-flatten': 3.0.11
+      '@pnpm/shamefully-flatten': 3.0.12
       '@pnpm/store-controller-types': 3.0.3
       '@pnpm/store-path': 2.1.0
       '@pnpm/symlink-dependency': 2.0.6
@@ -1573,7 +1573,7 @@ importers:
       common-tags: 1.8.0
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
-      dependency-path: 3.0.7
+      dependency-path: 3.0.8
       dir-is-case-sensitive: 1.0.2
       encode-registry: 2.0.1
       execa: 2.0.3
@@ -1675,7 +1675,7 @@ importers:
       '@types/ssri': ^6.0.1
       cp-file: 7.0.0
       credentials-by-uri: 1.0.0
-      fetch-from-npm-registry: 2.0.5
+      fetch-from-npm-registry: 2.0.6
       graceful-fs: 4.2.0
       make-dir: 3.0.0
       mem: 5.1.1
