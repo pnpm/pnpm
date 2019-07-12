@@ -95,7 +95,7 @@
     "@pnpm/modules-yaml": "3.0.3",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/read-package-json": "2.0.2",
-    "@pnpm/registry-mock": "1.2.0",
+    "@pnpm/registry-mock": "1.2.1",
     "@pnpm/write-importer-manifest": "2.0.1",
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.8.0",
