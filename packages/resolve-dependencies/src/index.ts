@@ -105,6 +105,7 @@ export default async function (
       parentDependsOnPeers: true,
       parentNodeId: ROOT_NODE_ID,
       preferredVersions: importer.preferredVersions || {},
+      proceed: true,
       resolvedDependencies: {
         ...lockfileImporter.dependencies,
         ...lockfileImporter.devDependencies,
