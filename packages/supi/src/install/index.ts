@@ -392,16 +392,19 @@ export async function mutateModules (
       })
     }
 
+    const equalLockfiles = lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
+    const currentLockfileIsUpToDate = !ctx.existsWantedLockfile || equalLockfiles
     // Unfortunately, the private lockfile may differ from the public one.
     // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
     const makePartialCurrentLockfile = !installsOnly && (
       ctx.existsWantedLockfile && !ctx.existsCurrentLockfile ||
       // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
       // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-      !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
+      !equalLockfiles
     )
     const result = await installInContext(importersToInstall, ctx, {
       ...opts,
+      currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
@@ -602,6 +605,7 @@ async function installInContext (
         type: 'version' | 'range' | 'tag',
       },
     },
+    currentLockfileIsUpToDate: boolean,
   },
 ) {
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
@@ -680,7 +684,7 @@ async function installInContext (
       sideEffectsCache: opts.sideEffectsCacheRead,
       storeController: opts.storeController,
       tag: opts.tag,
-      updateLockfile: ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION,
+      updateLockfile: ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION || !opts.currentLockfileIsUpToDate,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
     },
