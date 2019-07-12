@@ -50,10 +50,15 @@ export default async function prune (
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
+  const wantedLockfile = filterLockfile(opts.wantedLockfile, {
+    include: opts.include,
+    registries: opts.registries,
+    skipped: opts.skipped,
+  })
   await Promise.all(importers.map(async ({ bin, id, modulesDir, prefix, pruneDirectDependencies, removePackages }) => {
     const currentImporter = opts.currentLockfile.importers[id] || {} as LockfileImporter
     const currentPkgs = R.toPairs(mergeDependencies(currentImporter))
-    const wantedPkgs = R.toPairs(mergeDependencies(opts.wantedLockfile.importers[id]))
+    const wantedPkgs = R.toPairs(mergeDependencies(wantedLockfile.importers[id]))
 
     const allCurrentPackages = new Set(
       (pruneDirectDependencies || removePackages && removePackages.length)
@@ -98,12 +103,7 @@ export default async function prune (
   const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.currentLockfile.importers))
     ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages || {})
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
-  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries,
-    filterLockfile(opts.wantedLockfile, {
-      include: opts.include,
-      registries: opts.registries,
-      skipped: opts.skipped,
-    }).packages || {})
+  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages || {})
 
   const oldDepPaths = Object.keys(currentPkgIdsByDepPaths)
   const newDepPaths = Object.keys(wantedPkgIdsByDepPaths)
