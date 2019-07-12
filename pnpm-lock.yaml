@@ -1187,7 +1187,7 @@ importers:
       semver: 6.2.0
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.34.2
+      supi: 0.34.3
       symlink-dir: 3.1.0
       tape: 4.11.0
       tape-promise: 4.0.0
@@ -1552,7 +1552,7 @@ importers:
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.2.1
-      '@pnpm/resolve-dependencies': 8.0.1
+      '@pnpm/resolve-dependencies': 8.0.2
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/shamefully-flatten': 3.0.12
       '@pnpm/store-controller-types': 3.0.3
