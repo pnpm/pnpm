@@ -509,7 +509,10 @@ async function resolveDependency (
     options.update ||
     options.localPackages &&
     wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
-  const proceed = update || options.proceed || !options.currentResolution
+  // For now, we always reanalize the whole graph.
+  // This is needed because some subdeps may have updated deps and in that case
+  // we need to relink them.
+  const proceed = true // update || options.proceed || !options.currentResolution
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath]) : undefined
