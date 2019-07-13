@@ -5,6 +5,7 @@ import dh, {
   forPackages as dhForPackages,
   PackageSelector,
 } from 'dependencies-hierarchy'
+import renderJson from './renderJson'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
 
@@ -13,7 +14,7 @@ const DEFAULTS = {
   depth: 0,
   long: false,
   only: undefined,
-  parseable: false,
+  reportAs: 'tree' as 'tree',
   registries: undefined,
 }
 
@@ -26,7 +27,7 @@ export async function forPackages (
     lockfileDirectory?: string,
     long?: boolean,
     only?: 'dev' | 'prod',
-    parseable?: boolean,
+    reportAs?: 'parseable' | 'tree' | 'json',
     registries?: Registries,
   },
 ) {
@@ -53,7 +54,7 @@ export async function forPackages (
     registries: opts.registries,
   })
 
-  const print = getPrinter(opts.parseable)
+  const print = getPrinter(opts.reportAs)
   const entryPkg = await readImporterManifestOnly(projectPath)
   return print({
     name: entryPkg.name,
@@ -73,7 +74,7 @@ export default async function (
     lockfileDirectory?: string,
     long?: boolean,
     only?: 'dev' | 'prod',
-    parseable?: boolean,
+    reportAs?: 'parseable' | 'tree' | 'json',
     registries?: Registries,
   },
 ) {
@@ -88,7 +89,7 @@ export default async function (
       registries: opts.registries,
     })
 
-  const print = getPrinter(opts.parseable)
+  const print = getPrinter(opts.reportAs)
   const entryPkg = await readImporterManifestOnly(projectPath)
   return print({
     name: entryPkg.name,
@@ -100,7 +101,10 @@ export default async function (
   })
 }
 
-function getPrinter (parseable: boolean) {
-  if (parseable) return renderParseable
-  return renderTree
+function getPrinter (reportAs: 'parseable' | 'tree' | 'json') {
+  switch (reportAs) {
+    case 'parseable': return renderParseable
+    case 'json': return renderJson
+    case 'tree': return renderTree
+  }
 }

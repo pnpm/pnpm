@@ -41,7 +41,7 @@ export default async function (
   return s.replace(/\n$/, '')
 }
 
-async function toArchyTree (
+export async function toArchyTree (
   entryNodes: PackageNode[],
   opts: {
     long: boolean,

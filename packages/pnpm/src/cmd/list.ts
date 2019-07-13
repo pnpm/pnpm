@@ -27,6 +27,7 @@ export async function render (
     development: boolean,
     lockfileDirectory?: string,
     long?: boolean,
+    json?: boolean,
     parseable?: boolean,
     prefix: string,
     production: boolean,
@@ -41,7 +42,7 @@ export async function render (
     lockfileDirectory: opts.lockfileDirectory,
     long: opts.long,
     only,
-    parseable: opts.parseable,
+    reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
   return args.length
     ? listForPackages(args, opts.prefix, listOpts)
