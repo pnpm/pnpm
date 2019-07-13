@@ -82,4 +82,5 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   resolutionStrategy: 'fast' | 'fewer-dependencies',
 
   registries: Registries,
+  ignoreWorkspaceRootCheck: boolean,
 }

@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import makeDir = require('make-dir')
@@ -12,6 +12,7 @@ import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
+  execPnpmSync,
   retryLoadJsonFile,
   spawn,
 } from '../utils'
@@ -1212,4 +1213,39 @@ test('recursive install --no-bail', async (t: tape.Test) => {
   t.ok(failed, 'command failed')
 
   t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
+test('adding new dependency in the root should fail if --ignore-workspace-root-check is not used', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.writeFile('.npmrc', 'cli-v4-beta=true', 'utf8')
+
+  {
+    const { status, stderr } = execPnpmSync('add', 'is-positive')
+
+    t.equal(status, 1)
+
+    t.ok(
+      stderr.toString().includes(
+        'Running this command will add the dependency to the workspace root, ' +
+        'which might not be what you want - if you really meant it, ' +
+        'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'
+      )
+    )
+  }
+
+  {
+    const { status } = execPnpmSync('add', 'is-positive', '--ignore-workspace-root-check')
+
+    t.equal(status, 0)
+    await project.has('is-positive')
+  }
+
+  {
+    const { status } = execPnpmSync('add', 'is-negative', '-W')
+
+    t.equal(status, 0)
+    await project.has('is-negative')
+  }
 })

@@ -136,6 +136,7 @@ export default async function run (argv: string[]) {
     'shared-workspace-lockfile': ['--shared-workspace-shrinkwrap'],
     'frozen-lockfile': ['--frozen-shrinkwrap'],
     'prefer-frozen-lockfile': ['--prefer-frozen-shrinkwrap'],
+    'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
   const cliConf = nopt(types, shortHands, argv, 0)
@@ -203,14 +204,26 @@ export default async function run (argv: string[]) {
 
   if (
     opts.cliV4Beta &&
-    cmd !== 'recursive' &&
-    cliArgs.length === 0 &&
-    typeof opts.workspacePrefix === 'string' &&
-    cmd === 'install'
+    cmd === 'install' &&
+    typeof opts.workspacePrefix === 'string'
   ) {
-    subCmd = cmd
-    cmd = 'recursive'
-    cliArgs.unshift(subCmd)
+    if (cliArgs.length === 0) {
+      subCmd = cmd
+      cmd = 'recursive'
+      cliArgs.unshift(subCmd)
+    } else if (
+      opts.workspacePrefix === opts.prefix &&
+      !opts.ignoreWorkspaceRootCheck
+    ) {
+      // Reporting is not initialized at this point, so just printing the error
+      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
+        chalk.red('Running this command will add the dependency to the workspace root, ' +
+          'which might not be what you want - if you really meant it, ' +
+          'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).')}`)
+      console.log(`For help, run: pnpm help ${cmd}`)
+      process.exit(1)
+      return
+    }
   }
 
   const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.includes(packageManager.name)
