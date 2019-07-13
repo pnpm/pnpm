@@ -40,6 +40,8 @@ export default function reportError (logObj: Log) {
         return reportBadTarballSize(err, logObj['message'])
       case 'ELIFECYCLE':
         return reportLifecycleError(logObj['message'])
+      case 'ERR_PNPM_UNSUPPORTED_ENGINE':
+        return reportEngineError(err, logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -217,4 +219,49 @@ function reportLifecycleError (
     return formatErrorSummary(`Command failed with exit code ${msg.errno}.`)
   }
   return formatErrorSummary('Command failed.')
+}
+
+function reportEngineError (
+  err: Error,
+  msg: {
+    message: string,
+    current: {
+      node: string,
+      pnpm: string,
+    },
+    packageId: string,
+    wanted: {
+      node?: string,
+      pnpm?: string,
+    },
+  },
+) {
+  let output = ''
+  if (msg.wanted.pnpm) {
+    output += stripIndent`
+      ${formatErrorSummary(`Your pnpm version is incompatible with "${msg.packageId}".`)}
+
+      Expected version: ${msg.wanted.pnpm}
+      Got: ${msg.current.pnpm}
+
+      This is happening because the package's manifest has an engines.pnpm field specified.
+      To fix this issue, install the required pnpm version globally.
+
+      To install the latest version of pnpm, run: ${chalk.bold('pnpm i -g pnpm')}
+      To check your pnpm version, run: ${chalk.bold('pnpm -v')}
+    `
+  }
+  if (msg.wanted.node) {
+    if (output) output += EOL + EOL
+    output += stripIndent`
+      ${formatErrorSummary(`Your Node version is incompatible with "${msg.packageId}".`)}
+
+      Expected version: ${msg.wanted.node}
+      Got: ${msg.current.node}
+
+      This is happening because the package's manifest has an engines.node field specified.
+      To fix this issue, install the required Node version.
+    `
+  }
+  return output || formatErrorSummary(err.message)
 }
