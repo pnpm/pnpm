@@ -6,6 +6,7 @@ import chalk from 'chalk'
 import { stripIndent, stripIndents } from 'common-tags'
 import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')
+import { EOL } from 'os'
 import path = require('path')
 import StackTracey = require('stacktracey')
 import test = require('tape')
@@ -317,8 +318,7 @@ test('prints unsupported pnpm and Node versions error', async (t) => {
         To fix this issue, install the required pnpm version globally.
 
         To install the latest version of pnpm, run "pnpm i -g pnpm".
-        To check your pnpm version, run "pnpm -v".
-
+        To check your pnpm version, run "pnpm -v".` + '\n\n' + stripIndent`
         ${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
 
         Expected version: >=12
