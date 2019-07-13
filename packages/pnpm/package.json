@@ -32,6 +32,7 @@
     "@pnpm/list": "1.0.13",
     "@pnpm/logger": "2.1.1",
     "@pnpm/outdated": "2.0.19",
+    "@pnpm/package-is-installable": "2.0.8",
     "@pnpm/package-store": "4.0.14",
     "@pnpm/read-importer-manifest": "1.0.5",
     "@pnpm/server": "3.0.5",

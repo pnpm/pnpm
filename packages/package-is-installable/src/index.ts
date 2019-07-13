@@ -19,7 +19,7 @@ export default function packageIsInstallable (
   },
   options: {
     engineStrict: boolean,
-    nodeVersion: string,
+    nodeVersion?: string,
     optional: boolean,
     pnpmVersion: string,
     prefix: string,
@@ -30,7 +30,7 @@ export default function packageIsInstallable (
     os: pkg.os || ['any'],
   })
   || pkg.engines && checkEngine(pkgId, pkg.engines, {
-    node: options.nodeVersion,
+    node: options.nodeVersion || process.version,
     pnpm: options.pnpmVersion,
   })
 

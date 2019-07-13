@@ -1005,6 +1005,7 @@ importers:
       '@pnpm/list': 'link:../list'
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:../outdated'
+      '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/server': 'link:../server'
@@ -1111,6 +1112,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
       '@pnpm/outdated': 2.0.19
+      '@pnpm/package-is-installable': 2.0.8
       '@pnpm/package-store': 4.0.14
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 1.0.5

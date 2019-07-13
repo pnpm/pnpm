@@ -1,9 +1,9 @@
-import readImporterManifest from '@pnpm/read-importer-manifest'
 import {
   mutateModules,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
+import readImporterManifest from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async function uninstallCmd (
