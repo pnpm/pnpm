@@ -22,7 +22,6 @@ export const types = Object.assign({
   'background': Boolean,
   'bail': Boolean,
   'child-concurrency': Number,
-  'cli-v4-beta': Boolean,
   'dev': [null, true],
   'fetching-concurrency': Number,
   'filter': [String, Array],
@@ -66,6 +65,7 @@ export const types = Object.assign({
   'sort': Boolean,
   'store': path,
   'strict-peer-dependencies': Boolean,
+  'use-beta-cli': Boolean,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
@@ -125,7 +125,6 @@ export default async (
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
-    'cli-v4-beta': false,
     'depth': command[command.length - 1] === 'list' ? 0 : Infinity,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
@@ -147,6 +146,7 @@ export default async (
     'sort': true,
     'strict-peer-dependencies': false,
     'unsafe-perm': npmDefaults['unsafe-perm'],
+    'use-beta-cli': false,
     'userconfig': npmDefaults.userconfig,
     'workspace-concurrency': 4,
     'workspace-prefix': workspacePrefix,

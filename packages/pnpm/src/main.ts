@@ -203,7 +203,7 @@ export default async function run (argv: string[]) {
   }
 
   if (
-    opts.cliV4Beta &&
+    opts.useBetaCli &&
     cmd === 'install' &&
     typeof opts.workspacePrefix === 'string'
   ) {

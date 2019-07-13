@@ -108,7 +108,7 @@ test('recursive install using "install --recursive"', async (t: tape.Test) => {
   t.ok(projects['project-2'].requireModule('is-negative'))
 })
 
-test('installation in the root of a workspace with "install" when the "cli-v4-beta" config is true', async (t: tape.Test) => {
+test('installation in the root of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -129,7 +129,7 @@ test('installation in the root of a workspace with "install" when the "cli-v4-be
   ])
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'cli-v4-beta=true', 'utf8')
+  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   await execPnpm('install')
 
@@ -137,7 +137,7 @@ test('installation in the root of a workspace with "install" when the "cli-v4-be
   t.ok(projects['project-2'].requireModule('is-negative'))
 })
 
-test('installation in a subdirectory of a workspace with "install" when the "cli-v4-beta" config is true', async (t: tape.Test) => {
+test('installation in a subdirectory of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -158,7 +158,7 @@ test('installation in a subdirectory of a workspace with "install" when the "cli
   ])
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'cli-v4-beta=true', 'utf8')
+  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   process.chdir('project-1')
 
@@ -1219,7 +1219,7 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
   const project = prepare(t)
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'cli-v4-beta=true', 'utf8')
+  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   {
     const { status, stderr } = execPnpmSync('add', 'is-positive')
