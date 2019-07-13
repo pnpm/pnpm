@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import makeDir = require('make-dir')
@@ -12,6 +12,7 @@ import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
+  execPnpmSync,
   retryLoadJsonFile,
   spawn,
 } from '../utils'
@@ -102,6 +103,66 @@ test('recursive install using "install --recursive"', async (t: tape.Test) => {
   ])
 
   await execPnpm('install', '--recursive')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
+test('installation in the root of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
+
+  await execPnpm('install')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
+test('installation in a subdirectory of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
+
+  process.chdir('project-1')
+
+  await execPnpm('install')
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
@@ -1152,4 +1213,39 @@ test('recursive install --no-bail', async (t: tape.Test) => {
   t.ok(failed, 'command failed')
 
   t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
+test('adding new dependency in the root should fail if --ignore-workspace-root-check is not used', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
+
+  {
+    const { status, stderr } = execPnpmSync('add', 'is-positive')
+
+    t.equal(status, 1)
+
+    t.ok(
+      stderr.toString().includes(
+        'Running this command will add the dependency to the workspace root, ' +
+        'which might not be what you want - if you really meant it, ' +
+        'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'
+      )
+    )
+  }
+
+  {
+    const { status } = execPnpmSync('add', 'is-positive', '--ignore-workspace-root-check')
+
+    t.equal(status, 0)
+    await project.has('is-positive')
+  }
+
+  {
+    const { status } = execPnpmSync('add', 'is-negative', '-W')
+
+    t.equal(status, 0)
+    await project.has('is-negative')
+  }
 })
