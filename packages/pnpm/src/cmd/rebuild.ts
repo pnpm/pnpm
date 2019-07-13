@@ -1,9 +1,9 @@
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
 import createStoreController from '../createStoreController'
+import { readImporterManifestOnly } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async function (

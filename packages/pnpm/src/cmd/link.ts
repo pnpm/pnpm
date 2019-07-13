@@ -1,8 +1,4 @@
 import { StoreController } from '@pnpm/package-store'
-import readImporterManifest, {
-  readImporterManifestOnly,
-  tryReadImporterManifest,
-} from '@pnpm/read-importer-manifest'
 import pLimit from 'p-limit'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -17,6 +13,10 @@ import {
 import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfigs from '../getConfigs'
+import readImporterManifest, {
+  readImporterManifestOnly,
+  tryReadImporterManifest,
+} from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 const installLimit = pLimit(4)

@@ -1,8 +1,8 @@
 import runLifecycleHooks from '@pnpm/lifecycle'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { ImporterManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import R = require('ramda')
+import { readImporterManifestOnly } from '../readImporterManifest'
 
 export default async function run (
   args: string[],

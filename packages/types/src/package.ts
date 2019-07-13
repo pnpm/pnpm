@@ -68,6 +68,7 @@ interface BaseManifest {
   engines?: {
     node?: string,
     npm?: string,
+    pnpm?: string,
   },
   cpu?: string[],
   os?: string[],

@@ -1,4 +1,3 @@
-import readImporterManifest from '@pnpm/read-importer-manifest'
 import { ImporterManifest } from '@pnpm/types'
 import cpFile = require('cp-file')
 import fg = require('fast-glob')
@@ -7,6 +6,7 @@ import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import writeJsonFile = require('write-json-file')
+import readImporterManifest from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 import runNpm from './runNpm'
 

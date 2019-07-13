@@ -1,14 +1,14 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
-import prepare, { prepareEmpty } from '@pnpm/prepare'
+import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import readImporterManifest from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
 import crossSpawn = require('cross-spawn')
 import delay = require('delay')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import fs = require('fs')
 import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
@@ -300,4 +300,102 @@ test('pnpm install --save-peer', async (t) => {
       },
     )
   }
+})
+
+test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async (t: tape.Test) => {
+  prepare(t, {
+    name: 'project',
+    version: '1.0.0',
+
+    engines: {
+      pnpm: '99999',
+    },
+  })
+
+  const { status, stdout } = execPnpmSync('install')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('Your pnpm version is incompatible with'))
+})
+
+test('install should fail if the used Node version does not satisfy the Node version specified in engines', async (t: tape.Test) => {
+  prepare(t, {
+    name: 'project',
+    version: '1.0.0',
+
+    engines: {
+      node: '99999',
+    },
+  })
+
+  const { status, stdout } = execPnpmSync('install')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('Your Node version is incompatible with'))
+})
+
+test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace packages', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      engines: {
+        pnpm: '99999',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  process.chdir('project-1')
+
+  const { status, stdout } = execPnpmSync('recursive', 'install')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('Your pnpm version is incompatible with'))
+})
+
+test('recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace packages', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      engines: {
+        node: '99999',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  process.chdir('project-1')
+
+  const { status, stdout } = execPnpmSync('recursive', 'install')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('Your Node version is incompatible with'))
 })

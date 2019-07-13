@@ -6,6 +6,7 @@ import chalk from 'chalk'
 import { stripIndent, stripIndents } from 'common-tags'
 import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')
+import { EOL } from 'os'
 import path = require('path')
 import StackTracey = require('stacktracey')
 import test = require('tape')
@@ -225,5 +226,114 @@ test('prints command error without exit code', async (t) => {
   const err = new Error('Command failed')
   err['stage'] = 'lint'
   err['code'] = 'ELIFECYCLE'
+  logger.error(err, err)
+})
+
+test('prints unsupported pnpm version error', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: 2
+        Got: 3.0.0
+
+        This is happening because the package's manifest has an engines.pnpm field specified.
+        To fix this issue, install the required pnpm version globally.
+
+        To install the latest version of pnpm, run "pnpm i -g pnpm".
+        To check your pnpm version, run "pnpm -v".
+      `)
+    },
+  })
+
+  const err = new Error('Unsupported pnpm version')
+  err['code'] = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+  err['packageId'] = '/home/zoltan/project'
+  err['wanted'] = { pnpm: '2' }
+  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  logger.error(err, err)
+})
+
+test('prints unsupported Node version error', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: >=12
+        Got: 10.0.0
+
+        This is happening because the package's manifest has an engines.node field specified.
+        To fix this issue, install the required Node version.
+      `)
+    },
+  })
+
+  const err = new Error('Unsupported pnpm version')
+  err['code'] = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+  err['packageId'] = '/home/zoltan/project'
+  err['wanted'] = { node: '>=12' }
+  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  logger.error(err, err)
+})
+
+test('prints unsupported pnpm and Node versions error', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: 2
+        Got: 3.0.0
+
+        This is happening because the package's manifest has an engines.pnpm field specified.
+        To fix this issue, install the required pnpm version globally.
+
+        To install the latest version of pnpm, run "pnpm i -g pnpm".
+        To check your pnpm version, run "pnpm -v".` + '\n\n' + stripIndent`
+        ${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: >=12
+        Got: 10.0.0
+
+        This is happening because the package's manifest has an engines.node field specified.
+        To fix this issue, install the required Node version.
+      `)
+    },
+  })
+
+  const err = new Error('Unsupported pnpm version')
+  err['code'] = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+  err['packageId'] = '/home/zoltan/project'
+  err['wanted'] = { pnpm: '2', node: '>=12' }
+  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
   logger.error(err, err)
 })

@@ -1,4 +1,3 @@
-import { readImporterManifestOnly, tryReadImporterManifest } from '@pnpm/read-importer-manifest'
 import { getSaveType } from '@pnpm/utils'
 import {
   install,
@@ -8,6 +7,7 @@ import {
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
+import { readImporterManifestOnly, tryReadImporterManifest } from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
