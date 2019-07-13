@@ -22,6 +22,7 @@ export const types = Object.assign({
   'background': Boolean,
   'bail': Boolean,
   'child-concurrency': Number,
+  'cli-v4-beta': Boolean,
   'dev': [null, true],
   'fetching-concurrency': Number,
   'filter': [String, Array],
@@ -123,6 +124,7 @@ export default async (
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
+    'cli-v4-beta': false,
     'depth': command[command.length - 1] === 'list' ? 0 : Infinity,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,

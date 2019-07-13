@@ -201,6 +201,18 @@ export default async function run (argv: string[]) {
     return
   }
 
+  if (
+    opts.cliV4Beta &&
+    cmd !== 'recursive' &&
+    cliArgs.length === 0 &&
+    typeof opts.workspacePrefix === 'string' &&
+    cmd === 'install'
+  ) {
+    subCmd = cmd
+    cmd = 'recursive'
+    cliArgs.unshift(subCmd)
+  }
+
   const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.includes(packageManager.name)
 
   // Don't check for updates
