@@ -312,10 +312,10 @@ test('install should fail if the used pnpm version does not satisfy the pnpm ver
     },
   })
 
-  const { status, stdout } = execPnpmSync('recursive', 'install')
+  const { status, stdout } = execPnpmSync('install')
 
   t.equal(status, 1)
-  t.ok(stdout.toString().includes('wanted: {"pnpm":"99999"}'))
+  t.ok(stdout.toString().includes('Your pnpm version is incompatible with'))
 })
 
 test('install should fail if the used Node version does not satisfy the Node version specified in engines', async (t: tape.Test) => {
@@ -328,10 +328,10 @@ test('install should fail if the used Node version does not satisfy the Node ver
     },
   })
 
-  const { status, stdout } = execPnpmSync('recursive', 'install')
+  const { status, stdout } = execPnpmSync('install')
 
   t.equal(status, 1)
-  t.ok(stdout.toString().includes('wanted: {"node":"99999"}'))
+  t.ok(stdout.toString().includes('Your Node version is incompatible with'))
 })
 
 test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace packages', async (t: tape.Test) => {
@@ -364,7 +364,7 @@ test('recursive install should fail if the used pnpm version does not satisfy th
   const { status, stdout } = execPnpmSync('recursive', 'install')
 
   t.equal(status, 1)
-  t.ok(stdout.toString().includes('wanted: {"pnpm":"99999"}'))
+  t.ok(stdout.toString().includes('Your pnpm version is incompatible with'))
 })
 
 test('recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace packages', async (t: tape.Test) => {
@@ -397,5 +397,5 @@ test('recursive install should fail if the used Node version does not satisfy th
   const { status, stdout } = execPnpmSync('recursive', 'install')
 
   t.equal(status, 1)
-  t.ok(stdout.toString().includes('wanted: {"node":"99999"}'))
+  t.ok(stdout.toString().includes('Your Node version is incompatible with'))
 })

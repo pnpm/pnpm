@@ -247,8 +247,8 @@ function reportEngineError (
       This is happening because the package's manifest has an engines.pnpm field specified.
       To fix this issue, install the required pnpm version globally.
 
-      To install the latest version of pnpm, run: ${chalk.bold('pnpm i -g pnpm')}
-      To check your pnpm version, run: ${chalk.bold('pnpm -v')}
+      To install the latest version of pnpm, run "pnpm i -g pnpm".
+      To check your pnpm version, run "pnpm -v".
     `
   }
   if (msg.wanted.node) {
