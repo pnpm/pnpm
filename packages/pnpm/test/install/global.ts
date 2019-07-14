@@ -1,6 +1,7 @@
 import prepare from '@pnpm/prepare'
 import isWindows = require('is-windows')
 import path = require('path')
+import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -9,6 +10,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 const LAYOUT_VERSION = '2'
 
 test('global installation', async (t: tape.Test) => {
@@ -78,4 +80,21 @@ test('global installation with --independent-leaves', async (t: tape.Test) => {
 
   const isNegative = require(path.join(globalPrefix, 'node_modules', 'is-negative'))
   t.ok(typeof isNegative === 'function', 'isNegative() is available')
+})
+
+test('run lifecycle events of global packages in correct working directory', async (t: tape.Test) => {
+  if (isWindows()) {
+    // Skipping this test on Windows because "$npm_execpath run create-file" will fail on Windows
+    return
+  }
+
+  prepare(t)
+  const global = path.resolve('..', 'global')
+
+  if (process.env.APPDATA) process.env.APPDATA = global
+  process.env.NPM_CONFIG_PREFIX = global
+
+  await execPnpm('install', '-g', 'postinstall-calls-pnpm@1.0.0')
+
+  t.ok(await exists(path.join(global, 'pnpm-global/2/node_modules/postinstall-calls-pnpm/created-by-postinstall')))
 })
