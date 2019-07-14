@@ -20,7 +20,7 @@ export default async function run (
     return
   }
   if (scriptName !== 'start' && (!manifest.scripts || !manifest.scripts[scriptName])) {
-    const err = new Error(`Missing script: ${scriptName} in ${prefix}`)
+    const err = new Error(`Missing script: ${scriptName}`)
     err['code'] = 'ERR_PNPM_NO_SCRIPT'
     throw err
   }
