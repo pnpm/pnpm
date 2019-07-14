@@ -83,6 +83,11 @@ test('global installation with --independent-leaves', async (t: tape.Test) => {
 })
 
 test('run lifecycle events of global packages in correct working directory', async (t: tape.Test) => {
+  if (isWindows()) {
+    // Skipping this test on Windows because "$npm_execpath run create-file" will fail on Windows
+    return
+  }
+
   prepare(t)
   const global = path.resolve('..', 'global')
 
