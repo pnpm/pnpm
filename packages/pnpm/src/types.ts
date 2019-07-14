@@ -23,6 +23,7 @@ export interface PnpmOptions {
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   prefix: string,
+  localPrefix: string,
   bin?: string,
   ignoreScripts?: boolean
   save?: boolean,

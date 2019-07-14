@@ -201,6 +201,7 @@ export default async (
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
 
+  pnpmConfig.localPrefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
   if (pnpmConfig.global) {
     const independentLeavesSuffix = pnpmConfig.independentLeaves ? '_independent_leaves' : ''
     const shamefullyFlattenSuffix = pnpmConfig.shamefullyFlatten ? '_shamefully_flatten' : ''
@@ -237,7 +238,7 @@ export default async (
       delete pnpmConfig.lockfileDirectory
     }
   } else {
-    pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
+    pnpmConfig.prefix = pnpmConfig.localPrefix
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
   }
   if (opts.cliArgs['save-peer']) {

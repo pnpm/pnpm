@@ -12,6 +12,7 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   prefix: string,
+  localPrefix: string,
   bin?: string,
   ignoreScripts?: boolean
   save?: boolean,

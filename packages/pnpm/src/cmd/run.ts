@@ -8,28 +8,29 @@ export default async function run (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    prefix: string,
+    localPrefix: string,
     rawNpmConfig: object,
   },
 ) {
-  const manifest = await readImporterManifestOnly(opts.prefix)
+  const prefix = opts.localPrefix
+  const manifest = await readImporterManifestOnly(prefix)
   const scriptName = args[0]
   if (!scriptName) {
     printProjectCommands(manifest)
     return
   }
   if (scriptName !== 'start' && (!manifest.scripts || !manifest.scripts[scriptName])) {
-    const err = new Error(`Missing script: ${scriptName}`)
+    const err = new Error(`Missing script: ${scriptName} in ${prefix}`)
     err['code'] = 'ERR_PNPM_NO_SCRIPT'
     throw err
   }
   const lifecycleOpts = {
     args: args.slice(1),
-    depPath: opts.prefix,
+    depPath: prefix,
     extraBinPaths: opts.extraBinPaths,
-    pkgRoot: opts.prefix,
+    pkgRoot: prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
+    rootNodeModulesDir: await realNodeModulesDir(prefix),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
@@ -112,7 +113,7 @@ export async function start (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    prefix: string,
+    localPrefix: string,
     rawNpmConfig: object,
     argv: {
       cooked: string[],
@@ -128,7 +129,7 @@ export async function stop (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    prefix: string,
+    localPrefix: string,
     rawNpmConfig: object,
     argv: {
       cooked: string[],
@@ -144,7 +145,7 @@ export async function test (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    prefix: string,
+    localPrefix: string,
     rawNpmConfig: object,
     argv: {
       cooked: string[],
@@ -160,7 +161,7 @@ export async function restart (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    prefix: string,
+    localPrefix: string,
     rawNpmConfig: object,
     argv: {
       cooked: string[],
