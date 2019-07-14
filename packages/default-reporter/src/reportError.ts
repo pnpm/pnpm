@@ -79,11 +79,15 @@ function reportUnexpectedStore (err: Error, msg: object) {
   return stripIndent`
     ${formatErrorSummary(err.message)}
 
-    expected: ${highlight(msg['expectedStorePath'])}
-    actual: ${highlight(msg['actualStorePath'])}
+    The dependencies at "${msg['modulesDir']}" are currently linked from the store at "${msg['expectedStorePath']}".
 
-    If you want to use the new store, run the same command with the ${highlight('--force')} parameter.
-  `
+    pnpm now wants to use the store at "${msg['actualStorePath']}" to link dependencies.
+
+    If you want to use the new store location, reinstall your dependencies with "pnpm install --force".
+
+    You may change the global store location by running "pnpm config set store <location>".
+      (This error may happen if the node_modules was installed with a different major version of pnpm)
+    `
 }
 
 function reportStoreBreakingChange (msg: object) {

@@ -183,7 +183,7 @@ async function validateNodeModules (
           + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
       }
-      checkCompatibility(modules, { storePath: opts.store, modulesPath: importer.modulesDir })
+      checkCompatibility(modules, { storePath: opts.store, modulesDir: importer.modulesDir })
       if (opts.lockfileDirectory !== importer.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
