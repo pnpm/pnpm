@@ -2,6 +2,7 @@ import fetch from '@pnpm/fetch'
 import git = require('graceful-git')
 import HostedGit = require('hosted-git-info')
 import url = require('url')
+import { URL } from 'url'
 
 export type HostedPackageSpec = ({
   fetchSpec: string,
@@ -37,7 +38,7 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
   if (colonsPos === -1) return null
   const protocol = pref.substr(0, colonsPos)
   if (protocol && gitProtocols.has(protocol.toLocaleLowerCase())) {
-    const urlparse = url.parse(pref)
+    const urlparse = new URL(pref)
     if (!urlparse || !urlparse.protocol) return null
     const match = urlparse.protocol === 'git+ssh:' && matchGitScp(pref)
     if (match) {
@@ -57,12 +58,13 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
   return null
 }
 
-function urlToFetchSpec (urlparse: url.Url) {
-  if (urlparse.protocol) {
-    urlparse.protocol = urlparse.protocol.replace(/^git[+]/, '')
+function urlToFetchSpec (urlparse: URL) {
+  urlparse.hash = ''
+  const fetchSpec = url.format(urlparse)
+  if (fetchSpec.startsWith('git+')) {
+    return fetchSpec.substr(4)
   }
-  delete urlparse.hash
-  return url.format(urlparse)
+  return fetchSpec
 }
 
 async function fromHostedGit (hosted: any): Promise<HostedPackageSpec> { // tslint:disable-line

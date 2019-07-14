@@ -3,7 +3,7 @@ import HttpProxyAgent = require('http-proxy-agent')
 import HttpsProxyAgent = require('https-proxy-agent')
 import LRU = require('lru-cache')
 import SocksProxyAgent = require('socks-proxy-agent')
-import url = require('url')
+import { URL } from 'url'
 import getProcessEnv from './getProcessEnv'
 
 const HttpsAgent = HttpAgent.HttpsAgent
@@ -24,7 +24,7 @@ export default function getAgent (
     noProxy: boolean,
   },
 ) {
-  const parsedUri = url.parse(uri)
+  const parsedUri = new URL(uri)
   const isHttps = parsedUri.protocol === 'https:'
   const pxuri = getProxyUri(uri, opts)
 
@@ -77,7 +77,7 @@ export default function getAgent (
 }
 
 function checkNoProxy (uri: string, opts: { noProxy?: boolean }) {
-  const host = url.parse(uri).hostname!.split('.').filter(x => x).reverse()
+  const host = new URL(uri).hostname!.split('.').filter(x => x).reverse()
   let noproxy = (opts.noProxy || getProcessEnv('no_proxy'))
   if (typeof noproxy === 'string') {
     const noproxyArr = noproxy.split(/\s*,\s*/g)
@@ -102,7 +102,7 @@ function getProxyUri (
     noProxy?: boolean,
   },
 ) {
-  const protocol = url.parse(uri).protocol
+  const { protocol } = new URL(uri)
 
   let proxy = opts.proxy || (
     protocol === 'https:' && getProcessEnv('https_proxy')
@@ -115,13 +115,13 @@ function getProxyUri (
     proxy = protocol + '//' + proxy
   }
 
-  const parsedProxy = (typeof proxy === 'string') ? url.parse(proxy) : proxy
+  const parsedProxy = (typeof proxy === 'string') ? new URL(proxy) : proxy
 
   return !checkNoProxy(uri, opts) && parsedProxy
 }
 
 function getProxy (
-  proxyUrl: url.UrlWithStringQuery,
+  proxyUrl: URL,
   opts: {
     ca?: string,
     cert?: string,
@@ -134,14 +134,14 @@ function getProxy (
   isHttps: boolean,
 ) {
   let popts = {
-    auth: proxyUrl.auth,
+    auth: (proxyUrl.username ? (proxyUrl.password ? `${proxyUrl.username}:${proxyUrl.password}` : proxyUrl.username) : undefined),
     ca: opts.ca,
     cert: opts.cert,
     host: proxyUrl.hostname,
     key: opts.key,
     localAddress: opts.localAddress,
     maxSockets: opts.maxSockets || 15,
-    path: proxyUrl.path,
+    path: proxyUrl.pathname,
     port: proxyUrl.port,
     protocol: proxyUrl.protocol,
     rejectUnauthorized: opts.strictSSL,
