@@ -196,7 +196,7 @@ export async function linkBinsOfDependencies (
         const dep = depGraph[childrenToLink[alias]]
         if (!dep) {
           // TODO: Try to reproduce this issue with a test in supi
-          opts.warn(`Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.`)
+          logger.debug({ message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.` })
           return false
         }
         return dep.hasBin && dep.installable !== false
