@@ -78,5 +78,6 @@ function createEnv (opts?: {storeDir?: string}) {
   delete _.npm_config_save_exact
   delete _.npm_config_shared_workspace_lockfile
   delete _.npm_config_workspace_concurrency
+  delete _.npm_config_use_beta_cli
   return _
 }
