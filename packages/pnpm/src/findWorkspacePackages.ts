@@ -20,7 +20,7 @@ export default async (workspaceRoot: string): Promise<Array<{path: string, manif
     packageIsInstallable(pkg.path, pkg.manifest as any, { // tslint:disable-line:no-any
       engineStrict: true,
       optional: false,
-      pnpmVersion: packageManager.version,
+      pnpmVersion: packageManager.stableVersion,
       prefix: pkg.path,
     })
   }

@@ -12,7 +12,7 @@ export default async function readImporterManifest (importerDir: string): Promis
   packageIsInstallable(importerDir, manifest as any, { // tslint:disable-line:no-any
     engineStrict: true,
     optional: false,
-    pnpmVersion: packageManager.version,
+    pnpmVersion: packageManager.stableVersion,
     prefix: importerDir,
   })
   return { fileName, manifest, writeImporterManifest }
@@ -23,7 +23,7 @@ export async function readImporterManifestOnly (importerDir: string): Promise<Im
   packageIsInstallable(importerDir, manifest as any, { // tslint:disable-line:no-any
     engineStrict: true,
     optional: false,
-    pnpmVersion: packageManager.version,
+    pnpmVersion: packageManager.stableVersion,
     prefix: importerDir,
   })
   return manifest
@@ -39,7 +39,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   packageIsInstallable(importerDir, manifest as any, { // tslint:disable-line:no-any
     engineStrict: true,
     optional: false,
-    pnpmVersion: packageManager.version,
+    pnpmVersion: packageManager.stableVersion,
     prefix: importerDir,
   })
   return { fileName, manifest, writeImporterManifest }
