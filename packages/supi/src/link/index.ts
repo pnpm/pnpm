@@ -91,13 +91,10 @@ export default async function link (
     })
   }
 
-  const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile, { defaultRegistry: opts.registries.default })
+  const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile)
 
   const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
-  const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, {
-    defaultRegistry: opts.registries.default,
-    warn,
-  })
+  const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, { warn })
 
   await prune(
     [

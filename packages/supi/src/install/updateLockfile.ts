@@ -49,7 +49,7 @@ export default function (
   }
   const warn = (message: string) => logger.warn({ message, prefix })
   return {
-    newLockfile: pruneSharedLockfile(lockfile, { defaultRegistry: registries.default, warn }),
+    newLockfile: pruneSharedLockfile(lockfile, { warn }),
     pendingRequiresBuilds,
   }
 }

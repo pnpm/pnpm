@@ -13,8 +13,7 @@ export * from '@pnpm/lockfile-types'
 
 export function pruneSharedLockfile (
   lockfile: Lockfile,
-  opts: {
-    defaultRegistry: string,
+  opts?: {
     warn?: (msg: string) => void,
   },
 ) {
@@ -22,8 +21,7 @@ export function pruneSharedLockfile (
     devRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
     optionalRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
     prodRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
-    registry: opts.defaultRegistry,
-    warn: opts.warn || ((msg: string) => undefined),
+    warn: opts && opts.warn || ((msg: string) => undefined),
   })
 
   const prunnedLockfile = {
@@ -40,8 +38,7 @@ export function pruneLockfile (
   lockfile: Lockfile,
   pkg: PackageJson,
   importerId: string,
-  opts: {
-    defaultRegistry: string,
+  opts?: {
     warn?: (msg: string) => void,
   },
 ): Lockfile {
@@ -113,7 +110,6 @@ function copyPackageSnapshots (
     devRelPaths: string[],
     optionalRelPaths: string[],
     prodRelPaths: string[],
-    registry: string,
     warn: (msg: string) => void,
   },
 ): PackageSnapshots {
@@ -125,34 +121,29 @@ function copyPackageSnapshots (
     dev: true,
     nonOptional,
     notProdOnly,
-    registry: opts.registry,
   })
 
   copyDependencySubGraph(copiedPackages, opts.prodRelPaths, originalPackages, new Set(), opts.warn, {
     nonOptional,
     notProdOnly,
-    registry: opts.registry,
   })
 
   copyDependencySubGraph(copiedPackages, opts.optionalRelPaths, originalPackages, new Set(), opts.warn, {
     nonOptional,
     notProdOnly,
     optional: true,
-    registry: opts.registry,
   })
 
   copyDependencySubGraph(copiedPackages, opts.devRelPaths, originalPackages, new Set(), opts.warn, {
     dev: true,
     nonOptional,
     notProdOnly,
-    registry: opts.registry,
     walkOptionals: true,
   })
 
   copyDependencySubGraph(copiedPackages, opts.prodRelPaths, originalPackages, new Set(), opts.warn, {
     nonOptional,
     notProdOnly,
-    registry: opts.registry,
     walkOptionals: true,
   })
 
@@ -172,7 +163,6 @@ function copyDependencySubGraph (
   walked: Set<string>,
   warn: (msg: string) => void,
   opts: {
-    registry: string,
     dev?: boolean,
     optional?: boolean,
     nonOptional: Set<string>,
