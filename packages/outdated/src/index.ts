@@ -21,7 +21,6 @@ export interface OutdatedPackage {
 export default async function (
   pkgPath: string,
   opts: {
-    alwaysAuth: boolean,
     ca?: string,
     cert?: string,
     fetchRetries: number,
@@ -50,7 +49,6 @@ export async function forPackages (
   packages: string[],
   pkgPath: string,
   opts: {
-    alwaysAuth: boolean,
     ca?: string,
     cert?: string,
     fetchRetries: number,
@@ -79,7 +77,6 @@ async function _outdated (
   forPkgs: string[],
   pkgPath: string,
   opts: {
-    alwaysAuth: boolean,
     ca?: string,
     cert?: string,
     fetchRetries: number,
@@ -108,21 +105,31 @@ async function _outdated (
   const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
     || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   if (!wantedLockfile) {
-    throw new Error('No lockfile in this directory. Run `pnpm install` to generate one.')
+    const err = new Error('No lockfile in this directory. Run `pnpm install` to generate one.')
+    err['code'] = 'ERR_PNPM_OUTDATED_NO_LOCKFILE'
+    throw err
   }
   const storePath = await resolveStore(pkgPath, opts.store)
   const importerId = getLockfileImporterId(lockfileDirectory, pkgPath)
   const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
 
   const resolve = createResolver({
+    ca: opts.ca,
+    cert: opts.cert,
     fetchRetries: opts.fetchRetries,
     fetchRetryFactor: opts.fetchRetryFactor,
     fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout,
     fetchRetryMintimeout: opts.fetchRetryMintimeout,
+    httpsProxy: opts.httpsProxy,
+    key: opts.key,
+    localAddress: opts.localAddress,
     metaCache: new Map<string, object>() as any, // tslint:disable-line
     offline: opts.offline,
+    proxy: opts.proxy,
     rawNpmConfig: opts.rawNpmConfig,
     store: storePath,
+    strictSsl: opts.strictSsl,
+    userAgent: opts.userAgent,
   })
 
   const outdated: OutdatedPackage[] = []
@@ -157,7 +164,9 @@ async function _outdated (
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
           }
 
-          const currentRef = currentLockfile.importers[importerId] && currentLockfile.importers[importerId][depType][packageName]
+          const currentRef = currentLockfile.importers[importerId] &&
+            currentLockfile.importers[importerId][depType] &&
+            currentLockfile.importers[importerId][depType][packageName]
           const currentRelative = currentRef && dp.refToRelative(currentRef, packageName)
           const current = currentRelative && dp.parse(currentRelative).version || currentRef
           const wanted = dp.parse(relativeDepPath).version || ref
