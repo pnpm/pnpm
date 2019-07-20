@@ -1,11 +1,10 @@
 import createFetcher from '@pnpm/default-fetcher'
-import createResolver from '@pnpm/default-resolver'
 import logger from '@pnpm/logger'
 import createStore from '@pnpm/package-store'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import LRU = require('lru-cache')
 import makeDir = require('make-dir')
 import path = require('path')
+import createResolver from './createResolver'
 
 export default async (
   opts: {
@@ -39,13 +38,7 @@ export default async (
     locks: opts.lock ? path.join(opts.store, '_locks') : undefined,
     registry: opts.registry || 'https://registry.npmjs.org/',
   })
-  const resolve = createResolver(Object.assign(sopts, {
-    fullMetadata: false,
-    metaCache: new LRU({
-      max: 10000,
-      maxAge: 120 * 1000, // 2 minutes
-    }) as any, // tslint:disable-line:no-any
-  }))
+  const resolve = createResolver(sopts)
   await makeDir(sopts.store)
   const fsIsCaseSensitive = await dirIsCaseSensitive(sopts.store)
   logger.debug({

@@ -30,6 +30,7 @@
     "@pnpm/file-reporter": "0.1.0",
     "@pnpm/lifecycle": "6.2.0",
     "@pnpm/list": "1.0.13",
+    "@pnpm/lockfile-file": "1.1.0",
     "@pnpm/logger": "2.1.1",
     "@pnpm/outdated": "2.0.20",
     "@pnpm/package-is-installable": "2.1.0",

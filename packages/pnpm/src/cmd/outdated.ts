@@ -1,13 +1,22 @@
+import {
+  readCurrentLockfile,
+  readWantedLockfile,
+} from '@pnpm/lockfile-file'
 import outdated, {
   forPackages as outdatedForPackages,
 } from '@pnpm/outdated'
+import { Registries } from '@pnpm/types'
+import { pickRegistryForPackage } from '@pnpm/utils'
 import chalk from 'chalk'
 import stripColor = require('strip-color')
 import table = require('text-table')
+import createResolver from '../createResolver'
+import { readImporterManifestOnly } from '../readImporterManifest'
+import { PnpmOptions } from '../types'
 
 export default async function (
   args: string[],
-  opts: {
+  opts: PnpmOptions & {
     alwaysAuth: boolean,
     ca?: string,
     cert?: string,
@@ -25,6 +34,7 @@ export default async function (
     prefix: string,
     proxy?: string,
     rawNpmConfig: object,
+    registries: Registries,
     lockfileDirectory?: string,
     store: string,
     strictSsl: boolean,
@@ -33,9 +43,36 @@ export default async function (
   },
   command: string,
 ) {
+  const lockfileDirectory = opts.lockfileDirectory || opts.prefix
+  const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false }) || currentLockfile
+  if (!wantedLockfile) {
+    const err = new Error('No lockfile in this directory. Run `pnpm install` to generate one.')
+    err['code'] = 'ERR_PNPM_OUTDATED_NO_LOCKFILE'
+    throw err
+  }
+  const resolve = createResolver(opts)
+  async function getLatestVersion (packageName: string) {
+    const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
+      lockfileDirectory,
+      preferredVersions: {},
+      prefix: opts.prefix,
+      registry: pickRegistryForPackage(opts.registries, packageName),
+    })
+    return resolution && resolution.latest || null
+  }
+  const manifest = await readImporterManifestOnly(opts.prefix)
+  const optsForOutdated = {
+    currentLockfile,
+    getLatestVersion,
+    lockfileDirectory,
+    manifest,
+    prefix: opts.prefix,
+    wantedLockfile,
+  }
   const outdatedPkgs = args.length
-    ? await outdatedForPackages(args, opts.prefix, opts)
-    : await outdated(opts.prefix, opts)
+    ? await outdatedForPackages(args, optsForOutdated)
+    : await outdated(optsForOutdated)
 
   if (!outdatedPkgs.length) return
 

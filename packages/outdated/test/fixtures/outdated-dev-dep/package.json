@@ -1,7 +1,0 @@
-{
-  "name": "outdated-dev-dep",
-  "version": "0.0.0",
-  "devDependencies": {
-    "is-negative": "1.0.0"
-  }
-}

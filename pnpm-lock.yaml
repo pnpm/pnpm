@@ -786,9 +786,8 @@ importers:
     dependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
-      '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
-      '@pnpm/store-path': 2.1.0
+      '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
@@ -802,11 +801,10 @@ importers:
       '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-file': 1.1.0
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.0.15
       '@pnpm/outdated': 'link:'
       '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/registry-mock': 1.3.0
-      '@pnpm/store-path': 2.1.0
+      '@pnpm/resolver-base': 3.1.2
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
       dependency-path: 3.0.8
@@ -1003,6 +1001,7 @@ importers:
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/list': 'link:../list'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
@@ -1108,6 +1107,7 @@ importers:
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 6.2.0
       '@pnpm/list': 1.0.13
+      '@pnpm/lockfile-file': 1.1.0
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
