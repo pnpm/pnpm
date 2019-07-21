@@ -3,7 +3,6 @@ import LRU = require('lru-cache')
 
 export default function (
   opts: {
-    alwaysAuth?: boolean,
     ca?: string,
     cert?: string,
     fetchRetries?: number,
@@ -14,7 +13,6 @@ export default function (
     key?: string,
     localAddress?: string,
     offline?: boolean,
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
     proxy?: string,
     rawNpmConfig: object,
     store: string,

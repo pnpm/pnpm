@@ -1,12 +1,8 @@
-import logger from '@pnpm/logger'
-import outdated, {
-  forPackages as outdatedForPackages,
-} from '@pnpm/outdated'
-import { PackageJson } from '@pnpm/types'
+import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
-import path = require('path')
 import stripColor = require('strip-color')
 import table = require('text-table')
+import { outdatedDependenciesOfWorkspacePackages } from '../outdated'
 
 export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
@@ -30,8 +26,9 @@ export default async (
     prefix: string,
     proxy?: string,
     rawNpmConfig: object,
+    registries: Registries,
     lockfileDirectory?: string,
-    store: string,
+    store?: string,
     strictSsl: boolean,
     tag: string,
     userAgent: string,
@@ -44,18 +41,18 @@ export default async (
     latest?: string,
     prefix: string,
   }>
-  const getOutdated = args.length ? outdatedForPackages.bind(null, args) : outdated
-  for (const pkg of pkgs) {
-    let outdatedPackagesOfProject
-    try {
-      outdatedPackagesOfProject = await getOutdated(pkg.path, opts)
-    } catch (err) {
-      logger.info(err)
-      err['prefix'] = pkg.path // tslint:disable-line:no-string-literal
-      throw err
+  if (opts.lockfileDirectory) {
+    const outdatedPackagesByProject = await outdatedDependenciesOfWorkspacePackages(pkgs, args, opts)
+    for (let { prefix, outdatedPackages } of outdatedPackagesByProject) {
+      outdatedPackages.forEach((outdatedPkg: any) => outdatedPkgs.push({ ...outdatedPkg, prefix })) // tslint:disable-line:no-any
     }
-    const prefix = path.relative(opts.prefix, pkg.path)
-    outdatedPackagesOfProject.forEach((outdatedPkg: any) => outdatedPkgs.push({ ...outdatedPkg, prefix })) // tslint:disable-line:no-any
+  } else {
+    await Promise.all(pkgs.map(async ({ manifest, path }) => {
+      const { outdatedPackages } = (
+        await outdatedDependenciesOfWorkspacePackages([{ manifest, path }], args, { ...opts, lockfileDirectory: path })
+      )[0]
+      outdatedPackages.forEach((outdatedPkg: any) => outdatedPkgs.push({ ...outdatedPkg, prefix: path })) // tslint:disable-line:no-any
+    }))
   }
 
   const columnNames = ['', 'Package', 'Current', 'Wanted', 'Latest'].map((txt) => chalk.underline(txt))
