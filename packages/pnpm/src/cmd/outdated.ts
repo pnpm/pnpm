@@ -1,4 +1,5 @@
 import {
+  getLockfileImporterId,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
@@ -123,7 +124,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
       outdatedPackages: args.length
         ? await outdatedForPackages(args, optsForOutdated)
         : await outdated(optsForOutdated),
-      prefix: path,
+      prefix: getLockfileImporterId(lockfileDirectory, path),
     }
   }))
 }

@@ -55,7 +55,7 @@ export default async (
   input: string[],
   opts: PnpmOptions,
 ) => {
-    if (opts.workspaceConcurrency < 1) {
+  if (opts.workspaceConcurrency < 1) {
     const err = new Error('Workspace concurrency should be at least 1')
     err['code'] = 'ERR_PNPM_INVALID_WORKSPACE_CONCURRENCY' // tslint:disable-line:no-string-literal
     throw err

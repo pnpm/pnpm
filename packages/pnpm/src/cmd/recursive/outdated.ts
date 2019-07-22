@@ -1,3 +1,4 @@
+import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import stripColor = require('strip-color')
@@ -51,20 +52,26 @@ export default async (
       const { outdatedPackages } = (
         await outdatedDependenciesOfWorkspacePackages([{ manifest, path }], args, { ...opts, lockfileDirectory: path })
       )[0]
-      outdatedPackages.forEach((outdatedPkg: any) => outdatedPkgs.push({ ...outdatedPkg, prefix: path })) // tslint:disable-line:no-any
+      outdatedPackages.forEach((outdatedPkg: any) => // tslint:disable-line:no-any
+        outdatedPkgs.push({
+          ...outdatedPkg,
+          prefix: getLockfileImporterId(opts.prefix, path),
+        }))
     }))
   }
 
   const columnNames = ['', 'Package', 'Current', 'Wanted', 'Latest'].map((txt) => chalk.underline(txt))
   console.log(
     table([columnNames].concat(
-      outdatedPkgs.map((outdatedPkg) => [
-        outdatedPkg.prefix,
-        chalk.yellow(outdatedPkg.packageName),
-        outdatedPkg.current || 'missing',
-        chalk.green(outdatedPkg.wanted),
-        chalk.magenta(outdatedPkg.latest || ''),
-      ]),
+      outdatedPkgs
+        .sort((o1, o2) => o1.prefix.localeCompare(o2.prefix))
+        .map((outdatedPkg) => [
+          outdatedPkg.prefix,
+          chalk.yellow(outdatedPkg.packageName),
+          outdatedPkg.current || 'missing',
+          chalk.green(outdatedPkg.wanted),
+          chalk.magenta(outdatedPkg.latest || ''),
+        ]),
     ), {
       stringLength: (s: string) => stripColor(s).length,
     }),
