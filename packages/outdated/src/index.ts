@@ -3,12 +3,14 @@ import {
   getLockfileImporterId,
   Lockfile,
 } from '@pnpm/lockfile-file'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { DEPENDENCIES_FIELDS, ImporterManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
 
 export type GetLatestVersionFunction = (packageName: string) => Promise<string | null>
 
 export interface OutdatedPackage {
+  alias: string,
   current?: string, // not defined means the package is not installed
   latest?: string,
   packageName: string,
@@ -70,15 +72,15 @@ async function _outdated (
       }
 
       await Promise.all(
-        pkgs.map(async (packageName) => {
-          const ref = opts.wantedLockfile.importers[importerId][depType]![packageName]
+        pkgs.map(async (alias) => {
+          const ref = opts.wantedLockfile.importers[importerId][depType]![alias]
 
           // ignoring linked packages. (For backward compatibility)
           if (ref.startsWith('file:')) {
             return
           }
 
-          const relativeDepPath = dp.refToRelative(ref, packageName)
+          const relativeDepPath = dp.refToRelative(ref, alias)
 
           // ignoring linked packages
           if (relativeDepPath === null) return
@@ -91,16 +93,18 @@ async function _outdated (
 
           const currentRef = currentLockfile.importers[importerId] &&
             currentLockfile.importers[importerId][depType] &&
-            currentLockfile.importers[importerId][depType]![packageName]
-          const currentRelative = currentRef && dp.refToRelative(currentRef, packageName)
+            currentLockfile.importers[importerId][depType]![alias]
+          const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
           const current = currentRelative && dp.parse(currentRelative).version || currentRef
           const wanted = dp.parse(relativeDepPath).version || ref
+          const packageName = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot).name
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
           if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
             if (current !== wanted) {
               outdated.push({
+                alias,
                 current,
                 latest: undefined,
                 packageName,
@@ -110,14 +114,13 @@ async function _outdated (
             return
           }
 
-          // TODO: what about aliased dependencies?
-          // TODO: what about scoped dependencies?
-          const latest = await opts.getLatestVersion(packageName)
+          const latest = await opts.getLatestVersion(dp.parse(relativeDepPath).name || packageName)
 
           if (!latest) return
 
           if (!current) {
             outdated.push({
+              alias,
               latest,
               packageName,
               wanted,
@@ -127,6 +130,7 @@ async function _outdated (
 
           if (current !== wanted || latest !== current) {
             outdated.push({
+              alias,
               current,
               latest,
               packageName,

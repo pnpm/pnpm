@@ -112,24 +112,28 @@ test('outdated()', async (t) => {
   })
   t.deepEqual(outdatedPkgs, [
     {
+      alias: 'from-github',
       current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
       latest: undefined,
       packageName: 'from-github',
       wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
     {
+      alias: 'from-github-2',
       current: undefined,
       latest: undefined,
       packageName: 'from-github-2',
       wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
     {
+      alias: 'is-negative',
       current: '1.0.0',
       latest: '2.1.0',
       packageName: 'is-negative',
       wanted: '1.1.0',
     },
     {
+      alias: 'is-positive',
       current: '1.0.0',
       latest: '3.1.0',
       packageName: 'is-positive',
@@ -241,10 +245,77 @@ test('forPackages()', async (t) => {
   })
   t.deepEqual(outdatedPkgs, [
     {
+      alias: 'is-negative',
       current: '1.0.0',
       latest: '2.1.0',
       packageName: 'is-negative',
       wanted: '1.1.0',
+    },
+  ])
+  t.end()
+})
+
+test('outdated() aliased dependency', async (t) => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'positive': '/is-positive/1.0.0',
+          },
+          specifiers: {
+            'positive': 'npm:is-positive@^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-positive/1.0.0': {
+          resolution: {
+            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          },
+        },
+      },
+    },
+    getLatestVersion,
+    lockfileDirectory: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'positive': 'npm:is-positive@^3.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'positive': '/is-positive/3.1.0',
+          },
+          specifiers: {
+            'positive': 'npm:is-positive@^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-positive/3.1.0': {
+          resolution: {
+            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          },
+        },
+      },
+    },
+  })
+  t.deepEqual(outdatedPkgs, [
+    {
+      alias: 'positive',
+      current: '1.0.0',
+      latest: '3.1.0',
+      packageName: 'is-positive',
+      wanted: '3.1.0',
     },
   ])
   t.end()

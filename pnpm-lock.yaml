@@ -786,6 +786,7 @@ importers:
     dependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
     devDependencies:
@@ -797,6 +798,7 @@ importers:
     specifiers:
       '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-file': 1.1.0
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.3.0
