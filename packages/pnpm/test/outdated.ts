@@ -1,5 +1,8 @@
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { stripIndents } from 'common-tags'
+import makeDir = require('make-dir')
+import fs = require('mz/fs')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import tape = require('tape')
@@ -23,6 +26,41 @@ test('pnpm outdated', async (t: tape.Test) => {
     Package      Current  Wanted  Latest
     is-negative  1.0.0    1.1.0   2.1.0
     is-positive  1.0.0    3.1.0   3.1.0
+  ` + '\n')
+})
+
+test('pnpm outdated: only current lockfile is available', async (t: tape.Test) => {
+  tempDir(t)
+
+  await makeDir(path.resolve('node_modules'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm-lock.yaml'), path.resolve('node_modules/.pnpm-lock.yaml'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  const result = execPnpmSync('outdated')
+
+  t.equal(result.status, 0)
+
+  t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
+    Package      Current  Wanted  Latest
+    is-negative  1.0.0    1.0.0   2.1.0
+    is-positive  1.0.0    1.0.0   3.1.0
+  ` + '\n')
+})
+
+test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) => {
+  tempDir(t)
+
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  const result = execPnpmSync('outdated')
+
+  t.equal(result.status, 0)
+
+  t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
+    Package      Current  Wanted  Latest
+    is-negative  missing  1.1.0   2.1.0
+    is-positive  missing  3.1.0   3.1.0
   ` + '\n')
 })
 
@@ -68,4 +106,13 @@ test('pnpm outdated on global packages', async (t: tape.Test) => {
     is-negative  1.0.0    1.0.0   2.1.0
     is-positive  1.0.0    1.0.0   3.1.0
   ` + '\n')
+})
+
+test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the root of the project`, async (t: tape.Test) => {
+  prepare(t)
+
+  const result = execPnpmSync('outdated')
+
+  t.equal(result.status, 1)
+  t.ok(result.stdout.toString().includes('No lockfile in this directory. Run `pnpm install` to generate one.'))
 })
