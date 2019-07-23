@@ -12,6 +12,7 @@ import resolveFromTarball from '@pnpm/tarball-resolver'
 export {
   PackageMeta,
   PackageMetaCache,
+  ResolveFunction,
   ResolverFactoryOptions,
 }
 

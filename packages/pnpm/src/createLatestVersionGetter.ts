@@ -1,3 +1,4 @@
+import { ResolveFunction } from '@pnpm/default-resolver'
 import { Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/utils'
 import mem = require('mem')
@@ -25,16 +26,25 @@ export default function (
     userAgent?: string,
     verifyStoreIntegrity?: boolean,
   },
-) {
+): (packageName: string) => Promise<string | null> {
   const resolve = createResolver(opts)
-  async function getLatestVersion (packageName: string) {
-    const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
-      lockfileDirectory: opts.lockfileDirectory,
-      preferredVersions: {},
-      prefix: opts.prefix,
-      registry: pickRegistryForPackage(opts.registries, packageName),
-    })
-    return resolution && resolution.latest || null
-  }
-  return mem(getLatestVersion)
+  return mem(getLatestVersion.bind(null, resolve, opts))
+}
+
+export async function getLatestVersion (
+  resolve: ResolveFunction,
+  opts: {
+    lockfileDirectory: string,
+    prefix: string,
+    registries: Registries,
+  },
+  packageName: string,
+) {
+  const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
+    lockfileDirectory: opts.lockfileDirectory,
+    preferredVersions: {},
+    prefix: opts.prefix,
+    registry: pickRegistryForPackage(opts.registries, packageName),
+  })
+  return resolution && resolution.latest || null
 }
