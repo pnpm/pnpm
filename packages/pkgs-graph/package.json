@@ -37,6 +37,6 @@
   "dependencies": {
     "@zkochan/npm-package-arg": "^1.0.0",
     "ramda": "^0.26.0",
-    "semver": "^6.0.0"
+    "semver": "6.3.0"
   }
 }

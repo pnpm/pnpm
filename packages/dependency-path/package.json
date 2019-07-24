@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/types": "3.2.0",
     "encode-registry": "2.0.1",
-    "semver": "6.2.0"
+    "semver": "6.3.0"
   },
   "devDependencies": {
     "@types/semver": "6",
