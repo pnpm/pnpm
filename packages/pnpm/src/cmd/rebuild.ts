@@ -22,7 +22,7 @@ export default async function (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(rebuildOpts.prefix),
+          manifest: await readImporterManifestOnly(rebuildOpts.prefix, opts),
           prefix: rebuildOpts.prefix,
         },
       ],
@@ -32,7 +32,7 @@ export default async function (
   await rebuildPkgs(
     [
       {
-        manifest: await readImporterManifestOnly(rebuildOpts.prefix),
+        manifest: await readImporterManifestOnly(rebuildOpts.prefix, opts),
         prefix: rebuildOpts.prefix,
       },
     ],

@@ -22,10 +22,17 @@ export default async function (
   const prefix = args.length && args[0] || process.cwd()
 
   let _status!: number
-  await fakeRegularManifest(prefix, opts.workspacePrefix || prefix, async () => {
-    const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
-    _status = status
-  })
+  await fakeRegularManifest(
+    {
+      engineStrict: opts.engineStrict,
+      prefix,
+      workspacePrefix: opts.workspacePrefix || prefix,
+    },
+    async () => {
+      const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
+      _status = status
+    },
+  )
   if (_status !== 0) {
     process.exit(_status)
   }
@@ -37,7 +44,11 @@ export async function pack (
   command: string,
 ) {
   let _status!: number
-  await fakeRegularManifest(opts.prefix, opts.workspacePrefix || opts.prefix, async () => {
+  await fakeRegularManifest({
+    engineStrict: opts.engineStrict,
+    prefix: opts.prefix,
+    workspacePrefix: opts.workspacePrefix || opts.prefix,
+  }, async () => {
     const { status } = await runNpm(['pack', ...opts.argv.original.slice(1)])
     _status = status
   })
@@ -49,22 +60,29 @@ export async function pack (
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
-async function fakeRegularManifest (prefix: string, workspacePrefix: string, fn: () => Promise<void>) {
+async function fakeRegularManifest (
+  opts: {
+    engineStrict?: boolean,
+    prefix: string,
+    workspacePrefix: string,
+  },
+  fn: () => Promise<void>,
+) {
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
-  const copiedLicenses: string[] = prefix !== workspacePrefix && (await findLicenses({ cwd: prefix })).length === 0
-    ? await copyLicenses(workspacePrefix, prefix) : []
+  const copiedLicenses: string[] = opts.prefix !== opts.workspacePrefix && (await findLicenses({ cwd: opts.prefix })).length === 0
+    ? await copyLicenses(opts.workspacePrefix, opts.prefix) : []
 
-  const { fileName, manifest, writeImporterManifest } = await readImporterManifest(prefix)
+  const { fileName, manifest, writeImporterManifest } = await readImporterManifest(opts.prefix, opts)
   const publishManifest = makePublishManifest(manifest)
   const replaceManifest = fileName !== 'package.json' || !R.equals(manifest, publishManifest)
   if (replaceManifest) {
-    await rimraf(path.join(prefix, fileName))
-    await writeJsonFile(path.join(prefix, 'package.json'), publishManifest)
+    await rimraf(path.join(opts.prefix, fileName))
+    await writeJsonFile(path.join(opts.prefix, 'package.json'), publishManifest)
   }
   await fn()
   if (replaceManifest) {
-    await rimraf(path.join(prefix, 'package.json'))
+    await rimraf(path.join(opts.prefix, 'package.json'))
     await writeImporterManifest(manifest, true)
   }
   await Promise.all(

@@ -75,7 +75,7 @@ export default async (
   }
 
   const workspacePrefix = opts.workspacePrefix || process.cwd()
-  const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix)
+  const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix, opts)
 
   if (!allWorkspacePkgs.length) {
     logger.info({ message: `No packages found in "${workspacePrefix}"`, prefix: workspacePrefix })

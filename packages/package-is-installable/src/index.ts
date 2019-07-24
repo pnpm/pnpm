@@ -2,8 +2,13 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import checkEngine from './checkEngine'
-import checkPlatform from './checkPlatform'
+import checkEngine, { UnsupportedEngineError } from './checkEngine'
+import checkPlatform, { UnsupportedPlatformError } from './checkPlatform'
+
+export {
+  UnsupportedEngineError,
+  UnsupportedPlatformError,
+}
 
 export default function packageIsInstallable (
   pkgId: string,
@@ -18,13 +23,13 @@ export default function packageIsInstallable (
     os?: string[],
   },
   options: {
-    engineStrict: boolean,
+    engineStrict?: boolean,
     nodeVersion?: string,
     optional: boolean,
     pnpmVersion: string,
     prefix: string,
   },
-): boolean | null {
+): boolean | UnsupportedEngineError | UnsupportedPlatformError {
   const warn = checkPlatform(pkgId, {
     cpu: pkg.cpu || ['any'],
     os: pkg.os || ['any'],
@@ -58,5 +63,5 @@ export default function packageIsInstallable (
 
   if (options.engineStrict) throw warn
 
-  return null
+  return warn
 }

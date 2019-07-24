@@ -1,6 +1,6 @@
 import semver = require('semver')
 
-class UnsupportedEngineError extends Error {
+export class UnsupportedEngineError extends Error {
   public code: 'ERR_PNPM_UNSUPPORTED_ENGINE' = 'ERR_PNPM_UNSUPPORTED_ENGINE'
   public wanted: WantedEngine
   public current: Engine
