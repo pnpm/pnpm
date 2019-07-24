@@ -12,24 +12,6 @@
 <pnpm|npm|yarn> add @pnpm/outdated
 ```
 
-## API
-
-### default: `outdated(path, opts): Promise<OutdatedPackage[]>`
-
-Returns an array of outdated packages.
-
-### Arguments
-
-- `path` - _String_ - path to the project
-
-### `forPackages(packages, path, opts): Promise<OutdatedPackage[]>`
-
-Returns an array of outdated packages for the specified packages.
-
-### Arguments
-
-- `path` - _String_ - path to the project
-
 ## License
 
 [MIT](LICENSE) © [Zoltan Kochan](https://www.kochan.io/)

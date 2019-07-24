@@ -1,17 +1,16 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   getLockfileImporterId,
-  readCurrentLockfile,
-  readWantedLockfile,
+  Lockfile,
 } from '@pnpm/lockfile-file'
-import createResolver from '@pnpm/npm-resolver'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
-import resolveStore from '@pnpm/store-path'
-import { DEPENDENCIES_FIELDS, ImporterManifest, Registries } from '@pnpm/types'
-import { normalizeRegistries } from '@pnpm/utils'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { DEPENDENCIES_FIELDS, ImporterManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
 
+export type GetLatestVersionFunction = (packageName: string) => Promise<string | null>
+
 export interface OutdatedPackage {
+  alias: string,
   current?: string, // not defined means the package is not installed
   latest?: string,
   packageName: string,
@@ -19,146 +18,74 @@ export interface OutdatedPackage {
 }
 
 export default async function (
-  pkgPath: string,
   opts: {
-    ca?: string,
-    cert?: string,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMaxtimeout: number,
-    fetchRetryMintimeout: number,
-    httpsProxy?: string,
-    key?: string,
-    localAddress?: string,
-    networkConcurrency: number,
-    offline: boolean,
-    proxy?: string,
-    rawNpmConfig: object,
-    registries?: Registries,
-    lockfileDirectory?: string,
-    store: string,
-    strictSsl: boolean,
-    tag: string,
-    userAgent: string,
+    currentLockfile: Lockfile | null,
+    manifest: ImporterManifest,
+    prefix: string,
+    getLatestVersion: GetLatestVersionFunction,
+    lockfileDirectory: string,
+    wantedLockfile: Lockfile,
   },
 ) {
-  return _outdated([], pkgPath, opts)
+  return _outdated([], opts)
 }
 
 export async function forPackages (
   packages: string[],
-  pkgPath: string,
   opts: {
-    ca?: string,
-    cert?: string,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMaxtimeout: number,
-    fetchRetryMintimeout: number,
-    httpsProxy?: string,
-    key?: string,
-    localAddress?: string,
-    networkConcurrency: number,
-    offline: boolean,
-    proxy?: string,
-    rawNpmConfig: object,
-    registries?: Registries,
-    lockfileDirectory?: string,
-    store: string,
-    strictSsl: boolean,
-    tag: string,
-    userAgent: string,
+    currentLockfile: Lockfile | null,
+    manifest: ImporterManifest,
+    prefix: string,
+    getLatestVersion: GetLatestVersionFunction,
+    lockfileDirectory: string,
+    wantedLockfile: Lockfile,
   },
 ) {
-  return _outdated(packages, pkgPath, opts)
+  return _outdated(packages, opts)
 }
 
 async function _outdated (
   forPkgs: string[],
-  pkgPath: string,
   opts: {
-    ca?: string,
-    cert?: string,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMaxtimeout: number,
-    fetchRetryMintimeout: number,
-    httpsProxy?: string,
-    key?: string,
-    localAddress?: string,
-    networkConcurrency: number,
-    offline: boolean,
-    proxy?: string,
-    rawNpmConfig: object,
-    registries?: Registries,
-    lockfileDirectory?: string,
-    store: string,
-    strictSsl: boolean,
-    tag: string,
-    userAgent: string,
+    manifest: ImporterManifest,
+    prefix: string,
+    currentLockfile: Lockfile | null,
+    getLatestVersion: GetLatestVersionFunction,
+    lockfileDirectory: string,
+    wantedLockfile: Lockfile,
   },
 ): Promise<OutdatedPackage[]> {
-  const registries = normalizeRegistries(opts.registries)
-  const lockfileDirectory = opts.lockfileDirectory || pkgPath
-  const manifest = await readImporterManifestOnly(pkgPath)
-  if (packageHasNoDeps(manifest)) return []
-  const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
-    || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
-  if (!wantedLockfile) {
-    const err = new Error('No lockfile in this directory. Run `pnpm install` to generate one.')
-    err['code'] = 'ERR_PNPM_OUTDATED_NO_LOCKFILE'
-    throw err
-  }
-  const storePath = await resolveStore(pkgPath, opts.store)
-  const importerId = getLockfileImporterId(lockfileDirectory, pkgPath)
-  const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
-
-  const resolve = createResolver({
-    ca: opts.ca,
-    cert: opts.cert,
-    fetchRetries: opts.fetchRetries,
-    fetchRetryFactor: opts.fetchRetryFactor,
-    fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout,
-    fetchRetryMintimeout: opts.fetchRetryMintimeout,
-    httpsProxy: opts.httpsProxy,
-    key: opts.key,
-    localAddress: opts.localAddress,
-    metaCache: new Map<string, object>() as any, // tslint:disable-line
-    offline: opts.offline,
-    proxy: opts.proxy,
-    rawNpmConfig: opts.rawNpmConfig,
-    store: storePath,
-    strictSsl: opts.strictSsl,
-    userAgent: opts.userAgent,
-  })
+  if (packageHasNoDeps(opts.manifest)) return []
+  const importerId = getLockfileImporterId(opts.lockfileDirectory, opts.prefix)
+  const currentLockfile = opts.currentLockfile || { importers: { [importerId]: {} } }
 
   const outdated: OutdatedPackage[] = []
 
   await Promise.all(
     DEPENDENCIES_FIELDS.map(async (depType) => {
-      if (!wantedLockfile.importers[importerId][depType]) return
+      if (!opts.wantedLockfile.importers[importerId][depType]) return
 
-      let pkgs = Object.keys(wantedLockfile.importers[importerId][depType]!)
+      let pkgs = Object.keys(opts.wantedLockfile.importers[importerId][depType]!)
 
       if (forPkgs.length) {
         pkgs = pkgs.filter((pkgName) => forPkgs.includes(pkgName))
       }
 
       await Promise.all(
-        pkgs.map(async (packageName) => {
-          const ref = wantedLockfile.importers[importerId][depType]![packageName]
+        pkgs.map(async (alias) => {
+          const ref = opts.wantedLockfile.importers[importerId][depType]![alias]
 
           // ignoring linked packages. (For backward compatibility)
           if (ref.startsWith('file:')) {
             return
           }
 
-          const relativeDepPath = dp.refToRelative(ref, packageName)
+          const relativeDepPath = dp.refToRelative(ref, alias)
 
           // ignoring linked packages
           if (relativeDepPath === null) return
 
-          const pkgSnapshot = wantedLockfile.packages && wantedLockfile.packages[relativeDepPath]
+          const pkgSnapshot = opts.wantedLockfile.packages && opts.wantedLockfile.packages[relativeDepPath]
 
           if (!pkgSnapshot) {
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
@@ -166,16 +93,18 @@ async function _outdated (
 
           const currentRef = currentLockfile.importers[importerId] &&
             currentLockfile.importers[importerId][depType] &&
-            currentLockfile.importers[importerId][depType][packageName]
-          const currentRelative = currentRef && dp.refToRelative(currentRef, packageName)
+            currentLockfile.importers[importerId][depType]![alias]
+          const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
           const current = currentRelative && dp.parse(currentRelative).version || currentRef
           const wanted = dp.parse(relativeDepPath).version || ref
+          const packageName = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot).name
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
           if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
             if (current !== wanted) {
               outdated.push({
+                alias,
                 current,
                 latest: undefined,
                 packageName,
@@ -185,18 +114,13 @@ async function _outdated (
             return
           }
 
-          // TODO: what about aliased dependencies?
-          // TODO: what about scoped dependencies?
-          const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
-            registry: registries.default,
-          })
+          const latest = await opts.getLatestVersion(dp.parse(relativeDepPath).name || packageName)
 
-          if (!resolution || !resolution.latest) return
-
-          const latest = resolution.latest
+          if (!latest) return
 
           if (!current) {
             outdated.push({
+              alias,
               latest,
               packageName,
               wanted,
@@ -206,6 +130,7 @@ async function _outdated (
 
           if (current !== wanted || latest !== current) {
             outdated.push({
+              alias,
               current,
               latest,
               packageName,
