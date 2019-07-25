@@ -29,15 +29,8 @@ export default function packageIsInstallable (
     pnpmVersion: string,
     prefix: string,
   },
-): boolean | UnsupportedEngineError | UnsupportedPlatformError {
-  const warn = checkPlatform(pkgId, {
-    cpu: pkg.cpu || ['any'],
-    os: pkg.os || ['any'],
-  })
-  || pkg.engines && checkEngine(pkgId, pkg.engines, {
-    node: options.nodeVersion || process.version,
-    pnpm: options.pnpmVersion,
-  })
+): boolean | null {
+  const warn = checkPackage(pkgId, pkg, options)
 
   if (!warn) return true
 
@@ -63,5 +56,32 @@ export default function packageIsInstallable (
 
   if (options.engineStrict) throw warn
 
-  return warn
+  return null
+}
+
+export function checkPackage (
+  pkgId: string,
+  manifest: {
+    engines?: {
+      node?: string,
+      npm?: string,
+    },
+    cpu?: string[],
+    os?: string[],
+  },
+  options: {
+    nodeVersion?: string,
+    pnpmVersion: string,
+  },
+): null | UnsupportedEngineError | UnsupportedPlatformError {
+  return checkPlatform(pkgId, {
+    cpu: manifest.cpu || ['any'],
+    os: manifest.os || ['any'],
+  }) || (
+    manifest.engines &&
+    checkEngine(pkgId, manifest.engines, {
+      node: options.nodeVersion || process.version,
+      pnpm: options.pnpmVersion,
+    })
+  ) || null
 }

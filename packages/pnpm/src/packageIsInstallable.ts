@@ -1,4 +1,4 @@
-import packageIsInstallable from '@pnpm/package-is-installable'
+import { checkPackage, UnsupportedEngineError } from '@pnpm/package-is-installable'
 import packageManager from './pnpmPkgJson'
 
 export default function (
@@ -17,12 +17,12 @@ export default function (
     engineStrict?: boolean,
   },
 ) {
-  const warn = packageIsInstallable(pkgPath, pkg, {
-    engineStrict: false,
-    optional: false,
+  const err = checkPackage(pkgPath, pkg, {
     pnpmVersion: packageManager.version,
-    prefix: pkgPath,
   })
-  if (warn === true) return
-  if (warn['wanted'].pnpm || opts.engineStrict) throw warn
+  if (err === null) return
+  if (
+    (err instanceof UnsupportedEngineError && err.wanted.pnpm) ||
+    opts.engineStrict
+  ) throw err
 }
