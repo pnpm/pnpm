@@ -331,6 +331,7 @@ test('engine-strict=false: install should not fail if the used Node version does
   const { status, stdout } = execPnpmSync('install')
 
   t.equal(status, 0)
+  t.ok(stdout.toString().includes('Unsupported engine'))
 })
 
 test('engine-strict=true: install should fail if the used Node version does not satisfy the Node version specified in engines', async (t: tape.Test) => {
@@ -445,4 +446,5 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
   const { status, stdout } = execPnpmSync('recursive', 'install')
 
   t.equal(status, 0)
+  t.ok(stdout.toString().includes('Unsupported engine'))
 })

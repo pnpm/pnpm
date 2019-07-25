@@ -1,3 +1,4 @@
+import logger from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError } from '@pnpm/package-is-installable'
 import packageManager from './pnpmPkgJson'
 
@@ -25,4 +26,10 @@ export default function (
     (err instanceof UnsupportedEngineError && err.wanted.pnpm) ||
     opts.engineStrict
   ) throw err
+  logger.warn({
+    message: `Unsupported ${
+      err instanceof UnsupportedEngineError ? 'engine' : 'platform'
+    }: wanted: ${JSON.stringify(err.wanted)} (current: ${JSON.stringify(err.current)})`,
+    prefix: pkgPath,
+  })
 }
