@@ -35,7 +35,9 @@ export default async function installCmd (
   const prefix = opts.prefix || process.cwd()
 
   const localPackages = opts.linkWorkspacePackages && opts.workspacePrefix
-    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
+    ? arrayOfLocalPackagesToMap(
+      await findWorkspacePackages(opts.workspacePrefix, opts),
+    )
     : undefined
 
   if (!opts.ignorePnpmfile) {
@@ -53,7 +55,7 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
 
-  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix)
+  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix, opts)
   if (manifest === null) {
     if (opts.update) {
       const err = new Error('No package.json found')
@@ -93,7 +95,7 @@ export default async function installCmd (
   if (opts.linkWorkspacePackages && opts.workspacePrefix && manifest.name) {
     // TODO: reuse somehow the previous read of packages
     // this is not optimal
-    const allWorkspacePkgs = await findWorkspacePackages(opts.workspacePrefix)
+    const allWorkspacePkgs = await findWorkspacePackages(opts.workspacePrefix, opts)
     await recursive(allWorkspacePkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
@@ -113,7 +115,7 @@ export default async function installCmd (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(opts.prefix),
+          manifest: await readImporterManifestOnly(opts.prefix, opts),
           prefix: opts.prefix,
         },
       ], {

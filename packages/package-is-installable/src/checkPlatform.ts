@@ -1,4 +1,4 @@
-class UnsupportedPlatformError extends Error {
+export class UnsupportedPlatformError extends Error {
   public code: 'ERR_PNPM_UNSUPPORTED_PLATFORM' = 'ERR_PNPM_UNSUPPORTED_PLATFORM'
   public wanted: Platform
   public current: Platform

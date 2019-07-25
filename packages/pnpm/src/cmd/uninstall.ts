@@ -16,9 +16,9 @@ export default async function uninstallCmd (
     storeController: store.ctrl,
   })
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
-    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
+    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix, opts))
     : undefined
-  const currentManifest = await readImporterManifest(opts.prefix)
+  const currentManifest = await readImporterManifest(opts.prefix, opts)
   const [mutationResult] = await mutateModules(
     [
       {

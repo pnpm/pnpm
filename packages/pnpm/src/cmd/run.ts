@@ -7,13 +7,14 @@ import { readImporterManifestOnly } from '../readImporterManifest'
 export default async function run (
   args: string[],
   opts: {
+    engineStrict?: boolean,
     extraBinPaths: string[],
     localPrefix: string,
     rawNpmConfig: object,
   },
 ) {
   const prefix = opts.localPrefix
-  const manifest = await readImporterManifestOnly(prefix)
+  const manifest = await readImporterManifestOnly(prefix, opts)
   const scriptName = args[0]
   if (!scriptName) {
     printProjectCommands(manifest)

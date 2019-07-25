@@ -20,6 +20,7 @@ export default async function (
     alwaysAuth: boolean,
     ca?: string,
     cert?: string,
+    engineStrict?: boolean,
     fetchRetries: number,
     fetchRetryFactor: number,
     fetchRetryMaxtimeout: number,
@@ -45,7 +46,7 @@ export default async function (
 ) {
   const packages = [
     {
-      manifest: await readImporterManifestOnly(opts.prefix),
+      manifest: await readImporterManifestOnly(opts.prefix, opts),
       path: opts.prefix,
     },
   ]

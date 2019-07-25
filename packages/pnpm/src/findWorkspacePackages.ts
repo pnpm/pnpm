@@ -1,12 +1,14 @@
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import packageIsInstallable from '@pnpm/package-is-installable'
 import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
-import packageManager from './pnpmPkgJson'
+import packageIsInstallable from './packageIsInstallable'
 
-export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>> => {
+export default async (
+  workspaceRoot: string,
+  opts: { engineStrict?: boolean },
+): Promise<Array<{path: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>> => {
   const packagesManifest = await requirePackagesManifest(workspaceRoot)
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
@@ -17,12 +19,7 @@ export default async (workspaceRoot: string): Promise<Array<{path: string, manif
   })
   pkgs.sort((pkg1: {path: string}, pkg2: {path: string}) => pkg1.path.localeCompare(pkg2.path))
   for (const pkg of pkgs) {
-    packageIsInstallable(pkg.path, pkg.manifest as any, { // tslint:disable-line:no-any
-      engineStrict: true,
-      optional: false,
-      pnpmVersion: packageManager.stableVersion,
-      prefix: pkg.path,
-    })
+    packageIsInstallable(pkg.path, pkg.manifest as any, opts) // tslint:disable-line:no-any
   }
 
   return pkgs
