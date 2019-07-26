@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "2.0.20",
+  "version": "3.0.0",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

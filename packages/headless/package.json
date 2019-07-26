@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "7.1.5",
+  "version": "7.1.6",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -77,15 +77,15 @@
     "prepareFixtures": "registry-mock prepare && run-p -r registry-mock runPrepareFixtures"
   },
   "dependencies": {
-    "@pnpm/build-modules": "1.1.1",
+    "@pnpm/build-modules": "1.1.2",
     "@pnpm/constants": "1.1.0",
     "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/filter-lockfile": "1.0.12",
-    "@pnpm/lifecycle": "6.2.0",
+    "@pnpm/filter-lockfile": "1.0.13",
+    "@pnpm/lifecycle": "6.2.1",
     "@pnpm/link-bins": "4.4.0",
     "@pnpm/lockfile-file": "1.1.0",
     "@pnpm/lockfile-utils": "1.0.10",
-    "@pnpm/modules-cleaner": "4.0.2",
+    "@pnpm/modules-cleaner": "4.0.3",
     "@pnpm/modules-yaml": "3.0.3",
     "@pnpm/package-requester": "7.1.1",
     "@pnpm/pkgid-to-filename": "2.0.0",

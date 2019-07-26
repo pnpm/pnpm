@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/filter-lockfile": "1.0.12",
+    "@pnpm/filter-lockfile": "1.0.13",
     "@pnpm/lockfile-types": "1.1.0",
     "@pnpm/lockfile-utils": "1.0.10",
     "@pnpm/package-bins": "3.1.1",

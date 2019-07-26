@@ -38,7 +38,7 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
-      '@pnpm/lifecycle': 6.2.0
+      '@pnpm/lifecycle': 6.2.1
       '@pnpm/link-bins': 4.4.0
       '@pnpm/logger': 2.1.1
       '@pnpm/read-package-json': 2.0.2
@@ -306,7 +306,7 @@ importers:
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/package-is-installable': 2.1.0
+      '@pnpm/package-is-installable': 2.2.0
       '@pnpm/types': 3.2.0
       '@types/ramda': 0.25.39
       dependency-path: 3.0.8
@@ -430,19 +430,19 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/build-modules': 1.1.1
+      '@pnpm/build-modules': 1.1.2
       '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/filter-lockfile': 1.0.12
+      '@pnpm/filter-lockfile': 1.0.13
       '@pnpm/headless': 'link:'
-      '@pnpm/lifecycle': 6.2.0
+      '@pnpm/lifecycle': 6.2.1
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 1.1.0
       '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-cleaner': 4.0.2
+      '@pnpm/modules-cleaner': 4.0.3
       '@pnpm/modules-yaml': 3.0.3
       '@pnpm/package-requester': 7.1.1
       '@pnpm/package-store': 'file:../package-store'
@@ -666,7 +666,7 @@ importers:
       rimraf: 2.6.3
     specifiers:
       '@pnpm/core-loggers': 3.0.3
-      '@pnpm/filter-lockfile': 1.0.12
+      '@pnpm/filter-lockfile': 1.0.13
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
@@ -1098,17 +1098,17 @@ importers:
       '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 3.1.15
-      '@pnpm/default-reporter': 3.3.0
+      '@pnpm/default-reporter': 3.3.1
       '@pnpm/default-resolver': 3.0.18
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/lifecycle': 6.2.0
+      '@pnpm/lifecycle': 6.2.1
       '@pnpm/list': 1.0.13
       '@pnpm/lockfile-file': 1.1.0
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/outdated': 2.0.20
-      '@pnpm/package-is-installable': 2.1.0
+      '@pnpm/outdated': 3.0.0
+      '@pnpm/package-is-installable': 2.2.0
       '@pnpm/package-store': 4.0.14
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 1.0.5
@@ -1185,7 +1185,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.34.4
+      supi: 0.34.5
       symlink-dir: 3.1.0
       tape: 4.11.0
       tape-promise: 4.0.0
@@ -1324,7 +1324,7 @@ importers:
       '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 3.0.15
-      '@pnpm/package-is-installable': 2.1.0
+      '@pnpm/package-is-installable': 2.2.0
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/store-controller-types': 3.0.3
@@ -1524,33 +1524,33 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/build-modules': 1.1.1
+      '@pnpm/build-modules': 1.1.2
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 1.1.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/filter-lockfile': 1.0.12
+      '@pnpm/filter-lockfile': 1.0.13
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 7.1.5
-      '@pnpm/lifecycle': 6.2.0
+      '@pnpm/headless': 7.1.6
+      '@pnpm/lifecycle': 6.2.1
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 1.1.0
       '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-cleaner': 4.0.2
+      '@pnpm/modules-cleaner': 4.0.3
       '@pnpm/modules-yaml': 3.0.3
       '@pnpm/package-requester': 7.1.1
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/prune-lockfile': 1.1.1
+      '@pnpm/prune-lockfile': 1.1.2
       '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/read-importers-context': 1.0.5
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.3.0
-      '@pnpm/resolve-dependencies': 8.0.3
+      '@pnpm/resolve-dependencies': 8.0.4
       '@pnpm/resolver-base': 3.1.2
       '@pnpm/shamefully-flatten': 3.0.12
       '@pnpm/store-controller-types': 3.0.3
