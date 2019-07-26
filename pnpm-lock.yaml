@@ -124,7 +124,7 @@ importers:
       common-tags: 1.8.0
       most: 1.7.3_most@1.7.3
       normalize-path: 3.0.0
-      pretty-bytes: 5.2.0
+      pretty-bytes: 5.3.0
       pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
@@ -164,7 +164,7 @@ importers:
       most: 1.7.3
       normalize-newline: 3.0.0
       normalize-path: 3.0.0
-      pretty-bytes: 5.2.0
+      pretty-bytes: 5.3.0
       pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
@@ -6565,12 +6565,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-6SQ0v6XqjBn0HN/UAddBo8gZ2Jc=
-  /pretty-bytes/5.2.0:
+  /pretty-bytes/5.3.0:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-ujANBhiUsl9AhREUDUEY1GPOharMGm8x8juS7qOHybcLi7XsKfrYQ88hSly1l2i0klXHTDYrlL8ihMCG55Dc3w==
+      integrity: sha512-hjGrh+P926p4R4WbaB6OckyRtO0F0/lQBiT+0gnxjV+5kjPBrfVBFCsCLbMqVQeydvIoouYTCmmEURiH3R1Bdg==
   /pretty-time/1.1.0:
     dev: false
     engines:
