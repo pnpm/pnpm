@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { getSaveType } from '@pnpm/utils'
 import {
   install,
@@ -58,9 +59,7 @@ export default async function installCmd (
   let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix, opts)
   if (manifest === null) {
     if (opts.update) {
-      const err = new Error('No package.json found')
-      err['code'] = 'ERR_PNPM_NO_IMPORTER_MANIFEST' // tslint:disable-line
-      throw err
+      throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
     }
     manifest = {}
   }

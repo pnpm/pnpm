@@ -32,6 +32,7 @@
     "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
+    "@pnpm/error": "0.0.0",
     "@pnpm/resolver-base": "3.1.2",
     "@pnpm/types": "3.2.0",
     "credentials-by-uri": "1.0.0",

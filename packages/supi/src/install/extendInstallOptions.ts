@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
@@ -182,9 +183,8 @@ export default async (
     store: defaultOpts.store,
   }
   if (!extendedOpts.useLockfile && extendedOpts.lockfileOnly) {
-    const err = new Error(`Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
-    err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
+      `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`

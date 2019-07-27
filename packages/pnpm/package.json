@@ -27,6 +27,7 @@
     "@pnpm/default-fetcher": "3.1.15",
     "@pnpm/default-reporter": "3.3.1",
     "@pnpm/default-resolver": "3.0.18",
+    "@pnpm/error": "0.0.0",
     "@pnpm/file-reporter": "0.1.0",
     "@pnpm/lifecycle": "6.2.1",
     "@pnpm/list": "1.0.13",

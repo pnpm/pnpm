@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
@@ -82,9 +83,7 @@ export default async <T> (
   }
 
   if (scriptName !== 'test' && !hasCommand) {
-    const err = new Error(`None of the packages has a "${scriptName}" script`)
-    err['code'] = 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
   }
 
   return result

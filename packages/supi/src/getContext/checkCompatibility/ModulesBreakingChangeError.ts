@@ -10,7 +10,7 @@ export default class ModulesBreakingChangeError extends BreakingChangeError {
   constructor (opts: ModulesBreakingChangeErrorOptions) {
     super({
       additionalInformation: opts.additionalInformation,
-      code: 'ERR_PNPM_MODULES_BREAKING_CHANGE',
+      code: 'MODULES_BREAKING_CHANGE',
       message: `The node_modules structure at "${opts.modulesPath}" is not compatible with the current pnpm version. Run "pnpm install --force" to recreate node_modules.`,
       relatedIssue: opts.relatedIssue,
       relatedPR: opts.relatedPR,

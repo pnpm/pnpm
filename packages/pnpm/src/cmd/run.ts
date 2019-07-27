@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { ImporterManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
@@ -21,9 +22,7 @@ export default async function run (
     return
   }
   if (scriptName !== 'start' && (!manifest.scripts || !manifest.scripts[scriptName])) {
-    const err = new Error(`Missing script: ${scriptName}`)
-    err['code'] = 'ERR_PNPM_NO_SCRIPT'
-    throw err
+    throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
   const lifecycleOpts = {
     args: args.slice(1),

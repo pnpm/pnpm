@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
@@ -40,9 +41,7 @@ async function readNpmLockfile (prefix: string) {
   } catch (err) {
     if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
   }
-  const err = new Error('No package-lock.json or npm-shrinkwrap.json found')
-  err['code'] = 'ERR_PNPM_NPM_LOCKFILE_NOT_FOUND' // tslint:disable-line:no-string-literal
-  throw err
+  throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }
 
 function getPreferredVersions (

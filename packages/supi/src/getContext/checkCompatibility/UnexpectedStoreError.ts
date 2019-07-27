@@ -1,4 +1,4 @@
-import { PnpmError } from '../../errorTypes'
+import PnpmError from '@pnpm/error'
 
 export default class UnexpectedStoreError extends PnpmError {
   public expectedStorePath: string
@@ -11,7 +11,7 @@ export default class UnexpectedStoreError extends PnpmError {
       modulesDir: string,
     },
   ) {
-    super('ERR_PNPM_UNEXPECTED_STORE', 'Unexpected store location')
+    super('UNEXPECTED_STORE', 'Unexpected store location')
     this.expectedStorePath = opts.expectedStorePath
     this.actualStorePath = opts.actualStorePath
     this.modulesDir = opts.modulesDir

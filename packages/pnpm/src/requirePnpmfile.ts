@@ -1,7 +1,28 @@
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
 import chalk from 'chalk'
 import fs = require('fs')
+
+class BadReadPackageHookError extends PnpmError {
+  public readonly pnpmfile: string
+
+  constructor (pnpmfile: string) {
+    super('BAD_READ_PACKAGE_HOOK_RESULT', `readPackage hook did not return a package manifest object. Hook imported via ${pnpmfile}`)
+    this.pnpmfile = pnpmfile
+  }
+}
+
+class PnpmFileFailError extends PnpmError {
+  public readonly pnpmfile: string
+  public readonly originalError: Error
+
+  constructor (pnpmfile: string, originalError: Error) {
+    super('PNPMFILE_FAIL', `Error during pnpmfile execution. pnpmfile: "${pnpmfile}". Error: "${originalError.message}".`)
+    this.pnpmfile = pnpmfile
+    this.originalError = originalError
+  }
+}
 
 export default (pnpmFilePath: string, prefix: string) => {
   try {
@@ -22,12 +43,7 @@ export default (pnpmFilePath: string, prefix: string) => {
         pkg.peerDependencies = pkg.peerDependencies || {}
         const newPkg = readPackage(pkg, ...args)
         if (!newPkg) {
-          const err = new Error(`readPackage hook did not return a package manifest object. Hook imported via ${pnpmFilePath}`)
-           // tslint:disable:no-string-literal
-          err['code'] = 'ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT'
-          err['pnpmfile'] = pnpmFilePath
-           // tslint:enable:no-string-literal
-          throw err
+          throw new BadReadPackageHookError(pnpmFilePath)
         }
         return newPkg
       }
@@ -42,13 +58,7 @@ export default (pnpmFilePath: string, prefix: string) => {
       return
     }
     if (err.code !== 'MODULE_NOT_FOUND' || pnpmFileExistsSync(pnpmFilePath)) {
-      const errWrapper = new Error(`Error during pnpmfile execution. pnpmfile: "${pnpmFilePath}". Error: "${err.message}".`)
-      // tslint:disable:no-string-literal
-      errWrapper['code'] = 'ERR_PNPM_PNPMFILE_FAIL'
-      err['pnpmfile'] = pnpmFilePath
-      errWrapper['originalError'] = err
-      // tslint:enable:no-string-literal
-      throw errWrapper
+      throw new PnpmFileFailError(pnpmFilePath, err)
     }
     return undefined
   }

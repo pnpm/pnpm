@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import {
   DirectoryResolution,
@@ -49,14 +50,12 @@ export default async function resolveLocal (
   } catch (internalErr) {
     switch (internalErr.code) {
       case 'ENOTDIR': {
-        const err = new Error(`Could not install from "${spec.fetchSpec}" as it is not a directory.`)
-        err['code'] = 'ERR_PNPM_NOT_PACKAGE_DIRECTORY' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('NOT_PACKAGE_DIRECTORY',
+          `Could not install from "${spec.fetchSpec}" as it is not a directory.`)
       }
       case 'ENOENT': {
-        const err = new Error(`Could not install from "${spec.fetchSpec}" as it does not contain a package.json file.`)
-        err['code'] = 'ERR_PNPM_DIRECTORY_HAS_NO_PACKAGE_JSON' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('DIRECTORY_HAS_NO_PACKAGE_JSON',
+          `Could not install from "${spec.fetchSpec}" as it does not contain a package.json file.`)
       }
       default: {
         throw internalErr

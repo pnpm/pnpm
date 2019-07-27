@@ -33,6 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-importer-manifest#readme",
   "dependencies": {
+    "@pnpm/error": "0.0.0",
     "@pnpm/types": "^3.0.0",
     "@pnpm/write-importer-manifest": "2.0.1",
     "detect-indent": "6.0.0",

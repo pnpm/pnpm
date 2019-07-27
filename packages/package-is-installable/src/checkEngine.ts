@@ -1,13 +1,13 @@
+import PnpmError from '@pnpm/error'
 import semver = require('semver')
 
-export class UnsupportedEngineError extends Error {
-  public code: 'ERR_PNPM_UNSUPPORTED_ENGINE' = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+export class UnsupportedEngineError extends PnpmError {
   public wanted: WantedEngine
   public current: Engine
   public packageId: string
 
   constructor (packageId: string, wanted: WantedEngine, current: Engine) {
-    super(`Unsupported engine for ${packageId}: wanted: ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`)
+    super('UNSUPPORTED_ENGINE', `Unsupported engine for ${packageId}: wanted: ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`)
     this.packageId = packageId
     this.wanted = wanted
     this.current = current

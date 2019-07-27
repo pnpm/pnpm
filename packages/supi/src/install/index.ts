@@ -9,6 +9,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import headless from '@pnpm/headless'
 import {
   runLifecycleHooksConcurrently,
@@ -55,7 +56,6 @@ import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import semver = require('semver')
-import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import lock from '../lock'
@@ -152,7 +152,7 @@ export async function mutateModules (
   const opts = await extendOptions(maybeOpts)
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('ERR_PNPM_OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
+    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
   const ctx = await getContext(importers, opts)

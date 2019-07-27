@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
@@ -18,7 +19,6 @@ import importFrom = require('import-from')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
-import { PnpmError } from '../errorTypes'
 
 export interface DependenciesGraphNode {
   name: string,
@@ -328,7 +328,7 @@ function resolvePeers (
           ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.resolvedPackage)}
           requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
         if (ctx.strictPeerDependencies) {
-          throw new PnpmError('ERR_PNPM_MISSING_PEER_DEPENDENCY', message)
+          throw new PnpmError('MISSING_PEER_DEPENDENCY', message)
         }
         logger.warn({
           message,
@@ -344,7 +344,7 @@ function resolvePeers (
         ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.resolvedPackage)}
         requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
       if (ctx.strictPeerDependencies) {
-        throw new PnpmError('ERR_PNPM_INVALID_PEER_DEPENDENCY', message)
+        throw new PnpmError('INVALID_PEER_DEPENDENCY', message)
       }
       logger.warn({
         message,

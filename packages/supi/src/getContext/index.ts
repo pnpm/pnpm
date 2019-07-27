@@ -1,4 +1,5 @@
 import { packageJsonLogger } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import {
@@ -14,7 +15,6 @@ import {
 } from '@pnpm/types'
 import makeDir = require('make-dir')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
-import { PnpmError } from '../errorTypes'
 import checkCompatibility from './checkCompatibility'
 import readLockfileFile from './readLockfiles'
 
@@ -156,13 +156,13 @@ async function validateNodeModules (
     }
     if (modules.independentLeaves) {
       throw new PnpmError(
-        'ERR_PNPM_INDEPENDENT_LEAVES_WANTED',
+        'INDEPENDENT_LEAVES_WANTED',
         'This "node_modules" folder was created using the --independent-leaves option.'
         + ' You must add that option, or else run "pnpm install --force" to recreate the "node_modules" folder.',
       )
     }
     throw new PnpmError(
-      'ERR_PNPM_INDEPENDENT_LEAVES_NOT_WANTED',
+      'INDEPENDENT_LEAVES_NOT_WANTED',
       'This "node_modules" folder was created without the --independent-leaves option.'
       + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
     )
@@ -172,13 +172,13 @@ async function validateNodeModules (
       if (typeof importer.currentShamefullyFlatten === 'boolean' && importer.currentShamefullyFlatten !== importer.shamefullyFlatten) {
         if (importer.currentShamefullyFlatten) {
           throw new PnpmError(
-            'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED',
+            'SHAMEFULLY_FLATTEN_WANTED',
             'This "node_modules" folder was created using the --shamefully-flatten option.'
             + ' You must add this option, or else add the --force option to recreate the "node_modules" folder.',
           )
         }
         throw new PnpmError(
-          'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_WANTED',
+          'SHAMEFULLY_FLATTEN_NOT_WANTED',
           'This "node_modules" folder was created without the --shamefully-flatten option.'
           + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
@@ -187,7 +187,7 @@ async function validateNodeModules (
       if (opts.lockfileDirectory !== importer.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
-            throw new PnpmError('ERR_PNPM_INCLUDED_DEPS_CONFLICT',
+            throw new PnpmError('INCLUDED_DEPS_CONFLICT',
               `node_modules (at "${opts.lockfileDirectory}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
               `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
             )

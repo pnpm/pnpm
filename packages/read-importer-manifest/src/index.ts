@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { ImporterManifest } from '@pnpm/types'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
 import detectIndent = require('detect-indent')
@@ -29,9 +30,8 @@ export default async function readImporterManifest (importerDir: string): Promis
       writeImporterManifest: WriteImporterManifest
     }
   }
-  const err = new Error(`No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
-  err['code'] = 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND'
-  throw err
+  throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
+    `No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
 }
 
 export async function readImporterManifestOnly (importerDir: string): Promise<ImporterManifest> {

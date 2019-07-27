@@ -1,4 +1,5 @@
 import { toOutput$ } from '@pnpm/default-reporter'
+import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
@@ -6,7 +7,6 @@ import chalk from 'chalk'
 import { stripIndent, stripIndents } from 'common-tags'
 import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')
-import { EOL } from 'os'
 import path = require('path')
 import StackTracey = require('stacktracey')
 import test = require('tape')
@@ -88,8 +88,7 @@ test('prints no matching version error when many dist-tags exist', async (t) => 
     },
   })
 
-  const err = new Error('No matching version found for pnpm@1000.0.0')
-  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
+  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')
   err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'pnpm-meta.json'))
   logger.error(err, err)
 })
@@ -116,8 +115,7 @@ test('prints no matching version error when only the latest dist-tag exists', as
     },
   })
 
-  const err = new Error('No matching version found for is-positive@1000.0.0')
-  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
+  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')
   err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'is-positive-meta.json'))
   logger.error(err, err)
 })
@@ -155,8 +153,7 @@ test('prints suggestions when an internet-connection related error happens', asy
     },
   })
 
-  const err = new Error('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
-  err['code'] = 'ERR_PNPM_BAD_TARBALL_SIZE'
+  const err = new PnpmError('BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
   err['expectedSize'] = 100
   err['receivedSize'] = 99
   logger.error(err, err)
@@ -256,8 +253,7 @@ test('prints unsupported pnpm version error', async (t) => {
     },
   })
 
-  const err = new Error('Unsupported pnpm version')
-  err['code'] = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
   err['packageId'] = '/home/zoltan/project'
   err['wanted'] = { pnpm: '2' }
   err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
@@ -288,8 +284,7 @@ test('prints unsupported Node version error', async (t) => {
     },
   })
 
-  const err = new Error('Unsupported pnpm version')
-  err['code'] = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
   err['packageId'] = '/home/zoltan/project'
   err['wanted'] = { node: '>=12' }
   err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
@@ -330,8 +325,7 @@ test('prints unsupported pnpm and Node versions error', async (t) => {
     },
   })
 
-  const err = new Error('Unsupported pnpm version')
-  err['code'] = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
   err['packageId'] = '/home/zoltan/project'
   err['wanted'] = { pnpm: '2', node: '>=12' }
   err['current'] = { pnpm: '3.0.0', node: '10.0.0' }

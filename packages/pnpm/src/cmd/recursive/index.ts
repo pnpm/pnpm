@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
@@ -56,9 +57,7 @@ export default async (
   opts: PnpmOptions,
 ) => {
   if (opts.workspaceConcurrency < 1) {
-    const err = new Error('Workspace concurrency should be at least 1')
-    err['code'] = 'ERR_PNPM_INVALID_WORKSPACE_CONCURRENCY' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
   }
 
   const cmd = input.shift()
@@ -69,9 +68,8 @@ export default async (
   const cmdFullName = getCommandFullName(cmd)
   if (!supportedRecursiveCommands.has(cmdFullName)) {
     help(['recursive'])
-    const err = new Error(`"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
-    err['code'] = 'ERR_PNPM_INVALID_RECURSIVE_COMMAND' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('INVALID_RECURSIVE_COMMAND',
+      `"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
   }
 
   const workspacePrefix = opts.workspacePrefix || process.cwd()

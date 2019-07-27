@@ -51,6 +51,7 @@ importers:
       run-groups: 2.0.0
   packages/config:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-conf': 1.2.4
       camelcase: 5.3.1
@@ -67,6 +68,7 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/config': 'link:'
+      '@pnpm/error': 0.0.0
       '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
       '@types/which': 1.3.1
@@ -116,6 +118,7 @@ importers:
     dependencies:
       '@pnpm/config': 'link:../config'
       '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
@@ -148,6 +151,7 @@ importers:
       '@pnpm/config': 3.5.0
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-reporter': 'link:'
+      '@pnpm/error': 0.0.0
       '@pnpm/logger': 2.1.1
       '@pnpm/types': 3.2.0
       '@types/common-tags': 1.8.0
@@ -242,6 +246,11 @@ importers:
       encode-registry: 2.0.1
       semver: 6.3.0
       tape: 4.11.0
+  packages/error:
+    devDependencies:
+      rimraf: 2.6.3
+    specifiers:
+      rimraf: 2.6.3
   packages/fetch:
     dependencies:
       '@zeit/fetch-retry': 4.0.1_node-fetch@2.6.0
@@ -285,6 +294,7 @@ importers:
   packages/filter-lockfile:
     dependencies:
       '@pnpm/constants': 'link:../constants'
+      '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
@@ -302,6 +312,7 @@ importers:
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 1.1.0
+      '@pnpm/error': 0.0.0
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.10
@@ -381,6 +392,7 @@ importers:
       '@pnpm/build-modules': 'link:../build-modules'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/error': 'link:../error'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/link-bins': 4.4.0
@@ -435,6 +447,7 @@ importers:
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
+      '@pnpm/error': 0.0.0
       '@pnpm/filter-lockfile': 1.0.13
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 6.2.1
@@ -546,6 +559,7 @@ importers:
       tape: 4.11.0
   packages/local-resolver:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
@@ -558,6 +572,7 @@ importers:
       '@types/ssri': 6.0.1
       tape: 4.11.0
     specifiers:
+      '@pnpm/error': 0.0.0
       '@pnpm/local-resolver': 'link:'
       '@pnpm/read-importer-manifest': 1.0.5
       '@pnpm/resolver-base': 3.1.2
@@ -571,6 +586,7 @@ importers:
   packages/lockfile-file:
     dependencies:
       '@pnpm/constants': 'link:../constants'
+      '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/types': 'link:../types'
       js-yaml: 3.13.1
@@ -592,6 +608,7 @@ importers:
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 1.1.0
+      '@pnpm/error': 0.0.0
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
@@ -728,6 +745,7 @@ importers:
       tape: 4.11.0
   packages/npm-resolver:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
       credentials-by-uri: 1.0.0
@@ -756,6 +774,7 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
+      '@pnpm/error': 0.0.0
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolver-base': 3.1.2
@@ -809,6 +828,7 @@ importers:
   packages/package-is-installable:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
       semver: 6.3.0
     devDependencies:
@@ -819,6 +839,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/core-loggers': 3.0.3
+      '@pnpm/error': 0.0.0
       '@pnpm/logger': 2.1.1
       '@pnpm/package-is-installable': 'link:'
       '@pnpm/types': 3.2.0
@@ -994,6 +1015,7 @@ importers:
       '@pnpm/default-fetcher': 'link:../default-fetcher'
       '@pnpm/default-reporter': 'link:../default-reporter'
       '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/error': 'link:../error'
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/list': 'link:../list'
@@ -1100,6 +1122,7 @@ importers:
       '@pnpm/default-fetcher': 3.1.15
       '@pnpm/default-reporter': 3.3.1
       '@pnpm/default-resolver': 3.0.18
+      '@pnpm/error': 0.0.0
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 6.2.1
       '@pnpm/list': 1.0.13
@@ -1222,6 +1245,7 @@ importers:
       yaml-tag: 1.1.0
   packages/read-importer-manifest:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       detect-indent: 6.0.0
@@ -1241,6 +1265,7 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
+      '@pnpm/error': 0.0.0
       '@pnpm/read-importer-manifest': 'link:'
       '@pnpm/types': ^3.0.0
       '@pnpm/write-importer-manifest': 2.0.1
@@ -1299,6 +1324,7 @@ importers:
   packages/resolve-dependencies:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -1320,6 +1346,7 @@ importers:
       rimraf: 2.6.3
     specifiers:
       '@pnpm/core-loggers': 3.0.3
+      '@pnpm/error': 0.0.0
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
@@ -1432,6 +1459,7 @@ importers:
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/error': 'link:../error'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/headless': 'link:../headless'
@@ -1530,6 +1558,7 @@ importers:
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
+      '@pnpm/error': 0.0.0
       '@pnpm/filter-lockfile': 1.0.13
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/headless': 7.1.6
@@ -1636,6 +1665,7 @@ importers:
       symlink-dir: 3.1.0
   packages/tarball-fetcher:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
@@ -1662,6 +1692,7 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
+      '@pnpm/error': 0.0.0
       '@pnpm/fetcher-base': 3.0.4
       '@pnpm/logger': 2.1.1
       '@pnpm/tarball-fetcher': 'link:'

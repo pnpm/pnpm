@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import {
   getLockfileImporterId,
   readCurrentLockfile,
@@ -102,9 +103,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
   const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false }) || currentLockfile
   if (!wantedLockfile) {
-    const err = new Error('No lockfile in this directory. Run `pnpm install` to generate one.')
-    err['code'] = 'ERR_PNPM_OUTDATED_NO_LOCKFILE'
-    throw err
+    throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
   }
   const store = await storePath(opts.prefix, opts.store)
   const getLatestVersion = createLatestVersionGetter({

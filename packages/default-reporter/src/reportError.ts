@@ -1,4 +1,5 @@
 import { Log } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import chalk from 'chalk'
 import commonTags = require('common-tags')
 import R = require('ramda')
@@ -18,7 +19,7 @@ const colorPath = chalk.gray
 
 export default function reportError (logObj: Log) {
   if (logObj['err']) {
-    const err = logObj['err'] as (Error & { code: string, stack: object })
+    const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
       case 'ERR_PNPM_UNEXPECTED_STORE':
         return reportUnexpectedStore(err, logObj['message'])

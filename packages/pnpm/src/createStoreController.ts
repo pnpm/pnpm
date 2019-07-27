@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { StoreController } from '@pnpm/package-store'
 import { connectStoreController } from '@pnpm/server'
@@ -98,9 +99,7 @@ export default async function createStoreController (
     }
   }
   if (opts.useRunningStoreServer) {
-    const err = new Error('No store server is running.')
-    err['code'] = 'ERR_PNPM_NO_STORE_SERVER' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('NO_STORE_SERVER', 'No store server is running.')
   }
   if (opts.useStoreServer) {
     runServerInBackground(store)

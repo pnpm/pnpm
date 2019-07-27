@@ -12,7 +12,8 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import filterLockfile, {
+import PnpmError from '@pnpm/error'
+import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
@@ -125,10 +126,9 @@ export default async (opts: HeadlessOptions) => {
 
   for (const { id, manifest, prefix } of opts.importers) {
     if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
-      const err = new Error(`Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
+      throw new PnpmError('OUTDATED_LOCKFILE',
+        `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
         path.relative(opts.lockfileDirectory, path.join(prefix, 'package.json')))
-      err['code'] = 'ERR_PNPM_OUTDATED_LOCKFILE' // tslint:disable-line
-      throw err
     }
   }
 

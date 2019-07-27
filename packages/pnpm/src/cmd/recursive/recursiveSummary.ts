@@ -1,3 +1,5 @@
+import PnpmError from '@pnpm/error'
+
 interface ActionFailure {
   prefix: string,
   message: string,
@@ -11,14 +13,20 @@ interface RecursiveSummary {
 
 export default RecursiveSummary
 
-export function throwOnCommandFail (command: string, recursiveSummary: RecursiveSummary) {
-  if (!recursiveSummary.fails.length) return
+class RecursiveFailError extends PnpmError {
+  public readonly fails: ActionFailure[]
+  public readonly passes: number
 
-  const err = new Error(`"${command}" failed in ${recursiveSummary.fails.length} packages`)
-  // tslint:disable:no-string-literal
-  err['fails'] = recursiveSummary.fails
-  err['passes'] = recursiveSummary.passes
-  err['code'] = 'ERR_PNPM_RECURSIVE_FAIL'
-  // tslint:enable:no-string-literal
-  throw err
+  constructor (command: string, recursiveSummary: RecursiveSummary) {
+    super('RECURSIVE_FAIL', `"${command}" failed in ${recursiveSummary.fails.length} packages`)
+
+    this.fails = recursiveSummary.fails
+    this.passes = recursiveSummary.passes
+  }
+}
+
+export function throwOnCommandFail (command: string, recursiveSummary: RecursiveSummary) {
+  if (recursiveSummary.fails.length) {
+    throw new RecursiveFailError(command, recursiveSummary)
+  }
 }

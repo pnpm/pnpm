@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase from 'camelcase'
@@ -93,14 +94,10 @@ export default async (
   switch (command[command.length - 1]) {
     case 'update':
       if (typeof cliArgs['frozen-lockfile'] !== 'undefined') {
-        const err = new Error('The "frozen-lockfile" option cannot be used with the "update" command')
-        err['code'] = 'ERR_PNPM_CONFIG_BAD_OPTION' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('CONFIG_BAD_OPTION', 'The "frozen-lockfile" option cannot be used with the "update" command')
       }
       if (typeof cliArgs['prefer-frozen-lockfile'] !== 'undefined') {
-        const err = new Error('The "prefer-frozen-lockfile" option cannot be used with the "update" command')
-        err['code'] = 'ERR_PNPM_CONFIG_BAD_OPTION' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('CONFIG_BAD_OPTION', 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
       }
       break
   }
@@ -215,25 +212,22 @@ export default async (
     pnpmConfig.saveOptional = false
     if (pnpmConfig.linkWorkspacePackages) {
       if (opts.cliArgs['link-workspace-packages']) {
-        const err = new Error('Configuration conflict. "link-workspace-packages" may not be used with "global"')
-        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL',
+          'Configuration conflict. "link-workspace-packages" may not be used with "global"')
       }
       pnpmConfig.linkWorkspacePackages = false
     }
     if (pnpmConfig.sharedWorkspaceLockfile) {
       if (opts.cliArgs['shared-workspace-lockfile'] || opts.cliArgs['shared-workspace-shrinkwrap']) {
-        const err = new Error('Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
-        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL',
+          'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
       }
       pnpmConfig.sharedWorkspaceLockfile = false
     }
     if (pnpmConfig.lockfileDirectory) {
       if (opts.cliArgs['lockfile-directory'] || opts.cliArgs['shrinkwrap-directory']) {
-        const err = new Error('Configuration conflict. "lockfile-directory" may not be used with "global"')
-        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL',
+          'Configuration conflict. "lockfile-directory" may not be used with "global"')
       }
       delete pnpmConfig.lockfileDirectory
     }
@@ -243,14 +237,11 @@ export default async (
   }
   if (opts.cliArgs['save-peer']) {
     if (opts.cliArgs['save-prod']) {
-      const err = new Error('A package cannot be a peer dependency and a prod dependency at the same time')
-      err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP' // tslint:disable-line
-      throw err
+      throw new PnpmError('CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP', 'A package cannot be a peer dependency and a prod dependency at the same time')
     }
     if (opts.cliArgs['save-optional']) {
-      const err = new Error('A package cannot be a peer dependency and an optional dependency at the same time')
-      err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP' // tslint:disable-line
-      throw err
+      throw new PnpmError('CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP',
+        'A package cannot be a peer dependency and an optional dependency at the same time')
     }
     pnpmConfig.saveDev = true
   }

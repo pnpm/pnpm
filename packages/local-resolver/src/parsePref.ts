@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import normalize = require('normalize-path')
 import os = require('os')
 import path = require('path')
@@ -35,10 +36,9 @@ export default function parsePref (
     return fromLocal(pref, importerPrefix, lockfileDirectory, type)
   }
   if (pref.startsWith('path:')) {
-    const err = new Error('Local dependencies via `path:` protocol are not supported. ' +
+    const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
       'Use the `link:` protocol for folder dependencies and `file:` for local tarballs')
     // tslint:disable:no-string-literal
-    err['code'] = 'ERR_PNPM_PATH_IS_UNSUPPORTED_PROTOCOL'
     err['pref'] = pref
     err['protocol'] = 'path:'
     // tslint:enable:no-string-literal

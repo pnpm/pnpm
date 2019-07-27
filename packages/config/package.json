@@ -30,6 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/config#readme",
   "dependencies": {
+    "@pnpm/error": "0.0.0",
     "@pnpm/types": "3.2.0",
     "@zkochan/npm-conf": "1.2.4",
     "camelcase": "5.3.1",

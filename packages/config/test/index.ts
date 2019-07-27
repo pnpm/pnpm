@@ -1,5 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import getConfigs from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
@@ -39,7 +40,7 @@ test('throw error if --link-workspace-packages is used with --global', async (t)
     })
   } catch (err) {
     t.equal(err.message, 'Configuration conflict. "link-workspace-packages" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
     t.end()
   }
 })
@@ -58,7 +59,7 @@ test('throw error if --shared-workspace-shrinkwrap is used with --global', async
     })
   } catch (err) {
     t.equal(err.message, 'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
     t.end()
   }
 })
@@ -77,7 +78,7 @@ test('throw error if --shrinkwrap-directory is used with --global', async (t) =>
     })
   } catch (err) {
     t.equal(err.message, 'Configuration conflict. "lockfile-directory" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL')
     t.end()
   }
 })
@@ -315,7 +316,7 @@ test('throw error if --save-prod is used with --save-peer', async (t) => {
     })
   } catch (err) {
     t.equal(err.message, 'A package cannot be a peer dependency and a prod dependency at the same time')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
     t.end()
   }
 })
@@ -334,7 +335,7 @@ test('throw error if --save-optional is used with --save-peer', async (t) => {
     })
   } catch (err) {
     t.equal(err.message, 'A package cannot be a peer dependency and an optional dependency at the same time')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
     t.end()
   }
 })
@@ -399,7 +400,7 @@ test('throw error on "update --frozen-lockfile"', async (t) => {
     })
   } catch (err) {
     t.equal(err.message, 'The "frozen-lockfile" option cannot be used with the "update" command')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_BAD_OPTION')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_BAD_OPTION')
     t.end()
   }
 })
@@ -418,7 +419,7 @@ test('throw error on "update --prefer-frozen-lockfile"', async (t) => {
     })
   } catch (err) {
     t.equal(err.message, 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_BAD_OPTION')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_BAD_OPTION')
     t.end()
   }
 })

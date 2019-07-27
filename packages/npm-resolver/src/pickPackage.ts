@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
@@ -9,14 +10,6 @@ import writeJsonFile = require('write-json-file')
 import { RegistryPackageSpec } from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
-
-class PnpmError extends Error {
-  public code: string
-  constructor (code: string, message: string) {
-    super(message)
-    this.code = code
-  }
-}
 
 export interface PackageMeta {
   'dist-tag': { [name: string]: string },
@@ -92,7 +85,7 @@ export default async (
         pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore),
       }
 
-      throw new PnpmError('ERR_PNPM_NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+      throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
     if (metaCachedInStore) {
@@ -143,6 +136,31 @@ export default async (
   }
 }
 
+type RegistryResponse = {
+  status: number,
+  statusText: string,
+  json: () => Promise<PackageMeta>,
+}
+
+class RegistryResponseError extends PnpmError {
+  public readonly package: string
+  public readonly response: RegistryResponse
+  public readonly uri: string
+
+  constructor (opts: {
+    package: string,
+    response: RegistryResponse,
+    uri: string,
+  }) {
+    super(
+      `REGISTRY_META_RESPONSE_${opts.response.status}`,
+      `${opts.response.status} ${opts.response.statusText}: ${opts.package} (via ${opts.uri})`)
+    this.package = opts.package
+    this.response = opts.response
+    this.uri = opts.uri
+  }
+}
+
 async function fromRegistry (
   fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
   pkgName: string,
@@ -150,22 +168,15 @@ async function fromRegistry (
   auth?: object,
 ) {
   const uri = toUri(pkgName, registry)
-  const res = await fetch(uri, { auth }) as {
-    status: number,
-    statusText: string,
-    json: () => Promise<PackageMeta>,
+  const response = await fetch(uri, { auth }) as RegistryResponse
+  if (response.status > 400) {
+    throw new RegistryResponseError({
+      package: pkgName,
+      response,
+      uri,
+    })
   }
-  if (res.status > 400) {
-    const err = new Error(`${res.status} ${res.statusText}: ${pkgName} (via ${uri})`)
-    // tslint:disable
-    err['code'] = `ERR_PNPM_REGISTRY_META_RESPONSE_${res.status}`
-    err['uri'] = uri
-    err['response'] = res
-    err['package'] = pkgName
-    // tslint:enable
-    throw err
-  }
-  return res.json()
+  return response.json()
 }
 
 async function loadMeta (pkgMirror: string, metaFileName: string): Promise<PackageMeta | null> {

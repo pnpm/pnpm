@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import {
   LocalPackages,
   ResolveResult,
@@ -21,6 +22,14 @@ import pickPackage, {
   PackageMetaCache,
 } from './pickPackage'
 import toRaw from './toRaw'
+
+class NoMatchingVersionError extends PnpmError {
+  public readonly packageMeta: PackageMeta
+  constructor (opts: { spec: RegistryPackageSpec, packageMeta: PackageMeta}) {
+    super('NO_MATCHING_VERSION', `No matching version found for ${toRaw(opts.spec)}`)
+    this.packageMeta = opts.packageMeta
+  }
+}
 
 export {
   PackageMeta,
@@ -151,12 +160,7 @@ async function resolveNpm (
       const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
       if (resolvedFromLocal) return resolvedFromLocal
     }
-    const err = new Error(`No matching version found for ${toRaw(spec)}`)
-    // tslint:disable:no-string-literal
-    err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
-    err['packageMeta'] = meta
-    // tslint:enable:no-string-literal
-    throw err
+    throw new NoMatchingVersionError({ spec, packageMeta: meta })
   }
 
   if (opts.localPackages && opts.localPackages[pickedPackage.name]) {

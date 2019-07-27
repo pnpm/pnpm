@@ -3,6 +3,7 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshot,
@@ -658,11 +659,7 @@ async function resolveDependency (
     // tslint:enable:no-string-literal
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
-    const err = new Error(`Can't install ${wantedDependency.raw}: Missing package name`)
-    // tslint:disable:no-string-literal
-    err['code'] = 'ERR_PNPM_MISSING_PACKAGE_NAME'
-    // tslint:enable:no-string-literal
-    throw err
+    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.raw}: Missing package name`)
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest

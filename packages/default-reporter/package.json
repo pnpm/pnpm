@@ -36,6 +36,7 @@
   "dependencies": {
     "@pnpm/config": "3.5.0",
     "@pnpm/core-loggers": "3.0.3",
+    "@pnpm/error": "0.0.0",
     "@pnpm/types": "3.2.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",

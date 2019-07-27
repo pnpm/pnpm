@@ -10,6 +10,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
+import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
@@ -421,8 +422,7 @@ test('prints summary when some packages fail', async (t) => {
     },
   })
 
-  const err = new Error('...')
-  err['code'] = 'ERR_PNPM_RECURSIVE_FAIL'
+  const err = new PnpmError('RECURSIVE_FAIL', '...')
   err['fails'] = [
     {
       message: 'a failed',

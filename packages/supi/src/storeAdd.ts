@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import {
   storeLogger,
   streamParser,
@@ -62,8 +63,6 @@ export default async function (
   }
 
   if (hasFailures) {
-    const err = new Error('Some packages have not been added correctly')
-    err['code'] = 'ERR_PNPM_STORE_ADD_FAILURE' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('STORE_ADD_FAILURE', 'Some packages have not been added correctly')
   }
 }
