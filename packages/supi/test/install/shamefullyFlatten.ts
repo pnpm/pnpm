@@ -1,7 +1,14 @@
+import PnpmError from '@pnpm/error'
 import { prepareEmpty } from '@pnpm/prepare'
 import fs = require('fs')
+import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
-import { addDependenciesToPackage, install, mutateModules } from 'supi'
+import {
+  addDependenciesToPackage,
+  install,
+  mutateModules,
+  ShamefullyFlattenNotInLockfileDirectoryError,
+} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { addDistTag, testDefaults } from '../utils'
@@ -251,4 +258,22 @@ test('should uninstall correctly peer dependencies', async (t) => {
   ], await testDefaults({ shamefullyFlatten: true }))
 
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
+})
+
+test('shamefully-flatten: throw exception when executed on a project that uses an external lockfile', async (t: tape.Test) => {
+  prepareEmpty(t)
+  const lockfileDirectory = path.resolve('..')
+
+  let err!: ShamefullyFlattenNotInLockfileDirectoryError
+  try {
+    await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ shamefullyFlatten: true, lockfileDirectory }))
+    t.fail('installation should have failed')
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err, 'error thrown')
+  t.equal(err.code, 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR')
+  t.equal(err.shamefullyFlattenDirectory, process.cwd())
+  t.equal(err.lockfileDirectory, lockfileDirectory)
 })
