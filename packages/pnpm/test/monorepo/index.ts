@@ -423,7 +423,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile(
     'is-positive/.npmrc',
-    'shamefully-flatten = true\nsave-exact = true',
+    'save-exact = true',
     'utf8',
   )
   await fs.writeFile(
@@ -435,7 +435,6 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store', 'store')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
-  t.ok(projects['is-positive'].requireModule('concat-stream'), 'dependencies flattened in is-positive')
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
   const sharedLockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)

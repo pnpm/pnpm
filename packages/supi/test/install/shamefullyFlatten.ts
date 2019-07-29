@@ -1,7 +1,15 @@
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import fs = require('fs')
+import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
-import { addDependenciesToPackage, install, mutateModules } from 'supi'
+import rimraf = require('rimraf-then')
+import {
+  addDependenciesToPackage,
+  install,
+  MutatedImporter,
+  mutateModules,
+  ShamefullyFlattenNotInLockfileDirectoryError,
+} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { addDistTag, testDefaults } from '../utils'
@@ -251,4 +259,91 @@ test('should uninstall correctly peer dependencies', async (t) => {
   ], await testDefaults({ shamefullyFlatten: true }))
 
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
+})
+
+test('shamefully-flatten: throw exception when executed on a project that uses an external lockfile', async (t: tape.Test) => {
+  prepareEmpty(t)
+  const lockfileDirectory = path.resolve('..')
+
+  let err!: ShamefullyFlattenNotInLockfileDirectoryError
+  try {
+    await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ shamefullyFlatten: true, lockfileDirectory }))
+    t.fail('installation should have failed')
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err, 'error thrown')
+  t.equal(err.code, 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR')
+  t.equal(err.shamefullyFlattenDirectory, process.cwd())
+  t.equal(err.lockfileDirectory, lockfileDirectory)
+})
+
+test('shamefully-flatten: only hoists the dependencies of the root workspace package', async (t) => {
+  const workspaceRootManifest = {
+    name: 'root',
+
+    dependencies: {
+      'pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const workspacePackageManifest = {
+    name: 'package',
+
+    dependencies: {
+      'foobar': '100.0.0'
+    },
+  }
+  const projects = preparePackages(t, [
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      location: 'package',
+      package: workspacePackageManifest,
+    },
+  ])
+
+  const importers: MutatedImporter[] = [
+    {
+      buildIndex: 0,
+      manifest: workspaceRootManifest,
+      mutation: 'install',
+      prefix: process.cwd(),
+      shamefullyFlatten: true,
+    },
+    {
+      buildIndex: 0,
+      manifest: workspacePackageManifest,
+      mutation: 'install',
+      prefix: path.resolve('package'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults())
+
+  await projects['root'].has('pkg-with-1-dep')
+  await projects['root'].has('dep-of-pkg-with-1-dep')
+  await projects['root'].hasNot('foobar')
+  await projects['root'].hasNot('foo')
+  await projects['root'].hasNot('bar')
+
+  await projects['package'].has('foobar')
+  await projects['package'].hasNot('foo')
+  await projects['package'].hasNot('bar')
+
+  await rimraf('node_modules')
+  await rimraf('package/node_modules')
+
+  await mutateModules(importers, await testDefaults({ frozenLockfile: true }))
+
+  await projects['root'].has('pkg-with-1-dep')
+  await projects['root'].has('dep-of-pkg-with-1-dep')
+  await projects['root'].hasNot('foobar')
+  await projects['root'].hasNot('foo')
+  await projects['root'].hasNot('bar')
+
+  await projects['package'].has('foobar')
+  await projects['package'].hasNot('foo')
+  await projects['package'].hasNot('bar')
 })

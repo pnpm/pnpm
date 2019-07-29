@@ -225,6 +225,9 @@ export async function recursive (
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
     if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
+      if (opts.shamefullyFlatten) {
+        logger.info({ message: 'Only the root workspace package is going to have a flat node_modules', prefix: opts.lockfileDirectory })
+      }
       let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
@@ -238,7 +241,7 @@ export async function recursive (
         const { manifest, writeImporterManifest } = manifestsByPath[prefix]
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
-          : opts.shamefullyFlatten
+          : (prefix === opts.lockfileDirectory && opts.shamefullyFlatten)
         let currentInput = [...input]
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {

@@ -43,6 +43,8 @@ export default function reportError (logObj: Log) {
         return reportLifecycleError(logObj['message'])
       case 'ERR_PNPM_UNSUPPORTED_ENGINE':
         return reportEngineError(err, logObj['message'])
+      case 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR':
+        return reportShamefullyFlattenNotInLockfileDirError(logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -269,4 +271,28 @@ function reportEngineError (
     `
   }
   return output || formatErrorSummary(err.message)
+}
+
+function reportShamefullyFlattenNotInLockfileDirError (
+  msg: {
+    lockfileDirectory: string,
+    message: string,
+    shamefullyFlattenDirectory: string,
+  },
+) {
+  return stripIndent`
+    ${formatErrorSummary(`Shamefully flatten can be only used in the lockfile directory`)}
+
+    You were trying to install a flat node_modules in ${msg.shamefullyFlattenDirectory}
+    Flat node_modules is only possible in the directory that contains the lockfile (pnpm-lock.yaml).
+    In your case: ${msg.lockfileDirectory}
+
+    If you really need a flat node_modules in ${msg.shamefullyFlattenDirectory},
+    then you should use a dedicated lockfile.
+    Create a .npmrc in the root of your workspace with the following content:
+    shared-workspace-lockfile=false
+
+    If you don't need a flat node_modules, remove shamefully-flatten=true
+    from the .npmrc file in ${msg.shamefullyFlattenDirectory}
+  `
 }

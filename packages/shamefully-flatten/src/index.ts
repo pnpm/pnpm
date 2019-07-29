@@ -13,20 +13,19 @@ import * as dp from 'dependency-path'
 import path = require('path')
 import R = require('ramda')
 
-export async function shamefullyFlattenByLockfile (
-  lockfile: Lockfile,
-  importerId: string,
+export default async function shamefullyFlattenByLockfile (
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
+    lockfile: Lockfile,
     lockfileDirectory: string,
     modulesDir: string,
     registries: Registries,
     virtualStoreDir: string,
   },
 ) {
-  if (!lockfile.packages) return {}
+  if (!opts.lockfile.packages) return {}
 
-  const lockfileImporter = lockfile.importers[importerId]
+  const lockfileImporter = opts.lockfile.importers['.']
 
   const entryNodes = R.toPairs({
     ...lockfileImporter.devDependencies,
@@ -36,7 +35,7 @@ export async function shamefullyFlattenByLockfile (
   .map((pair) => dp.refToRelative(pair[1], pair[0]))
   .filter((nodeId) => nodeId !== null) as string[]
 
-  const deps = await getDependencies(lockfile.packages, entryNodes, new Set(), 0, {
+  const deps = await getDependencies(opts.lockfile.packages, entryNodes, new Set(), 0, {
     getIndependentPackageLocation: opts.getIndependentPackageLocation,
     lockfileDirectory: opts.lockfileDirectory,
     registries: opts.registries,
@@ -125,7 +124,7 @@ export interface Dependency {
   absolutePath: string,
 }
 
-export default async function shamefullyFlattenGraph (
+async function shamefullyFlattenGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
