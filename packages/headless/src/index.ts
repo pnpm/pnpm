@@ -45,7 +45,7 @@ import {
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { shamefullyFlattenByLockfile } from '@pnpm/shamefully-flatten'
+import shamefullyFlatten from '@pnpm/shamefully-flatten'
 import {
   PackageFilesResponse,
   StoreController,
@@ -228,27 +228,25 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  await Promise.all(opts.importers.map(async (importer) => {
-    if (importer.shamefullyFlatten) {
-      importer.hoistedAliases = await shamefullyFlattenByLockfile(filteredLockfile, importer.id, {
-        getIndependentPackageLocation: opts.independentLeaves
-          ? async (packageId: string, packageName: string) => {
-            const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-              lockfileDirectory: opts.lockfileDirectory,
-              targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
-            })
-            return directory
-          }
-          : undefined,
-        lockfileDirectory: opts.lockfileDirectory,
-        modulesDir: importer.modulesDir,
-        registries: opts.registries,
-        virtualStoreDir,
-      })
-    } else {
-      importer.hoistedAliases = {}
-    }
-  }))
+  const rootImporterWithFlatModules = opts.importers.find((importer) => importer.id === '.' && importer.shamefullyFlatten)
+  if (rootImporterWithFlatModules) {
+    rootImporterWithFlatModules.hoistedAliases = await shamefullyFlatten({
+      getIndependentPackageLocation: opts.independentLeaves
+        ? async (packageId: string, packageName: string) => {
+          const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
+            lockfileDirectory: opts.lockfileDirectory,
+            targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+          })
+          return directory
+        }
+        : undefined,
+      lockfile: filteredLockfile,
+      lockfileDirectory: opts.lockfileDirectory,
+      modulesDir: rootImporterWithFlatModules.modulesDir,
+      registries: opts.registries,
+      virtualStoreDir,
+    })
+  }
 
   await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
     await linkRootPackages(filteredLockfile, {
