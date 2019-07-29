@@ -44,7 +44,7 @@ export default function reportError (logObj: Log) {
       case 'ERR_PNPM_UNSUPPORTED_ENGINE':
         return reportEngineError(err, logObj['message'])
       case 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR':
-        return reportShamefullyFlattenNotInLockfileDirError(err, logObj['message'])
+        return reportShamefullyFlattenNotInLockfileDirError(logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -274,7 +274,6 @@ function reportEngineError (
 }
 
 function reportShamefullyFlattenNotInLockfileDirError (
-  err: Error,
   msg: {
     lockfileDirectory: string,
     message: string,
