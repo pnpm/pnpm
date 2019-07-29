@@ -52,7 +52,7 @@ test('shamefully-flatten: applied only to the workspace root package when set to
   await execPnpm('recursive', 'install')
 
   await projects['root'].has('dep-of-pkg-with-1-dep')
-  await projects['root'].has('foo')
+  await projects['root'].hasNot('foo')
   await projects['project'].hasNot('foo')
   await projects['project'].has('foobar')
 })
