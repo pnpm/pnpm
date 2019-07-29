@@ -1,11 +1,12 @@
-import PnpmError from '@pnpm/error'
-import { prepareEmpty } from '@pnpm/prepare'
+import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import fs = require('fs')
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
+import rimraf = require('rimraf-then')
 import {
   addDependenciesToPackage,
   install,
+  MutatedImporter,
   mutateModules,
   ShamefullyFlattenNotInLockfileDirectoryError,
 } from 'supi'
@@ -276,4 +277,73 @@ test('shamefully-flatten: throw exception when executed on a project that uses a
   t.equal(err.code, 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR')
   t.equal(err.shamefullyFlattenDirectory, process.cwd())
   t.equal(err.lockfileDirectory, lockfileDirectory)
+})
+
+test('shamefully-flatten: only hoists the dependencies of the root workspace package', async (t) => {
+  const workspaceRootManifest = {
+    name: 'root',
+
+    dependencies: {
+      'pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const workspacePackageManifest = {
+    name: 'package',
+
+    dependencies: {
+      'foobar': '100.0.0'
+    },
+  }
+  const projects = preparePackages(t, [
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      location: 'package',
+      package: workspacePackageManifest,
+    },
+  ])
+
+  const importers: MutatedImporter[] = [
+    {
+      buildIndex: 0,
+      manifest: workspaceRootManifest,
+      mutation: 'install',
+      prefix: process.cwd(),
+      shamefullyFlatten: true,
+    },
+    {
+      buildIndex: 0,
+      manifest: workspacePackageManifest,
+      mutation: 'install',
+      prefix: path.resolve('package'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults())
+
+  await projects['root'].has('pkg-with-1-dep')
+  await projects['root'].has('dep-of-pkg-with-1-dep')
+  await projects['root'].hasNot('foobar')
+  await projects['root'].hasNot('foo')
+  await projects['root'].hasNot('bar')
+
+  await projects['package'].has('foobar')
+  await projects['package'].hasNot('foo')
+  await projects['package'].hasNot('bar')
+
+  await rimraf('node_modules')
+  await rimraf('package/node_modules')
+
+  await mutateModules(importers, await testDefaults({ frozenLockfile: true }))
+
+  await projects['root'].has('pkg-with-1-dep')
+  await projects['root'].has('dep-of-pkg-with-1-dep')
+  await projects['root'].hasNot('foobar')
+  await projects['root'].hasNot('foo')
+  await projects['root'].hasNot('bar')
+
+  await projects['package'].has('foobar')
+  await projects['package'].hasNot('foo')
+  await projects['package'].hasNot('bar')
 })

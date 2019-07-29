@@ -805,6 +805,7 @@ async function installInContext (
       outdatedDependencies,
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: ctx.skipped,
       storeController: opts.storeController,
       strictPeerDependencies: opts.strictPeerDependencies,

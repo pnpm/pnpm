@@ -1,4 +1,5 @@
 import {
+  ENGINE_NAME,
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -15,7 +16,7 @@ import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
-import shamefullyFlattenGraph from '@pnpm/shamefully-flatten'
+import { shamefullyFlattenByLockfile } from '@pnpm/shamefully-flatten'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { ImporterManifest, Registries } from '@pnpm/types'
@@ -76,6 +77,7 @@ export default async function linkPackages (
     updateLockfileMinorVersion: boolean,
     outdatedDependencies: {[pkgId: string]: string},
     strictPeerDependencies: boolean,
+    sideEffectsCacheRead: boolean,
   },
 ): Promise<{
   currentLockfile: Lockfile,
@@ -304,20 +306,21 @@ export default async function linkPackages (
     await Promise.all(
       importers.filter(({ shamefullyFlatten }) => shamefullyFlatten)
         .map(async (importer) => {
-          importer.hoistedAliases = await shamefullyFlattenGraph(
-            depNodes.map((depNode) => ({
-              absolutePath: depNode.absolutePath,
-              children: depNode.children,
-              depth: depNode.depth,
-              location: depNode.independent ? depNode.centralLocation : depNode.peripheralLocation,
-              name: depNode.name,
-            })),
-            currentLockfile.importers[importer.id].specifiers,
-            {
-              dryRun: opts.dryRun,
-              modulesDir: importer.modulesDir,
-            },
-          )
+          importer.hoistedAliases = await shamefullyFlattenByLockfile(currentLockfile, importer.id, {
+            getIndependentPackageLocation: opts.independentLeaves
+              ? async (packageId: string, packageName: string) => {
+                const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
+                  lockfileDirectory: opts.lockfileDirectory,
+                  targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+                })
+                return directory
+              }
+              : undefined,
+            lockfileDirectory: opts.lockfileDirectory,
+            modulesDir: importer.modulesDir,
+            registries: opts.registries,
+            virtualStoreDir: opts.virtualStoreDir,
+          })
         }),
     )
   }
