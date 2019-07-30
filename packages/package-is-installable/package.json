@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/error": "0.0.0",
+    "@pnpm/error": "1.0.0",
     "@pnpm/types": "3.2.0",
     "semver": "6.3.0"
   },

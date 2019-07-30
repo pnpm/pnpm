@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@pnpm/constants": "1.1.0",
-    "@pnpm/lockfile-file": "1.1.0",
+    "@pnpm/lockfile-file": "1.1.1",
     "@pnpm/lockfile-utils": "1.0.10",
     "@pnpm/types": "3.2.0",
     "dependency-path": "3.0.8"
