@@ -1,6 +1,5 @@
 import { PackageNode } from 'dependencies-hierarchy'
-import path = require('path')
-import { toArchyTree } from './renderTree'
+import getPkgInfo from './getPkgInfo'
 
 export default async function (
   project: {
@@ -14,8 +13,26 @@ export default async function (
     long: boolean,
   },
 ) {
-  return JSON.stringify(await toArchyTree(tree, {
-    long: opts.long,
-    modules: path.join(project.path, 'node_modules'),
-  }), null, 2)
+  return JSON.stringify({
+    ...project,
+    dependencies: await toJsonResult(tree, { long: opts.long }),
+  }, null, 2)
+}
+
+export async function toJsonResult (
+  entryNodes: PackageNode[],
+  opts: {
+    long: boolean,
+  },
+): Promise<Array<{}>> {
+  return Promise.all(
+    entryNodes.map(async (node) => {
+      const dependencies = await toJsonResult(node.dependencies || [], opts)
+      const result = opts.long ? await getPkgInfo(node.pkg) : node.pkg
+      if (dependencies.length) {
+        result['dependencies'] = dependencies
+      }
+      return result
+    }),
+  )
 }
