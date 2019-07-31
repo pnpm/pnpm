@@ -14,8 +14,8 @@ const DEFAULTS = {
   depth: 0,
   long: false,
   only: undefined,
-  reportAs: 'tree' as 'tree',
   registries: undefined,
+  reportAs: 'tree' as const,
 }
 
 export async function forPackages (

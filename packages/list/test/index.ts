@@ -152,7 +152,7 @@ test('list in long format', async t => {
 })
 
 test('parseable list with depth 1', async t => {
-  t.equal(await list(fixture, { parseable: true, depth: 1 }), stripIndent`
+  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1 }), stripIndent`
     ${fixture}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}
@@ -169,7 +169,7 @@ test('parseable list with depth 1', async t => {
 })
 
 test('parseable list with depth 1 and dev only', async t => {
-  t.equal(await list(fixture, { parseable: true, depth: 1, only: 'dev' }), stripIndent`
+  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1, only: 'dev' }), stripIndent`
     ${fixture}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}
   `)
@@ -178,7 +178,7 @@ test('parseable list with depth 1 and dev only', async t => {
 })
 
 test('long parseable list with depth 1', async t => {
-  t.equal(await list(fixture, { parseable: true, depth: 1, long: true }), stripIndent`
+  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
     ${fixture}:fixture@1.0.0
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
@@ -195,7 +195,7 @@ test('long parseable list with depth 1', async t => {
 })
 
 test('long parseable list with depth 1 when package has no version', async t => {
-  t.equal(await list(fixtureWithNoPkgVersion, { parseable: true, depth: 1, long: true }), stripIndent`
+  t.equal(await list(fixtureWithNoPkgVersion, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
     ${fixtureWithNoPkgVersion}:fixture
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
@@ -212,7 +212,7 @@ test('long parseable list with depth 1 when package has no version', async t => 
 })
 
 test('long parseable list with depth 1 when package has no name and no version', async t => {
-  t.equal(await list(fixtureWithNoPkgNameAndNoVersion, { parseable: true, depth: 1, long: true }), stripIndent`
+  t.equal(await list(fixtureWithNoPkgNameAndNoVersion, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
     ${fixtureWithNoPkgNameAndNoVersion}
     ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
