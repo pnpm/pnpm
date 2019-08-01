@@ -16,7 +16,10 @@ export default async function (
   },
 ) {
   return JSON.stringify({
-    ...project,
+    name: project.name,
+
+    version: project.version,
+
     dependencies: await toJsonResult(tree, { long: opts.long }),
   }, null, 2)
 }
@@ -31,7 +34,7 @@ export async function toJsonResult (
   await Promise.all(
     sortPackages(entryNodes).map(async (node) => {
       const subDependencies = await toJsonResult(node.dependencies || [], opts)
-      const dep = opts.long ? await getPkgInfo(node.pkg) : node.pkg
+      const dep = opts.long ? await getPkgInfo(node.pkg) : { alias: node.pkg.alias, from: node.pkg.name, version: node.pkg.version }
       if (Object.keys(subDependencies).length) {
         dep['dependencies'] = subDependencies
       }

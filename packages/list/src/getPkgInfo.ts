@@ -11,8 +11,13 @@ export default async function getPkgInfo (
 ) {
   const manifest = await readPkg(path.join(pkg.path, 'node_modules', pkg.name, 'package.json'))
   return {
-    ...pkg,
+    alias: pkg.alias,
+    from: pkg.name,
+
+    version: pkg.version,
+
     description: manifest.description,
+
     homepage: manifest.homepage,
     repository: manifest.repository && (
       typeof manifest.repository === 'string' ? manifest.repository : manifest.repository.url

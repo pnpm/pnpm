@@ -13,6 +13,7 @@ const fixtureWithNoPkgNameAndNoVersion = path.join(__dirname, 'fixture-with-no-p
 const fixtureWithNoPkgVersion = path.join(__dirname, 'fixture-with-no-pkg-version')
 const fixtureWithExternalLockfile = path.join(__dirname, 'fixture-with-external-shrinkwrap', 'pkg')
 const emptyFixture = path.join(__dirname, 'empty')
+const fixtureWithAliasedDep = path.join(__dirname, 'with-aliased-dep')
 
 test('list all deps of a package that has an external lockfile', async (t) => {
   t.equal(await list(fixtureWithExternalLockfile, {
@@ -171,58 +172,63 @@ test('parseable list with depth 1', async t => {
 test('JSON list with depth 1', async t => {
   t.equal(await list(fixture, { reportAs: 'json', depth: 1 }), JSON.stringify({
     name: 'fixture',
-    path: fixture,
     version: '1.0.0',
 
     dependencies: {
       'is-negative': {
-        name: 'is-negative',
-        path: path.join(fixture, 'node_modules/.registry.npmjs.org/is-negative/2.1.0'),
-        version: '2.1.0'
+        from: 'is-negative',
+        version: '2.1.0',
       },
       'is-positive': {
-        name: 'is-positive',
-        path: path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0'),
-        version: '3.1.0'
+        from: 'is-positive',
+        version: '3.1.0',
       },
       'write-json-file': {
-        name: 'write-json-file',
-        path: path.join(fixture, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0'),
+        from: 'write-json-file',
         version: '2.2.0',
 
         dependencies: {
           'detect-indent': {
-            name: 'detect-indent',
-            path: path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0'),
-            version: '5.0.0'
+            from: 'detect-indent',
+            version: '5.0.0',
           },
           'graceful-fs': {
-            name: 'graceful-fs',
-            path: path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11'),
-            version: '4.1.11'
+            from: 'graceful-fs',
+            version: '4.1.11',
           },
           'make-dir': {
-            name: 'make-dir',
-            path: path.join(fixture, 'node_modules/.registry.npmjs.org/make-dir/1.0.0'),
-            version: '1.0.0'
+            from: 'make-dir',
+            version: '1.0.0',
           },
           'pify': {
-            name: 'pify',
-            path: path.join(fixture, 'node_modules/.registry.npmjs.org/pify/2.3.0'),
-            version: '2.3.0'
+            from: 'pify',
+            version: '2.3.0',
           },
           'sort-keys': {
-            name: 'sort-keys',
-            path: path.join(fixture, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2'),
-            version: '1.1.2'
+            from: 'sort-keys',
+            version: '1.1.2',
           },
           'write-file-atomic': {
-            name: 'write-file-atomic',
-            path: path.join(fixture, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0'),
-            version: '2.1.0'
+            from: 'write-file-atomic',
+            version: '2.1.0',
           }
         }
       }
+    },
+  }, null, 2))
+  t.end()
+})
+
+test('JSON list with aliased dep', async t => {
+  t.equal(await list(fixtureWithAliasedDep, { reportAs: 'json' }), JSON.stringify({
+    name: 'with-aliased-dep',
+    version: '1.0.0',
+
+    dependencies: {
+      'positive': {
+        from: 'is-positive',
+        version: '1.0.0',
+      },
     },
   }, null, 2))
   t.end()
