@@ -3,6 +3,7 @@ import readPkg from './readPkg'
 
 export default async function getPkgInfo (
   pkg: {
+    alias: string,
     name: string,
     version: string,
     path: string,

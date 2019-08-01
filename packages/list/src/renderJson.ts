@@ -24,15 +24,19 @@ export async function toJsonResult (
   opts: {
     long: boolean,
   },
-): Promise<Array<{}>> {
-  return Promise.all(
+): Promise<{}> {
+  const dependencies = {}
+  await Promise.all(
     entryNodes.map(async (node) => {
-      const dependencies = await toJsonResult(node.dependencies || [], opts)
-      const result = opts.long ? await getPkgInfo(node.pkg) : node.pkg
-      if (dependencies.length) {
-        result['dependencies'] = dependencies
+      const subDependencies = await toJsonResult(node.dependencies || [], opts)
+      const dep = opts.long ? await getPkgInfo(node.pkg) : node.pkg
+      if (Object.keys(subDependencies).length) {
+        dep['dependencies'] = subDependencies
       }
-      return result
+      const alias = dep.alias
+      delete dep.alias
+      dependencies[alias] = dep
     }),
   )
+  return dependencies
 }

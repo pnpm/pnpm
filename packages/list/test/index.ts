@@ -248,6 +248,7 @@ test('unsaved dependencies are marked', async (t) => {
     [
       {
         pkg: {
+          alias: 'foo',
           name: 'foo',
           path: '',
           version: '1.0.0',

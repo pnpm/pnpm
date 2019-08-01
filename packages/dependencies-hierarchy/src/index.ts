@@ -4,6 +4,7 @@ import {
   PackageSnapshots,
   readCurrentLockfile,
 } from '@pnpm/lockfile-file'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { Registries } from '@pnpm/types'
@@ -22,6 +23,7 @@ export type PackageSelector = string | {
 
 export interface PackageNode {
   pkg: {
+    alias: string,
     name: string,
     version: string,
     path: string,
@@ -107,28 +109,29 @@ async function dependenciesHierarchy (
     searched,
   }, lockfile.packages)
   const result: PackageNode[] = []
-  Object.keys(topDeps).forEach((depName) => {
-    const pkgPath = refToAbsolute(topDeps[depName], depName, registries)
-    const pkg = {
-      name: depName,
-      path: pkgPath && path.join(modulesDir, `.${pkgPath}`) || path.join(modulesDir, '..', topDeps[depName].substr(5)),
-      version: topDeps[depName],
-    }
+  Object.keys(topDeps).forEach((alias) => {
+    const { packageInfo, packageAbsolutePath } = getPkgInfo({
+      alias,
+      modulesDir,
+      packages: lockfile.packages || {},
+      ref: topDeps[alias],
+      registries,
+    })
     let newEntry: PackageNode | null = null
-    const matchedSearched = searched.length && matches(searched, pkg)
-    if (pkgPath === null) {
+    const matchedSearched = searched.length && matches(searched, packageInfo)
+    if (packageAbsolutePath === null) {
       if (searched.length && !matchedSearched) return
-      newEntry = { pkg }
+      newEntry = { pkg: packageInfo }
     } else {
-      const relativeId = refToRelative(topDeps[depName], depName)
+      const relativeId = refToRelative(topDeps[alias], alias)
       const dependencies = getChildrenTree([relativeId], relativeId)
       if (dependencies.length) {
         newEntry = {
           dependencies,
-          pkg,
+          pkg: packageInfo,
         }
-      } else if (!searched.length || matches(searched, pkg)) {
-        newEntry = { pkg }
+      } else if (!searched.length || matches(searched, packageInfo)) {
+        newEntry = { pkg: packageInfo }
       }
     }
     if (newEntry) {
@@ -152,6 +155,7 @@ async function dependenciesHierarchy (
         version = pkg && pkg.version || 'undefined'
       }
       const pkg = {
+        alias: unsavedDep,
         name: unsavedDep,
         path: pkgPath,
         version,
@@ -226,31 +230,32 @@ function getTree (
   }, packages)
 
   const result: PackageNode[] = []
-  Object.keys(deps).forEach((depName) => {
-    const pkgPath = refToAbsolute(deps[depName], depName, opts.registries)
-    const pkg = {
-      name: depName,
-      path: pkgPath && path.join(opts.modulesDir, `.${pkgPath}`) || path.join(opts.modulesDir, '..', deps[depName].substr(5)),
-      version: deps[depName],
-    }
+  Object.keys(deps).forEach((alias) => {
+    const { packageInfo, packageAbsolutePath } = getPkgInfo({
+      alias,
+      modulesDir: opts.modulesDir,
+      packages,
+      ref: deps[alias],
+      registries: opts.registries,
+    })
     let circular: boolean
-    const matchedSearched = opts.searched.length && matches(opts.searched, pkg)
+    const matchedSearched = opts.searched.length && matches(opts.searched, packageInfo)
     let newEntry: PackageNode | null = null
-    if (pkgPath === null) {
+    if (packageAbsolutePath === null) {
       circular = false
-      newEntry = { pkg }
+      newEntry = { pkg: packageInfo }
     } else {
-      const relativeId = refToRelative(deps[depName], depName) as string // we know for sure that relative is not null if pkgPath is not null
+      const relativeId = refToRelative(deps[alias], alias) as string // we know for sure that relative is not null if pkgPath is not null
       circular = keypath.includes(relativeId)
       const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
 
       if (dependencies.length) {
         newEntry = {
           dependencies,
-          pkg,
+          pkg: packageInfo,
         }
       } else if (!opts.searched.length || matchedSearched) {
-        newEntry = { pkg }
+        newEntry = { pkg: packageInfo }
       }
     }
     if (newEntry) {
@@ -264,6 +269,38 @@ function getTree (
     }
   })
   return result
+}
+
+function getPkgInfo (
+  opts: {
+    alias: string,
+    modulesDir: string,
+    ref: string,
+    packages: PackageSnapshots,
+    registries: Registries,
+  },
+) {
+  let name!: string
+  let version!: string
+  const relDepPath = refToRelative(opts.ref, opts.alias)
+  if (relDepPath) {
+    const parsed = nameVerFromPkgSnapshot(relDepPath, opts.packages[relDepPath])
+    name = parsed.name
+    version = parsed.version
+  } else {
+    name = opts.alias
+    version = opts.ref
+  }
+  const packageAbsolutePath = refToAbsolute(opts.ref, opts.alias, opts.registries)
+  return {
+    packageAbsolutePath,
+    packageInfo: {
+      alias: opts.alias,
+      name,
+      path: packageAbsolutePath && path.join(opts.modulesDir, `.${packageAbsolutePath}`) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
+      version,
+    },
+  }
 }
 
 function matches (

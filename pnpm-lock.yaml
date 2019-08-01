@@ -203,6 +203,7 @@ importers:
   packages/dependencies-hierarchy:
     dependencies:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/types': 'link:../types'
@@ -220,6 +221,7 @@ importers:
     specifiers:
       '@pnpm/constants': 1.1.0
       '@pnpm/lockfile-file': 1.1.1
+      '@pnpm/lockfile-utils': 1.0.10
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
       '@pnpm/read-modules-dir': 2.0.1

@@ -19,6 +19,7 @@ test('one package depth 0', async t => {
   t.deepEqual(tree, [
     {
       pkg: {
+        alias: 'minimatch',
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         version: '3.0.4',
@@ -26,6 +27,7 @@ test('one package depth 0', async t => {
     },
     {
       pkg: {
+        alias: 'rimraf',
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         version: '2.5.1',
@@ -33,6 +35,7 @@ test('one package depth 0', async t => {
     },
     {
       pkg: {
+        alias: 'is-positive',
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
         version: '1.0.0',
@@ -40,6 +43,7 @@ test('one package depth 0', async t => {
     },
     {
       pkg: {
+        alias: 'is-negative',
         name: 'is-negative',
         path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
         version: '1.0.0',
@@ -59,6 +63,7 @@ test('one package depth 1', async t => {
       dependencies: [
         {
           pkg: {
+            alias: 'brace-expansion',
             name: 'brace-expansion',
             path: path.join(modulesDir, '.registry.npmjs.org/brace-expansion/1.1.8'),
             version: '1.1.8',
@@ -66,6 +71,7 @@ test('one package depth 1', async t => {
         },
       ],
       pkg: {
+        alias: 'minimatch',
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         version: '3.0.4',
@@ -75,6 +81,7 @@ test('one package depth 1', async t => {
       dependencies: [
         {
           pkg: {
+            alias: 'glob',
             name: 'glob',
             path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
             version: '6.0.4',
@@ -82,6 +89,7 @@ test('one package depth 1', async t => {
         },
       ],
       pkg: {
+        alias: 'rimraf',
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         version: '2.5.1',
@@ -89,6 +97,7 @@ test('one package depth 1', async t => {
     },
     {
       pkg: {
+        alias: 'is-positive',
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
         version: '1.0.0',
@@ -96,6 +105,7 @@ test('one package depth 1', async t => {
     },
     {
       pkg: {
+        alias: 'is-negative',
         name: 'is-negative',
         path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
         version: '1.0.0',
@@ -113,6 +123,7 @@ test('only prod depth 0', async t => {
   t.deepEqual(tree, [
     {
       pkg: {
+        alias: 'minimatch',
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         version: '3.0.4',
@@ -120,6 +131,7 @@ test('only prod depth 0', async t => {
     },
     {
       pkg: {
+        alias: 'rimraf',
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         version: '2.5.1',
@@ -137,6 +149,7 @@ test('only dev depth 0', async t => {
   t.deepEqual(tree, [
     {
       pkg: {
+        alias: 'is-positive',
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
         version: '1.0.0',
@@ -162,6 +175,7 @@ test('filter 1 package with depth 0', async t => {
   t.deepEqual(tree, [
     {
       pkg: {
+        alias: 'rimraf',
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         version: '2.5.1',
@@ -184,6 +198,7 @@ test('filter 2 packages with depth 100', async t => {
   t.deepEqual(tree, [
     {
       pkg: {
+        alias: 'minimatch',
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         version: '3.0.4',
@@ -198,6 +213,7 @@ test('filter 2 packages with depth 100', async t => {
               dependencies: [
                 {
                   pkg: {
+                    alias: 'once',
                     name: 'once',
                     path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
                     version: '1.4.0',
@@ -206,6 +222,7 @@ test('filter 2 packages with depth 100', async t => {
                 },
               ],
               pkg: {
+                alias: 'inflight',
                 name: 'inflight',
                 path: path.join(modulesDir, '.registry.npmjs.org/inflight/1.0.6'),
                 version: '1.0.6',
@@ -213,6 +230,7 @@ test('filter 2 packages with depth 100', async t => {
             },
             {
               pkg: {
+                alias: 'minimatch',
                 name: 'minimatch',
                 path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
                 version: '3.0.4',
@@ -221,6 +239,7 @@ test('filter 2 packages with depth 100', async t => {
             },
             {
               pkg: {
+                alias: 'once',
                 name: 'once',
                 path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
                 version: '1.4.0',
@@ -229,6 +248,7 @@ test('filter 2 packages with depth 100', async t => {
             },
           ],
           pkg: {
+            alias: 'glob',
             name: 'glob',
             path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
             version: '6.0.4',
@@ -236,6 +256,7 @@ test('filter 2 packages with depth 100', async t => {
         },
       ],
       pkg: {
+        alias: 'rimraf',
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         version: '2.5.1',
@@ -274,6 +295,7 @@ function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
       ...node,
       pkg: {
         ...node.pkg,
+        alias: node.pkg.name,
         path: p,
       },
     }
@@ -283,6 +305,7 @@ function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
     dependencies: node.dependencies.map((dep) => resolvePaths(modulesDir, dep)),
     pkg: {
       ...node.pkg,
+      alias: node.pkg.name,
       path: p,
     },
   }
@@ -294,10 +317,20 @@ test('local package depth 0', async t => {
 
   t.deepEqual(tree, [
     {
-      pkg: { name: 'general', path: generalFixture, version: 'link:../general' }
+      pkg: {
+        alias: 'general',
+        name: 'general',
+        path: generalFixture,
+        version: 'link:../general',
+      },
     },
     {
-      pkg: { name: 'is-positive', path: path.join(modulesDir, '.registry.npmjs.org/is-positive/3.1.0'), version: '3.1.0' }
+      pkg: {
+        alias: 'is-positive',
+        name: 'is-positive',
+        path: path.join(modulesDir, '.registry.npmjs.org/is-positive/3.1.0'),
+        version: '3.1.0',
+      },
     },
   ])
 
@@ -310,6 +343,7 @@ test('on a package that has only links', async t => {
   t.deepEqual(tree, [
     {
       pkg: {
+        alias: 'general',
         name: 'general',
         path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
         version: 'link:../general',
@@ -326,6 +360,7 @@ test('filter on a package that has only links', async t => {
   t.deepEqual(await dhForPackages(['general'], withLinksOnlyFixture, { depth: 1000 }), [
     {
       pkg: {
+        alias: 'general',
         name: 'general',
         path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
         version: 'link:../general',
@@ -342,6 +377,7 @@ test('unsaved dependencies are listed', async t => {
   t.deepEqual(await dh(withUnsavedDepsFixture), [
     {
       pkg: {
+        alias: 'symlink-dir',
         name: 'symlink-dir',
         path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
         version: '2.0.2',
@@ -349,6 +385,7 @@ test('unsaved dependencies are listed', async t => {
     },
     {
       pkg: {
+        alias: 'general',
         name: 'general',
         path: generalFixture,
         version: 'link:../general',
@@ -357,6 +394,7 @@ test('unsaved dependencies are listed', async t => {
     },
     {
       pkg: {
+        alias: 'is-positive',
         name: 'is-positive',
         path: path.join(modulesDir, 'is-positive'),
         version: '3.1.0',
@@ -372,6 +410,7 @@ test('unsaved dependencies are listed and filtered', async t => {
   t.deepEqual(await dhForPackages([{ name: 'symlink-dir', range: '*' }], withUnsavedDepsFixture), [
     {
       pkg: {
+        alias: 'symlink-dir',
         name: 'symlink-dir',
         path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
         version: '2.0.2',
