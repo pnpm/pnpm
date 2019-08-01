@@ -1,5 +1,8 @@
 import { PackageNode } from 'dependencies-hierarchy'
+import R = require('ramda')
 import getPkgInfo from './getPkgInfo'
+
+const sortPackages = R.sortBy(R.path(['pkg', 'alias']) as (pkg: object) => R.Ord)
 
 export default async function (
   project: {
@@ -9,7 +12,6 @@ export default async function (
   },
   tree: PackageNode[],
   opts: {
-    alwaysPrintRootPackage: boolean,
     long: boolean,
   },
 ) {
@@ -27,7 +29,7 @@ export async function toJsonResult (
 ): Promise<{}> {
   const dependencies = {}
   await Promise.all(
-    entryNodes.map(async (node) => {
+    sortPackages(entryNodes).map(async (node) => {
       const subDependencies = await toJsonResult(node.dependencies || [], opts)
       const dep = opts.long ? await getPkgInfo(node.pkg) : node.pkg
       if (Object.keys(subDependencies).length) {

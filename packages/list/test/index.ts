@@ -168,6 +168,66 @@ test('parseable list with depth 1', async t => {
   t.end()
 })
 
+test('JSON list with depth 1', async t => {
+  t.equal(await list(fixture, { reportAs: 'json', depth: 1 }), JSON.stringify({
+    name: 'fixture',
+    path: fixture,
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': {
+        name: 'is-negative',
+        path: path.join(fixture, 'node_modules/.registry.npmjs.org/is-negative/2.1.0'),
+        version: '2.1.0'
+      },
+      'is-positive': {
+        name: 'is-positive',
+        path: path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0'),
+        version: '3.1.0'
+      },
+      'write-json-file': {
+        name: 'write-json-file',
+        path: path.join(fixture, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0'),
+        version: '2.2.0',
+
+        dependencies: {
+          'detect-indent': {
+            name: 'detect-indent',
+            path: path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0'),
+            version: '5.0.0'
+          },
+          'graceful-fs': {
+            name: 'graceful-fs',
+            path: path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11'),
+            version: '4.1.11'
+          },
+          'make-dir': {
+            name: 'make-dir',
+            path: path.join(fixture, 'node_modules/.registry.npmjs.org/make-dir/1.0.0'),
+            version: '1.0.0'
+          },
+          'pify': {
+            name: 'pify',
+            path: path.join(fixture, 'node_modules/.registry.npmjs.org/pify/2.3.0'),
+            version: '2.3.0'
+          },
+          'sort-keys': {
+            name: 'sort-keys',
+            path: path.join(fixture, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2'),
+            version: '1.1.2'
+          },
+          'write-file-atomic': {
+            name: 'write-file-atomic',
+            path: path.join(fixture, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0'),
+            version: '2.1.0'
+          }
+        }
+      }
+    },
+  }, null, 2))
+  t.end()
+})
+
 test('parseable list with depth 1 and dev only', async t => {
   t.equal(await list(fixture, { reportAs: 'parseable', depth: 1, only: 'dev' }), stripIndent`
     ${fixture}
