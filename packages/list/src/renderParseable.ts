@@ -1,4 +1,4 @@
-import { PackageNode } from 'dependencies-hierarchy'
+import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
 import R = require('ramda')
 
 const sortPackages = R.sortBy(R.prop('name'))
@@ -9,13 +9,21 @@ export default async function (
     version?: string,
     path: string,
   },
-  tree: PackageNode[],
+  tree: DependenciesHierarchy,
   opts: {
     long: boolean,
     alwaysPrintRootPackage: boolean,
   },
 ) {
-  const pkgs = sortPackages(flatten(tree))
+  const pkgs = sortPackages(
+    flatten(
+      [
+        ...(tree.optionalDependencies || []),
+        ...(tree.dependencies || []),
+        ...(tree.devDependencies || []),
+      ],
+    ),
+  )
   if (!opts.alwaysPrintRootPackage && !pkgs.length) return ''
   if (opts.long) {
     let firstLine = project.path

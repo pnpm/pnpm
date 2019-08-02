@@ -1,11 +1,14 @@
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import archy = require('archy')
 import chalk from 'chalk'
-import { PackageNode } from 'dependencies-hierarchy'
+import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import R = require('ramda')
 import getPkgInfo from './getPkgInfo'
 
 const sortPackages = R.sortBy(R.path(['pkg', 'name']) as (pkg: object) => R.Ord)
+
+const LEGEND = `Legend:\n  white - production dependency\n  ${chalk.blue('blue')} - optional only dependency\n  ${chalk.grey('grey')} - dev only dependency\n\n`
 
 export default async function (
   project: {
@@ -13,13 +16,18 @@ export default async function (
     version?: string,
     path: string,
   },
-  tree: PackageNode[],
+  tree: DependenciesHierarchy,
   opts: {
     alwaysPrintRootPackage: boolean,
     long: boolean,
   },
 ) {
-  if (!opts.alwaysPrintRootPackage && !tree.length) return ''
+  if (
+    !opts.alwaysPrintRootPackage &&
+    (!tree.dependencies || !tree.dependencies.length) &&
+    (!tree.devDependencies || !tree.devDependencies.length) &&
+    (!tree.optionalDependencies || !tree.optionalDependencies.length)
+  ) return ''
 
   let label = ''
   if (project.name) {
@@ -30,15 +38,20 @@ export default async function (
     label += ' '
   }
   label += project.path
-  const s = archy({
-    label,
-    nodes: await toArchyTree(tree, {
-      long: opts.long,
-      modules: path.join(project.path, 'node_modules'),
-    }),
-  })
+  let output = LEGEND
+  for (let dependenciesField of DEPENDENCIES_FIELDS.sort()) {
+    if (tree[dependenciesField]) {
+      output += archy({
+        label: chalk.cyanBright(`${dependenciesField}:`),
+        nodes: await toArchyTree(tree[dependenciesField]!, {
+          long: opts.long,
+          modules: path.join(project.path, 'node_modules'),
+        })
+      })
+    }
+  }
 
-  return s.replace(/\n$/, '')
+  return output.replace(/\n$/, '')
 }
 
 export async function toArchyTree (
@@ -78,8 +91,13 @@ export async function toArchyTree (
 
 function printLabel (node: PackageNode) {
   let txt = `${node.pkg.name}@${node.pkg.version}`
+  if (node.pkg.dev === true) {
+    txt = chalk.grey(txt)
+  } else if (node.pkg.optional === true) {
+    txt = chalk.blue(txt)
+  }
   if (node.searched) {
-    return chalk.yellow.bgBlack(txt)
+    return chalk.bgYellow(txt)
   }
   if (node.saved === false) {
     txt += ` ${chalk.whiteBright.bgBlack('not saved')}`

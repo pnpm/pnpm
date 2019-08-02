@@ -17,44 +17,55 @@ test('one package depth 0', async t => {
   const tree = await dh(generalFixture, { depth: 0 })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
-  t.deepEqual(tree, [
-    {
-      pkg: {
-        alias: 'minimatch',
-        name: 'minimatch',
-        path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
-        resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-        version: '3.0.4',
+  t.deepEqual(tree, {
+    dependencies: [
+      {
+        pkg: {
+          alias: 'minimatch',
+          dev: false,
+          name: 'minimatch',
+          path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
+          resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
+          version: '3.0.4',
+        },
       },
-    },
-    {
-      pkg: {
-        alias: 'rimraf',
-        name: 'rimraf',
-        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
-        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-        version: '2.5.1',
+      {
+        pkg: {
+          alias: 'rimraf',
+          dev: false,
+          name: 'rimraf',
+          path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+          resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
+          version: '2.5.1',
+        },
       },
-    },
-    {
-      pkg: {
-        alias: 'is-positive',
-        name: 'is-positive',
-        path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
-        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-        version: '1.0.0',
+    ],
+    devDependencies: [
+      {
+        pkg: {
+          alias: 'is-positive',
+          dev: true,
+          name: 'is-positive',
+          path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
+          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          version: '1.0.0',
+        },
       },
-    },
-    {
-      pkg: {
-        alias: 'is-negative',
-        name: 'is-negative',
-        path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
-        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
-        version: '1.0.0',
+    ],
+    optionalDependencies: [
+      {
+        pkg: {
+          alias: 'is-negative',
+          dev: false,
+          name: 'is-negative',
+          optional: true,
+          path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
+          resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
+          version: '1.0.0',
+        },
       },
-    },
-  ])
+    ],
+  })
 
   t.end()
 })
@@ -128,7 +139,17 @@ test('one package depth 1', async t => {
 })
 
 test('only prod depth 0', async t => {
-  const tree = await dh(generalFixture, { depth: 0, only: 'prod' })
+  const tree = await dh(
+    generalFixture,
+    {
+      depth: 0,
+      include: {
+        dependencies: true,
+        devDependencies: false,
+        optionalDependencies: false,
+      },
+    },
+  )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   t.deepEqual(tree, [
@@ -156,7 +177,17 @@ test('only prod depth 0', async t => {
 })
 
 test('only dev depth 0', async t => {
-  const tree = await dh(generalFixture, { depth: 0, only: 'dev' })
+  const tree = await dh(
+    generalFixture,
+    {
+      depth: 0,
+      include: {
+        dependencies: false,
+        devDependencies: true,
+        optionalDependencies: false,
+      },
+    },
+  )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   t.deepEqual(tree, [

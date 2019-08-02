@@ -1,5 +1,5 @@
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
-import { Registries } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import dh, {
   forPackages as dhForPackages,
@@ -13,7 +13,6 @@ const DEFAULTS = {
   alwaysPrintRootPackage: true,
   depth: 0,
   long: false,
-  only: undefined,
   registries: undefined,
   reportAs: 'tree' as const,
 }
@@ -26,7 +25,7 @@ export async function forPackages (
     depth?: number,
     lockfileDirectory?: string,
     long?: boolean,
-    only?: 'dev' | 'prod',
+    include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
     registries?: Registries,
   },
@@ -50,7 +49,7 @@ export async function forPackages (
   const tree = await dhForPackages(searched, projectPath, {
     depth: opts.depth,
     lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
-    only: opts.only,
+    include: maybeOpts && maybeOpts.include,
     registries: opts.registries,
   })
 
@@ -73,7 +72,7 @@ export default async function (
     depth?: number,
     lockfileDirectory?: string,
     long?: boolean,
-    only?: 'dev' | 'prod',
+    include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
     registries?: Registries,
   },
@@ -81,11 +80,11 @@ export default async function (
   const opts = { ...DEFAULTS, ...maybeOpts }
 
   const tree = opts.depth === -1
-    ? []
+    ? {}
     : await dh(projectPath, {
       depth: opts.depth,
       lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
-      only: opts.only,
+      include: maybeOpts && maybeOpts.include,
       registries: opts.registries,
     })
 

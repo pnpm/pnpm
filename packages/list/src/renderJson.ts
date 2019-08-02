@@ -1,4 +1,5 @@
-import { PackageNode } from 'dependencies-hierarchy'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
 import R = require('ramda')
 import getPkgInfo from './getPkgInfo'
 
@@ -10,18 +11,22 @@ export default async function (
     version?: string,
     path: string,
   },
-  tree: PackageNode[],
+  tree: DependenciesHierarchy,
   opts: {
     long: boolean,
   },
 ) {
-  return JSON.stringify({
+  const JsonObj = {
     name: project.name,
 
     version: project.version,
-
-    dependencies: await toJsonResult(tree, { long: opts.long }),
-  }, null, 2)
+  }
+  for (const dependenciesField in DEPENDENCIES_FIELDS.sort()) {
+    if (tree[dependenciesField]) {
+      JsonObj[dependenciesField] = await toJsonResult(tree[dependenciesField], { long: opts.long })
+    }
+  }
+  return JSON.stringify(JsonObj, null, 2)
 }
 
 export async function toJsonResult (
