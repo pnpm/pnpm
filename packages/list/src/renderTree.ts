@@ -8,7 +8,14 @@ import getPkgInfo from './getPkgInfo'
 
 const sortPackages = R.sortBy(R.path(['pkg', 'name']) as (pkg: object) => R.Ord)
 
-const LEGEND = `Legend:\n  white - production dependency\n  ${chalk.blue('blue')} - optional only dependency\n  ${chalk.grey('grey')} - dev only dependency\n\n`
+const DEV_DEP_ONLY_CLR = chalk.yellow
+const PROD_DEP_CLR = chalk.green
+const OPTIONAL_DEP_CLR = chalk.blue
+
+const LEGEND = 'Legend:\n' +
+  `  ${PROD_DEP_CLR('green')} - production dependency\n` +
+  `  ${OPTIONAL_DEP_CLR('blue')} - optional only dependency\n` +
+  `  ${DEV_DEP_ONLY_CLR('yellow')} - dev only dependency\n\n`
 
 export default async function (
   project: {
@@ -90,17 +97,19 @@ export async function toArchyTree (
 }
 
 function printLabel (node: PackageNode) {
-  let txt = `${node.pkg.name}@${node.pkg.version}`
-  if (node.pkg.dev === true) {
-    txt = chalk.grey(txt)
-  } else if (node.pkg.optional === true) {
-    txt = chalk.blue(txt)
-  }
+  let color = getPkgColor(node)
+  let txt = `${color(node.pkg.name)} ${node.pkg.version}`
   if (node.searched) {
-    return chalk.bgYellow(txt)
+    return chalk.bold.bgBlack(txt)
   }
   if (node.saved === false) {
     txt += ` ${chalk.whiteBright.bgBlack('not saved')}`
   }
   return txt
+}
+
+function getPkgColor (node: PackageNode) {
+  if (node.pkg.dev === true) return DEV_DEP_ONLY_CLR
+  if (node.pkg.optional) return OPTIONAL_DEP_CLR
+  return PROD_DEP_CLR
 }
