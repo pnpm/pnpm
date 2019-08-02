@@ -1039,7 +1039,7 @@ importers:
       '@zkochan/libnpx': 11.0.1
       archy: 1.0.0
       camelcase: 5.3.1
-      camelcase-keys: 6.0.0
+      camelcase-keys: 6.0.1
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
@@ -1162,7 +1162,7 @@ importers:
       archy: 1.0.0
       byline: 5.0.0
       camelcase: 5.3.1
-      camelcase-keys: 6.0.0
+      camelcase-keys: 6.0.1
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
@@ -3205,7 +3205,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-oqpfsa9oh1glnDLBQUJteJI7m3c=
-  /camelcase-keys/6.0.0:
+  /camelcase-keys/6.0.1:
     dependencies:
       camelcase: 5.3.1
       map-obj: 4.1.0
@@ -3214,7 +3214,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-NW1C7M9/uDZlfDP0+pWv0yAtgni7AZ9bYKtWgIfJylNXUFfis2BxsX3lCVuZE12wtRePEfJjnG6T9CnMohEybw==
+      integrity: sha512-Pet+fVo99HMVy183qJuyTiQECQlb0dCXg89qhixcud88j4BSns+gzhSrjRT0ustEYSWJqKMO42arm1cS1VG5FA==
   /camelcase/4.1.0:
     dev: true
     engines:
