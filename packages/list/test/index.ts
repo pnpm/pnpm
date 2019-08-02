@@ -13,6 +13,7 @@ const fixtureWithNoPkgNameAndNoVersion = path.join(__dirname, 'fixture-with-no-p
 const fixtureWithNoPkgVersion = path.join(__dirname, 'fixture-with-no-pkg-version')
 const fixtureWithExternalLockfile = path.join(__dirname, 'fixture-with-external-shrinkwrap', 'pkg')
 const emptyFixture = path.join(__dirname, 'empty')
+const fixtureWithAliasedDep = path.join(__dirname, 'with-aliased-dep')
 
 test('list all deps of a package that has an external lockfile', async (t) => {
   t.equal(await list(fixtureWithExternalLockfile, {
@@ -152,7 +153,7 @@ test('list in long format', async t => {
 })
 
 test('parseable list with depth 1', async t => {
-  t.equal(await list(fixture, { parseable: true, depth: 1 }), stripIndent`
+  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1 }), stripIndent`
     ${fixture}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}
@@ -168,8 +169,112 @@ test('parseable list with depth 1', async t => {
   t.end()
 })
 
+test('JSON list with depth 1', async t => {
+  t.equal(await list(fixture, { reportAs: 'json', depth: 1 }), JSON.stringify({
+    name: 'fixture',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': {
+        from: 'is-negative',
+        version: '2.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-2.1.0.tgz',
+      },
+      'is-positive': {
+        from: 'is-positive',
+        version: '3.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+      },
+      'write-json-file': {
+        from: 'write-json-file',
+        version: '2.2.0',
+
+        resolved: 'https://registry.npmjs.org/write-json-file/-/write-json-file-2.2.0.tgz',
+
+        dependencies: {
+          'detect-indent': {
+            from: 'detect-indent',
+            version: '5.0.0',
+
+            resolved: 'https://registry.npmjs.org/detect-indent/-/detect-indent-5.0.0.tgz',
+          },
+          'graceful-fs': {
+            from: 'graceful-fs',
+            version: '4.1.11',
+
+            resolved: 'https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.11.tgz',
+          },
+          'make-dir': {
+            from: 'make-dir',
+            version: '1.0.0',
+
+            resolved: 'https://registry.npmjs.org/make-dir/-/make-dir-1.0.0.tgz',
+          },
+          'pify': {
+            from: 'pify',
+            version: '2.3.0',
+
+            resolved: 'https://registry.npmjs.org/pify/-/pify-2.3.0.tgz',
+          },
+          'sort-keys': {
+            from: 'sort-keys',
+            version: '1.1.2',
+
+            resolved: 'https://registry.npmjs.org/sort-keys/-/sort-keys-1.1.2.tgz',
+          },
+          'write-file-atomic': {
+            from: 'write-file-atomic',
+            version: '2.1.0',
+
+            resolved: 'https://registry.npmjs.org/write-file-atomic/-/write-file-atomic-2.1.0.tgz',
+          }
+        }
+      }
+    },
+  }, null, 2))
+  t.end()
+})
+
+test('JSON list with aliased dep', async t => {
+  t.equal(await list(fixtureWithAliasedDep, { reportAs: 'json' }), JSON.stringify({
+    name: 'with-aliased-dep',
+    version: '1.0.0',
+
+    dependencies: {
+      'positive': {
+        from: 'is-positive',
+        version: '1.0.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
+    },
+  }, null, 2))
+  t.equal(await list(fixtureWithAliasedDep, { long: true, reportAs: 'json' }), JSON.stringify({
+    name: 'with-aliased-dep',
+    version: '1.0.0',
+
+    dependencies: {
+      'positive': {
+        from: 'is-positive',
+        version: '1.0.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+
+        description: 'Test if a number is positive',
+
+        homepage: 'https://github.com/kevva/is-positive#readme',
+
+        repository: 'git+https://github.com/kevva/is-positive.git',
+      },
+    },
+  }, null, 2), 'with long info')
+  t.end()
+})
+
 test('parseable list with depth 1 and dev only', async t => {
-  t.equal(await list(fixture, { parseable: true, depth: 1, only: 'dev' }), stripIndent`
+  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1, only: 'dev' }), stripIndent`
     ${fixture}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}
   `)
@@ -178,7 +283,7 @@ test('parseable list with depth 1 and dev only', async t => {
 })
 
 test('long parseable list with depth 1', async t => {
-  t.equal(await list(fixture, { parseable: true, depth: 1, long: true }), stripIndent`
+  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
     ${fixture}:fixture@1.0.0
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
@@ -195,7 +300,7 @@ test('long parseable list with depth 1', async t => {
 })
 
 test('long parseable list with depth 1 when package has no version', async t => {
-  t.equal(await list(fixtureWithNoPkgVersion, { parseable: true, depth: 1, long: true }), stripIndent`
+  t.equal(await list(fixtureWithNoPkgVersion, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
     ${fixtureWithNoPkgVersion}:fixture
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
@@ -212,7 +317,7 @@ test('long parseable list with depth 1 when package has no version', async t => 
 })
 
 test('long parseable list with depth 1 when package has no name and no version', async t => {
-  t.equal(await list(fixtureWithNoPkgNameAndNoVersion, { parseable: true, depth: 1, long: true }), stripIndent`
+  t.equal(await list(fixtureWithNoPkgNameAndNoVersion, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
     ${fixtureWithNoPkgNameAndNoVersion}
     ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
@@ -248,6 +353,7 @@ test('unsaved dependencies are marked', async (t) => {
     [
       {
         pkg: {
+          alias: 'foo',
           name: 'foo',
           path: '',
           version: '1.0.0',

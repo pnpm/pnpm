@@ -3,7 +3,7 @@ import chalk from 'chalk'
 import { PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import R = require('ramda')
-import readPkg from './readPkg'
+import getPkgInfo from './getPkgInfo'
 
 const sortPackages = R.sortBy(R.path(['pkg', 'name']) as (pkg: object) => R.Ord)
 
@@ -41,7 +41,7 @@ export default async function (
   return s.replace(/\n$/, '')
 }
 
-async function toArchyTree (
+export async function toArchyTree (
   entryNodes: PackageNode[],
   opts: {
     long: boolean,
@@ -52,16 +52,13 @@ async function toArchyTree (
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(node.dependencies || [], opts)
       if (opts.long) {
-        const pkg = await readPkg(path.join(node.pkg.path, 'node_modules', node.pkg.name, 'package.json'))
+        const pkg = await getPkgInfo(node.pkg)
         const labelLines = [
           printLabel(node),
           pkg.description,
         ]
         if (pkg.repository) {
-          labelLines.push(
-            typeof pkg.repository === 'string'
-              ? pkg.repository
-              : pkg.repository.url)
+          labelLines.push(pkg.repository)
         }
         if (pkg.homepage) {
           labelLines.push(pkg.homepage)
