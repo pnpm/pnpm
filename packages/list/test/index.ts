@@ -251,6 +251,25 @@ test('JSON list with aliased dep', async t => {
       },
     },
   }, null, 2))
+  t.equal(await list(fixtureWithAliasedDep, { long: true, reportAs: 'json' }), JSON.stringify({
+    name: 'with-aliased-dep',
+    version: '1.0.0',
+
+    dependencies: {
+      'positive': {
+        from: 'is-positive',
+        version: '1.0.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+
+        description: 'Test if a number is positive',
+
+        homepage: 'https://github.com/kevva/is-positive#readme',
+
+        repository: 'git+https://github.com/kevva/is-positive.git',
+      },
+    },
+  }, null, 2), 'with long info')
   t.end()
 })
 
