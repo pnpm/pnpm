@@ -178,39 +178,57 @@ test('JSON list with depth 1', async t => {
       'is-negative': {
         from: 'is-negative',
         version: '2.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-2.1.0.tgz',
       },
       'is-positive': {
         from: 'is-positive',
         version: '3.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
       },
       'write-json-file': {
         from: 'write-json-file',
         version: '2.2.0',
 
+        resolved: 'https://registry.npmjs.org/write-json-file/-/write-json-file-2.2.0.tgz',
+
         dependencies: {
           'detect-indent': {
             from: 'detect-indent',
             version: '5.0.0',
+
+            resolved: 'https://registry.npmjs.org/detect-indent/-/detect-indent-5.0.0.tgz',
           },
           'graceful-fs': {
             from: 'graceful-fs',
             version: '4.1.11',
+
+            resolved: 'https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.1.11.tgz',
           },
           'make-dir': {
             from: 'make-dir',
             version: '1.0.0',
+
+            resolved: 'https://registry.npmjs.org/make-dir/-/make-dir-1.0.0.tgz',
           },
           'pify': {
             from: 'pify',
             version: '2.3.0',
+
+            resolved: 'https://registry.npmjs.org/pify/-/pify-2.3.0.tgz',
           },
           'sort-keys': {
             from: 'sort-keys',
             version: '1.1.2',
+
+            resolved: 'https://registry.npmjs.org/sort-keys/-/sort-keys-1.1.2.tgz',
           },
           'write-file-atomic': {
             from: 'write-file-atomic',
             version: '2.1.0',
+
+            resolved: 'https://registry.npmjs.org/write-file-atomic/-/write-file-atomic-2.1.0.tgz',
           }
         }
       }
@@ -228,6 +246,8 @@ test('JSON list with aliased dep', async t => {
       'positive': {
         from: 'is-positive',
         version: '1.0.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
     },
   }, null, 2))

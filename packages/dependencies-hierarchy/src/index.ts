@@ -4,7 +4,10 @@ import {
   PackageSnapshots,
   readCurrentLockfile,
 } from '@pnpm/lockfile-file'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import {
+  nameVerFromPkgSnapshot,
+  pkgSnapshotToResolution,
+} from '@pnpm/lockfile-utils'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { Registries } from '@pnpm/types'
@@ -27,6 +30,7 @@ export interface PackageNode {
     name: string,
     version: string,
     path: string,
+    resolved?: string,
   }
   dependencies?: PackageNode[],
   searched?: true,
@@ -282,24 +286,30 @@ function getPkgInfo (
 ) {
   let name!: string
   let version!: string
+  let resolved: string | undefined = undefined
   const relDepPath = refToRelative(opts.ref, opts.alias)
   if (relDepPath) {
     const parsed = nameVerFromPkgSnapshot(relDepPath, opts.packages[relDepPath])
     name = parsed.name
     version = parsed.version
+    resolved = pkgSnapshotToResolution(relDepPath, opts.packages[relDepPath], opts.registries)['tarball']
   } else {
     name = opts.alias
     version = opts.ref
   }
   const packageAbsolutePath = refToAbsolute(opts.ref, opts.alias, opts.registries)
+  const packageInfo = {
+    alias: opts.alias,
+    name,
+    path: packageAbsolutePath && path.join(opts.modulesDir, `.${packageAbsolutePath}`) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
+    version,
+  }
+  if (resolved) {
+    packageInfo['resolved'] = resolved
+  }
   return {
     packageAbsolutePath,
-    packageInfo: {
-      alias: opts.alias,
-      name,
-      path: packageAbsolutePath && path.join(opts.modulesDir, `.${packageAbsolutePath}`) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
-      version,
-    },
+    packageInfo,
   }
 }
 

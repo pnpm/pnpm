@@ -2,6 +2,7 @@
   {
     "pkg": {
       "path": "registry.npmjs.org/es6-iterator/2.0.1",
+      "resolved": "https://registry.npmjs.org/es6-iterator/-/es6-iterator-2.0.1.tgz",
       "name": "es6-iterator",
       "version": "2.0.1"
     },
@@ -9,6 +10,7 @@
       {
         "pkg": {
           "path": "registry.npmjs.org/d/1.0.0",
+          "resolved": "https://registry.npmjs.org/d/-/d-1.0.0.tgz",
           "name": "d",
           "version": "1.0.0"
         },
@@ -16,6 +18,7 @@
           {
             "pkg": {
               "path": "registry.npmjs.org/es5-ext/0.10.24",
+              "resolved": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.24.tgz",
               "name": "es5-ext",
               "version": "0.10.24"
             },
@@ -23,6 +26,7 @@
               {
                 "pkg": {
                   "path": "registry.npmjs.org/es6-iterator/2.0.1",
+                  "resolved": "https://registry.npmjs.org/es6-iterator/-/es6-iterator-2.0.1.tgz",
                   "name": "es6-iterator",
                   "version": "2.0.1"
                 },
@@ -31,6 +35,7 @@
               {
                 "pkg": {
                   "path": "registry.npmjs.org/es6-symbol/3.1.1",
+                  "resolved": "https://registry.npmjs.org/es6-symbol/-/es6-symbol-3.1.1.tgz",
                   "name": "es6-symbol",
                   "version": "3.1.1"
                 },
@@ -38,6 +43,7 @@
                   {
                     "pkg": {
                       "path": "registry.npmjs.org/d/1.0.0",
+                      "resolved": "https://registry.npmjs.org/d/-/d-1.0.0.tgz",
                       "name": "d",
                       "version": "1.0.0"
                     },
@@ -46,6 +52,7 @@
                   {
                     "pkg": {
                       "path": "registry.npmjs.org/es5-ext/0.10.24",
+                      "resolved": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.24.tgz",
                       "name": "es5-ext",
                       "version": "0.10.24"
                     },
@@ -60,6 +67,7 @@
       {
         "pkg": {
           "path": "registry.npmjs.org/es5-ext/0.10.24",
+          "resolved": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.24.tgz",
           "name": "es5-ext",
           "version": "0.10.24"
         },
@@ -67,6 +75,7 @@
           {
             "pkg": {
               "path": "registry.npmjs.org/es6-iterator/2.0.1",
+              "resolved": "https://registry.npmjs.org/es6-iterator/-/es6-iterator-2.0.1.tgz",
               "name": "es6-iterator",
               "version": "2.0.1"
             },
@@ -75,6 +84,7 @@
           {
             "pkg": {
               "path": "registry.npmjs.org/es6-symbol/3.1.1",
+              "resolved": "https://registry.npmjs.org/es6-symbol/-/es6-symbol-3.1.1.tgz",
               "name": "es6-symbol",
               "version": "3.1.1"
             },
@@ -82,6 +92,7 @@
               {
                 "pkg": {
                   "path": "registry.npmjs.org/d/1.0.0",
+                  "resolved": "https://registry.npmjs.org/d/-/d-1.0.0.tgz",
                   "name": "d",
                   "version": "1.0.0"
                 },
@@ -89,6 +100,7 @@
                   {
                     "pkg": {
                       "path": "registry.npmjs.org/es5-ext/0.10.24",
+                      "resolved": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.24.tgz",
                       "name": "es5-ext",
                       "version": "0.10.24"
                     },
@@ -99,6 +111,7 @@
               {
                 "pkg": {
                   "path": "registry.npmjs.org/es5-ext/0.10.24",
+                  "resolved": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.24.tgz",
                   "name": "es5-ext",
                   "version": "0.10.24"
                 },
@@ -111,6 +124,7 @@
       {
         "pkg": {
           "path": "registry.npmjs.org/es6-symbol/3.1.1",
+          "resolved": "https://registry.npmjs.org/es6-symbol/-/es6-symbol-3.1.1.tgz",
           "name": "es6-symbol",
           "version": "3.1.1"
         },
@@ -118,6 +132,7 @@
           {
             "pkg": {
               "path": "registry.npmjs.org/d/1.0.0",
+              "resolved": "https://registry.npmjs.org/d/-/d-1.0.0.tgz",
               "name": "d",
               "version": "1.0.0"
             },
@@ -125,6 +140,7 @@
               {
                 "pkg": {
                   "path": "registry.npmjs.org/es5-ext/0.10.24",
+                  "resolved": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.24.tgz",
                   "name": "es5-ext",
                   "version": "0.10.24"
                 },
@@ -132,6 +148,7 @@
                   {
                     "pkg": {
                       "path": "registry.npmjs.org/es6-iterator/2.0.1",
+                      "resolved": "https://registry.npmjs.org/es6-iterator/-/es6-iterator-2.0.1.tgz",
                       "name": "es6-iterator",
                       "version": "2.0.1"
                     },
@@ -140,6 +157,7 @@
                   {
                     "pkg": {
                       "path": "registry.npmjs.org/es6-symbol/3.1.1",
+                      "resolved": "https://registry.npmjs.org/es6-symbol/-/es6-symbol-3.1.1.tgz",
                       "name": "es6-symbol",
                       "version": "3.1.1"
                     },
@@ -152,6 +170,7 @@
           {
             "pkg": {
               "path": "registry.npmjs.org/es5-ext/0.10.24",
+              "resolved": "https://registry.npmjs.org/es5-ext/-/es5-ext-0.10.24.tgz",
               "name": "es5-ext",
               "version": "0.10.24"
             },
@@ -159,6 +178,7 @@
               {
                 "pkg": {
                   "path": "registry.npmjs.org/es6-iterator/2.0.1",
+                  "resolved": "https://registry.npmjs.org/es6-iterator/-/es6-iterator-2.0.1.tgz",
                   "name": "es6-iterator",
                   "version": "2.0.1"
                 },
@@ -167,6 +187,7 @@
               {
                 "pkg": {
                   "path": "registry.npmjs.org/es6-symbol/3.1.1",
+                  "resolved": "https://registry.npmjs.org/es6-symbol/-/es6-symbol-3.1.1.tgz",
                   "name": "es6-symbol",
                   "version": "3.1.1"
                 },
