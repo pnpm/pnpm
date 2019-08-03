@@ -51,13 +51,14 @@ export default async function (
           ? `${dependenciesField}:`
           : 'not saved (you should add these dependencies to package.json if you need them):'
       )
-      output += archy({
-        label: depsLabel,
-        nodes: await toArchyTree(tree[dependenciesField]!, {
-          long: opts.long,
-          modules: path.join(project.path, 'node_modules'),
-        })
+      output += depsLabel + '\n'
+      const data = await toArchyTree(tree[dependenciesField]!, {
+        long: opts.long,
+        modules: path.join(project.path, 'node_modules'),
       })
+      for (const d of data) {
+        output += archy(d, ' ')
+      }
     }
   }
 
