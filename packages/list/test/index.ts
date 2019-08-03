@@ -60,39 +60,55 @@ test('list with default parameters in pkg that has no version', async t => {
 })
 
 test('list dev only', async t => {
-  t.equal(await list(fixture, { only: 'dev' }), stripIndent`
-    fixture@1.0.0 ${fixture}
-    └── is-positive@3.1.0
-  `)
+  t.equal(
+    await list(fixture, {
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    }),
+    stripIndent`
+      fixture@1.0.0 ${fixture}
+      └── is-positive@3.1.0
+    `,
+  )
 
   t.end()
 })
 
 test('list prod only', async t => {
-  t.equal(await list(fixture, { only: 'prod' }), stripIndent`
-    fixture@1.0.0 ${fixture}
-    └── write-json-file@2.2.0
-  `)
+  t.equal(
+    await list(fixture, {
+      include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+    }),
+    stripIndent`
+      fixture@1.0.0 ${fixture}
+      └── write-json-file@2.2.0
+    `,
+  )
 
   t.end()
 })
 
 test('list prod only with depth 2', async t => {
-  t.equal(await list(fixture, { only: 'prod', depth: 2 }), stripIndent`
-    fixture@1.0.0 ${fixture}
-    └─┬ write-json-file@2.2.0
-      ├── detect-indent@5.0.0
-      ├── graceful-fs@4.1.11
-      ├─┬ make-dir@1.0.0
-      │ └── pify@2.3.0
-      ├── pify@2.3.0
-      ├─┬ sort-keys@1.1.2
-      │ └── is-plain-obj@1.1.0
-      └─┬ write-file-atomic@2.1.0
+  t.equal(
+    await list(fixture, {
+      depth: 2,
+      include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+    }),
+    stripIndent`
+      fixture@1.0.0 ${fixture}
+      └─┬ write-json-file@2.2.0
+        ├── detect-indent@5.0.0
         ├── graceful-fs@4.1.11
-        ├── imurmurhash@0.1.4
-        └── slide@1.1.6
-  `)
+        ├─┬ make-dir@1.0.0
+        │ └── pify@2.3.0
+        ├── pify@2.3.0
+        ├─┬ sort-keys@1.1.2
+        │ └── is-plain-obj@1.1.0
+        └─┬ write-file-atomic@2.1.0
+          ├── graceful-fs@4.1.11
+          ├── imurmurhash@0.1.4
+          └── slide@1.1.6
+    `,
+  )
 
   t.end()
 })
@@ -274,10 +290,17 @@ test('JSON list with aliased dep', async t => {
 })
 
 test('parseable list with depth 1 and dev only', async t => {
-  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1, only: 'dev' }), stripIndent`
-    ${fixture}
-    ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}
-  `)
+  t.equal(
+    await list(fixture, {
+      depth: 1,
+      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+      reportAs: 'parseable',
+    }),
+    stripIndent`
+      ${fixture}
+      ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}
+    `,
+  )
 
   t.end()
 })
@@ -350,20 +373,25 @@ test('unsaved dependencies are marked', async (t) => {
       path: fixture,
       version: '1.0.0',
     },
-    [
-      {
-        pkg: {
-          alias: 'foo',
-          name: 'foo',
-          path: '',
-          version: '1.0.0',
+    {
+      unsavedDependencies: [
+        {
+          pkg: {
+            alias: 'foo',
+            isPeer: false,
+            name: 'foo',
+            path: '',
+            version: '1.0.0',
+          },
+          saved: false,
         },
-        saved: false,
-      },
-    ],
+      ],
+    },
     {
       alwaysPrintRootPackage: false,
+      depth: 0,
       long: false,
+      search: true,
     },
   ), stripIndent`
     fixture@1.0.0 ${fixture}

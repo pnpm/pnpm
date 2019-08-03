@@ -48,8 +48,8 @@ export async function forPackages (
 
   const tree = await dhForPackages(searched, projectPath, {
     depth: opts.depth,
-    lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
     include: maybeOpts && maybeOpts.include,
+    lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
     registries: opts.registries,
   })
 
@@ -85,8 +85,8 @@ export default async function (
     ? {}
     : await dh(projectPath, {
       depth: opts.depth,
-      lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
       include: maybeOpts && maybeOpts.include,
+      lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
       registries: opts.registries,
     })
 

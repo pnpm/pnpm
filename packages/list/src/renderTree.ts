@@ -1,7 +1,7 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import archy = require('archy')
-import cliColumns = require('cli-columns')
 import chalk from 'chalk'
+import cliColumns = require('cli-columns')
 import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import R = require('ramda')
