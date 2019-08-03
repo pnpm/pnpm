@@ -105,6 +105,9 @@ function printLabel (node: PackageNode) {
   if (node.searched) {
     return chalk.bold.bgBlack(txt)
   }
+  if (node.pkg.isPeer) {
+    txt += ' peer'
+  }
   return txt
 }
 

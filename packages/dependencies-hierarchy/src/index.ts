@@ -33,6 +33,7 @@ export interface PackageNode {
     version: string,
     path: string,
     resolved?: string,
+    isPeer: boolean,
   }
   dependencies?: PackageNode[],
   searched?: true,
@@ -177,6 +178,7 @@ async function dependenciesHierarchy (
         name: unsavedDep,
         path: pkgPath,
         version,
+        isPeer: false,
       }
       const matchedSearched = searched.length && matches(searched, pkg)
       if (searched.length && !matchedSearched) return
@@ -232,12 +234,14 @@ function getTree (
     currentDepth: opts.currentDepth + 1,
   }, packages)
 
+  const peers = new Set(Object.keys(packages[parentId].peerDependencies || {}))
   const result: PackageNode[] = []
   Object.keys(deps).forEach((alias) => {
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
       alias,
       modulesDir: opts.modulesDir,
       packages,
+      peers,
       ref: deps[alias],
       registries: opts.registries,
     })
@@ -280,6 +284,7 @@ function getPkgInfo (
     modulesDir: string,
     ref: string,
     packages: PackageSnapshots,
+    peers?: Set<string>,
     registries: Registries,
   },
 ) {
@@ -306,6 +311,7 @@ function getPkgInfo (
     name,
     path: packageAbsolutePath && path.join(opts.modulesDir, `.${packageAbsolutePath}`) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
     version,
+    isPeer: Boolean(opts.peers && opts.peers.has(opts.alias)),
   }
   if (resolved) {
     packageInfo['resolved'] = resolved
