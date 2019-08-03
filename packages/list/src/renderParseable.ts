@@ -14,6 +14,7 @@ export default async function (
     long: boolean,
     depth: number,
     alwaysPrintRootPackage: boolean,
+    search: boolean,
   },
 ) {
   const pkgs = sortPackages(

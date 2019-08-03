@@ -63,6 +63,7 @@ export async function forPackages (
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth,
     long: opts.long,
+    search: Boolean(packages.length),
   })
 }
 
@@ -99,6 +100,7 @@ export default async function (
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth,
     long: opts.long,
+    search: false,
   })
 }
 

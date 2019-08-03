@@ -15,6 +15,7 @@ export default async function (
   opts: {
     depth: number,
     long: boolean,
+    search: boolean,
   },
 ) {
   const JsonObj = {

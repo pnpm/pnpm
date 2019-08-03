@@ -27,6 +27,7 @@ export default async function (
     alwaysPrintRootPackage: boolean,
     depth: number,
     long: boolean,
+    search: boolean,
   },
 ) {
   if (
@@ -46,7 +47,7 @@ export default async function (
   }
   label += project.path + label
   let output = LEGEND + label + '\n'
-  const useColumns = opts.depth === 0 && opts.long === false
+  const useColumns = opts.depth === 0 && opts.long === false && !opts.search
   for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
     if (tree[dependenciesField] && tree[dependenciesField]!.length) {
       const depsLabel = chalk.cyanBright(
