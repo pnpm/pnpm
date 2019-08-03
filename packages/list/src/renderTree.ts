@@ -1,5 +1,6 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import archy = require('archy')
+import cliColumns = require('cli-columns')
 import chalk from 'chalk'
 import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
@@ -24,6 +25,7 @@ export default async function (
   tree: DependenciesHierarchy,
   opts: {
     alwaysPrintRootPackage: boolean,
+    depth: number,
     long: boolean,
   },
 ) {
@@ -44,6 +46,7 @@ export default async function (
   }
   label += project.path + label
   let output = LEGEND + label + '\n'
+  const useColumns = opts.depth === 0 && opts.long === false
   for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
     if (tree[dependenciesField] && tree[dependenciesField]!.length) {
       const depsLabel = chalk.cyanBright(
@@ -52,6 +55,10 @@ export default async function (
           : 'not saved (you should add these dependencies to package.json if you need them):'
       )
       output += depsLabel + '\n'
+      if (useColumns && tree[dependenciesField].length > 10) {
+        output += ' ' + cliColumns(tree[dependenciesField].map(printLabel), { newline: '\n ' }) + '\n'
+        continue
+      }
       const data = await toArchyTree(tree[dependenciesField]!, {
         long: opts.long,
         modules: path.join(project.path, 'node_modules'),

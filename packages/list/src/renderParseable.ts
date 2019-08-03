@@ -12,6 +12,7 @@ export default async function (
   tree: DependenciesHierarchy,
   opts: {
     long: boolean,
+    depth: number,
     alwaysPrintRootPackage: boolean,
   },
 ) {

@@ -61,6 +61,7 @@ export async function forPackages (
     version: entryPkg.version,
   }, tree, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
+    depth: opts.depth,
     long: opts.long,
   })
 }
@@ -96,6 +97,7 @@ export default async function (
     version: entryPkg.version,
   }, tree, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
+    depth: opts.depth,
     long: opts.long,
   })
 }

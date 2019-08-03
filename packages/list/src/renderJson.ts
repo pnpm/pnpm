@@ -13,6 +13,7 @@ export default async function (
   },
   tree: DependenciesHierarchy,
   opts: {
+    depth: number,
     long: boolean,
   },
 ) {
