@@ -29,7 +29,7 @@ export default async (
   }
   if (outputs.length === 0) return
 
-  const joiner = opts.depth && opts.depth > -1 ? '\n\n' : '\n'
+  const joiner = typeof opts.depth === 'number' && opts.depth > -1 ? '\n\n' : '\n'
   const allOutput = outputs.join(joiner)
   console.log(allOutput)
 }

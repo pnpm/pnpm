@@ -72,6 +72,7 @@ export type DependenciesHierarchy = {
   dependencies?: PackageNode[],
   devDependencies?: PackageNode[],
   optionalDependencies?: PackageNode[],
+  unsavedDependencies?: PackageNode[],
 }
 
 async function dependenciesHierarchy (
@@ -186,8 +187,8 @@ async function dependenciesHierarchy (
       if (matchedSearched) {
         newEntry.searched = true
       }
-      result.dependencies = result.dependencies || []
-      result.dependencies.push(newEntry)
+      result.unsavedDependencies = result.unsavedDependencies || []
+      result.unsavedDependencies.push(newEntry)
     })
   )
 
