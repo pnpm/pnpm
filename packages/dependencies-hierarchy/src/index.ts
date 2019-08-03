@@ -175,10 +175,10 @@ async function dependenciesHierarchy (
       }
       const pkg = {
         alias: unsavedDep,
+        isPeer: false,
         name: unsavedDep,
         path: pkgPath,
         version,
-        isPeer: false,
       }
       const matchedSearched = searched.length && matches(searched, pkg)
       if (searched.length && !matchedSearched) return
@@ -308,10 +308,10 @@ function getPkgInfo (
   const packageAbsolutePath = refToAbsolute(opts.ref, opts.alias, opts.registries)
   const packageInfo = {
     alias: opts.alias,
+    isPeer: Boolean(opts.peers && opts.peers.has(opts.alias)),
     name,
     path: packageAbsolutePath && path.join(opts.modulesDir, `.${packageAbsolutePath}`) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
     version,
-    isPeer: Boolean(opts.peers && opts.peers.has(opts.alias)),
   }
   if (resolved) {
     packageInfo['resolved'] = resolved
