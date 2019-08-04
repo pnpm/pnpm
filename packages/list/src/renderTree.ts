@@ -89,7 +89,7 @@ export async function toArchyTree (
     sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(getPkgColor, node.dependencies || [], opts)
       if (opts.long) {
-        const pkg = await getPkgInfo(node.pkg)
+        const pkg = await getPkgInfo(node)
         const labelLines = [
           printLabel(getPkgColor, node),
           pkg.description,
@@ -115,18 +115,18 @@ export async function toArchyTree (
 
 function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   let color = getPkgColor(node)
-  let txt = `${color(node.pkg.name)} ${chalk.gray(node.pkg.version)}`
+  let txt = `${color(node.name)} ${chalk.gray(node.version)}`
   if (node.searched) {
     return chalk.bold.bgBlack(txt)
   }
-  if (node.pkg.isPeer) {
+  if (node.isPeer) {
     txt += ' peer'
   }
   return txt
 }
 
 function getPkgColor (node: PackageNode) {
-  if (node.pkg.dev === true) return DEV_DEP_ONLY_CLR
-  if (node.pkg.optional) return OPTIONAL_DEP_CLR
+  if (node.dev === true) return DEV_DEP_ONLY_CLR
+  if (node.optional) return OPTIONAL_DEP_CLR
   return PROD_DEP_CLR
 }

@@ -20,53 +20,45 @@ test('one package depth 0', async t => {
   t.deepEqual(tree, {
     dependencies: [
       {
-        pkg: {
-          alias: 'minimatch',
-          dev: false,
-          isPeer: false,
-          name: 'minimatch',
-          path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
-          resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-          version: '3.0.4',
-        },
+        alias: 'minimatch',
+        dev: false,
+        isPeer: false,
+        name: 'minimatch',
+        path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
+        resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
+        version: '3.0.4',
       },
       {
-        pkg: {
-          alias: 'rimraf',
-          dev: false,
-          isPeer: false,
-          name: 'rimraf',
-          path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
-          resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-          version: '2.5.1',
-        },
+        alias: 'rimraf',
+        dev: false,
+        isPeer: false,
+        name: 'rimraf',
+        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
+        version: '2.5.1',
       },
     ],
     devDependencies: [
       {
-        pkg: {
-          alias: 'is-positive',
-          dev: true,
-          isPeer: false,
-          name: 'is-positive',
-          path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
-          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-          version: '1.0.0',
-        },
+        alias: 'is-positive',
+        dev: true,
+        isPeer: false,
+        name: 'is-positive',
+        path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        version: '1.0.0',
       },
     ],
     optionalDependencies: [
       {
-        pkg: {
-          alias: 'is-negative',
-          dev: false,
-          isPeer: false,
-          name: 'is-negative',
-          optional: true,
-          path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
-          resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
-          version: '1.0.0',
-        },
+        alias: 'is-negative',
+        dev: false,
+        isPeer: false,
+        name: 'is-negative',
+        optional: true,
+        path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
+        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
+        version: '1.0.0',
       },
     ],
   })
@@ -81,79 +73,69 @@ test('one package depth 1', async t => {
   t.deepEqual(tree, {
     dependencies: [
       {
+        alias: 'minimatch',
+        dev: false,
+        isPeer: false,
+        name: 'minimatch',
+        path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
+        resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
+        version: '3.0.4',
+
         dependencies: [
           {
-            pkg: {
-              alias: 'brace-expansion',
-              dev: false,
-              isPeer: false,
-              name: 'brace-expansion',
-              path: path.join(modulesDir, '.registry.npmjs.org/brace-expansion/1.1.8'),
-              resolved: 'https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.8.tgz',
-              version: '1.1.8',
-            },
+            alias: 'brace-expansion',
+            dev: false,
+            isPeer: false,
+            name: 'brace-expansion',
+            path: path.join(modulesDir, '.registry.npmjs.org/brace-expansion/1.1.8'),
+            resolved: 'https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.8.tgz',
+            version: '1.1.8',
           },
         ],
-        pkg: {
-          alias: 'minimatch',
-          dev: false,
-          isPeer: false,
-          name: 'minimatch',
-          path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
-          resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-          version: '3.0.4',
-        },
       },
       {
+        alias: 'rimraf',
+        dev: false,
+        isPeer: false,
+        name: 'rimraf',
+        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
+        version: '2.5.1',
+
         dependencies: [
           {
-            pkg: {
-              alias: 'glob',
-              dev: false,
-              isPeer: false,
-              name: 'glob',
-              path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
-              resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
-              version: '6.0.4',
-            },
+            alias: 'glob',
+            dev: false,
+            isPeer: false,
+            name: 'glob',
+            path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
+            resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
+            version: '6.0.4',
           },
         ],
-        pkg: {
-          alias: 'rimraf',
-          dev: false,
-          isPeer: false,
-          name: 'rimraf',
-          path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
-          resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-          version: '2.5.1',
-        },
       },
     ],
     devDependencies: [
       {
-        pkg: {
-          alias: 'is-positive',
-          dev: true,
-          isPeer: false,
-          name: 'is-positive',
-          path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
-          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-          version: '1.0.0',
-        },
+        alias: 'is-positive',
+        dev: true,
+        isPeer: false,
+        name: 'is-positive',
+        path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        version: '1.0.0',
       },
     ],
     optionalDependencies: [
       {
-        pkg: {
-          alias: 'is-negative',
-          dev: false,
-          isPeer: false,
-          name: 'is-negative',
-          optional: true,
-          path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
-          resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
-          version: '1.0.0',
-        },
+        alias: 'is-negative',
+        dev: false,
+        isPeer: false,
+        name: 'is-negative',
+        optional: true,
+        path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
+        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-1.0.0.tgz',
+        version: '1.0.0',
       },
     ],
   })
@@ -178,26 +160,22 @@ test('only prod depth 0', async t => {
   t.deepEqual(tree, {
     dependencies: [
       {
-        pkg: {
-          alias: 'minimatch',
-          dev: false,
-          isPeer: false,
-          name: 'minimatch',
-          path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
-          resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-          version: '3.0.4',
-        },
+        alias: 'minimatch',
+        dev: false,
+        isPeer: false,
+        name: 'minimatch',
+        path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
+        resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
+        version: '3.0.4',
       },
       {
-        pkg: {
-          alias: 'rimraf',
-          dev: false,
-          isPeer: false,
-          name: 'rimraf',
-          path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
-          resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-          version: '2.5.1',
-        },
+        alias: 'rimraf',
+        dev: false,
+        isPeer: false,
+        name: 'rimraf',
+        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
+        version: '2.5.1',
       },
     ],
   })
@@ -222,15 +200,13 @@ test('only dev depth 0', async t => {
   t.deepEqual(tree, {
     devDependencies: [
       {
-        pkg: {
-          alias: 'is-positive',
-          dev: true,
-          isPeer: false,
-          name: 'is-positive',
-          path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
-          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-          version: '1.0.0',
-        }
+        alias: 'is-positive',
+        dev: true,
+        isPeer: false,
+        name: 'is-positive',
+        path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        version: '1.0.0',
       },
     ],
   })
@@ -253,16 +229,14 @@ test('filter 1 package with depth 0', async t => {
   t.deepEqual(tree, {
     dependencies: [
       {
-        pkg: {
-          alias: 'rimraf',
-          dev: false,
-          isPeer: false,
-          name: 'rimraf',
-          path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
-          resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-          version: '2.5.1',
-        },
+        alias: 'rimraf',
+        dev: false,
+        isPeer: false,
+        name: 'rimraf',
+        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
         searched: true,
+        version: '2.5.1',
       },
     ],
     devDependencies: [],
@@ -283,92 +257,81 @@ test('filter 2 packages with depth 100', async t => {
   t.deepEqual(tree, {
     dependencies: [
       {
-        pkg: {
-          alias: 'minimatch',
-          dev: false,
-          isPeer: false,
-          name: 'minimatch',
-          path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
-          resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-          version: '3.0.4',
-        },
+        alias: 'minimatch',
+        dev: false,
+        isPeer: false,
+        name: 'minimatch',
+        path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
+        resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
         searched: true,
+        version: '3.0.4',
       },
       {
+        alias: 'rimraf',
+        dev: false,
+        isPeer: false,
+        name: 'rimraf',
+        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
+        version: '2.5.1',
+
         dependencies: [
           {
+            alias: 'glob',
+            dev: false,
+            isPeer: false,
+            name: 'glob',
+            path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
+            resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
+            version: '6.0.4',
+
             dependencies: [
               {
+                alias: 'inflight',
+                dev: false,
+                isPeer: false,
+                name: 'inflight',
+                path: path.join(modulesDir, '.registry.npmjs.org/inflight/1.0.6'),
+                resolved: 'https://registry.npmjs.org/inflight/-/inflight-1.0.6.tgz',
+                version: '1.0.6',
+
                 dependencies: [
                   {
-                    pkg: {
-                      alias: 'once',
-                      dev: false,
-                      isPeer: false,
-                      name: 'once',
-                      path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
-                      resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
-                      version: '1.4.0',
-                    },
+                    alias: 'once',
+                    dev: false,
+                    isPeer: false,
+                    name: 'once',
+                    path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
+                    resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
                     searched: true,
+                    version: '1.4.0',
                   },
                 ],
-                pkg: {
-                  alias: 'inflight',
-                  dev: false,
-                  isPeer: false,
-                  name: 'inflight',
-                  path: path.join(modulesDir, '.registry.npmjs.org/inflight/1.0.6'),
-                  resolved: 'https://registry.npmjs.org/inflight/-/inflight-1.0.6.tgz',
-                  version: '1.0.6',
-                },
               },
               {
-                pkg: {
-                  alias: 'minimatch',
-                  dev: false,
-                  isPeer: false,
-                  name: 'minimatch',
-                  path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
-                  resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-                  version: '3.0.4',
-                },
+                alias: 'minimatch',
+                dev: false,
+                isPeer: false,
+                name: 'minimatch',
+                path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
+                resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
                 searched: true,
+                version: '3.0.4',
               },
               {
-                pkg: {
-                  alias: 'once',
-                  dev: false,
-                  isPeer: false,
-                  name: 'once',
-                  path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
-                  resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
-                  version: '1.4.0',
-                },
+                alias: 'once',
+                dev: false,
+                isPeer: false,
+                name: 'once',
+                path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
+                resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
                 searched: true,
+                version: '1.4.0',
               },
             ],
-            pkg: {
-              alias: 'glob',
-              dev: false,
-              isPeer: false,
-              name: 'glob',
-              path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
-              resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
-              version: '6.0.4',
-            },
           },
         ],
-        pkg: {
-          alias: 'rimraf',
-          dev: false,
-          isPeer: false,
-          name: 'rimraf',
-          path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
-          resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-          version: '2.5.1',
-        },
-      }
+      },
     ],
     devDependencies: [],
     optionalDependencies: [],
@@ -409,25 +372,19 @@ test('circular dependency', async t => {
 })
 
 function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
-  const p = path.resolve(modulesDir, `.${node.pkg.path}`)
+  const p = path.resolve(modulesDir, `.${node.path}`)
   if (!node.dependencies) {
     return {
       ...node,
-      pkg: {
-        ...node.pkg,
-        alias: node.pkg.name,
-        path: p,
-      },
+      alias: node.name,
+      path: p,
     }
   }
   return {
     ...node,
+    alias: node.name,
     dependencies: node.dependencies.map((dep) => resolvePaths(modulesDir, dep)),
-    pkg: {
-      ...node.pkg,
-      alias: node.pkg.name,
-      path: p,
-    },
+    path: p,
   }
 }
 
@@ -438,24 +395,20 @@ test('local package depth 0', async t => {
   t.deepEqual(tree, {
     dependencies: [
       {
-        pkg: {
-          alias: 'general',
-          isPeer: false,
-          name: 'general',
-          path: generalFixture,
-          version: 'link:../general',
-        },
+        alias: 'general',
+        isPeer: false,
+        name: 'general',
+        path: generalFixture,
+        version: 'link:../general',
       },
       {
-        pkg: {
-          alias: 'is-positive',
-          dev: false,
-          isPeer: false,
-          name: 'is-positive',
-          path: path.join(modulesDir, '.registry.npmjs.org/is-positive/3.1.0'),
-          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
-          version: '3.1.0',
-        },
+        alias: 'is-positive',
+        dev: false,
+        isPeer: false,
+        name: 'is-positive',
+        path: path.join(modulesDir, '.registry.npmjs.org/is-positive/3.1.0'),
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+        version: '3.1.0',
       },
     ],
     devDependencies: [],
@@ -471,13 +424,11 @@ test('on a package that has only links', async t => {
   t.deepEqual(tree, {
     dependencies: [
       {
-        pkg: {
-          alias: 'general',
-          isPeer: false,
-          name: 'general',
-          path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
-          version: 'link:../general',
-        },
+        alias: 'general',
+        isPeer: false,
+        name: 'general',
+        path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
+        version: 'link:../general',
       },
     ],
     devDependencies: [],
@@ -501,14 +452,12 @@ test('filter on a package that has only links', async t => {
   t.deepEqual(await dhForPackages(['general'], withLinksOnlyFixture, { depth: 1000 }), {
     dependencies: [
       {
-        pkg: {
-          alias: 'general',
-          isPeer: false,
-          name: 'general',
-          path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
-          version: 'link:../general',
-        },
+        alias: 'general',
+        isPeer: false,
+        name: 'general',
+        path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
         searched: true,
+        version: 'link:../general',
       },
     ],
     devDependencies: [],
@@ -523,37 +472,31 @@ test('unsaved dependencies are listed', async t => {
   t.deepEqual(await dh(withUnsavedDepsFixture), {
     dependencies: [
       {
-        pkg: {
-          alias: 'symlink-dir',
-          dev: false,
-          isPeer: false,
-          name: 'symlink-dir',
-          path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
-          resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
-          version: '2.0.2',
-        },
+        alias: 'symlink-dir',
+        dev: false,
+        isPeer: false,
+        name: 'symlink-dir',
+        path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
+        resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
+        version: '2.0.2',
       },
     ],
     devDependencies: [],
     optionalDependencies: [],
     unsavedDependencies: [
       {
-        pkg: {
-          alias: 'general',
-          isPeer: false,
-          name: 'general',
-          path: generalFixture,
-          version: 'link:../general',
-        },
+        alias: 'general',
+        isPeer: false,
+        name: 'general',
+        path: generalFixture,
+        version: 'link:../general',
       },
       {
-        pkg: {
-          alias: 'is-positive',
-          isPeer: false,
-          name: 'is-positive',
-          path: path.join(modulesDir, 'is-positive'),
-          version: '3.1.0',
-        },
+        alias: 'is-positive',
+        isPeer: false,
+        name: 'is-positive',
+        path: path.join(modulesDir, 'is-positive'),
+        version: '3.1.0',
       },
     ],
   })
@@ -565,16 +508,14 @@ test('unsaved dependencies are listed and filtered', async t => {
   t.deepEqual(await dhForPackages([{ name: 'symlink-dir', range: '*' }], withUnsavedDepsFixture), {
     dependencies: [
       {
-        pkg: {
-          alias: 'symlink-dir',
-          dev: false,
-          isPeer: false,
-          name: 'symlink-dir',
-          path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
-          resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
-          version: '2.0.2',
-        },
+        alias: 'symlink-dir',
+        dev: false,
+        isPeer: false,
+        name: 'symlink-dir',
+        path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
+        resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
         searched: true,
+        version: '2.0.2',
       },
     ],
     devDependencies: [],
@@ -594,15 +535,13 @@ test('dependency with an alias', async t => {
   t.deepEqual(await dh(withAliasedDepFixture), {
     dependencies: [
       {
-        pkg: {
-          alias: 'positive',
-          dev: false,
-          isPeer: false,
-          name: 'is-positive',
-          path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
-          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-          version: '1.0.0',
-        },
+        alias: 'positive',
+        dev: false,
+        isPeer: false,
+        name: 'is-positive',
+        path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        version: '1.0.0',
       },
     ],
     devDependencies: [],

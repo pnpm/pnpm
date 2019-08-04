@@ -25,19 +25,17 @@ export type PackageSelector = string | {
 }
 
 export interface PackageNode {
-  pkg: {
-    alias: string,
-    dev?: boolean,
-    name: string,
-    optional?: true,
-    version: string,
-    path: string,
-    resolved?: string,
-    isPeer: boolean,
-  }
-  dependencies?: PackageNode[],
-  searched?: true,
+  alias: string,
   circular?: true,
+  dependencies?: PackageNode[],
+  dev?: boolean,
+  isPeer: boolean,
+  name: string,
+  optional?: true,
+  path: string,
+  resolved?: string,
+  searched?: true,
+  version: string,
 }
 
 export function forPackages (
@@ -138,17 +136,17 @@ async function dependenciesHierarchy (
       const matchedSearched = searched.length && matches(searched, packageInfo)
       if (packageAbsolutePath === null) {
         if (searched.length && !matchedSearched) return
-        newEntry = { pkg: packageInfo }
+        newEntry = packageInfo
       } else {
         const relativeId = refToRelative(topDeps[alias], alias)
         const dependencies = getChildrenTree([relativeId], relativeId)
         if (dependencies.length) {
           newEntry = {
+            ...packageInfo,
             dependencies,
-            pkg: packageInfo,
           }
         } else if (!searched.length || matches(searched, packageInfo)) {
-          newEntry = { pkg: packageInfo }
+          newEntry = packageInfo
         }
       }
       if (newEntry) {
@@ -181,9 +179,7 @@ async function dependenciesHierarchy (
       }
       const matchedSearched = searched.length && matches(searched, pkg)
       if (searched.length && !matchedSearched) return
-      const newEntry: PackageNode = {
-        pkg,
-      }
+      const newEntry: PackageNode = pkg
       if (matchedSearched) {
         newEntry.searched = true
       }
@@ -248,7 +244,7 @@ function getTree (
     let newEntry: PackageNode | null = null
     if (packageAbsolutePath === null) {
       circular = false
-      newEntry = { pkg: packageInfo }
+      newEntry = packageInfo
     } else {
       const relativeId = refToRelative(deps[alias], alias) as string // we know for sure that relative is not null if pkgPath is not null
       circular = keypath.includes(relativeId)
@@ -256,11 +252,11 @@ function getTree (
 
       if (dependencies.length) {
         newEntry = {
+          ...packageInfo,
           dependencies,
-          pkg: packageInfo,
         }
       } else if (!opts.searched.length || matchedSearched) {
-        newEntry = { pkg: packageInfo }
+        newEntry = packageInfo
       }
     }
     if (newEntry) {

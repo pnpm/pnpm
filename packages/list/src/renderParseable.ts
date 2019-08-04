@@ -54,7 +54,7 @@ function flatten (
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {
-    packages.push(node.pkg)
+    packages.push(node)
     if (node.dependencies && node.dependencies.length) {
       packages = packages.concat(flatten(node.dependencies))
     }
