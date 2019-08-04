@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "3.6.2",
+  "version": "3.7.0-0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,7 +30,7 @@
     "@pnpm/error": "1.0.0",
     "@pnpm/file-reporter": "0.1.0",
     "@pnpm/lifecycle": "6.2.1",
-    "@pnpm/list": "1.0.14",
+    "@pnpm/list": "2.0.0-0",
     "@pnpm/lockfile-file": "1.1.1",
     "@pnpm/logger": "2.1.1",
     "@pnpm/outdated": "3.0.1",
