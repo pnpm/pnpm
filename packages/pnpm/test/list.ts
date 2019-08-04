@@ -160,6 +160,38 @@ test('listing packages', async (t: tape.Test) => {
   }
 })
 
+test('independent-leaves=true: pnpm list --long', async (t: tape.Test) => {
+  prepare(t, {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm('install', '--independent-leaves')
+
+  const result = execPnpmSync('list', '--long')
+
+  t.equal(result.status, 0)
+
+  // TODO: the --long flag should work with --independent-leaves
+  t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
+    project@0.0.0 ${process.cwd()}
+
+    dependencies:
+    is-positive 1.0.0
+      [Could not find additional info about this dependency]
+
+    devDependencies:
+    is-negative 1.0.0
+      [Could not find additional info about this dependency]
+  ` + '\n')
+})
+
 test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   preparePackages(t, [
     {
