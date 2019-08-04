@@ -531,6 +531,7 @@ importers:
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
       chalk: 2.4.2
+      cli-columns: 3.1.2
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
       p-limit: 2.2.0
       ramda: 0.26.1
@@ -554,6 +555,7 @@ importers:
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
       chalk: 2.4.2
+      cli-columns: 3.1.2
       common-tags: 1.8.0
       dependencies-hierarchy: 5.0.12
       p-limit: 2.2.0
@@ -3319,6 +3321,15 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-gpaBrMAizVEANOpfZp/EEUixTXDyGt7DFzdK5hU+UbWt/J0lB0w20ncZj59Z9a93xHb9u12zF5BS6i9RKbtg4w==
+  /cli-columns/3.1.2:
+    dependencies:
+      string-width: 2.1.1
+      strip-ansi: 3.0.1
+    dev: false
+    engines:
+      node: '>= 4'
+    resolution:
+      integrity: sha1-ZzLZcpee/CrkRKHwjgj6E5yWoY4=
   /cli-cursor/1.0.2:
     dependencies:
       restore-cursor: 1.0.1

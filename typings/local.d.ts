@@ -331,3 +331,8 @@ declare module 'normalize-newline' {
   const anything: any;
   export = anything;
 }
+
+declare module 'cli-columns' {
+  function cliColumns (values: string[], opts?: { newline?: string, width?: number }): string
+  export = cliColumns;
+}

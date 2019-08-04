@@ -33,8 +33,12 @@ test('listing global packages', async (t: tape.Test) => {
     ? path.join(global, 'npm', 'pnpm-global', '2')
     : path.join(global, 'pnpm-global', '2')
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     ${globalPrefix}
-    └── is-positive@3.1.0
+
+    dependencies:
+    is-positive 3.1.0
   ` + '\n')
 })
 
@@ -56,8 +60,12 @@ test('listing global packages installed with independent-leaves = true', async (
     ? path.join(global, 'npm', 'pnpm-global', '2_independent_leaves')
     : path.join(global, 'pnpm-global', '2_independent_leaves')
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     ${globalPrefix}
-    └── is-positive@3.1.0
+
+    dependencies:
+    is-positive 3.1.0
   ` + '\n')
 })
 
@@ -79,8 +87,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-positive@1.0.0
+
+      dependencies:
+      is-positive 1.0.0
     ` + '\n', 'prints prod deps only')
   }
 
@@ -90,8 +102,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-positive@1.0.0
+
+      dependencies:
+      is-positive 1.0.0
     ` + '\n', 'prints prod deps only using --only prod')
   }
 
@@ -101,8 +117,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-negative@1.0.0
+
+      devDependencies:
+      is-negative 1.0.0
     ` + '\n', 'prints dev deps only')
   }
 
@@ -112,8 +132,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-negative@1.0.0
+
+      devDependencies:
+      is-negative 1.0.0
     ` + '\n', 'prints dev deps only using --only dev')
   }
 
@@ -123,9 +147,15 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      ├── is-negative@1.0.0
-      └── is-positive@1.0.0
+
+      dependencies:
+      is-positive 1.0.0
+
+      devDependencies:
+      is-negative 1.0.0
     ` + '\n', 'prints all deps')
   }
 })
@@ -154,7 +184,11 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
   t.equal(result.status, 0)
 
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     pkg@1.0.0 ${process.cwd()}
-    └── is-positive@1.0.0
+
+    dependencies:
+    is-positive 1.0.0
   ` + '\n', 'prints all deps')
 })
