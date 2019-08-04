@@ -57,11 +57,11 @@ export default async function (
           : 'not saved (you should add these dependencies to package.json if you need them):'
       )
       output += `\n${depsLabel}\n`
+      const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
       if (useColumns && tree[dependenciesField].length > 10) {
-        output += cliColumns(tree[dependenciesField].map(printLabel)) + '\n'
+        output += cliColumns(tree[dependenciesField].map(printLabel.bind(printLabel,  gPkgColor))) + '\n'
         continue
       }
-      const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
       const data = await toArchyTree(gPkgColor, tree[dependenciesField]!, {
         long: opts.long,
         modules: path.join(project.path, 'node_modules'),
