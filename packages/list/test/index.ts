@@ -6,7 +6,19 @@ import { stripIndent } from 'common-tags'
 import path = require('path')
 import test = require('tape')
 
-const highlighted = chalk.yellow.bgBlack
+const DEV_DEP_ONLY_CLR = chalk.yellow
+const PROD_DEP_CLR = (s: string) => s // just use the default color
+const OPTIONAL_DEP_CLR = chalk.blue
+const NOT_SAVED_DEP_CLR = chalk.red
+const VERSION_CLR = chalk.gray
+
+const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${DEV_DEP_ONLY_CLR('dev only')}`
+const DEPENDENCIES = chalk.cyanBright('dependencies:')
+const DEV_DEPENDENCIES = chalk.cyanBright('devDependencies:')
+const OPTIONAL_DEPENDENCIES = chalk.cyanBright('optionalDependencies:')
+const UNSAVED_DEPENDENCIES = chalk.cyanBright('not saved (you should add these dependencies to package.json if you need them):')
+
+const highlighted = chalk.bold.bgBlack
 
 const fixture = path.join(__dirname, 'fixture')
 const fixtureWithNoPkgNameAndNoVersion = path.join(__dirname, 'fixture-with-no-pkg-name-and-no-version')
@@ -19,8 +31,12 @@ test('list all deps of a package that has an external lockfile', async (t) => {
   t.equal(await list(fixtureWithExternalLockfile, {
     lockfileDirectory: path.join(fixtureWithExternalLockfile, '..'),
   }), stripIndent`
+    ${LEGEND}
+
     pkg@1.0.0 ${fixtureWithExternalLockfile}
-    └── is-positive@1.0.0
+
+    ${DEPENDENCIES}
+    is-positive ${VERSION_CLR('1.0.0')}
   `)
 
   t.end()
@@ -28,10 +44,18 @@ test('list all deps of a package that has an external lockfile', async (t) => {
 
 test('list with default parameters', async t => {
   t.equal(await list(fixture), stripIndent`
+    ${LEGEND}
+
     fixture@1.0.0 ${fixture}
-    ├── is-negative@2.1.0
-    ├── is-positive@3.1.0
-    └── write-json-file@2.2.0
+
+    ${DEPENDENCIES}
+    write-json-file ${VERSION_CLR('2.2.0')}
+
+    ${DEV_DEPENDENCIES}
+    ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+
+    ${OPTIONAL_DEPENDENCIES}
+    ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
   `)
 
   t.end()
@@ -39,10 +63,18 @@ test('list with default parameters', async t => {
 
 test('list with default parameters in pkg that has no name and version', async t => {
   t.equal(await list(fixtureWithNoPkgNameAndNoVersion), stripIndent`
+    ${LEGEND}
+
     ${fixtureWithNoPkgNameAndNoVersion}
-    ├── is-negative@2.1.0
-    ├── is-positive@3.1.0
-    └── write-json-file@2.2.0
+
+    ${DEPENDENCIES}
+    write-json-file ${VERSION_CLR('2.2.0')}
+
+    ${DEV_DEPENDENCIES}
+    ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+
+    ${OPTIONAL_DEPENDENCIES}
+    ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
   `)
 
   t.end()
@@ -50,10 +82,18 @@ test('list with default parameters in pkg that has no name and version', async t
 
 test('list with default parameters in pkg that has no version', async t => {
   t.equal(await list(fixtureWithNoPkgVersion), stripIndent`
+    ${LEGEND}
+
     fixture ${fixtureWithNoPkgVersion}
-    ├── is-negative@2.1.0
-    ├── is-positive@3.1.0
-    └── write-json-file@2.2.0
+
+    ${DEPENDENCIES}
+    write-json-file ${VERSION_CLR('2.2.0')}
+
+    ${DEV_DEPENDENCIES}
+    ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+
+    ${OPTIONAL_DEPENDENCIES}
+    ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
   `)
 
   t.end()
@@ -65,8 +105,12 @@ test('list dev only', async t => {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
     }),
     stripIndent`
+      ${LEGEND}
+
       fixture@1.0.0 ${fixture}
-      └── is-positive@3.1.0
+
+      ${DEV_DEPENDENCIES}
+      ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
     `,
   )
 
@@ -79,8 +123,12 @@ test('list prod only', async t => {
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
     }),
     stripIndent`
+      ${LEGEND}
+
       fixture@1.0.0 ${fixture}
-      └── write-json-file@2.2.0
+
+      ${DEPENDENCIES}
+      write-json-file ${VERSION_CLR('2.2.0')}
     `,
   )
 
@@ -94,19 +142,23 @@ test('list prod only with depth 2', async t => {
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
     }),
     stripIndent`
+      ${LEGEND}
+
       fixture@1.0.0 ${fixture}
-      └─┬ write-json-file@2.2.0
-        ├── detect-indent@5.0.0
-        ├── graceful-fs@4.1.11
-        ├─┬ make-dir@1.0.0
-        │ └── pify@2.3.0
-        ├── pify@2.3.0
-        ├─┬ sort-keys@1.1.2
-        │ └── is-plain-obj@1.1.0
-        └─┬ write-file-atomic@2.1.0
-          ├── graceful-fs@4.1.11
-          ├── imurmurhash@0.1.4
-          └── slide@1.1.6
+
+      ${DEPENDENCIES}
+      write-json-file ${VERSION_CLR('2.2.0')}
+      ├── detect-indent ${VERSION_CLR('5.0.0')}
+      ├── graceful-fs ${VERSION_CLR('4.1.11')}
+      ├─┬ make-dir ${VERSION_CLR('1.0.0')}
+      │ └── pify ${VERSION_CLR('2.3.0')}
+      ├── pify ${VERSION_CLR('2.3.0')}
+      ├─┬ sort-keys ${VERSION_CLR('1.1.2')}
+      │ └── is-plain-obj ${VERSION_CLR('1.1.0')}
+      └─┬ write-file-atomic ${VERSION_CLR('2.1.0')}
+        ├── graceful-fs ${VERSION_CLR('4.1.11')}
+        ├── imurmurhash ${VERSION_CLR('0.1.4')}
+        └── slide ${VERSION_CLR('1.1.6')}
     `,
   )
 
@@ -115,16 +167,24 @@ test('list prod only with depth 2', async t => {
 
 test('list with depth 1', async t => {
   t.equal(await list(fixture, { depth: 1 }), stripIndent`
+    ${LEGEND}
+
     fixture@1.0.0 ${fixture}
-    ├── is-negative@2.1.0
-    ├── is-positive@3.1.0
-    └─┬ write-json-file@2.2.0
-      ├── detect-indent@5.0.0
-      ├── graceful-fs@4.1.11
-      ├── make-dir@1.0.0
-      ├── pify@2.3.0
-      ├── sort-keys@1.1.2
-      └── write-file-atomic@2.1.0
+
+    ${DEPENDENCIES}
+    write-json-file ${VERSION_CLR('2.2.0')}
+    ├── detect-indent ${VERSION_CLR('5.0.0')}
+    ├── graceful-fs ${VERSION_CLR('4.1.11')}
+    ├── make-dir ${VERSION_CLR('1.0.0')}
+    ├── pify ${VERSION_CLR('2.3.0')}
+    ├── sort-keys ${VERSION_CLR('1.1.2')}
+    └── write-file-atomic ${VERSION_CLR('2.1.0')}
+
+    ${DEV_DEPENDENCIES}
+    ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+
+    ${OPTIONAL_DEPENDENCIES}
+    ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
   `)
 
   t.end()
@@ -138,31 +198,55 @@ test('list with depth -1', async t => {
 
 test('list with depth 1 and selected packages', async t => {
   t.equal(await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], fixture, { depth: 1 }), stripIndent`
+    ${LEGEND}
+
     fixture@1.0.0 ${fixture}
-    ├── ${highlighted('is-negative@2.1.0')}
-    └─┬ write-json-file@2.2.0
-      ├── ${highlighted('make-dir@1.0.0')}
-      └── ${highlighted('pify@2.3.0')}
+
+    ${DEPENDENCIES}
+    write-json-file ${VERSION_CLR('2.2.0')}
+    ├── ${highlighted('make-dir ' + VERSION_CLR('1.0.0'))}
+    └── ${highlighted('pify ' + VERSION_CLR('2.3.0'))}
+
+    ${OPTIONAL_DEPENDENCIES}
+    ${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}
   `)
 
   t.end()
 })
 
+function compareOutputs (t: test.Test, actual: string, expected: string) {
+  if (actual !== expected) {
+    console.log('Actual:')
+    console.log(actual)
+    console.log('Expected:')
+    console.log(expected)
+  }
+  t.equal(actual, expected)
+}
+
 test('list in long format', async t => {
-  t.equal(await list(fixture, { long: true }), stripIndent`
+  compareOutputs(t, await list(fixture, { long: true }), stripIndent`
+    ${LEGEND}
+
     fixture@1.0.0 ${fixture}
-    ├── is-negative@2.1.0
-    │   Check if something is a negative number
-    │   git+https://github.com/kevva/is-negative.git
-    │   https://github.com/kevva/is-negative#readme
-    ├── is-positive@3.1.0
-    │   Check if something is a positive number
-    │   git+https://github.com/kevva/is-positive.git
-    │   https://github.com/kevva/is-positive#readme
-    └── write-json-file@2.2.0
-        Stringify and write JSON to a file atomically
-        git+https://github.com/sindresorhus/write-json-file.git
-        https://github.com/sindresorhus/write-json-file#readme
+
+    ${DEPENDENCIES}
+    write-json-file ${VERSION_CLR('2.2.0')}
+      Stringify and write JSON to a file atomically
+      git+https://github.com/sindresorhus/write-json-file.git
+      https://github.com/sindresorhus/write-json-file#readme
+
+    ${DEV_DEPENDENCIES}
+    ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
+      Check if something is a positive number
+      git+https://github.com/kevva/is-positive.git
+      https://github.com/kevva/is-positive#readme
+
+    ${OPTIONAL_DEPENDENCIES}
+    ${OPTIONAL_DEP_CLR('is-negative')} ${VERSION_CLR('2.1.0')}
+      Check if something is a negative number
+      git+https://github.com/kevva/is-negative.git
+      https://github.com/kevva/is-negative#readme
   `)
 
   t.end()
@@ -191,18 +275,6 @@ test('JSON list with depth 1', async t => {
     version: '1.0.0',
 
     dependencies: {
-      'is-negative': {
-        from: 'is-negative',
-        version: '2.1.0',
-
-        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-2.1.0.tgz',
-      },
-      'is-positive': {
-        from: 'is-positive',
-        version: '3.1.0',
-
-        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
-      },
       'write-json-file': {
         from: 'write-json-file',
         version: '2.2.0',
@@ -247,7 +319,23 @@ test('JSON list with depth 1', async t => {
             resolved: 'https://registry.npmjs.org/write-file-atomic/-/write-file-atomic-2.1.0.tgz',
           }
         }
-      }
+      },
+    },
+    devDependencies: {
+      'is-positive': {
+        from: 'is-positive',
+        version: '3.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+      },
+    },
+    optionalDependencies: {
+      'is-negative': {
+        from: 'is-negative',
+        version: '2.1.0',
+
+        resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-2.1.0.tgz',
+      },
     },
   }, null, 2))
   t.end()
@@ -357,7 +445,7 @@ test('long parseable list with depth 1 when package has no name and no version',
 })
 
 test('print empty', async t => {
-  t.equal(await list(emptyFixture), `empty@1.0.0 ${emptyFixture}`)
+  t.equal(await list(emptyFixture), `${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
   t.end()
 })
 
@@ -394,8 +482,12 @@ test('unsaved dependencies are marked', async (t) => {
       search: true,
     },
   ), stripIndent`
+    ${LEGEND}
+
     fixture@1.0.0 ${fixture}
-    └── foo@1.0.0 ${chalk.whiteBright.bgBlack('not saved')}
+
+    ${UNSAVED_DEPENDENCIES}
+    ${NOT_SAVED_DEP_CLR('foo')} ${VERSION_CLR('1.0.0')}
   `)
   t.end()
 })

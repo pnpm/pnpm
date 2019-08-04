@@ -34,7 +34,8 @@ export default async function (
     !opts.alwaysPrintRootPackage &&
     (!tree.dependencies || !tree.dependencies.length) &&
     (!tree.devDependencies || !tree.devDependencies.length) &&
-    (!tree.optionalDependencies || !tree.optionalDependencies.length)
+    (!tree.optionalDependencies || !tree.optionalDependencies.length) &&
+    (!tree.unsavedDependencies || !tree.unsavedDependencies.length)
   ) return ''
 
   let label = ''
@@ -45,8 +46,8 @@ export default async function (
     }
     label += ' '
   }
-  label += project.path + label
-  let output = LEGEND + label + '\n'
+  label += project.path
+  let output = (opts.depth > -1 ? LEGEND : '') + label + '\n'
   const useColumns = opts.depth === 0 && opts.long === false && !opts.search
   for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
     if (tree[dependenciesField] && tree[dependenciesField]!.length) {
@@ -55,9 +56,9 @@ export default async function (
           ? `${dependenciesField}:`
           : 'not saved (you should add these dependencies to package.json if you need them):'
       )
-      output += depsLabel + '\n'
+      output += '\n' + depsLabel + '\n'
       if (useColumns && tree[dependenciesField].length > 10) {
-        output += ' ' + cliColumns(tree[dependenciesField].map(printLabel), { newline: '\n ' }) + '\n'
+        output += cliColumns(tree[dependenciesField].map(printLabel)) + '\n'
         continue
       }
       const data = await toArchyTree(tree[dependenciesField]!, {
@@ -65,7 +66,7 @@ export default async function (
         modules: path.join(project.path, 'node_modules'),
       })
       for (const d of data) {
-        output += archy(d, ' ')
+        output += archy(d)
       }
     }
   }

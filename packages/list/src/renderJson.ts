@@ -18,17 +18,17 @@ export default async function (
     search: boolean,
   },
 ) {
-  const JsonObj = {
+  const jsonObj = {
     name: project.name,
 
     version: project.version,
   }
-  for (const dependenciesField in DEPENDENCIES_FIELDS.sort()) {
-    if (tree[dependenciesField]) {
-      JsonObj[dependenciesField] = await toJsonResult(tree[dependenciesField], { long: opts.long })
+  for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
+    if (tree[dependenciesField] && tree[dependenciesField].length) {
+      jsonObj[dependenciesField] = await toJsonResult(tree[dependenciesField], { long: opts.long })
     }
   }
-  return JSON.stringify(JsonObj, null, 2)
+  return JSON.stringify(jsonObj, null, 2)
 }
 
 export async function toJsonResult (

@@ -23,6 +23,7 @@ export default async function (
         ...(tree.optionalDependencies || []),
         ...(tree.dependencies || []),
         ...(tree.devDependencies || []),
+        ...(tree.unsavedDependencies || []),
       ],
     ),
   )
