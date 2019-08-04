@@ -6,6 +6,7 @@ import test = require('tape')
 
 const fixtures = path.join(__dirname, '..', 'fixtures')
 const generalFixture = path.join(fixtures, 'general')
+const withPeerFixture = path.join(fixtures, 'with-peer')
 const circularFixture = path.join(fixtures, 'circular')
 const withFileDepFixture = path.join(fixtures, 'with-file-dep')
 const withLinksOnlyFixture = path.join(__dirname, '..', 'fixtureWithLinks', 'with-links-only')
@@ -547,5 +548,12 @@ test('dependency with an alias', async t => {
     devDependencies: [],
     optionalDependencies: [],
   })
+  t.end()
+})
+
+test('peer dependencies', async t => {
+  const hierarchy = await dh(withPeerFixture, { depth: 1 })
+  t.equal(hierarchy.dependencies![1].dependencies![0].name, 'ajv')
+  t.equal(hierarchy.dependencies![1].dependencies![0].isPeer, true)
   t.end()
 })

@@ -488,3 +488,23 @@ test('unsaved dependencies are marked', async (t) => {
   `)
   t.end()
 })
+
+test('peer dependencies are marked', async (t) => {
+  const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
+  const output = await list(fixture, { depth: 1 })
+  compareOutputs(t, output, stripIndent`
+    ${LEGEND}
+
+    with-peer@1.0.0 ${fixture}
+
+    ${DEPENDENCIES}
+    ajv ${VERSION_CLR('6.10.2')}
+    ├── fast-deep-equal ${VERSION_CLR('2.0.1')}
+    ├── fast-json-stable-stringify ${VERSION_CLR('2.0.0')}
+    ├── json-schema-traverse ${VERSION_CLR('0.4.1')}
+    └── uri-js ${VERSION_CLR('4.2.2')}
+    ajv-keywords ${VERSION_CLR('3.4.1')}
+    └── ajv ${VERSION_CLR('6.10.2')} peer
+  `)
+  t.end()
+})

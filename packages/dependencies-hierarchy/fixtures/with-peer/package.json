@@ -1,0 +1,8 @@
+{
+  "name": "with-peer",
+  "version": "1.0.0",
+  "dependencies": {
+    "ajv": "^6.10.2",
+    "ajv-keywords": "^3.4.1"
+  }
+}
