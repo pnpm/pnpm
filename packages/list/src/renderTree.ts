@@ -59,7 +59,7 @@ export default async function (
       output += `\n${depsLabel}\n`
       const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
       if (useColumns && tree[dependenciesField].length > 10) {
-        output += cliColumns(tree[dependenciesField].map(printLabel.bind(printLabel,  gPkgColor))) + '\n'
+        output += cliColumns(tree[dependenciesField].map(printLabel.bind(printLabel, gPkgColor))) + '\n'
         continue
       }
       const data = await toArchyTree(gPkgColor, tree[dependenciesField]!, {
