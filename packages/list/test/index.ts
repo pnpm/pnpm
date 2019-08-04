@@ -489,6 +489,111 @@ test('unsaved dependencies are marked', async (t) => {
   t.end()
 })
 
+test('write long lists in columns', async (t) => {
+  compareOutputs(t, await renderTree(
+    {
+      name: 'fixture',
+      path: fixture,
+      version: '1.0.0',
+    },
+    {
+      dependencies: [
+        {
+          alias: 'a',
+          isPeer: false,
+          name: 'a',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'b',
+          isPeer: false,
+          name: 'b',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'c',
+          isPeer: false,
+          name: 'c',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'd',
+          isPeer: false,
+          name: 'd',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'e',
+          isPeer: false,
+          name: 'e',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'f',
+          isPeer: false,
+          name: 'f',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'g',
+          isPeer: false,
+          name: 'g',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'h',
+          isPeer: false,
+          name: 'h',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'i',
+          isPeer: false,
+          name: 'i',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'k',
+          isPeer: false,
+          name: 'k',
+          path: '',
+          version: '1.0.0',
+        },
+        {
+          alias: 'l',
+          isPeer: false,
+          name: 'l',
+          path: '',
+          version: '1.0.0',
+        },
+      ],
+    },
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: false,
+      search: false,
+    },
+  ), stripIndent`
+    ${LEGEND}
+
+    fixture@1.0.0 ${fixture}
+
+    ${DEPENDENCIES}
+    a ${VERSION_CLR('1.0.0')}  b ${VERSION_CLR('1.0.0')}  c ${VERSION_CLR('1.0.0')}  d ${VERSION_CLR('1.0.0')}  e ${VERSION_CLR('1.0.0')}  f ${VERSION_CLR('1.0.0')}  g ${VERSION_CLR('1.0.0')}  h ${VERSION_CLR('1.0.0')}  i ${VERSION_CLR('1.0.0')}  k ${VERSION_CLR('1.0.0')}  l ${VERSION_CLR('1.0.0')}
+  ` + '  ')
+  t.end()
+})
+
 test('peer dependencies are marked', async (t) => {
   const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
   const output = await list(fixture, { depth: 1 })
