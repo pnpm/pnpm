@@ -2,6 +2,7 @@
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import renderTree from '@pnpm/list/lib/renderTree'
 import chalk from 'chalk'
+import cliColumns = require('cli-columns')
 import { stripIndent } from 'common-tags'
 import path = require('path')
 import test = require('tape')
@@ -588,9 +589,20 @@ test('write long lists in columns', async (t) => {
 
     fixture@1.0.0 ${fixture}
 
-    ${DEPENDENCIES}
-    a ${VERSION_CLR('1.0.0')}  b ${VERSION_CLR('1.0.0')}  c ${VERSION_CLR('1.0.0')}  d ${VERSION_CLR('1.0.0')}  e ${VERSION_CLR('1.0.0')}  f ${VERSION_CLR('1.0.0')}  g ${VERSION_CLR('1.0.0')}  h ${VERSION_CLR('1.0.0')}  i ${VERSION_CLR('1.0.0')}  k ${VERSION_CLR('1.0.0')}  l ${VERSION_CLR('1.0.0')}
-  ` + '  ')
+    ${DEPENDENCIES}` + '\n' +
+    cliColumns([
+      `a ${VERSION_CLR('1.0.0')}`,
+      `b ${VERSION_CLR('1.0.0')}`,
+      `c ${VERSION_CLR('1.0.0')}`,
+      `d ${VERSION_CLR('1.0.0')}`,
+      `e ${VERSION_CLR('1.0.0')}`,
+      `f ${VERSION_CLR('1.0.0')}`,
+      `g ${VERSION_CLR('1.0.0')}`,
+      `h ${VERSION_CLR('1.0.0')}`,
+      `i ${VERSION_CLR('1.0.0')}`,
+      `k ${VERSION_CLR('1.0.0')}`,
+      `l ${VERSION_CLR('1.0.0')}`,
+    ]))
   t.end()
 })
 
