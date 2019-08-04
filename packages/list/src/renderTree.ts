@@ -56,12 +56,13 @@ export default async function (
           ? `${dependenciesField}:`
           : 'not saved (you should add these dependencies to package.json if you need them):'
       )
-      output += '\n' + depsLabel + '\n'
+      output += `\n${depsLabel}\n`
       if (useColumns && tree[dependenciesField].length > 10) {
         output += cliColumns(tree[dependenciesField].map(printLabel)) + '\n'
         continue
       }
-      const data = await toArchyTree(tree[dependenciesField]!, {
+      const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
+      const data = await toArchyTree(gPkgColor, tree[dependenciesField]!, {
         long: opts.long,
         modules: path.join(project.path, 'node_modules'),
       })
@@ -74,7 +75,10 @@ export default async function (
   return output.replace(/\n$/, '')
 }
 
+type GetPkgColor = (node: PackageNode) => (s: string) => string
+
 export async function toArchyTree (
+  getPkgColor: GetPkgColor,
   entryNodes: PackageNode[],
   opts: {
     long: boolean,
@@ -83,11 +87,11 @@ export async function toArchyTree (
 ): Promise<archy.Data[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
-      const nodes = await toArchyTree(node.dependencies || [], opts)
+      const nodes = await toArchyTree(getPkgColor, node.dependencies || [], opts)
       if (opts.long) {
         const pkg = await getPkgInfo(node.pkg)
         const labelLines = [
-          printLabel(node),
+          printLabel(getPkgColor, node),
           pkg.description,
         ]
         if (pkg.repository) {
@@ -102,14 +106,14 @@ export async function toArchyTree (
         }
       }
       return {
-        label: printLabel(node),
+        label: printLabel(getPkgColor, node),
         nodes,
       }
     }),
   )
 }
 
-function printLabel (node: PackageNode) {
+function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   let color = getPkgColor(node)
   let txt = `${color(node.pkg.name)} ${chalk.gray(node.pkg.version)}`
   if (node.searched) {
@@ -122,7 +126,6 @@ function printLabel (node: PackageNode) {
 }
 
 function getPkgColor (node: PackageNode) {
-  if (node.saved === false) return NOT_SAVED_DEP_CLR
   if (node.pkg.dev === true) return DEV_DEP_ONLY_CLR
   if (node.pkg.optional) return OPTIONAL_DEP_CLR
   return PROD_DEP_CLR

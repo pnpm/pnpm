@@ -38,7 +38,6 @@ export interface PackageNode {
   dependencies?: PackageNode[],
   searched?: true,
   circular?: true,
-  saved?: false,
 }
 
 export function forPackages (
@@ -184,7 +183,6 @@ async function dependenciesHierarchy (
       if (searched.length && !matchedSearched) return
       const newEntry: PackageNode = {
         pkg,
-        saved: false,
       }
       if (matchedSearched) {
         newEntry.searched = true

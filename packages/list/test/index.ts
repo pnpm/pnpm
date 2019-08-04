@@ -471,7 +471,6 @@ test('unsaved dependencies are marked', async (t) => {
             path: '',
             version: '1.0.0',
           },
-          saved: false,
         },
       ],
     },

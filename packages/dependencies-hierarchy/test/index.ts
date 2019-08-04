@@ -545,7 +545,6 @@ test('unsaved dependencies are listed', async t => {
           path: generalFixture,
           version: 'link:../general',
         },
-        saved: false,
       },
       {
         pkg: {
@@ -555,7 +554,6 @@ test('unsaved dependencies are listed', async t => {
           path: path.join(modulesDir, 'is-positive'),
           version: '3.1.0',
         },
-        saved: false,
       },
     ],
   })
