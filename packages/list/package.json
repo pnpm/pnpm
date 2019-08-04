@@ -12,6 +12,7 @@
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "prepareFixtures": "cd test && pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile && cd ..",
     "prepublishOnly": "pnpm run tsc",
+    "pretest": "pnpm run pretest --filter dependencies-hierarchy",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "tsc": "tsc"
   },
