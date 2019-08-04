@@ -195,6 +195,7 @@ function getHelpText (command: string) {
                                 For options that may be used with \`-r\`, see "pnpm help recursive"
           --long                show extended information
           --parseable           show parseable output instead of tree view
+          --json                show information in JSON format
           -g, --global          list packages in the global install prefix instead of in the current project
           --depth               max display depth of the dependency tree
           --depth 0             display only direct dependencies
