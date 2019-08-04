@@ -7,7 +7,7 @@ import path = require('path')
 import R = require('ramda')
 import getPkgInfo from './getPkgInfo'
 
-const sortPackages = R.sortBy(R.path(['pkg', 'name']) as (pkg: object) => R.Ord)
+const sortPackages = R.sortBy(R.path(['name']) as (pkg: object) => R.Ord)
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

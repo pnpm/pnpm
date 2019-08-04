@@ -594,6 +594,60 @@ test('write long lists in columns', async (t) => {
   t.end()
 })
 
+test('sort list items', async (t) => {
+  compareOutputs(t, await renderTree(
+    {
+      name: 'fixture',
+      path: fixture,
+      version: '1.0.0',
+    },
+    {
+      dependencies: [
+        {
+          alias: 'foo',
+          isPeer: false,
+          name: 'foo',
+          path: '',
+          version: '1.0.0',
+
+          dependencies: [
+            {
+              alias: 'qar',
+              isPeer: false,
+              name: 'qar',
+              path: '',
+              version: '1.0.0',
+            },
+            {
+              alias: 'bar',
+              isPeer: false,
+              name: 'bar',
+              path: '',
+              version: '1.0.0',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      alwaysPrintRootPackage: false,
+      depth: 0,
+      long: false,
+      search: false,
+    },
+  ), stripIndent`
+    ${LEGEND}
+
+    fixture@1.0.0 ${fixture}
+
+    ${DEPENDENCIES}
+    foo ${VERSION_CLR('1.0.0')}
+    ├── bar ${VERSION_CLR('1.0.0')}
+    └── qar ${VERSION_CLR('1.0.0')}
+  `)
+  t.end()
+})
+
 test('peer dependencies are marked', async (t) => {
   const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
   const output = await list(fixture, { depth: 1 })
