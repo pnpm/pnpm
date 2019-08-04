@@ -52,7 +52,7 @@
     "dependency-path": "3.0.8",
     "encode-registry": "2.0.1",
     "get-npm-tarball-url": "2.0.1",
-    "graceful-fs": "4.2.0",
+    "graceful-fs": "4.2.1",
     "graph-sequencer": "2.0.0",
     "import-from": "3.0.0",
     "is-ci": "2.0.0",
