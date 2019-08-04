@@ -1,3 +1,4 @@
+import { PnpmConfigs } from '@pnpm/config'
 import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
 import { render as renderList } from '../list'
@@ -6,12 +7,10 @@ export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
   args: string[],
   cmd: string,
-  opts: {
+  opts: PnpmConfigs & {
     depth?: number,
-    development: boolean,
     long?: boolean,
     parseable?: boolean,
-    production: boolean,
     lockfileDirectory?: string,
   },
 ) => {

@@ -1,16 +1,15 @@
+import { PnpmConfigs } from '@pnpm/config'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 
 export default async function (
   args: string[],
-  opts: {
+  opts: PnpmConfigs & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    development: boolean,
     lockfileDirectory?: string,
     long?: boolean,
     parseable?: boolean,
     prefix: string,
-    production: boolean,
   },
   command: string,
 ) {
@@ -21,27 +20,24 @@ export default async function (
 
 export async function render (
   args: string[],
-  opts: {
+  opts: PnpmConfigs & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    development: boolean,
     lockfileDirectory?: string,
     long?: boolean,
     json?: boolean,
     parseable?: boolean,
     prefix: string,
-    production: boolean,
   },
   command: string,
 ) {
   opts.long = opts.long || command === 'll' || command === 'la'
-  const only = (opts.production && opts.development ? undefined : (opts.production ? 'prod' : 'dev')) as ('prod' | 'dev' | undefined) // tslint:disable-line:no-unnecessary-type-assertion
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth || 0,
+    include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     long: opts.long,
-    only,
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
   return args.length
