@@ -122,6 +122,9 @@ function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   if (node.isPeer) {
     txt += ' peer'
   }
+  if (node.isSkipped) {
+    txt += ' skipped'
+  }
   return txt
 }
 

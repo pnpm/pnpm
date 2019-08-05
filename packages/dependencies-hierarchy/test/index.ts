@@ -23,7 +23,9 @@ test('one package depth 0', async t => {
       {
         alias: 'minimatch',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
@@ -32,7 +34,9 @@ test('one package depth 0', async t => {
       {
         alias: 'rimraf',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
@@ -43,7 +47,9 @@ test('one package depth 0', async t => {
       {
         alias: 'is-positive',
         dev: true,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
         resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -54,7 +60,9 @@ test('one package depth 0', async t => {
       {
         alias: 'is-negative',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-negative',
         optional: true,
         path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
@@ -76,7 +84,9 @@ test('one package depth 1', async t => {
       {
         alias: 'minimatch',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
@@ -86,7 +96,9 @@ test('one package depth 1', async t => {
           {
             alias: 'brace-expansion',
             dev: false,
+            isMissing: false,
             isPeer: false,
+            isSkipped: false,
             name: 'brace-expansion',
             path: path.join(modulesDir, '.registry.npmjs.org/brace-expansion/1.1.8'),
             resolved: 'https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.8.tgz',
@@ -97,7 +109,9 @@ test('one package depth 1', async t => {
       {
         alias: 'rimraf',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
@@ -107,7 +121,9 @@ test('one package depth 1', async t => {
           {
             alias: 'glob',
             dev: false,
+            isMissing: false,
             isPeer: false,
+            isSkipped: false,
             name: 'glob',
             path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
             resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
@@ -120,7 +136,9 @@ test('one package depth 1', async t => {
       {
         alias: 'is-positive',
         dev: true,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
         resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -131,7 +149,9 @@ test('one package depth 1', async t => {
       {
         alias: 'is-negative',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-negative',
         optional: true,
         path: path.join(modulesDir, '.registry.npmjs.org/is-negative/1.0.0'),
@@ -163,7 +183,9 @@ test('only prod depth 0', async t => {
       {
         alias: 'minimatch',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
@@ -172,7 +194,9 @@ test('only prod depth 0', async t => {
       {
         alias: 'rimraf',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
@@ -203,7 +227,9 @@ test('only dev depth 0', async t => {
       {
         alias: 'is-positive',
         dev: true,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
         resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
@@ -232,7 +258,9 @@ test('filter 1 package with depth 0', async t => {
       {
         alias: 'rimraf',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
@@ -255,7 +283,9 @@ test('filter by pattern', async t => {
       {
         alias: 'rimraf',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
@@ -278,7 +308,9 @@ test('filter by pattern', async t => {
       {
         alias: 'rimraf',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
@@ -312,7 +344,9 @@ test('filter 2 packages with depth 100', async t => {
       {
         alias: 'minimatch',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'minimatch',
         path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
         resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
@@ -322,7 +356,9 @@ test('filter 2 packages with depth 100', async t => {
       {
         alias: 'rimraf',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'rimraf',
         path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
         resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
@@ -332,7 +368,9 @@ test('filter 2 packages with depth 100', async t => {
           {
             alias: 'glob',
             dev: false,
+            isMissing: false,
             isPeer: false,
+            isSkipped: false,
             name: 'glob',
             path: path.join(modulesDir, '.registry.npmjs.org/glob/6.0.4'),
             resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
@@ -342,7 +380,9 @@ test('filter 2 packages with depth 100', async t => {
               {
                 alias: 'inflight',
                 dev: false,
+                isMissing: false,
                 isPeer: false,
+                isSkipped: false,
                 name: 'inflight',
                 path: path.join(modulesDir, '.registry.npmjs.org/inflight/1.0.6'),
                 resolved: 'https://registry.npmjs.org/inflight/-/inflight-1.0.6.tgz',
@@ -352,7 +392,9 @@ test('filter 2 packages with depth 100', async t => {
                   {
                     alias: 'once',
                     dev: false,
+                    isMissing: false,
                     isPeer: false,
+                    isSkipped: false,
                     name: 'once',
                     path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
                     resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
@@ -364,7 +406,9 @@ test('filter 2 packages with depth 100', async t => {
               {
                 alias: 'minimatch',
                 dev: false,
+                isMissing: false,
                 isPeer: false,
+                isSkipped: false,
                 name: 'minimatch',
                 path: path.join(modulesDir, '.registry.npmjs.org/minimatch/3.0.4'),
                 resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
@@ -374,7 +418,9 @@ test('filter 2 packages with depth 100', async t => {
               {
                 alias: 'once',
                 dev: false,
+                isMissing: false,
                 isPeer: false,
+                isSkipped: false,
                 name: 'once',
                 path: path.join(modulesDir, '.registry.npmjs.org/once/1.4.0'),
                 resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
@@ -449,7 +495,9 @@ test('local package depth 0', async t => {
     dependencies: [
       {
         alias: 'general',
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'general',
         path: generalFixture,
         version: 'link:../general',
@@ -457,7 +505,9 @@ test('local package depth 0', async t => {
       {
         alias: 'is-positive',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/3.1.0'),
         resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
@@ -478,7 +528,9 @@ test('on a package that has only links', async t => {
     dependencies: [
       {
         alias: 'general',
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'general',
         path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
         version: 'link:../general',
@@ -506,7 +558,9 @@ test('filter on a package that has only links', async t => {
     dependencies: [
       {
         alias: 'general',
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'general',
         path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
         searched: true,
@@ -527,7 +581,9 @@ test('unsaved dependencies are listed', async t => {
       {
         alias: 'symlink-dir',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'symlink-dir',
         path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
         resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
@@ -539,14 +595,18 @@ test('unsaved dependencies are listed', async t => {
     unsavedDependencies: [
       {
         alias: 'general',
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'general',
         path: generalFixture,
         version: 'link:../general',
       },
       {
         alias: 'is-positive',
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-positive',
         path: path.join(modulesDir, 'is-positive'),
         version: '3.1.0',
@@ -563,7 +623,9 @@ test('unsaved dependencies are listed and filtered', async t => {
       {
         alias: 'symlink-dir',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'symlink-dir',
         path: path.join(modulesDir, '.registry.npmjs.org/symlink-dir/2.0.2'),
         resolved: 'https://registry.npmjs.org/symlink-dir/-/symlink-dir-2.0.2.tgz',
@@ -590,7 +652,9 @@ test('dependency with an alias', async t => {
       {
         alias: 'positive',
         dev: false,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: 'is-positive',
         path: path.join(modulesDir, '.registry.npmjs.org/is-positive/1.0.0'),
         resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
