@@ -561,7 +561,7 @@ importers:
       chalk: 2.4.2
       cli-columns: 3.1.2
       common-tags: 1.8.0
-      dependencies-hierarchy: 6.0.0-0
+      dependencies-hierarchy: 6.0.0-1
       p-limit: 2.2.0
       ramda: 0.26.1
       tape: 4.11.0
@@ -1133,7 +1133,7 @@ importers:
       '@pnpm/error': 1.0.0
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 6.2.1
-      '@pnpm/list': 2.0.0-1
+      '@pnpm/list': 2.0.0-2
       '@pnpm/lockfile-file': 1.1.1
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
