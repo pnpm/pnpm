@@ -208,7 +208,9 @@ importers:
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
+      '@types/minimatch': 3.0.3
       dependency-path: 'link:../dependency-path'
+      minimatch: 3.0.4
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
       semver: 6.3.0
@@ -227,9 +229,11 @@ importers:
       '@pnpm/read-modules-dir': 2.0.1
       '@pnpm/types': 3.2.0
       '@pnpm/utils': 0.10.5
+      '@types/minimatch': 3.0.3
       '@types/semver': '6'
       dependencies-hierarchy: 'link:'
       dependency-path: 3.0.8
+      minimatch: 3.0.4
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
       semver: 6.3.0

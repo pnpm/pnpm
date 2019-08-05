@@ -14,6 +14,7 @@ import { DEPENDENCIES_FIELDS, DependenciesField, Registries } from '@pnpm/types'
 import { normalizeRegistries, safeReadPackageFromDir } from '@pnpm/utils'
 import assert = require('assert')
 import { refToAbsolute, refToRelative } from 'dependency-path'
+import minimatch = require('minimatch')
 import normalizePath = require('normalize-path')
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
@@ -328,9 +329,9 @@ function matches (
 ) {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
-      return pkg.name === searchedPkg
+      return minimatch(pkg.name, searchedPkg)
     }
-    return searchedPkg.name === pkg.name &&
+    return minimatch(pkg.name, searchedPkg.name) &&
       !pkg.version.startsWith('link:') &&
       semver.satisfies(pkg.version, searchedPkg.range)
   })
