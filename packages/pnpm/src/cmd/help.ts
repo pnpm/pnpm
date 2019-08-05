@@ -187,6 +187,8 @@ function getHelpText (command: string) {
         Aliases: list, la, ll
 
         When run as ll or la, it shows extended information by default.
+        All dependencies are printed by default. Search by patterns is supported.
+        For example: pnpm ls babel-* eslint-*
 
         Options:
 

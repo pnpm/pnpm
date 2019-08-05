@@ -247,6 +247,58 @@ test('filter 1 package with depth 0', async t => {
   t.end()
 })
 
+test('filter by pattern', async t => {
+  const modulesDir = path.join(generalFixture, 'node_modules')
+
+  t.deepEqual(await dhForPackages(['rim*'], generalFixture, { depth: 0 }), {
+    dependencies: [
+      {
+        alias: 'rimraf',
+        dev: false,
+        isPeer: false,
+        name: 'rimraf',
+        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
+        searched: true,
+        version: '2.5.1',
+      },
+    ],
+    devDependencies: [],
+    optionalDependencies: [],
+  }, 'matched by pattern')
+
+  t.deepEqual(await dhForPackages(['rim1*'], generalFixture, { depth: 0 }), {
+    dependencies: [],
+    devDependencies: [],
+    optionalDependencies: [],
+  }, 'not matched by pattern')
+
+  t.deepEqual(await dhForPackages([{ name: 'rim*', range: '2' }], generalFixture, { depth: 0 }), {
+    dependencies: [
+      {
+        alias: 'rimraf',
+        dev: false,
+        isPeer: false,
+        name: 'rimraf',
+        path: path.join(modulesDir, '.registry.npmjs.org/rimraf/2.5.1'),
+        resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
+        searched: true,
+        version: '2.5.1',
+      },
+    ],
+    devDependencies: [],
+    optionalDependencies: [],
+  }, 'matched by pattern and range')
+
+  t.deepEqual(await dhForPackages([{ name: 'rim*', range: '3' }], generalFixture, { depth: 0 }), {
+    dependencies: [],
+    devDependencies: [],
+    optionalDependencies: [],
+  }, 'not matched by pattern and range')
+
+  t.end()
+})
+
 test('filter 2 packages with depth 100', async t => {
   const searched = [
     'minimatch',
