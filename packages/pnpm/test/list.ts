@@ -237,7 +237,7 @@ test('list on a project with skipped optional dependencies', async (t: tape.Test
   t.equal(result.stdout.toString(), stripIndent`
     Legend: production dependency, optional only, dev only
 
-    project@0.0.0 /home/zoltan/src/pnpm/.tmp/1/project
+    project@0.0.0 ${process.cwd()}
 
     dependencies:
     pkg-with-optional 1.0.0
