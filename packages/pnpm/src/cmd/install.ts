@@ -91,7 +91,7 @@ export default async function installCmd (
     await writeImporterManifest(updatedImporter.manifest)
   }
 
-  if (opts.linkWorkspacePackages && opts.workspacePrefix && manifest.name) {
+  if (opts.linkWorkspacePackages && opts.workspacePrefix) {
     // TODO: reuse somehow the previous read of packages
     // this is not optimal
     const allWorkspacePkgs = await findWorkspacePackages(opts.workspacePrefix, opts)
@@ -101,9 +101,9 @@ export default async function installCmd (
       ignoredPackages: new Set([prefix]),
       packageSelectors: [
         {
-          matcher: manifest.name,
+          matcher: prefix,
           scope: 'dependencies',
-          selectBy: 'name',
+          selectBy: 'location',
         },
       ],
     }, 'install', 'install')
