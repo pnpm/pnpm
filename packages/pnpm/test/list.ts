@@ -224,3 +224,23 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     is-positive 1.0.0
   ` + '\n', 'prints all deps')
 })
+
+test('list on a project with skipped optional dependencies', async (t: tape.Test) => {
+  prepare(t)
+
+  await execPnpm('add', '--no-optional', 'pkg-with-optional')
+
+  const result = execPnpmSync('list', '--depth', '10')
+
+  t.equal(result.status, 0)
+
+  t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
+    project@0.0.0 /home/zoltan/src/pnpm/.tmp/1/project
+
+    dependencies:
+    pkg-with-optional 1.0.0
+    └── not-compatible-with-any-os 1.0.0 skipped
+  ` + '\n')
+})

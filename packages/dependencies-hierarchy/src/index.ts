@@ -1,8 +1,10 @@
 import {
   getLockfileImporterId,
   LockfileImporter,
+  PackageSnapshot,
   PackageSnapshots,
   readCurrentLockfile,
+  readWantedLockfile,
 } from '@pnpm/lockfile-file'
 import {
   nameVerFromPkgSnapshot,
@@ -11,7 +13,11 @@ import {
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { DEPENDENCIES_FIELDS, DependenciesField, Registries } from '@pnpm/types'
-import { normalizeRegistries, safeReadPackageFromDir } from '@pnpm/utils'
+import {
+  normalizeRegistries,
+  realNodeModulesDir,
+  safeReadPackageFromDir,
+} from '@pnpm/utils'
 import assert = require('assert')
 import { refToAbsolute, refToRelative } from 'dependency-path'
 import minimatch = require('minimatch')
@@ -31,6 +37,8 @@ export interface PackageNode {
   dependencies?: PackageNode[],
   dev?: boolean,
   isPeer: boolean,
+  isSkipped: boolean,
+  isMissing: boolean,
   name: string,
   optional?: true,
   path: string,
@@ -84,15 +92,16 @@ async function dependenciesHierarchy (
     lockfileDirectory?: string,
   },
 ): Promise<DependenciesHierarchy> {
-  const modules = await readModulesYaml(projectPath)
+  const lockfileDirectory = maybeOpts && maybeOpts.lockfileDirectory || projectPath
+  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
+  const modules = await readModulesYaml(virtualStoreDir)
   const registries = normalizeRegistries({
     ...maybeOpts && maybeOpts.registries,
     ...modules && modules.registries,
   })
-  const lockfileDirectory = maybeOpts && maybeOpts.lockfileDirectory || projectPath
-  const lockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
 
-  if (!lockfile) return {}
+  if (!currentLockfile) return {}
 
   const opts = {
     depth: 0,
@@ -105,33 +114,39 @@ async function dependenciesHierarchy (
   }
   const importerId = getLockfileImporterId(lockfileDirectory, projectPath)
 
-  if (!lockfile.importers[importerId]) return {}
+  if (!currentLockfile.importers[importerId]) return {}
 
   const modulesDir = path.join(projectPath, 'node_modules')
 
-  const savedDeps = getAllDirectDependencies(lockfile.importers[importerId])
+  const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) || []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
+  const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false }) || { packages: {} }
 
   const getChildrenTree = getTree.bind(null, {
     currentDepth: 1,
+    currentPackages: currentLockfile.packages,
     includeOptionalDependencies: include.optionalDependencies === true,
     maxDepth: opts.depth,
     modulesDir,
     registries,
     searched,
-  }, lockfile.packages)
+    skipped: new Set(modules && modules.skipped || []),
+    wantedPackages: wantedLockfile.packages || {},
+  })
   const result: DependenciesHierarchy = {}
   for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => include[dependenciedField])) {
-    const topDeps = lockfile.importers[importerId][dependenciesField] || {}
+    const topDeps = currentLockfile.importers[importerId][dependenciesField] || {}
     result[dependenciesField] = []
     Object.keys(topDeps).forEach((alias) => {
       const { packageInfo, packageAbsolutePath } = getPkgInfo({
         alias,
+        currentPackages: currentLockfile.packages || {},
         modulesDir,
-        packages: lockfile.packages || {},
         ref: topDeps[alias],
         registries,
+        skipped: new Set(modules && modules.skipped || []),
+        wantedPackages: wantedLockfile.packages || {},
       })
       let newEntry: PackageNode | null = null
       const matchedSearched = searched.length && matches(searched, packageInfo)
@@ -140,14 +155,16 @@ async function dependenciesHierarchy (
         newEntry = packageInfo
       } else {
         const relativeId = refToRelative(topDeps[alias], alias)
-        const dependencies = getChildrenTree([relativeId], relativeId)
-        if (dependencies.length) {
-          newEntry = {
-            ...packageInfo,
-            dependencies,
+        if (relativeId) {
+          const dependencies = getChildrenTree([relativeId], relativeId)
+          if (dependencies.length) {
+            newEntry = {
+              ...packageInfo,
+              dependencies,
+            }
+          } else if (!searched.length || matches(searched, packageInfo)) {
+            newEntry = packageInfo
           }
-        } else if (!searched.length || matches(searched, packageInfo)) {
-          newEntry = packageInfo
         }
       }
       if (newEntry) {
@@ -173,7 +190,9 @@ async function dependenciesHierarchy (
       }
       const pkg = {
         alias: unsavedDep,
+        isMissing: false,
         isPeer: false,
+        isSkipped: false,
         name: unsavedDep,
         path: pkgPath,
         version,
@@ -207,19 +226,21 @@ function getTree (
     modulesDir: string,
     includeOptionalDependencies: boolean,
     searched: PackageSelector[],
+    skipped: Set<string>,
     registries: Registries,
+    currentPackages: PackageSnapshots,
+    wantedPackages: PackageSnapshots,
   },
-  packages: PackageSnapshots,
   keypath: string[],
   parentId: string,
 ): PackageNode[] {
-  if (opts.currentDepth > opts.maxDepth || !packages || !packages[parentId]) return []
+  if (opts.currentDepth > opts.maxDepth || !opts.currentPackages || !opts.currentPackages[parentId]) return []
 
   const deps = opts.includeOptionalDependencies === false
-    ? packages[parentId].dependencies
+    ? opts.currentPackages[parentId].dependencies
     : {
-      ...packages[parentId].dependencies,
-      ...packages[parentId].optionalDependencies,
+      ...opts.currentPackages[parentId].dependencies,
+      ...opts.currentPackages[parentId].optionalDependencies,
     }
 
   if (!deps) return []
@@ -227,18 +248,20 @@ function getTree (
   const getChildrenTree = getTree.bind(null, {
     ...opts,
     currentDepth: opts.currentDepth + 1,
-  }, packages)
+  })
 
-  const peers = new Set(Object.keys(packages[parentId].peerDependencies || {}))
+  const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies || {}))
   const result: PackageNode[] = []
   Object.keys(deps).forEach((alias) => {
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
       alias,
+      currentPackages: opts.currentPackages,
       modulesDir: opts.modulesDir,
-      packages,
       peers,
       ref: deps[alias],
       registries: opts.registries,
+      skipped: opts.skipped,
+      wantedPackages: opts.wantedPackages,
     })
     let circular: boolean
     const matchedSearched = opts.searched.length && matches(opts.searched, packageInfo)
@@ -278,9 +301,11 @@ function getPkgInfo (
     alias: string,
     modulesDir: string,
     ref: string,
-    packages: PackageSnapshots,
+    currentPackages: PackageSnapshots,
     peers?: Set<string>,
     registries: Registries,
+    skipped: Set<string>,
+    wantedPackages: PackageSnapshots,
   },
 ) {
   let name!: string
@@ -288,14 +313,27 @@ function getPkgInfo (
   let resolved: string | undefined = undefined
   let dev: boolean | undefined = undefined
   let optional: true | undefined = undefined
+  let isSkipped: boolean = false
+  let isMissing: boolean = false
   const relDepPath = refToRelative(opts.ref, opts.alias)
   if (relDepPath) {
-    const parsed = nameVerFromPkgSnapshot(relDepPath, opts.packages[relDepPath])
-    name = parsed.name
-    version = parsed.version
-    resolved = pkgSnapshotToResolution(relDepPath, opts.packages[relDepPath], opts.registries)['tarball']
-    dev = opts.packages[relDepPath].dev
-    optional = opts.packages[relDepPath].optional
+    let pkgSnapshot!: PackageSnapshot
+    if (opts.currentPackages[relDepPath]) {
+      pkgSnapshot = opts.currentPackages[relDepPath]
+      const parsed = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+      name = parsed.name
+      version = parsed.version
+    } else {
+      pkgSnapshot = opts.wantedPackages[relDepPath]
+      const parsed = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+      name = parsed.name
+      version = parsed.version
+      isMissing = true
+      isSkipped = opts.skipped.has(relDepPath)
+    }
+    resolved = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)['tarball']
+    dev = pkgSnapshot.dev
+    optional = pkgSnapshot.optional
   } else {
     name = opts.alias
     version = opts.ref
@@ -303,7 +341,9 @@ function getPkgInfo (
   const packageAbsolutePath = refToAbsolute(opts.ref, opts.alias, opts.registries)
   const packageInfo = {
     alias: opts.alias,
+    isMissing,
     isPeer: Boolean(opts.peers && opts.peers.has(opts.alias)),
+    isSkipped,
     name,
     path: packageAbsolutePath && path.join(opts.modulesDir, `.${packageAbsolutePath}`) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
     version,
