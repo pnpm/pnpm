@@ -19,7 +19,7 @@ export default function (
   },
 ) {
   const err = checkPackage(pkgPath, pkg, {
-    pnpmVersion: packageManager.version,
+    pnpmVersion: packageManager.stableVersion,
   })
   if (err === null) return
   if (
