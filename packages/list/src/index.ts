@@ -5,9 +5,11 @@ import dh, {
   forPackages as dhForPackages,
   PackageSelector,
 } from 'dependencies-hierarchy'
+import R =  require('ramda')
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
+import { PackageDependencyHierarchy } from './types'
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
@@ -19,11 +21,11 @@ const DEFAULTS = {
 
 export async function forPackages (
   packages: string[],
-  projectPath: string,
-  maybeOpts?: {
+  projectPaths: string[],
+  maybeOpts: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    lockfileDirectory?: string,
+    lockfileDirectory: string,
     long?: boolean,
     include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
@@ -46,20 +48,25 @@ export async function forPackages (
     }
   })
 
-  const tree = await dhForPackages(searched, projectPath, {
-    depth: opts.depth,
-    include: maybeOpts && maybeOpts.include,
-    lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
-    registries: opts.registries,
-  })
+  const pkgs = await Promise.all(
+    R.toPairs(await dhForPackages(searched, projectPaths, {
+      depth: opts.depth,
+      include: maybeOpts && maybeOpts.include,
+      lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
+      registries: opts.registries,
+    }))
+    .map(async ([projectPath, dependenciesHierarchy]) => {
+      const entryPkg = await readImporterManifestOnly(projectPath)
+      return {
+        path: projectPath,
+        ...entryPkg,
+        ...dependenciesHierarchy,
+      } as PackageDependencyHierarchy
+    })
+  )
 
   const print = getPrinter(opts.reportAs)
-  const entryPkg = await readImporterManifestOnly(projectPath)
-  return print({
-    name: entryPkg.name,
-    path: projectPath,
-    version: entryPkg.version,
-  }, tree, {
+  return print(pkgs, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth,
     long: opts.long,
@@ -68,11 +75,11 @@ export async function forPackages (
 }
 
 export default async function (
-  projectPath: string,
-  maybeOpts?: {
+  projectPaths: string[],
+  maybeOpts: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    lockfileDirectory?: string,
+    lockfileDirectory: string,
     long?: boolean,
     include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
@@ -81,22 +88,30 @@ export default async function (
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
-  const tree = opts.depth === -1
-    ? {}
-    : await dh(projectPath, {
-      depth: opts.depth,
-      include: maybeOpts && maybeOpts.include,
-      lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
-      registries: opts.registries,
+
+  const pkgs = await Promise.all(
+    R.toPairs(
+      opts.depth === -1
+      ? {}
+      : await dh(projectPaths, {
+        depth: opts.depth,
+        include: maybeOpts && maybeOpts.include,
+        lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
+        registries: opts.registries,
+      })
+    )
+    .map(async ([projectPath, dependenciesHierarchy]) => {
+      const entryPkg = await readImporterManifestOnly(projectPath)
+      return {
+        path: projectPath,
+        ...entryPkg,
+        ...dependenciesHierarchy,
+      } as PackageDependencyHierarchy
     })
+  )
 
   const print = getPrinter(opts.reportAs)
-  const entryPkg = await readImporterManifestOnly(projectPath)
-  return print({
-    name: entryPkg.name,
-    path: projectPath,
-    version: entryPkg.version,
-  }, tree, {
+  return print(pkgs, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth,
     long: opts.long,

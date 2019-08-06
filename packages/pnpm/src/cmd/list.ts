@@ -13,21 +13,24 @@ export default async function (
   },
   command: string,
 ) {
-  const output = await render(args, opts, command)
+  const output = await render([opts.prefix], args, {
+    ...opts,
+    lockfileDirectory: opts.lockfileDirectory || opts.prefix,
+  }, command)
 
   if (output) console.log(output)
 }
 
 export async function render (
+  prefixes: string[],
   args: string[],
   opts: PnpmConfigs & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    lockfileDirectory?: string,
+    lockfileDirectory: string,
     long?: boolean,
     json?: boolean,
     parseable?: boolean,
-    prefix: string,
   },
   command: string,
 ) {
@@ -41,6 +44,6 @@ export async function render (
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
   return args.length
-    ? listForPackages(args, opts.prefix, listOpts)
-    : list(opts.prefix, listOpts)
+    ? listForPackages(args, prefixes, listOpts)
+    : list(prefixes, listOpts)
 }

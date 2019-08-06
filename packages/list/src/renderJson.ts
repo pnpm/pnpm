@@ -1,34 +1,35 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
+import { PackageNode } from 'dependencies-hierarchy'
 import R = require('ramda')
 import getPkgInfo from './getPkgInfo'
+import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = R.sortBy(R.path(['pkg', 'alias']) as (pkg: object) => R.Ord)
 
 export default async function (
-  project: {
-    name?: string,
-    version?: string,
-    path: string,
-  },
-  tree: DependenciesHierarchy,
+  pkgs: PackageDependencyHierarchy[],
   opts: {
     depth: number,
     long: boolean,
     search: boolean,
   },
 ) {
-  const jsonObj = {
-    name: project.name,
+  const jsonArr = await Promise.all(pkgs.map(async (pkg) => {
+    const jsonObj = {
+      name: pkg.name,
 
-    version: project.version,
-  }
-  for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
-    if (tree[dependenciesField] && tree[dependenciesField].length) {
-      jsonObj[dependenciesField] = await toJsonResult(tree[dependenciesField], { long: opts.long })
+      version: pkg.version,
     }
-  }
-  return JSON.stringify(jsonObj, null, 2)
+    for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
+      if (pkg[dependenciesField] && pkg[dependenciesField].length) {
+        jsonObj[dependenciesField] = await toJsonResult(pkg[dependenciesField], { long: opts.long })
+      }
+    }
+
+    return jsonObj
+  }))
+
+  return JSON.stringify(jsonArr, null, 2)
 }
 
 export async function toJsonResult (

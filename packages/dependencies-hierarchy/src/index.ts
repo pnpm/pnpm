@@ -1,5 +1,6 @@
 import {
   getLockfileImporterId,
+  Lockfile,
   LockfileImporter,
   PackageSnapshot,
   PackageSnapshots,
@@ -49,30 +50,30 @@ export interface PackageNode {
 
 export function forPackages (
   packages: PackageSelector[],
-  projectPath: string,
-  opts?: {
+  projectPaths: string[],
+  opts: {
     depth: number,
     include?: { [dependenciesField in DependenciesField]: boolean },
     registries?: Registries,
-    lockfileDirectory?: string,
+    lockfileDirectory: string,
   },
 ) {
   assert(packages, 'packages should be defined')
   if (!packages.length) return {}
 
-  return dependenciesHierarchy(projectPath, packages, opts)
+  return dependenciesHierarchy(projectPaths, packages, opts)
 }
 
 export default function (
-  projectPath: string,
-  opts?: {
+  projectPaths: string[],
+  opts: {
     depth: number,
     include?: { [dependenciesField in DependenciesField]: boolean },
     registries?: Registries,
-    lockfileDirectory?: string,
+    lockfileDirectory: string,
   },
 ) {
-  return dependenciesHierarchy(projectPath, [], opts)
+  return dependenciesHierarchy(projectPaths, [], opts)
 }
 
 export type DependenciesHierarchy = {
@@ -83,36 +84,60 @@ export type DependenciesHierarchy = {
 }
 
 async function dependenciesHierarchy (
-  projectPath: string,
+  projectPaths: string[],
   searched: PackageSelector[],
-  maybeOpts?: {
+  maybeOpts: {
     depth: number,
     include?: { [dependenciesField in DependenciesField]: boolean },
     registries?: Registries,
-    lockfileDirectory?: string,
+    lockfileDirectory: string,
   },
-): Promise<DependenciesHierarchy> {
-  const lockfileDirectory = maybeOpts && maybeOpts.lockfileDirectory || projectPath
-  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
+): Promise<{ [prefix: string]: DependenciesHierarchy }> {
+  if (!maybeOpts || !maybeOpts.lockfileDirectory) {
+    throw new TypeError('opts.lockfileDirectory is required')
+  }
+  const virtualStoreDir = await realNodeModulesDir(maybeOpts.lockfileDirectory)
   const modules = await readModulesYaml(virtualStoreDir)
   const registries = normalizeRegistries({
     ...maybeOpts && maybeOpts.registries,
     ...modules && modules.registries,
   })
-  const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const currentLockfile = await readCurrentLockfile(maybeOpts.lockfileDirectory, { ignoreIncompatible: false })
 
   if (!currentLockfile) return {}
 
+  const result = {} as { [prefix: string]: DependenciesHierarchy }
+
   const opts = {
-    depth: 0,
-    ...maybeOpts,
+    depth: maybeOpts.depth || 0,
+    include: maybeOpts.include || {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDirectory: maybeOpts.lockfileDirectory,
+    registries,
+    skipped: new Set(modules && modules.skipped || []),
   }
-  const include = maybeOpts && maybeOpts.include || {
-    dependencies: true,
-    devDependencies: true,
-    optionalDependencies: true,
-  }
-  const importerId = getLockfileImporterId(lockfileDirectory, projectPath)
+  await Promise.all(projectPaths.map(async (projectPath) => {
+    result[projectPath] = await dependenciesHierarchyForPackage(projectPath, currentLockfile, searched, opts)
+  }))
+  return result
+}
+
+async function dependenciesHierarchyForPackage (
+  projectPath: string,
+  currentLockfile: Lockfile,
+  searched: PackageSelector[],
+  opts: {
+    depth: number,
+    include: { [dependenciesField in DependenciesField]: boolean },
+    registries: Registries,
+    skipped: Set<string>,
+    lockfileDirectory: string,
+  },
+) {
+  const importerId = getLockfileImporterId(opts.lockfileDirectory, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
 
@@ -121,21 +146,21 @@ async function dependenciesHierarchy (
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) || []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
-  const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false }) || { packages: {} }
+  const wantedLockfile = await readWantedLockfile(opts.lockfileDirectory, { ignoreIncompatible: false }) || { packages: {} }
 
   const getChildrenTree = getTree.bind(null, {
     currentDepth: 1,
     currentPackages: currentLockfile.packages,
-    includeOptionalDependencies: include.optionalDependencies === true,
+    includeOptionalDependencies: opts.include.optionalDependencies === true,
     maxDepth: opts.depth,
     modulesDir,
-    registries,
+    registries: opts.registries,
     searched,
-    skipped: new Set(modules && modules.skipped || []),
+    skipped: opts.skipped,
     wantedPackages: wantedLockfile.packages || {},
   })
   const result: DependenciesHierarchy = {}
-  for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => include[dependenciedField])) {
+  for (const dependenciesField of DEPENDENCIES_FIELDS.sort().filter(dependenciedField => opts.include[dependenciedField])) {
     const topDeps = currentLockfile.importers[importerId][dependenciesField] || {}
     result[dependenciesField] = []
     Object.keys(topDeps).forEach((alias) => {
@@ -144,8 +169,8 @@ async function dependenciesHierarchy (
         currentPackages: currentLockfile.packages || {},
         modulesDir,
         ref: topDeps[alias],
-        registries,
-        skipped: new Set(modules && modules.skipped || []),
+        registries: opts.registries,
+        skipped: opts.skipped,
         wantedPackages: wantedLockfile.packages || {},
       })
       let newEntry: PackageNode | null = null
