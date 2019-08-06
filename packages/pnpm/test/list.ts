@@ -228,19 +228,38 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
 test('list on a project with skipped optional dependencies', async (t: tape.Test) => {
   prepare(t)
 
-  await execPnpm('add', '--no-optional', 'pkg-with-optional')
+  await execPnpm('add', '--no-optional', 'pkg-with-optional', 'is-positive@1.0.0')
 
-  const result = execPnpmSync('list', '--depth', '10')
+  {
+    const result = execPnpmSync('list', '--depth', '10')
 
-  t.equal(result.status, 0)
+    t.equal(result.status, 0)
 
-  t.equal(result.stdout.toString(), stripIndent`
-    Legend: production dependency, optional only, dev only
+    t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
 
-    project@0.0.0 ${process.cwd()}
+      project@0.0.0 ${process.cwd()}
 
-    dependencies:
-    pkg-with-optional 1.0.0
-    └── not-compatible-with-any-os 1.0.0 skipped
-  ` + '\n')
+      dependencies:
+      is-positive 1.0.0
+      pkg-with-optional 1.0.0
+      └── not-compatible-with-any-os 1.0.0 skipped
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('list', '--depth', '10', 'not-compatible-with-any-os')
+
+    t.equal(result.status, 0)
+
+    t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
+      project@0.0.0 ${process.cwd()}
+
+      dependencies:
+      pkg-with-optional 1.0.0
+      └── not-compatible-with-any-os 1.0.0 skipped
+    ` + '\n')
+  }
 })
