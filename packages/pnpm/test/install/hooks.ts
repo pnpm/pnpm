@@ -484,3 +484,44 @@ test('readPackage hook overrides project package', async (t: tape.Test) => {
   const pkg = await import(path.resolve('package.json'))
   t.notOk(pkg.dependencies, 'dependencies added by the hooks not saved in package.json')
 })
+
+test('readPackage hook is used during removal inside a workspace', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      name: 'project',
+      version: '1.0.0',
+
+      dependencies: {
+        'abc': '1.0.0',
+        'is-negative': '1.0.0',
+        'is-positive': '1.0.0',
+        'peer-a': '1.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {
+          switch (pkg.name) {
+            case 'abc':
+              pkg.peerDependencies['is-negative'] = '1.0.0'
+              break
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  process.chdir('project')
+  await execPnpm('install')
+  await execPnpm('uninstall', 'is-positive')
+
+  process.chdir('..')
+  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+  t.equal(lockfile.packages!['/abc/1.0.0_is-negative@1.0.0+peer-a@1.0.0'].peerDependencies!['is-negative'], '1.0.0')
+})
