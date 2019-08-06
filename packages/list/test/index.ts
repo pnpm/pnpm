@@ -709,3 +709,19 @@ test('peer dependencies are marked', async (t) => {
   `)
   t.end()
 })
+
+test('peer dependencies are marked when searching', async (t) => {
+  const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
+  const output = await listForPackages(['ajv'], fixture, { depth: 1 })
+  compareOutputs(t, output, stripIndent`
+    ${LEGEND}
+
+    with-peer@1.0.0 ${fixture}
+
+    ${DEPENDENCIES}
+    ${highlighted(`ajv ${VERSION_CLR('6.10.2')}`)}
+    ajv-keywords ${VERSION_CLR('3.4.1')}
+    └── ${highlighted(`ajv ${VERSION_CLR('6.10.2')} peer`)}
+  `)
+  t.end()
+})

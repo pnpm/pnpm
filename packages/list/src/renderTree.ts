@@ -116,16 +116,13 @@ export async function toArchyTree (
 function printLabel (getPkgColor: GetPkgColor, node: PackageNode) {
   let color = getPkgColor(node)
   let txt = `${color(node.name)} ${chalk.gray(node.version)}`
-  if (node.searched) {
-    return chalk.bold.bgBlack(txt)
-  }
   if (node.isPeer) {
     txt += ' peer'
   }
   if (node.isSkipped) {
     txt += ' skipped'
   }
-  return txt
+  return node.searched ? chalk.bold.bgBlack(txt) : txt
 }
 
 function getPkgColor (node: PackageNode) {
