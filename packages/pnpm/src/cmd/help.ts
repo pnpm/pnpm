@@ -291,7 +291,12 @@ function getHelpText (command: string) {
       return stripIndent`
         pnpm outdated [[<@scope>/]<pkg> ...]
 
-        Check for outdated packages.
+        Check for outdated packages. The check can be limited to a subset of the installed
+        packages by providing arguments (patterns are supported).
+
+        Examples:
+        pnpm outdated
+        pnpm outdated gulp-* @babel/core
 
         Options:
           -r  check for outdated dependencies in every package found in subdirectories

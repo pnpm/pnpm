@@ -6,6 +6,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { DEPENDENCIES_FIELDS, ImporterManifest } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import minimatch = require('minimatch')
 
 export type GetLatestVersionFunction = (packageName: string) => Promise<string | null>
 
@@ -68,7 +69,7 @@ async function _outdated (
       let pkgs = Object.keys(opts.wantedLockfile.importers[importerId][depType]!)
 
       if (forPkgs.length) {
-        pkgs = pkgs.filter((pkgName) => forPkgs.includes(pkgName))
+        pkgs = pkgs.filter((pkgName) => forPkgs.some((forPkg) => minimatch(pkgName, forPkg)))
       }
 
       await Promise.all(
