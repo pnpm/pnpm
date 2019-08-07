@@ -29,7 +29,7 @@ const emptyFixture = path.join(__dirname, 'empty')
 const fixtureWithAliasedDep = path.join(__dirname, 'with-aliased-dep')
 
 test('list all deps of a package that has an external lockfile', async (t) => {
-  t.equal(await list(fixtureWithExternalLockfile, {
+  t.equal(await list([fixtureWithExternalLockfile], {
     lockfileDirectory: path.join(fixtureWithExternalLockfile, '..'),
   }), stripIndent`
     ${LEGEND}
@@ -44,7 +44,7 @@ test('list all deps of a package that has an external lockfile', async (t) => {
 })
 
 test('list with default parameters', async t => {
-  t.equal(await list(fixture), stripIndent`
+  t.equal(await list([fixture], { lockfileDirectory: fixture }), stripIndent`
     ${LEGEND}
 
     fixture@1.0.0 ${fixture}
@@ -63,7 +63,7 @@ test('list with default parameters', async t => {
 })
 
 test('list with default parameters in pkg that has no name and version', async t => {
-  t.equal(await list(fixtureWithNoPkgNameAndNoVersion), stripIndent`
+  t.equal(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDirectory: fixtureWithNoPkgNameAndNoVersion }), stripIndent`
     ${LEGEND}
 
     ${fixtureWithNoPkgNameAndNoVersion}
@@ -82,7 +82,7 @@ test('list with default parameters in pkg that has no name and version', async t
 })
 
 test('list with default parameters in pkg that has no version', async t => {
-  t.equal(await list(fixtureWithNoPkgVersion), stripIndent`
+  t.equal(await list([fixtureWithNoPkgVersion], { lockfileDirectory: fixtureWithNoPkgVersion }), stripIndent`
     ${LEGEND}
 
     fixture ${fixtureWithNoPkgVersion}
@@ -102,8 +102,9 @@ test('list with default parameters in pkg that has no version', async t => {
 
 test('list dev only', async t => {
   t.equal(
-    await list(fixture, {
+    await list([fixture], {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+      lockfileDirectory: fixture,
     }),
     stripIndent`
       ${LEGEND}
@@ -120,8 +121,9 @@ test('list dev only', async t => {
 
 test('list prod only', async t => {
   t.equal(
-    await list(fixture, {
+    await list([fixture], {
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+      lockfileDirectory: fixture,
     }),
     stripIndent`
       ${LEGEND}
@@ -138,9 +140,10 @@ test('list prod only', async t => {
 
 test('list prod only with depth 2', async t => {
   t.equal(
-    await list(fixture, {
+    await list([fixture], {
       depth: 2,
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+      lockfileDirectory: fixture,
     }),
     stripIndent`
       ${LEGEND}
@@ -167,7 +170,7 @@ test('list prod only with depth 2', async t => {
 })
 
 test('list with depth 1', async t => {
-  t.equal(await list(fixture, { depth: 1 }), stripIndent`
+  t.equal(await list([fixture], { depth: 1, lockfileDirectory: fixture }), stripIndent`
     ${LEGEND}
 
     fixture@1.0.0 ${fixture}
@@ -192,25 +195,28 @@ test('list with depth 1', async t => {
 })
 
 test('list with depth -1', async t => {
-  t.equal(await list(fixture, { depth: -1 }), `fixture@1.0.0 ${fixture}`)
+  t.equal(await list([fixture], { depth: -1, lockfileDirectory: fixture }), `fixture@1.0.0 ${fixture}`)
 
   t.end()
 })
 
 test('list with depth 1 and selected packages', async t => {
-  t.equal(await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], fixture, { depth: 1 }), stripIndent`
-    ${LEGEND}
+  t.equal(
+    await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDirectory: fixture }),
+    stripIndent`
+      ${LEGEND}
 
-    fixture@1.0.0 ${fixture}
+      fixture@1.0.0 ${fixture}
 
-    ${DEPENDENCIES}
-    write-json-file ${VERSION_CLR('2.2.0')}
-    ├── ${highlighted('make-dir ' + VERSION_CLR('1.0.0'))}
-    └── ${highlighted('pify ' + VERSION_CLR('2.3.0'))}
+      ${DEPENDENCIES}
+      write-json-file ${VERSION_CLR('2.2.0')}
+      ├── ${highlighted('make-dir ' + VERSION_CLR('1.0.0'))}
+      └── ${highlighted('pify ' + VERSION_CLR('2.3.0'))}
 
-    ${OPTIONAL_DEPENDENCIES}
-    ${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}
-  `)
+      ${OPTIONAL_DEPENDENCIES}
+      ${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}
+    `,
+  )
 
   t.end()
 })
@@ -226,7 +232,7 @@ function compareOutputs (t: test.Test, actual: string, expected: string) {
 }
 
 test('list in long format', async t => {
-  compareOutputs(t, await list(fixture, { long: true }), stripIndent`
+  compareOutputs(t, await list([fixture], { long: true, lockfileDirectory: fixture }), stripIndent`
     ${LEGEND}
 
     fixture@1.0.0 ${fixture}
@@ -254,7 +260,7 @@ test('list in long format', async t => {
 })
 
 test('parseable list with depth 1', async t => {
-  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1 }), stripIndent`
+  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDirectory: fixture }), stripIndent`
     ${fixture}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}
@@ -271,7 +277,7 @@ test('parseable list with depth 1', async t => {
 })
 
 test('JSON list with depth 1', async t => {
-  t.equal(await list(fixture, { reportAs: 'json', depth: 1 }), JSON.stringify({
+  t.equal(await list([fixture], { reportAs: 'json', depth: 1, lockfileDirectory: fixture }), JSON.stringify([{
     name: 'fixture',
     version: '1.0.0',
 
@@ -338,51 +344,61 @@ test('JSON list with depth 1', async t => {
         resolved: 'https://registry.npmjs.org/is-negative/-/is-negative-2.1.0.tgz',
       },
     },
-  }, null, 2))
+  }], null, 2))
   t.end()
 })
 
 test('JSON list with aliased dep', async t => {
-  t.equal(await list(fixtureWithAliasedDep, { reportAs: 'json' }), JSON.stringify({
-    name: 'with-aliased-dep',
-    version: '1.0.0',
-
-    dependencies: {
-      'positive': {
-        from: 'is-positive',
+  t.equal(
+    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDirectory: fixtureWithAliasedDep }),
+    JSON.stringify([
+      {
+        name: 'with-aliased-dep',
         version: '1.0.0',
 
-        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        dependencies: {
+          'positive': {
+            from: 'is-positive',
+            version: '1.0.0',
+
+            resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          },
+        },
       },
-    },
-  }, null, 2))
-  t.equal(await list(fixtureWithAliasedDep, { long: true, reportAs: 'json' }), JSON.stringify({
-    name: 'with-aliased-dep',
-    version: '1.0.0',
+    ], null, 2),
+  )
+  t.equal(
+    await list([fixtureWithAliasedDep], { lockfileDirectory: fixtureWithAliasedDep, long: true, reportAs: 'json' }),
+    JSON.stringify([{
+      name: 'with-aliased-dep',
+      version: '1.0.0',
 
-    dependencies: {
-      'positive': {
-        from: 'is-positive',
-        version: '1.0.0',
+      dependencies: {
+        'positive': {
+          from: 'is-positive',
+          version: '1.0.0',
 
-        resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+          resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
 
-        description: 'Test if a number is positive',
+          description: 'Test if a number is positive',
 
-        homepage: 'https://github.com/kevva/is-positive#readme',
+          homepage: 'https://github.com/kevva/is-positive#readme',
 
-        repository: 'git+https://github.com/kevva/is-positive.git',
+          repository: 'git+https://github.com/kevva/is-positive.git',
+        },
       },
-    },
-  }, null, 2), 'with long info')
+    }], null, 2),
+    'with long info',
+  )
   t.end()
 })
 
 test('parseable list with depth 1 and dev only', async t => {
   t.equal(
-    await list(fixture, {
+    await list([fixture], {
       depth: 1,
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+      lockfileDirectory: fixture,
       reportAs: 'parseable',
     }),
     stripIndent`
@@ -395,7 +411,7 @@ test('parseable list with depth 1 and dev only', async t => {
 })
 
 test('long parseable list with depth 1', async t => {
-  t.equal(await list(fixture, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
+  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDirectory: fixture, long: true }), stripIndent`
     ${fixture}:fixture@1.0.0
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
@@ -412,7 +428,7 @@ test('long parseable list with depth 1', async t => {
 })
 
 test('long parseable list with depth 1 when package has no version', async t => {
-  t.equal(await list(fixtureWithNoPkgVersion, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
+  t.equal(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDirectory: fixtureWithNoPkgVersion, long: true }), stripIndent`
     ${fixtureWithNoPkgVersion}:fixture
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
@@ -429,52 +445,59 @@ test('long parseable list with depth 1 when package has no version', async t => 
 })
 
 test('long parseable list with depth 1 when package has no name and no version', async t => {
-  t.equal(await list(fixtureWithNoPkgNameAndNoVersion, { reportAs: 'parseable', depth: 1, long: true }), stripIndent`
-    ${fixtureWithNoPkgNameAndNoVersion}
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/make-dir/1.0.0')}:make-dir@1.0.0
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/pify/2.3.0')}:pify@2.3.0
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
-    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
-  `)
+  t.equal(
+    await list(
+      [fixtureWithNoPkgNameAndNoVersion],
+      { reportAs: 'parseable', depth: 1, lockfileDirectory: fixtureWithNoPkgNameAndNoVersion, long: true },
+    ),
+    stripIndent`
+      ${fixtureWithNoPkgNameAndNoVersion}
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/make-dir/1.0.0')}:make-dir@1.0.0
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/pify/2.3.0')}:pify@2.3.0
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
+      ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
+    `,
+  )
 
   t.end()
 })
 
 test('print empty', async t => {
-  t.equal(await list(emptyFixture), `${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
+  t.equal(await list([emptyFixture], { lockfileDirectory: emptyFixture }), `${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
   t.end()
 })
 
 test("don't print empty", async t => {
-  t.equal(await list(emptyFixture, { alwaysPrintRootPackage: false }), '')
+  t.equal(await list([emptyFixture], { alwaysPrintRootPackage: false, lockfileDirectory: emptyFixture }), '')
   t.end()
 })
 
 test('unsaved dependencies are marked', async (t) => {
   t.equal(await renderTree(
-    {
-      name: 'fixture',
-      path: fixture,
-      version: '1.0.0',
-    },
-    {
-      unsavedDependencies: [
-        {
-          alias: 'foo',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'foo',
-          path: '',
-          version: '1.0.0',
-        },
-      ],
-    },
+    [
+      {
+        name: 'fixture',
+        path: fixture,
+        version: '1.0.0',
+
+        unsavedDependencies: [
+          {
+            alias: 'foo',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'foo',
+            path: '',
+            version: '1.0.0',
+          },
+        ],
+      },
+    ],
     {
       alwaysPrintRootPackage: false,
       depth: 0,
@@ -494,114 +517,115 @@ test('unsaved dependencies are marked', async (t) => {
 
 test('write long lists in columns', async (t) => {
   compareOutputs(t, await renderTree(
-    {
-      name: 'fixture',
-      path: fixture,
-      version: '1.0.0',
-    },
-    {
-      dependencies: [
-        {
-          alias: 'a',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'a',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'b',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'b',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'c',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'c',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'd',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'd',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'e',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'e',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'f',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'f',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'g',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'g',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'h',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'h',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'i',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'i',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'k',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'k',
-          path: '',
-          version: '1.0.0',
-        },
-        {
-          alias: 'l',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'l',
-          path: '',
-          version: '1.0.0',
-        },
-      ],
-    },
+    [
+      {
+        name: 'fixture',
+        path: fixture,
+        version: '1.0.0',
+
+        dependencies: [
+          {
+            alias: 'a',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'a',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'b',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'b',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'c',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'c',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'd',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'd',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'e',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'e',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'f',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'f',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'g',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'g',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'h',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'h',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'i',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'i',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'k',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'k',
+            path: '',
+            version: '1.0.0',
+          },
+          {
+            alias: 'l',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'l',
+            path: '',
+            version: '1.0.0',
+          },
+        ],
+      },
+    ],
     {
       alwaysPrintRootPackage: false,
       depth: 0,
@@ -632,45 +656,46 @@ test('write long lists in columns', async (t) => {
 
 test('sort list items', async (t) => {
   compareOutputs(t, await renderTree(
-    {
-      name: 'fixture',
-      path: fixture,
-      version: '1.0.0',
-    },
-    {
-      dependencies: [
-        {
-          alias: 'foo',
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'foo',
-          path: '',
-          version: '1.0.0',
+    [
+      {
+        name: 'fixture',
+        path: fixture,
+        version: '1.0.0',
 
-          dependencies: [
-            {
-              alias: 'qar',
-              isMissing: false,
-              isPeer: false,
-              isSkipped: false,
-              name: 'qar',
-              path: '',
-              version: '1.0.0',
-            },
-            {
-              alias: 'bar',
-              isMissing: false,
-              isPeer: false,
-              isSkipped: false,
-              name: 'bar',
-              path: '',
-              version: '1.0.0',
-            },
-          ],
-        },
-      ],
-    },
+        dependencies: [
+          {
+            alias: 'foo',
+            isMissing: false,
+            isPeer: false,
+            isSkipped: false,
+            name: 'foo',
+            path: '',
+            version: '1.0.0',
+
+            dependencies: [
+              {
+                alias: 'qar',
+                isMissing: false,
+                isPeer: false,
+                isSkipped: false,
+                name: 'qar',
+                path: '',
+                version: '1.0.0',
+              },
+              {
+                alias: 'bar',
+                isMissing: false,
+                isPeer: false,
+                isSkipped: false,
+                name: 'bar',
+                path: '',
+                version: '1.0.0',
+              },
+            ],
+          },
+        ],
+      },
+    ],
     {
       alwaysPrintRootPackage: false,
       depth: 0,
@@ -692,7 +717,7 @@ test('sort list items', async (t) => {
 
 test('peer dependencies are marked', async (t) => {
   const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
-  const output = await list(fixture, { depth: 1 })
+  const output = await list([fixture], { depth: 1, lockfileDirectory: fixture })
   compareOutputs(t, output, stripIndent`
     ${LEGEND}
 
@@ -712,7 +737,7 @@ test('peer dependencies are marked', async (t) => {
 
 test('peer dependencies are marked when searching', async (t) => {
   const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
-  const output = await listForPackages(['ajv'], fixture, { depth: 1 })
+  const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDirectory: fixture })
   compareOutputs(t, output, stripIndent`
     ${LEGEND}
 

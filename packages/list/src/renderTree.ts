@@ -6,6 +6,7 @@ import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import R = require('ramda')
 import getPkgInfo from './getPkgInfo'
+import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = R.sortBy(R.path(['name']) as (pkg: object) => R.Ord)
 
@@ -17,12 +18,19 @@ const NOT_SAVED_DEP_CLR = chalk.red
 const LEGEND = `Legend: ${PROD_DEP_CLR('production dependency')}, ${OPTIONAL_DEP_CLR('optional only')}, ${DEV_DEP_ONLY_CLR('dev only')}\n\n`
 
 export default async function (
-  project: {
-    name?: string,
-    version?: string,
-    path: string,
+  packages: Array<PackageDependencyHierarchy>,
+  opts: {
+    alwaysPrintRootPackage: boolean,
+    depth: number,
+    long: boolean,
+    search: boolean,
   },
-  tree: DependenciesHierarchy,
+) {
+  return (await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))).filter(Boolean).join('\n\n')
+}
+
+async function renderTreeForPackage (
+  pkg: PackageDependencyHierarchy,
   opts: {
     alwaysPrintRootPackage: boolean,
     depth: number,
@@ -32,25 +40,25 @@ export default async function (
 ) {
   if (
     !opts.alwaysPrintRootPackage &&
-    (!tree.dependencies || !tree.dependencies.length) &&
-    (!tree.devDependencies || !tree.devDependencies.length) &&
-    (!tree.optionalDependencies || !tree.optionalDependencies.length) &&
-    (!tree.unsavedDependencies || !tree.unsavedDependencies.length)
+    (!pkg.dependencies || !pkg.dependencies.length) &&
+    (!pkg.devDependencies || !pkg.devDependencies.length) &&
+    (!pkg.optionalDependencies || !pkg.optionalDependencies.length) &&
+    (!pkg.unsavedDependencies || !pkg.unsavedDependencies.length)
   ) return ''
 
   let label = ''
-  if (project.name) {
-    label += project.name
-    if (project.version) {
-      label += `@${project.version}`
+  if (pkg.name) {
+    label += pkg.name
+    if (pkg.version) {
+      label += `@${pkg.version}`
     }
     label += ' '
   }
-  label += project.path
+  label += pkg.path
   let output = (opts.depth > -1 ? LEGEND : '') + label + '\n'
   const useColumns = opts.depth === 0 && opts.long === false && !opts.search
   for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
-    if (tree[dependenciesField] && tree[dependenciesField]!.length) {
+    if (pkg[dependenciesField] && pkg[dependenciesField]!.length) {
       const depsLabel = chalk.cyanBright(
         dependenciesField !== 'unsavedDependencies'
           ? `${dependenciesField}:`
@@ -58,13 +66,13 @@ export default async function (
       )
       output += `\n${depsLabel}\n`
       const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
-      if (useColumns && tree[dependenciesField].length > 10) {
-        output += cliColumns(tree[dependenciesField].map(printLabel.bind(printLabel, gPkgColor))) + '\n'
+      if (useColumns && pkg[dependenciesField].length > 10) {
+        output += cliColumns(pkg[dependenciesField].map(printLabel.bind(printLabel, gPkgColor))) + '\n'
         continue
       }
-      const data = await toArchyTree(gPkgColor, tree[dependenciesField]!, {
+      const data = await toArchyTree(gPkgColor, pkg[dependenciesField]!, {
         long: opts.long,
-        modules: path.join(project.path, 'node_modules'),
+        modules: path.join(pkg.path, 'node_modules'),
       })
       for (const d of data) {
         output += archy(d)
