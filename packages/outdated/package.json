@@ -43,7 +43,9 @@
     "@pnpm/lockfile-file": "1.1.1",
     "@pnpm/lockfile-utils": "1.0.10",
     "@pnpm/types": "3.2.0",
-    "dependency-path": "3.0.8"
+    "@types/minimatch": "3.0.3",
+    "dependency-path": "3.0.8",
+    "minimatch": "3.0.4"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
