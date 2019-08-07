@@ -5,7 +5,7 @@ import dh, {
   forPackages as dhForPackages,
   PackageSelector,
 } from 'dependencies-hierarchy'
-import R =  require('ramda')
+import R = require('ramda')
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
@@ -58,8 +58,10 @@ export async function forPackages (
     .map(async ([projectPath, dependenciesHierarchy]) => {
       const entryPkg = await readImporterManifestOnly(projectPath)
       return {
+        name: entryPkg.name,
+        version: entryPkg.version,
+
         path: projectPath,
-        ...entryPkg,
         ...dependenciesHierarchy,
       } as PackageDependencyHierarchy
     })
@@ -88,11 +90,13 @@ export default async function (
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
-
   const pkgs = await Promise.all(
     R.toPairs(
       opts.depth === -1
-      ? {}
+      ? projectPaths.reduce((acc, projectPath) => {
+        acc[projectPath] = {}
+        return acc
+      }, {})
       : await dh(projectPaths, {
         depth: opts.depth,
         include: maybeOpts && maybeOpts.include,
@@ -103,8 +107,10 @@ export default async function (
     .map(async ([projectPath, dependenciesHierarchy]) => {
       const entryPkg = await readImporterManifestOnly(projectPath)
       return {
+        name: entryPkg.name,
+        version: entryPkg.version,
+
         path: projectPath,
-        ...entryPkg,
         ...dependenciesHierarchy,
       } as PackageDependencyHierarchy
     })

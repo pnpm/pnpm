@@ -104,9 +104,14 @@ async function dependenciesHierarchy (
   })
   const currentLockfile = await readCurrentLockfile(maybeOpts.lockfileDirectory, { ignoreIncompatible: false })
 
-  if (!currentLockfile) return {}
-
   const result = {} as { [prefix: string]: DependenciesHierarchy }
+
+  if (!currentLockfile) {
+    for (let projectPath of projectPaths) {
+      result[projectPath] = {}
+    }
+    return result
+  }
 
   const opts = {
     depth: maybeOpts.depth || 0,
