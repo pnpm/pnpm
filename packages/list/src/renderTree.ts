@@ -26,7 +26,7 @@ export default async function (
     search: boolean,
   },
 ) {
-  return (await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))).join('\n')
+  return (await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))).filter(Boolean).join('\n\n')
 }
 
 async function renderTreeForPackage (
