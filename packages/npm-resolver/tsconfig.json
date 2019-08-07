@@ -2,7 +2,6 @@
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
     "allowSyntheticDefaultImports": false,
-    "strictBindCallApply": true,
     "outDir": "lib"
   },
   "include": [

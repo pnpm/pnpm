@@ -105,7 +105,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   return {
     fileName: 'package.json',
     manifest: null,
-    writeImporterManifest: writeImporterManifest.bind(null, filePath),
+    writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(filePath, manifest),
   }
 }
 

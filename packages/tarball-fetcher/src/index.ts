@@ -86,7 +86,7 @@ function fetchFromTarball (
         tarball: string,
       },
       opts: FetchOptions
-    ) => unpackStream.Index,
+    ) => Promise<FetchResult>,
     ignore?: IgnoreFunction,
   },
   resolution: {
@@ -109,9 +109,9 @@ function fetchFromTarball (
 
 async function fetchFromRemoteTarball (
   ctx: {
-    offline: boolean,
+    offline?: boolean,
     download: DownloadFunction,
-    ignoreFile: IgnoreFunction,
+    ignoreFile?: IgnoreFunction,
     getCredentialsByURI: (registry: string) => {
       scope: string,
       token: string | undefined,

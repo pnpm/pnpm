@@ -79,10 +79,7 @@ export default function (
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
 
-  requestPackage['requestPackage'] = requestPackage // tslint:disable-line
-  requestPackage['fetchPackageToStore'] = fetchPackageToStore // tslint:disable-line
-
-  return requestPackage
+  return Object.assign(requestPackage, { fetchPackageToStore, requestPackage })
 }
 
 async function resolveAndFetch (

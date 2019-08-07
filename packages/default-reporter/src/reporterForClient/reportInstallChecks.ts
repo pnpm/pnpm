@@ -19,20 +19,21 @@ export default (
 function formatInstallCheck (
   currentPrefix: string,
   logObj: InstallCheckLog,
-  opts: {
+  opts?: {
     zoomOutCurrent: boolean,
   },
 ) {
+  const zoomOutCurrent = opts && opts.zoomOutCurrent || false
   switch (logObj.code) {
     case 'EBADPLATFORM':
       return autozoom(
         currentPrefix,
         logObj['prefix'],
         formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
-        opts,
+        { zoomOutCurrent },
       )
     case 'ENOTSUP':
-      return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), opts)
+      return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), { zoomOutCurrent })
     default:
       return
   }
