@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
 import path = require('path')
@@ -33,6 +33,19 @@ test('run: pass the args to the command that is specfied in the build script', a
   t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true"/), 'command was successful')
 })
 
+test('run -r: pass the args to the command that is specfied in the build script', async (t: tape.Test) => {
+  preparePackages(t, [{
+    name: 'project',
+    scripts: {
+      foo: 'ts-node test'
+    },
+  }])
+
+  const result = execPnpmSync('run', '-r', 'foo', 'arg', '--', '--flag=true')
+
+  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true"/), 'command was successful')
+})
+
 test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t: tape.Test) => {
   prepare(t, {
     scripts: {
@@ -55,6 +68,19 @@ test('test: pass the args to the command that is specfied in the build script of
   const result = execPnpmSync('test', '--', '--flag=true')
 
   t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "--flag=true"/), 'command was successful')
+})
+
+test('test -r: pass the args to the command that is specfied in the build script of a package.json manifest', async (t: tape.Test) => {
+  preparePackages(t, [{
+    name: 'project',
+    scripts: {
+      test: 'ts-node test'
+    },
+  }])
+
+  const result = execPnpmSync('test', '-r', 'arg', '--', '--flag=true')
+
+  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true"/), 'command was successful')
 })
 
 test('start: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t: tape.Test) => {
