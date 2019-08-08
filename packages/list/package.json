@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "2.0.0-2",
+  "version": "2.0.0-3",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -43,7 +43,7 @@
     "archy": "1.0.0",
     "chalk": "2.4.2",
     "cli-columns": "3.1.2",
-    "dependencies-hierarchy": "6.0.0-1",
+    "dependencies-hierarchy": "6.0.0-2",
     "p-limit": "2.2.0",
     "ramda": "0.26.1"
   },
