@@ -1,11 +1,9 @@
 import {
   IncludedDependencies,
   LogBase,
-  PackageManifest,
+  ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-
-export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
 
 export interface PnpmOptions {
   argv: {

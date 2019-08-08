@@ -20,6 +20,7 @@ import pickPackage, {
   PackageInRegistry,
   PackageMeta,
   PackageMetaCache,
+  PickPackageOptions,
 } from './pickPackage'
 import toRaw from './toRaw'
 
@@ -127,7 +128,7 @@ export type ResolveFromNpmOptions = {
 
 async function resolveNpm (
   ctx: {
-    pickPackage: (spec: RegistryPackageSpec, opts: object) => ReturnType<typeof pickPackage>,
+    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>,
     getCredentialsByURI: (registry: string) => object,
   },
   wantedDependency: WantedDependency,

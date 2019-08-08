@@ -48,7 +48,11 @@ export function pruneLockfile (
   const optionalDependencies = R.keys(pkg.optionalDependencies)
   const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
   const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
-  const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
+  const allDeps = [
+    ...optionalDependencies,
+    ...devDependencies,
+    ...dependencies,
+  ]
   const specifiers: ResolvedDependencies = {}
   const lockfileDependencies: ResolvedDependencies = {}
   const lockfileOptionalDependencies: ResolvedDependencies = {}
@@ -151,8 +155,8 @@ function copyPackageSnapshots (
 }
 
 function resolvedDepsToRelDepPaths (deps: ResolvedDependencies) {
-  return R.keys(deps)
-    .map((pkgName: string) => refToRelative(deps[pkgName], pkgName))
+  return Object.keys(deps)
+    .map((pkgName) => refToRelative(deps[pkgName], pkgName))
     .filter((relPath) => relPath !== null) as string[]
 }
 

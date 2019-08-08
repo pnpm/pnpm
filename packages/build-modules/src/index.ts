@@ -180,8 +180,8 @@ export async function linkBinsOfDependencies (
 ) {
   const childrenToLink = opts.optional
     ? depNode.children
-    : R.keys(depNode.children)
-      .reduce((nonOptionalChildren, childAlias: string) => {
+    : Object.keys(depNode.children)
+      .reduce((nonOptionalChildren, childAlias) => {
         if (!depNode.optionalDependencies.has(childAlias)) {
           nonOptionalChildren[childAlias] = depNode.children[childAlias]
         }
@@ -191,7 +191,7 @@ export async function linkBinsOfDependencies (
   const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
 
   const pkgs = await Promise.all(
-    R.keys(childrenToLink)
+    Object.keys(childrenToLink)
       .filter((alias) => {
         const dep = depGraph[childrenToLink[alias]]
         if (!dep) {

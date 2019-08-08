@@ -184,9 +184,9 @@ function reportLockfileBreakingChange (err: Error, msg: object) {
   `
 }
 
-function formatRecursiveCommandSummary (msg: {fails: Error[], passes: number}) {
+function formatRecursiveCommandSummary (msg: { fails: Array<Error & {prefix: string}>, passes: number }) {
   const output = EOL + `Summary: ${chalk.red(`${msg.fails.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
-    msg.fails.map((fail: Error & {prefix: string}) => {
+    msg.fails.map((fail) => {
       return fail.prefix + ':' + EOL + formatErrorSummary(fail.message)
     }).join(EOL + EOL)
   return output

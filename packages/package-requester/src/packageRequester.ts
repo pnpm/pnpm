@@ -20,6 +20,8 @@ import {
   PackageFilesResponse,
   PackageResponse,
   RequestPackageFunction,
+  RequestPackageOptions,
+  WantedDependency,
 } from '@pnpm/store-controller-types'
 import {
   DependencyManifest,
@@ -90,29 +92,8 @@ async function resolveAndFetch (
     storePath: string,
     verifyStoreIntegrity: boolean,
   },
-  wantedDependency: {
-    alias?: string,
-    pref: string,
-  },
-  options: {
-    defaultTag?: string,
-    downloadPriority: number,
-    currentPackageId?: string,
-    currentResolution?: Resolution,
-    prefix: string,
-    registry: string,
-    lockfileDirectory: string,
-    update?: boolean,
-    preferredVersions: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
-    localPackages?: LocalPackages,
-    skipFetch: boolean,
-    sideEffectsCache: boolean,
-  },
+  wantedDependency: WantedDependency,
+  options: RequestPackageOptions,
 ): Promise<PackageResponse> {
   try {
     let latest: string | undefined

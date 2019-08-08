@@ -72,7 +72,7 @@ export default function (
         offline: opts.offline,
       }),
       ignore: opts.ignoreFile,
-    }),
+    }) as FetchFunction,
   }
 }
 

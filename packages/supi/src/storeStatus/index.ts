@@ -22,12 +22,12 @@ export default async function (maybeOpts: StoreStatusOptions) {
   } = await getContextForSingleImporter({}, opts)
   if (!wantedLockfile) return []
 
-  const pkgPaths = Object.keys(wantedLockfile.packages || {})
+  const pkgPaths = (Object.keys(wantedLockfile.packages || {})
     .map((id) => {
       if (id === '/') return null
       return dp.resolve(registries, id)
     })
-    .filter((pkgId) => pkgId && !skipped.has(pkgId))
+    .filter((pkgId) => pkgId && !skipped.has(pkgId)) as string[])
     .map((pkgPath: string) => path.join(storePath, pkgPath))
 
   const modified = await pFilter(pkgPaths, async (pkgPath: string) => !await checkPackage(path.join(pkgPath, 'package')))

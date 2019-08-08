@@ -9,8 +9,7 @@
     "preserveConstEnums": true,
     "removeComments": false,
     "sourceMap": false,
-    "strictBindCallApply": true,
-    "strictNullChecks": true,
+    "strict": true,
     "suppressImplicitAnyIndexErrors": true,
     "target": "es2017"
   },

@@ -126,9 +126,12 @@ async function dependenciesHierarchy (
   }
   ; (
     await Promise.all(projectPaths.map(async (projectPath) => {
-      return [projectPath, await dependenciesHierarchyForPackage(projectPath, currentLockfile, searched, opts)]
+      return [
+        projectPath,
+        await dependenciesHierarchyForPackage(projectPath, currentLockfile, searched, opts),
+      ] as [string, DependenciesHierarchy]
     }))
-  ).forEach(([projectPath, dependenciesHierarchy]: [string, DependenciesHierarchy]) => {
+  ).forEach(([projectPath, dependenciesHierarchy]) => {
     result[projectPath] = dependenciesHierarchy
   })
   return result
@@ -159,7 +162,7 @@ async function dependenciesHierarchyForPackage (
 
   const getChildrenTree = getTree.bind(null, {
     currentDepth: 1,
-    currentPackages: currentLockfile.packages,
+    currentPackages: currentLockfile.packages || {},
     includeOptionalDependencies: opts.include.optionalDependencies === true,
     maxDepth: opts.depth,
     modulesDir,

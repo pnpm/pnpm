@@ -1030,7 +1030,11 @@ function addDirectDependenciesToLockfile (
   const optionalDependencies = R.keys(newManifest.optionalDependencies)
   const dependencies = R.difference(R.keys(newManifest.dependencies), optionalDependencies)
   const devDependencies = R.difference(R.difference(R.keys(newManifest.devDependencies), optionalDependencies), dependencies)
-  const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
+  const allDeps = [
+    ...optionalDependencies,
+    ...devDependencies,
+    ...dependencies,
+  ]
 
   for (const alias of allDeps) {
     if (directDependenciesByAlias[alias]) {
@@ -1097,7 +1101,9 @@ async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir),
   )
-  return pkgs
-    .filter(Boolean)
+  return (
+    pkgs
+    .filter(Boolean) as DependencyManifest[]
+  )
     .map(({ name, version }: DependencyManifest) => ({ name, version }))
 }

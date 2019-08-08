@@ -94,12 +94,12 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
       t.pass('warning logged')
     }
   }
-  streamParser.on('data', reporter)
+  streamParser.on('data', reporter as any) // tslint:disable-line:no-any
   const { tempLocation } = await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
     cachedTarballLocation,
     prefix: process.cwd(),
   })
-  streamParser.removeListener('data', reporter)
+  streamParser.removeListener('data', reporter as any) // tslint:disable-line:no-any
 
   t.equal((await import(path.join(tempLocation, 'package.json'))).version, '6.24.1')
 
@@ -215,7 +215,7 @@ test('redownload incomplete cached tarballs', async t => {
       t.pass('warning logged')
     }
   }
-  streamParser.on('data', reporter)
+  streamParser.on('data', reporter as any) // tslint:disable-line:no-any
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
@@ -225,7 +225,7 @@ test('redownload incomplete cached tarballs', async t => {
     nock.cleanAll()
     t.fail(err)
   }
-  streamParser.removeListener('data', reporter)
+  streamParser.removeListener('data', reporter as any) // tslint:disable-line:no-any
 
   t.ok(scope.isDone())
   t.end()

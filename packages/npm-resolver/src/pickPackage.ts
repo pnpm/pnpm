@@ -41,6 +41,16 @@ const metafileOperationLimits = {} as {
   [pkgMirror: string]: Limit
 }
 
+export type PickPackageOptions = {
+  auth: object,
+  preferredVersionSelector: {
+    selector: string,
+    type: 'version' | 'range' | 'tag',
+  } | undefined,
+  registry: string,
+  dryRun: boolean,
+}
+
 export default async (
   ctx: {
     fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
@@ -51,15 +61,7 @@ export default async (
     preferOffline?: boolean,
   },
   spec: RegistryPackageSpec,
-  opts: {
-    auth: object,
-    preferredVersionSelector: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
-    } | undefined,
-    registry: string,
-    dryRun: boolean,
-  },
+  opts: PickPackageOptions,
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
 
