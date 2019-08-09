@@ -8,8 +8,8 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import fs = require('fs')
+import test from 'jest-t-assert'
 import path = require('path')
-import test = require('tape')
 import tempy = require('tempy')
 import yaml = require('yaml-tag')
 

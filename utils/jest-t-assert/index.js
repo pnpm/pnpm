@@ -8,8 +8,8 @@ const t = {
   fail: () => {
     throw new Error('Test failed via `t.fail()`');
   },
-  true: actual => expect(actual).toBe(true),
-  false: actual => expect(actual).toBe(false),
+  ok: actual => expect(actual).toBe(true),
+  notOk: actual => expect(actual).toBe(false),
   truthy: actual => expect(actual).toBeTruthy(),
   falsy: actual => expect(actual).toBeFalsy(),
   equal: (actual, expected) => expect(actual).toBe(expected),

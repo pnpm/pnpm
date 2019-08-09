@@ -61,7 +61,7 @@ function writeLockfile (
 
   const yamlDoc = yaml.safeDump(normalizeLockfile(wantedLockfile, opts && opts.forceSharedFormat === true || false), LOCKFILE_YAML_FORMAT)
 
-  return writeFileAtomic(lockfilePath, yamlDoc)
+  return writeFileAtomic(lockfilePath, yamlDoc, {})
 }
 
 function isEmptyLockfile (lockfile: Lockfile) {
@@ -135,10 +135,10 @@ export default function writeLockfiles (
   // which is more efficient
   if (wantedLockfile === currentLockfile) {
     return Promise.all([
-      writeFileAtomic(wantedLockfilePath, yamlDoc),
+      writeFileAtomic(wantedLockfilePath, yamlDoc, {}),
       (async () => {
         await makeDir(path.dirname(currentLockfilePath))
-        await writeFileAtomic(currentLockfilePath, yamlDoc)
+        await writeFileAtomic(currentLockfilePath, yamlDoc, {})
       })(),
     ])
   }
@@ -151,10 +151,10 @@ export default function writeLockfiles (
   const currentYamlDoc = yaml.safeDump(normalizeLockfile(currentLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
   return Promise.all([
-    writeFileAtomic(wantedLockfilePath, yamlDoc),
+    writeFileAtomic(wantedLockfilePath, yamlDoc, {}),
     (async () => {
       await makeDir(path.dirname(currentLockfilePath))
-      await writeFileAtomic(currentLockfilePath, currentYamlDoc)
+      await writeFileAtomic(currentLockfilePath, currentYamlDoc, {})
     })(),
   ])
 }
