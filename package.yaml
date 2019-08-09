@@ -9,6 +9,10 @@ dependencies:
   '@types/node': '*'
   '@types/tape': ^4.2.31
 devDependencies:
+  '@types/jest': 24.0.17
+  jest: 24.8.0
+  jest-t-assert: 'link:utils/jest-t-assert'
+  ts-jest: 24.0.2
   ts-node: 8.3.0
   tslint: 5.18.0
   typescript: 3.5.3

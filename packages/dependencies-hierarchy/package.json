@@ -11,7 +11,7 @@
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "pretest": "cd fixtures && pnpm recursive install --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && cd ../fixtureWithLinks && pnpm recursive install --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile && cd ..",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
+    "test": "pnpm run tsc && pnpm run lint && jest --testRegex test/index.ts",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },
@@ -55,5 +55,9 @@
     "@types/semver": "6",
     "dependencies-hierarchy": "link:",
     "tape": "4.11.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
   }
 }

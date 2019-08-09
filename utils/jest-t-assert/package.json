@@ -1,0 +1,28 @@
+{
+  "name": "jest-t-assert",
+  "version": "0.3.0",
+  "description": "Use tape style assertions with Jest",
+  "author": "Michael Jungo <michaeljungo92@gmail.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jungomi/jest-t-assert.git"
+  },
+  "files": [
+    "index.js"
+  ],
+  "keywords": [
+    "assert",
+    "assertion",
+    "jest",
+    "tape",
+    "test",
+    "testing"
+  ],
+  "peerDependencies": {
+    "jest": "*"
+  }
+}

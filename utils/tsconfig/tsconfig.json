@@ -11,7 +11,10 @@
     "sourceMap": false,
     "strict": true,
     "suppressImplicitAnyIndexErrors": true,
-    "target": "es2017"
+    "target": "es2017",
+    "types": [
+      "jest"
+    ]
   },
   "atom": {
     "rewriteTsconfig": true

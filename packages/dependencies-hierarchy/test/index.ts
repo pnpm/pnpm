@@ -1,8 +1,8 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import dh, { forPackages as dhForPackages, PackageNode } from 'dependencies-hierarchy'
+import test from 'jest-t-assert'
 import path = require('path')
-import test = require('tape')
 
 const fixtures = path.join(__dirname, '..', 'fixtures')
 const generalFixture = path.join(fixtures, 'general')
@@ -254,7 +254,7 @@ test('only dev depth 0', async t => {
 test('hierarchy for no packages', async t => {
   const tree = await dhForPackages([], [generalFixture], { depth: 100, lockfileDirectory: generalFixture })
 
-  t.deepEqual(tree, [])
+  t.deepEqual(tree, {})
 
   t.end()
 })
