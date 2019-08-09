@@ -1,5 +1,6 @@
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import path = require('path')
 import sinon = require('sinon')
 import {
@@ -8,14 +9,9 @@ import {
   link,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { pathToLocalPkg, testDefaults } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('prune removes extraneous packages', async (t: tape.Test) => {
+test('prune removes extraneous packages', async t => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults()
@@ -77,7 +73,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
   await project.has('fnumber')
 })
 
-test('prune removes dev dependencies in production', async (t: tape.Test) => {
+test('prune removes dev dependencies in production', async t => {
   const project = prepareEmpty(t)
 
   let manifest = await addDependenciesToPackage({}, ['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))

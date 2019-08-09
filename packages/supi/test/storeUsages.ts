@@ -1,18 +1,14 @@
 import assertStore from '@pnpm/assert-store'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import {
   addDependenciesToPackage,
   storeAdd,
   storeUsages
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('find usages for single package in store and in a project', async (t: tape.Test) => {
+test('find usages for single package in store and in a project', async t => {
   const project = prepareEmpty(t)
 
   // Install deps
@@ -31,7 +27,7 @@ test('find usages for single package in store and in a project', async (t: tape.
   t.equal(packageUsages.usages.length, 1, 'there should only be 1 usage be found')
 })
 
-test('find usages for single package in store (by version) and in a project', async (t: tape.Test) => {
+test('find usages for single package in store (by version) and in a project', async t => {
   const project = prepareEmpty(t)
 
   // Install deps
@@ -50,7 +46,7 @@ test('find usages for single package in store (by version) and in a project', as
   t.equal(packageUsages.usages.length, 1, 'there should only be 1 usage be found')
 })
 
-test('find usages for package not in store', async (t: tape.Test) => {
+test('find usages for package not in store', async t => {
   prepareEmpty(t)
   const opts = await testDefaults()
   const store = assertStore(t, opts.store)
@@ -64,7 +60,7 @@ test('find usages for package not in store', async (t: tape.Test) => {
   }, 'search should not find anything')
 })
 
-test('find usages of packages in store (multiple queries)', async (t: tape.Test) => {
+test('find usages of packages in store (multiple queries)', async t => {
   const project = prepareEmpty(t)
 
   // Install deps
@@ -98,7 +94,7 @@ test('find usages of packages in store (multiple queries)', async (t: tape.Test)
   }
 })
 
-test('find usages for package in store but not in any projects', async (t: tape.Test) => {
+test('find usages for package in store but not in any projects', async t => {
   prepareEmpty(t)
   const opts = await testDefaults()
   const registries = opts.registries || {
@@ -130,7 +126,7 @@ test('find usages for package in store but not in any projects', async (t: tape.
   )
 })
 
-test('find usages for multiple packages in store but not in any projects', async (t: tape.Test) => {
+test('find usages for multiple packages in store but not in any projects', async t => {
   prepareEmpty(t)
   const opts = await testDefaults()
   const registries = opts.registries || {

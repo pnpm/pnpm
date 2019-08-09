@@ -1,12 +1,9 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import { addDependenciesToPackage } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 
-const test = promisifyTape(tape)
-
-test('packageImportMethod can be set to copy', async (t: tape.Test) => {
+test('packageImportMethod can be set to copy', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['is-negative'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
@@ -15,7 +12,7 @@ test('packageImportMethod can be set to copy', async (t: tape.Test) => {
   t.ok(m, 'is-negative is available with packageImportMethod = copy')
 })
 
-test('copy does not fail on package that self-requires itself', async (t: tape.Test) => {
+test('copy does not fail on package that self-requires itself', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['requires-itself'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))

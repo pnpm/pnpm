@@ -1,18 +1,14 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import {
   addDependenciesToPackage,
   install,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
-
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('save to package.json (rimraf@2.5.1)', async (t) => {
   const project = prepareEmpty(t)
@@ -25,7 +21,7 @@ test('save to package.json (rimraf@2.5.1)', async (t) => {
 })
 
 // NOTE: this works differently for global installations. See similar tests in global.ts
-test("don't override existing spec in package.json on named installation", async (t: tape.Test) => {
+test("don't override existing spec in package.json on named installation", async t => {
   const project = prepareEmpty(t)
   let manifest = await addDependenciesToPackage({
     dependencies: {
@@ -57,7 +53,7 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async (t) => 
   t.deepEqual(manifest.devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
 })
 
-test('dependency should not be added to package.json if it is already there', async (t: tape.Test) => {
+test('dependency should not be added to package.json if it is already there', async t => {
   await addDistTag('foo', '100.0.0', 'latest')
   await addDistTag('bar', '100.0.0', 'latest')
 
@@ -89,7 +85,7 @@ test('dependency should not be added to package.json if it is already there', as
   t.ok(lockfile.packages['/bar/100.0.0'].optional, `the \`bar\` package is marked as optional in ${WANTED_LOCKFILE}`)
 })
 
-test('dependencies should be updated in the fields where they already are', async (t: tape.Test) => {
+test('dependencies should be updated in the fields where they already are', async t => {
   await addDistTag('foo', '100.1.0', 'latest')
   await addDistTag('bar', '100.1.0', 'latest')
 
@@ -113,7 +109,7 @@ test('dependencies should be updated in the fields where they already are', asyn
   }, 'package.json updated dependencies in the correct properties')
 })
 
-test('dependency should be removed from the old field when installing it as a different type of dependency', async (t: tape.Test) => {
+test('dependency should be removed from the old field when installing it as a different type of dependency', async t => {
   await addDistTag('foo', '100.0.0', 'latest')
   await addDistTag('bar', '100.0.0', 'latest')
   await addDistTag('qar', '100.0.0', 'latest')
@@ -176,7 +172,7 @@ test('dependency should be removed from the old field when installing it as a di
   }
 })
 
-test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async (t: tape.Test) => {
+test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
@@ -194,7 +190,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   t.deepEqual(Object.keys(manifest.dependencies!).sort(), Object.keys(expectedDeps).sort(), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
 
-test('save to package.json with save prefix ~', async (t: tape.Test) => {
+test('save to package.json with save prefix ~', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 

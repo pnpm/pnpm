@@ -2,6 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { copy } from 'fs-extra'
+import test from 'jest-t-assert'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
@@ -13,8 +14,6 @@ import {
   mutateModules,
 } from 'supi'
 import symlinkDir = require('symlink-dir')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
 import {
   local,
@@ -23,10 +22,8 @@ import {
 } from '../utils'
 
 const ncp = promisify(ncpCB.ncp)
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
-test('scoped modules from a directory', async (t: tape.Test) => {
+test('scoped modules from a directory', async t => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, [local('local-scoped-pkg')], await testDefaults())
 
@@ -35,7 +32,7 @@ test('scoped modules from a directory', async (t: tape.Test) => {
   t.equal(m(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 })
 
-test('local file', async (t: tape.Test) => {
+test('local file', async t => {
   const project = prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
@@ -59,7 +56,7 @@ test('local file', async (t: tape.Test) => {
   })
 })
 
-test('local file via link:', async (t: tape.Test) => {
+test('local file via link:', async t => {
   const project = prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
@@ -83,7 +80,7 @@ test('local file via link:', async (t: tape.Test) => {
   })
 })
 
-test('local file with symlinked node_modules', async (t: tape.Test) => {
+test('local file with symlinked node_modules', async t => {
   const project = prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
   await fs.mkdir(path.join('..', 'node_modules'))
@@ -118,7 +115,7 @@ test('package with a broken symlink', async (t) => {
   t.ok(m, 'has-broken-symlink is available')
 })
 
-test('tarball local package', async (t: tape.Test) => {
+test('tarball local package', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, [pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
 
@@ -141,7 +138,7 @@ test('tarball local package', async (t: tape.Test) => {
   }, `a snapshot of the local dep tarball added to ${WANTED_LOCKFILE}`)
 })
 
-test('tarball local package from project directory', async (t: tape.Test) => {
+test('tarball local package from project directory', async t => {
   const project = prepareEmpty(t)
 
   await copy(path.join(pathToLocalPkg('tar-pkg'), 'tar-pkg-1.0.0.tgz'), path.resolve('tar-pkg-1.0.0.tgz'))

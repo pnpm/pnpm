@@ -1,16 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import RegClient = require('anonymous-npm-registry-client')
+import test from 'jest-t-assert'
 import path = require('path')
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('a package that need authentication', async (t: tape.Test) => {
+test('a package that need authentication', async t => {
   const project = prepareEmpty(t)
 
   const client = new RegClient()
@@ -58,7 +54,7 @@ test('a package that need authentication', async (t: tape.Test) => {
   await project.has('needs-auth')
 })
 
-test('installing a package that need authentication, using password', async (t: tape.Test) => {
+test('installing a package that need authentication, using password', async t => {
   const project = prepareEmpty(t)
 
   const client = new RegClient()
@@ -90,7 +86,7 @@ test('installing a package that need authentication, using password', async (t: 
   t.ok(typeof m === 'function', 'needs-auth() is available')
 })
 
-test('a package that need authentication, legacy way', async (t: tape.Test) => {
+test('a package that need authentication, legacy way', async t => {
   const project = prepareEmpty(t)
 
   const client = new RegClient()
@@ -121,7 +117,7 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
   t.ok(typeof m === 'function', 'needs-auth() is available')
 })
 
-test('a scoped package that need authentication specific to scope', async (t: tape.Test) => {
+test('a scoped package that need authentication specific to scope', async t => {
   const project = prepareEmpty(t)
 
   const client = new RegClient()
@@ -167,7 +163,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
   await project.has('@private/foo')
 })
 
-test('a package that need authentication reuses authorization tokens for tarball fetching', async (t: tape.Test) => {
+test('a package that need authentication reuses authorization tokens for tarball fetching', async t => {
   const project = prepareEmpty(t)
 
   const client = new RegClient()
@@ -203,7 +199,7 @@ test('a package that need authentication reuses authorization tokens for tarball
   t.ok(typeof m === 'function', 'needs-auth() is available')
 })
 
-test('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async (t: tape.Test) => {
+test('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async t => {
   const project = prepareEmpty(t)
 
   const client = new RegClient()

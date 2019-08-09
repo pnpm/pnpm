@@ -13,6 +13,7 @@ import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
+import test from 'jest-t-assert'
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
@@ -24,8 +25,6 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 import {
@@ -34,12 +33,9 @@ import {
   testDefaults,
 } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
 const IS_WINDOWS = isWindows()
 
-test('small with dependencies (rimraf)', async (t: tape.Test) => {
+test('small with dependencies (rimraf)', async t => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults())
 
@@ -51,7 +47,7 @@ test('small with dependencies (rimraf)', async (t: tape.Test) => {
   t.ok(lockfile.packages['/rimraf/2.5.1'].hasBin, `package marked with "hasBin: true" in ${WANTED_LOCKFILE}`)
 })
 
-test('spec not specified in package.json.dependencies', async (t: tape.Test) => {
+test('spec not specified in package.json.dependencies', async t => {
   const project = prepareEmpty(t)
 
   await install({
@@ -64,7 +60,7 @@ test('spec not specified in package.json.dependencies', async (t: tape.Test) => 
   t.ok(lockfile.specifiers['is-positive'] === '', `spec saved properly in ${WANTED_LOCKFILE}`)
 })
 
-test('ignoring some files in the dependency', async (t: tape.Test) => {
+test('ignoring some files in the dependency', async t => {
   prepareEmpty(t)
 
   const ignoreFile = (filename: string) => filename === 'readme.md'
@@ -74,7 +70,7 @@ test('ignoring some files in the dependency', async (t: tape.Test) => {
   t.notOk(await exists(path.resolve('node_modules', 'is-positive', 'readme.md')), 'readme.md was ignored')
 })
 
-test('no dependencies (lodash)', async (t: tape.Test) => {
+test('no dependencies (lodash)', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -211,7 +207,7 @@ test('installing a package by specifying a specific dist-tag', async (t) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('update a package when installing with a dist-tag', async (t: tape.Test) => {
+test('update a package when installing with a dist-tag', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -281,7 +277,7 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
   t.ok(m === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
 })
 
-test('idempotency (rimraf)', async (t: tape.Test) => {
+test('idempotency (rimraf)', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
   const opts = await testDefaults({ reporter })
@@ -316,7 +312,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
   t.ok(typeof m === 'function', 'rimraf is available')
 })
 
-test('reporting adding root package', async (t: tape.Test) => {
+test('reporting adding root package', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults())
 
@@ -337,7 +333,7 @@ test('reporting adding root package', async (t: tape.Test) => {
   } as RootLog), 'reported that flatten added to the root')
 })
 
-test('overwriting (magic-hook@2.0.0 and @0.1.0)', async (t: tape.Test) => {
+test('overwriting (magic-hook@2.0.0 and @0.1.0)', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults())
 
@@ -377,7 +373,7 @@ test('forcing', async (t) => {
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
 })
 
-test('argumentless forcing', async (t: tape.Test) => {
+test('argumentless forcing', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults())
 
@@ -418,7 +414,7 @@ test('refetch package to store if it has been modified', async (t) => {
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
 })
 
-test("don't refetch package to store if it has been modified and verify-store-integrity = false", async (t: tape.Test) => {
+test("don't refetch package to store if it has been modified and verify-store-integrity = false", async t => {
   const project = prepareEmpty(t)
   const opts = await testDefaults({ verifyStoreIntegrity: false })
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], opts)
@@ -434,7 +430,7 @@ test("don't refetch package to store if it has been modified and verify-store-in
 
 // TODO: decide what to do with this case
 // tslint:disable-next-line:no-string-literal
-test['skip']('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
+test['skip']('relink package to project if the dependency is not linked from store', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
@@ -458,7 +454,7 @@ test['skip']('relink package to project if the dependency is not linked from sto
   t.ok(storeInode === await getInode(), 'package.json inode matches the one that is in store')
 })
 
-test('circular deps', async (t: tape.Test) => {
+test('circular deps', async t => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['circular-deps-1-of-2'], await testDefaults())
 
@@ -469,7 +465,7 @@ test('circular deps', async (t: tape.Test) => {
   t.notOk(await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
 })
 
-test('concurrent circular deps', async (t: tape.Test) => {
+test('concurrent circular deps', async t => {
   // es5-ext is an external package from the registry
   // the latest dist-tag is overriden to have a stable test
   await addDistTag('es5-ext', '0.10.31', 'latest')
@@ -507,7 +503,7 @@ test('big with dependencies and circular deps (babel-preset-2015)', async (t) =>
   t.ok(typeof m === 'object', 'babel-preset-es2015 is available')
 })
 
-test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape.Test) => {
+test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['pkg-with-bundled-dependencies@1.0.0'], await testDefaults())
@@ -522,7 +518,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape
   )
 })
 
-test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.Test) => {
+test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['pkg-with-bundle-dependencies@1.0.0'], await testDefaults())
@@ -578,7 +574,7 @@ test('bin specified in the directories property linked to .bin folder', async (t
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
 
-test('building native addons', async (t: tape.Test) => {
+test('building native addons', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['runas@3.1.1'], await testDefaults())
@@ -589,7 +585,7 @@ test('building native addons', async (t: tape.Test) => {
   t.ok(lockfile.packages['/runas/3.1.1'].requiresBuild)
 })
 
-test('should update subdep on second install', async (t: tape.Test) => {
+test('should update subdep on second install', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -625,7 +621,7 @@ test('should update subdep on second install', async (t: tape.Test) => {
   t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.1.0', 'updated in node_modules')
 })
 
-test('should not update subdep when depth is smaller than depth of package', async (t: tape.Test) => {
+test('should not update subdep when depth is smaller than depth of package', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -678,7 +674,7 @@ test('should throw error when trying to install using a different store then the
   }
 })
 
-test('ignores drive case in store path', async (t: tape.Test) => {
+test('ignores drive case in store path', async t => {
   if (!isWindows()) return
 
   prepareEmpty(t)
@@ -696,7 +692,7 @@ test('should not throw error if using a different store after all the packages w
   // TODO: implement
 })
 
-test('lockfile locks npm dependencies', async (t: tape.Test) => {
+test('lockfile locks npm dependencies', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -753,7 +749,7 @@ test('self-require should work', async (t) => {
   t.ok(project.requireModule('uses-pkg-with-self-usage'))
 })
 
-test('install on project with lockfile and no node_modules', async (t: tape.Test) => {
+test('install on project with lockfile and no node_modules', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['is-negative'], await testDefaults())
@@ -768,7 +764,7 @@ test('install on project with lockfile and no node_modules', async (t: tape.Test
   await project.has('is-negative')
 })
 
-test('install a dependency with * range', async (t: tape.Test) => {
+test('install a dependency with * range', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -791,7 +787,7 @@ test('install a dependency with * range', async (t: tape.Test) => {
   } as PackageJsonLog), 'should log package-json updated even when package.json was not changed')
 })
 
-test('should throw error when trying to install a package without name', async (t: tape.Test) => {
+test('should throw error when trying to install a package without name', async t => {
   prepareEmpty(t)
   try {
     await addDependenciesToPackage({}, [local('missing-pkg-name.tgz')], await testDefaults())
@@ -943,7 +939,7 @@ test('do not update deps when lockfile is present', async (t) => {
   t.deepEqual(initialLockfile, latestLockfile)
 })
 
-test('all the subdeps of dependencies are linked when a node_modules is partially up-to-date', async (t: tape.Test) => {
+test('all the subdeps of dependencies are linked when a node_modules is partially up-to-date', async t => {
   prepareEmpty(t)
 
   await mutateModules([
@@ -1027,7 +1023,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
   )
 })
 
-test('subdep symlinks are updated if the lockfile has new subdep versions specified', async (t: tape.Test) => {
+test('subdep symlinks are updated if the lockfile has new subdep versions specified', async t => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
   const project = prepareEmpty(t)
 

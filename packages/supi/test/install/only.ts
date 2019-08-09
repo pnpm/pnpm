@@ -1,15 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import fs = require('mz/fs')
 import path = require('path')
 import { install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-
-test('production install (with --production flag)', async (t: tape.Test) => {
+test('production install (with --production flag)', async t => {
   const project = prepareEmpty(t)
 
   await install({
@@ -41,7 +38,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
   t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
 })
 
-test('install dev dependencies only', async (t: tape.Test) => {
+test('install dev dependencies only', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await install({
@@ -86,7 +83,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   }
 })
 
-test('fail if installing different types of dependencies in a project that uses an external lockfile', async (t: tape.Test) => {
+test('fail if installing different types of dependencies in a project that uses an external lockfile', async t => {
   const project = prepareEmpty(t)
 
   const lockfileDirectory = path.resolve('..')

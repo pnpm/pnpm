@@ -8,6 +8,7 @@ import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { PackageJson } from '@pnpm/types'
+import test from 'jest-t-assert'
 import makeDir = require('make-dir')
 import path = require('path')
 import exists = require('path-exists')
@@ -20,17 +21,11 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
   testDefaults,
 } from './utils'
-
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-test['skip'] = promisifyTape(tape.skip) // tslint:disable-line:no-string-literal
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -38,7 +33,7 @@ const LOCKFILE_WARN_LOG = {
   name: 'pnpm',
 }
 
-test('lockfile has correct format', async (t: tape.Test) => {
+test('lockfile has correct format', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({},
@@ -76,7 +71,7 @@ test('lockfile has correct format', async (t: tape.Test) => {
   t.ok(lockfile.packages[absDepPath].name, 'github-hosted package has name specified')
 })
 
-test('lockfile has dev deps even when installing for prod only', async (t: tape.Test) => {
+test('lockfile has dev deps even when installing for prod only', async t => {
   const project = prepareEmpty(t)
 
   await install({
@@ -95,7 +90,7 @@ test('lockfile has dev deps even when installing for prod only', async (t: tape.
   t.ok(lockfile.packages[id], `has resolution for ${id}`)
 })
 
-test('lockfile with scoped package', async (t: tape.Test) => {
+test('lockfile with scoped package', async t => {
   prepareEmpty(t)
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -122,7 +117,7 @@ test('lockfile with scoped package', async (t: tape.Test) => {
   }, await testDefaults({ frozenLockfile: true }))
 })
 
-test('fail when shasum from lockfile does not match with the actual one', async (t: tape.Test) => {
+test('fail when shasum from lockfile does not match with the actual one', async t => {
   prepareEmpty(t)
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -155,7 +150,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
   }
 })
 
-test("lockfile doesn't lock subdependencies that don't satisfy the new specs", async (t: tape.Test) => {
+test("lockfile doesn't lock subdependencies that don't satisfy the new specs", async t => {
   const project = prepareEmpty(t)
 
   // dependends on react-onclickoutside@5.9.0
@@ -174,7 +169,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   t.equal(Object.keys(lockfile.dependencies).length, 1, 'resolutions not duplicated')
 })
 
-test('lockfile not created when no deps in package.json', async (t: tape.Test) => {
+test('lockfile not created when no deps in package.json', async t => {
   const project = prepareEmpty(t)
 
   await install({}, await testDefaults())
@@ -183,7 +178,7 @@ test('lockfile not created when no deps in package.json', async (t: tape.Test) =
   t.notOk(await exists('node_modules'), 'empty node_modules not created')
 })
 
-test('lockfile removed when no deps in package.json', async (t: tape.Test) => {
+test('lockfile removed when no deps in package.json', async t => {
   const project = prepareEmpty(t)
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -208,7 +203,7 @@ test('lockfile removed when no deps in package.json', async (t: tape.Test) => {
   t.notOk(await project.readLockfile(), 'lockfile removed')
 })
 
-test('lockfile is fixed when it does not match package.json', async (t: tape.Test) => {
+test('lockfile is fixed when it does not match package.json', async t => {
   const project = prepareEmpty(t)
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -266,7 +261,7 @@ test('lockfile is fixed when it does not match package.json', async (t: tape.Tes
   t.notOk(lockfile.packages['/@types/semver/5.3.31'], 'package not referenced in package.json removed')
 })
 
-test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async (t: tape.Test) => {
+test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async t => {
   const project = prepareEmpty(t)
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -316,7 +311,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async (t
   await project.has('is-negative')
 })
 
-test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) => {
+test(`respects ${WANTED_LOCKFILE} for top dependencies`, async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
   // const fooProgress = sinon.match({
@@ -369,7 +364,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
 })
 
-test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async (t: tape.Test) => {
+test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -399,7 +394,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
 
-test("recreates lockfile if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
+test("recreates lockfile if it doesn't match the dependencies in package.json", async t => {
   const project = prepareEmpty(t)
 
   let manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
@@ -428,7 +423,7 @@ test("recreates lockfile if it doesn't match the dependencies in package.json", 
   t.equal(lockfile.specifiers['map-obj'], '1.0.1')
 })
 
-test('repeat install with lockfile should not mutate lockfile when dependency has version specified with v prefix', async (t: tape.Test) => {
+test('repeat install with lockfile should not mutate lockfile when dependency has version specified with v prefix', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['highmaps-release@5.0.11'], await testDefaults())
@@ -446,7 +441,7 @@ test('repeat install with lockfile should not mutate lockfile when dependency ha
   t.deepEqual(lockfile1, lockfile2, "lockfile hasn't been changed")
 })
 
-test('package is not marked dev if it is also a subdep of a regular dependency', async (t: tape.Test) => {
+test('package is not marked dev if it is also a subdep of a regular dependency', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -464,7 +459,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].dev, 'package is not marked as dev')
 })
 
-test('package is not marked optional if it is also a subdep of a regular dependency', async (t: tape.Test) => {
+test('package is not marked optional if it is also a subdep of a regular dependency', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -477,7 +472,7 @@ test('package is not marked optional if it is also a subdep of a regular depende
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'].optional, 'package is not marked as optional')
 })
 
-test('scoped module from different registry', async (t: tape.Test) => {
+test('scoped module from different registry', async t => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults()
@@ -548,7 +543,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
   })
 })
 
-test('repeat install with no inner lockfile should not rewrite packages in node_modules', async (t: tape.Test) => {
+test('repeat install with no inner lockfile should not rewrite packages in node_modules', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults())
@@ -564,7 +559,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 // Skipped because the npm-registry.compass.com server was down
 // might be a good idea to mock it
 // tslint:disable-next-line:no-string-literal
-test['skip']('installing from lockfile when using npm enterprise', async (t: tape.Test) => {
+test['skip']('installing from lockfile when using npm enterprise', async t => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({ registry: 'https://npm-registry.compass.com/' })
@@ -603,7 +598,7 @@ test['skip']('installing from lockfile when using npm enterprise', async (t: tap
   await project.has('is-positive')
 })
 
-test('packages are placed in devDependencies even if they are present as non-dev as well', async (t: tape.Test) => {
+test('packages are placed in devDependencies even if they are present as non-dev as well', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
@@ -643,7 +638,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
 
 // This testcase verifies that pnpm is not failing when trying to preserve dependencies.
 // Only when a dependency is a range dependency, should pnpm try to compare versions of deps with semver.satisfies().
-test('updating package that has a github-hosted dependency', async (t: tape.Test) => {
+test('updating package that has a github-hosted dependency', async t => {
   prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['has-github-dep@1'], await testDefaults())
@@ -652,7 +647,7 @@ test('updating package that has a github-hosted dependency', async (t: tape.Test
   t.pass('installation of latest did not fail')
 })
 
-test('updating package that has deps with peers', async (t: tape.Test) => {
+test('updating package that has deps with peers', async t => {
   prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c@0'], await testDefaults())
@@ -661,7 +656,7 @@ test('updating package that has deps with peers', async (t: tape.Test) => {
   t.pass('installation of latest did not fail')
 })
 
-test('pendingBuilds gets updated if install removes packages', async (t: tape.Test) => {
+test('pendingBuilds gets updated if install removes packages', async t => {
   const project = prepareEmpty(t)
 
   await install({
@@ -684,7 +679,7 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
   t.ok(modules1!.pendingBuilds.length > modules2!.pendingBuilds.length, 'pendingBuilds gets updated when install removes packages')
 })
 
-test('dev properties are correctly updated on named install', async (t: tape.Test) => {
+test('dev properties are correctly updated on named install', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage(
@@ -702,7 +697,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   )
 })
 
-test('optional properties are correctly updated on named install', async (t: tape.Test) => {
+test('optional properties are correctly updated on named install', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
@@ -712,7 +707,7 @@ test('optional properties are correctly updated on named install', async (t: tap
   t.deepEqual(R.values(lockfile.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], `there are 0 packages with optional property in ${WANTED_LOCKFILE}`)
 })
 
-test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async (t: tape.Test) => {
+test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async t => {
   const project = prepareEmpty(t)
 
   // TODO: use a smaller package for testing
@@ -722,7 +717,7 @@ test('dev property is correctly set for package that is duplicated to both the d
   t.ok(lockfile.packages['/couleurs/5.0.0'].dev === false)
 })
 
-test('no lockfile', async (t: tape.Test) => {
+test('no lockfile', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -735,7 +730,7 @@ test('no lockfile', async (t: tape.Test) => {
   t.notOk(await project.readLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
-test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
+test('lockfile is ignored when lockfile = false', async t => {
   const project = prepareEmpty(t)
 
   await writeYamlFile(WANTED_LOCKFILE, {
@@ -771,7 +766,7 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
   t.ok(await project.readLockfile(), `existing ${WANTED_LOCKFILE} not removed`)
 })
 
-test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async (t: tape.Test) => {
+test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async t => {
   const project = prepareEmpty(t)
 
   let manifest!: PackageJson
@@ -803,7 +798,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
   t.ok(await project.readLockfile(), `${WANTED_LOCKFILE} not removed during uninstall`)
 })
 
-test('fail when installing with useLockfile: false and lockfileOnly: true', async (t: tape.Test) => {
+test('fail when installing with useLockfile: false and lockfileOnly: true', async t => {
   prepareEmpty(t)
 
   try {
@@ -814,7 +809,7 @@ test('fail when installing with useLockfile: false and lockfileOnly: true', asyn
   }
 })
 
-test("don't remove packages during named install when useLockfile: false", async (t: tape.Test) => {
+test("don't remove packages during named install when useLockfile: false", async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ useLockfile: false }))
@@ -824,7 +819,7 @@ test("don't remove packages during named install when useLockfile: false", async
   await project.has('is-negative')
 })
 
-test('save tarball URL when it is non-standard', async (t: tape.Test) => {
+test('save tarball URL when it is non-standard', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults())
@@ -834,7 +829,7 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
   t.equal(lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, 'esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
 })
 
-test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {
+test('packages installed via tarball URL from the default registry are normalized', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, [
@@ -883,7 +878,7 @@ test('packages installed via tarball URL from the default registry are normalize
   })
 })
 
-test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async (t: tape.Test) => {
+test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async t => {
   prepareEmpty(t)
 
   const store = path.resolve('..', '.store')
@@ -970,7 +965,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   }
 })
 
-test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, async (t: tape.Test) => {
+test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, async t => {
   const pkg1 = {
     name: 'pkg1',
     version: '1.0.0',
@@ -1076,7 +1071,7 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1876
-test('existing dependencies are preserved when updating a lockfile to a newer format', async (t: tape.Test) => {
+test('existing dependencies are preserved when updating a lockfile to a newer format', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')

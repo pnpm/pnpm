@@ -1,15 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import pnpmRegistryMock = require('@pnpm/registry-mock')
+import test from 'jest-t-assert'
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const addDistTag = pnpmRegistryMock.addDistTag
 
-test('prefer version ranges specified for top dependencies', async (t: tape.Test) => {
+test('prefer version ranges specified for top dependencies', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -29,7 +26,7 @@ test('prefer version ranges specified for top dependencies', async (t: tape.Test
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
-test('prefer version ranges specified for top dependencies, when doing named installation', async (t: tape.Test) => {
+test('prefer version ranges specified for top dependencies, when doing named installation', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -49,7 +46,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
-test('prefer version ranges specified for top dependencies, even if they are aliased', async (t: tape.Test) => {
+test('prefer version ranges specified for top dependencies, even if they are aliased', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -69,7 +66,7 @@ test('prefer version ranges specified for top dependencies, even if they are ali
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
-test('prefer version ranges specified for top dependencies, even if the subdependencies are aliased', async (t: tape.Test) => {
+test('prefer version ranges specified for top dependencies, even if the subdependencies are aliased', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -89,7 +86,7 @@ test('prefer version ranges specified for top dependencies, even if the subdepen
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
-test('ignore version of root dependency when it is incompatible with the indirect dependency\'s range', async (t: tape.Test) => {
+test('ignore version of root dependency when it is incompatible with the indirect dependency\'s range', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
@@ -109,7 +106,7 @@ test('ignore version of root dependency when it is incompatible with the indirec
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/101.0.0'])
 })
 
-test('prefer dist-tag specified for top dependency', async (t: tape.Test) => {
+test('prefer dist-tag specified for top dependency', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
@@ -130,7 +127,7 @@ test('prefer dist-tag specified for top dependency', async (t: tape.Test) => {
   t.notOk(lockfile.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
 
-test('prefer version ranges passed in via opts.preferredVersions', async (t: tape.Test) => {
+test('prefer version ranges passed in via opts.preferredVersions', async t => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   const project = prepareEmpty(t)
@@ -160,7 +157,7 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1187
-test('resolution-strategy=fewer-dependencies: prefer version of package that also satisfies the range of the same package higher in the dependency graph', async (t: tape.Test) => {
+test('resolution-strategy=fewer-dependencies: prefer version of package that also satisfies the range of the same package higher in the dependency graph', async t => {
   const project = prepareEmpty(t)
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
@@ -182,7 +179,7 @@ test('resolution-strategy=fewer-dependencies: prefer version of package that als
   )
 })
 
-test('resolution-strategy=fast: always prefer the latest version', async (t: tape.Test) => {
+test('resolution-strategy=fast: always prefer the latest version', async t => {
   const project = prepareEmpty(t)
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 

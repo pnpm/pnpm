@@ -1,51 +1,47 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import ncpCB = require('ncp')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, mutateModules, rebuild } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
 import { pathToLocalPkg, testDefaults } from '../utils'
 
 const ncp = promisify(ncpCB)
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-const testSkip = promisifyTape(tape.skip)
 
-testSkip('subsequent installation uses same lockfile directory by default', async (t: tape.Test) => {
-  prepareEmpty(t)
+// testSkip('subsequent installation uses same lockfile directory by default', async t => {
+//   prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+//   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
 
-  await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults())
+//   await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults())
 
-  const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
+//   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
 
-  t.deepEqual(Object.keys(lockfile['packages'] || {}), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
-})
+//   t.deepEqual(Object.keys(lockfile['packages'] || {}), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
+// })
 
-testSkip('subsequent installation fails if a different lockfile directory is specified', async (t: tape.Test) => {
-  prepareEmpty(t)
+// testSkip('subsequent installation fails if a different lockfile directory is specified', async t => {
+//   prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+//   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
 
-  let err!: Error & {code: string}
+//   let err!: Error & {code: string}
 
-  try {
-    await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ lockfileDirectory: process.cwd() }))
-  } catch (_) {
-    err = _
-  }
+//   try {
+//     await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ lockfileDirectory: process.cwd() }))
+//   } catch (_) {
+//     err = _
+//   }
 
-  t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_LOCKFILE_DIRECTORY_MISMATCH', 'failed with correct error code')
-})
+//   t.ok(err)
+//   t.equal(err.code, 'ERR_PNPM_LOCKFILE_DIRECTORY_MISMATCH', 'failed with correct error code')
+// })
 
-test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async (t: tape.Test) => {
+test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async t => {
   const project = prepareEmpty(t)
 
   await ncp(path.join(pathToLocalPkg('tar-pkg-with-dep-2'), 'tar-pkg-with-dep-1.0.0.tgz'), 'pkg.tgz')

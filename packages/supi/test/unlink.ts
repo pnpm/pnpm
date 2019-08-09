@@ -1,6 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import isInnerLink = require('is-inner-link')
+import test from 'jest-t-assert'
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
@@ -10,18 +11,13 @@ import {
   link,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')
 import {
   addDistTag,
   testDefaults,
 } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
+test('unlink 1 package that exists in package.json', async t => {
   const project = prepareEmpty(t)
   process.chdir('..')
 
@@ -76,7 +72,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
   t.notOk((await isInnerLink('node_modules', 'is-positive')).isInner, 'is-positive left linked')
 })
 
-test("don't update package when unlinking", async (t: tape.Test) => {
+test("don't update package when unlinking", async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
@@ -109,7 +105,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
 })
 
-test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
+test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async t => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({ prefix: process.cwd() })
@@ -147,7 +143,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
   t.deepEqual(unlinkResult[0].manifest.dependencies, { foo: '^100.0.0' }, 'package.json not updated')
 })
 
-test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {
+test('unlink 2 packages. One of them exists in package.json', async t => {
   const project = prepareEmpty(t)
   const opts = await testDefaults({ prefix: process.cwd() })
   process.chdir('..')
@@ -192,7 +188,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
   t.notOk(await exists(path.join('node_modules', 'is-positive')), 'is-positive removed as it is not in package.json')
 })
 
-test('unlink all packages', async (t: tape.Test) => {
+test('unlink all packages', async t => {
   const project = prepareEmpty(t)
   const opts = await testDefaults({ prefix: process.cwd() })
   process.chdir('..')
@@ -236,7 +232,7 @@ test('unlink all packages', async (t: tape.Test) => {
   t.equal(typeof project.requireModule('@zkochan/logger'), 'object', '@zkochan/logger installed after unlinked')
 })
 
-test("don't warn about scoped packages when running unlink w/o params", async (t: tape.Test) => {
+test("don't warn about scoped packages when running unlink w/o params", async t => {
   prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['@zkochan/logger'], await testDefaults())
@@ -259,7 +255,7 @@ test("don't warn about scoped packages when running unlink w/o params", async (t
   }), 'not reported warning')
 })
 
-test("don't unlink package that is not a link", async (t: tape.Test) => {
+test("don't unlink package that is not a link", async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -284,7 +280,7 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
   }), 'reported warning')
 })
 
-test("don't unlink package that is not a link when independent-leaves = true", async (t: tape.Test) => {
+test("don't unlink package that is not a link when independent-leaves = true", async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()

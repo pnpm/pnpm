@@ -1,21 +1,17 @@
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   PackageManifest,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
+test('readPackage, afterAllResolved hooks', async t => {
   const project = prepareEmpty(t)
 
   // w/o the hook, 100.1.0 would be installed

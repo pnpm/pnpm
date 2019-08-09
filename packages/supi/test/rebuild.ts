@@ -1,5 +1,6 @@
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { PackageJson } from '@pnpm/types'
+import test from 'jest-t-assert'
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
@@ -9,8 +10,6 @@ import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
 import {
   pathToLocalPkg,
@@ -18,10 +17,8 @@ import {
 } from './utils'
 
 const ncp = promisify(ncpCB.ncp)
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
-test('rebuilds dependencies', async (t: tape.Test) => {
+test('rebuilds dependencies', async t => {
   const project = prepareEmpty(t)
 
   const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
@@ -68,7 +65,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   }
 })
 
-test('rebuild does not fail when a linked package is present', async (t: tape.Test) => {
+test('rebuild does not fail when a linked package is present', async t => {
   prepareEmpty(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
@@ -80,7 +77,7 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
   t.pass('rebuild did not fail')
 })
 
-test('rebuilds specific dependencies', async (t: tape.Test) => {
+test('rebuilds specific dependencies', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage(
     {},
@@ -103,7 +100,7 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 })
 
-test('rebuild with pending option', async (t: tape.Test) => {
+test('rebuild with pending option', async t => {
   const project = prepareEmpty(t)
   let manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
   manifest = await addDependenciesToPackage(manifest, ['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
@@ -143,7 +140,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   }
 })
 
-test('rebuild dependencies in correct order', async (t: tape.Test) => {
+test('rebuild dependencies in correct order', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
@@ -164,7 +161,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
-test('rebuild dependencies in correct order when node_modules uses independent-leaves', async (t: tape.Test) => {
+test('rebuild dependencies in correct order when node_modules uses independent-leaves', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true, independentLeaves: true }))
@@ -185,7 +182,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
-test('rebuild multiple packages in correct order', async (t: tape.Test) => {
+test('rebuild multiple packages in correct order', async t => {
   const pkgs = [
     {
       name: 'project-1',
@@ -267,7 +264,7 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
   t.deepEqual(outputs2, ['project-1', 'project-3'])
 })
 
-test('rebuild links bins', async (t: tape.Test) => {
+test('rebuild links bins', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep', 'generated-bins'], await testDefaults({ ignoreScripts: true }))

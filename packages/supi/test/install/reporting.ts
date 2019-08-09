@@ -1,18 +1,15 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { DeprecationLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-
 // TODO: use a smaller package for testing deprecation
-test('reports warning when installing deprecated packages', async (t: tape.Test) => {
+test('reports warning when installing deprecated packages', async t => {
   const project = prepareEmpty(t)
 
   let manifest

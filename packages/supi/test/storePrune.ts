@@ -1,6 +1,7 @@
 import assertStore from '@pnpm/assert-store'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
@@ -9,14 +10,9 @@ import {
   mutateModules,
   storePrune,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('remove unreferenced packages', async (t: tape.Test) => {
+test('remove unreferenced packages', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
@@ -50,7 +46,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
   }))
 })
 
-test('remove packages that are used by project that no longer exist', async (t: tape.Test) => {
+test('remove packages that are used by project that no longer exist', async t => {
   prepareEmpty(t)
   const opts = await testDefaults({ save: true })
   const store = assertStore(t, opts.store)
@@ -72,7 +68,7 @@ test('remove packages that are used by project that no longer exist', async (t: 
   await store.storeHasNot('is-negative', '2.1.0')
 })
 
-test('keep dependencies used by others', async (t: tape.Test) => {
+test('keep dependencies used by others', async t => {
   const project = prepareEmpty(t)
   let manifest = await addDependenciesToPackage({}, ['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
   manifest = await addDependenciesToPackage(manifest, ['hastscript@3.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
@@ -108,7 +104,7 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   await project.storeHas('camelcase', '3.0.0')
 })
 
-test('keep dependency used by package', async (t: tape.Test) => {
+test('keep dependency used by package', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['is-not-positive@1.0.0', 'is-positive@3.1.0'], await testDefaults({ save: true }))
   await mutateModules([

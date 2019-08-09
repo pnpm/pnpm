@@ -1,18 +1,14 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import test from 'jest-t-assert'
 import { addDependenciesToPackage } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('installing aliased dependency', async (t: tape.Test) => {
+test('installing aliased dependency', async t => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults())
 
@@ -66,7 +62,7 @@ test('aliased dependency w/o version spec, with custom tag config', async (t) =>
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('a dependency has an aliased subdependency', async (t: tape.Test) => {
+test('a dependency has an aliased subdependency', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults())
@@ -101,7 +97,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
   }, `correct ${WANTED_LOCKFILE}`)
 })
 
-test('installing the same package via an alias and directly', async (t: tape.Test) => {
+test('installing the same package via an alias and directly', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults())
 

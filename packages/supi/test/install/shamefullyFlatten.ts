@@ -1,5 +1,6 @@
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import fs = require('fs')
+import test from 'jest-t-assert'
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
 import rimraf = require('rimraf-then')
@@ -10,12 +11,7 @@ import {
   mutateModules,
   ShamefullyFlattenNotInLockfileDirectoryError,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { addDistTag, testDefaults } from '../utils'
-
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('should flatten dependencies', async (t) => {
   const project = prepareEmpty(t)
@@ -59,7 +55,7 @@ test('should not override root packages with flattened dependencies', async (t) 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug did not get overridden by flattening')
 })
 
-test('should reflatten when uninstalling a package', async (t: tape.Test) => {
+test('should reflatten when uninstalling a package', async t => {
   const project = prepareEmpty(t)
 
   // this installs debug@3.1.0 and express@4.16.0
@@ -113,7 +109,7 @@ test('should reflatten after running a general install', async (t) => {
   t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')
 })
 
-test('should not override aliased dependencies', async (t: tape.Test) => {
+test('should not override aliased dependencies', async t => {
   const project = prepareEmpty(t)
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
   await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ shamefullyFlatten: true }))
@@ -121,7 +117,7 @@ test('should not override aliased dependencies', async (t: tape.Test) => {
   t.equal(project.requireModule('debug/package.json').version, '1.0.0', 'alias respected by flattening')
 })
 
-test('--shamefully-flatten throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
+test('--shamefully-flatten throws exception when executed on node_modules installed w/o the option', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ shamefullyFlatten: false }))
 
@@ -134,7 +130,7 @@ test('--shamefully-flatten throws exception when executed on node_modules instal
   }
 })
 
-test('--no-shamefully-flatten throws exception when executed on node_modules installed with --shamefully-flatten', async (t: tape.Test) => {
+test('--no-shamefully-flatten throws exception when executed on node_modules installed with --shamefully-flatten', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ shamefullyFlatten: true }))
 
@@ -147,7 +143,7 @@ test('--no-shamefully-flatten throws exception when executed on node_modules ins
   }
 })
 
-test('flatten by alias', async (t: tape.Test) => {
+test('flatten by alias', async t => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   const project = prepareEmpty(t)
 
@@ -261,7 +257,7 @@ test('should uninstall correctly peer dependencies', async (t) => {
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
 })
 
-test('shamefully-flatten: throw exception when executed on a project that uses an external lockfile', async (t: tape.Test) => {
+test('shamefully-flatten: throw exception when executed on a project that uses an external lockfile', async t => {
   prepareEmpty(t)
   const lockfileDirectory = path.resolve('..')
 

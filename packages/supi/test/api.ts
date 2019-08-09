@@ -1,5 +1,5 @@
+import test from 'jest-t-assert'
 import * as pnpm from 'supi'
-import test = require('tape')
 import { testDefaults } from './utils'
 
 test('API', (t) => {
@@ -15,7 +15,7 @@ test('API', (t) => {
 // this seems illogical as even though all save types are false,
 // the dependency will be saved
 // tslint:disable-next-line:no-string-literal
-test['skip']('install fails when all saving types are false', async (t: test.Test) => {
+test['skip']('install fails when all saving types are false', async t => {
   try {
     await pnpm.install({}, await testDefaults({ save: false, saveDev: false, saveOptional: false }))
     t.fail('installation should have failed')
@@ -25,7 +25,7 @@ test['skip']('install fails when all saving types are false', async (t: test.Tes
   }
 })
 
-test('install fails on optional = true but production = false', async (t: test.Test) => {
+test('install fails on optional = true but production = false', async t => {
   try {
     const opts = await testDefaults({
       include: {

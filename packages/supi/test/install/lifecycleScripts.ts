@@ -1,6 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LifecycleLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
@@ -12,14 +13,9 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('run pre/postinstall scripts', async (t: tape.Test) => {
+test('run pre/postinstall scripts', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
@@ -53,7 +49,7 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   t.ok(lockfile.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild, 'requiresBuild: true added to lockfile')
 })
 
-test('testing that the bins are linked when the package with the bins was already in node_modules', async (t: tape.Test) => {
+test('testing that the bins are linked when the package with the bins was already in node_modules', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['hello-world-js-bin'], await testDefaults())
@@ -66,7 +62,7 @@ test('testing that the bins are linked when the package with the bins was alread
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 })
 
-test('run install scripts', async (t: tape.Test) => {
+test('run install scripts', async t => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['install-script-example'], await testDefaults())
 
@@ -74,7 +70,7 @@ test('run install scripts', async (t: tape.Test) => {
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 })
 
-test('run install scripts in the current project', async (t: tape.Test) => {
+test('run install scripts in the current project', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     scripts: {
@@ -90,7 +86,7 @@ test('run install scripts in the current project', async (t: tape.Test) => {
   t.deepEqual(output, ['preinstall', 'install', 'postinstall'])
 })
 
-test('run install scripts in the current project when its name is different than its directory', async (t: tape.Test) => {
+test('run install scripts in the current project when its name is different than its directory', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     name: 'different-name',
@@ -107,7 +103,7 @@ test('run install scripts in the current project when its name is different than
   t.deepEqual(output, ['preinstall', 'install', 'postinstall'])
 })
 
-test('do not run install scripts if unsafePerm is false', async (t: tape.Test) => {
+test('do not run install scripts if unsafePerm is false', async t => {
   prepareEmpty(t)
   const opts = await testDefaults({ unsafePerm: false })
   const manifest = await addDependenciesToPackage({
@@ -125,7 +121,7 @@ test('do not run install scripts if unsafePerm is false', async (t: tape.Test) =
   t.false(outputExists, 'no output expected as install scripts should not run')
 })
 
-test('installation fails if lifecycle script fails', async (t: tape.Test) => {
+test('installation fails if lifecycle script fails', async t => {
   prepareEmpty(t)
 
   try {
@@ -143,7 +139,7 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
 // TODO: unskip
 // For some reason this fails on CI environments
 // tslint:disable-next-line:no-string-literal
-test['skip']('creates env for scripts', async (t: tape.Test) => {
+test['skip']('creates env for scripts', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     scripts: {
@@ -157,7 +153,7 @@ test['skip']('creates env for scripts', async (t: tape.Test) => {
   t.deepEqual(output, [process.cwd()])
 })
 
-test('INIT_CWD is set correctly', async (t: tape.Test) => {
+test('INIT_CWD is set correctly', async t => {
   prepareEmpty(t)
   await addDependenciesToPackage({}, ['write-lifecycle-env'], await testDefaults())
 
@@ -167,7 +163,7 @@ test('INIT_CWD is set correctly', async (t: tape.Test) => {
 })
 
 // TODO: duplicate this test to @pnpm/lifecycle
-test("reports child's output", async (t: tape.Test) => {
+test("reports child's output", async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -214,7 +210,7 @@ test("reports child's output", async (t: tape.Test) => {
   } as LifecycleLog))
 })
 
-test("reports child's close event", async (t: tape.Test) => {
+test("reports child's close event", async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -233,7 +229,7 @@ test("reports child's close event", async (t: tape.Test) => {
   }
 })
 
-test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
+test('lifecycle scripts have access to node-gyp', async t => {
   prepareEmpty(t)
 
   // `npm test` adds node-gyp to the PATH
@@ -254,7 +250,7 @@ test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
   t.pass("drivelist's install script has found node-gyp in PATH")
 })
 
-test('run lifecycle scripts of dependent packages after running scripts of their deps', async (t: tape.Test) => {
+test('run lifecycle scripts of dependent packages after running scripts of their deps', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults())
@@ -262,7 +258,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
   t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
-test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
+test('run prepare script for git-hosted dependencies', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['zkochan/install-scripts-example#prepare'], await testDefaults())
@@ -277,7 +273,7 @@ test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
   t.ok(lockfile.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, `prepare field added to ${WANTED_LOCKFILE}`)
 })
 
-test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
+test('lifecycle scripts run before linking bins', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['generated-bins'], await testDefaults())
@@ -303,7 +299,7 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
   await project.isExecutable('.bin/cmd2')
 })
 
-test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Test) => {
+test('bins are linked even if lifecycle scripts are ignored', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage(
@@ -345,7 +341,7 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
   t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'), 'scripts were ignored indeed')
 })
 
-test('dependency should not be added to current lockfile if it was not built successfully during headless install', async (t: tape.Test) => {
+test('dependency should not be added to current lockfile if it was not built successfully during headless install', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage(

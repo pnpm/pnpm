@@ -1,11 +1,8 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
-
-const test = promisifyTape(tape)
 
 test('offline installation fails when package meta not found in local registry mirror', async (t) => {
   prepareEmpty(t)

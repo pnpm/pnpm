@@ -1,20 +1,16 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('preserve subdeps on update', async (t: tape.Test) => {
+test('preserve subdeps on update', async t => {
   const project = prepareEmpty(t)
 
   await Promise.all([
@@ -50,7 +46,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
   })
 })
 
-test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
+test('update does not fail when package has only peer dependencies', async t => {
   prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['has-pkg-with-peer-only'], await testDefaults())
@@ -60,7 +56,7 @@ test('update does not fail when package has only peer dependencies', async (t: t
   t.pass('did not fail')
 })
 
-test('update does not install the package if it is not present in package.json', async (t: tape.Test) => {
+test('update does not install the package if it is not present in package.json', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['is-positive'], await testDefaults({
@@ -71,7 +67,7 @@ test('update does not install the package if it is not present in package.json',
   await project.hasNot('is-positive')
 })
 
-test('update dependency when external lockfile directory is used', async (t: tape.Test) => {
+test('update dependency when external lockfile directory is used', async t => {
   prepareEmpty(t)
 
   await addDistTag('foo', '100.0.0', 'latest')

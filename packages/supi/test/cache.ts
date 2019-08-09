@@ -1,13 +1,10 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   testDefaults,
 } from './utils'
-
-const test = promisifyTape(tape)
 
 test('should fail to update when requests are cached', async (t) => {
   const project = prepareEmpty(t)
@@ -27,7 +24,7 @@ test('should fail to update when requests are cached', async (t) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('should not cache when cache is not used', async (t: tape.Test) => {
+test('should not cache when cache is not used', async t => {
   const project = prepareEmpty(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')

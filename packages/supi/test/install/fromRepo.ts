@@ -2,6 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import isCI = require('is-ci')
+import test from 'jest-t-assert'
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
@@ -9,14 +10,9 @@ import {
   addDependenciesToPackage,
   install,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('from a github repo', async (t: tape.Test) => {
+test('from a github repo', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['kevva/is-negative'], await testDefaults())
@@ -28,7 +24,7 @@ test('from a github repo', async (t: tape.Test) => {
   t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
 })
 
-test('from a github repo with different name via named installation', async (t: tape.Test) => {
+test('from a github repo with different name via named installation', async t => {
   const project = prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -62,7 +58,7 @@ test('from a github repo with different name via named installation', async (t: 
 })
 
 // This used to fail. Maybe won't be needed once api/install.ts gets refactored and covered with dedicated unit tests
-test('from a github repo with different name', async (t: tape.Test) => {
+test('from a github repo with different name', async t => {
   const project = prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -99,7 +95,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
   await project.isExecutable('.bin/szia')
 })
 
-test('a subdependency is from a github repo with different name', async (t: tape.Test) => {
+test('a subdependency is from a github repo with different name', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['has-aliased-git-dependency'], await testDefaults())
@@ -121,7 +117,7 @@ test('a subdependency is from a github repo with different name', async (t: tape
     'aliased name used to resolve a peer dependency')
 })
 
-test('from a git repo', async (t: tape.Test) => {
+test('from a git repo', async t => {
   if (isCI) {
     t.skip('not testing the SSH GIT access via CI')
     return t.end()
@@ -138,7 +134,7 @@ test('from a git repo', async (t: tape.Test) => {
 // so skipping it on Travis
 const isTravis = process.env.TRAVIS === 'true'
 if (!isTravis) {
-  test('from a non-github git repo', async (t: tape.Test) => {
+  test('from a non-github git repo', async t => {
     const project = prepareEmpty(t)
 
     await addDependenciesToPackage({}, ['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], await testDefaults())

@@ -1,19 +1,15 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
+import test from 'jest-t-assert'
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('fail on non-compatible node_modules', async (t: tape.Test) => {
+test('fail on non-compatible node_modules', async t => {
   prepareEmpty(t)
   const opts = await testDefaults()
 
@@ -27,7 +23,7 @@ test('fail on non-compatible node_modules', async (t: tape.Test) => {
   }
 })
 
-test("don't fail on non-compatible node_modules when forced", async (t: tape.Test) => {
+test("don't fail on non-compatible node_modules when forced", async t => {
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
@@ -38,7 +34,7 @@ test("don't fail on non-compatible node_modules when forced", async (t: tape.Tes
   t.pass('install did not fail')
 })
 
-test("don't fail on non-compatible node_modules when forced in a workspace", async (t: tape.Test) => {
+test("don't fail on non-compatible node_modules when forced in a workspace", async t => {
   preparePackages(t, [
     {
       location: 'pkg',
@@ -60,7 +56,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
   t.pass('install did not fail')
 })
 
-test('do not fail on non-compatible node_modules when forced with a named installation', async (t: tape.Test) => {
+test('do not fail on non-compatible node_modules when forced with a named installation', async t => {
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
@@ -69,7 +65,7 @@ test('do not fail on non-compatible node_modules when forced with a named instal
   await addDependenciesToPackage({}, ['is-negative'], opts)
 })
 
-test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
+test("don't fail on non-compatible store when forced", async t => {
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
@@ -80,7 +76,7 @@ test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
   t.pass('install did not fail')
 })
 
-test('do not fail on non-compatible store when forced during named installation', async (t: tape.Test) => {
+test('do not fail on non-compatible store when forced during named installation', async t => {
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
@@ -94,7 +90,7 @@ async function saveModulesYaml (pnpmVersion: string, storePath: string) {
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storePath}\nindependentLeaves: false`)
 }
 
-test(`fail on non-compatible ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
+test(`fail on non-compatible ${WANTED_LOCKFILE}`, async t => {
   if (isCI) {
     t.skip('this test will always fail on CI servers')
     return
@@ -111,7 +107,7 @@ test(`fail on non-compatible ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   }
 })
 
-test(`don't fail on non-compatible ${WANTED_LOCKFILE} when forced`, async (t: tape.Test) => {
+test(`don't fail on non-compatible ${WANTED_LOCKFILE} when forced`, async t => {
   prepareEmpty(t)
   await fs.writeFile(WANTED_LOCKFILE, '')
 

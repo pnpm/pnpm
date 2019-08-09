@@ -1,17 +1,13 @@
 import assertStore from '@pnpm/assert-store'
 import { tempDir } from '@pnpm/prepare'
 import fs = require('fs')
+import test from 'jest-t-assert'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import { storeAdd } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('add packages to the store', async (t: tape.Test) => {
+test('add packages to the store', async t => {
   tempDir(t)
   fs.mkdirSync('_')
   process.chdir('_')
@@ -36,7 +32,7 @@ test('add packages to the store', async (t: tape.Test) => {
   )
 })
 
-test('should fail if some packages can not be added', async (t: tape.Test) => {
+test('should fail if some packages can not be added', async t => {
   tempDir(t)
   fs.mkdirSync('_')
   process.chdir('_')

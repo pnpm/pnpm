@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import fs = require('mz/fs')
 import path = require('path')
 import sinon = require('sinon')
@@ -7,14 +8,9 @@ import {
   addDependenciesToPackage,
   install,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('install with lockfileOnly = true', async (t: tape.Test) => {
+test('install with lockfileOnly = true', async t => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' })
@@ -44,7 +40,7 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   t.notOk(await project.readCurrentLockfile(), 'current lockfile not created')
 })
 
-test('warn when installing with lockfileOnly = true and node_modules exists', async (t: tape.Test) => {
+test('warn when installing with lockfileOnly = true and node_modules exists', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 

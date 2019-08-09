@@ -8,6 +8,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { PackageJson } from '@pnpm/types'
 import existsSymlink = require('exists-link')
+import test from 'jest-t-assert'
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
@@ -19,8 +20,6 @@ import {
   mutateModules,
   storePrune,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
 import writeJsonFile = require('write-json-file')
 import {
@@ -28,11 +27,9 @@ import {
   testDefaults,
 } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB.ncp)
 
-test('uninstall package with no dependencies', async (t: tape.Test) => {
+test('uninstall package with no dependencies', async t => {
   const project = prepareEmpty(t)
 
   let manifest = await addDependenciesToPackage({}, ['is-negative@2.1.0'], await testDefaults({ save: true }))
@@ -130,7 +127,7 @@ test('uninstall scoped package', async (t) => {
   t.deepEqual(manifest.dependencies, {}, '@zkochan/logger has been removed from dependencies')
 })
 
-test('uninstall tarball dependency', async (t: tape.Test) => {
+test('uninstall tarball dependency', async t => {
   const project = prepareEmpty(t)
   const opts = await testDefaults({ save: true })
 
@@ -207,7 +204,7 @@ test('uninstall package with its bin files', async (t) => {
   t.notOk(stat, 'sh-hello-world is removed from .bin')
 })
 
-test('relative link is uninstalled', async (t: tape.Test) => {
+test('relative link is uninstalled', async t => {
   const project = prepareEmpty(t)
   const opts = await testDefaults({ manifest: {}, prefix: process.cwd() })
 
@@ -228,7 +225,7 @@ test('relative link is uninstalled', async (t: tape.Test) => {
   await project.hasNot(linkedPkgName)
 })
 
-test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
+test('pendingBuilds gets updated after uninstall', async t => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))

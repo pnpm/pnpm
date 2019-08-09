@@ -1,16 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
 import isSubdir = require('is-subdir')
+import test from 'jest-t-assert'
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('install with --independent-leaves', async (t: tape.Test) => {
+test('install with --independent-leaves', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({ independentLeaves: true }))
 
@@ -23,7 +19,7 @@ test('install with --independent-leaves', async (t: tape.Test) => {
   t.ok(isSubdir(path.resolve('node_modules'), await resolveLinkTarget(path.resolve('node_modules/rimraf'))), 'non-independent package is not symlinked directly from store')
 })
 
-test('--independent-leaves throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
+test('--independent-leaves throws exception when executed on node_modules installed w/o the option', async t => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: false }))
 
@@ -36,7 +32,7 @@ test('--independent-leaves throws exception when executed on node_modules instal
   }
 })
 
-test('--no-independent-leaves throws exception when executed on node_modules installed with --independent-leaves', async (t: tape.Test) => {
+test('--no-independent-leaves throws exception when executed on node_modules installed with --independent-leaves', async t => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: true }))
 

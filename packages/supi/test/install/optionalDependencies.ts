@@ -1,6 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
+import test from 'jest-t-assert'
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
@@ -8,12 +9,7 @@ import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import { addDependenciesToPackage, install, mutateModules, rebuild } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
-
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('successfully install optional dependency with subdependencies', async (t) => {
   prepareEmpty(t)
@@ -21,7 +17,7 @@ test('successfully install optional dependency with subdependencies', async (t) 
   await addDependenciesToPackage({}, ['fsevents@1.0.14'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 })
 
-test('skip failing optional dependencies', async (t: tape.Test) => {
+test('skip failing optional dependencies', async t => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['pkg-with-failing-optional-dependency@1.0.1'], await testDefaults())
 
@@ -29,7 +25,7 @@ test('skip failing optional dependencies', async (t: tape.Test) => {
   t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
 })
 
-test('skip non-existing optional dependency', async (t: tape.Test) => {
+test('skip non-existing optional dependency', async t => {
   const project = prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -59,7 +55,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   t.deepEqual(lockfile.specifiers, { 'is-positive': '*' }, `skipped optional dep not added to ${WANTED_LOCKFILE}`)
 })
 
-test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
+test('skip optional dependency that does not support the current OS', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -132,7 +128,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
   }
 })
 
-test('skip optional dependency that does not support the current Node version', async (t: tape.Test) => {
+test('skip optional dependency that does not support the current Node version', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -157,7 +153,7 @@ test('skip optional dependency that does not support the current Node version', 
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
 })
 
-test('skip optional dependency that does not support the current pnpm version', async (t: tape.Test) => {
+test('skip optional dependency that does not support the current pnpm version', async t => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -197,7 +193,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
 })
 
-test('optional subdependency is skipped', async (t: tape.Test) => {
+test('optional subdependency is skipped', async t => {
   prepareEmpty(t)
   const reporter = sinon.spy()
 
@@ -276,7 +272,7 @@ test('only that package is skipped which is an optional dependency only and not 
   }
 })
 
-test('not installing optional dependencies when optional is false', async (t: tape.Test) => {
+test('not installing optional dependencies when optional is false', async t => {
   const project = prepareEmpty(t)
 
   await install(
@@ -304,7 +300,7 @@ test('not installing optional dependencies when optional is false', async (t: ta
   t.notOk(deepRequireCwd.silent(['pkg-with-good-optional', 'is-positive', './package.json']), 'optional subdep not installed')
 })
 
-test('optional dependency has bigger priority than regular dependency', async (t: tape.Test) => {
+test('optional dependency has bigger priority than regular dependency', async t => {
   prepareEmpty(t)
 
   await install({
@@ -321,7 +317,7 @@ test('optional dependency has bigger priority than regular dependency', async (t
 
 // Covers https://github.com/pnpm/pnpm/issues/1386
 // TODO: use smaller packages to cover the test case
-test('only skip optional dependencies', async (t: tape.Test) => {
+test('only skip optional dependencies', async t => {
   /*
     @google-cloud/functions-emulator has various dependencies, one of them is duplexify.
     duplexify depends on stream-shift. As duplexify is a dependency of an optional dependency
@@ -355,7 +351,7 @@ test('only skip optional dependencies', async (t: tape.Test) => {
   t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'got', '3.3.1', 'node_modules', 'duplexify')), 'duplexify is linked into node_modules of got')
 })
 
-test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
+test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async t => {
   prepareEmpty(t)
 
   const manifest = await install({
@@ -382,7 +378,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.
   }), 'missing package reported')
 })
 
-test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace packages', async (t: tape.Test) => {
+test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace packages', async t => {
   preparePackages(t, [
     {
       name: 'project1',

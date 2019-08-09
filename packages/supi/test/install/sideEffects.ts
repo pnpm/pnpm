@@ -1,15 +1,11 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
-
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('caching side effects of native package', async (t) => {
   prepareEmpty(t)

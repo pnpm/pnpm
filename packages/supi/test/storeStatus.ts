@@ -1,13 +1,10 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, storeStatus } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 
-const test = promisifyTape(tape)
-
-test('store status returns empty array when store was not modified', async (t: tape.Test) => {
+test('store status returns empty array when store was not modified', async t => {
   prepareEmpty(t)
 
   const opts = await testDefaults()
@@ -18,7 +15,7 @@ test('store status returns empty array when store was not modified', async (t: t
   t.equal(mutatedPkgs && mutatedPkgs.length, 0, 'no packages were modified')
 })
 
-test('store status does not fail on not installed optional dependencies', async (t: tape.Test) => {
+test('store status does not fail on not installed optional dependencies', async t => {
   prepareEmpty(t)
 
   const opts = await testDefaults({ targetDependenciesField: 'optionalDependencies' })
@@ -29,7 +26,7 @@ test('store status does not fail on not installed optional dependencies', async 
   t.equal(mutatedPkgs && mutatedPkgs.length, 0, 'no packages were modified')
 })
 
-test('store status returns path to the modified package', async (t: tape.Test) => {
+test('store status returns path to the modified package', async t => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults()

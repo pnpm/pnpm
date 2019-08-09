@@ -1,15 +1,12 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import path = require('path')
 import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-
-test('repeat install with corrupted `store.json` should work', async (t: tape.Test) => {
+test('repeat install with corrupted `store.json` should work', async t => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults()

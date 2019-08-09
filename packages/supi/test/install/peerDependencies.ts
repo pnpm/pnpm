@@ -3,6 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import deepRequireCwd = require('deep-require-cwd')
+import test from 'jest-t-assert'
 import loadJsonFile = require('load-json-file')
 import makeDir = require('make-dir')
 import path = require('path')
@@ -15,12 +16,8 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const NM = 'node_modules'
 
 test("don't fail when peer dependency is fetched from GitHub", async (t) => {
@@ -28,7 +25,7 @@ test("don't fail when peer dependency is fetched from GitHub", async (t) => {
   await addDependenciesToPackage({}, ['test-pnpm-peer-deps'], await testDefaults())
 })
 
-test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async (t: tape.Test) => {
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async t => {
   const project = prepareEmpty(t)
   const opts = await testDefaults()
   let manifest = await addDependenciesToPackage({}, ['using-ajv'], opts)
@@ -62,7 +59,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1133
-test('nothing is needlessly removed from node_modules', async (t: tape.Test) => {
+test('nothing is needlessly removed from node_modules', async t => {
   prepareEmpty(t)
   const opts = await testDefaults()
   const manifest = await addDependenciesToPackage({}, ['using-ajv', 'ajv-keywords@1.5.0'], opts)
@@ -84,7 +81,7 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
   t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is removed')
 })
 
-test('peer dependency is grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
+test('peer dependency is grouped with dependent when the peer is a top dependency', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -98,7 +95,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv-keywords')), 'dependent is grouped with top peer dep')
 })
 
-test('warning is reported when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {
+test('warning is reported when cannot resolve peer dependency for top-level dependency', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -113,7 +110,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
   t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
 })
 
-test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {
+test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -131,7 +128,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   t.equal(err.message, 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.')
 })
 
-test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async (t: tape.Test) => {
+test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async t => {
   prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['ajv@4.10.0'], await testDefaults())
@@ -152,7 +149,7 @@ test('warning is not reported if the peer dependency can be required from a node
   t.equal(reportedTimes, 0, 'warning is not logged')
 })
 
-test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async (t: tape.Test) => {
+test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -167,7 +164,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
   t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
 })
 
-test('warning is reported when bad version of resolved peer dependency for non-top-level dependency', async (t: tape.Test) => {
+test('warning is reported when bad version of resolved peer dependency for non-top-level dependency', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -182,7 +179,7 @@ test('warning is reported when bad version of resolved peer dependency for non-t
   t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
 })
 
-test('strict-peer-dependencies: error is thrown when bad version of resolved peer dependency for non-top-level dependency', async (t: tape.Test) => {
+test('strict-peer-dependencies: error is thrown when bad version of resolved peer dependency for non-top-level dependency', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -200,7 +197,7 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
   t.equal(err.message, 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.')
 })
 
-test('top peer dependency is linked on subsequent install', async (t: tape.Test) => {
+test('top peer dependency is linked on subsequent install', async t => {
   prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4'], await testDefaults())
@@ -211,12 +208,12 @@ test('top peer dependency is linked on subsequent install', async (t: tape.Test)
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
 })
 
-async function okFile (t: tape.Test, filename: string) {
+async function okFile (t: any, filename: string) { // tslint:disable-line:no-any
   t.ok(await exists(filename), `exists ${filename}`)
 }
 
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
-test('peer dependencies are linked when running one named installation', async (t: tape.Test) => {
+test('peer dependencies are linked when running one named installation', async t => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
@@ -248,7 +245,7 @@ test('peer dependencies are linked when running one named installation', async (
   await install(manifest, await testDefaults({ update: true, depth: 100 }))
 })
 
-test('peer dependencies are linked when running two separate named installations', async (t: tape.Test) => {
+test('peer dependencies are linked when running two separate named installations', async t => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty(t)
@@ -276,7 +273,7 @@ test('peer dependencies are linked when running two separate named installations
 })
 
 // tslint:disable-next-line:no-string-literal
-test['skip']('peer dependencies are linked', async (t: tape.Test) => {
+test['skip']('peer dependencies are linked', async t => {
   const project = prepareEmpty(t)
   await install({
     dependencies: {
@@ -310,7 +307,7 @@ test['skip']('peer dependencies are linked', async (t: tape.Test) => {
   t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0/peer-a@1.0.0+peer-b@1.0.0'].dev, `the dev resolution set is marked as dev in ${WANTED_LOCKFILE}`)
 })
 
-test('scoped peer dependency is linked', async (t: tape.Test) => {
+test('scoped peer dependency is linked', async t => {
   prepareEmpty(t)
   await addDependenciesToPackage({}, ['for-testing-scoped-peers'], await testDefaults())
 
@@ -319,7 +316,7 @@ test('scoped peer dependency is linked', async (t: tape.Test) => {
   await okFile(t, path.join(pkgVariation, '@scoped', 'peer'))
 })
 
-test('peer bins are linked', async (t: tape.Test) => {
+test('peer bins are linked', async t => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['for-testing-peers-having-bins'], await testDefaults())
@@ -331,7 +328,7 @@ test('peer bins are linked', async (t: tape.Test) => {
   await project.isExecutable(path.join(pkgVariation, 'pkg-with-peer-having-bin', NM, '.bin', 'hello-world-js-bin'))
 })
 
-test('run pre/postinstall scripts of each variations of packages with peer dependencies', async (t: tape.Test) => {
+test('run pre/postinstall scripts of each variations of packages with peer dependencies', async t => {
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty(t)
   await addDependenciesToPackage({}, ['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], await testDefaults())
@@ -345,7 +342,7 @@ test('run pre/postinstall scripts of each variations of packages with peer depen
   await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 })
 
-test('package that resolves its own peer dependency', async (t: tape.Test) => {
+test('package that resolves its own peer dependency', async t => {
   // TODO: investigate how npm behaves in such situations
   // should there be a warning printed?
   // does it currently print a warning that peer dependency is not resolved?
@@ -365,7 +362,7 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
   t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies['peer-b'])
 })
 
-test('package that has parent as peer dependency', async (t: tape.Test) => {
+test('package that has parent as peer dependency', async t => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['has-alpha', 'alpha'], await testDefaults())
 
@@ -375,7 +372,7 @@ test('package that has parent as peer dependency', async (t: tape.Test) => {
   t.notOk(lockfile.packages['/has-alpha-as-peer/1.0.0'])
 })
 
-test('own peer installed in root as well is linked to root', async (t: tape.Test) => {
+test('own peer installed in root as well is linked to root', async t => {
   prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['is-negative@kevva/is-negative#2.1.0', 'peer-deps-in-child-pkg'], await testDefaults())
@@ -383,7 +380,7 @@ test('own peer installed in root as well is linked to root', async (t: tape.Test
   t.ok(deepRequireCwd.silent(['is-negative', './package.json']), 'is-negative is linked to root')
 })
 
-test('peer dependency is grouped with dependent when the peer is a top dependency but an external lockfile is used', async (t: tape.Test) => {
+test('peer dependency is grouped with dependent when the peer is a top dependency but an external lockfile is used', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -411,7 +408,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1483
-test('peer dependency is grouped correctly with peer installed via separate installation when external lockfile is used', async (t: tape.Test) => {
+test('peer dependency is grouped correctly with peer installed via separate installation when external lockfile is used', async t => {
   prepareEmpty(t)
 
   const reporter = sinon.spy()
@@ -427,7 +424,7 @@ test('peer dependency is grouped correctly with peer installed via separate inst
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc', '1.0.0_peer-c@2.0.0', NM, 'dep-of-pkg-with-1-dep')))
 })
 
-test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
+test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async t => {
   prepareEmpty(t)
   await makeDir('_')
   process.chdir('_')
@@ -493,7 +490,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }
 })
 
-test('external lockfile: peer dependency is grouped with dependent even after a named update', async (t: tape.Test) => {
+test('external lockfile: peer dependency is grouped with dependent even after a named update', async t => {
   prepareEmpty(t)
   await makeDir('_')
   process.chdir('_')
@@ -532,7 +529,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
   }
 })
 
-test('external lockfile: peer dependency is grouped with dependent even after a named update of the resolved package', async (t: tape.Test) => {
+test('external lockfile: peer dependency is grouped with dependent even after a named update of the resolved package', async t => {
   prepareEmpty(t)
   await makeDir('_')
   process.chdir('_')
@@ -573,7 +570,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc-parent-with-ab', '1.0.0_peer-c@2.0.0', NM, 'is-positive')))
 })
 
-test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async (t: tape.Test) => {
+test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async t => {
   prepareEmpty(t)
   await makeDir('_')
   process.chdir('_')
@@ -704,7 +701,7 @@ test('peer dependency is saved', async (t) => {
   )
 })
 
-test('warning is not reported when cannot resolve optional peer dependency', async (t: tape.Test) => {
+test('warning is not reported when cannot resolve optional peer dependency', async t => {
   const project = prepareEmpty(t)
 
   const reporter = sinon.spy()

@@ -2,6 +2,7 @@ import { isExecutable } from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import test from 'jest-t-assert'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
@@ -15,8 +16,6 @@ import {
   linkToGlobal,
 } from 'supi'
 import symlink from 'symlink-dir'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
 import writeJsonFile = require('write-json-file')
 import {
@@ -24,11 +23,9 @@ import {
   testDefaults,
 } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB.ncp)
 
-test('relative link', async (t: tape.Test) => {
+test('relative link', async t => {
   const project = prepareEmpty(t)
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -54,7 +51,7 @@ test('relative link', async (t: tape.Test) => {
   t.equal(currentLockfile.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted lockfile')
 })
 
-test('relative link is linked by the name of the alias', async (t: tape.Test) => {
+test('relative link is linked by the name of the alias', async t => {
   const linkedPkgName = 'hello-world-js-bin'
 
   const project = prepareEmpty(t)
@@ -78,7 +75,7 @@ test('relative link is linked by the name of the alias', async (t: tape.Test) =>
   }, 'link added to wanted lockfile with correct alias')
 })
 
-test('relative link is not rewritten by argumentless install', async (t: tape.Test) => {
+test('relative link is not rewritten by argumentless install', async t => {
   const project = prepareEmpty(t)
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -116,7 +113,7 @@ test('relative link is not rewritten by argumentless install', async (t: tape.Te
   t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal, 'link is not removed by installation')
 })
 
-test('relative link is rewritten by named installation to regular dependency', async (t: tape.Test) => {
+test('relative link is rewritten by named installation to regular dependency', async t => {
   const project = prepareEmpty(t)
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -163,7 +160,7 @@ test('relative link is rewritten by named installation to regular dependency', a
   t.equal(currentLockfile.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in current lockfile anymore')
 })
 
-test('global link', async (t: tape.Test) => {
+test('global link', async t => {
   const project = prepareEmpty(t)
   const projectPath = process.cwd()
 
@@ -192,7 +189,7 @@ test('global link', async (t: tape.Test) => {
   await project.isExecutable('.bin/hello-world-js-bin')
 })
 
-test('failed linking should not create empty folder', async (t: tape.Test) => {
+test('failed linking should not create empty folder', async t => {
   prepareEmpty(t)
 
   const globalPrefix = path.resolve('..', 'global')
@@ -205,7 +202,7 @@ test('failed linking should not create empty folder', async (t: tape.Test) => {
   }
 })
 
-test('node_modules is pruned after linking', async (t: tape.Test) => {
+test('node_modules is pruned after linking', async t => {
   prepareEmpty(t)
 
   await writeJsonFile('../is-positive/package.json', { name: 'is-positive', version: '1.0.0' })
@@ -219,7 +216,7 @@ test('node_modules is pruned after linking', async (t: tape.Test) => {
   t.notOk(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'), 'pruned')
 })
 
-test('relative link uses realpath when contained in a symlinked dir', async (t: tape.Test) => {
+test('relative link uses realpath when contained in a symlinked dir', async t => {
   prepareEmpty(t)
 
   // `process.cwd()` is now `.tmp/X/project`.
@@ -261,7 +258,7 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
   }
 })
 
-// test['skip']('relative link when an external lockfile is used', async (t: tape.Test) => {
+// test['skip']('relative link when an external lockfile is used', async t => {
 //   const projects = prepare(t, [
 //     {
 //       name: 'project',
