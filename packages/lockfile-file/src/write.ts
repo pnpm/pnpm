@@ -9,11 +9,12 @@ import makeDir = require('make-dir')
 import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
-import { promisify } from 'util'
 import writeFileAtomicCB = require('write-file-atomic')
 import logger from './logger'
 
-const writeFileAtomic = promisify(writeFileAtomicCB)
+function writeFileAtomic (filename: string, data: string) {
+  return new Promise((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err: Error) => err ? reject(err) : resolve()))
+}
 
 const LOCKFILE_YAML_FORMAT = {
   lineWidth: 1000,
