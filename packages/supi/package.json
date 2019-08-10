@@ -153,7 +153,7 @@
     "commitmsg": "commitlint -e",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts test/*.ts",
     "registry-mock": "registry-mock",
-    "test:tap": "jest --testRegex test/install/.*\\.ts",
+    "test:tap": "jest --testRegex test/install/peerDependencies\\.ts --runInBand --bail",
     "test:e2e": "run-p -r registry-mock test:tap",
     "pretest": "rimraf ../../../.tmp/ && registry-mock prepare",
     "test-with-preview": "pnpm run lint && preview && pnpm run test:e2e",
@@ -163,6 +163,7 @@
   },
   "jest": {
     "preset": "ts-jest",
+    "setupFilesAfterEnv": ["../../jest.setup.js"],
     "testEnvironment": "node"
   }
 }

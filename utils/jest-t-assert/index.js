@@ -8,10 +8,8 @@ const t = {
   fail: () => {
     throw new Error('Test failed via `t.fail()`');
   },
-  ok: actual => expect(actual).toBe(true),
-  notOk: actual => expect(actual).toBe(false),
-  truthy: actual => expect(actual).toBeTruthy(),
-  falsy: actual => expect(actual).toBeFalsy(),
+  ok: actual => expect(actual).toBeTruthy(),
+  notOk: actual => expect(actual).toBeFalsy(),
   equal: (actual, expected) => expect(actual).toBe(expected),
   not: (actual, expected) => expect(actual).not.toBe(expected),
   deepEqual: (actual, expected) => expect(actual).toEqual(expected),
@@ -22,7 +20,9 @@ const t = {
   notRegex: (actual, regex) => expect(actual).not.toMatch(regex),
   plan: count => expect.assertions(count),
   snapshot: actual => expect(actual).toMatchSnapshot(),
-  end: () => {}
+  end: () => {},
+  skip: () => {},
+  comment: () => {},
 };
 
 exports.t = t;

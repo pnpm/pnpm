@@ -272,8 +272,8 @@ test('peer dependencies are linked when running two separate named installations
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
 })
 
-// tslint:disable-next-line:no-string-literal
-test['skip']('peer dependencies are linked', async t => {
+// tslint:disable-next-line
+test['skip']('peer dependencies are linked', async (t: any) => {
   const project = prepareEmpty(t)
   await install({
     dependencies: {

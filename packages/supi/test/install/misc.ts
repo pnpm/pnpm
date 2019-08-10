@@ -429,8 +429,8 @@ test("don't refetch package to store if it has been modified and verify-store-in
 })
 
 // TODO: decide what to do with this case
-// tslint:disable-next-line:no-string-literal
-test['skip']('relink package to project if the dependency is not linked from store', async t => {
+// tslint:disable-next-line
+test['skip']('relink package to project if the dependency is not linked from store', async (t: any) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
@@ -863,14 +863,7 @@ test('reinstalls missing packages to node_modules', async (t) => {
   await rimraf('pnpm-lock.yaml')
   await rimraf(depLocation)
 
-  let err
-  try {
-    await import(path.resolve('node_modules/is-positive'))
-  } catch (_err) {
-    err = _err
-  }
-
-  t.ok(err)
+  t.notOk(await exists(path.resolve('node_modules/is-positive')))
 
   reporter.resetHistory()
 
@@ -898,14 +891,7 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 
   await rimraf(depLocation)
 
-  let err
-  try {
-    await import(path.resolve('node_modules/is-positive'))
-  } catch (_err) {
-    err = _err
-  }
-
-  t.ok(err)
+  t.notOk(await exists(path.resolve('node_modules/is-positive')))
 
   reporter.resetHistory()
 
