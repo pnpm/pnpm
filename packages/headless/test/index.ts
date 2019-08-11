@@ -13,11 +13,11 @@ import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import fse = require('fs-extra')
+import test from 'jest-t-assert'
 import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import test = require('tape')
 import tempy = require('tempy')
 import testDefaults from './utils/testDefaults'
 

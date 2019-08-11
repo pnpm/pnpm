@@ -1,6 +1,7 @@
 import assertProject from '@pnpm/assert-project'
 import { Modules } from '@pnpm/modules-yaml'
 import { ImporterManifest } from '@pnpm/types'
+import fs = require('fs')
 import makeDir = require('make-dir')
 import path = require('path')
 import { Test } from 'tape'
@@ -12,7 +13,8 @@ import { sync as writeJson5File } from 'write-json5-file'
 const tmpPath = path.join(__dirname, '..', '..', '..', '..', '.tmp')
 makeDir.sync(tmpPath)
 
-let dirNumber = 0
+const dirs = fs.readdirSync(tmpPath)
+let dirNumber = Math.max(...dirs.map(dir => +dir), 0) + 1
 
 export function tempDir (t: Test) {
   dirNumber++

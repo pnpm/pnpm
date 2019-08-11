@@ -118,7 +118,7 @@ test('do not run install scripts if unsafePerm is false', async t => {
 
   const outputExists = await exists('output.json')
 
-  t.false(outputExists, 'no output expected as install scripts should not run')
+  expect(outputExists).toBe(false) // no output expected as install scripts should not run
 })
 
 test('installation fails if lifecycle script fails', async t => {
@@ -139,7 +139,7 @@ test('installation fails if lifecycle script fails', async t => {
 // TODO: unskip
 // For some reason this fails on CI environments
 // tslint:disable-next-line:no-string-literal
-test['skip']('creates env for scripts', async t => {
+test['skip']('creates env for scripts', async (t: any) => { // tslint:disable-line
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     scripts: {

@@ -520,8 +520,8 @@ interface PromiseContainer <T> {
 }
 
 function differed<T> (): PromiseContainer<T> {
-  let pResolve: (v: T) => void = noop
-  let pReject: (err: Error) => void = noop
+  let pResolve!: (v: T) => void
+  let pReject!: (err: Error) => void
   const promise = new Promise<T>((resolve, reject) => {
     pResolve = resolve
     pReject = reject

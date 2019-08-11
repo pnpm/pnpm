@@ -3,11 +3,11 @@ import { LogBase, streamParser } from '@pnpm/logger'
 import createFetcher from '@pnpm/tarball-fetcher'
 import cpFile = require('cp-file')
 import { existsSync } from 'fs'
+import test from 'jest-t-assert'
 import fs = require('mz/fs')
 import nock = require('nock')
 import path = require('path')
 import ssri = require('ssri')
-import test = require('tape')
 import tempy = require('tempy')
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')

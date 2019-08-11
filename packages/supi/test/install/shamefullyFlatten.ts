@@ -254,7 +254,7 @@ test('should uninstall correctly peer dependencies', async (t) => {
     },
   ], await testDefaults({ shamefullyFlatten: true }))
 
-  t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
+  expect(() => fs.lstatSync('node_modules/ajv-keywords')).toThrowError()
 })
 
 test('shamefully-flatten: throw exception when executed on a project that uses an external lockfile', async t => {
