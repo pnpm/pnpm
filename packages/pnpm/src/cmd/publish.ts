@@ -1,4 +1,6 @@
-import { ImporterManifest } from '@pnpm/types'
+import PnpmError from '@pnpm/error'
+import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
+import { Dependencies, ImporterManifest } from '@pnpm/types'
 import cpFile = require('cp-file')
 import fg = require('fast-glob')
 import fs = require('mz/fs')
@@ -74,7 +76,7 @@ async function fakeRegularManifest (
     ? await copyLicenses(opts.workspacePrefix, opts.prefix) : []
 
   const { fileName, manifest, writeImporterManifest } = await readImporterManifest(opts.prefix, opts)
-  const publishManifest = makePublishManifest(manifest)
+  const publishManifest = await makePublishManifest(opts.prefix, manifest)
   const replaceManifest = fileName !== 'package.json' || !R.equals(manifest, publishManifest)
   if (replaceManifest) {
     await rimraf(path.join(opts.prefix, fileName))
@@ -90,22 +92,50 @@ async function fakeRegularManifest (
   )
 }
 
-function makePublishManifest (originalManifest: ImporterManifest) {
-  if (!originalManifest.publishConfig) return originalManifest
-  const publishManifest = { ...originalManifest }
-  if (originalManifest.publishConfig.main) {
-    publishManifest.main = originalManifest.publishConfig.main
+async function makePublishManifest (prefix: string, originalManifest: ImporterManifest) {
+  const publishManifest = {
+    ...originalManifest,
+    dependencies: await makePublishDependencies(prefix, originalManifest.dependencies),
+    optionalDependencies: await makePublishDependencies(prefix, originalManifest.optionalDependencies),
   }
-  if (originalManifest.publishConfig.module) {
-    publishManifest.module = originalManifest.publishConfig.module
-  }
-  if (originalManifest.publishConfig.typings) {
-    publishManifest.typings = originalManifest.publishConfig.typings
-  }
-  if (originalManifest.publishConfig.types) {
-    publishManifest.types = originalManifest.publishConfig.types
+  if (originalManifest.publishConfig) {
+    if (originalManifest.publishConfig.main) {
+      publishManifest.main = originalManifest.publishConfig.main
+    }
+    if (originalManifest.publishConfig.module) {
+      publishManifest.module = originalManifest.publishConfig.module
+    }
+    if (originalManifest.publishConfig.typings) {
+      publishManifest.typings = originalManifest.publishConfig.typings
+    }
+    if (originalManifest.publishConfig.types) {
+      publishManifest.types = originalManifest.publishConfig.types
+    }
   }
   return publishManifest
+}
+
+async function makePublishDependencies (prefix: string, dependencies: Dependencies | undefined) {
+  if (!dependencies) return dependencies
+  const publishDependencies: Dependencies = {}
+  for (const depName of Object.keys(dependencies)) {
+    if (!dependencies[depName].startsWith('workspace:')) {
+      publishDependencies[depName] = dependencies[depName]
+    } else if (dependencies[depName] === 'workspace:*') {
+      const { manifest } = await tryReadImporterManifest(path.join(prefix, 'node_modules', depName))
+      if (!manifest || !manifest.version) {
+        throw new PnpmError(
+          'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+          `Cannot resolve workspace protocol of dependency "${depName}" ` +
+            `because this dependency is not installed. Try running "pnpm install".`,
+        )
+      }
+      publishDependencies[depName] = manifest.version
+    } else {
+      publishDependencies[depName] = dependencies[depName].substr(10)
+    }
+  }
+  return publishDependencies
 }
 
 async function copyLicenses (sourceDir: string, destDir: string) {

@@ -134,10 +134,37 @@ async function resolveNpm (
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions,
 ): Promise<ResolveResult | null> {
-  const spec = wantedDependency.pref
-    ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
+  let pref!: string | undefined
+  let resolveFromWorkspaceOnly = false
+  if (wantedDependency.pref) {
+    if (wantedDependency.pref.startsWith('workspace:')) {
+      resolveFromWorkspaceOnly = true
+      pref = wantedDependency.pref.substr(10)
+    } else {
+      pref = wantedDependency.pref
+    }
+  } else {
+    pref = undefined
+  }
+  const spec = pref
+    ? parsePref(pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
     : defaultTagForAlias(wantedDependency.alias!, opts.defaultTag || 'latest')
   if (!spec) return null
+
+  if (resolveFromWorkspaceOnly) {
+    if (!opts.localPackages) {
+      throw new Error('Cannot resolve package from workspace because opts.localPackages is not defined')
+    }
+    const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
+    if (!resolvedFromLocal) {
+      throw new PnpmError(
+        'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
+        `No matching version found for ${wantedDependency.alias}@${pref} inside the workspace`,
+      )
+    }
+    return resolvedFromLocal
+  }
+
   const auth = ctx.getCredentialsByURI(opts.registry)
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
   try {
