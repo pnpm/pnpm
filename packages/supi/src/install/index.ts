@@ -721,15 +721,26 @@ async function installInContext (
       }
       const specsToUpsert: PackageSpecObject[] = resolvedImporter.directDependencies
         .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
-        .map(({ alias, name, normalizedPref, specRaw, version }) => ({
-          name: alias,
-          peer: importer.peer,
-          pref: normalizedPref || getPref(alias, name, version, {
-            pinnedVersion: importer.pinnedVersion,
-            rawSpec: specRaw,
-          }),
-          saveType: importer.targetDependenciesField,
-        }))
+        .map(({ alias, name, normalizedPref, specRaw, version, resolution }) => {
+          let pref!: string
+          if (normalizedPref) {
+            pref = normalizedPref
+          } else {
+            pref = getPref(alias, name, version, {
+              pinnedVersion: importer.pinnedVersion,
+              rawSpec: specRaw,
+            })
+            if (resolution.type === 'directory') {
+              pref = `workspace:${pref}`
+            }
+          }
+          return {
+            name: alias,
+            peer: importer.peer,
+            pref,
+            saveType: importer.targetDependenciesField,
+          }
+        })
       for (const pkgToInstall of importer.wantedDeps) {
         if (pkgToInstall.alias && !specsToUpsert.some(({ name }) => name === pkgToInstall.alias)) {
           specsToUpsert.push({
