@@ -736,7 +736,7 @@ importers:
       '@types/http-proxy-agent': 2.0.1
       '@types/lru-cache': 5.1.0
       '@types/proxyquire': 1.3.28
-      proxyquire: 2.1.1
+      proxyquire: 2.1.3
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
@@ -747,7 +747,7 @@ importers:
       http-proxy-agent: 2.1.0
       https-proxy-agent: 2.2.1
       lru-cache: 5.1.1
-      proxyquire: 2.1.1
+      proxyquire: 2.1.3
       rimraf: 2.6.3
       socks-proxy-agent: 4.0.2
       tape: 4.11.0
@@ -6756,14 +6756,14 @@ packages:
       node: '>= 0.10'
     resolution:
       integrity: sha512-t/7RxHXPH6cJtP0pRG6smSr9QJidhB+3kXu0KgXnbGYMgzEnUxRQ4/LDdfOwZEMyIh3/xHb8PX3t+lfL9z+YVQ==
-  /proxyquire/2.1.1:
+  /proxyquire/2.1.3:
     dependencies:
       fill-keys: 1.0.2
       module-not-found-error: 1.0.1
       resolve: 1.12.0
     dev: true
     resolution:
-      integrity: sha512-LXZGUxkFTZzPHKBmL3CMYtYIEKuz6XiR3DZ3FZ1wYP7ueXbz2NW+9AdigNzeLIf8vmuhVCwG2F5BvonXK5LhHA==
+      integrity: sha512-BQWfCqYM+QINd+yawJz23tbBM40VIGXOdDw3X344KcclI/gtBbdWF6SlQ4nK/bYhF9d27KYug9WzljHC6B9Ysg==
   /ps-list/4.1.0:
     dependencies:
       pify: 3.0.0
