@@ -134,24 +134,11 @@ async function resolveNpm (
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions,
 ): Promise<ResolveResult | null> {
-  let pref!: string | undefined
-  let resolveFromWorkspaceOnly = false
-  if (wantedDependency.pref) {
-    if (wantedDependency.pref.startsWith('workspace:')) {
-      resolveFromWorkspaceOnly = true
-      pref = wantedDependency.pref.substr(10)
-    } else {
-      pref = wantedDependency.pref
-    }
-  } else {
-    pref = undefined
-  }
-  const spec = pref
-    ? parsePref(pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
-    : defaultTagForAlias(wantedDependency.alias!, opts.defaultTag || 'latest')
-  if (!spec) return null
-
-  if (resolveFromWorkspaceOnly) {
+  const defaultTag = opts.defaultTag || 'latest'
+  if (wantedDependency.pref && wantedDependency.pref.startsWith('workspace:')) {
+    const pref = wantedDependency.pref.substr(10)
+    const spec = parsePref(pref, wantedDependency.alias, defaultTag, opts.registry)
+    if (!spec) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
     if (!opts.localPackages) {
       throw new Error('Cannot resolve package from workspace because opts.localPackages is not defined')
     }
@@ -164,6 +151,10 @@ async function resolveNpm (
     }
     return resolvedFromLocal
   }
+  const spec = wantedDependency.pref
+    ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
+    : defaultTagForAlias(wantedDependency.alias!, defaultTag)
+  if (!spec) return null
 
   const auth = ctx.getCredentialsByURI(opts.registry)
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
