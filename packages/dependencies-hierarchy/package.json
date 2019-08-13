@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "6.0.0-2",
+  "version": "6.0.0",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
-    "@pnpm/lockfile-file": "1.1.1",
+    "@pnpm/lockfile-file": "1.1.2",
     "@pnpm/lockfile-utils": "1.0.10",
     "@pnpm/modules-yaml": "3.0.3",
     "@pnpm/read-modules-dir": "2.0.1",

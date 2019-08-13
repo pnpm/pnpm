@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "7.1.7",
+  "version": "7.1.8",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -84,7 +84,7 @@
     "@pnpm/filter-lockfile": "1.0.14",
     "@pnpm/lifecycle": "6.2.1",
     "@pnpm/link-bins": "4.4.0",
-    "@pnpm/lockfile-file": "1.1.1",
+    "@pnpm/lockfile-file": "1.1.2",
     "@pnpm/lockfile-utils": "1.0.10",
     "@pnpm/modules-cleaner": "4.0.4",
     "@pnpm/modules-yaml": "3.0.3",
