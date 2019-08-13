@@ -43,10 +43,10 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/types": "3.2.0",
-    "dependency-path": "3.0.8",
+    "@pnpm/lockfile-types": "workspace:1.1.0",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/types": "workspace:3.2.0",
+    "dependency-path": "workspace:3.0.8",
     "get-npm-tarball-url": "2.0.1",
     "ramda": "0.26.1"
   }

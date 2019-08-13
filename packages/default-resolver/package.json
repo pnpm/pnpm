@@ -29,11 +29,11 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/git-resolver": "2.0.10",
-    "@pnpm/local-resolver": "2.0.11",
-    "@pnpm/npm-resolver": "3.1.0",
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/tarball-resolver": "2.0.3"
+    "@pnpm/git-resolver": "workspace:2.0.10",
+    "@pnpm/local-resolver": "workspace:2.0.11",
+    "@pnpm/npm-resolver": "workspace:3.1.0",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/tarball-resolver": "workspace:2.0.3"
   },
   "devDependencies": {
     "@pnpm/default-resolver": "link:",

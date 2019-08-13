@@ -36,14 +36,14 @@ importers:
       rimraf: 2.6.3
     specifiers:
       '@pnpm/build-modules': 'link:'
-      '@pnpm/constants': 1.1.0
-      '@pnpm/core-loggers': 3.0.3
-      '@pnpm/lifecycle': 6.2.1
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/core-loggers': 'workspace:3.0.3'
+      '@pnpm/lifecycle': 'workspace:6.2.1'
       '@pnpm/link-bins': 4.4.0
       '@pnpm/logger': 2.1.1
-      '@pnpm/read-package-json': 2.0.2
-      '@pnpm/store-controller-types': 3.0.3
-      '@pnpm/types': 3.2.0
+      '@pnpm/read-package-json': 'workspace:2.0.2'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/ramda': 0.26.6
       graph-sequencer: 2.0.0
       ramda: 0.26.1
@@ -68,8 +68,8 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/config': 'link:'
-      '@pnpm/error': 1.0.0
-      '@pnpm/types': 3.2.0
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32
       '@types/which': 1.3.1
       '@zkochan/npm-conf': 1.2.4
@@ -108,10 +108,10 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/default-fetcher': 'link:'
-      '@pnpm/git-fetcher': 2.0.3
+      '@pnpm/git-fetcher': 'workspace:2.0.3'
       '@pnpm/logger': 2.1.1
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/tarball-fetcher': 3.1.15
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/tarball-fetcher': 'workspace:3.1.15'
       rimraf: 2.6.3
       tape: 4.11.0
   packages/default-reporter:
@@ -148,12 +148,12 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/config': 3.5.1
-      '@pnpm/core-loggers': 3.0.3
+      '@pnpm/config': 'workspace:3.5.1'
+      '@pnpm/core-loggers': 'workspace:3.0.3'
       '@pnpm/default-reporter': 'link:'
-      '@pnpm/error': 1.0.0
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': 2.1.1
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.25.34
       '@types/semver': '6'
@@ -192,12 +192,12 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/default-resolver': 'link:'
-      '@pnpm/git-resolver': 2.0.10
-      '@pnpm/local-resolver': 2.0.11
+      '@pnpm/git-resolver': 'workspace:2.0.10'
+      '@pnpm/local-resolver': 'workspace:2.0.11'
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.1.0
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/tarball-resolver': 2.0.3
+      '@pnpm/npm-resolver': 'workspace:3.1.0'
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/tarball-resolver': 'workspace:2.0.3'
       rimraf: 2.6.3
       tape: 4.11.0
   packages/dependencies-hierarchy:
@@ -222,17 +222,17 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/constants': 1.1.0
-      '@pnpm/lockfile-file': 1.1.2
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/lockfile-file': 'workspace:1.1.2'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/read-modules-dir': 2.0.1
-      '@pnpm/types': 3.2.0
-      '@pnpm/utils': 0.10.5
+      '@pnpm/modules-yaml': 'workspace:3.0.3'
+      '@pnpm/read-modules-dir': 'workspace:2.0.1'
+      '@pnpm/types': 'workspace:3.2.0'
+      '@pnpm/utils': 'workspace:0.10.5'
       '@types/minimatch': 3.0.3
       '@types/semver': '6'
       dependencies-hierarchy: 'link:'
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       minimatch: 3.0.4
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
@@ -247,7 +247,7 @@ importers:
       '@types/semver': 6.0.1
       tape: 4.11.0
     specifiers:
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/semver': '6'
       encode-registry: 2.0.1
       semver: 6.3.0
@@ -280,8 +280,8 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/fetch': 1.0.1
-      '@pnpm/npm-registry-agent': 1.0.3
+      '@pnpm/fetch': 'workspace:1.0.1'
+      '@pnpm/npm-registry-agent': 'workspace:1.0.3'
       '@types/nock': 10.0.3
       fetch-from-npm-registry: 'link:'
       nock: 10.0.6
@@ -294,7 +294,7 @@ importers:
     devDependencies:
       rimraf: 2.6.3
     specifiers:
-      '@pnpm/resolver-base': 3.1.2
+      '@pnpm/resolver-base': 'workspace:3.1.2'
       '@types/ssri': 6.0.1
       rimraf: ^2.6.2
   packages/filter-lockfile:
@@ -317,16 +317,16 @@ importers:
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
     specifiers:
-      '@pnpm/constants': 1.1.0
-      '@pnpm/error': 1.0.0
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'link:'
-      '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
-      '@pnpm/package-is-installable': 2.2.1
-      '@pnpm/types': 3.2.0
+      '@pnpm/package-is-installable': 'workspace:2.2.1'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/ramda': 0.25.39
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       ramda: 0.26.1
       rimraf: 2.6.3
       tape: 4.11.0
@@ -342,7 +342,7 @@ importers:
       find-packages: 'link:'
       tape: 4.11.0
     specifiers:
-      '@pnpm/read-importer-manifest': 1.0.6
+      '@pnpm/read-importer-manifest': 'workspace:1.0.6'
       fast-glob: ^3.0.0
       find-packages: 'link:'
       p-filter: ^2.0.0
@@ -382,9 +382,9 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/fetch': 1.0.1
+      '@pnpm/fetch': 'workspace:1.0.1'
       '@pnpm/git-resolver': 'link:'
-      '@pnpm/resolver-base': 3.1.2
+      '@pnpm/resolver-base': 'workspace:3.1.2'
       '@types/is-windows': 0.2.0
       '@types/semver': '6'
       graceful-git: 2.0.0
@@ -448,41 +448,41 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/build-modules': 1.1.2
-      '@pnpm/constants': 1.1.0
-      '@pnpm/core-loggers': 3.0.3
+      '@pnpm/build-modules': 'workspace:1.1.2'
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/core-loggers': 'workspace:3.0.3'
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/error': 1.0.0
-      '@pnpm/filter-lockfile': 1.0.14
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/filter-lockfile': 'workspace:1.0.14'
       '@pnpm/headless': 'link:'
-      '@pnpm/lifecycle': 6.2.1
+      '@pnpm/lifecycle': 'workspace:6.2.1'
       '@pnpm/link-bins': 4.4.0
-      '@pnpm/lockfile-file': 1.1.2
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/lockfile-file': 'workspace:1.1.2'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-cleaner': 4.0.4
-      '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/package-requester': 7.1.1
+      '@pnpm/modules-cleaner': 'workspace:4.0.4'
+      '@pnpm/modules-yaml': 'workspace:3.0.3'
+      '@pnpm/package-requester': 'workspace:7.1.1'
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-importer-manifest': 1.0.6
+      '@pnpm/read-importer-manifest': 'workspace:1.0.6'
       '@pnpm/read-importers-context': 'file:../read-importers-context'
-      '@pnpm/read-package-json': 2.0.2
+      '@pnpm/read-package-json': 'workspace:2.0.2'
       '@pnpm/registry-mock': 1.3.0
-      '@pnpm/shamefully-flatten': 4.0.0
-      '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/shamefully-flatten': 'workspace:4.0.0'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/store-path': 2.1.0
-      '@pnpm/symlink-dependency': 2.0.6
-      '@pnpm/types': 3.2.0
-      '@pnpm/utils': 0.10.5
+      '@pnpm/symlink-dependency': 'workspace:2.0.6'
+      '@pnpm/types': 'workspace:3.2.0'
+      '@pnpm/utils': 'workspace:0.10.5'
       '@types/fs-extra': 7.0.0
       '@types/mz': 0.0.32
       '@types/path-exists': 3.0.0
       '@types/ramda': 0.25.34
       '@types/rimraf': 2.0.2
       '@types/sinon': ^7.0.10
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       fs-extra: 7.0.1
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -514,11 +514,11 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/core-loggers': 3.0.3
+      '@pnpm/core-loggers': 'workspace:3.0.3'
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.1
-      '@pnpm/read-package-json': 2.0.2
-      '@pnpm/types': 3.2.0
+      '@pnpm/read-package-json': 'workspace:2.0.2'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/rimraf': 2.0.2
       '@zkochan/npm-lifecycle': 3.1.2
       json-append: 1.1.1
@@ -550,9 +550,9 @@ importers:
     specifiers:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.1
-      '@pnpm/read-importer-manifest': 1.0.6
-      '@pnpm/read-package-json': 2.0.2
-      '@pnpm/types': 3.2.0
+      '@pnpm/read-importer-manifest': 'workspace:1.0.6'
+      '@pnpm/read-package-json': 'workspace:2.0.2'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.25.39
@@ -561,7 +561,7 @@ importers:
       chalk: 2.4.2
       cli-columns: 3.1.2
       common-tags: 1.8.0
-      dependencies-hierarchy: 6.0.0
+      dependencies-hierarchy: 'workspace:6.0.0'
       p-limit: 2.2.0
       ramda: 0.26.1
       tape: 4.11.0
@@ -580,11 +580,11 @@ importers:
       '@types/ssri': 6.0.1
       tape: 4.11.0
     specifiers:
-      '@pnpm/error': 1.0.0
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/local-resolver': 'link:'
-      '@pnpm/read-importer-manifest': 1.0.6
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/types': 3.2.0
+      '@pnpm/read-importer-manifest': 'workspace:1.0.6'
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/graceful-fs': 4.1.3
       '@types/ssri': ^6.0.1
       graceful-fs: 4.2.1
@@ -615,12 +615,12 @@ importers:
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
     specifiers:
-      '@pnpm/constants': 1.1.0
-      '@pnpm/error': 1.0.0
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/lockfile-file': 'link:'
-      '@pnpm/lockfile-types': 1.1.0
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 2.1.1
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/js-yaml': '3'
       '@types/ramda': 0.25.39
       js-yaml: 3.13.1
@@ -655,13 +655,13 @@ importers:
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
     specifiers:
-      '@pnpm/lockfile-types': 1.1.0
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-utils': 'link:'
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/types': 3.2.0
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/js-yaml': '3'
       '@types/ramda': 0.25.39
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       get-npm-tarball-url: 2.0.1
       ramda: 0.26.1
       rimraf: 2.6.3
@@ -690,19 +690,19 @@ importers:
       '@types/ramda': 0.25.38
       rimraf: 2.6.3
     specifiers:
-      '@pnpm/core-loggers': 3.0.3
-      '@pnpm/filter-lockfile': 1.0.14
-      '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/core-loggers': 'workspace:3.0.3'
+      '@pnpm/filter-lockfile': 'workspace:1.0.14'
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 3.1.1
-      '@pnpm/read-modules-dir': 2.0.1
-      '@pnpm/store-controller-types': 3.0.3
-      '@pnpm/types': 3.2.0
-      '@pnpm/utils': 0.10.5
+      '@pnpm/read-modules-dir': 'workspace:2.0.1'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
+      '@pnpm/types': 'workspace:3.2.0'
+      '@pnpm/utils': 'workspace:0.10.5'
       '@types/ramda': 0.25.38
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       fs-vacuum: 1.2.10
       ramda: 0.26.1
       rimraf: 2.6.3
@@ -719,7 +719,7 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       read-yaml-file: 1.1.0
       rimraf: 2.6.3
       tape: 4.11.0
@@ -782,11 +782,11 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
-      '@pnpm/error': 1.0.0
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'link:'
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/types': 3.2.0
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/nock': ^10.0.0
       '@types/normalize-path': ^3.0.0
       '@types/path-exists': ^3.0.0
@@ -794,7 +794,7 @@ importers:
       '@types/ssri': ^6.0.0
       credentials-by-uri: 1.0.0
       encode-registry: 2.0.1
-      fetch-from-npm-registry: 2.0.7
+      fetch-from-npm-registry: 'workspace:2.0.7'
       load-json-file: 6.0.0
       mem: 5.1.1
       nock: ^10.0.0
@@ -825,15 +825,15 @@ importers:
       npm-run-all: 4.1.5
       tape: 4.11.0
     specifiers:
-      '@pnpm/constants': 1.1.0
-      '@pnpm/lockfile-file': 1.1.2
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/lockfile-file': 'workspace:1.1.2'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.3.0
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/minimatch': 3.0.3
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       minimatch: 3.0.4
       npm-run-all: 4.1.5
       tape: 4.11.0
@@ -850,11 +850,11 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/core-loggers': 3.0.3
-      '@pnpm/error': 1.0.0
+      '@pnpm/core-loggers': 'workspace:3.0.3'
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': 2.1.1
       '@pnpm/package-is-installable': 'link:'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/semver': '6'
       rimraf: 2.6.3
       semver: 6.3.0
@@ -901,18 +901,18 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/check-package': 3.0.1
-      '@pnpm/core-loggers': 3.0.3
-      '@pnpm/fetcher-base': 3.0.4
+      '@pnpm/core-loggers': 'workspace:3.0.3'
+      '@pnpm/fetcher-base': 'workspace:3.0.4'
       '@pnpm/local-resolver': 'file:../local-resolver'
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'file:../npm-resolver'
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 2.0.2
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/read-package-json': 'workspace:2.0.2'
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
       '@types/nock': ^10.0.0
@@ -970,18 +970,18 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
-      '@pnpm/core-loggers': 3.0.3
-      '@pnpm/fetcher-base': 3.0.4
+      '@pnpm/core-loggers': 'workspace:3.0.3'
+      '@pnpm/fetcher-base': 'workspace:3.0.4'
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'file:../npm-resolver'
-      '@pnpm/package-requester': 7.1.1
+      '@pnpm/package-requester': 'workspace:7.1.1'
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32
       '@types/ramda': 0.25.39
       load-json-file: 6.0.0
@@ -1128,32 +1128,32 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 3.5.1
-      '@pnpm/constants': 1.1.0
-      '@pnpm/core-loggers': 3.0.3
-      '@pnpm/default-fetcher': 3.1.16
-      '@pnpm/default-reporter': 3.4.0
-      '@pnpm/default-resolver': 3.1.0
-      '@pnpm/error': 1.0.0
+      '@pnpm/config': 'workspace:3.5.1'
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/core-loggers': 'workspace:3.0.3'
+      '@pnpm/default-fetcher': 'workspace:3.1.16'
+      '@pnpm/default-reporter': 'workspace:3.4.0'
+      '@pnpm/default-resolver': 'workspace:3.1.0'
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/lifecycle': 6.2.1
-      '@pnpm/list': 2.0.0
-      '@pnpm/lockfile-file': 1.1.2
+      '@pnpm/lifecycle': 'workspace:6.2.1'
+      '@pnpm/list': 'workspace:2.0.0'
+      '@pnpm/lockfile-file': 'workspace:1.1.2'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/outdated': 3.1.1
-      '@pnpm/package-is-installable': 2.2.1
-      '@pnpm/package-store': 4.0.14
+      '@pnpm/outdated': 'workspace:3.1.1'
+      '@pnpm/package-is-installable': 'workspace:2.2.1'
+      '@pnpm/package-store': 'workspace:4.0.14'
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-importer-manifest': 1.0.6
+      '@pnpm/read-importer-manifest': 'workspace:1.0.6'
       '@pnpm/read-package-json': 2.0.2
       '@pnpm/registry-mock': 1.3.0
-      '@pnpm/server': 3.0.5
-      '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/server': 'workspace:3.0.5'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/store-path': 2.1.0
-      '@pnpm/types': 3.2.0
-      '@pnpm/utils': 0.10.5
+      '@pnpm/types': 'workspace:3.2.0'
+      '@pnpm/utils': 'workspace:0.10.5'
       '@pnpm/write-importer-manifest': 2.0.1
       '@types/archy': 0.0.31
       '@types/byline': 4.2.31
@@ -1184,7 +1184,7 @@ importers:
       execa: 2.0.3
       exists-link: 2.0.0
       fast-glob: 3.0.4
-      find-packages: 5.0.7
+      find-packages: 'workspace:5.0.7'
       get-port: 5.0.0
       graceful-fs: 4.2.1
       graph-sequencer: 2.0.0
@@ -1208,7 +1208,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       path-name: 1.0.0
-      pkgs-graph: 4.1.0
+      pkgs-graph: 'workspace:4.1.0'
       pnpm: 'link:'
       process-exists: 3.1.0
       ramda: 0.26.1
@@ -1245,12 +1245,12 @@ importers:
       tape: 4.11.0
       yaml-tag: 1.1.0
     specifiers:
-      '@pnpm/constants': 1.1.0
-      '@pnpm/lockfile-types': 1.1.0
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/prune-lockfile': 'link:'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/ramda': 0.25.39
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       ramda: 0.26.1
       rimraf: 2.6.3
       tape: 4.11.0
@@ -1277,10 +1277,10 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
-      '@pnpm/error': 1.0.0
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/read-importer-manifest': 'link:'
-      '@pnpm/types': ^3.0.0
-      '@pnpm/write-importer-manifest': 2.0.1
+      '@pnpm/types': 'workspace:^3.0.0'
+      '@pnpm/write-importer-manifest': 'workspace:2.0.1'
       '@types/detect-indent': 5.0.0
       '@types/graceful-fs': 4.1.3
       '@types/is-windows': 0.2.0
@@ -1305,11 +1305,11 @@ importers:
       '@pnpm/logger': 2.1.1
       rimraf: 2.6.3
     specifiers:
-      '@pnpm/lockfile-file': 1.1.2
+      '@pnpm/lockfile-file': 'workspace:1.1.2'
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/types': 3.2.0
-      '@pnpm/utils': 0.10.5
+      '@pnpm/modules-yaml': 'workspace:3.0.3'
+      '@pnpm/types': 'workspace:3.2.0'
+      '@pnpm/utils': 'workspace:0.10.5'
       rimraf: 2.6.3
   packages/read-modules-dir:
     dependencies:
@@ -1330,7 +1330,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/read-package-json': 'link:'
-      '@pnpm/types': ^3.0.0
+      '@pnpm/types': 'workspace:^3.0.0'
       read-package-json: 2.0.13
       tape: 4.11.0
   packages/resolve-dependencies:
@@ -1357,21 +1357,21 @@ importers:
       '@types/semver': 6.0.1
       rimraf: 2.6.3
     specifiers:
-      '@pnpm/core-loggers': 3.0.3
-      '@pnpm/error': 1.0.0
-      '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/core-loggers': 'workspace:3.0.3'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
-      '@pnpm/npm-resolver': 3.1.0
-      '@pnpm/package-is-installable': 2.2.1
+      '@pnpm/npm-resolver': 'workspace:3.1.0'
+      '@pnpm/package-is-installable': 'workspace:2.2.1'
       '@pnpm/resolve-dependencies': 'link:'
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/store-controller-types': 3.0.3
-      '@pnpm/types': 3.2.0
-      '@pnpm/utils': 0.10.5
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
+      '@pnpm/types': 'workspace:3.2.0'
+      '@pnpm/utils': 'workspace:0.10.5'
       '@types/ramda': 0.25.38
       '@types/semver': '6'
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       path-exists: 4.0.0
       ramda: 0.26.1
       replace-string: 3.0.0
@@ -1383,7 +1383,7 @@ importers:
     devDependencies:
       rimraf: 2.6.3
     specifiers:
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       rimraf: ^2.6.2
   packages/server:
     dependencies:
@@ -1409,15 +1409,15 @@ importers:
       rimraf-then: 1.0.1
       tape: 4.11.0
     specifiers:
-      '@pnpm/fetch': 1.0.1
+      '@pnpm/fetch': 'workspace:1.0.1'
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'file:../npm-resolver'
       '@pnpm/package-requester': 'file:../package-requester'
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/server': 'link:'
-      '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32
       '@types/node-fetch': '2'
       '@types/uuid': '3'
@@ -1444,15 +1444,15 @@ importers:
       '@types/ramda': 0.25.34
       rimraf: 2.6.3
     specifiers:
-      '@pnpm/constants': 1.1.0
-      '@pnpm/lockfile-types': 1.1.0
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/symlink-dependency': 2.0.6
-      '@pnpm/types': 3.2.0
+      '@pnpm/symlink-dependency': 'workspace:2.0.6'
+      '@pnpm/types': 'workspace:3.2.0'
       '@types/ramda': 0.25.34
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       ramda: 0.26.1
       rimraf: 2.6.3
   packages/store-controller-types:
@@ -1462,8 +1462,8 @@ importers:
     devDependencies:
       rimraf: 2.6.3
     specifiers:
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/types': 3.2.0
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/types': 'workspace:3.2.0'
       rimraf: 2.6.3
   packages/supi:
     dependencies:
@@ -1564,41 +1564,41 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/build-modules': 1.1.2
+      '@pnpm/build-modules': 'workspace:1.1.2'
       '@pnpm/check-package': 3.0.1
-      '@pnpm/constants': 1.1.0
-      '@pnpm/core-loggers': 3.0.3
+      '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/core-loggers': 'workspace:3.0.3'
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
-      '@pnpm/error': 1.0.0
-      '@pnpm/filter-lockfile': 1.0.14
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/filter-lockfile': 'workspace:1.0.14'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 7.1.8
-      '@pnpm/lifecycle': 6.2.1
+      '@pnpm/headless': 'workspace:7.1.8'
+      '@pnpm/lifecycle': 'workspace:6.2.1'
       '@pnpm/link-bins': 4.4.0
-      '@pnpm/lockfile-file': 1.1.2
-      '@pnpm/lockfile-utils': 1.0.10
+      '@pnpm/lockfile-file': 'workspace:1.1.2'
+      '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
-      '@pnpm/modules-cleaner': 4.0.4
-      '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/package-requester': 7.1.1
+      '@pnpm/modules-cleaner': 'workspace:4.0.4'
+      '@pnpm/modules-yaml': 'workspace:3.0.3'
+      '@pnpm/package-requester': 'workspace:7.1.1'
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/prune-lockfile': 1.1.2
-      '@pnpm/read-importer-manifest': 1.0.6
-      '@pnpm/read-importers-context': 1.0.7
-      '@pnpm/read-modules-dir': 2.0.1
-      '@pnpm/read-package-json': 2.0.2
+      '@pnpm/prune-lockfile': 'workspace:1.1.2'
+      '@pnpm/read-importer-manifest': 'workspace:1.0.6'
+      '@pnpm/read-importers-context': 'workspace:1.0.7'
+      '@pnpm/read-modules-dir': 'workspace:2.0.1'
+      '@pnpm/read-package-json': 'workspace:2.0.2'
       '@pnpm/registry-mock': 1.3.0
-      '@pnpm/resolve-dependencies': 8.0.6
-      '@pnpm/resolver-base': 3.1.2
-      '@pnpm/shamefully-flatten': 4.0.0
-      '@pnpm/store-controller-types': 3.0.3
+      '@pnpm/resolve-dependencies': 'workspace:8.0.6'
+      '@pnpm/resolver-base': 'workspace:3.1.2'
+      '@pnpm/shamefully-flatten': 'workspace:4.0.0'
+      '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/store-path': 2.1.0
-      '@pnpm/symlink-dependency': 2.0.6
-      '@pnpm/types': 3.2.0
-      '@pnpm/utils': 0.10.5
+      '@pnpm/symlink-dependency': 'workspace:2.0.6'
+      '@pnpm/types': 'workspace:3.2.0'
+      '@pnpm/utils': 'workspace:0.10.5'
       '@types/common-tags': 1.8.0
       '@types/fs-extra': 7.0.0
       '@types/is-windows': 0.2.0
@@ -1612,7 +1612,7 @@ importers:
       common-tags: 1.8.0
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
-      dependency-path: 3.0.8
+      dependency-path: 'workspace:3.0.8'
       dir-is-case-sensitive: 1.0.2
       encode-registry: 2.0.1
       execa: 2.0.3
@@ -1704,8 +1704,8 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
-      '@pnpm/error': 1.0.0
-      '@pnpm/fetcher-base': 3.0.4
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/fetcher-base': 'workspace:3.0.4'
       '@pnpm/logger': 2.1.1
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': ^4.1.2
@@ -1716,7 +1716,7 @@ importers:
       '@types/ssri': ^6.0.1
       cp-file: 7.0.0
       credentials-by-uri: 1.0.0
-      fetch-from-npm-registry: 2.0.7
+      fetch-from-npm-registry: 'workspace:2.0.7'
       graceful-fs: 4.2.1
       make-dir: 3.0.0
       mem: 5.1.1
@@ -1737,7 +1737,7 @@ importers:
       rimraf: 2.6.3
       tape: 4.11.0
     specifiers:
-      '@pnpm/resolver-base': 3.1.2
+      '@pnpm/resolver-base': 'workspace:3.1.2'
       '@pnpm/tarball-resolver': 'link:'
       rimraf: ^2.6.2
       tape: 4.11.0
@@ -1759,8 +1759,8 @@ importers:
       rimraf: 2.6.3
     specifiers:
       '@pnpm/logger': 2.1.1
-      '@pnpm/read-package-json': 2.0.2
-      '@pnpm/types': 3.2.0
+      '@pnpm/read-package-json': 'workspace:2.0.2'
+      '@pnpm/types': 'workspace:3.2.0'
       '@pnpm/utils': 'link:'
       '@types/mz': 0.0.32
       mz: 2.7.0
@@ -1778,7 +1778,7 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
-      '@pnpm/types': ^3.0.0
+      '@pnpm/types': 'workspace:^3.0.0'
       '@pnpm/write-importer-manifest': 'link:'
       sort-keys: 3.0.0
       tape: 4.11.0

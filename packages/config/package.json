@@ -30,8 +30,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/config#readme",
   "dependencies": {
-    "@pnpm/error": "1.0.0",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/types": "workspace:3.2.0",
     "@zkochan/npm-conf": "1.2.4",
     "camelcase": "5.3.1",
     "find-up": "4.1.0",

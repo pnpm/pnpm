@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/modules-yaml#readme",
   "dependencies": {
-    "@pnpm/types": "3.2.0",
+    "@pnpm/types": "workspace:3.2.0",
     "read-yaml-file": "1.1.0",
     "write-yaml-file": "3.0.1"
   },

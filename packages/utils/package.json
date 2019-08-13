@@ -41,8 +41,8 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/read-package-json": "2.0.2",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/read-package-json": "workspace:2.0.2",
+    "@pnpm/types": "workspace:3.2.0",
     "mz": "2.7.0",
     "normalize-registry-url": "1.0.0"
   }

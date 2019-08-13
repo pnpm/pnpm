@@ -30,9 +30,9 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/error": "1.0.0",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/core-loggers": "workspace:3.0.3",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/types": "workspace:3.2.0",
     "semver": "6.3.0"
   },
   "devDependencies": {

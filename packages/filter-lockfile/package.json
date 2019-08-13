@@ -45,14 +45,14 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "1.1.0",
-    "@pnpm/error": "1.0.0",
-    "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/lockfile-utils": "1.0.10",
-    "@pnpm/package-is-installable": "2.2.1",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/constants": "workspace:1.1.0",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/lockfile-types": "workspace:1.1.0",
+    "@pnpm/lockfile-utils": "workspace:1.0.10",
+    "@pnpm/package-is-installable": "workspace:2.2.1",
+    "@pnpm/types": "workspace:3.2.0",
     "@types/ramda": "0.25.39",
-    "dependency-path": "3.0.8",
+    "dependency-path": "workspace:3.0.8",
     "ramda": "0.26.1"
   }
 }

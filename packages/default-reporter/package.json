@@ -34,10 +34,10 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "dependencies": {
-    "@pnpm/config": "3.5.1",
-    "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/error": "1.0.0",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/config": "workspace:3.5.1",
+    "@pnpm/core-loggers": "workspace:3.0.3",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/types": "workspace:3.2.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
     "chalk": "2.4.2",

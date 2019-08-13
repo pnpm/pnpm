@@ -32,10 +32,10 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/error": "1.0.0",
-    "@pnpm/fetcher-base": "3.0.4",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/fetcher-base": "workspace:3.0.4",
     "credentials-by-uri": "1.0.0",
-    "fetch-from-npm-registry": "2.0.7",
+    "fetch-from-npm-registry": "workspace:2.0.7",
     "graceful-fs": "4.2.1",
     "make-dir": "3.0.0",
     "mem": "5.1.1",

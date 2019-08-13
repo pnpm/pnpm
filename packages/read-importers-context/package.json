@@ -30,10 +30,10 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "1.1.2",
-    "@pnpm/modules-yaml": "3.0.3",
-    "@pnpm/types": "3.2.0",
-    "@pnpm/utils": "0.10.5"
+    "@pnpm/lockfile-file": "workspace:1.1.2",
+    "@pnpm/modules-yaml": "workspace:3.0.3",
+    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/utils": "workspace:0.10.5"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",

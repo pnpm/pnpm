@@ -30,10 +30,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/local-resolver#readme",
   "dependencies": {
-    "@pnpm/error": "1.0.0",
-    "@pnpm/read-importer-manifest": "1.0.6",
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/read-importer-manifest": "workspace:1.0.6",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/types": "workspace:3.2.0",
     "graceful-fs": "4.2.1",
     "normalize-path": "3.0.0",
     "ssri": "6.0.1"

@@ -30,7 +30,7 @@
     "rimraf": "2.6.3"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/types": "3.2.0"
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/types": "workspace:3.2.0"
   }
 }

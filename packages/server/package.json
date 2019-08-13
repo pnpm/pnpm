@@ -48,9 +48,9 @@
     "tape": "4.11.0"
   },
   "dependencies": {
-    "@pnpm/fetch": "1.0.1",
-    "@pnpm/store-controller-types": "3.0.3",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/fetch": "workspace:1.0.1",
+    "@pnpm/store-controller-types": "workspace:3.0.3",
+    "@pnpm/types": "workspace:3.2.0",
     "p-limit": "2.2.0",
     "uuid": "3.3.2"
   }

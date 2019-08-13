@@ -28,8 +28,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch-from-npm-registry#readme",
   "dependencies": {
-    "@pnpm/fetch": "1.0.1",
-    "@pnpm/npm-registry-agent": "1.0.3"
+    "@pnpm/fetch": "workspace:1.0.1",
+    "@pnpm/npm-registry-agent": "workspace:1.0.3"
   },
   "devDependencies": {
     "@types/nock": "10.0.3",

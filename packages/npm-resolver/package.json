@@ -32,12 +32,12 @@
     "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
-    "@pnpm/error": "1.0.0",
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/types": "workspace:3.2.0",
     "credentials-by-uri": "1.0.0",
     "encode-registry": "2.0.1",
-    "fetch-from-npm-registry": "2.0.7",
+    "fetch-from-npm-registry": "workspace:2.0.7",
     "load-json-file": "6.0.0",
     "mem": "5.1.1",
     "normalize-path": "3.0.0",

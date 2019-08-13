@@ -29,9 +29,9 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/git-fetcher": "2.0.3",
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/tarball-fetcher": "3.1.15"
+    "@pnpm/git-fetcher": "workspace:2.0.3",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/tarball-fetcher": "workspace:3.1.15"
   },
   "devDependencies": {
     "@pnpm/default-fetcher": "link:",
