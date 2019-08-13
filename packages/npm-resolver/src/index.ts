@@ -135,21 +135,14 @@ async function resolveNpm (
   opts: ResolveFromNpmOptions,
 ): Promise<ResolveResult | null> {
   const defaultTag = opts.defaultTag || 'latest'
-  if (wantedDependency.pref && wantedDependency.pref.startsWith('workspace:')) {
-    const pref = wantedDependency.pref.substr(10)
-    const spec = parsePref(pref, wantedDependency.alias, defaultTag, opts.registry)
-    if (!spec) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
-    if (!opts.localPackages) {
-      throw new Error('Cannot resolve package from workspace because opts.localPackages is not defined')
-    }
-    const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
-    if (!resolvedFromLocal) {
-      throw new PnpmError(
-        'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
-        `No matching version found for ${wantedDependency.alias}@${pref} inside the workspace`,
-      )
-    }
-    return resolvedFromLocal
+  const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
+    defaultTag,
+    localPackages: opts.localPackages,
+    prefix: opts.prefix,
+    registry: opts.registry,
+  })
+  if (resolvedFromWorkspace) {
+    return resolvedFromWorkspace
   }
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
@@ -212,6 +205,37 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
   }
+}
+
+function tryResolveFromWorkspace (
+  wantedDependency: WantedDependency,
+  opts: {
+    defaultTag: string,
+    localPackages?: LocalPackages,
+    prefix?: string,
+    registry: string,
+  }
+) {
+  if (!wantedDependency.pref || !wantedDependency.pref.startsWith('workspace:')) {
+    return null
+  }
+  const pref = wantedDependency.pref.substr(10)
+  const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
+  if (!spec) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
+  if (!opts.localPackages) {
+    throw new Error('Cannot resolve package from workspace because opts.localPackages is not defined')
+  }
+  if (!opts.prefix) {
+    throw new Error('Cannot resolve package from workspace because opts.prefix is not defined')
+  }
+  const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
+  if (!resolvedFromLocal) {
+    throw new PnpmError(
+      'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
+      `No matching version found for ${wantedDependency.alias}@${pref} inside the workspace`,
+    )
+  }
+  return resolvedFromLocal
 }
 
 function tryResolveFromLocalPackages (
