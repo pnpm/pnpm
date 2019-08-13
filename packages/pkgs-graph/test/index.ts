@@ -215,3 +215,106 @@ test('create package graph for local directory dependencies', t => {
   })
   t.end()
 })
+
+test('create package graph ignoring the workspace protocol', t => {
+  const result = createPkgGraph([
+    {
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+
+        dependencies: {
+          'foo': 'workspace:^1.0.0',
+          'is-positive': '1.0.0',
+        }
+      },
+      path: BAR1_PATH,
+    },
+    {
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+
+        dependencies: {
+          bar: '^10.0.0'
+        }
+      },
+      path: FOO1_PATH,
+    },
+    {
+      manifest: {
+        name: 'bar',
+        version: '2.0.0',
+
+        dependencies: {
+          foo: 'workspace:^2.0.0'
+        }
+      },
+      path: BAR2_PATH,
+    },
+    {
+      manifest: {
+        name: 'foo',
+        version: '2.0.0',
+      },
+      path: FOO2_PATH,
+    },
+  ])
+  t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }])
+  t.deepEqual(result.graph, {
+    [BAR1_PATH]: {
+      dependencies: [FOO1_PATH],
+      package: {
+        manifest: {
+          name: 'bar',
+          version: '1.0.0',
+
+          dependencies: {
+            'foo': 'workspace:^1.0.0',
+            'is-positive': '1.0.0',
+          }
+        },
+        path: BAR1_PATH,
+      },
+    },
+    [FOO1_PATH]: {
+      dependencies: [],
+      package: {
+        manifest: {
+          name: 'foo',
+          version: '1.0.0',
+
+          dependencies: {
+            bar: '^10.0.0'
+          }
+        },
+        path: FOO1_PATH,
+      },
+    },
+    [BAR2_PATH]: {
+      dependencies: [FOO2_PATH],
+      package: {
+        manifest: {
+          name: 'bar',
+          version: '2.0.0',
+
+          dependencies: {
+            foo: 'workspace:^2.0.0',
+          },
+        },
+        path: BAR2_PATH,
+      },
+    },
+    [FOO2_PATH]: {
+      dependencies: [],
+      package: {
+        manifest: {
+          name: 'foo',
+          version: '2.0.0',
+        },
+        path: FOO2_PATH,
+      },
+    },
+  })
+  t.end()
+})
