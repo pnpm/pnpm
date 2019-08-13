@@ -5,7 +5,7 @@ import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm } from './utils'
+import { execPnpm, execPnpmSync } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -258,4 +258,77 @@ test['skip']('publish package that calls executable from the workspace .bin fold
       'postpublish',
     ],
   )
+})
+
+test('convert specs with workspace protocols to regular version ranges', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      name: 'workspace-protocol-package',
+      version: '1.0.0',
+
+      dependencies: {
+        'file-type': 'workspace:12.0.1',
+        'is-negative': 'workspace:*',
+        'is-positive': '1.0.0',
+        'lodash.delay': '~4.1.0',
+      },
+      optionalDependencies: {
+        'lodash.deburr': 'workspace:^4.1.0',
+      }
+    },
+    {
+      name: 'is-negative',
+      version: '1.0.0',
+    },
+    {
+      name: 'file-type',
+      version: '12.0.1',
+    },
+    {
+      name: 'lodash.deburr',
+      version: '4.1.0',
+    },
+    {
+      name: 'lodash.delay',
+      version: '4.1.0',
+    },
+    {
+      name: 'target',
+      version: '1.0.0',
+    }
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('workspace-protocol-package')
+
+  const { status, stdout } = execPnpmSync('publish', ...CREDENTIALS)
+
+  t.equal(status, 1, 'publish fails if cannot resolve workspace:*')
+  t.ok(
+    stdout.toString().includes('Cannot resolve workspace protocol of dependency "is-negative"'),
+    'publish fails with the correct error message',
+  )
+
+  process.chdir('..')
+
+  await execPnpm('multi', 'install', '--store', 'store')
+
+  process.chdir('workspace-protocol-package')
+  await execPnpm('publish', ...CREDENTIALS)
+
+  process.chdir('../target')
+
+  await execPnpm('add', 'workspace-protocol-package', '--no-link-workspace-packages')
+
+  const publishedManifest = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
+  t.deepEqual(publishedManifest.dependencies, {
+    'file-type': '12.0.1',
+    'is-negative': '1.0.0',
+    'is-positive': '1.0.0',
+    'lodash.delay': '~4.1.0',
+  })
+  t.deepEqual(publishedManifest.optionalDependencies, {
+    'lodash.deburr': '^4.1.0',
+  })
 })

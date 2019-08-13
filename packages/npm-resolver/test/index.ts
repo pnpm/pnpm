@@ -1226,3 +1226,90 @@ test('resolve from local directory when the requested version is not found in th
 
   t.end()
 })
+
+test('workspace protocol: resolve from local directory even when it does not match the latest version of the package', async t => {
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawNpmConfig: { registry },
+    store,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+    localPackages: {
+      'is-positive': {
+        '3.0.0': {
+          directory: '/home/istvan/src/is-positive',
+          package: {
+            name: 'is-positive',
+            version: '3.0.0',
+          },
+        },
+      },
+    },
+    prefix: '/home/istvan/src',
+    registry,
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:is-positive')
+  t.notOk(resolveResult!.latest)
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '3.0.0')
+
+  t.end()
+})
+
+test('workspace protocol: resolution fails if there is no matching local package', async t => {
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawNpmConfig: { registry },
+    store,
+  })
+
+  let err!: Error
+  try {
+    await resolve({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+      localPackages: {},
+      prefix: '/home/istvan/src',
+      registry,
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
+  t.equal(err.message, 'No matching version found for is-positive@^3.0.0 inside the workspace')
+
+  t.end()
+})
+
+test('workspace protocol: resolution fails if there are no local packages', async t => {
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawNpmConfig: { registry },
+    store,
+  })
+
+  let err!: Error
+  try {
+    await resolve({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
+      prefix: '/home/istvan/src',
+      registry,
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err.message, 'Cannot resolve package from workspace because opts.localPackages is not defined')
+
+  t.end()
+})
