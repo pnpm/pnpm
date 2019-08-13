@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "3.7.0-4",
+  "version": "3.7.0-5",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -78,7 +78,7 @@
     "p-limit": "2.2.0",
     "path-absolute": "1.0.1",
     "path-name": "1.0.0",
-    "pkgs-graph": "4.0.0",
+    "pkgs-graph": "4.1.0",
     "process-exists": "3.1.0",
     "ramda": "0.26.1",
     "read-ini-file": "2.0.0",

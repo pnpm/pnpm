@@ -1208,7 +1208,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       path-name: 1.0.0
-      pkgs-graph: 4.0.0
+      pkgs-graph: 4.1.0
       pnpm: 'link:'
       process-exists: 3.1.0
       ramda: 0.26.1
