@@ -117,10 +117,15 @@ async function makePublishManifest (prefix: string, originalManifest: ImporterMa
 
 async function makePublishDependencies (prefix: string, dependencies: Dependencies | undefined) {
   if (!dependencies) return dependencies
-  const publishDependencies: Dependencies = {}
-  for (const depName of Object.keys(dependencies)) {
-    publishDependencies[depName] = await makePublishDependency(depName, dependencies[depName], prefix)
-  }
+  const publishDependencies: Dependencies = R.fromPairs(
+    await Promise.all(
+      R.toPairs(dependencies)
+        .map(async ([depName, depSpec]) => [
+          depName,
+          await makePublishDependency(depName, depSpec, prefix),
+        ]),
+    ) as any, // tslint:disable-line
+  )
   return publishDependencies
 }
 
