@@ -119,23 +119,27 @@ async function makePublishDependencies (prefix: string, dependencies: Dependenci
   if (!dependencies) return dependencies
   const publishDependencies: Dependencies = {}
   for (const depName of Object.keys(dependencies)) {
-    if (!dependencies[depName].startsWith('workspace:')) {
-      publishDependencies[depName] = dependencies[depName]
-    } else if (dependencies[depName] === 'workspace:*') {
-      const { manifest } = await tryReadImporterManifest(path.join(prefix, 'node_modules', depName))
-      if (!manifest || !manifest.version) {
-        throw new PnpmError(
-          'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
-          `Cannot resolve workspace protocol of dependency "${depName}" ` +
-            `because this dependency is not installed. Try running "pnpm install".`,
-        )
-      }
-      publishDependencies[depName] = manifest.version
-    } else {
-      publishDependencies[depName] = dependencies[depName].substr(10)
-    }
+    publishDependencies[depName] = await makePublishDependency(depName, dependencies[depName], prefix)
   }
   return publishDependencies
+}
+
+async function makePublishDependency (depName: string, depSpec: string, prefix: string) {
+  if (!depSpec.startsWith('workspace:')) {
+    return depSpec
+  }
+  if (depSpec === 'workspace:*') {
+    const { manifest } = await tryReadImporterManifest(path.join(prefix, 'node_modules', depName))
+    if (!manifest || !manifest.version) {
+      throw new PnpmError(
+        'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
+        `Cannot resolve workspace protocol of dependency "${depName}" ` +
+          `because this dependency is not installed. Try running "pnpm install".`,
+      )
+    }
+    return manifest.version
+  }
+  return depSpec.substr(10)
 }
 
 async function copyLicenses (sourceDir: string, destDir: string) {
