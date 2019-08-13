@@ -13,4 +13,4 @@ devDependencies:
   tslint: 5.18.0
   typescript: 3.5.3
 engines:
-  pnpm: '>=3.6'
+  pnpm: '>=3.7'
