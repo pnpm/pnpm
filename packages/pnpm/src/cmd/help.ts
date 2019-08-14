@@ -487,28 +487,34 @@ function getHelpText (command: string) {
       return stripIndent`
         Usage: pnpm [command] [flags]
 
-        Commands:
-
-          - import
+        manage your dependencies:
           - install
-          - install-test
+          - update
+          - uninstall
           - link
+          - unlink
+          - import
+          - install-test
+          - rebuild
+          - prune
+        
+        review your dependencies:
           - list
           - outdated
-          - pack
-          - prune
-          - publish
-          - rebuild
-          - restart
-          - root
+        
+        run your scripts:
           - run
-          - start
-          - stop
           - test
-          - uninstall
-          - unlink
-          - update
+          - start
+          - restart
+          - stop
 
+        other:
+          - pack
+          - publish
+          - root
+
+        manage you monorepo:
           - recursive exec
           - recursive install
           - recursive list
@@ -520,10 +526,12 @@ function getHelpText (command: string) {
           - recursive unlink
           - recursive update
 
+        use a store server:
           - server start
           - server status
           - server stop
 
+        manage your store:
           - store add
           - store prune
           - store status
