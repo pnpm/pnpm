@@ -13,7 +13,7 @@ before_install:
   - pnpm i -g pnpm@next
   - pnpm -v
 install:
-  - pnpm recursive install --no-lock
+  - pnpm install --no-lock --force
 script:
   - set -e # Fail on first error
   # TODO: fix commitlint
