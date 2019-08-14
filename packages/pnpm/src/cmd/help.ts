@@ -497,11 +497,11 @@ function getHelpText (command: string) {
           - install-test
           - rebuild
           - prune
-        
+
         review your dependencies:
           - list
           - outdated
-        
+
         run your scripts:
           - run
           - test
