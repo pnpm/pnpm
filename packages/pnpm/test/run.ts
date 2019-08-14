@@ -28,9 +28,9 @@ test('run: pass the args to the command that is specfied in the build script', a
     },
   })
 
-  const result = execPnpmSync('run', 'foo', 'arg', '--', '--flag=true')
+  const result = execPnpmSync('run', 'foo', 'arg', '--', '--flag=true', '--help', '-h')
 
-  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true"/), 'command was successful')
+  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true" "--help" "-h"/), 'command was successful')
 })
 
 test('run -r: pass the args to the command that is specfied in the build script', async (t: tape.Test) => {

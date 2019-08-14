@@ -5,7 +5,10 @@ process.setMaxListeners(0)
 
 let argv = process.argv.slice(2)
 
-if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
+const dashDashIndex = argv.indexOf('--')
+const nonEscapedArgv = dashDashIndex === -1 ? argv : argv.slice(0, dashDashIndex)
+
+if (nonEscapedArgv.includes('--help') || nonEscapedArgv.includes('-h') || nonEscapedArgv.includes('--h')) {
   argv = ['help'].concat(argv)
 }
 
