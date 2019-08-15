@@ -33,6 +33,6 @@
     "node-fetch-unix": "2.3.0"
   },
   "devDependencies": {
-    "rimraf": "^2.6.2"
+    "rimraf": "3.0.0"
   }
 }

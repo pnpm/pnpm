@@ -38,7 +38,7 @@
   "devDependencies": {
     "@pnpm/default-resolver": "link:",
     "@pnpm/logger": "2.1.1",
-    "rimraf": "2.6.3",
+    "rimraf": "3.0.0",
     "tape": "4.11.0"
   }
 }

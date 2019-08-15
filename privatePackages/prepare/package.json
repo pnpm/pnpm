@@ -17,7 +17,7 @@
     "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
-    "rimraf": "2.6.3",
+    "rimraf": "3.0.0",
     "tslint-config-standard": "8.0.1",
     "tslint-eslint-rules": "5.4.0"
   },

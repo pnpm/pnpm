@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@pnpm/tarball-resolver": "link:",
-    "rimraf": "^2.6.2",
+    "rimraf": "3.0.0",
     "tape": "4.11.0"
   }
 }

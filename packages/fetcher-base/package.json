@@ -33,6 +33,6 @@
     "@types/ssri": "6.0.1"
   },
   "devDependencies": {
-    "rimraf": "^2.6.2"
+    "rimraf": "3.0.0"
   }
 }

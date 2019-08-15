@@ -24,7 +24,7 @@
     "lib/"
   ],
   "devDependencies": {
-    "rimraf": "2.6.3"
+    "rimraf": "3.0.0"
   },
   "directories": {
     "test": "test"

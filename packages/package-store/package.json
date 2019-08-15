@@ -47,7 +47,7 @@
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
     "@types/mz": "0.0.32",
     "@types/ramda": "0.25.39",
-    "rimraf": "2.6.3",
+    "rimraf": "3.0.0",
     "tape": "4.11.0",
     "tempy": "0.3.0"
   },

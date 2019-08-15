@@ -21,7 +21,7 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
     "@types/mz": "0.0.32",
-    "rimraf": "2.6.3"
+    "rimraf": "3.0.0"
   },
   "directories": {
     "test": "test"

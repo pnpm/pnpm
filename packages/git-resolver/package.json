@@ -41,7 +41,7 @@
     "@types/is-windows": "0.2.0",
     "@types/semver": "6",
     "is-windows": "1.0.2",
-    "rimraf": "^2.6.2",
+    "rimraf": "3.0.0",
     "tape": "4.11.0"
   }
 }

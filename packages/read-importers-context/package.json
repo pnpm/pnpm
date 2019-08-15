@@ -37,6 +37,6 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
-    "rimraf": "2.6.3"
+    "rimraf": "3.0.0"
   }
 }

@@ -51,6 +51,6 @@
     "@pnpm/resolve-dependencies": "link:",
     "@types/ramda": "0.25.38",
     "@types/semver": "6",
-    "rimraf": "2.6.3"
+    "rimraf": "3.0.0"
   }
 }
