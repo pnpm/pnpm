@@ -220,6 +220,27 @@ test('installing only optional deps', async (t) => {
   t.end()
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/1958
+test('not installing optional deps', async (t) => {
+  const prefix = path.join(fixtures, 'simple-with-optional-dep')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  await headless(await testDefaults({
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
+    lockfileDirectory: prefix,
+  }))
+
+  const project = assertProject(t, prefix)
+  await project.hasNot('is-positive')
+  await project.has('pkg-with-good-optional')
+
+  t.end()
+})
+
 // Covers https://github.com/pnpm/pnpm/issues/1547
 test('installing with independent-leaves and shamefully-flatten', async (t) => {
   const prefix = path.join(fixtures, 'with-1-dep')
