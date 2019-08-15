@@ -392,7 +392,7 @@ async function linkRootPackages (
     ...lockfileImporter.optionalDependencies,
   }
   return Promise.all(
-    R.keys(allDeps)
+    Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
           const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
@@ -473,7 +473,7 @@ async function lockfileToDepGraph (
   if (lockfile.packages) {
     const pkgSnapshotByLocation = {}
     await Promise.all(
-      R.keys(lockfile.packages).map(async (relDepPath) => {
+      Object.keys(lockfile.packages).map(async (relDepPath) => {
         const depPath = dp.resolve(opts.registries, relDepPath)
         const pkgSnapshot = lockfile.packages![relDepPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
@@ -592,7 +592,7 @@ async function getChildrenPaths (
   allDeps: {[alias: string]: string},
 ) {
   const children: {[alias: string]: string} = {}
-  for (const alias of R.keys(allDeps)) {
+  for (const alias of Object.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
@@ -682,7 +682,7 @@ async function linkAllBins (
       .map((depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
           ? depNode.children
-          : R.keys(depNode.children)
+          : Object.keys(depNode.children)
             .reduce((nonOptionalChildren, childAlias) => {
               if (!depNode.optionalDependencies.has(childAlias)) {
                 nonOptionalChildren[childAlias] = depNode.children[childAlias]
@@ -730,7 +730,7 @@ async function linkAllModules (
       .map(async (depNode) => {
         const childrenToLink = opts.optional
           ? depNode.children
-          : R.keys(depNode.children)
+          : Object.keys(depNode.children)
             .reduce((nonOptionalChildren, childAlias) => {
               if (!depNode.optionalDependencies.has(childAlias)) {
                 nonOptionalChildren[childAlias] = depNode.children[childAlias]
@@ -739,7 +739,7 @@ async function linkAllModules (
             }, {})
 
         await Promise.all(
-          R.keys(childrenToLink)
+          Object.keys(childrenToLink)
             .map(async (alias) => {
               // if (!pkg.installable && pkg.optional) return
               if (alias === depNode.name) {

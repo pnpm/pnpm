@@ -207,7 +207,7 @@ export default async function linkPackages (
   await Promise.all(importers.map(({ id, manifest, modulesDir, prefix }) => {
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[id]
     return Promise.all(
-      R.keys(directAbsolutePathsByAlias)
+      Object.keys(directAbsolutePathsByAlias)
         .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
         .filter(({ depGraphNode }) => depGraphNode)
         .map(async ({ rootAlias, depGraphNode }) => {
@@ -499,7 +499,7 @@ async function linkAllModules (
       .map(async ({ children, optionalDependencies, name, modules }) => {
         const childrenToLink = opts.optional
           ? children
-          : R.keys(children)
+          : Object.keys(children)
             .reduce((nonOptionalChildren, childAlias) => {
               if (!optionalDependencies.has(childAlias)) {
                 nonOptionalChildren[childAlias] = children[childAlias]
@@ -508,7 +508,7 @@ async function linkAllModules (
             }, {})
 
         await Promise.all(
-          R.keys(childrenToLink)
+          Object.keys(childrenToLink)
             .map(async (childAlias) => {
               const pkg = depGraph[childrenToLink[childAlias]]
               if (!pkg.installable && pkg.optional) return

@@ -765,7 +765,7 @@ async function installInContext (
     const topParents = importer.manifest
       ? await getTopParents(
           R.difference(
-            R.keys(getAllDependenciesFromPackage(importer.manifest)),
+            Object.keys(getAllDependenciesFromPackage(importer.manifest)),
             importer.newPkgRawSpecs && resolvedImporter.directDependencies
               .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
               .map(({ alias }) => alias) || [],

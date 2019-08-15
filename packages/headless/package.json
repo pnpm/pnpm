@@ -31,7 +31,7 @@
     "@types/fs-extra": "7.0.0",
     "@types/mz": "0.0.32",
     "@types/path-exists": "3.0.0",
-    "@types/ramda": "0.25.34",
+    "@types/ramda": "0.26.19",
     "@types/rimraf": "2.0.2",
     "@types/sinon": "^7.0.10",
     "fs-extra": "7.0.1",

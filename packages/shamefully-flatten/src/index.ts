@@ -88,7 +88,7 @@ async function getDependencies (
     }
     deps.push({
       absolutePath,
-      children: R.keys(allDeps).reduce((children, alias) => {
+      children: Object.keys(allDeps).reduce((children, alias) => {
         children[alias] = dp.refToAbsolute(allDeps[alias], alias, opts.registries)
         return children
       }, {}),
@@ -143,7 +143,7 @@ async function shamefullyFlattenGraph (
     })
     // build the alias map and the id map
     .map((depNode) => {
-      for (const childAlias of R.keys(depNode.children)) {
+      for (const childAlias of Object.keys(depNode.children)) {
         // if this alias has already been taken, skip it
         if (hoistedAliases.has(childAlias)) {
           continue

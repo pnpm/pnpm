@@ -174,7 +174,7 @@ export default async function prune (
 
 function mergeDependencies (lockfileImporter: LockfileImporter): { [depName: string]: string } {
   return R.mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => lockfileImporter[depType]),
+    DEPENDENCIES_FIELDS.map((depType) => lockfileImporter[depType] || {}),
   )
 }
 

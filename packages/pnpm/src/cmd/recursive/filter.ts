@@ -72,14 +72,14 @@ function matchPackages<T> (
   graph: PackageGraph<T>,
   pattern: string,
 ) {
-  return R.keys(graph).filter((id) => graph[id].package.manifest.name && minimatch(graph[id].package.manifest.name, pattern))
+  return Object.keys(graph).filter((id) => graph[id].package.manifest.name && minimatch(graph[id].package.manifest.name, pattern))
 }
 
 function matchPackagesByPath<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string,
 ) {
-  return R.keys(graph).filter((location) => isSubdir(pathStartsWith, location))
+  return Object.keys(graph).filter((location) => isSubdir(pathStartsWith, location))
 }
 
 function pickSubgraph (

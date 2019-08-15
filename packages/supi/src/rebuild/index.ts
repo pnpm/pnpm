@@ -40,7 +40,7 @@ function findPackages (
     prefix: string,
   },
 ): string[] {
-  return R.keys(packages)
+  return Object.keys(packages)
     .filter((relativeDepPath) => {
       const pkgLockfile = packages[relativeDepPath]
       const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgLockfile)
@@ -137,7 +137,7 @@ export async function rebuild (
   if (opts.pending) {
     idsToRebuild = ctx.pendingBuilds
   } else if (ctx.currentLockfile && ctx.currentLockfile.packages) {
-    idsToRebuild = R.keys(ctx.currentLockfile.packages)
+    idsToRebuild = Object.keys(ctx.currentLockfile.packages)
   }
 
   const pkgsThatWereRebuilt = await _rebuild(
@@ -332,7 +332,7 @@ async function _rebuild (
 
   // It may be optimized because some bins were already linked before running lifecycle scripts
   await Promise.all(
-    R
+    Object
       .keys(pkgSnapshots)
       .filter((relDepPath) => !packageIsIndependent(pkgSnapshots[relDepPath]))
       .map((relDepPath) => limitLinking(() => {

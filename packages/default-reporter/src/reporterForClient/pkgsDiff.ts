@@ -103,8 +103,8 @@ export default function (
 
       for (const depType of ['peer', 'prod', 'optional', 'dev']) {
         const prop = propertyByDependencyType[depType]
-        const initialDeps = R.keys(initialPackageJson[prop])
-        const updatedDeps = R.keys(updatedPackageJson[prop])
+        const initialDeps = Object.keys(initialPackageJson[prop] || {})
+        const updatedDeps = Object.keys(updatedPackageJson[prop] || {})
         const removedDeps = R.difference(initialDeps, updatedDeps)
 
         for (const removedDep of removedDeps) {

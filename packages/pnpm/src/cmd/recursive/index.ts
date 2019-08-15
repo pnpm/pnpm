@@ -346,7 +346,9 @@ export async function recursive (
               ], opts)
               break
             default:
-              action = currentInput.length === 0 ? install : R.flip(addDependenciesToPackage).bind(null, currentInput)
+              action = currentInput.length === 0
+                ? install
+                : (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // tslint:disable-line:no-any
               break
           }
 

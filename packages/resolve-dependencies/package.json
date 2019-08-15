@@ -49,7 +49,7 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
     "@pnpm/resolve-dependencies": "link:",
-    "@types/ramda": "0.25.38",
+    "@types/ramda": "0.26.19",
     "@types/semver": "6",
     "rimraf": "3.0.0"
   }

@@ -29,12 +29,12 @@ export default function (
 } {
   lockfile.packages = lockfile.packages || {}
   const pendingRequiresBuilds = [] as PendingRequiresBuild[]
-  for (const depPath of R.keys(depGraph)) {
+  for (const depPath of Object.keys(depGraph)) {
     const depNode = depGraph[depPath]
     const relDepPath = dp.relative(registries, depNode.name, depPath)
     const result = R.partition(
       (child) => depNode.optionalDependencies.has(depGraph[child.depPath].name),
-      R.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
+      Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
     )
     lockfile.packages[relDepPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
       depGraph,

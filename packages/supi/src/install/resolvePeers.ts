@@ -101,7 +101,7 @@ export default function (
         ]),
       ),
       toPkgByName(
-        R
+        Object
           .keys(directNodeIdsByAlias)
           .map((alias) => ({
             alias,
@@ -170,7 +170,7 @@ function resolvePeersOfNode (
     ? parentParentPkgs
     : {
       ...parentParentPkgs,
-      ...toPkgByName(R.keys(children).map((alias) => ({ alias, nodeId: children[alias], node: ctx.dependenciesTree[children[alias]] }))),
+      ...toPkgByName(Object.keys(children).map((alias) => ({ alias, nodeId: children[alias], node: ctx.dependenciesTree[children[alias]] }))),
     }
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
 
@@ -199,7 +199,7 @@ function resolvePeersOfNode (
     }
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
-      R.keys(allResolvedPeers).map((alias) => ({
+      Object.keys(allResolvedPeers).map((alias) => ({
         name: alias,
         version: ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage.version,
       })))
