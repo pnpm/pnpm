@@ -57,7 +57,7 @@
     "delay": "4.3.0",
     "diable": "4.0.2",
     "dir-is-case-sensitive": "1.0.2",
-    "execa": "2.0.3",
+    "execa": "2.0.4",
     "fast-glob": "3.0.4",
     "find-packages": "workspace:5.0.7",
     "get-port": "5.0.0",

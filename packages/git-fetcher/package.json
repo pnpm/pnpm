@@ -29,7 +29,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/git-fetcher#readme",
   "dependencies": {
     "dint": "4.0.0",
-    "execa": "2.0.3",
+    "execa": "2.0.4",
     "path-temp": "2.0.0",
     "rimraf-then": "1.0.1"
   },
