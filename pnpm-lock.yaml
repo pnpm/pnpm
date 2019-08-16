@@ -123,7 +123,6 @@ importers:
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
       chalk: 2.4.2
-      cli-cursor: 3.1.0
       common-tags: 1.8.0
       most: 1.7.3_most@1.7.3
       normalize-path: 3.0.0
@@ -160,7 +159,6 @@ importers:
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
       chalk: 2.4.2
-      cli-cursor: 3.1.0
       common-tags: 1.8.0
       delay: 4.3.0
       ghooks: 2.0.4
@@ -3320,14 +3318,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ZNo/fValRBLll5S9Ytw1KV6PKYc=
-  /cli-cursor/3.1.0:
-    dependencies:
-      restore-cursor: 3.1.0
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-I/zHAwsKf9FqGoXM4WWRACob9+SNukZTd94DWF57E4toouRulbCxcUh6RKUEOQlYTHJnzkPMySvPNaaSLNfLZw==
   /cli-width/1.1.1:
     dev: true
     resolution:
@@ -7184,15 +7174,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-NGYfRohjJ/7SmRR5FSJS35LapUE=
-  /restore-cursor/3.1.0:
-    dependencies:
-      onetime: 5.1.0
-      signal-exit: 3.0.2
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-l+sSefzHpj5qimhFSE5a8nufZYAM3sBSVMAPtYkmC+4EH2anSGaEMXSD0izRQbu9nfyQ9y5JrVmp7E8oZrUjvA==
   /resumer/0.0.0:
     dependencies:
       through: 2.3.8
