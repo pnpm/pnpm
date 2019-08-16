@@ -450,6 +450,7 @@ async function linkRootPackages (
 
 interface LockfileToDepGraphOptions {
   force: boolean,
+  include: IncludedDependencies,
   independentLeaves: boolean,
   importerIds: string[],
   lockfileDirectory: string,
@@ -561,13 +562,20 @@ async function lockfileToDepGraph (
     }
     for (const peripheralLocation of R.keys(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[peripheralLocation]
-      const allDeps = { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies }
+      const allDeps = {
+        ...pkgSnapshot.dependencies,
+        ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
+      }
 
       graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
     for (const importerId of opts.importerIds) {
       const lockfileImporter = lockfile.importers[importerId]
-      const rootDeps = { ...lockfileImporter.devDependencies, ...lockfileImporter.dependencies, ...lockfileImporter.optionalDependencies }
+      const rootDeps = {
+        ...(opts.include.devDependencies ? lockfileImporter.devDependencies : {}),
+        ...(opts.include.dependencies ? lockfileImporter.dependencies : {}),
+        ...(opts.include.optionalDependencies ? lockfileImporter.optionalDependencies : {}),
+      }
       directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps)
     }
   }
