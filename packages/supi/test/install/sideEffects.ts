@@ -1,8 +1,8 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import rimraf = require('rimraf-then')
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

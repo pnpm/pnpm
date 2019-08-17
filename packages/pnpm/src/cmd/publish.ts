@@ -1,12 +1,12 @@
 import PnpmError from '@pnpm/error'
 import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
 import { Dependencies, ImporterManifest } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
 import fg = require('fast-glob')
 import fs = require('mz/fs')
 import path = require('path')
 import R = require('ramda')
-import rimraf = require('rimraf-then')
 import writeJsonFile = require('write-json-file')
 import readImporterManifest from '../readImporterManifest'
 import { PnpmOptions } from '../types'

@@ -8,6 +8,7 @@ import {
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
@@ -16,7 +17,6 @@ import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import rimraf = require('rimraf-then')
 import semver = require('semver')
 import sinon = require('sinon')
 import {

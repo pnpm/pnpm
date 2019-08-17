@@ -1,9 +1,9 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
+import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
-import rimraf = require('rimraf-then')
 import { install } from 'supi'
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'

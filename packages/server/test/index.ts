@@ -4,11 +4,11 @@ import createStore from '@pnpm/package-store'
 import { connectStoreController, createServer, } from '@pnpm/server'
 import { PackageFilesResponse, ResolveFunction } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
+import rimraf = require('@zkochan/rimraf')
 import isPortReachable = require('is-port-reachable')
 import fs = require('mz/fs')
 import fetch from 'node-fetch'
 import path = require('path')
-import rimraf = require('rimraf-then')
 import test = require('tape')
 
 const registry = 'https://registry.npmjs.org/'

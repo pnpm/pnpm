@@ -48,11 +48,6 @@ declare module 'observatory' {
   export = anything;
 }
 
-declare module 'rimraf-then' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'isexe' {
   const anything: any;
   export = anything;

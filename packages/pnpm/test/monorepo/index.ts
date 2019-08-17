@@ -2,12 +2,12 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
-import rimraf = require('rimraf-then')
 import symlink from 'symlink-dir'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

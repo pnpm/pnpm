@@ -31,7 +31,7 @@
     "dint": "4.0.0",
     "execa": "2.0.4",
     "path-temp": "2.0.0",
-    "rimraf-then": "1.0.1"
+    "@zkochan/rimraf": "1.0.0"
   },
   "devDependencies": {
     "@pnpm/git-fetcher": "link:",

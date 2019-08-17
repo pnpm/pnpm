@@ -46,6 +46,7 @@ import {
   safeReadPackageFromDir as safeReadPkgFromDir,
   WantedDependency,
 } from '@pnpm/utils'
+import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
@@ -54,7 +55,6 @@ import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
-import rimraf = require('rimraf-then')
 import semver = require('semver')
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'

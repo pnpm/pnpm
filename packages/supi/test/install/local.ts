@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
+import rimraf = require('@zkochan/rimraf')
 import { copy } from 'fs-extra'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
 import path = require('path')
-import rimraf = require('rimraf-then')
 import {
   addDependenciesToPackage,
   install,

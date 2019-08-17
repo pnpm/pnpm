@@ -6,6 +6,7 @@ import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@
 import { ResolveFunction } from '@pnpm/resolver-base'
 import createFetcher from '@pnpm/tarball-fetcher'
 import { PackageJson } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import delay from 'delay'
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
@@ -13,7 +14,6 @@ import ncpCB = require('ncp')
 import nock = require('nock')
 import normalize = require('normalize-path')
 import path = require('path')
-import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')

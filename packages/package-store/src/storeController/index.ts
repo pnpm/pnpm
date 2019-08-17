@@ -9,12 +9,12 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import { StoreIndex } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
-import rimraf = require('rimraf-then')
 import {
   read as readStore,
   save as saveStore,

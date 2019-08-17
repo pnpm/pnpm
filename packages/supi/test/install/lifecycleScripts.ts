@@ -1,11 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { LifecycleLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
 import PATH = require('path-name')
-import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,

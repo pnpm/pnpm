@@ -4,11 +4,11 @@ import {
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import yaml = require('js-yaml')
 import makeDir = require('make-dir')
 import path = require('path')
 import R = require('ramda')
-import rimraf = require('rimraf-then')
 import writeFileAtomicCB = require('write-file-atomic')
 import logger from './logger'
 

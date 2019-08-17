@@ -1,10 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import ncpCB = require('ncp')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
-import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, mutateModules, rebuild } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

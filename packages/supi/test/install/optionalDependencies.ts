@@ -1,11 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
-import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import { addDependenciesToPackage, install, mutateModules, rebuild } from 'supi'
 import tape = require('tape')

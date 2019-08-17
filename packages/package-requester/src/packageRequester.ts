@@ -28,6 +28,7 @@ import {
   PackageJson,
   StoreIndex,
 } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import makeDir = require('make-dir')
 import * as fs from 'mz/fs'
@@ -35,7 +36,6 @@ import PQueue from 'p-queue'
 import path = require('path')
 import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
-import rimraf = require('rimraf-then')
 import ssri = require('ssri')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile = require('write-json-file')

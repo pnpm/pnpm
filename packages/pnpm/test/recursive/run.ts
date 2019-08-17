@@ -1,7 +1,7 @@
 import { preparePackages } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import path = require('path')
-import rimraf = require('rimraf-then')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')

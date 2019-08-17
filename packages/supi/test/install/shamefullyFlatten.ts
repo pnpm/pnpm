@@ -1,8 +1,8 @@
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import fs = require('fs')
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
-import rimraf = require('rimraf-then')
 import {
   addDependenciesToPackage,
   install,

@@ -12,10 +12,10 @@ import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import rimraf = require('@zkochan/rimraf')
 import fse = require('fs-extra')
 import path = require('path')
 import exists = require('path-exists')
-import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')

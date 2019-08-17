@@ -41,6 +41,7 @@
     "@pnpm/resolver-base": "workspace:3.1.2",
     "@pnpm/store-controller-types": "workspace:3.0.3",
     "@pnpm/types": "workspace:3.2.0",
+    "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.0.0",
     "make-dir": "3.0.0",
     "mz": "2.7.0",
@@ -48,7 +49,6 @@
     "p-queue": "6.1.1",
     "path-exists": "4.0.0",
     "rename-overwrite": "2.0.2",
-    "rimraf-then": "1.0.1",
     "ssri": "6.0.1",
     "symlink-dir": "3.1.0",
     "write-json-file": "4.0.0"
