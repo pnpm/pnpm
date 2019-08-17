@@ -36,7 +36,7 @@
     "path-exists": "4.0.0",
     "path-temp": "2.0.0",
     "ramda": "0.26.1",
-    "rename-overwrite": "2.0.1",
+    "rename-overwrite": "2.0.2",
     "rimraf-then": "1.0.1",
     "write-json-file": "4.0.0"
   },

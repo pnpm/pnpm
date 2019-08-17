@@ -873,7 +873,7 @@ importers:
       p-limit: 2.2.0
       p-queue: 6.1.1
       path-exists: 4.0.0
-      rename-overwrite: 2.0.1
+      rename-overwrite: 2.0.2
       rimraf-then: 1.0.1
       ssri: 6.0.1
       symlink-dir: 3.1.0
@@ -926,7 +926,7 @@ importers:
       p-limit: 2.2.0
       p-queue: 6.1.1
       path-exists: 4.0.0
-      rename-overwrite: 2.0.1
+      rename-overwrite: 2.0.2
       rimraf: 3.0.0
       rimraf-then: 1.0.1
       sinon: 7.4.1
@@ -954,7 +954,7 @@ importers:
       path-exists: 4.0.0
       path-temp: 2.0.0
       ramda: 0.26.1
-      rename-overwrite: 2.0.1
+      rename-overwrite: 2.0.2
       rimraf-then: 1.0.1
       write-json-file: 4.0.0
     devDependencies:
@@ -991,7 +991,7 @@ importers:
       path-exists: 4.0.0
       path-temp: 2.0.0
       ramda: 0.26.1
-      rename-overwrite: 2.0.1
+      rename-overwrite: 2.0.2
       rimraf: 3.0.0
       rimraf-then: 1.0.1
       tape: 4.11.0
@@ -1769,7 +1769,7 @@ importers:
       '@pnpm/types': 'link:../types'
       sort-keys: 4.0.0
       write-json-file: 4.0.0
-      write-json5-file: 2.1.1
+      write-json5-file: 2.1.2
       write-yaml-file: 3.0.1
     devDependencies:
       '@pnpm/write-importer-manifest': 'link:'
@@ -1782,7 +1782,7 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
       write-json-file: 4.0.0
-      write-json5-file: 2.1.1
+      write-json5-file: 2.1.2
       write-yaml-file: 3.0.1
   privatePackages/assert-project:
     dependencies:
@@ -1841,7 +1841,7 @@ importers:
       '@types/write-pkg': 3.1.0
       make-dir: 3.0.0
       tape: 4.11.0
-      write-json5-file: 2.1.1
+      write-json5-file: 2.1.2
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
     devDependencies:
@@ -1859,7 +1859,7 @@ importers:
       tape: 4.11.0
       tslint-config-standard: 8.0.1
       tslint-eslint-rules: 5.4.0
-      write-json5-file: 2.1.1
+      write-json5-file: 2.1.2
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
   tools:
@@ -7025,14 +7025,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-W7nRn6bvT+HK3bphmb4oJSH7MOx+Nuc4Cin4Q2y1G00KoKcrpDyoRB3f2ZSrjgS0E+Fj/dwRbtgmmLF9Kug4KQ==
-  /rename-overwrite/2.0.1:
+  /rename-overwrite/2.0.2:
     dependencies:
       graceful-fs: 4.2.2
-      rimraf: 2.7.1
+      rimraf: 3.0.0
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-9PDT/PjrQqI9IMbeEOuTINr4hASyGAh0gy4k1Q6xDh+POdtOAPyiEx5mO62ofY9AAJ01Vh3cZovkv3uH4RItBw==
+      integrity: sha512-XodkUmbg11ZzZoAkYfJYEmj8FscfeRL2KHGALeDSB76ia8A1zqQq0+WkcepXm7QkuzmW0CE3uiFUBr/UJfin+w==
   /replace-string/3.0.0:
     dev: false
     engines:
@@ -7781,7 +7781,7 @@ packages:
       graceful-fs: 4.2.2
       is-windows: 1.0.2
       make-dir: 3.0.0
-      rename-overwrite: 2.0.1
+      rename-overwrite: 2.0.2
     engines:
       node: '>=8.15'
     hasBin: true
@@ -8525,6 +8525,18 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-htC4O7t4TR/GU05xN5ofCnw191ykibjMRk8MGe0cfEUBIvVx4h+kAMnFFLqjpS+Tj5fhJnhHy49zO6T6QTeufg==
+  /write-json5-file/2.1.2:
+    dependencies:
+      graceful-fs: 4.2.2
+      json5: 2.1.0
+      make-dir: 3.0.0
+      sort-keys: 4.0.0
+      write-file-atomic: 2.4.3
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-4LUqyx4CwxVDLEbp83IF6s+3VHduw3PvDYowgbjPLJeD3bVt+vtnLfR4FbbPu7lCs9LSoqwDwGfnzhe/fJyACQ==
   /write-pkg/4.0.0:
     dependencies:
       sort-keys: 2.0.0
