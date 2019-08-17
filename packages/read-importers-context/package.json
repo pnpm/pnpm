@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-importers-context",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -33,7 +33,7 @@
     "@pnpm/lockfile-file": "workspace:1.1.2",
     "@pnpm/modules-yaml": "workspace:3.0.3",
     "@pnpm/types": "workspace:3.2.0",
-    "@pnpm/utils": "workspace:0.10.5"
+    "@pnpm/utils": "workspace:0.10.6"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
