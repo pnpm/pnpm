@@ -1513,7 +1513,7 @@ importers:
       p-limit: 2.2.0
       path-absolute: 1.0.1
       ramda: 0.26.1
-      remove-all-except-outer-links: 2.0.0
+      remove-all-except-outer-links: 2.0.1
       rimraf-then: 1.0.1
       run-groups: 2.0.0
       semver: 6.3.0
@@ -1638,7 +1638,7 @@ importers:
       path-name: 1.0.0
       ramda: 0.26.1
       read-yaml-file: 1.1.0
-      remove-all-except-outer-links: 2.0.0
+      remove-all-except-outer-links: 2.0.1
       resolve-link-target: 1.0.1
       rimraf: 3.0.0
       rimraf-then: 1.0.1
@@ -7013,18 +7013,18 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-8acYXXTI0AkQv6RAOjE3vOaIXZkT9wo4LOFbBKYQEEnnMNBpKqdUrI6S4NT0KPIo/WVvJ5tE/X5LF/TQUf0ekw==
-  /remove-all-except-outer-links/2.0.0:
+  /remove-all-except-outer-links/2.0.1:
     dependencies:
       is-subdir: 1.0.3
       mz: 2.7.0
       p-filter: 2.1.0
       resolve-link-target: 1.0.1
-      rimraf-then: 1.0.1
+      rimraf: 3.0.0
     dev: false
     engines:
-      node: '>=8'
+      node: '>=8.15'
     resolution:
-      integrity: sha512-W7nRn6bvT+HK3bphmb4oJSH7MOx+Nuc4Cin4Q2y1G00KoKcrpDyoRB3f2ZSrjgS0E+Fj/dwRbtgmmLF9Kug4KQ==
+      integrity: sha512-kaFgNeg2c3Ij0aC7JLZBHAE5XJwhmOfbEDyEr7VKSYjJwZ7cv4FwnfYWU1Q1FJqty8YCR7bPZ8cPi4tRV9DC8g==
   /rename-overwrite/2.0.2:
     dependencies:
       graceful-fs: 4.2.2
