@@ -12,7 +12,7 @@
     "@types/write-pkg": "3.1.0",
     "make-dir": "3.0.0",
     "tape": "4.11.0",
-    "write-json5-file": "2.1.1",
+    "write-json5-file": "2.1.2",
     "write-pkg": "4.0.0",
     "write-yaml-file": "3.0.1"
   },

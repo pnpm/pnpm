@@ -36,7 +36,7 @@
     "@pnpm/types": "workspace:^3.0.0",
     "sort-keys": "4.0.0",
     "write-json-file": "4.0.0",
-    "write-json5-file": "2.1.1",
+    "write-json5-file": "2.1.2",
     "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
