@@ -76,7 +76,7 @@
     "mz": "2.7.0",
     "nopt": "4.0.1",
     "p-filter": "2.1.0",
-    "p-limit": "2.2.0",
+    "p-limit": "2.2.1",
     "path-absolute": "1.0.1",
     "path-name": "1.0.0",
     "pkgs-graph": "workspace:4.1.0",
