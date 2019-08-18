@@ -533,7 +533,8 @@ async function linkedPackagesAreUpToDate (
         : (localPackages && localPackages[depName] && localPackages[depName] && localPackages[depName][importerDeps[depName]] && localPackages[depName][importerDeps[depName]].directory)
       if (!dir) continue
       const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
-      const localPackageSatisfiesRange = linkedPkg && semver.satisfies(linkedPkg.version, pkgDeps[depName])
+      const availableVersion = pkgDeps[depName].startsWith('workspace:') ? pkgDeps[depName].substr(10) : pkgDeps[depName]
+      const localPackageSatisfiesRange = linkedPkg && semver.satisfies(linkedPkg.version, availableVersion)
       if (isLinked !== localPackageSatisfiesRange) return false
     }
   }

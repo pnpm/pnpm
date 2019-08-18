@@ -214,7 +214,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
   t.deepEqual(manifest.devDependencies, { 'is-negative': '1.0.0' }, 'dev deps have a new dependency in package.json')
 })
 
-test('headless install is used when package ink to another package in the workspace', async (t) => {
+test('headless install is used when package linked to another package in the workspace', async (t) => {
   const pkg1 = {
     name: 'project-1',
     version: '1.0.0',
@@ -262,6 +262,70 @@ test('headless install is used when package ink to another package in the worksp
   await projects['project-1'].has('is-positive')
   await projects['project-1'].has('project-2')
   await projects['project-2'].hasNot('is-negative')
+})
+
+test('headless install is used with an up-to-date lockfile when package references another package via workspace: protocol', async (t) => {
+  const pkg1 = {
+    name: 'project-1',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-positive': '1.0.0',
+      'project-2': 'workspace:1.0.0',
+    },
+  }
+  const pkg2 = {
+    name: 'project-2',
+    version: '1.0.0',
+
+    dependencies: {
+      'is-negative': '1.0.0',
+    },
+  }
+  const projects = preparePackages(t, [pkg1, pkg2])
+
+  const importers: MutatedImporter[] = [
+    {
+      buildIndex: 0,
+      manifest: pkg1,
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: pkg2,
+      mutation: 'install',
+      prefix: path.resolve('project-2'),
+    },
+  ]
+  const localPackages = {
+    'project-1': {
+      '1.0.0': {
+        directory: path.resolve('project-1'),
+        package: pkg1,
+      },
+    },
+    'project-2': {
+      '1.0.0': {
+        directory: path.resolve('project-2'),
+        package: pkg2,
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ localPackages, lockfileOnly: true }))
+
+  const reporter = sinon.spy()
+  await mutateModules(importers, await testDefaults({ localPackages, reporter }))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Lockfile is up-to-date, resolution step is skipped',
+    name: 'pnpm',
+  }), 'start of headless installation logged')
+
+  await projects['project-1'].has('is-positive')
+  await projects['project-1'].has('project-2')
+  await projects['project-2'].has('is-negative')
 })
 
 test('current lockfile contains only installed dependencies when adding a new importer to workspace with shared lockfile', async (t) => {
