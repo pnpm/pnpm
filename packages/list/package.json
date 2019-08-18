@@ -44,7 +44,7 @@
     "chalk": "2.4.2",
     "cli-columns": "3.1.2",
     "dependencies-hierarchy": "workspace:6.0.1",
-    "p-limit": "2.2.0",
+    "p-limit": "2.2.1",
     "ramda": "0.26.1"
   },
   "devDependencies": {

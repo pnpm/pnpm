@@ -65,7 +65,7 @@
     "normalize-path": "3.0.0",
     "p-every": "2.0.0",
     "p-filter": "2.1.0",
-    "p-limit": "2.2.0",
+    "p-limit": "2.2.1",
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
     "remove-all-except-outer-links": "2.0.1",

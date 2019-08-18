@@ -98,7 +98,7 @@
     "@pnpm/types": "workspace:3.2.0",
     "@pnpm/utils": "workspace:0.10.6",
     "dependency-path": "workspace:3.0.8",
-    "p-limit": "2.2.0",
+    "p-limit": "2.2.1",
     "path-exists": "4.0.0",
     "ramda": "0.26.1"
   }
