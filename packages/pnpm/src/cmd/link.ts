@@ -97,6 +97,13 @@ export default async (
     })),
   )
   const { manifest, writeImporterManifest } = await readImporterManifest(cwd, opts)
+
+  // When running `pnpm link --production ../source`
+  // only the `source` project should be pruned using the --production flag.
+  // The target directory should keep its existing dependencies.
+  // Except the ones that are replaced by the link.
+  delete linkOpts.include
+
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,
     manifest,

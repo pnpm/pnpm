@@ -98,6 +98,13 @@ test('link --production', async (t: tape.Test) => {
     {
       name: 'target',
       version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
     },
     {
       name: 'source',
@@ -114,8 +121,13 @@ test('link --production', async (t: tape.Test) => {
 
   process.chdir('target')
 
+  await execPnpm('install')
   await execPnpm('link', '--production', '../source')
 
   await projects['source'].has('is-positive')
   await projects['source'].hasNot('is-negative')
+
+  // --production should not have effect on the target
+  await projects['target'].has('is-positive')
+  await projects['target'].has('is-negative')
 })
