@@ -16,6 +16,7 @@ import rimraf = require('@zkochan/rimraf')
 import fse = require('fs-extra')
 import path = require('path')
 import exists = require('path-exists')
+import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')
@@ -278,6 +279,31 @@ test('installing with independent-leaves and shamefully-flatten', async (t) => {
   await project.has('.localhost+4873/rimraf/2.5.1')
 
   await project.isExecutable('.bin/rimraf')
+
+  t.end()
+})
+
+test('installing with independent-leaves when an optional subdep is skipped', async (t) => {
+  const prefix = path.join(fixtures, 'has-incompatible-optional-subdep')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  await headless(await testDefaults({
+    independentLeaves: true,
+    lockfileDirectory: prefix,
+  }))
+
+  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join(prefix, 'node_modules', '.modules.yaml'))
+  t.deepEqual(
+    modulesInfo.skipped,
+    [
+      '/dep-of-optional-pkg/1.0.0',
+      '/not-compatible-with-any-os/1.0.0',
+    ],
+    'optional subdeps skipped',
+  )
+
+  const project = assertProject(t, prefix)
+  await project.has('pkg-with-optional')
 
   t.end()
 })

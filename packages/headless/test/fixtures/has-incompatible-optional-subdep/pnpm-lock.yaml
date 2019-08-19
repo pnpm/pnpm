@@ -1,0 +1,26 @@
+dependencies:
+  pkg-with-optional: 1.0.0
+lockfileVersion: 5.1
+packages:
+  /dep-of-optional-pkg/1.0.0:
+    dev: false
+    optional: true
+    resolution:
+      integrity: sha512-CcWxVV76rxjVg+Z1lxrjnUqArDABZcOHRxcYVzr4H+qdh4cr8z12YpJ7mRIrXRS3tWqpndTXjGjiDzg6Uyve3w==
+  /not-compatible-with-any-os/1.0.0:
+    dependencies:
+      dep-of-optional-pkg: 1.0.0
+    dev: false
+    optional: true
+    os:
+      - this-os-does-not-exist
+    resolution:
+      integrity: sha512-0tAyfGm/XxS8KF2jE30g0ra+4XuFPLrX7YFUUZwx1MiTNYIKFr89eAXxkmusJ3uB8t6naC2Tn22xyIXb59WvGQ==
+  /pkg-with-optional/1.0.0:
+    dev: false
+    optionalDependencies:
+      not-compatible-with-any-os: 1.0.0
+    resolution:
+      integrity: sha512-bVDJbNpNwvCcvtqSlj73DDZpVPofixlrrvGwkDKjE3vfC1KDX0QGs5i9vF3fQ+Hu3KTeOGBvmiB2grtHIGCC6w==
+specifiers:
+  pkg-with-optional: 1.0.0

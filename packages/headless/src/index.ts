@@ -610,17 +610,19 @@ async function getChildrenPaths (
     const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
     if (ctx.graph[childDepPath]) {
       children[alias] = ctx.graph[childDepPath].peripheralLocation
-    } else if (ctx.independentLeaves && packageIsIndependent(childPkgSnapshot)) {
-      const pkgId = childPkgSnapshot.id || childDepPath
-      const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-        lockfileDirectory: ctx.lockfileDirectory,
-        targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
-      })
-      children[alias] = pkgLocation.directory
     } else if (childPkgSnapshot) {
-      const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.lockfileDirectory)}`, 'node_modules', pkgName)
+      if (ctx.independentLeaves && packageIsIndependent(childPkgSnapshot)) {
+        const pkgId = childPkgSnapshot.id || childDepPath
+        const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
+        const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
+          lockfileDirectory: ctx.lockfileDirectory,
+          targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
+        })
+        children[alias] = pkgLocation.directory
+      } else {
+        const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
+        children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.lockfileDirectory)}`, 'node_modules', pkgName)
+      }
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else if (!ctx.skipped.has(childRelDepPath)) {
