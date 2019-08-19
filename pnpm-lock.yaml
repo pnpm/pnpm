@@ -1,11 +1,10 @@
 importers:
   .:
-    dependencies:
+    devDependencies:
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': 12.7.2
       '@types/tape': 4.2.33
-    devDependencies:
       ts-node: 8.3.0_typescript@3.5.3
       tslint: 5.18.0_typescript@3.5.3
       typescript: 3.5.3
@@ -2455,7 +2454,7 @@ packages:
   /@types/tape/4.2.33:
     dependencies:
       '@types/node': 12.7.2
-    dev: false
+    dev: true
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/update-notifier/2.5.0:
