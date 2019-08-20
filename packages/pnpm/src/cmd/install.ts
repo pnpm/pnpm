@@ -120,7 +120,9 @@ export default async function installCmd (
       ], {
         ...opts,
         pending: true,
-      } as any, // tslint:disable-line:no-any
+        store: store.path,
+        storeController: store.ctrl,
+      },
     )
   }
 }
