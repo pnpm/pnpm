@@ -53,7 +53,7 @@ test('rebuilds specific dependencies', async function (t: tape.Test) {
 test('rebuild a package with no deps when independent-leaves is true', async (t: tape.Test) => {
   prepare(t)
 
-  await execPnpm('add', 'postinstall-calls-pnpm@1.0.0', '--independent-leaves', '--link-workspace-packages', '--workspace-prefix=.')
+  await execPnpm('add', 'independent-and-requires-build@1.0.0', '--independent-leaves', '--link-workspace-packages', '--workspace-prefix=.')
 
-  t.ok(await exists(path.resolve('node_modules/postinstall-calls-pnpm/created-by-postinstall')))
+  t.ok(await exists(path.resolve('node_modules/independent-and-requires-build/created-by-postinstall')))
 })
