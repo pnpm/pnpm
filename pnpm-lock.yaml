@@ -424,7 +424,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-importers-context': 'link:../read-importers-context'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       '@pnpm/store-path': 2.1.0
       '@types/fs-extra': 8.0.0
       '@types/mz': 0.0.32
@@ -467,7 +467,7 @@ importers:
       '@pnpm/read-importer-manifest': 'workspace:1.0.8'
       '@pnpm/read-importers-context': 'file:../read-importers-context'
       '@pnpm/read-package-json': 'workspace:2.0.3'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       '@pnpm/shamefully-flatten': 'workspace:4.0.0'
       '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/store-path': 2.1.0
@@ -820,7 +820,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       npm-run-all: 4.1.5
       tape: 4.11.0
     specifiers:
@@ -829,7 +829,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       '@pnpm/types': 'workspace:3.2.0'
       '@types/minimatch': 3.0.3
       dependency-path: 'workspace:3.0.8'
@@ -1097,7 +1097,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/read-package-json': 'link:../read-package-json'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
@@ -1147,7 +1147,7 @@ importers:
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 'workspace:1.0.8'
       '@pnpm/read-package-json': 'link:../read-package-json'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       '@pnpm/server': 'workspace:3.0.6'
       '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/store-path': 2.1.0
@@ -1528,7 +1528,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       '@pnpm/store-path': 2.1.0
       '@types/common-tags': 1.8.0
       '@types/fs-extra': 8.0.0
@@ -1589,7 +1589,7 @@ importers:
       '@pnpm/read-importers-context': 'workspace:1.0.9'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:2.0.3'
-      '@pnpm/registry-mock': 1.3.0
+      '@pnpm/registry-mock': 1.4.0
       '@pnpm/resolve-dependencies': 'workspace:8.0.8'
       '@pnpm/resolver-base': 'workspace:3.1.2'
       '@pnpm/shamefully-flatten': 'workspace:4.0.0'
@@ -2213,18 +2213,18 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-rPUEWrQ+DZ+FJf6iF/7AA/q71bua1ak77qWiO8eZScD0Aib5rbmmsjIHUArgIOwbTx5q6l2gOsNtvFBnCvq9/g==
-  /@pnpm/registry-mock/1.3.0:
+  /@pnpm/registry-mock/1.4.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
-      rimraf: 2.7.1
+      rimraf: 3.0.0
       verdaccio: 4.2.1
     dev: true
     engines:
       node: '>=8.15'
     hasBin: true
     resolution:
-      integrity: sha512-qsUirqPabAVWum/wYyr4CONv5XVSuC6BucSGPBw5Wxop0F8LkF8p3KisyYFsB02unkHWq1PBcYbiJvfUUN8djg==
+      integrity: sha512-2GzsC4937QJcdWr9uWcBIaHF7CIeIeCVJhwfab31B73O9+Pc7baikKjMMUWDPgnMJG7kTRlRSadVYN6KDjiLaw==
   /@pnpm/store-path/2.1.0:
     dependencies:
       can-link: 1.0.2

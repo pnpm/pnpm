@@ -1,9 +1,12 @@
 import prepare from '@pnpm/prepare'
+import path = require('path')
+import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('rebuild', async (t: tape.Test) => {
   const project = prepare(t)
@@ -44,4 +47,13 @@ test('rebuilds specific dependencies', async function (t: tape.Test) {
 
   const generatedByPostinstall = project.requireModule('install-scripts-example-for-pnpm/generated-by-postinstall')
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1969
+test('rebuild a package with no deps when independent-leaves is true', async (t: tape.Test) => {
+  prepare(t)
+
+  await execPnpm('add', 'independent-and-requires-build@1.0.0', '--independent-leaves', '--link-workspace-packages', '--workspace-prefix=.')
+
+  t.ok(await exists(path.resolve('node_modules/independent-and-requires-build/created-by-postinstall')))
 })
