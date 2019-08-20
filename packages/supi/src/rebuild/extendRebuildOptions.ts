@@ -5,48 +5,24 @@ import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
-export interface RebuildOptions {
-  childConcurrency?: number,
-  extraBinPaths?: string[],
-  lockfileDirectory?: string,
-  prefix?: string,
-  sideEffectsCacheRead?: boolean,
-  store: string, // TODO: remove this property
-  storeController: StoreController,
-  independentLeaves?: boolean,
-  force?: boolean,
-  forceSharedLockfile?: boolean,
-  useLockfile?: boolean,
-  registries?: Registries,
-
-  reporter?: ReporterFunction,
-  production?: boolean,
-  development?: boolean,
-  optional?: boolean,
-  bin?: string,
-  rawNpmConfig?: object,
-  userAgent?: string,
-  packageManager?: {
-    name: string,
-    version: string,
-  },
-  unsafePerm?: boolean,
-  pending?: boolean,
-  shamefullyFlatten?: boolean,
-}
-
-export type StrictRebuildOptions = RebuildOptions & {
-  childConcurrency?: number,
+export interface StrictRebuildOptions {
+  childConcurrency: number,
   extraBinPaths: string[],
   lockfileDirectory: string,
   prefix: string,
-  store: string,
   sideEffectsCacheRead: boolean,
+  store: string, // TODO: remove this property
+  storeController: StoreController,
   independentLeaves: boolean,
   force: boolean,
   forceSharedLockfile: boolean,
   useLockfile: boolean,
   registries: Registries,
+
+  reporter: ReporterFunction,
+  production: boolean,
+  development: boolean,
+  optional: boolean,
   bin: string,
   rawNpmConfig: object,
   userAgent: string,
@@ -58,6 +34,9 @@ export type StrictRebuildOptions = RebuildOptions & {
   pending: boolean,
   shamefullyFlatten: boolean,
 }
+
+export type RebuildOptions = Partial<StrictRebuildOptions> &
+  Pick<StrictRebuildOptions, 'store' | 'storeController'>
 
 const defaults = async (opts: RebuildOptions) => {
   const packageManager = opts.packageManager || {

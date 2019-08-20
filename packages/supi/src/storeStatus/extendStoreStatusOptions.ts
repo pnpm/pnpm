@@ -3,25 +3,7 @@ import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { ReporterFunction } from '../types'
 
-export interface StoreStatusOptions {
-  lockfileDirectory?: string,
-  prefix?: string,
-  store: string,
-  independentLeaves?: boolean,
-  force?: boolean,
-  forceSharedLockfile?: boolean,
-  useLockfile?: boolean,
-  registries?: Registries,
-
-  reporter?: ReporterFunction,
-  production?: boolean,
-  development?: boolean,
-  optional?: boolean,
-  bin?: string,
-  shamefullyFlatten?: boolean,
-}
-
-export type StrictStoreStatusOptions = StoreStatusOptions & {
+export interface StrictStoreStatusOptions {
   lockfileDirectory: string,
   prefix: string,
   store: string,
@@ -30,9 +12,17 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
   forceSharedLockfile: boolean,
   useLockfile: boolean,
   registries: Registries,
+
+  reporter: ReporterFunction,
+  production: boolean,
+  development: boolean,
+  optional: boolean,
   bin: string,
   shamefullyFlatten: boolean,
 }
+
+export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
+  Pick<StrictStoreStatusOptions, 'store'>
 
 const defaults = async (opts: StoreStatusOptions) => {
   const prefix = opts.prefix || process.cwd()

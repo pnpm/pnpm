@@ -4,41 +4,28 @@ import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { ReporterFunction } from '../types'
 
-export interface LinkOptions {
-  bin?: string,
-  force?: boolean,
-  forceSharedLockfile?: boolean,
-  useLockfile?: boolean,
-  lockfileDirectory?: string,
-  reporter?: ReporterFunction,
-  pinnedVersion?: 'major' | 'minor' | 'patch',
-  saveProd?: boolean,
-  saveDev?: boolean,
-  saveOptional?: boolean,
-  storeController: StoreController,
-  manifest: ImporterManifest,
-  prefix?: string,
-  shamefullyFlatten?: boolean,
-  independentLeaves?: boolean,
-  registries?: Registries,
-  store?: string,
-}
-
-export type StrictLinkOptions = LinkOptions & {
+interface StrictLinkOptions {
   bin: string,
   force: boolean,
   forceSharedLockfile: boolean,
   useLockfile: boolean,
   lockfileDirectory: string,
+  pinnedVersion: 'major' | 'minor' | 'patch',
+  saveProd: boolean,
   saveDev: boolean,
   saveOptional: boolean,
-  saveProd: boolean,
+  storeController: StoreController,
+  manifest: ImporterManifest,
   prefix: string,
   shamefullyFlatten: boolean,
   independentLeaves: boolean,
   registries: Registries,
   store: string,
+  reporter: ReporterFunction,
 }
+
+export type LinkOptions = Partial<StrictLinkOptions> &
+  Pick<StrictLinkOptions, 'storeController' | 'manifest'>
 
 export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptions> {
   if (opts) {
