@@ -2144,7 +2144,7 @@ packages:
   /@pnpm/link-bins/4.4.0:
     dependencies:
       '@pnpm/package-bins': 3.1.1
-      '@pnpm/read-importer-manifest': 1.0.7
+      '@pnpm/read-importer-manifest': 1.0.8
       '@pnpm/read-package-json': 2.0.3
       '@pnpm/types': 3.2.0
       '@zkochan/cmd-shim': 4.0.0
@@ -2187,11 +2187,11 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/read-importer-manifest/1.0.7:
+  /@pnpm/read-importer-manifest/1.0.8:
     dependencies:
       '@pnpm/error': 1.0.0
       '@pnpm/types': 3.2.0
-      '@pnpm/write-importer-manifest': 2.0.2
+      '@pnpm/write-importer-manifest': 2.0.3
       detect-indent: 6.0.0
       graceful-fs: 4.2.1
       is-windows: 1.0.2
@@ -2203,7 +2203,7 @@ packages:
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-c7sayvJjDUIfWL6zusoJMoYCgyDN+NEeUlSqkHXTBlqju8WWNemHl5goTyAkOD0BNYcCnyS5LJJ8RQnKekoOJg==
+      integrity: sha512-cZdYcI5riEcrGcfXkNAW9ncGnTPTRPOOsm843CBdrrFiI+bGOHyyzRvd55m+YP2JSFL0JaKV5Cmm6oO5kavkeA==
   /@pnpm/read-package-json/2.0.3:
     dependencies:
       '@pnpm/types': 3.2.0
@@ -2244,18 +2244,18 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-YuP9SY+txLd6oEVdE082EmtDE3XXknIKtMTH5UoWus2YkqArS2VXA89n6aoAQ3n0hq7txBiT4SNVyyJHGnBGGA==
-  /@pnpm/write-importer-manifest/2.0.2:
+  /@pnpm/write-importer-manifest/2.0.3:
     dependencies:
       '@pnpm/types': 3.2.0
       sort-keys: 4.0.0
       write-json-file: 4.0.0
-      write-json5-file: 2.1.1
+      write-json5-file: 2.1.2
       write-yaml-file: 3.0.1
     dev: false
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-49zU3GvLY5L2ZYYpTiGwxl3mqs5RFWaAvbTwazY6dHBY7Z53U7DAesbmj4Q/dbtsLccvXJuO4laB1MIFv67QzA==
+      integrity: sha512-ISpIP1C9InHc1kMoebWN2tsKrCO2X1n5JWdyZRjNtM/hxv33U+q1NmNjf09Iac4uB6ZOU1yEZFX7xNMSYncTuw==
   /@sindresorhus/is/0.14.0:
     dev: false
     engines:
@@ -2389,10 +2389,10 @@ packages:
   /@types/node/12.7.2:
     resolution:
       integrity: sha512-dyYO+f6ihZEtNPDcWNR1fkoTDf3zAK3lAABDze3mz6POyIercH0lEUawUFXlG8xaQZmm1yEBON/4TsYv/laDYg==
-  /@types/node/8.10.51:
+  /@types/node/8.10.52:
     dev: false
     resolution:
-      integrity: sha512-cArrlJp3Yv6IyFT/DYe+rlO8o3SIHraALbBW/+CcCYW/a9QucpLI+n2p4sRxAvl2O35TiecpX2heSZtJjvEO+Q==
+      integrity: sha512-2RbW7WXeLex6RI+kQSxq6Ym0GiVcODeQ4Km7MnnTX5BHdOGQnqVa+s6AUmAW+OFYAJ8wv9QxvNZXm7/kBdGTVw==
   /@types/nopt/3.0.29:
     dev: true
     resolution:
@@ -2418,7 +2418,7 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.19:
     dependencies:
-      ts-toolbelt: 3.8.1
+      ts-toolbelt: 3.8.3
     resolution:
       integrity: sha512-lJuMZDXqZ8W2hl0Gz+wEPUhXcf/tZRuaO5vrxFD3Dv2XMqgTZVw+bvfS6iQAsio9XQV+uhkggtT4eLhDmUpI5g==
   /@types/retry/0.12.0:
@@ -3691,7 +3691,7 @@ packages:
       integrity: sha1-hTz6D3y+L+1d4gMmuN1YEDX24vA=
   /data-uri-to-buffer/2.0.1:
     dependencies:
-      '@types/node': 8.10.51
+      '@types/node': 8.10.52
     dev: false
     resolution:
       integrity: sha512-OkVVLrerfAKZlW2ZZ3Ve2y65jgiWqBKsTfUIAFbn8nVbPcCZg6l6gikKlEYv0kXcmzqGm6mFq/Jf2vriuEkv8A==
@@ -7998,11 +7998,11 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-dyNS/RqyVTDcmNM4NIBAeDMpsAdaQ+ojdf0GOLqE6nwJOgzEkdRNzJywhDfwnuvB10oa6NLVG1rUJQCpRN7qoQ==
-  /ts-toolbelt/3.8.1:
+  /ts-toolbelt/3.8.3:
     peerDependencies:
       typescript: ^3.5.0
     resolution:
-      integrity: sha512-XDAWEHVscqto6pG0gPSbYaEfEBcl9V0JK5pQIQJ3M+6sYnxK5ZOPyyRA/aq78WxKlLvBSXCPJ1fPX+7qCCg2Zg==
+      integrity: sha512-/MnLA9Pr7ppDIxMf8sGSbNoiQDORQtzdcma8IsepArmikqZbu7CiwP+aAYaZnVXjOxLAleIEyxe20LJx0WgcCw==
   /tslib/1.10.0:
     resolution:
       integrity: sha512-qOebF53frne81cf0S9B41ByenJ3/IuH8yJKngAX35CmiZySA0khhkovshKK+jGCaMnVomla7gVlIcc3EvKPbTQ==
@@ -8496,18 +8496,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-ak8Ww3Me8G9jD1XcFyXV4HTX0HGISBrJu09JYx/v+WINBOdJAge7wVH1BGhOnJxaFM1ufUevjlrrgiZz8Vwj7w==
-  /write-json5-file/2.1.1:
-    dependencies:
-      graceful-fs: 4.2.2
-      json5: 2.1.0
-      make-dir: 3.0.0
-      sort-keys: 3.0.0
-      write-file-atomic: 2.4.3
-    dev: false
-    engines:
-      node: '>=8.15'
-    resolution:
-      integrity: sha512-htC4O7t4TR/GU05xN5ofCnw191ykibjMRk8MGe0cfEUBIvVx4h+kAMnFFLqjpS+Tj5fhJnhHy49zO6T6QTeufg==
   /write-json5-file/2.1.2:
     dependencies:
       graceful-fs: 4.2.2
