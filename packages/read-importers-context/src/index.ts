@@ -1,6 +1,6 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
-import { Registries } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import {
   normalizeRegistries,
   realNodeModulesDir,
@@ -21,19 +21,12 @@ export default async function <T>(
   },
 ): Promise<{
   importers: Array<{
-    bin: string,
     currentShamefullyFlatten: boolean | null,
     hoistedAliases: { [depPath: string]: string[] },
     id: string,
     modulesDir: string,
-    prefix: string,
-    shamefullyFlatten: boolean,
-  } & T>,
-  include: {
-    dependencies: boolean,
-    devDependencies: boolean,
-    optionalDependencies: boolean,
-  },
+  } & T & Required<ImporterOptions>>,
+  include: Record<DependenciesField, boolean>,
   modules: Modules | null,
   pendingBuilds: string[],
   registries: Registries | null | undefined,

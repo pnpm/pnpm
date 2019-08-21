@@ -23,14 +23,10 @@ export interface PnpmContext<T> {
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   importers: Array<{
-    bin: string,
     hoistedAliases: {[depPath: string]: string[]}
-    manifest: ImporterManifest,
     modulesDir: string,
     id: string,
-    prefix: string,
-    shamefullyFlatten: boolean,
-  } & T>,
+  } & T & Required<ImportersOptions>>,
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
