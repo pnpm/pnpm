@@ -10,6 +10,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import minimatch = require('minimatch')
 import path = require('path')
 import R = require('ramda')
 
@@ -21,6 +22,7 @@ export default async function shamefullyFlattenByLockfile (
     modulesDir: string,
     registries: Registries,
     virtualStoreDir: string,
+    pattern: string,
   },
 ) {
   if (!opts.lockfile.packages) return {}
@@ -45,6 +47,7 @@ export default async function shamefullyFlattenByLockfile (
   return shamefullyFlattenGraph(deps, lockfileImporter.specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
+    pattern: opts.pattern,
   })
 }
 
@@ -130,6 +133,7 @@ async function shamefullyFlattenGraph (
   opts: {
     modulesDir: string,
     dryRun: boolean,
+    pattern: string,
   },
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
@@ -144,6 +148,7 @@ async function shamefullyFlattenGraph (
     // build the alias map and the id map
     .map((depNode) => {
       for (const childAlias of Object.keys(depNode.children)) {
+        if (!minimatch(childAlias, opts.pattern)) continue
         // if this alias has already been taken, skip it
         if (hoistedAliases.has(childAlias)) {
           continue

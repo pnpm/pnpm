@@ -1440,7 +1440,9 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
+      '@types/minimatch': 3.0.3
       dependency-path: 'link:../dependency-path'
+      minimatch: 3.0.4
       ramda: 0.26.1
     devDependencies:
       '@pnpm/logger': 2.1.1
@@ -1454,8 +1456,10 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'workspace:2.0.6'
       '@pnpm/types': 'workspace:3.2.0'
+      '@types/minimatch': 3.0.3
       '@types/ramda': 0.26.21
       dependency-path: 'workspace:3.0.8'
+      minimatch: 3.0.4
       ramda: 0.26.1
       rimraf: 3.0.0
   packages/store-controller-types:

@@ -25,6 +25,21 @@ test('should flatten dependencies', async (t) => {
   await project.has('express')
   await project.has('debug')
   await project.has('cookie')
+  await project.has('mime')
+
+  // should also flatten bins
+  await project.isExecutable('.bin/mime')
+})
+
+test('should flatten dependencies by pattern', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({}, ['express'], await testDefaults({ shamefullyFlatten: 'mime' }))
+
+  await project.has('express')
+  await project.hasNot('debug')
+  await project.hasNot('cookie')
+  await project.has('mime')
 
   // should also flatten bins
   await project.isExecutable('.bin/mime')

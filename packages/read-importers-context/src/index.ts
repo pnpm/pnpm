@@ -10,14 +10,14 @@ import path = require('path')
 export interface ImporterOptions {
   bin?: string,
   prefix: string,
-  shamefullyFlatten?: boolean,
+  shamefullyFlatten?: boolean | string,
 }
 
 export default async function <T>(
   importers: (ImporterOptions & T)[],
   lockfileDirectory: string,
   opts: {
-    shamefullyFlatten: boolean,
+    shamefullyFlatten: boolean | string,
   },
 ): Promise<{
   importers: Array<{
@@ -49,9 +49,7 @@ export default async function <T>(
           hoistedAliases: importerModules && importerModules.hoistedAliases || {},
           id: importerId,
           modulesDir,
-          shamefullyFlatten: Boolean(
-            typeof importer.shamefullyFlatten === 'boolean' ? importer.shamefullyFlatten : opts.shamefullyFlatten
-          ),
+          shamefullyFlatten: typeof importer.shamefullyFlatten !== 'undefined' ? importer.shamefullyFlatten : opts.shamefullyFlatten,
         }
       })),
     include: modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },

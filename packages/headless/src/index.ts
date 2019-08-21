@@ -84,7 +84,7 @@ export interface HeadlessOptions {
     id: string,
     prefix: string,
     pruneDirectDependencies?: boolean,
-    shamefullyFlatten: boolean,
+    shamefullyFlatten: boolean | string,
   }>,
   lockfileDirectory: string,
   storeController: StoreController,
@@ -243,6 +243,9 @@ export default async (opts: HeadlessOptions) => {
       lockfile: filteredLockfile,
       lockfileDirectory: opts.lockfileDirectory,
       modulesDir: rootImporterWithFlatModules.modulesDir,
+      pattern: rootImporterWithFlatModules.shamefullyFlatten === true
+        ? '*'
+        : rootImporterWithFlatModules.shamefullyFlatten as string,
       registries: opts.registries,
       virtualStoreDir,
     })

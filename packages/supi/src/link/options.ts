@@ -17,7 +17,7 @@ interface StrictLinkOptions {
   storeController: StoreController,
   manifest: ImporterManifest,
   prefix: string,
-  shamefullyFlatten: boolean,
+  shamefullyFlatten: boolean | string,
   independentLeaves: boolean,
   registries: Registries,
   store: string,

@@ -50,7 +50,7 @@ export interface Importer {
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
-  shamefullyFlatten: boolean,
+  shamefullyFlatten: boolean | string,
   topParents: Array<{name: string, version: string}>,
 }
 
@@ -317,6 +317,9 @@ export default async function linkPackages (
         lockfile: currentLockfile,
         lockfileDirectory: opts.lockfileDirectory,
         modulesDir: rootImporterWithFlatModules.modulesDir,
+        pattern: rootImporterWithFlatModules.shamefullyFlatten === true
+          ? '*'
+          : rootImporterWithFlatModules.shamefullyFlatten as string,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
       })

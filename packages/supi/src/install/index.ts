@@ -605,7 +605,7 @@ type ImporterToUpdate = {
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
-  shamefullyFlatten: boolean,
+  shamefullyFlatten: boolean | string,
   updatePackageJson: boolean,
   wantedDeps: WantedDependency[],
 } & DependenciesMutation

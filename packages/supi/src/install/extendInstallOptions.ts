@@ -20,7 +20,7 @@ export interface StrictInstallOptions {
   useLockfile: boolean,
   lockfileOnly: boolean,
   preferFrozenLockfile: boolean,
-  shamefullyFlatten: boolean,
+  shamefullyFlatten: boolean | string,
   storeController: StoreController,
   store: string,
   reporter: ReporterFunction,

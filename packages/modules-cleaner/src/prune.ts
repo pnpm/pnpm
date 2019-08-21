@@ -35,7 +35,7 @@ export default async function prune (
     prefix: string,
     pruneDirectDependencies?: boolean,
     removePackages?: string[],
-    shamefullyFlatten: boolean,
+    shamefullyFlatten: boolean | string,
   }>,
   opts: {
     dryRun?: boolean,
