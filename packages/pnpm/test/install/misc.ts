@@ -302,10 +302,10 @@ test('pnpm install --save-peer', async (t) => {
   }
 })
 
-test('`pnpm add` should fail if no package name was provided', (t: tape.Test) => {
+test('`pnpm add` should fail if no package name was provided (beta)', (t: tape.Test) => {
   prepare(t)
 
-  const { status, stdout } = execPnpmSync('add')
+  const { status, stdout } = execPnpmSync('add', '--use-beta-cli')
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('`pnpm add` requires the package name'))

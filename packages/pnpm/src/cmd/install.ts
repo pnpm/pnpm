@@ -28,6 +28,7 @@ export default async function installCmd (
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
+    useBetaCli?: boolean,
   },
   invocation?: string,
 ) {
@@ -74,7 +75,7 @@ export default async function installCmd (
     delete installOpts.include
   }
   if (!input || !input.length) {
-    if (invocation === 'add') {
+    if (invocation === 'add' && opts.useBetaCli) {
       throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
     }
     await install(manifest, installOpts)
