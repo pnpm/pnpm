@@ -302,6 +302,17 @@ test('pnpm install --save-peer', async (t) => {
   }
 })
 
+test('`pnpm add` should fail if no package name was provided', (t: tape.Test) => {
+  prepare(t)
+
+  const { status, stdout } = execPnpmSync('add')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('`pnpm add` requires the package name'))
+
+  t.end()
+})
+
 test('install should fail if the used pnpm version does not satisfy the pnpm version specified in engines', async (t: tape.Test) => {
   prepare(t, {
     name: 'project',
