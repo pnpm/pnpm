@@ -1,5 +1,5 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
-import { PackageJson, Registries } from '@pnpm/types'
+import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import stripColor = require('strip-color')
 import table = require('text-table')
@@ -36,6 +36,7 @@ export default async (
   },
 ) => {
   const outdatedPkgs = [] as Array<{
+    belongsTo: DependenciesField,
     packageName: string,
     current?: string,
     wanted: string,
@@ -60,10 +61,11 @@ export default async (
     }))
   }
 
-  const columnNames = ['', 'Package', 'Current', 'Wanted', 'Latest'].map((txt) => chalk.underline(txt))
+  const columnNames = ['', 'Package', 'Current', 'Wanted', 'Latest', 'Belongs To'].map((txt) => chalk.underline(txt))
   console.log(
-    table([columnNames].concat(
-      outdatedPkgs
+    table([
+      columnNames,
+      ...outdatedPkgs
         .sort((o1, o2) => o1.prefix.localeCompare(o2.prefix))
         .map((outdatedPkg) => [
           outdatedPkg.prefix,
@@ -71,8 +73,9 @@ export default async (
           outdatedPkg.current || 'missing',
           chalk.green(outdatedPkg.wanted),
           chalk.magenta(outdatedPkg.latest || ''),
+          outdatedPkg.belongsTo,
         ]),
-    ), {
+    ], {
       stringLength: (s: string) => stripColor(s).length,
     }),
   )

@@ -17,8 +17,12 @@ test('outdated()', async (t) => {
         '.': {
           dependencies: {
             'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+          },
+          devDependencies: {
             'is-negative': '1.0.0',
             'is-positive': '1.0.0',
+          },
+          optionalDependencies: {
             'linked-1': 'link:../linked-1',
             'linked-2': 'file:../linked-2',
           },
@@ -31,11 +35,13 @@ test('outdated()', async (t) => {
       lockfileVersion: 5,
       packages: {
         '/is-negative/2.1.0': {
+          dev: true,
           resolution: {
             integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
           },
         },
         '/is-positive/1.0.0': {
+          dev: true,
           resolution: {
             integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
           },
@@ -44,6 +50,7 @@ test('outdated()', async (t) => {
           name: 'from-github',
           version: '1.1.0',
 
+          dev: false,
           resolution: {
             tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
           },
@@ -56,7 +63,7 @@ test('outdated()', async (t) => {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',
 
-      dependencies: {
+      devDependencies: {
         'is-negative': '^2.1.0',
         'is-positive': '^3.1.0',
       },
@@ -68,8 +75,12 @@ test('outdated()', async (t) => {
           dependencies: {
             'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
             'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+          devDependencies: {
             'is-negative': '1.1.0',
             'is-positive': '3.1.0',
+          },
+          optionalDependencies: {
             'linked-1': 'link:../linked-1',
             'linked-2': 'file:../linked-2',
           },
@@ -113,6 +124,7 @@ test('outdated()', async (t) => {
   t.deepEqual(outdatedPkgs, [
     {
       alias: 'from-github',
+      belongsTo: 'dependencies',
       current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
       latest: undefined,
       packageName: 'from-github',
@@ -120,6 +132,7 @@ test('outdated()', async (t) => {
     },
     {
       alias: 'from-github-2',
+      belongsTo: 'dependencies',
       current: undefined,
       latest: undefined,
       packageName: 'from-github-2',
@@ -127,6 +140,7 @@ test('outdated()', async (t) => {
     },
     {
       alias: 'is-negative',
+      belongsTo: 'devDependencies',
       current: '1.0.0',
       latest: '2.1.0',
       packageName: 'is-negative',
@@ -134,6 +148,7 @@ test('outdated()', async (t) => {
     },
     {
       alias: 'is-positive',
+      belongsTo: 'devDependencies',
       current: '1.0.0',
       latest: '3.1.0',
       packageName: 'is-positive',
@@ -246,6 +261,7 @@ test('forPackages()', async (t) => {
   t.deepEqual(outdatedPkgs, [
     {
       alias: 'is-negative',
+      belongsTo: 'dependencies',
       current: '1.0.0',
       latest: '2.1.0',
       packageName: 'is-negative',
@@ -358,6 +374,7 @@ test('forPackages() by pattern', async (t) => {
   t.deepEqual(outdatedPkgs, [
     {
       alias: 'is-negative',
+      belongsTo: 'dependencies',
       current: '1.0.0',
       latest: '2.1.0',
       packageName: 'is-negative',
@@ -424,6 +441,7 @@ test('outdated() aliased dependency', async (t) => {
   t.deepEqual(outdatedPkgs, [
     {
       alias: 'positive',
+      belongsTo: 'dependencies',
       current: '1.0.0',
       latest: '3.1.0',
       packageName: 'is-positive',
