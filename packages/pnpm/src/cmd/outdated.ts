@@ -5,7 +5,7 @@ import {
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
 import outdated, {
-  forPackages as outdatedForPackages,
+  forPackages as outdatedForPackages, OutdatedPackage,
 } from '@pnpm/outdated'
 import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
@@ -55,17 +55,26 @@ export default async function (
 
   if (!outdatedPackages.length) return
 
-  const columnNames = ['Package', 'Current', 'Wanted', 'Latest', 'Belongs To'].map((txt) => chalk.underline(txt))
+  const columnNames = [
+    'Package',
+    'Current',
+    'Wanted',
+    'Latest',
+    ...(opts.global ? [] : ['Belongs To']),
+  ].map((txt) => chalk.underline(txt))
+  let columnFns: Array<(outdatedPkg: OutdatedPackage) => string> = [
+    ({ packageName }) => chalk.yellow(packageName),
+    ({ current }) => current || 'missing',
+    ({ wanted }) => chalk.green(wanted),
+    ({ latest }) => latest && chalk.magenta(latest) || '',
+  ]
+  if (!opts.global) {
+    columnFns.push(({ belongsTo }) => belongsTo)
+  }
   console.log(
     table([
       columnNames,
-      ...outdatedPackages.map((outdatedPkg) => [
-        chalk.yellow(outdatedPkg.packageName),
-        outdatedPkg.current || 'missing',
-        chalk.green(outdatedPkg.wanted),
-        chalk.magenta(outdatedPkg.latest || ''),
-        opts.global ? 'global' : outdatedPkg.belongsTo,
-      ]),
+      ...outdatedPackages.map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
     ], {
       stringLength: (s: string) => stripColor(s).length,
     }),
