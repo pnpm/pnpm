@@ -55,16 +55,18 @@ export default async function (
 
   if (!outdatedPackages.length) return
 
-  const columnNames = ['Package', 'Current', 'Wanted', 'Latest'].map((txt) => chalk.underline(txt))
+  const columnNames = ['Package', 'Current', 'Wanted', 'Latest', 'Belongs To'].map((txt) => chalk.underline(txt))
   console.log(
-    table([columnNames].concat(
-      outdatedPackages.map((outdatedPkg) => [
+    table([
+      columnNames,
+      ...outdatedPackages.map((outdatedPkg) => [
         chalk.yellow(outdatedPkg.packageName),
         outdatedPkg.current || 'missing',
         chalk.green(outdatedPkg.wanted),
         chalk.magenta(outdatedPkg.latest || ''),
+        opts.global ? 'global' : outdatedPkg.belongsTo,
       ]),
-    ), {
+    ], {
       stringLength: (s: string) => stripColor(s).length,
     }),
   )
