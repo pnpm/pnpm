@@ -58,15 +58,40 @@ export default async function (
   const columnNames = [
     'Package',
     'Current',
-    'Wanted',
     'Latest',
     ...(opts.global ? [] : ['Belongs To']),
   ].map((txt) => chalk.underline(txt))
   let columnFns: Array<(outdatedPkg: OutdatedPackage) => string> = [
-    ({ packageName }) => chalk.yellow(packageName),
-    ({ current }) => current || 'missing',
-    ({ wanted }) => chalk.green(wanted),
-    ({ latest }) => latest && chalk.magenta(latest) || '',
+    ({ packageName }) => packageName,
+    ({ current, wanted }) => {
+      let output = current || 'missing'
+      if (current === wanted) return output
+      return `${output} (wanted ${wanted})`
+    },
+    ({ latest, wanted }) => {
+      if (!latest) return ''
+      const latestParts = latest.split('.')
+      const wantedParts = wanted.split('.')
+      const outputParts = [] as string[]
+      let highlight: null | ((v: string) => string) = null
+      for (let i = 0; i < latestParts.length; i++) {
+        if (!highlight && latestParts[i] !== wantedParts[i]) {
+          switch (i) {
+            case 1:
+              highlight = chalk.yellowBright.bold
+              break
+            case 2:
+              highlight = chalk.greenBright.bold
+              break
+            default:
+              highlight = chalk.redBright.bold
+              break
+          }
+        }
+        outputParts.push(highlight ? highlight(latestParts[i]) : latestParts[i])
+      }
+      return outputParts.join('.')
+    },
   ]
   if (!opts.global) {
     columnFns.push(({ belongsTo }) => belongsTo)
