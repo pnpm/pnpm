@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/tslint-config",
-  "description": "",
-  "version": "0.0.0",
+  "description": "pnpm's TSLint configuration",
+  "version": "1.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -12,9 +12,6 @@
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": [
-    "lib"
-  ],
   "dependencies": {
     "tslint-config-standard": "8.0.1",
     "tslint-eslint-rules": "5.4.0"
