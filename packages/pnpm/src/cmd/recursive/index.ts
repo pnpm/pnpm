@@ -102,6 +102,7 @@ export async function recursive (
     allowNew?: boolean,
     packageSelectors?: PackageSelector[],
     ignoredPackages?: Set<string>,
+    useBetaCli?: boolean,
   },
   cmdFullName: string,
   cmd: string,
@@ -143,6 +144,11 @@ export async function recursive (
     case 'outdated':
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
+    case 'install':
+      if (cmd === 'add' && opts.useBetaCli && (!input || !input.length)) {
+        throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
+      }
+      break
   }
 
   const chunks = opts.sort
