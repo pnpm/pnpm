@@ -132,6 +132,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
       wantedLockfile,
     }
     return {
+      manifest,
       outdatedPackages: args.length
         ? await outdatedForPackages(args, optsForOutdated)
         : await outdated(optsForOutdated),

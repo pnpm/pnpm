@@ -1,9 +1,16 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
+import R = require('ramda')
 import stripColor = require('strip-color')
 import table = require('text-table')
 import { outdatedDependenciesOfWorkspacePackages } from '../outdated'
+
+const DEP_PRIORITY: Record<DependenciesField, number> = {
+  optionalDependencies: 0,
+  dependencies: 1,
+  devDependencies: 2,
+}
 
 export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
@@ -35,45 +42,61 @@ export default async (
     userAgent: string,
   },
 ) => {
-  const outdatedPkgs = [] as Array<{
+  const outdatedByNameAndType = {} as Record<string, {
     belongsTo: DependenciesField,
-    packageName: string,
     current?: string,
-    wanted: string,
+    dependentPkgs: Array<{ location: string, manifest: PackageJson }>,
     latest?: string,
-    prefix: string,
+    packageName: string,
+    wanted: string,
   }>
   if (opts.lockfileDirectory) {
     const outdatedPackagesByProject = await outdatedDependenciesOfWorkspacePackages(pkgs, args, opts)
-    for (let { prefix, outdatedPackages } of outdatedPackagesByProject) {
-      outdatedPackages.forEach((outdatedPkg: any) => outdatedPkgs.push({ ...outdatedPkg, prefix })) // tslint:disable-line:no-any
+    for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
+      outdatedPackages.forEach((outdatedPkg) => {
+        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])
+        if (!outdatedByNameAndType[key]) {
+          outdatedByNameAndType[key] = { ...outdatedPkg, dependentPkgs: [] }
+        }
+        outdatedByNameAndType[key].dependentPkgs.push({ location: prefix, manifest })
+      })
     }
   } else {
     await Promise.all(pkgs.map(async ({ manifest, path }) => {
       const { outdatedPackages } = (
         await outdatedDependenciesOfWorkspacePackages([{ manifest, path }], args, { ...opts, lockfileDirectory: path })
       )[0]
-      outdatedPackages.forEach((outdatedPkg: any) => // tslint:disable-line:no-any
-        outdatedPkgs.push({
-          ...outdatedPkg,
-          prefix: getLockfileImporterId(opts.prefix, path),
-        }))
+      outdatedPackages.forEach((outdatedPkg) => {
+        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])
+        if (!outdatedByNameAndType[key]) {
+          outdatedByNameAndType[key] = { ...outdatedPkg, dependentPkgs: [] }
+        }
+        outdatedByNameAndType[key].dependentPkgs.push({ location: getLockfileImporterId(opts.prefix, path), manifest })
+      })
     }))
   }
 
-  const columnNames = ['', 'Package', 'Current', 'Wanted', 'Latest', 'Belongs To'].map((txt) => chalk.underline(txt))
+  const columnNames = ['Package', 'Current', 'Wanted', 'Latest', 'Belongs To', 'Dependents'].map((txt) => chalk.underline(txt))
   console.log(
     table([
       columnNames,
-      ...outdatedPkgs
-        .sort((o1, o2) => o1.prefix.localeCompare(o2.prefix))
+      ...R.sortWith(
+        [
+          (o1, o2) => o1.packageName.localeCompare(o2.packageName),
+          (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
+        ],
+        (Object.values(outdatedByNameAndType)),
+      )
         .map((outdatedPkg) => [
-          outdatedPkg.prefix,
           chalk.yellow(outdatedPkg.packageName),
           outdatedPkg.current || 'missing',
           chalk.green(outdatedPkg.wanted),
           chalk.magenta(outdatedPkg.latest || ''),
           outdatedPkg.belongsTo,
+          outdatedPkg.dependentPkgs
+            .map(({ manifest, location }) => manifest.name || location)
+            .sort()
+            .join(', '),
         ]),
     ], {
       stringLength: (s: string) => stripColor(s).length,
