@@ -7,9 +7,9 @@ import table = require('text-table')
 import { outdatedDependenciesOfWorkspacePackages } from '../outdated'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
-  optionalDependencies: 0,
   dependencies: 1,
   devDependencies: 2,
+  optionalDependencies: 0,
 }
 
 export default async (
