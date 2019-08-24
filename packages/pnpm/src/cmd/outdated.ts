@@ -14,7 +14,16 @@ import stripColor = require('strip-color')
 import table = require('text-table')
 import createLatestVersionGetter from '../createLatestVersionGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
-import semverDiff from '@pnpm/semver-diff'
+import semverDiff, { VERSION_CHANGE } from '@pnpm/semver-diff'
+
+const CHANGE_PRIORITIES: Record<VERSION_CHANGE, number> = {
+  fix: 1,
+  feature: 2,
+  breaking: 3,
+  unknown: 3,
+}
+
+type OutdatedPackageWithVersionDiff = OutdatedPackage & { change: VERSION_CHANGE, diff: [string[], string[]] }
 
 export default async function (
   args: string[],
@@ -62,16 +71,15 @@ export default async function (
     'Latest',
     ...(opts.global ? [] : ['Belongs To']),
   ].map((txt) => chalk.underline(txt))
-  let columnFns: Array<(outdatedPkg: OutdatedPackage) => string> = [
+  let columnFns: Array<(outdatedPkg: OutdatedPackageWithVersionDiff) => string> = [
     ({ packageName }) => packageName,
     ({ current, wanted }) => {
       let output = current || 'missing'
       if (current === wanted) return output
       return `${output} (wanted ${wanted})`
     },
-    ({ latest, wanted }) => {
+    ({ latest, wanted, change, diff }) => {
       if (!latest) return ''
-      const { change, diff } = semverDiff(wanted, latest)
 
       let highlight!: ((v: string) => string)
       switch (change) {
@@ -118,11 +126,18 @@ export default async function (
   console.log(
     table([
       columnNames,
-      ...outdatedPackages.map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
+      ...outdatedPackages
+        .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest)} : outdatedPkg)
+        .sort((pkg1, pkg2) => pkgPriority(pkg1 as OutdatedPackageWithVersionDiff) - pkgPriority(pkg2 as OutdatedPackageWithVersionDiff))
+        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg as OutdatedPackageWithVersionDiff))),
     ], {
       stringLength: (s: string) => stripColor(s).length,
     }),
   )
+}
+
+function pkgPriority (pkg: OutdatedPackageWithVersionDiff) {
+  return pkg.change && CHANGE_PRIORITIES[pkg.change] || 3
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
