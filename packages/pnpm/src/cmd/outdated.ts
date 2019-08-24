@@ -14,6 +14,7 @@ import stripColor = require('strip-color')
 import table = require('text-table')
 import createLatestVersionGetter from '../createLatestVersionGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
+import semverDiff from '@pnpm/semver-diff'
 
 export default async function (
   args: string[],
@@ -70,10 +71,23 @@ export default async function (
     },
     ({ latest, wanted }) => {
       if (!latest) return ''
+      const { change, diff } = semverDiff(wanted, latest)
+
+      let highlight!: ((v: string) => string)
+      switch (change) {
+        case 'feature':
+          highlight = chalk.yellowBright.bold
+          break
+        case 'fix':
+          highlight = chalk.greenBright.bold
+          break
+        default:
+          highlight = chalk.redBright.bold
+          break
+      }
       const latestParts = latest.split('.')
       const wantedParts = wanted.split('.')
       const outputParts = [] as string[]
-      let highlight: null | ((v: string) => string) = null
       for (let i = 0; i < latestParts.length; i++) {
         if (!highlight && latestParts[i] !== wantedParts[i]) {
           switch (i) {
@@ -90,7 +104,12 @@ export default async function (
         }
         outputParts.push(highlight ? highlight(latestParts[i]) : latestParts[i])
       }
-      return outputParts.join('.')
+      const versionTuples = [
+        ...diff[0],
+        ...diff[1].map((versionTuple) => highlight(versionTuple)),
+      ]
+      if (versionTuples.length === 3) return versionTuples.join('.')
+      return versionTuples.slice(0, 3).join('.') + '-' + versionTuples.slice(3).join('.')
     },
   ]
   if (!opts.global) {
