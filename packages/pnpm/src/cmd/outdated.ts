@@ -14,16 +14,16 @@ import stripColor = require('strip-color')
 import table = require('text-table')
 import createLatestVersionGetter from '../createLatestVersionGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
-import semverDiff, { VERSION_CHANGE } from '@pnpm/semver-diff'
+import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 
-const CHANGE_PRIORITIES: Record<VERSION_CHANGE, number> = {
+const CHANGE_PRIORITIES: Record<SEMVER_CHANGE, number> = {
   fix: 1,
   feature: 2,
   breaking: 3,
   unknown: 3,
 }
 
-type OutdatedPackageWithVersionDiff = OutdatedPackage & { change: VERSION_CHANGE, diff: [string[], string[]] }
+export type OutdatedPackageWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE, diff: [string[], string[]] }
 
 export default async function (
   args: string[],
@@ -69,71 +69,81 @@ export default async function (
     'Package',
     'Current',
     'Latest',
-    ...(opts.global ? [] : ['Belongs To']),
   ].map((txt) => chalk.underline(txt))
   let columnFns: Array<(outdatedPkg: OutdatedPackageWithVersionDiff) => string> = [
-    ({ packageName }) => packageName,
+    renderPackageName,
     ({ current, wanted }) => {
       let output = current || 'missing'
       if (current === wanted) return output
       return `${output} (wanted ${wanted})`
     },
-    ({ latest, wanted, change, diff }) => {
-      if (!latest) return ''
+    renderLatest,
+  ]
+  console.log(
+    table([
+      columnNames,
+      ...outdatedPackages
+        .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest)} : outdatedPkg)
+        .sort((pkg1, pkg2) => sortBySemverChange(pkg1 as OutdatedPackageWithVersionDiff, pkg2 as OutdatedPackageWithVersionDiff))
+        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg as OutdatedPackageWithVersionDiff))),
+    ], {
+      stringLength: (s: string) => stripColor(s).length,
+    }),
+  )
+}
 
-      let highlight!: ((v: string) => string)
-      switch (change) {
-        case 'feature':
+export function renderPackageName ({ belongsTo, packageName }: OutdatedPackageWithVersionDiff) {
+  switch (belongsTo) {
+    case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
+    case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
+    default: return packageName
+  }
+}
+
+export function renderLatest ({ latest, wanted, change, diff }: OutdatedPackageWithVersionDiff) {
+  if (!latest) return ''
+
+  let highlight!: ((v: string) => string)
+  switch (change) {
+    case 'feature':
+      highlight = chalk.yellowBright.bold
+      break
+    case 'fix':
+      highlight = chalk.greenBright.bold
+      break
+    default:
+      highlight = chalk.redBright.bold
+      break
+  }
+  const latestParts = latest.split('.')
+  const wantedParts = wanted.split('.')
+  const outputParts = [] as string[]
+  for (let i = 0; i < latestParts.length; i++) {
+    if (!highlight && latestParts[i] !== wantedParts[i]) {
+      switch (i) {
+        case 1:
           highlight = chalk.yellowBright.bold
           break
-        case 'fix':
+        case 2:
           highlight = chalk.greenBright.bold
           break
         default:
           highlight = chalk.redBright.bold
           break
       }
-      const latestParts = latest.split('.')
-      const wantedParts = wanted.split('.')
-      const outputParts = [] as string[]
-      for (let i = 0; i < latestParts.length; i++) {
-        if (!highlight && latestParts[i] !== wantedParts[i]) {
-          switch (i) {
-            case 1:
-              highlight = chalk.yellowBright.bold
-              break
-            case 2:
-              highlight = chalk.greenBright.bold
-              break
-            default:
-              highlight = chalk.redBright.bold
-              break
-          }
-        }
-        outputParts.push(highlight ? highlight(latestParts[i]) : latestParts[i])
-      }
-      const versionTuples = [
-        ...diff[0],
-        ...diff[1].map((versionTuple) => highlight(versionTuple)),
-      ]
-      if (versionTuples.length === 3) return versionTuples.join('.')
-      return versionTuples.slice(0, 3).join('.') + '-' + versionTuples.slice(3).join('.')
-    },
-  ]
-  if (!opts.global) {
-    columnFns.push(({ belongsTo }) => belongsTo)
+    }
+    outputParts.push(highlight ? highlight(latestParts[i]) : latestParts[i])
   }
-  console.log(
-    table([
-      columnNames,
-      ...outdatedPackages
-        .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest)} : outdatedPkg)
-        .sort((pkg1, pkg2) => pkgPriority(pkg1 as OutdatedPackageWithVersionDiff) - pkgPriority(pkg2 as OutdatedPackageWithVersionDiff))
-        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg as OutdatedPackageWithVersionDiff))),
-    ], {
-      stringLength: (s: string) => stripColor(s).length,
-    }),
-  )
+  const versionTuples = [
+    ...diff[0],
+    ...diff[1].map((versionTuple) => highlight(versionTuple)),
+  ]
+  if (versionTuples.length === 3) return versionTuples.join('.')
+  return versionTuples.slice(0, 3).join('.') + '-' + versionTuples.slice(3).join('.')
+}
+
+export function sortBySemverChange (outdated1: OutdatedPackageWithVersionDiff, outdated2: OutdatedPackageWithVersionDiff) {
+  return pkgPriority(outdated1) - pkgPriority(outdated2)
 }
 
 function pkgPriority (pkg: OutdatedPackageWithVersionDiff) {

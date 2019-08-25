@@ -1,15 +1,31 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
+import semverDiff from '@pnpm/semver-diff'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import R = require('ramda')
 import stripColor = require('strip-color')
 import table = require('text-table')
-import { outdatedDependenciesOfWorkspacePackages } from '../outdated'
+import {
+  outdatedDependenciesOfWorkspacePackages,
+  OutdatedPackageWithVersionDiff,
+  renderLatest,
+  renderPackageName,
+  sortBySemverChange,
+} from '../outdated'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,
   devDependencies: 2,
   optionalDependencies: 0,
+}
+
+type OutdatedInWorkspace = {
+  belongsTo: DependenciesField,
+  current?: string,
+  dependentPkgs: Array<{ location: string, manifest: PackageJson }>,
+  latest?: string,
+  packageName: string,
+  wanted: string,
 }
 
 export default async (
@@ -42,14 +58,7 @@ export default async (
     userAgent: string,
   },
 ) => {
-  const outdatedByNameAndType = {} as Record<string, {
-    belongsTo: DependenciesField,
-    current?: string,
-    dependentPkgs: Array<{ location: string, manifest: PackageJson }>,
-    latest?: string,
-    packageName: string,
-    wanted: string,
-  }>
+  const outdatedByNameAndType = {} as Record<string, OutdatedInWorkspace>
   if (opts.lockfileDirectory) {
     const outdatedPackagesByProject = await outdatedDependenciesOfWorkspacePackages(pkgs, args, opts)
     for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
@@ -76,23 +85,30 @@ export default async (
     }))
   }
 
-  const columnNames = ['Package', 'Current', 'Wanted', 'Latest', 'Belongs To', 'Dependents'].map((txt) => chalk.underline(txt))
+  const columnNames = ['Package', 'Current', 'Latest', 'Dependents'].map((txt) => chalk.underline(txt))
   console.log(
     table([
       columnNames,
       ...R.sortWith(
         [
+          (o1, o2) => sortBySemverChange(o1, o2),
           (o1, o2) => o1.packageName.localeCompare(o2.packageName),
           (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
         ],
-        (Object.values(outdatedByNameAndType)),
+        (
+          Object.values(outdatedByNameAndType)
+            .map((outdatedPkg) => outdatedPkg.latest
+              ? {
+                ...outdatedPkg,
+                ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest)}
+              : outdatedPkg,
+            ) as Array<OutdatedInWorkspace & OutdatedPackageWithVersionDiff>
+        ),
       )
         .map((outdatedPkg) => [
-          chalk.yellow(outdatedPkg.packageName),
+          renderPackageName(outdatedPkg),
           outdatedPkg.current || 'missing',
-          chalk.green(outdatedPkg.wanted),
-          chalk.magenta(outdatedPkg.latest || ''),
-          outdatedPkg.belongsTo,
+          renderLatest(outdatedPkg),
           outdatedPkg.dependentPkgs
             .map(({ manifest, location }) => manifest.name || location)
             .sort()
