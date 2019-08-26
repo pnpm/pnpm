@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { tempDir } from '@pnpm/prepare'
+import chalk from 'chalk'
 import { stripIndents } from 'common-tags'
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
@@ -7,6 +8,7 @@ import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import outdated from '../src/cmd/outdated'
 import { execPnpm, execPnpmSync } from './utils'
 
 const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')
@@ -18,15 +20,30 @@ const testOnly = promisifyTape(tape.only)
 test('pnpm outdated', async (t: tape.Test) => {
   process.chdir(hasOutdatedDepsFixture)
 
-  const result = execPnpmSync('outdated')
-
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest  Belongs To
-    is-negative  1.0.0    1.1.0   2.1.0   dependencies
-    is-positive  1.0.0    3.1.0   3.1.0   dependencies
-  ` + '\n')
+  t.equal(
+    await outdated([], {
+      alwaysAuth: false,
+      fetchRetries: 2,
+      fetchRetryFactor: 1,
+      fetchRetryMaxtimeout: 60000,
+      fetchRetryMintimeout: 10000,
+      global: false,
+      independentLeaves: false,
+      networkConcurrency: 16,
+      offline: false,
+      prefix: process.cwd(),
+      rawNpmConfig: { registry: 'https://localhost:4873' },
+      registries: { default: 'https://localhost:4873' },
+      strictSsl: false,
+      tag: 'latest',
+      userAgent: '',
+    }, 'outdated'),
+    stripIndents`
+      ${chalk.underline('Package')}      ${chalk.underline('Current')}               ${chalk.underline('Latest')}
+      is-positive  1.0.0 (wanted 3.1.0)  3.1.0
+      is-negative  1.0.0 (wanted 1.1.0)  ${chalk.redBright.bold('2.1.0')}
+    `,
+  )
 })
 
 test('pnpm outdated: only current lockfile is available', async (t: tape.Test) => {
@@ -41,9 +58,9 @@ test('pnpm outdated: only current lockfile is available', async (t: tape.Test) =
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest  Belongs To
-    is-negative  1.0.0    1.0.0   2.1.0   dependencies
-    is-positive  1.0.0    1.0.0   3.1.0   dependencies
+    Package      Current  Latest
+    is-negative  1.0.0    2.1.0
+    is-positive  1.0.0    3.1.0
   ` + '\n')
 })
 
@@ -58,9 +75,9 @@ test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) =>
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest  Belongs To
-    is-negative  missing  1.1.0   2.1.0   dependencies
-    is-positive  missing  3.1.0   3.1.0   dependencies
+    Package      Current                 Latest
+    is-positive  missing (wanted 3.1.0)  3.1.0
+    is-negative  missing (wanted 1.1.0)  2.1.0
   ` + '\n')
 })
 
@@ -82,9 +99,9 @@ test('pnpm outdated with external lockfile', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest  Belongs To
-    is-negative  1.0.0    1.1.0   2.1.0   dependencies
-    is-positive  1.0.0    3.1.0   3.1.0   dependencies
+    Package      Current               Latest
+    is-positive  1.0.0 (wanted 3.1.0)  3.1.0
+    is-negative  1.0.0 (wanted 1.1.0)  2.1.0
   ` + '\n')
 })
 
@@ -102,9 +119,9 @@ test('pnpm outdated on global packages', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest
-    is-negative  1.0.0    1.0.0   2.1.0
-    is-positive  1.0.0    1.0.0   3.1.0
+    Package      Current  Latest
+    is-negative  1.0.0    2.1.0
+    is-positive  1.0.0    3.1.0
   ` + '\n')
 })
 

@@ -1036,6 +1036,7 @@ importers:
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
+      '@pnpm/semver-diff': 1.0.0
       '@pnpm/server': 'link:../server'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 2.1.0
@@ -1148,6 +1149,7 @@ importers:
       '@pnpm/read-importer-manifest': 'workspace:1.0.8'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/registry-mock': 1.4.0
+      '@pnpm/semver-diff': 1.0.0
       '@pnpm/server': 'workspace:3.0.6'
       '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/store-path': 2.1.0
@@ -2225,6 +2227,12 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-2GzsC4937QJcdWr9uWcBIaHF7CIeIeCVJhwfab31B73O9+Pc7baikKjMMUWDPgnMJG7kTRlRSadVYN6KDjiLaw==
+  /@pnpm/semver-diff/1.0.0:
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-xxjp9zkTS8cfRNEhfoTNIG9tGfiXn42anXDc6pLLepJlBMsDH4RVIF/ygOO2EKz7/9E2PF1zCQUTwjFpjFwL2g==
   /@pnpm/store-path/2.1.0:
     dependencies:
       can-link: 1.0.2

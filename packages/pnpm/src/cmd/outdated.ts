@@ -7,13 +7,17 @@ import {
 import outdated, {
   forPackages as outdatedForPackages, OutdatedPackage,
 } from '@pnpm/outdated'
+import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
+import R = require('ramda')
 import stripColor = require('strip-color')
 import table = require('text-table')
 import createLatestVersionGetter from '../createLatestVersionGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
+
+export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
 
 export default async function (
   args: string[],
@@ -58,27 +62,93 @@ export default async function (
   const columnNames = [
     'Package',
     'Current',
-    'Wanted',
     'Latest',
-    ...(opts.global ? [] : ['Belongs To']),
   ].map((txt) => chalk.underline(txt))
-  let columnFns: Array<(outdatedPkg: OutdatedPackage) => string> = [
-    ({ packageName }) => chalk.yellow(packageName),
-    ({ current }) => current || 'missing',
-    ({ wanted }) => chalk.green(wanted),
-    ({ latest }) => latest && chalk.magenta(latest) || '',
+  let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
+    renderPackageName,
+    renderCurrent,
+    renderLatest,
   ]
-  if (!opts.global) {
-    columnFns.push(({ belongsTo }) => belongsTo)
+  return table([
+    columnNames,
+    ...R.sortWith(
+      [
+        sortBySemverChange,
+        (o1, o2) => o1.packageName.localeCompare(o2.packageName),
+      ],
+      outdatedPackages.map(toOutdatedWithVersionDiff)
+    )
+      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
+  ], {
+    stringLength: (s: string) => stripColor(s).length,
+  })
+}
+
+export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {
+  if (outdated.latest) {
+    return {
+      ...outdated,
+      ...semverDiff(outdated.wanted, outdated.latest),
+    }
   }
-  console.log(
-    table([
-      columnNames,
-      ...outdatedPackages.map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-    ], {
-      stringLength: (s: string) => stripColor(s).length,
-    }),
-  )
+  return {
+    ...outdated,
+    change: 'unknown',
+  }
+}
+
+export function renderPackageName ({ belongsTo, packageName }: OutdatedWithVersionDiff) {
+  switch (belongsTo) {
+    case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
+    case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
+    default: return packageName
+  }
+}
+
+export function renderCurrent ({ current, wanted }: OutdatedWithVersionDiff) {
+  let output = current || 'missing'
+  if (current === wanted) return output
+  return `${output} (wanted ${wanted})`
+}
+
+const DIFF_COLORS = {
+  feature: chalk.yellowBright.bold,
+  fix: chalk.greenBright.bold,
+}
+
+export function renderLatest ({ latest, change, diff }: OutdatedWithVersionDiff) {
+  if (!latest) return ''
+  if (change === null || !diff) return latest
+
+  const highlight = DIFF_COLORS[change] || chalk.redBright.bold
+  const same = joinVersionTuples(diff[0], 0)
+  const other = highlight(joinVersionTuples(diff[1], diff[0].length))
+  if (!same) return other
+  return diff[0].length === 3 ? `${same}-${other}` : `${same}.${other}`
+}
+
+function joinVersionTuples (versionTuples: string[], startIndex: number) {
+  const neededForSemver = 3 - startIndex
+  if (versionTuples.length <= neededForSemver) return versionTuples.join('.')
+  return `${
+    versionTuples.slice(0, neededForSemver).join('.')
+   }-${
+     versionTuples.slice(neededForSemver).join('.')
+   }`
+}
+
+export function sortBySemverChange (outdated1: OutdatedWithVersionDiff, outdated2: OutdatedWithVersionDiff) {
+  return pkgPriority(outdated1) - pkgPriority(outdated2)
+}
+
+function pkgPriority (pkg: OutdatedWithVersionDiff) {
+  switch (pkg.change) {
+    case null: return 0
+    case 'fix': return 1
+    case 'feature': return 2
+    case 'breaking': return 3
+    default: return 4
+  }
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
