@@ -120,8 +120,8 @@ function getHelpText (command: string) {
           -E, --save-exact                   install exact version
           -g, --global                       install as a global package
           -r                                 run installation recursively in every package found in subdirectories
-                                              or in every workspace package, when executed inside a workspace.
-                                              For options that may be used with \`-r\`, see "pnpm help recursive"
+                                             or in every workspace package, when executed inside a workspace.
+                                             For options that may be used with \`-r\`, see "pnpm help recursive"
       `
 
     case 'import':
