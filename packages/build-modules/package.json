@@ -43,7 +43,7 @@
   "devDependencies": {
     "@pnpm/build-modules": "link:",
     "@pnpm/logger": "2.1.1",
-    "@types/ramda": "0.26.19",
+    "@types/ramda": "0.26.21",
     "rimraf": "3.0.0"
   }
 }

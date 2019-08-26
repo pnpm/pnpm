@@ -12,7 +12,7 @@ devDependencies:
   '@types/node': '*'
   '@types/tape': ^4.2.31
   ts-node: 8.3.0
-  tslint: 5.18.0
+  tslint: 5.19.0
   typescript: 3.5.3
 engines:
   pnpm: '>=3.7'
