@@ -32,6 +32,7 @@ import initReporter, { ReporterType } from './reporter'
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
 type CANONICAL_COMMAND_NAMES = 'help'
+  | 'add'
   | 'import'
   | 'install-test'
   | 'install'
@@ -58,6 +59,7 @@ type CANONICAL_COMMAND_NAMES = 'help'
 const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
 
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
+  'add',
   'install',
   'uninstall',
   'update',
