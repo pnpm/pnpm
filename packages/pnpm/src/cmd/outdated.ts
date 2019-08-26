@@ -13,7 +13,7 @@ import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import R = require('ramda')
 import { table } from 'table'
-import createLatestVersionGetter from '../createLatestVersionGetter'
+import createLatestManifestGetter from '../createLatestManifestGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
 
 export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
@@ -62,11 +62,13 @@ export default async function (
     'Package',
     'Current',
     'Latest',
+    'URL',
   ]
   let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
     renderPackageName,
     renderCurrent,
     renderLatest,
+    renderUrl,
   ]
   return table([
     columnNames,
@@ -82,10 +84,10 @@ export default async function (
 }
 
 export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {
-  if (outdated.latest) {
+  if (outdated.latestManifest) {
     return {
       ...outdated,
-      ...semverDiff(outdated.wanted, outdated.latest),
+      ...semverDiff(outdated.wanted, outdated.latestManifest.version),
     }
   }
   return {
@@ -113,9 +115,9 @@ const DIFF_COLORS = {
   fix: chalk.greenBright.bold,
 }
 
-export function renderLatest ({ latest, change, diff }: OutdatedWithVersionDiff) {
-  if (!latest) return ''
-  if (change === null || !diff) return latest
+export function renderLatest ({ latestManifest, change, diff }: OutdatedWithVersionDiff) {
+  if (!latestManifest) return ''
+  if (change === null || !diff) return latestManifest.version
 
   const highlight = DIFF_COLORS[change] || chalk.redBright.bold
   const same = joinVersionTuples(diff[0], 0)
@@ -146,6 +148,10 @@ function pkgPriority (pkg: OutdatedWithVersionDiff) {
     case 'breaking': return 3
     default: return 4
   }
+}
+
+export function renderUrl ({ latestManifest }: OutdatedWithVersionDiff) {
+  return latestManifest && latestManifest.homepage || ''
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
@@ -184,7 +190,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
     throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
   }
   const store = await storePath(opts.prefix, opts.store)
-  const getLatestVersion = createLatestVersionGetter({
+  const getLatestManifest = createLatestManifestGetter({
     ...opts,
     lockfileDirectory,
     store,
@@ -192,7 +198,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
   return Promise.all(pkgs.map(async ({ manifest, path }) => {
     const optsForOutdated = {
       currentLockfile,
-      getLatestVersion,
+      getLatestManifest,
       lockfileDirectory,
       manifest,
       prefix: path,

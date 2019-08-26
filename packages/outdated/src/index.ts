@@ -7,18 +7,19 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
+  DependencyManifest,
   ImporterManifest,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import minimatch = require('minimatch')
 
-export type GetLatestVersionFunction = (packageName: string) => Promise<string | null>
+export type GetLatestManifestFunction = (packageName: string) => Promise<DependencyManifest | null>
 
 export interface OutdatedPackage {
   alias: string,
   belongsTo: DependenciesField,
   current?: string, // not defined means the package is not installed
-  latest?: string,
+  latestManifest?: DependencyManifest,
   packageName: string,
   wanted: string,
 }
@@ -28,7 +29,7 @@ export default async function (
     currentLockfile: Lockfile | null,
     manifest: ImporterManifest,
     prefix: string,
-    getLatestVersion: GetLatestVersionFunction,
+    getLatestManifest: GetLatestManifestFunction,
     lockfileDirectory: string,
     wantedLockfile: Lockfile,
   },
@@ -42,7 +43,7 @@ export async function forPackages (
     currentLockfile: Lockfile | null,
     manifest: ImporterManifest,
     prefix: string,
-    getLatestVersion: GetLatestVersionFunction,
+    getLatestManifest: GetLatestManifestFunction,
     lockfileDirectory: string,
     wantedLockfile: Lockfile,
   },
@@ -56,7 +57,7 @@ async function _outdated (
     manifest: ImporterManifest,
     prefix: string,
     currentLockfile: Lockfile | null,
-    getLatestVersion: GetLatestVersionFunction,
+    getLatestManifest: GetLatestManifestFunction,
     lockfileDirectory: string,
     wantedLockfile: Lockfile,
   },
@@ -113,7 +114,7 @@ async function _outdated (
                 alias,
                 belongsTo: depType,
                 current,
-                latest: undefined,
+                latestManifest: undefined,
                 packageName,
                 wanted,
               })
@@ -121,27 +122,27 @@ async function _outdated (
             return
           }
 
-          const latest = await opts.getLatestVersion(dp.parse(relativeDepPath).name || packageName)
+          const latestManifest = await opts.getLatestManifest(dp.parse(relativeDepPath).name || packageName)
 
-          if (!latest) return
+          if (!latestManifest) return
 
           if (!current) {
             outdated.push({
               alias,
               belongsTo: depType,
-              latest,
+              latestManifest,
               packageName,
               wanted,
             })
             return
           }
 
-          if (current !== wanted || latest !== current) {
+          if (current !== wanted || latestManifest.version !== current) {
             outdated.push({
               alias,
               belongsTo: depType,
               current,
-              latest,
+              latestManifest,
               packageName,
               wanted,
             })
