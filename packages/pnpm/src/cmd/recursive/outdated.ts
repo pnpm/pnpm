@@ -1,5 +1,5 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
-import semverDiff from '@pnpm/semver-diff'
+import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import R = require('ramda')
@@ -7,11 +7,11 @@ import stripColor = require('strip-color')
 import table = require('text-table')
 import {
   outdatedDependenciesOfWorkspacePackages,
-  OutdatedPackageWithVersionDiff,
   renderCurrent,
   renderLatest,
   renderPackageName,
   sortBySemverChange,
+  toOutdatedWithVersionDiff,
 } from '../outdated'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
@@ -20,7 +20,7 @@ const DEP_PRIORITY: Record<DependenciesField, number> = {
   optionalDependencies: 0,
 }
 
-type OutdatedInWorkspace = {
+type OutdatedInWorkspace = OutdatedPackage & {
   belongsTo: DependenciesField,
   current?: string,
   dependentPkgs: Array<{ location: string, manifest: PackageJson }>,
@@ -92,18 +92,12 @@ export default async (
       columnNames,
       ...R.sortWith(
         [
-          (o1, o2) => sortBySemverChange(o1, o2),
+          sortBySemverChange,
           (o1, o2) => o1.packageName.localeCompare(o2.packageName),
           (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
         ],
         (
-          Object.values(outdatedByNameAndType)
-            .map((outdatedPkg) => outdatedPkg.latest
-              ? {
-                ...outdatedPkg,
-                ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest)}
-              : outdatedPkg,
-            ) as Array<OutdatedInWorkspace & OutdatedPackageWithVersionDiff>
+          Object.values(outdatedByNameAndType).map(toOutdatedWithVersionDiff)
         ),
       )
         .map((outdatedPkg) => [

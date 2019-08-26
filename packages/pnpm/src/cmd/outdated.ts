@@ -11,19 +11,13 @@ import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
+import R = require('ramda')
 import stripColor = require('strip-color')
 import table = require('text-table')
 import createLatestVersionGetter from '../createLatestVersionGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
 
-const CHANGE_PRIORITIES: Record<SEMVER_CHANGE, number> = {
-  breaking: 3,
-  feature: 2,
-  fix: 1,
-  unknown: 3,
-}
-
-export type OutdatedPackageWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE, diff: [string[], string[]] }
+export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
 
 export default async function (
   args: string[],
@@ -70,23 +64,40 @@ export default async function (
     'Current',
     'Latest',
   ].map((txt) => chalk.underline(txt))
-  let columnFns: Array<(outdatedPkg: OutdatedPackageWithVersionDiff) => string> = [
+  let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
     renderPackageName,
     renderCurrent,
     renderLatest,
   ]
   return table([
     columnNames,
-    ...outdatedPackages
-      .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest) } : outdatedPkg)
-      .sort((pkg1, pkg2) => sortBySemverChange(pkg1 as OutdatedPackageWithVersionDiff, pkg2 as OutdatedPackageWithVersionDiff))
-      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg as OutdatedPackageWithVersionDiff))),
+    ...R.sortWith(
+      [
+        sortBySemverChange,
+        (o1, o2) => o1.packageName.localeCompare(o2.packageName),
+      ],
+      outdatedPackages.map(toOutdatedWithVersionDiff)
+    )
+      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ], {
     stringLength: (s: string) => stripColor(s).length,
   })
 }
 
-export function renderPackageName ({ belongsTo, packageName }: OutdatedPackageWithVersionDiff) {
+export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {
+  if (outdated.latest) {
+    return {
+      ...outdated,
+      ...semverDiff(outdated.wanted, outdated.latest),
+    }
+  }
+  return {
+    ...outdated,
+    change: 'unknown',
+  }
+}
+
+export function renderPackageName ({ belongsTo, packageName }: OutdatedWithVersionDiff) {
   switch (belongsTo) {
     case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
     case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
@@ -94,15 +105,15 @@ export function renderPackageName ({ belongsTo, packageName }: OutdatedPackageWi
   }
 }
 
-export function renderCurrent ({ current, wanted }: OutdatedPackageWithVersionDiff) {
+export function renderCurrent ({ current, wanted }: OutdatedWithVersionDiff) {
   let output = current || 'missing'
   if (current === wanted) return output
   return `${output} (wanted ${wanted})`
 }
 
-export function renderLatest ({ latest, change, diff }: OutdatedPackageWithVersionDiff) {
+export function renderLatest ({ latest, change, diff }: OutdatedWithVersionDiff) {
   if (!latest) return ''
-  if (change === null) return latest
+  if (change === null || !diff) return latest
 
   let highlight!: ((v: string) => string)
   switch (change) {
@@ -128,12 +139,18 @@ function joinVersionTuples (versionTuples: string[], startIndex: number) {
   return versionTuples.slice(0, neededForSemver).join('.') + '-' + versionTuples.slice(neededForSemver).join('.')
 }
 
-export function sortBySemverChange (outdated1: OutdatedPackageWithVersionDiff, outdated2: OutdatedPackageWithVersionDiff) {
+export function sortBySemverChange (outdated1: OutdatedWithVersionDiff, outdated2: OutdatedWithVersionDiff) {
   return pkgPriority(outdated1) - pkgPriority(outdated2)
 }
 
-function pkgPriority (pkg: OutdatedPackageWithVersionDiff) {
-  return pkg.change && CHANGE_PRIORITIES[pkg.change] || 3
+function pkgPriority (pkg: OutdatedWithVersionDiff) {
+  switch (pkg.change) {
+    case null: return 0
+    case 'fix': return 1
+    case 'feature': return 2
+    case 'breaking': return 3
+    default: return 4
+  }
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
