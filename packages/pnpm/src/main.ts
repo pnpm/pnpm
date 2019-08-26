@@ -206,7 +206,7 @@ export default async function run (argv: string[]) {
 
   if (
     opts.useBetaCli &&
-    cmd === 'install' &&
+    cmd === 'add' &&
     typeof opts.workspacePrefix === 'string'
   ) {
     if (cliArgs.length === 0) {

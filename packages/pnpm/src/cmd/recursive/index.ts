@@ -40,6 +40,7 @@ import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
 
 const supportedRecursiveCommands = new Set([
+  'add',
   'install',
   'uninstall',
   'update',
@@ -144,8 +145,8 @@ export async function recursive (
     case 'outdated':
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
-    case 'install':
-      if (cmd === 'add' && opts.useBetaCli && (!input || !input.length)) {
+    case 'add':
+      if (opts.useBetaCli && (!input || !input.length)) {
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
       }
       break
@@ -230,7 +231,7 @@ export async function recursive (
 
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
-    if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
+    if (opts.lockfileDirectory && ['add', 'install', 'uninstall', 'update'].includes(cmdFullName)) {
       if (opts.shamefullyFlatten) {
         logger.info({ message: 'Only the root workspace package is going to have a flat node_modules', prefix: opts.lockfileDirectory })
       }
@@ -274,7 +275,7 @@ export async function recursive (
             return
           case 'installSome':
             mutatedImporters.push({
-              allowNew: cmdFullName === 'install',
+              allowNew: cmdFullName === 'install' || cmdFullName === 'add',
               dependencySelectors: currentInput,
               manifest,
               mutation,
@@ -406,7 +407,12 @@ export async function recursive (
 
   if (
     cmdFullName === 'rebuild' ||
-    !opts.lockfileOnly && !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')
+    !opts.lockfileOnly && !opts.ignoreScripts && (
+      cmdFullName === 'add' ||
+      cmdFullName === 'install' ||
+      cmdFullName === 'update' ||
+      cmdFullName === 'unlink'
+    )
   ) {
     const action = (
       cmdFullName !== 'rebuild' || input.length === 0
