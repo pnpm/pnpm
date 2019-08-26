@@ -284,14 +284,14 @@ export default async function run (argv: string[]) {
           result
             .then((output) => {
               if (typeof output === 'string') {
-                console.log(output)
+                process.stdout.write(output)
               }
               resolve()
             })
             .catch(reject)
         } else {
           if (typeof result === 'string') {
-            console.log(result)
+            process.stdout.write(result)
           }
           resolve()
         }

@@ -12,8 +12,7 @@ import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import R = require('ramda')
-import stripColor = require('strip-color')
-import table = require('text-table')
+import { table } from 'table'
 import createLatestVersionGetter from '../createLatestVersionGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
 
@@ -63,7 +62,7 @@ export default async function (
     'Package',
     'Current',
     'Latest',
-  ].map((txt) => chalk.underline(txt))
+  ]
   let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
     renderPackageName,
     renderCurrent,
@@ -79,9 +78,7 @@ export default async function (
       outdatedPackages.map(toOutdatedWithVersionDiff)
     )
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-  ], {
-    stringLength: (s: string) => stripColor(s).length,
-  })
+  ])
 }
 
 export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {

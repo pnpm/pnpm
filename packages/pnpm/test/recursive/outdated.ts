@@ -51,10 +51,15 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-      Package            Current  Latest  Dependents
-      is-negative        1.0.0    2.1.0   project-2
-      is-negative (dev)  1.0.0    2.1.0   project-3
-      is-positive        1.0.0    3.1.0   project-1, project-3
+      ╔═══════════════════╤═════════╤════════╤══════════════════════╗
+      ║ Package           │ Current │ Latest │ Dependents           ║
+      ╟───────────────────┼─────────┼────────┼──────────────────────╢
+      ║ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            ║
+      ╟───────────────────┼─────────┼────────┼──────────────────────╢
+      ║ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            ║
+      ╟───────────────────┼─────────┼────────┼──────────────────────╢
+      ║ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 ║
+      ╚═══════════════════╧═════════╧════════╧══════════════════════╝
     ` + '\n')
   }
 
@@ -64,8 +69,11 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-      Package      Current  Latest  Dependents
-      is-positive  1.0.0    3.1.0   project-1, project-3
+      ╔═════════════╤═════════╤════════╤══════════════════════╗
+      ║ Package     │ Current │ Latest │ Dependents           ║
+      ╟─────────────┼─────────┼────────┼──────────────────────╢
+      ║ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 ║
+      ╚═════════════╧═════════╧════════╧══════════════════════╝
     ` + '\n')
   }
 })
@@ -111,10 +119,15 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-      Package            Current  Latest  Dependents
-      is-negative        1.0.0    2.1.0   project-2
-      is-negative (dev)  1.0.0    2.1.0   project-3
-      is-positive        1.0.0    3.1.0   project-1, project-3
+    ╔═══════════════════╤═════════╤════════╤══════════════════════╗
+    ║ Package           │ Current │ Latest │ Dependents           ║
+    ╟───────────────────┼─────────┼────────┼──────────────────────╢
+    ║ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            ║
+    ╟───────────────────┼─────────┼────────┼──────────────────────╢
+    ║ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            ║
+    ╟───────────────────┼─────────┼────────┼──────────────────────╢
+    ║ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 ║
+    ╚═══════════════════╧═════════╧════════╧══════════════════════╝
     ` + '\n')
   }
 
@@ -124,8 +137,11 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-      Package      Current  Latest  Dependents
-      is-positive  1.0.0    3.1.0   project-1, project-3
+    ╔═════════════╤═════════╤════════╤══════════════════════╗
+    ║ Package     │ Current │ Latest │ Dependents           ║
+    ╟─────────────┼─────────┼────────┼──────────────────────╢
+    ║ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 ║
+    ╚═════════════╧═════════╧════════╧══════════════════════╝
     ` + '\n')
   }
 })

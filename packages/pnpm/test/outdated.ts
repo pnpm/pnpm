@@ -44,10 +44,14 @@ test('pnpm outdated', async (t: tape.Test) => {
       userAgent: '',
     }, 'outdated'),
     stripIndents`
-      ${chalk.underline('Package')}      ${chalk.underline('Current')}               ${chalk.underline('Latest')}
-      is-positive  1.0.0 (wanted 3.1.0)  3.1.0
-      is-negative  1.0.0 (wanted 1.1.0)  ${chalk.redBright.bold('2.1.0')}
-    `,
+      ╔═════════════╤══════════════════════╤════════╗
+      ║ Package     │ Current              │ Latest ║
+      ╟─────────────┼──────────────────────┼────────╢
+      ║ is-positive │ 1.0.0 (wanted 3.1.0) │ 3.1.0  ║
+      ╟─────────────┼──────────────────────┼────────╢
+      ║ is-negative │ 1.0.0 (wanted 1.1.0) │ ${chalk.redBright.bold('2.1.0')}  ║
+      ╚═════════════╧══════════════════════╧════════╝
+    ` + '\n',
   )
 })
 
@@ -63,9 +67,13 @@ test('pnpm outdated: only current lockfile is available', async (t: tape.Test) =
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Latest
-    is-negative  1.0.0    2.1.0
-    is-positive  1.0.0    3.1.0
+    ╔═════════════╤═════════╤════════╗
+    ║ Package     │ Current │ Latest ║
+    ╟─────────────┼─────────┼────────╢
+    ║ is-negative │ 1.0.0   │ 2.1.0  ║
+    ╟─────────────┼─────────┼────────╢
+    ║ is-positive │ 1.0.0   │ 3.1.0  ║
+    ╚═════════════╧═════════╧════════╝
   ` + '\n')
 })
 
@@ -80,9 +88,13 @@ test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) =>
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current                 Latest
-    is-positive  missing (wanted 3.1.0)  3.1.0
-    is-negative  missing (wanted 1.1.0)  2.1.0
+    ╔═════════════╤════════════════════════╤════════╗
+    ║ Package     │ Current                │ Latest ║
+    ╟─────────────┼────────────────────────┼────────╢
+    ║ is-positive │ missing (wanted 3.1.0) │ 3.1.0  ║
+    ╟─────────────┼────────────────────────┼────────╢
+    ║ is-negative │ missing (wanted 1.1.0) │ 2.1.0  ║
+    ╚═════════════╧════════════════════════╧════════╝
   ` + '\n')
 })
 
@@ -104,9 +116,13 @@ test('pnpm outdated with external lockfile', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current               Latest
-    is-positive  1.0.0 (wanted 3.1.0)  3.1.0
-    is-negative  1.0.0 (wanted 1.1.0)  2.1.0
+    ╔═════════════╤══════════════════════╤════════╗
+    ║ Package     │ Current              │ Latest ║
+    ╟─────────────┼──────────────────────┼────────╢
+    ║ is-positive │ 1.0.0 (wanted 3.1.0) │ 3.1.0  ║
+    ╟─────────────┼──────────────────────┼────────╢
+    ║ is-negative │ 1.0.0 (wanted 1.1.0) │ 2.1.0  ║
+    ╚═════════════╧══════════════════════╧════════╝
   ` + '\n')
 })
 
@@ -124,9 +140,13 @@ test('pnpm outdated on global packages', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Latest
-    is-negative  1.0.0    2.1.0
-    is-positive  1.0.0    3.1.0
+    ╔═════════════╤═════════╤════════╗
+    ║ Package     │ Current │ Latest ║
+    ╟─────────────┼─────────┼────────╢
+    ║ is-negative │ 1.0.0   │ 2.1.0  ║
+    ╟─────────────┼─────────┼────────╢
+    ║ is-positive │ 1.0.0   │ 3.1.0  ║
+    ╚═════════════╧═════════╧════════╝
   ` + '\n')
 })
 

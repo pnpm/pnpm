@@ -1081,9 +1081,8 @@ importers:
       read-ini-file: 2.0.0
       read-yaml-file: 1.1.0
       signal-exit: 3.0.2
-      strip-color: 0.1.0
       supi: 'link:../supi'
-      text-table: 0.2.0
+      table: 5.4.6
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
@@ -1103,6 +1102,7 @@ importers:
       '@types/ramda': 0.26.21
       '@types/retry': 0.12.0
       '@types/semver': 6.0.1
+      '@types/table': 4.0.6
       '@types/update-notifier': 2.5.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
@@ -1163,6 +1163,7 @@ importers:
       '@types/ramda': 0.26.21
       '@types/retry': 0.12.0
       '@types/semver': '6'
+      '@types/table': ^4.0.6
       '@types/update-notifier': 2.5.0
       '@zkochan/libnpx': 11.0.1
       '@zkochan/rimraf': 1.0.0
@@ -1216,12 +1217,11 @@ importers:
       rimraf: 3.0.0
       semver: 6.3.0
       signal-exit: 3.0.2
-      strip-color: 0.1.0
       supi: 'workspace:0.34.9'
       symlink-dir: 3.1.0
+      table: 5.4.6
       tape: 4.11.0
       tape-promise: 4.0.0
-      text-table: 0.2.0
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
@@ -2430,6 +2430,10 @@ packages:
   /@types/ssri/6.0.1:
     resolution:
       integrity: sha512-Sf5NnDETSFGTHXIfG4zTTczRFhGEjSCfwfvHZ5oFmyX0fUA5BJKV/hdQ2zDnfcC6WXvE78ZTh+/18VzMyMM1QQ==
+  /@types/table/4.0.6:
+    dev: true
+    resolution:
+      integrity: sha512-WnWHc+IAVkkyjhHZLT4zsdOOd0lR1/AlBf/kPUcQD3UNrojpWypTU19YGfh0A5YIj72Swth20xce04660NfaVg==
   /@types/tape/4.2.33:
     dependencies:
       '@types/node': 12.7.2
@@ -5488,7 +5492,6 @@ packages:
     resolution:
       integrity: sha512-mmKYbW3GLuJeX+iGP+Y7Gp1AiGHGbXHCOh/jZmrawMmsE7MS4znI3RL2FsjbqOyMayHInjOeykW7PEajUk1/xw==
   /lodash/4.17.15:
-    dev: true
     resolution:
       integrity: sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==
   /log-update/1.0.2:
@@ -7285,6 +7288,16 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==
+  /slice-ansi/2.1.0:
+    dependencies:
+      ansi-styles: 3.2.1
+      astral-regex: 1.0.0
+      is-fullwidth-code-point: 2.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-Qu+VC3EwYLldKa1fCxuuvULvSJOKEgk9pi8dZeCVK7TqBfUNTH4sFkk4joj8afVSfAYgJoSOetjx9QWOJ5mYoQ==
   /slide/1.1.6:
     resolution:
       integrity: sha1-VusCfWW00tzmyy4tMsTUr8nh1wc=
@@ -7540,12 +7553,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-3xurFv5tEgii33Zi8Jtp55wEIILR9eh34FAW00PZf+JnSsTmV/ioewSgQl97JHvgjoRGwPShsWm+IdrxB35d0w==
-  /strip-color/0.1.0:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-EG9l09PmotlAHKwOsM6LinArT3s=
   /strip-eof/1.0.0:
     engines:
       node: '>=0.10.0'
@@ -7611,6 +7618,17 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-YngKrxub9zOHgC+c6VSXUGphdlVoX+PneWMHWAeZToK9MqYSwxT9jokHrEpInKqXYjbRHdRvJTqU8ETY+24r/Q==
+  /table/5.4.6:
+    dependencies:
+      ajv: 6.10.2
+      lodash: 4.17.15
+      slice-ansi: 2.1.0
+      string-width: 3.1.0
+    dev: false
+    engines:
+      node: '>=6.0.0'
+    resolution:
+      integrity: sha512-wmEc8m4fjnob4gt5riFRtTu/6+4rSe12TpAELNSqHMfF3IqnA+CH37USM6/YR3qRZv7e56kAEAtd6nKZaxe0Ug==
   /tape-promise/4.0.0:
     dependencies:
       is-promise: 2.1.0
@@ -7709,10 +7727,6 @@ packages:
       node: '>=0.10'
     resolution:
       integrity: sha512-wiBrwC1EhBelW12Zy26JeOUkQ5mRu+5o8rpsJk5+2t+Y5vE7e842qtZDQ2g1NpX/29HdyFeJ4nSIhI47ENSxlQ==
-  /text-table/0.2.0:
-    dev: false
-    resolution:
-      integrity: sha1-f17oI66AUgfACvLfSoTsP8+lcLQ=
   /thenify-all/1.6.0:
     dependencies:
       thenify: 3.3.0

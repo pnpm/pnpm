@@ -3,8 +3,7 @@ import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import R = require('ramda')
-import stripColor = require('strip-color')
-import table = require('text-table')
+import { table } from 'table'
 import {
   outdatedDependenciesOfWorkspacePackages,
   renderCurrent,
@@ -86,8 +85,8 @@ export default async (
     }))
   }
 
-  const columnNames = ['Package', 'Current', 'Latest', 'Dependents'].map((txt) => chalk.underline(txt))
-  console.log(
+  const columnNames = ['Package', 'Current', 'Latest', 'Dependents']
+  process.stdout.write(
     table([
       columnNames,
       ...R.sortWith(
@@ -109,8 +108,6 @@ export default async (
             .sort()
             .join(', '),
         ]),
-    ], {
-      stringLength: (s: string) => stripColor(s).length,
-    }),
+    ]),
   )
 }
