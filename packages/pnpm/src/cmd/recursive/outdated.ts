@@ -8,6 +8,7 @@ import table = require('text-table')
 import {
   outdatedDependenciesOfWorkspacePackages,
   OutdatedPackageWithVersionDiff,
+  renderCurrent,
   renderLatest,
   renderPackageName,
   sortBySemverChange,
@@ -107,7 +108,7 @@ export default async (
       )
         .map((outdatedPkg) => [
           renderPackageName(outdatedPkg),
-          outdatedPkg.current || 'missing',
+          renderCurrent(outdatedPkg),
           renderLatest(outdatedPkg),
           outdatedPkg.dependentPkgs
             .map(({ manifest, location }) => manifest.name || location)

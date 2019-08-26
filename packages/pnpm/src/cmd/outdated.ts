@@ -7,6 +7,7 @@ import {
 import outdated, {
   forPackages as outdatedForPackages, OutdatedPackage,
 } from '@pnpm/outdated'
+import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
@@ -14,12 +15,11 @@ import stripColor = require('strip-color')
 import table = require('text-table')
 import createLatestVersionGetter from '../createLatestVersionGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
-import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 
 const CHANGE_PRIORITIES: Record<SEMVER_CHANGE, number> = {
-  fix: 1,
-  feature: 2,
   breaking: 3,
+  feature: 2,
+  fix: 1,
   unknown: 3,
 }
 
@@ -72,18 +72,14 @@ export default async function (
   ].map((txt) => chalk.underline(txt))
   let columnFns: Array<(outdatedPkg: OutdatedPackageWithVersionDiff) => string> = [
     renderPackageName,
-    ({ current, wanted }) => {
-      let output = current || 'missing'
-      if (current === wanted) return output
-      return `${output} (wanted ${wanted})`
-    },
+    renderCurrent,
     renderLatest,
   ]
   console.log(
     table([
       columnNames,
       ...outdatedPackages
-        .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest)} : outdatedPkg)
+        .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest) } : outdatedPkg)
         .sort((pkg1, pkg2) => sortBySemverChange(pkg1 as OutdatedPackageWithVersionDiff, pkg2 as OutdatedPackageWithVersionDiff))
         .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg as OutdatedPackageWithVersionDiff))),
     ], {
@@ -100,8 +96,15 @@ export function renderPackageName ({ belongsTo, packageName }: OutdatedPackageWi
   }
 }
 
-export function renderLatest ({ latest, wanted, change, diff }: OutdatedPackageWithVersionDiff) {
+export function renderCurrent ({ current, wanted }: OutdatedPackageWithVersionDiff) {
+  let output = current || 'missing'
+  if (current === wanted) return output
+  return `${output} (wanted ${wanted})`
+}
+
+export function renderLatest ({ latest, change, diff }: OutdatedPackageWithVersionDiff) {
   if (!latest) return ''
+  if (change === null) return latest
 
   let highlight!: ((v: string) => string)
   switch (change) {
