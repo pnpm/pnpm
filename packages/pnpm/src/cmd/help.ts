@@ -11,18 +11,9 @@ function getHelpText (command: string) {
   switch (getCommandFullName(command)) {
     case 'install':
       return stripIndent`
-        pnpm install (with no args, in package dir)
-        pnpm install [<@scope>/]<name>
-        pnpm install [<@scope>/]<name>@<tag>
-        pnpm install [<@scope>/]<name>@<version>
-        pnpm install [<@scope>/]<name>@<version range>
-        pnpm install <git-host>:<git-user>/<repo-name>
-        pnpm install <git repo url>
-        pnpm install <tarball file>
-        pnpm install <tarball url>
-        pnpm install <folder>
+        pnpm install
 
-        Aliases: i, install, add
+        Aliases: i
 
         Installs all dependencies of the project in the current working directory.
         To install dependencies in every project of a monorepo, run \`pnpm recursive install\`
@@ -30,12 +21,6 @@ function getHelpText (command: string) {
 
         Options:
 
-          -P, --save-prod                    save package to your \`dependencies\`. The default behavior
-          -D, --save-dev                     save package to your \`devDependencies\`
-          -O, --save-optional                save package to your \`optionalDependencies\`
-          --save-peer                        save package to your \`peerDependencies\` and \`devDependencies\`
-          -E, --save-exact                   install exact version
-          -g, --global                       install as a global package
           -r                                 run installation recursively in every package found in subdirectories
                                              or in every workspace package, when executed inside a workspace.
                                              For options that may be used with \`-r\`, see "pnpm help recursive"
@@ -110,6 +95,33 @@ function getHelpText (command: string) {
 
             .
               Includes all packages that are under the current working directory.
+      `
+
+    case 'add':
+      return stripIndent`
+        pnpm add [<@scope>/]<name>
+        pnpm add [<@scope>/]<name>@<tag>
+        pnpm add [<@scope>/]<name>@<version>
+        pnpm add [<@scope>/]<name>@<version range>
+        pnpm add <git-host>:<git-user>/<repo-name>
+        pnpm add <git repo url>
+        pnpm add <tarball file>
+        pnpm add <tarball url>
+        pnpm add <folder>
+
+        Installs a package and any packages that it depends on.
+
+        Options:
+
+          -P, --save-prod                    save package to your \`dependencies\`. The default behavior
+          -D, --save-dev                     save package to your \`devDependencies\`
+          -O, --save-optional                save package to your \`optionalDependencies\`
+          --save-peer                        save package to your \`peerDependencies\` and \`devDependencies\`
+          -E, --save-exact                   install exact version
+          -g, --global                       install as a global package
+          -r                                 run installation recursively in every package found in subdirectories
+                                              or in every workspace package, when executed inside a workspace.
+                                              For options that may be used with \`-r\`, see "pnpm help recursive"
       `
 
     case 'import':
@@ -412,6 +424,8 @@ function getHelpText (command: string) {
 
           install
 
+          add
+
           update
 
           uninstall [<@scope>/]<pkg>...
@@ -489,6 +503,7 @@ function getHelpText (command: string) {
 
         manage your dependencies:
           - install
+          - add
           - update
           - uninstall
           - link
@@ -517,6 +532,7 @@ function getHelpText (command: string) {
         manage you monorepo:
           - recursive exec
           - recursive install
+          - recursive add
           - recursive list
           - recursive outdated
           - recursive rebuild

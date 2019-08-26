@@ -18,6 +18,7 @@ import unlink from './unlink'
 import update from './update'
 
 export default {
+  add: install,
   help,
   import: importCmd,
   install,
