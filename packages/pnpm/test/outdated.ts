@@ -41,9 +41,9 @@ test('pnpm outdated: only current lockfile is available', async (t: tape.Test) =
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest  Belongs To
-    is-negative  1.0.0    1.0.0   2.1.0   dependencies
-    is-positive  1.0.0    1.0.0   3.1.0   dependencies
+    Package      Current  Latest
+    is-negative  1.0.0    2.1.0
+    is-positive  1.0.0    3.1.0
   ` + '\n')
 })
 
@@ -58,9 +58,9 @@ test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) =>
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest  Belongs To
-    is-negative  missing  1.1.0   2.1.0   dependencies
-    is-positive  missing  3.1.0   3.1.0   dependencies
+    Package      Current                 Latest
+    is-negative  missing (wanted 1.1.0)  2.1.0
+    is-positive  missing (wanted 3.1.0)  3.1.0
   ` + '\n')
 })
 
@@ -82,9 +82,9 @@ test('pnpm outdated with external lockfile', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest  Belongs To
-    is-negative  1.0.0    1.1.0   2.1.0   dependencies
-    is-positive  1.0.0    3.1.0   3.1.0   dependencies
+    Package      Current               Latest
+    is-negative  1.0.0 (wanted 1.1.0)  2.1.0
+    is-positive  1.0.0 (wanted 3.1.0)  3.1.0
   ` + '\n')
 })
 
@@ -102,9 +102,9 @@ test('pnpm outdated on global packages', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current  Wanted  Latest
-    is-negative  1.0.0    1.0.0   2.1.0
-    is-positive  1.0.0    1.0.0   3.1.0
+    Package      Current  Latest
+    is-negative  1.0.0    2.1.0
+    is-positive  1.0.0    3.1.0
   ` + '\n')
 })
 
