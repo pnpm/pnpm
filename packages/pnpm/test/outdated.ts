@@ -1,15 +1,15 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { tempDir } from '@pnpm/prepare'
-import { stripIndents } from 'common-tags'
 import chalk from 'chalk'
+import { stripIndents } from 'common-tags'
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { execPnpm, execPnpmSync } from './utils'
 import outdated from '../src/cmd/outdated'
+import { execPnpm, execPnpmSync } from './utils'
 
 const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')
 const hasOutdatedDepsFixtureAndExternalLockfile = path.join(__dirname, 'packages', 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
@@ -27,18 +27,16 @@ test('pnpm outdated', async (t: tape.Test) => {
       fetchRetryFactor: 1,
       fetchRetryMaxtimeout: 60000,
       fetchRetryMintimeout: 10000,
+      global: false,
       independentLeaves: false,
       networkConcurrency: 16,
       offline: false,
       prefix: process.cwd(),
-      rawNpmConfig: {
-        registry: 'https://localhost:4873',
-      },
+      rawNpmConfig: { registry: 'https://localhost:4873' },
+      registries: { default: 'https://localhost:4873' },
       strictSsl: false,
       tag: 'latest',
       userAgent: '',
-      registries: { default: 'https://localhost:4873' },
-      global: false,
     }, 'outdated'),
     stripIndents`
       ${chalk.underline('Package')}      ${chalk.underline('Current')}               ${chalk.underline('Latest')}
