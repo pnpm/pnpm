@@ -28,7 +28,9 @@ export default async function installCmd (
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
+    useBetaCli?: boolean,
   },
+  invocation?: string,
 ) {
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
@@ -73,6 +75,9 @@ export default async function installCmd (
     delete installOpts.include
   }
   if (!input || !input.length) {
+    if (invocation === 'add' && opts.useBetaCli) {
+      throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
+    }
     await install(manifest, installOpts)
   } else {
     const [updatedImporter] = await mutateModules([
