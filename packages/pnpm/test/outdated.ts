@@ -23,7 +23,7 @@ test('pnpm outdated', async (t: tape.Test) => {
   t.equal(
     await outdated([], {
       alwaysAuth: false,
-      fetchRetries: 2,
+      fetchRetries: 4,
       fetchRetryFactor: 1,
       fetchRetryMaxtimeout: 60000,
       fetchRetryMintimeout: 10000,

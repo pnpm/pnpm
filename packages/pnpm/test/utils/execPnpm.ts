@@ -66,6 +66,7 @@ export function spawnPnpxSync (...args: string[]): ChildProcess {
 function createEnv (opts?: {storeDir?: string}) {
   const _ = {
     ...process.env,
+    npm_config_fetch_retries: 4,
     npm_config_independent_leaves: false,
     npm_config_registry: 'http://localhost:4873/',
     npm_config_silent: 'true',

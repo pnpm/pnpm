@@ -10,7 +10,7 @@ import { InstallOptions } from 'supi'
 const registry = 'http://localhost:4873/'
 
 const retryOpts = {
-  fetchRetries: 2,
+  fetchRetries: 4,
   fetchRetryFactor: 10,
   fetchRetryMaxtimeout: 60_000,
   fetchRetryMintimeout: 10_000,
