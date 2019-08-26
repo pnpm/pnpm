@@ -1,10 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { stripIndent } from 'common-tags'
 import getCommandFullName from '../getCommandFullName'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 export default function (input: string[]) {
   const cmdName = getCommandFullName(input[0])
-  console.log(getHelpText(cmdName))
+  console.log(`Version ${pnpmPkgJson.version}\n${getHelpText(cmdName)}`)
 }
 
 function getHelpText (command: string) {
