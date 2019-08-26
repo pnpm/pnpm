@@ -56,13 +56,13 @@ curl -L https://unpkg.com/@pnpm/self-installer | node
 Via npm:
 
 ```
-npm install -g pnpm
+npm add -g pnpm
 ```
 
 Once you first installed pnpm, you can upgrade it using pnpm:
 
 ```
-pnpm install -g pnpm
+pnpm add -g pnpm
 ```
 
 > Do you wanna use pnpm on CI servers? See: [Continuous Integration](https://pnpm.js.org/docs/en/continuous-integration.html).
@@ -74,7 +74,7 @@ pnpm install -g pnpm
 Just use pnpm in place of npm. For instance, to install run:
 
 ```
-pnpm install lodash
+pnpm install
 ```
 
 For more advanced usage, read [pnpm CLI](https://pnpm.js.org/docs/en/pnpm-cli.html) on our website.
