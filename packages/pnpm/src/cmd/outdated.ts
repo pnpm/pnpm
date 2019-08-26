@@ -111,22 +111,16 @@ export function renderCurrent ({ current, wanted }: OutdatedWithVersionDiff) {
   return `${output} (wanted ${wanted})`
 }
 
+const DIFF_COLORS = {
+  feature: chalk.yellowBright.bold,
+  fix: chalk.greenBright.bold,
+}
+
 export function renderLatest ({ latest, change, diff }: OutdatedWithVersionDiff) {
   if (!latest) return ''
   if (change === null || !diff) return latest
 
-  let highlight!: ((v: string) => string)
-  switch (change) {
-    case 'feature':
-      highlight = chalk.yellowBright.bold
-      break
-    case 'fix':
-      highlight = chalk.greenBright.bold
-      break
-    default:
-      highlight = chalk.redBright.bold
-      break
-  }
+  const highlight = DIFF_COLORS[change] || chalk.redBright.bold
   const same = joinVersionTuples(diff[0], 0)
   const other = highlight(joinVersionTuples(diff[1], diff[0].length))
   if (!same) return other
@@ -136,7 +130,11 @@ export function renderLatest ({ latest, change, diff }: OutdatedWithVersionDiff)
 function joinVersionTuples (versionTuples: string[], startIndex: number) {
   const neededForSemver = 3 - startIndex
   if (versionTuples.length <= neededForSemver) return versionTuples.join('.')
-  return versionTuples.slice(0, neededForSemver).join('.') + '-' + versionTuples.slice(neededForSemver).join('.')
+  return `${
+    versionTuples.slice(0, neededForSemver).join('.')
+   }-${
+     versionTuples.slice(neededForSemver).join('.')
+   }`
 }
 
 export function sortBySemverChange (outdated1: OutdatedWithVersionDiff, outdated2: OutdatedWithVersionDiff) {
