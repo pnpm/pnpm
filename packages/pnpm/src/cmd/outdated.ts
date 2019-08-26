@@ -115,12 +115,16 @@ export function renderLatest ({ latest, wanted, change, diff }: OutdatedPackageW
       highlight = chalk.redBright.bold
       break
   }
-  const versionTuples = [
-    ...diff[0],
-    ...diff[1].map((versionTuple) => highlight(versionTuple)),
-  ]
-  if (versionTuples.length === 3) return versionTuples.join('.')
-  return versionTuples.slice(0, 3).join('.') + '-' + versionTuples.slice(3).join('.')
+  const same = joinVersionTuples(diff[0], 0)
+  const other = highlight(joinVersionTuples(diff[1], diff[0].length))
+  if (!same) return other
+  return diff[0].length === 3 ? `${same}-${other}` : `${same}.${other}`
+}
+
+function joinVersionTuples (versionTuples: string[], startIndex: number) {
+  const neededForSemver = 3 - startIndex
+  if (versionTuples.length <= neededForSemver) return versionTuples.join('.')
+  return versionTuples.slice(0, neededForSemver).join('.') + '-' + versionTuples.slice(neededForSemver).join('.')
 }
 
 export function sortBySemverChange (outdated1: OutdatedPackageWithVersionDiff, outdated2: OutdatedPackageWithVersionDiff) {
