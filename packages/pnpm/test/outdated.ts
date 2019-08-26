@@ -1,6 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { stripIndents } from 'common-tags'
+import chalk from 'chalk'
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import normalizeNewline = require('normalize-newline')
@@ -8,6 +9,7 @@ import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm, execPnpmSync } from './utils'
+import outdated from '../src/cmd/outdated'
 
 const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')
 const hasOutdatedDepsFixtureAndExternalLockfile = path.join(__dirname, 'packages', 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
@@ -18,15 +20,31 @@ const testOnly = promisifyTape(tape.only)
 test('pnpm outdated', async (t: tape.Test) => {
   process.chdir(hasOutdatedDepsFixture)
 
-  const result = execPnpmSync('outdated')
-
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
-    Package      Current               Latest
-    is-negative  1.0.0 (wanted 1.1.0)  2.1.0
-    is-positive  1.0.0 (wanted 3.1.0)  3.1.0
-  ` + '\n')
+  t.equal(
+    await outdated([], {
+      alwaysAuth: false,
+      fetchRetries: 2,
+      fetchRetryFactor: 1,
+      fetchRetryMaxtimeout: 60000,
+      fetchRetryMintimeout: 10000,
+      independentLeaves: false,
+      networkConcurrency: 16,
+      offline: false,
+      prefix: process.cwd(),
+      rawNpmConfig: {
+        registry: 'https://localhost:4873',
+      },
+      strictSsl: false,
+      tag: 'latest',
+      userAgent: '',
+      registries: { default: 'https://localhost:4873' },
+      global: false,
+    }, 'outdated'),
+    stripIndents`
+      ${chalk.underline('Package')}      ${chalk.underline('Current')}               ${chalk.underline('Latest')}
+      is-negative  1.0.0 (wanted 1.1.0)  ${chalk.redBright.bold('2.1.0')}
+      is-positive  1.0.0 (wanted 3.1.0)  3.1.0`,
+  )
 })
 
 test('pnpm outdated: only current lockfile is available', async (t: tape.Test) => {

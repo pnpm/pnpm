@@ -75,17 +75,15 @@ export default async function (
     renderCurrent,
     renderLatest,
   ]
-  console.log(
-    table([
-      columnNames,
-      ...outdatedPackages
-        .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest) } : outdatedPkg)
-        .sort((pkg1, pkg2) => sortBySemverChange(pkg1 as OutdatedPackageWithVersionDiff, pkg2 as OutdatedPackageWithVersionDiff))
-        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg as OutdatedPackageWithVersionDiff))),
-    ], {
-      stringLength: (s: string) => stripColor(s).length,
-    }),
-  )
+  return table([
+    columnNames,
+    ...outdatedPackages
+      .map((outdatedPkg) => outdatedPkg.latest ? { ...outdatedPkg, ...semverDiff(outdatedPkg.wanted, outdatedPkg.latest) } : outdatedPkg)
+      .sort((pkg1, pkg2) => sortBySemverChange(pkg1 as OutdatedPackageWithVersionDiff, pkg2 as OutdatedPackageWithVersionDiff))
+      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg as OutdatedPackageWithVersionDiff))),
+  ], {
+    stringLength: (s: string) => stripColor(s).length,
+  })
 }
 
 export function renderPackageName ({ belongsTo, packageName }: OutdatedPackageWithVersionDiff) {

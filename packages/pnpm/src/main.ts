@@ -280,9 +280,17 @@ export default async function run (argv: string[]) {
         const result = pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
         if (result instanceof Promise) {
           result
-            .then(resolve)
+            .then((output) => {
+              if (typeof output === 'string') {
+                console.log(output)
+              }
+              resolve()
+            })
             .catch(reject)
         } else {
+          if (typeof result === 'string') {
+            console.log(result)
+          }
           resolve()
         }
       } catch (err) {
