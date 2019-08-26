@@ -115,25 +115,6 @@ export function renderLatest ({ latest, wanted, change, diff }: OutdatedPackageW
       highlight = chalk.redBright.bold
       break
   }
-  const latestParts = latest.split('.')
-  const wantedParts = wanted.split('.')
-  const outputParts = [] as string[]
-  for (let i = 0; i < latestParts.length; i++) {
-    if (!highlight && latestParts[i] !== wantedParts[i]) {
-      switch (i) {
-        case 1:
-          highlight = chalk.yellowBright.bold
-          break
-        case 2:
-          highlight = chalk.greenBright.bold
-          break
-        default:
-          highlight = chalk.redBright.bold
-          break
-      }
-    }
-    outputParts.push(highlight ? highlight(latestParts[i]) : latestParts[i])
-  }
   const versionTuples = [
     ...diff[0],
     ...diff[1].map((versionTuple) => highlight(versionTuple)),
