@@ -128,7 +128,9 @@ export function renderLatest ({ latestManifest, change, diff }: OutdatedWithVers
 
 function joinVersionTuples (versionTuples: string[], startIndex: number) {
   const neededForSemver = 3 - startIndex
-  if (versionTuples.length <= neededForSemver) return versionTuples.join('.')
+  if (versionTuples.length <= neededForSemver || neededForSemver === 0) {
+    return versionTuples.join('.')
+  }
   return `${
     versionTuples.slice(0, neededForSemver).join('.')
    }-${
