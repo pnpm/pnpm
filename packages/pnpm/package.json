@@ -37,7 +37,7 @@
     "@pnpm/package-is-installable": "workspace:2.2.1",
     "@pnpm/package-store": "workspace:4.0.16",
     "@pnpm/read-importer-manifest": "workspace:1.0.8",
-    "@pnpm/semver-diff": "1.0.0",
+    "@pnpm/semver-diff": "1.0.2",
     "@pnpm/server": "workspace:3.0.6",
     "@pnpm/store-controller-types": "workspace:3.0.3",
     "@pnpm/store-path": "2.1.0",
