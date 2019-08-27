@@ -52,7 +52,7 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
       ╔═══════════════════╤═════════╤════════╤══════════════════════════════════════════╤═════════════════════════════════════════════╗
-      ║ Package           │ Current │ Latest │ Dependents                               │ URL                                         ║
+      ║ Package           │ Current │ Latest │ Dependents                               │ Details                                     ║
       ╟───────────────────┼─────────┼────────┼──────────────────────────────────────────┼─────────────────────────────────────────────╢
       ║ is-negative       │ 1.0.0   │ 2.1.0  │ project-2                                │ https://github.com/kevva/is-negative#readme ║
       ╟───────────────────┼─────────┼────────┼──────────────────────────────────────────┼─────────────────────────────────────────────╢
@@ -70,7 +70,7 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
       ╔═════════════╤═════════╤════════╤══════════════════════════════════════════╤═════════════════════════════════════════════╗
-      ║ Package     │ Current │ Latest │ Dependents                               │ URL                                         ║
+      ║ Package     │ Current │ Latest │ Dependents                               │ Details                                     ║
       ╟─────────────┼─────────┼────────┼──────────────────────────────────────────┼─────────────────────────────────────────────╢
       ║ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3                     │ https://github.com/kevva/is-positive#readme ║
       ╚═════════════╧═════════╧════════╧══════════════════════════════════════════╧═════════════════════════════════════════════╝
@@ -120,7 +120,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
     ╔═══════════════════╤═════════╤════════╤══════════════════════════════════════════╤═════════════════════════════════════════════╗
-    ║ Package           │ Current │ Latest │ Dependents                               │ URL                                         ║
+    ║ Package           │ Current │ Latest │ Dependents                               │ Details                                     ║
     ╟───────────────────┼─────────┼────────┼──────────────────────────────────────────┼─────────────────────────────────────────────╢
     ║ is-negative       │ 1.0.0   │ 2.1.0  │ project-2                                │ https://github.com/kevva/is-negative#readme ║
     ╟───────────────────┼─────────┼────────┼──────────────────────────────────────────┼─────────────────────────────────────────────╢
@@ -138,7 +138,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
     ╔═════════════╤═════════╤════════╤══════════════════════════════════════════╤═════════════════════════════════════════════╗
-    ║ Package     │ Current │ Latest │ Dependents                               │ URL                                         ║
+    ║ Package     │ Current │ Latest │ Dependents                               │ Details                                     ║
     ╟─────────────┼─────────┼────────┼──────────────────────────────────────────┼─────────────────────────────────────────────╢
     ║ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3                     │ https://github.com/kevva/is-positive#readme ║
     ╚═════════════╧═════════╧════════╧══════════════════════════════════════════╧═════════════════════════════════════════════╝

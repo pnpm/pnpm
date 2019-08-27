@@ -1,15 +1,14 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
-import chalk from 'chalk'
 import R = require('ramda')
 import { table } from 'table'
 import {
   outdatedDependenciesOfWorkspacePackages,
   renderCurrent,
+  renderDetails,
   renderLatest,
   renderPackageName,
-  renderUrl,
   sortBySemverChange,
   toOutdatedWithVersionDiff,
 } from '../outdated'
@@ -86,7 +85,7 @@ export default async (
     }))
   }
 
-  const columnNames = ['Package', 'Current', 'Latest', 'Dependents', 'URL']
+  const columnNames = ['Package', 'Current', 'Latest', 'Dependents', 'Details']
   process.stdout.write(
     table([
       columnNames,
@@ -108,7 +107,7 @@ export default async (
             .map(({ manifest, location }) => manifest.name || location)
             .sort()
             .join(', '),
-          renderUrl(outdatedPkg),
+          renderDetails(outdatedPkg),
         ]),
     ], {
       columns: {

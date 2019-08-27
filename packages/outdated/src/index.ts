@@ -7,19 +7,19 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  DependencyManifest,
   ImporterManifest,
+  PackageManifest,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import minimatch = require('minimatch')
 
-export type GetLatestManifestFunction = (packageName: string) => Promise<DependencyManifest | null>
+export type GetLatestManifestFunction = (packageName: string) => Promise<PackageManifest | null>
 
 export interface OutdatedPackage {
   alias: string,
   belongsTo: DependenciesField,
   current?: string, // not defined means the package is not installed
-  latestManifest?: DependencyManifest,
+  latestManifest?: PackageManifest,
   packageName: string,
   wanted: string,
 }
@@ -137,7 +137,7 @@ async function _outdated (
             return
           }
 
-          if (current !== wanted || latestManifest.version !== current) {
+          if (current !== wanted || latestManifest.version !== current || latestManifest.deprecated) {
             outdated.push({
               alias,
               belongsTo: depType,
