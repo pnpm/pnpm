@@ -1138,7 +1138,7 @@ importers:
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/outdated': 'workspace:3.2.0'
+      '@pnpm/outdated': 'workspace:4.0.0-0'
       '@pnpm/package-is-installable': 'workspace:2.2.1'
       '@pnpm/package-store': 'workspace:4.0.16'
       '@pnpm/prepare': 0.0.0
