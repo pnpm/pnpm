@@ -110,6 +110,14 @@ export default async (
             .join(', '),
           renderUrl(outdatedPkg),
         ]),
-    ]),
+    ], {
+      columns: {
+        // Dependents column:
+        3: {
+          width: 40,
+          wrapWord: true,
+        },
+      },
+    }),
   )
 }
