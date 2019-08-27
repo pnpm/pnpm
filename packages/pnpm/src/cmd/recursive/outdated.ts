@@ -1,15 +1,14 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
-import chalk from 'chalk'
 import R = require('ramda')
 import { table } from 'table'
 import {
   outdatedDependenciesOfWorkspacePackages,
   renderCurrent,
+  renderDetails,
   renderLatest,
   renderPackageName,
-  renderDetails,
   sortBySemverChange,
   toOutdatedWithVersionDiff,
 } from '../outdated'
