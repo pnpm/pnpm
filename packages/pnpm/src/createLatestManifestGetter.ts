@@ -1,8 +1,8 @@
-import { ResolveFunction } from '@pnpm/default-resolver'
-import { Registries } from '@pnpm/types'
+import createResolver, { ResolveFunction } from '@pnpm/default-resolver'
+import { DependencyManifest, Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/utils'
+import LRU = require('lru-cache')
 import mem = require('mem')
-import createResolver from './createResolver'
 
 export default function (
   opts: {
@@ -26,12 +26,18 @@ export default function (
     userAgent?: string,
     verifyStoreIntegrity?: boolean,
   },
-): (packageName: string) => Promise<string | null> {
-  const resolve = createResolver(opts)
-  return mem(getLatestVersion.bind(null, resolve, opts))
+): (packageName: string) => Promise<DependencyManifest | null> {
+  const resolve = createResolver(Object.assign(opts, {
+    fullMetadata: true,
+    metaCache: new LRU({
+      max: 10000,
+      maxAge: 120 * 1000, // 2 minutes
+    }) as any, // tslint:disable-line:no-any
+  }))
+  return mem(getLatestManifest.bind(null, resolve, opts))
 }
 
-export async function getLatestVersion (
+export async function getLatestManifest (
   resolve: ResolveFunction,
   opts: {
     lockfileDirectory: string,
@@ -46,5 +52,5 @@ export async function getLatestVersion (
     prefix: opts.prefix,
     registry: pickRegistryForPackage(opts.registries, packageName),
   })
-  return resolution && resolution.latest || null
+  return resolution && resolution.package || null
 }
