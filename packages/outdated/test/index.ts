@@ -4,6 +4,11 @@ import test = require('tape')
 
 async function getLatestManifest (packageName: string) {
   return ({
+    'deprecated-pkg': {
+      deprecated: 'This package is deprecated',
+      name: 'deprecated-pkg',
+      version: '1.0.0',
+    },
     'is-negative': {
       name: 'is-negative',
       version: '2.1.0',
@@ -168,6 +173,60 @@ test('outdated()', async (t) => {
       },
       packageName: 'is-positive',
       wanted: '3.1.0',
+    },
+  ])
+  t.end()
+})
+
+test('outdated() should return deprecated package even if its current version is latest', async (t) => {
+  const lockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'deprecated-pkg': '1.0.0',
+        },
+        specifiers: {
+          'deprecated-pkg': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: 5,
+    packages: {
+      '/deprecated-pkg/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+    },
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    getLatestManifest,
+    lockfileDirectory: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'deprecated-pkg': '1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+  t.deepEqual(outdatedPkgs, [
+    {
+      alias: 'deprecated-pkg',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        deprecated: 'This package is deprecated',
+        name: 'deprecated-pkg',
+        version: '1.0.0',
+      },
+      packageName: 'deprecated-pkg',
+      wanted: '1.0.0',
     },
   ])
   t.end()

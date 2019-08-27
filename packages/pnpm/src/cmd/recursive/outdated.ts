@@ -9,7 +9,7 @@ import {
   renderCurrent,
   renderLatest,
   renderPackageName,
-  renderUrl,
+  renderDetails,
   sortBySemverChange,
   toOutdatedWithVersionDiff,
 } from '../outdated'
@@ -86,7 +86,7 @@ export default async (
     }))
   }
 
-  const columnNames = ['Package', 'Current', 'Latest', 'Dependents', 'URL']
+  const columnNames = ['Package', 'Current', 'Latest', 'Dependents', 'Details']
   process.stdout.write(
     table([
       columnNames,
@@ -108,7 +108,7 @@ export default async (
             .map(({ manifest, location }) => manifest.name || location)
             .sort()
             .join(', '),
-          renderUrl(outdatedPkg),
+          renderDetails(outdatedPkg),
         ]),
     ], {
       columns: {

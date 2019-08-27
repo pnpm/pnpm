@@ -62,13 +62,13 @@ export default async function (
     'Package',
     'Current',
     'Latest',
-    'URL',
+    'Details',
   ]
   let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
     renderPackageName,
     renderCurrent,
     renderLatest,
-    renderUrl,
+    renderDetails,
   ]
   return table([
     columnNames,
@@ -117,7 +117,11 @@ const DIFF_COLORS = {
 
 export function renderLatest ({ latestManifest, change, diff }: OutdatedWithVersionDiff) {
   if (!latestManifest) return ''
-  if (change === null || !diff) return latestManifest.version
+  if (change === null || !diff) {
+    return latestManifest.deprecated
+      ? chalk.redBright.bold('Deprecated')
+      : latestManifest.version
+  }
 
   const highlight = DIFF_COLORS[change] || chalk.redBright.bold
   const same = joinVersionTuples(diff[0], 0)
@@ -152,8 +156,16 @@ function pkgPriority (pkg: OutdatedWithVersionDiff) {
   }
 }
 
-export function renderUrl ({ latestManifest }: OutdatedWithVersionDiff) {
-  return latestManifest && latestManifest.homepage || ''
+export function renderDetails ({ latestManifest }: OutdatedWithVersionDiff) {
+  if (!latestManifest) return ''
+  const outputs = []
+  if (latestManifest.deprecated) {
+    outputs.push(chalk.redBright(latestManifest.deprecated))
+  }
+  if (latestManifest.homepage) {
+    outputs.push(chalk.underline(latestManifest.homepage))
+  }
+  return outputs.join('\n')
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
