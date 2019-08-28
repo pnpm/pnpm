@@ -18,6 +18,20 @@ import { readImporterManifestOnly } from '../readImporterManifest'
 
 export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
 
+export const TABLE_OPTIONS = {
+  border: {
+    bodyLeft: '',
+    bottomLeft: '',
+    joinLeft: '',
+    topLeft: '',
+  },
+  columns: {
+    0: {
+      paddingLeft: 0,
+    },
+  },
+}
+
 export default async function (
   args: string[],
   opts: {
@@ -80,7 +94,7 @@ export default async function (
       outdatedPackages.map(toOutdatedWithVersionDiff)
     )
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-  ])
+  ], TABLE_OPTIONS)
 }
 
 export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {

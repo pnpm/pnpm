@@ -10,6 +10,7 @@ import {
   renderLatest,
   renderPackageName,
   sortBySemverChange,
+  TABLE_OPTIONS,
   toOutdatedWithVersionDiff,
 } from '../outdated'
 
@@ -110,7 +111,9 @@ export default async (
           renderDetails(outdatedPkg),
         ]),
     ], {
+      ...TABLE_OPTIONS,
       columns: {
+        ...TABLE_OPTIONS.columns,
         // Dependents column:
         3: {
           width: 40,
