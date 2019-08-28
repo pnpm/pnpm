@@ -127,6 +127,10 @@ export function renderLatest ({ latestManifest, change, diff }: OutdatedWithVers
   const same = joinVersionTuples(diff[0], 0)
   const other = highlight(joinVersionTuples(diff[1], diff[0].length))
   if (!same) return other
+  if (!other) {
+    // Happens when current is 1.0.0-rc.0 and latest is 1.0.0
+    return same
+  }
   return diff[0].length === 3 ? `${same}-${other}` : `${same}.${other}`
 }
 
