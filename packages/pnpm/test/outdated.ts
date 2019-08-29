@@ -67,16 +67,17 @@ test('pnpm outdated: only current lockfile is available', async (t: tape.Test) =
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    ════════════╤═════════╤════════════╤══════════════════════════════════════════════════════════════════════════╗
-    Package     │ Current │ Latest     │ Details                                                                  ║
-    ────────────┼─────────┼────────────┼──────────────────────────────────────────────────────────────────────────╢
-    flatten     │ 1.0.2   │ Deprecated │ I wrote this module a very long time ago; you should use something else. ║
-                │         │            │ https://github.com/jesusabdullah/node-flatten#readme                     ║
-    ────────────┼─────────┼────────────┼──────────────────────────────────────────────────────────────────────────╢
-    is-negative │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme                              ║
-    ────────────┼─────────┼────────────┼──────────────────────────────────────────────────────────────────────────╢
-    is-positive │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme                              ║
-    ════════════╧═════════╧════════════╧══════════════════════════════════════════════════════════════════════════╝
+    ════════════╤═════════╤════════════╤══════════════════════════════════════════════════════╗
+    Package     │ Current │ Latest     │ Details                                              ║
+    ────────────┼─────────┼────────────┼──────────────────────────────────────────────────────╢
+    flatten     │ 1.0.2   │ Deprecated │ I wrote this module a very long time                 ║
+                │         │            │ ago; you should use something else.                  ║
+                │         │            │ https://github.com/jesusabdullah/node-flatten#readme ║
+    ────────────┼─────────┼────────────┼──────────────────────────────────────────────────────╢
+    is-negative │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme          ║
+    ────────────┼─────────┼────────────┼──────────────────────────────────────────────────────╢
+    is-positive │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme          ║
+    ════════════╧═════════╧════════════╧══════════════════════════════════════════════════════╝
   ` + '\n')
 })
 
@@ -91,16 +92,17 @@ test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) =>
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    ════════════╤════════════════════════╤════════════╤══════════════════════════════════════════════════════════════════════════╗
-    Package     │ Current                │ Latest     │ Details                                                                  ║
-    ────────────┼────────────────────────┼────────────┼──────────────────────────────────────────────────────────────────────────╢
-    flatten     │ missing (wanted 1.0.2) │ Deprecated │ I wrote this module a very long time ago; you should use something else. ║
-                │                        │            │ https://github.com/jesusabdullah/node-flatten#readme                     ║
-    ────────────┼────────────────────────┼────────────┼──────────────────────────────────────────────────────────────────────────╢
-    is-positive │ missing (wanted 3.1.0) │ 3.1.0      │ https://github.com/kevva/is-positive#readme                              ║
-    ────────────┼────────────────────────┼────────────┼──────────────────────────────────────────────────────────────────────────╢
-    is-negative │ missing (wanted 1.1.0) │ 2.1.0      │ https://github.com/kevva/is-negative#readme                              ║
-    ════════════╧════════════════════════╧════════════╧══════════════════════════════════════════════════════════════════════════╝
+    ════════════╤════════════════════════╤════════════╤══════════════════════════════════════════════════════╗
+    Package     │ Current                │ Latest     │ Details                                              ║
+    ────────────┼────────────────────────┼────────────┼──────────────────────────────────────────────────────╢
+    flatten     │ missing (wanted 1.0.2) │ Deprecated │ I wrote this module a very long time                 ║
+                │                        │            │ ago; you should use something else.                  ║
+                │                        │            │ https://github.com/jesusabdullah/node-flatten#readme ║
+    ────────────┼────────────────────────┼────────────┼──────────────────────────────────────────────────────╢
+    is-positive │ missing (wanted 3.1.0) │ 3.1.0      │ https://github.com/kevva/is-positive#readme          ║
+    ────────────┼────────────────────────┼────────────┼──────────────────────────────────────────────────────╢
+    is-negative │ missing (wanted 1.1.0) │ 2.1.0      │ https://github.com/kevva/is-negative#readme          ║
+    ════════════╧════════════════════════╧════════════╧══════════════════════════════════════════════════════╝
   ` + '\n')
 })
 
