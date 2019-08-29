@@ -97,6 +97,10 @@ export default async function (
   ], TABLE_OPTIONS)
 }
 
+export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number) {
+  return Math.min(maxWidth, data.reduce((maxWidth, row) => Math.max(maxWidth, row[columnNumber].length), 0))
+}
+
 export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {
   if (outdated.latestManifest) {
     return {

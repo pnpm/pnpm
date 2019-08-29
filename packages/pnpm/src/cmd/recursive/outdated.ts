@@ -4,6 +4,7 @@ import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import R = require('ramda')
 import { table } from 'table'
 import {
+  getCellWidth,
   outdatedDependenciesOfWorkspacePackages,
   renderCurrent,
   renderDetails,
@@ -87,36 +88,37 @@ export default async (
   }
 
   const columnNames = ['Package', 'Current', 'Latest', 'Dependents', 'Details']
+  const data = [
+    columnNames,
+    ...R.sortWith(
+      [
+        sortBySemverChange,
+        (o1, o2) => o1.packageName.localeCompare(o2.packageName),
+        (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
+      ],
+      (
+        Object.values(outdatedByNameAndType).map(toOutdatedWithVersionDiff)
+      ),
+    )
+      .map((outdatedPkg) => [
+        renderPackageName(outdatedPkg),
+        renderCurrent(outdatedPkg),
+        renderLatest(outdatedPkg),
+        outdatedPkg.dependentPkgs
+          .map(({ manifest, location }) => manifest.name || location)
+          .sort()
+          .join(', '),
+        renderDetails(outdatedPkg),
+      ]),
+  ]
   process.stdout.write(
-    table([
-      columnNames,
-      ...R.sortWith(
-        [
-          sortBySemverChange,
-          (o1, o2) => o1.packageName.localeCompare(o2.packageName),
-          (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
-        ],
-        (
-          Object.values(outdatedByNameAndType).map(toOutdatedWithVersionDiff)
-        ),
-      )
-        .map((outdatedPkg) => [
-          renderPackageName(outdatedPkg),
-          renderCurrent(outdatedPkg),
-          renderLatest(outdatedPkg),
-          outdatedPkg.dependentPkgs
-            .map(({ manifest, location }) => manifest.name || location)
-            .sort()
-            .join(', '),
-          renderDetails(outdatedPkg),
-        ]),
-    ], {
+    table(data, {
       ...TABLE_OPTIONS,
       columns: {
         ...TABLE_OPTIONS.columns,
         // Dependents column:
         3: {
-          width: 40,
+          width: getCellWidth(data, 3, 30),
           wrapWord: true,
         },
       },
