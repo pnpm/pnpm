@@ -1042,6 +1042,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/minimatch': 3.0.3
       '@types/mz': 0.0.32
+      '@types/wrap-ansi': 3.0.0
       '@zkochan/libnpx': 11.0.1
       '@zkochan/rimraf': 1.0.0
       archy: 1.0.0
@@ -1086,6 +1087,7 @@ importers:
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
+      wrap-ansi: 6.0.0
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1165,6 +1167,7 @@ importers:
       '@types/semver': '6'
       '@types/table': ^4.0.6
       '@types/update-notifier': 2.5.0
+      '@types/wrap-ansi': 3.0.0
       '@zkochan/libnpx': 11.0.1
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -1225,6 +1228,7 @@ importers:
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
+      wrap-ansi: 6.0.0
       write-json-file: 4.0.0
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
@@ -2456,6 +2460,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ZrJDWpvg75LTGX4XwuneY9s6bF3OeZcGTpoGh3zDV9ytzcHMFsRrMIaLBRJZQMBoGyKs6unBQfVdrLZiYfb1zQ==
+  /@types/wrap-ansi/3.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
   /@types/zen-observable/0.8.0:
     dev: false
     resolution:
@@ -2794,6 +2802,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VT0ZI6kZRdTh8YyJw3SMbYm/u+NqfsAxEpWO0Pf9sq8/e94WxxOpPKx9FR1FlyCtOVDNOQ+8ntlqFxiRc+r5qA==
+  /ansi-styles/4.1.0:
+    dependencies:
+      color-convert: 2.0.1
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-Qts4KCLKG+waHc9C4m07weIY8qyeixoS0h6RnbsNVD6Fw+pEZGW3vTyObL3WXpE09Mq4Oi7/lBEyLmOiLtlYWQ==
   /ansy/1.0.14:
     dependencies:
       ansi-styles: 3.2.1
@@ -3348,9 +3364,21 @@ packages:
       color-name: 1.1.3
     resolution:
       integrity: sha512-QfAUtd+vFdAtFQcC8CCyYt1fYWxSqAiK2cSD6zDB8N3cpsEBAvRxp9zOGg6G/SHHJYAT88/az/IuDGALsNVbGg==
+  /color-convert/2.0.1:
+    dependencies:
+      color-name: 1.1.4
+    dev: false
+    engines:
+      node: '>=7.0.0'
+    resolution:
+      integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==
   /color-name/1.1.3:
     resolution:
       integrity: sha1-p9BVi9icQveV3UIyj3QIMcpTvCU=
+  /color-name/1.1.4:
+    dev: false
+    resolution:
+      integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==
   /colors/0.6.2:
     dev: true
     engines:
@@ -3975,6 +4003,10 @@ packages:
   /emoji-regex/7.0.3:
     resolution:
       integrity: sha512-CwBLREIQ7LvYFB0WyRvwhq5N5qPhc6PMjD6bYggFlI5YyDgl+0vxq5VHbMOFqLg7hfWzmu8T5Z1QofhmTIhItA==
+  /emoji-regex/8.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==
   /encode-registry/2.0.1:
     dependencies:
       mem: 5.1.1
@@ -5008,6 +5040,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-o7MKXE8ZkYMWeqq5O+764937ZU8=
+  /is-fullwidth-code-point/3.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==
   /is-glob/4.0.1:
     dependencies:
       is-extglob: 2.1.1
@@ -7494,6 +7532,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-vafcv6KjVZKSgz06oM/H6GDBrAtz8vdhQakGjFIvNrHA6y3HCF1CInLy+QLq8dTJPQ1b+KDUqDFctkdRW44e1w==
+  /string-width/4.1.0:
+    dependencies:
+      emoji-regex: 8.0.0
+      is-fullwidth-code-point: 3.0.0
+      strip-ansi: 5.2.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-NrX+1dVVh+6Y9dnQ19pR0pP4FiEIlUvdTGn8pw6CKTNq5sgib2nIhmUNT5TAmhWmvKr3WcxBcP3E8nWezuipuQ==
   /string.prototype.padend/3.0.0:
     dependencies:
       define-properties: 1.1.3
@@ -8318,6 +8366,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-QC1/iN/2/RPVJ5jYK8BGttj5z83LmSKmvbvrXPNCLZSEb32KKVDJDl/MOt2N01qU2H/FkzEa9PKto1BqDjtd7Q==
+  /wrap-ansi/6.0.0:
+    dependencies:
+      ansi-styles: 4.1.0
+      string-width: 4.1.0
+      strip-ansi: 5.2.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-8YwLklVkHe4QNpGFrK6Mxm+BaMY7da6C9GlDED3xs3XwThyJHSbVwg9qC4s1N8tBFcnM1S0s8I390RC6SgGe+g==
   /wrappy/1.0.2:
     resolution:
       integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=

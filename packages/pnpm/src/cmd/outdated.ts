@@ -13,6 +13,7 @@ import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import R = require('ramda')
 import { table } from 'table'
+import wrapAnsi = require('wrap-ansi')
 import createLatestManifestGetter from '../createLatestManifestGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
 
@@ -182,7 +183,7 @@ export function renderDetails ({ latestManifest }: OutdatedWithVersionDiff) {
   if (!latestManifest) return ''
   const outputs = []
   if (latestManifest.deprecated) {
-    outputs.push(chalk.redBright(latestManifest.deprecated))
+    outputs.push(wrapAnsi(chalk.redBright(latestManifest.deprecated), 40))
   }
   if (latestManifest.homepage) {
     outputs.push(chalk.underline(latestManifest.homepage))
