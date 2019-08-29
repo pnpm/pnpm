@@ -16,7 +16,7 @@ Features:
 
 * **Fast.** As fast as npm and Yarn.
 * **Efficient.** One version of a package is saved only ever once on a disk.
-* **Great for multi-package repositories (a.k.a. monorepos).** See the [recursive](https://pnpm.js.org/docs/en/pnpm-recursive.html) commands.
+* **Great for multi-package repositories (a.k.a. monorepos).** See the [recursive](https://pnpm.js.org/en/pnpm-recursive) commands.
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
 * **Works everywhere.** Works on Windows, Linux and OS X.
@@ -65,7 +65,7 @@ Once you first installed pnpm, you can upgrade it using pnpm:
 pnpm add -g pnpm
 ```
 
-> Do you wanna use pnpm on CI servers? See: [Continuous Integration](https://pnpm.js.org/docs/en/continuous-integration.html).
+> Do you wanna use pnpm on CI servers? See: [Continuous Integration](https://pnpm.js.org/en/continuous-integration).
 
 ## Usage
 
@@ -77,7 +77,7 @@ Just use pnpm in place of npm. For instance, to install run:
 pnpm install
 ```
 
-For more advanced usage, read [pnpm CLI](https://pnpm.js.org/docs/en/pnpm-cli.html) on our website.
+For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website.
 
 For using the programmatic API, use pnpm's engine: [supi](packages/supi).
 
@@ -103,7 +103,7 @@ Benchmarks on a React app:
 
 ## Support
 
-- [Frequently Asked Questions](https://pnpm.js.org/docs/en/faq.html)
+- [Frequently Asked Questions](https://pnpm.js.org/en/faq)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
 - [Gitter chat](https://gitter.im/pnpm/pnpm)
 - [Twitter](https://twitter.com/pnpmjs)
