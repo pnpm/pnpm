@@ -1258,11 +1258,13 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       detect-indent: 6.0.0
+      fast-deep-equal: 2.0.1
       graceful-fs: 4.2.1
       is-windows: 1.0.2
       json5: 2.1.0
       parse-json: 5.0.0
       read-yaml-file: 1.1.0
+      sort-keys: 4.0.0
       strip-bom: 4.0.0
     devDependencies:
       '@pnpm/read-importer-manifest': 'link:'
@@ -1282,11 +1284,13 @@ importers:
       '@types/json5': 0.0.30
       '@types/parse-json': 4.0.0
       detect-indent: 6.0.0
+      fast-deep-equal: 2.0.1
       graceful-fs: 4.2.1
       is-windows: 1.0.2
       json5: 2.1.0
       parse-json: 5.0.0
       read-yaml-file: 1.1.0
+      sort-keys: 4.0.0
       strip-bom: 4.0.0
       tape: 4.11.0
       tempy: 0.3.0
@@ -1764,7 +1768,6 @@ importers:
   packages/write-importer-manifest:
     dependencies:
       '@pnpm/types': 'link:../types'
-      sort-keys: 4.0.0
       write-json-file: 4.0.0
       write-json5-file: 2.1.2
       write-yaml-file: 3.0.1
@@ -1775,7 +1778,6 @@ importers:
     specifiers:
       '@pnpm/types': 'workspace:^3.0.0'
       '@pnpm/write-importer-manifest': 'link:'
-      sort-keys: 4.0.0
       tape: 4.11.0
       tempy: 0.3.0
       write-json-file: 4.0.0
