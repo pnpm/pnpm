@@ -249,6 +249,42 @@ test('depth is 0 by default for list commands', async (t) => {
   {
     const configs = await getConfigs({
       cliArgs: {},
+      command: ['list', 'bole'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const configs = await getConfigs({
+      cliArgs: {},
+      command: ['recursive', 'list'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const configs = await getConfigs({
+      cliArgs: {},
+      command: ['recursive', 'list', 'bole'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const configs = await getConfigs({
+      cliArgs: {},
       command: ['recursive', 'list'],
       packageManager: {
         name: 'pnpm',

@@ -122,7 +122,7 @@ export default async (
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
-    'depth': command[command.length - 1] === 'list' ? 0 : Infinity,
+    'depth': (command[0] === 'list' || command[1] === 'list') ? 0 : Infinity,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
