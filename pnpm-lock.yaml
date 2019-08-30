@@ -146,7 +146,7 @@ importers:
       rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
-      '@pnpm/config': 'workspace:3.5.1'
+      '@pnpm/config': 'workspace:3.5.2'
       '@pnpm/core-loggers': 'workspace:3.0.3'
       '@pnpm/default-reporter': 'link:'
       '@pnpm/error': 'workspace:1.0.0'
@@ -190,7 +190,7 @@ importers:
     specifiers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/git-resolver': 'workspace:2.0.10'
-      '@pnpm/local-resolver': 'workspace:2.0.13'
+      '@pnpm/local-resolver': 'workspace:2.0.14'
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'workspace:3.1.1'
       '@pnpm/resolver-base': 'workspace:3.1.2'
@@ -339,7 +339,7 @@ importers:
       find-packages: 'link:'
       tape: 4.11.0
     specifiers:
-      '@pnpm/read-importer-manifest': 'workspace:1.0.8'
+      '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       fast-glob: ^3.0.0
       find-packages: 'link:'
       p-filter: ^2.0.0
@@ -463,7 +463,7 @@ importers:
       '@pnpm/package-requester': 'workspace:7.1.3'
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-importer-manifest': 'workspace:1.0.8'
+      '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/read-importers-context': 'file:../read-importers-context'
       '@pnpm/read-package-json': 'workspace:2.0.3'
       '@pnpm/registry-mock': 1.4.0
@@ -547,7 +547,7 @@ importers:
     specifiers:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.1
-      '@pnpm/read-importer-manifest': 'workspace:1.0.8'
+      '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/read-package-json': 'workspace:2.0.3'
       '@pnpm/types': 'workspace:3.2.0'
       '@types/archy': 0.0.31
@@ -579,7 +579,7 @@ importers:
     specifiers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/local-resolver': 'link:'
-      '@pnpm/read-importer-manifest': 'workspace:1.0.8'
+      '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/resolver-base': 'workspace:3.1.2'
       '@pnpm/types': 'workspace:3.2.0'
       '@types/graceful-fs': 4.1.3
@@ -1126,25 +1126,25 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 'workspace:3.5.1'
+      '@pnpm/config': 'workspace:3.5.2'
       '@pnpm/constants': 'workspace:1.1.0'
       '@pnpm/core-loggers': 'workspace:3.0.3'
       '@pnpm/default-fetcher': 'workspace:3.1.18'
-      '@pnpm/default-reporter': 'workspace:3.4.1'
-      '@pnpm/default-resolver': 'workspace:3.1.2'
+      '@pnpm/default-reporter': 'workspace:3.4.2'
+      '@pnpm/default-resolver': 'workspace:3.1.3'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'workspace:6.2.3'
-      '@pnpm/list': 'workspace:2.0.2'
+      '@pnpm/list': 'workspace:2.0.3'
       '@pnpm/lockfile-file': 'workspace:1.1.3'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
       '@pnpm/modules-yaml': 3.0.3
-      '@pnpm/outdated': 'workspace:4.0.0-0'
+      '@pnpm/outdated': 'workspace:4.0.0'
       '@pnpm/package-is-installable': 'workspace:2.2.1'
       '@pnpm/package-store': 'workspace:4.0.16'
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-importer-manifest': 'workspace:1.0.8'
+      '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/registry-mock': 1.4.0
       '@pnpm/semver-diff': 1.0.2
@@ -1186,7 +1186,7 @@ importers:
       execa: 2.0.4
       exists-link: 2.0.0
       fast-glob: 3.0.4
-      find-packages: 'workspace:5.0.9'
+      find-packages: 'workspace:5.0.10'
       get-port: 5.0.0
       graceful-fs: 4.2.1
       graph-sequencer: 2.0.0
@@ -1220,7 +1220,7 @@ importers:
       rimraf: 3.0.0
       semver: 6.3.0
       signal-exit: 3.0.2
-      supi: 'workspace:0.34.9'
+      supi: 'workspace:0.34.10'
       symlink-dir: 3.1.0
       table: 5.4.6
       tape: 4.11.0
@@ -1282,7 +1282,7 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/read-importer-manifest': 'link:'
       '@pnpm/types': 'workspace:^3.0.0'
-      '@pnpm/write-importer-manifest': 'workspace:2.0.3'
+      '@pnpm/write-importer-manifest': 'workspace:3.0.0'
       '@types/graceful-fs': 4.1.3
       '@types/is-windows': 0.2.0
       '@types/json5': 0.0.30
@@ -1576,7 +1576,7 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'workspace:1.0.14'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 'workspace:7.1.10'
+      '@pnpm/headless': 'workspace:7.1.11'
       '@pnpm/lifecycle': 'workspace:6.2.3'
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 'workspace:1.1.3'
@@ -1589,7 +1589,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/prune-lockfile': 'workspace:1.1.2'
-      '@pnpm/read-importer-manifest': 'workspace:1.0.8'
+      '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/read-importers-context': 'workspace:1.0.9'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:2.0.3'

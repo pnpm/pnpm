@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-importer-manifest",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Read an importer manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/types": "workspace:^3.0.0",
-    "@pnpm/write-importer-manifest": "workspace:2.0.3",
+    "@pnpm/write-importer-manifest": "workspace:3.0.0",
     "detect-indent": "6.0.0",
     "fast-deep-equal": "2.0.1",
     "graceful-fs": "4.2.1",
