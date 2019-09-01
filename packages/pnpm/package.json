@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "3.8.0",
+  "version": "3.8.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -87,7 +87,7 @@
     "read-ini-file": "2.0.0",
     "read-yaml-file": "1.1.0",
     "signal-exit": "3.0.2",
-    "supi": "workspace:0.34.10",
+    "supi": "workspace:0.34.11",
     "table": "5.4.6",
     "tree-kill": "1.2.1",
     "update-notifier": "3.0.1",

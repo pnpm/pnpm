@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "8.0.8",
+  "version": "9.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
