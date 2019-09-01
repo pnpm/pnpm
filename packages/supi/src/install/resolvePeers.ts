@@ -10,7 +10,6 @@ import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import { Dependencies, PackageManifest } from '@pnpm/types'
 import {
   createNodeId,
-  ROOT_NODE_ID,
   splitNodeId,
 } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
@@ -368,10 +367,12 @@ function packageFriendlyId (manifest: {name: string, version: string}) {
 }
 
 function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTree) {
-  const parts = splitNodeId(nodeId).slice(2, -2)
-  return R.tail(R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), ROOT_NODE_ID, parts))
+  const parts = splitNodeId(nodeId).slice(1, -2)
+  const result = R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
+    .slice(2)
     .map((nid) => dependenciesTree[nid].resolvedPackage.name)
     .join(' > ')
+  return result
 }
 
 interface ParentRefs {

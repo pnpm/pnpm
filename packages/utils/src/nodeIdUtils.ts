@@ -9,5 +9,3 @@ export function createNodeId (parentNodeId: string, pkgId: string) {
 export function splitNodeId (nodeId: string) {
   return nodeId.split('>')
 }
-
-export const ROOT_NODE_ID = '>/>'
