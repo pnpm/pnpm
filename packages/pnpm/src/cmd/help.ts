@@ -136,7 +136,7 @@ function getHelpText (command: string) {
       return stripIndent`
         pnpm uninstall [<@scope>/]<pkg>[@<version>]...
 
-        Aliases: remove, rm, r, un, unlink
+        Aliases: remove, rm, r, un
 
         Removes packages from \`node_modules\` and from the project's \`packages.json\`
 
