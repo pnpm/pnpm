@@ -148,7 +148,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
       dependencies: {
         'is-negative': '2.1.0',
       },
-    }, await testDefaults())
+    }, await testDefaults({}, {}, { fetchRetries: 0 }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'EINTEGRITY')
