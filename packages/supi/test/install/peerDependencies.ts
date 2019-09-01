@@ -13,6 +13,7 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
+  MutatedImporter,
   mutateModules,
 } from 'supi'
 import tape = require('tape')
@@ -96,6 +97,60 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }), 'no warning is logged about unresolved peer dep')
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0_ajv@4.10.4', NM, 'ajv-keywords')), 'dependent is grouped with top peer dep')
+})
+
+test('the right peer dependency is used in every workspace package', async (t: tape.Test) => {
+  const manifest1 = {
+    name: 'project-1',
+
+    dependencies: {
+      'ajv-keywords': '1.5.0',
+    },
+  }
+  const manifest2 = {
+    name: 'project-2',
+
+    dependencies: {
+      'ajv': '4.10.4',
+      'ajv-keywords': '1.5.0',
+    },
+  }
+  preparePackages(t, [
+    {
+      location: 'project-1',
+      package: manifest1,
+    },
+    {
+      location: 'project-2',
+      package: manifest2,
+    },
+  ])
+
+  const importers: MutatedImporter[] = [
+    {
+      buildIndex: 0,
+      manifest: manifest1,
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: manifest2,
+      mutation: 'install',
+      prefix: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
+
+  const lockfile = await readYamlFile<Lockfile>(path.resolve(WANTED_LOCKFILE))
+
+  t.deepEqual(lockfile.importers['project-1'].dependencies, {
+    'ajv-keywords': '1.5.0',
+  })
+  t.deepEqual(lockfile.importers['project-2'].dependencies, {
+    'ajv': '4.10.4',
+    'ajv-keywords': '1.5.0_ajv@4.10.4',
+  })
 })
 
 test('warning is reported when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {

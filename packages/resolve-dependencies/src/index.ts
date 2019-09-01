@@ -8,7 +8,6 @@ import {
 import {
   createNodeId,
   nodeIdContainsSequence,
-  ROOT_NODE_ID,
   WantedDependency,
 } from '@pnpm/utils'
 import resolveDependencies, {
@@ -103,7 +102,7 @@ export default async function (
       currentDepth: 0,
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,
-      parentNodeId: ROOT_NODE_ID,
+      parentNodeId: `>${importer.id}>`,
       preferredVersions: importer.preferredVersions || {},
       proceed: true,
       resolvedDependencies: {
