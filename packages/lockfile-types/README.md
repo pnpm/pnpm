@@ -1,3 +1,3 @@
-# @pnpm/store-controller-types
+# @pnpm/lockfile-types
 
-> Types for the store controller
+> Types for the lockfile
