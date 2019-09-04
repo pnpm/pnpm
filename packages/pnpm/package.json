@@ -56,7 +56,7 @@
     "chalk": "2.4.2",
     "common-tags": "1.8.0",
     "cp-file": "7.0.0",
-    "cross-spawn": "6.0.5",
+    "cross-spawn": "7.0.0",
     "delay": "4.3.0",
     "diable": "4.0.2",
     "dir-is-case-sensitive": "1.0.2",

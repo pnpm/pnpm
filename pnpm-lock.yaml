@@ -1051,7 +1051,7 @@ importers:
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
-      cross-spawn: 6.0.5
+      cross-spawn: 7.0.0
       delay: 4.3.0
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
@@ -1178,7 +1178,7 @@ importers:
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
-      cross-spawn: 6.0.5
+      cross-spawn: 7.0.0
       deep-require-cwd: 1.0.0
       delay: 4.3.0
       diable: 4.0.2
@@ -3624,6 +3624,16 @@ packages:
       node: '>=4.8'
     resolution:
       integrity: sha512-eTVLrBSt7fjbDygz805pMnstIs2VTBNkRm0qxZd+M7A5XDdxVRWO5MxGBXZhjY4cqLYLdtrGqRf8mBPmzwSpWQ==
+  /cross-spawn/7.0.0:
+    dependencies:
+      path-key: 3.1.0
+      shebang-command: 1.2.0
+      which: 1.3.1
+    dev: false
+    engines:
+      node: '>= 8'
+    resolution:
+      integrity: sha512-6U/8SMK2FBNnB21oQ4+6Nsodxanw1gTkntYA2zBdkFYFu3ZDx65P2ONEXGSvob/QS6REjVHQ9zxzdOafwFdstw==
   /crypto-random-string/1.0.0:
     engines:
       node: '>=4'
