@@ -78,14 +78,14 @@ export interface HeadlessOptions {
   importers: Array<{
     bin: string,
     buildIndex: number,
-    hoistedAliases: {[depPath: string]: string[]}
     manifest: ImporterManifest,
     modulesDir: string,
     id: string,
     prefix: string,
     pruneDirectDependencies?: boolean,
-    shamefullyFlatten: boolean | string,
   }>,
+  hoistedAliases: {[depPath: string]: string[]}
+  hoistPattern?: string,
   lockfileDirectory: string,
   storeController: StoreController,
   sideEffectsCacheRead: boolean,
@@ -155,6 +155,7 @@ export default async (opts: HeadlessOptions) => {
       {
         currentLockfile,
         dryRun: false,
+        hoistedAliases: opts.hoistedAliases,
         include: opts.include,
         lockfileDirectory,
         pruneStore: opts.pruneStore,
@@ -228,9 +229,10 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const rootImporterWithFlatModules = opts.importers.find((importer) => importer.id === '.' && importer.shamefullyFlatten)
+  const rootImporterWithFlatModules = opts.hoistPattern && opts.importers.find((importer) => importer.id === '.')
+  let newHoistedAliases!: {[depPath: string]: string[]}
   if (rootImporterWithFlatModules) {
-    rootImporterWithFlatModules.hoistedAliases = await shamefullyFlatten({
+    newHoistedAliases = await shamefullyFlatten({
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -243,12 +245,12 @@ export default async (opts: HeadlessOptions) => {
       lockfile: filteredLockfile,
       lockfileDirectory: opts.lockfileDirectory,
       modulesDir: rootImporterWithFlatModules.modulesDir,
-      pattern: rootImporterWithFlatModules.shamefullyFlatten === true
-        ? '*'
-        : rootImporterWithFlatModules.shamefullyFlatten as string,
+      pattern: opts.hoistPattern!,
       registries: opts.registries,
       virtualStoreDir,
     })
+  } else {
+    newHoistedAliases = {}
   }
 
   await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
@@ -320,13 +322,8 @@ export default async (opts: HeadlessOptions) => {
   }
   await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
   await writeModulesYaml(virtualStoreDir, {
-    importers: opts.importers.reduce((acc, importer) => {
-      acc[importer.id] = {
-        hoistedAliases: importer.hoistedAliases,
-        shamefullyFlatten: importer.shamefullyFlatten,
-      }
-      return acc
-    }, {}),
+    hoistedAliases: newHoistedAliases,
+    hoistPattern: opts.hoistPattern,
     included: opts.include,
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,

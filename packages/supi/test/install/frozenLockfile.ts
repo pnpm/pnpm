@@ -38,21 +38,21 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
   }
 })
 
-test(`frozen-lockfile+shamefully-flatten: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async (t) => {
+test(`frozen-lockfile+hoistPattern: installation fails if specs in package.json don't match the ones in ${WANTED_LOCKFILE}`, async (t) => {
   prepareEmpty(t)
 
   await install({
     dependencies: {
       'is-positive': '^3.0.0',
     },
-  }, await testDefaults({ shamefullyFlatten: true }))
+  }, await testDefaults({ hoistPattern: '*' }))
 
   try {
     await install({
       dependencies: {
         'is-positive': '^3.1.0',
       },
-    }, await testDefaults({ frozenLockfile: true, shamefullyFlatten: true }))
+    }, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
@@ -197,7 +197,7 @@ test(`frozen-lockfile: should not fail if no ${WANTED_LOCKFILE} is present and p
   await install({}, await testDefaults({ frozenLockfile: true }))
 })
 
-test(`prefer-frozen-lockfile+shamefully-flatten: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
+test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation when ${WANTED_LOCKFILE} satisfies package.json`, async (t) => {
   const project = prepareEmpty(t)
 
   const manifest = await install({
@@ -210,9 +210,9 @@ test(`prefer-frozen-lockfile+shamefully-flatten: should prefer headless installa
 
   const reporter = sinon.spy()
   await install(manifest, await testDefaults({
+    hoistPattern: '*',
     preferFrozenLockfile: true,
     reporter,
-    shamefullyFlatten: true,
   }))
 
   t.ok(reporter.calledWithMatch({

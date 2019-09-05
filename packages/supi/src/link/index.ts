@@ -100,15 +100,15 @@ export default async function link (
     [
       {
         bin: opts.bin,
-        hoistedAliases: ctx.hoistedAliases,
         id: importerId,
         modulesDir: ctx.modulesDir,
         prefix: opts.prefix,
-        shamefullyFlatten: opts.shamefullyFlatten,
       },
     ],
     {
       currentLockfile,
+      hoistedAliases: ctx.hoistedAliases,
+      hoistPattern: opts.hoistPattern,
       include: ctx.include,
       lockfileDirectory: opts.lockfileDirectory,
       registries: ctx.registries,

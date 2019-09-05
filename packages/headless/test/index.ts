@@ -243,7 +243,7 @@ test('not installing optional deps', async (t) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1547
-test('installing with independent-leaves and shamefully-flatten', async (t) => {
+test('installing with independent-leaves and hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'with-1-dep')
   await rimraf(path.join(prefix, 'node_modules'))
 
@@ -253,13 +253,11 @@ test('installing with independent-leaves and shamefully-flatten', async (t) => {
         prefix,
       },
     ],
-    prefix,
-    {
-      shamefullyFlatten: true,
-    },
+    prefix
   )
 
   await headless(await testDefaults({
+    hoistPattern: '*',
     importers: await Promise.all(
       importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
@@ -590,11 +588,11 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.end()
 })
 
-test('installing with shamefullyFlatten = true', async (t) => {
+test('installing with hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, shamefullyFlatten: true }))
+  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, hoistPattern: '*' }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -643,7 +641,7 @@ test('installing with shamefullyFlatten = true', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.importers['.'].hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -672,7 +670,7 @@ test('using side effects cache', async (t) => {
   t.end()
 })
 
-test('using side effects cache and shamefully-flatten', async (t) => {
+test('using side effects cache and hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'side-effects-of-subdep')
 
   const { importers } = await readImportersContext(
@@ -682,14 +680,12 @@ test('using side effects cache and shamefully-flatten', async (t) => {
       },
     ],
     prefix,
-    {
-      shamefullyFlatten: true,
-    },
   )
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
+    hoistPattern: '*',
     importers: await Promise.all(
       importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
@@ -729,9 +725,6 @@ test('installing in a workspace', async (t) => {
       },
     ],
     workspaceFixture,
-    {
-      shamefullyFlatten: false,
-    },
   )
 
   importers = await Promise.all(
@@ -775,9 +768,6 @@ test('independent-leaves: installing in a workspace', async (t) => {
       },
     ],
     workspaceFixture,
-    {
-      shamefullyFlatten: false,
-    },
   )
 
   await headless(await testDefaults({

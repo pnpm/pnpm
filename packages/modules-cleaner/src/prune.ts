@@ -29,17 +29,17 @@ const vacuum = promisify(vacuumCB)
 export default async function prune (
   importers: Array<{
     bin: string,
-    hoistedAliases: {[depPath: string]: string[]},
     id: string,
     modulesDir: string,
     prefix: string,
     pruneDirectDependencies?: boolean,
     removePackages?: string[],
-    shamefullyFlatten: boolean | string,
   }>,
   opts: {
     dryRun?: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
+    hoistedAliases: {[depPath: string]: string[]},
+    hoistPattern?: string,
     wantedLockfile: Lockfile,
     currentLockfile: Lockfile,
     pruneStore?: boolean,
@@ -118,24 +118,22 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      if (opts.currentLockfile.packages) {
-        await Promise.all(importers.filter((importer) => importer.shamefullyFlatten).map((importer) => {
-          const { bin, hoistedAliases, modulesDir, prefix } = importer
-          return Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-            if (hoistedAliases[orphanDepPath]) {
-              await Promise.all(hoistedAliases[orphanDepPath].map((alias) => {
-                return removeDirectDependency({
-                  name: alias,
-                }, {
-                  bin,
-                  modulesDir,
-                  muteLogs: true,
-                  prefix,
-                })
-              }))
-            }
-            delete hoistedAliases[orphanDepPath]
-          }))
+      if (opts.currentLockfile.packages && opts.hoistPattern && importers['.']) {
+        const { bin, modulesDir, prefix } = importers['.']
+        await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
+          if (opts.hoistedAliases[orphanDepPath]) {
+            await Promise.all(opts.hoistedAliases[orphanDepPath].map((alias) => {
+              return removeDirectDependency({
+                name: alias,
+              }, {
+                bin,
+                modulesDir,
+                muteLogs: true,
+                prefix,
+              })
+            }))
+          }
+          delete opts.hoistedAliases[orphanDepPath]
         }))
       }
 

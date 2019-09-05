@@ -42,7 +42,6 @@ export {
 export interface Importer {
   bin: string,
   directNodeIdsByAlias: {[alias: string]: string},
-  hoistedAliases: {[depPath: string]: string[]},
   id: string,
   linkedDependencies: LinkedDependency[],
   manifest: ImporterManifest,
@@ -50,7 +49,6 @@ export interface Importer {
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
-  shamefullyFlatten: boolean | string,
   topParents: Array<{name: string, version: string}>,
 }
 
@@ -59,30 +57,33 @@ export default async function linkPackages (
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile,
-    force: boolean,
-    dryRun: boolean,
-    virtualStoreDir: string,
-    wantedLockfile: Lockfile,
     currentLockfile: Lockfile,
-    makePartialCurrentLockfile: boolean,
-    pruneStore: boolean,
-    registries: Registries,
-    lockfileDirectory: string,
-    skipped: Set<string>,
-    storeController: StoreController,
-    wantedToBeSkippedPackageIds: Set<string>,
+    dryRun: boolean,
+    force: boolean,
+    hoistedAliases: {[depPath: string]: string[]},
+    hoistPattern?: string,
     include: IncludedDependencies,
     independentLeaves: boolean,
+    lockfileDirectory: string,
+    makePartialCurrentLockfile: boolean,
+    outdatedDependencies: {[pkgId: string]: string},
+    pruneStore: boolean,
+    registries: Registries,
+    sideEffectsCacheRead: boolean,
+    skipped: Set<string>,
+    storeController: StoreController,
+    strictPeerDependencies: boolean,
     // This is only needed till lockfile v4
     updateLockfileMinorVersion: boolean,
-    outdatedDependencies: {[pkgId: string]: string},
-    strictPeerDependencies: boolean,
-    sideEffectsCacheRead: boolean,
+    virtualStoreDir: string,
+    wantedLockfile: Lockfile,
+    wantedToBeSkippedPackageIds: Set<string>,
   },
 ): Promise<{
   currentLockfile: Lockfile,
   depGraph: DependenciesGraph,
   newDepPaths: string[],
+  newHoistedAliases: {[depPath: string]: string[]},
   removedDepPaths: Set<string>,
   wantedLockfile: Lockfile,
 }> {
@@ -149,6 +150,8 @@ export default async function linkPackages (
   const removedDepPaths = await prune(importers, {
     currentLockfile: opts.currentLockfile,
     dryRun: opts.dryRun,
+    hoistedAliases: opts.hoistedAliases,
+    hoistPattern: opts.hoistPattern,
     include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     pruneStore: opts.pruneStore,
@@ -301,10 +304,11 @@ export default async function linkPackages (
     currentLockfile = newCurrentLockfile
   }
 
+  let newHoistedAliases: {[depPath: string]: string[]} = {}
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    const rootImporterWithFlatModules = importers.find((importer) => importer.id === '.' && importer.shamefullyFlatten)
+    const rootImporterWithFlatModules = opts.hoistPattern && importers.find(({ id }) => id === '.')
     if (rootImporterWithFlatModules) {
-      rootImporterWithFlatModules.hoistedAliases = await shamefullyFlatten({
+      newHoistedAliases = await shamefullyFlatten({
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -317,9 +321,7 @@ export default async function linkPackages (
         lockfile: currentLockfile,
         lockfileDirectory: opts.lockfileDirectory,
         modulesDir: rootImporterWithFlatModules.modulesDir,
-        pattern: rootImporterWithFlatModules.shamefullyFlatten === true
-          ? '*'
-          : rootImporterWithFlatModules.shamefullyFlatten as string,
+        pattern: opts.hoistPattern!,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
       })
@@ -345,6 +347,7 @@ export default async function linkPackages (
     currentLockfile,
     depGraph,
     newDepPaths,
+    newHoistedAliases,
     removedDepPaths,
     wantedLockfile: newWantedLockfile,
   }

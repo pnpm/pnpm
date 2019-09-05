@@ -50,11 +50,11 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1547
-test('installing with independent-leaves and shamefully-flatten', async (t) => {
+test('installing with independent-leaves and hoistPattern', async (t) => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({
+    hoistPattern: '*',
     independentLeaves: true,
-    shamefullyFlatten: true,
   }))
 
   await project.has('rimraf')

@@ -8,7 +8,6 @@ import {
   install,
   MutatedImporter,
   mutateModules,
-  ShamefullyFlattenNotInLockfileDirectoryError,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -17,10 +16,10 @@ import { addDistTag, testDefaults } from '../utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test('should flatten dependencies', async (t) => {
+test('should hoist dependencies', async (t) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['express'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('express')
   await project.has('debug')
@@ -31,10 +30,10 @@ test('should flatten dependencies', async (t) => {
   await project.isExecutable('.bin/mime')
 })
 
-test('should flatten dependencies by pattern', async (t) => {
+test('should hoist dependencies by pattern', async (t) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['express'], await testDefaults({ shamefullyFlatten: 'mime' }))
+  await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: 'mime' }))
 
   await project.has('express')
   await project.hasNot('debug')
@@ -45,10 +44,10 @@ test('should flatten dependencies by pattern', async (t) => {
   await project.isExecutable('.bin/mime')
 })
 
-test('should remove flattened dependencies', async (t) => {
+test('should remove hoisted dependencies', async (t) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['express'], await testDefaults({ shamefullyFlatten: true }))
+  const manifest = await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: '*' }))
   await mutateModules([
     {
       dependencyNames: ['express'],
@@ -56,20 +55,20 @@ test('should remove flattened dependencies', async (t) => {
       mutation: 'uninstallSome',
       prefix: process.cwd(),
     },
-  ], await testDefaults({ shamefullyFlatten: true }))
+  ], await testDefaults({ hoistPattern: '*' }))
 
   await project.hasNot('express')
   await project.hasNot('debug')
   await project.hasNot('cookie')
 })
 
-test('should not override root packages with flattened dependencies', async (t) => {
+test('should not override root packages with hoisted dependencies', async (t) => {
   const project = prepareEmpty(t)
 
   // this installs debug@3.1.0
-  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0'], await testDefaults({ shamefullyFlatten: true }))
+  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0'], await testDefaults({ hoistPattern: '*' }))
   // this installs express@4.16.2, that depends on debug 2.6.9, but we don't want to flatten debug@2.6.9
-  await addDependenciesToPackage(manifest, ['express@4.16.2'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(manifest, ['express@4.16.2'], await testDefaults({ hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug did not get overridden by flattening')
 })
@@ -78,7 +77,7 @@ test('should reflatten when uninstalling a package', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   // this installs debug@3.1.0 and express@4.16.0
-  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], await testDefaults({ shamefullyFlatten: true }))
+  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], await testDefaults({ hoistPattern: '*' }))
   // uninstall debug@3.1.0 to check if debug@2.6.9 gets reflattened
   await mutateModules([
     {
@@ -87,17 +86,17 @@ test('should reflatten when uninstalling a package', async (t: tape.Test) => {
       mutation: 'uninstallSome',
       prefix: process.cwd(),
     },
-  ], await testDefaults({ shamefullyFlatten: true }))
+  ], await testDefaults({ hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '2.6.9', 'debug was flattened after uninstall')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express did not get updated by flattening')
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.importers['.'].hoistedAliases['localhost+4873/debug/2.6.9'], ['debug'], 'new hoisted debug added to .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases['localhost+4873/debug/2.6.9'], ['debug'], 'new hoisted debug added to .modules.yaml')
 })
 
-test('should reflatten after running a general install', async (t) => {
+test('should rehoist after running a general install', async (t) => {
   const project = prepareEmpty(t)
 
   await install({
@@ -105,7 +104,7 @@ test('should reflatten after running a general install', async (t) => {
       debug: '3.1.0',
       express: '4.16.0',
     },
-  }, await testDefaults({ shamefullyFlatten: true }))
+  }, await testDefaults({ hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
@@ -120,7 +119,7 @@ test('should reflatten after running a general install', async (t) => {
     dependencies: {
       express: '4.16.0',
     },
-  }, await testDefaults({ shamefullyFlatten: true }))
+  }, await testDefaults({ hoistPattern: '*' }))
 
   const currDebugModulePath = await resolveLinkTarget('./node_modules/debug')
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
@@ -131,17 +130,17 @@ test('should reflatten after running a general install', async (t) => {
 test('should not override aliased dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
-  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '1.0.0', 'alias respected by flattening')
 })
 
-test('--shamefully-flatten throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
+test('hoistPattern=* throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ shamefullyFlatten: false }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ hoistPattern: undefined }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ shamefullyFlatten: true }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ hoistPattern: '*' }))
     t.fail('installation should have failed')
   } catch (err) {
     t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_WANTED') // tslint:disable-line:no-string-literal
@@ -149,12 +148,12 @@ test('--shamefully-flatten throws exception when executed on node_modules instal
   }
 })
 
-test('--no-shamefully-flatten throws exception when executed on node_modules installed with --shamefully-flatten', async (t: tape.Test) => {
+test('hoistPattern=undefined throws exception when executed on node_modules installed with --shamefully-flatten', async (t: tape.Test) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ shamefullyFlatten: true }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ hoistPattern: '*' }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ shamefullyFlatten: false }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ hoistPattern: undefined }))
     t.fail('installation should have failed')
   } catch (err) {
     t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED') // tslint:disable-line:no-string-literal
@@ -162,12 +161,12 @@ test('--no-shamefully-flatten throws exception when executed on node_modules ins
   }
 })
 
-test('flatten by alias', async (t: tape.Test) => {
+test('hoist by alias', async (t: tape.Test) => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   const project = prepareEmpty(t)
 
   // pkg-with-1-aliased-dep aliases dep-of-pkg-with-1-dep as just "dep"
-  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('pkg-with-1-aliased-dep')
   await project.has('dep')
@@ -175,13 +174,13 @@ test('flatten by alias', async (t: tape.Test) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.importers['.'].hoistedAliases, { 'localhost+4873/dep-of-pkg-with-1-dep/100.1.0': [ 'dep' ] }, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedAliases, { 'localhost+4873/dep-of-pkg-with-1-dep/100.1.0': [ 'dep' ] }, '.modules.yaml updated correctly')
 })
 
-test('should remove aliased flattened dependencies', async (t) => {
+test('should remove aliased hoisted dependencies', async (t) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
   await mutateModules([
     {
       dependencyNames: ['pkg-with-1-aliased-dep'],
@@ -189,7 +188,7 @@ test('should remove aliased flattened dependencies', async (t) => {
       mutation: 'uninstallSome',
       prefix: process.cwd(),
     },
-  ], await testDefaults({ shamefullyFlatten: true }))
+  ], await testDefaults({ hoistPattern: '*' }))
 
   await project.hasNot('pkg-with-1-aliased-dep')
   await project.hasNot('dep-of-pkg-with-1-dep')
@@ -203,7 +202,7 @@ test('should remove aliased flattened dependencies', async (t) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.importers['.'].hoistedAliases, {}, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedAliases, {}, '.modules.yaml updated correctly')
 })
 
 test('should update .modules.yaml when pruning if we are flattening', async (t) => {
@@ -213,13 +212,13 @@ test('should update .modules.yaml when pruning if we are flattening', async (t) 
     dependencies: {
       'pkg-with-1-aliased-dep': '*',
     },
-  }, await testDefaults({ shamefullyFlatten: true }))
+  }, await testDefaults({ hoistPattern: '*' }))
 
-  await install({}, await testDefaults({ shamefullyFlatten: true, pruneStore: true }))
+  await install({}, await testDefaults({ hoistPattern: '*', pruneStore: true }))
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.importers['.'].hoistedAliases, {}, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedAliases, {}, '.modules.yaml updated correctly')
 })
 
 test('should reflatten after pruning', async (t) => {
@@ -230,7 +229,7 @@ test('should reflatten after pruning', async (t) => {
       debug: '3.1.0',
       express: '4.16.0',
     },
-  }, await testDefaults({ shamefullyFlatten: true }))
+  }, await testDefaults({ hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
@@ -246,7 +245,7 @@ test('should reflatten after pruning', async (t) => {
       'express': '4.16.0',
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({ shamefullyFlatten: true, pruneStore: true }))
+  }, await testDefaults({ hoistPattern: '*', pruneStore: true }))
 
   const currDebugModulePath = await resolveLinkTarget('./node_modules/debug')
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
@@ -256,14 +255,14 @@ test('should reflatten after pruning', async (t) => {
 
 test('should flatten correctly peer dependencies', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('ajv-keywords')
 })
 
 test('should uninstall correctly peer dependencies', async (t) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
+  const manifest = await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ hoistPattern: '*' }))
   await mutateModules([
     {
       dependencyNames: ['using-ajv'],
@@ -271,27 +270,9 @@ test('should uninstall correctly peer dependencies', async (t) => {
       mutation: 'uninstallSome',
       prefix: process.cwd(),
     },
-  ], await testDefaults({ shamefullyFlatten: true }))
+  ], await testDefaults({ hoistPattern: '*' }))
 
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
-})
-
-test('shamefully-flatten: throw exception when executed on a project that uses an external lockfile', async (t: tape.Test) => {
-  prepareEmpty(t)
-  const lockfileDirectory = path.resolve('..')
-
-  let err!: ShamefullyFlattenNotInLockfileDirectoryError
-  try {
-    await addDependenciesToPackage({}, ['is-negative'], await testDefaults({ shamefullyFlatten: true, lockfileDirectory }))
-    t.fail('installation should have failed')
-  } catch (_err) {
-    err = _err
-  }
-
-  t.ok(err, 'error thrown')
-  t.equal(err.code, 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR')
-  t.equal(err.shamefullyFlattenDirectory, process.cwd())
-  t.equal(err.lockfileDirectory, lockfileDirectory)
 })
 
 test('shamefully-flatten: only hoists the dependencies of the root workspace package', async (t) => {
@@ -326,7 +307,6 @@ test('shamefully-flatten: only hoists the dependencies of the root workspace pac
       manifest: workspaceRootManifest,
       mutation: 'install',
       prefix: process.cwd(),
-      shamefullyFlatten: true,
     },
     {
       buildIndex: 0,
@@ -335,7 +315,7 @@ test('shamefully-flatten: only hoists the dependencies of the root workspace pac
       prefix: path.resolve('package'),
     },
   ]
-  await mutateModules(importers, await testDefaults())
+  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
 
   await projects['root'].has('pkg-with-1-dep')
   await projects['root'].has('dep-of-pkg-with-1-dep')

@@ -12,12 +12,8 @@ export type IncludedDependencies = {
 }
 
 export interface Modules {
-  importers: {
-    [id: string]: {
-      hoistedAliases: {[depPath: string]: string[]}
-      shamefullyFlatten: boolean,
-    },
-  },
+  hoistedAliases: {[depPath: string]: string[]}
+  hoistPattern?: string
   included: IncludedDependencies,
   independentLeaves: boolean,
   layoutVersion: number,
@@ -38,15 +34,9 @@ export async function read (virtualStoreDir: string): Promise<Modules | null> {
       m.store = m['storePath']
       delete m['storePath']
     }
-    if (!m.importers) {
-      m.importers = {
-        '.': {
-          hoistedAliases: m['hoistedAliases'],
-          shamefullyFlatten: m['shamefullyFlatten'],
-        },
-      }
-      delete m['hoistedAliases']
-      delete m['shamefullyFlatten']
+    if (m['importers'] && m['importers']['.'] && m['importers']['.']['shamefullyFlatten'] === true) {
+      m.hoistedAliases = m['importers']['.']['hoistedAliases']
+      m.hoistPattern = '*'
     }
     // tslint:enable:no-string-literal
     return m
@@ -67,14 +57,10 @@ export function write (
   const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
   if (modules['skipped']) modules['skipped'].sort() // tslint:disable-line:no-string-literal
 
-  return writeYamlFile(modulesYamlPath, normalizeModules(modules), YAML_OPTS)
-}
-
-function normalizeModules (m: Modules) {
-  const normalized = { ...m }
-  if (Object.keys(m.importers).length === 1 && m.importers['.']) {
-    Object.assign(normalized, m.importers['.'])
-    delete normalized.importers
+  if (!modules.hoistPattern) {
+    // Because the YAML writer fails on undefined fields
+    delete modules.hoistPattern
+    delete modules.hoistedAliases
   }
-  return normalized
+  return writeYamlFile(modulesYamlPath, modules, YAML_OPTS)
 }

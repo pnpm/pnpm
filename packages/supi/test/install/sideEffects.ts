@@ -35,11 +35,11 @@ test('caching side effects of native package', async (t) => {
   t.notEqual(stat1.ino, stat3.ino, 'cache is overridden when force is true')
 })
 
-test('caching side effects of native package when shamefully-flatten is used', async (t) => {
+test('caching side effects of native package when hoisting is used', async (t) => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({
-    shamefullyFlatten: true,
+    hoistPattern: '*',
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
   })

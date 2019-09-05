@@ -169,13 +169,8 @@ export async function rebuild (
 
   await writeModulesYaml(ctx.virtualStoreDir, {
     ...ctx.modulesFile,
-    importers: {
-      ...ctx.modulesFile && ctx.modulesFile.importers,
-      ...ctx.importers.reduce((acc, { id, hoistedAliases, shamefullyFlatten }) => {
-        acc[id] = { hoistedAliases, shamefullyFlatten }
-        return acc
-      }, {}),
-    },
+    hoistedAliases: ctx.hoistedAliases,
+    hoistPattern: opts.hoistPattern,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
