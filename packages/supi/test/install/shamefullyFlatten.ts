@@ -330,7 +330,7 @@ test('shamefully-flatten: only hoists the dependencies of the root workspace pac
   await rimraf('node_modules')
   await rimraf('package/node_modules')
 
-  await mutateModules(importers, await testDefaults({ frozenLockfile: true }))
+  await mutateModules(importers, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
 
   await projects['root'].has('pkg-with-1-dep')
   await projects['root'].has('dep-of-pkg-with-1-dep')
