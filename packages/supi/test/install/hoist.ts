@@ -148,7 +148,7 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
   }
 })
 
-test('hoistPattern=undefined throws exception when executed on node_modules installed with --shamefully-flatten', async (t: tape.Test) => {
+test('hoistPattern=undefined throws exception when executed on node_modules installed with hoist-pattern=*', async (t: tape.Test) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ hoistPattern: '*' }))
 
@@ -275,7 +275,7 @@ test('should uninstall correctly peer dependencies', async (t) => {
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
 })
 
-test('shamefully-flatten: only hoists the dependencies of the root workspace package', async (t) => {
+test('hoist-pattern: only hoists the dependencies of the root workspace package', async (t) => {
   const workspaceRootManifest = {
     name: 'root',
 

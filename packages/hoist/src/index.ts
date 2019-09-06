@@ -14,7 +14,8 @@ import minimatch = require('minimatch')
 import path = require('path')
 import R = require('ramda')
 
-export default async function shamefullyFlattenByLockfile (
+export default async function hoistByLockfile (
+  hoistPattern: string,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     lockfile: Lockfile,
@@ -22,7 +23,6 @@ export default async function shamefullyFlattenByLockfile (
     modulesDir: string,
     registries: Registries,
     virtualStoreDir: string,
-    pattern: string,
   },
 ) {
   if (!opts.lockfile.packages) return {}
@@ -44,10 +44,10 @@ export default async function shamefullyFlattenByLockfile (
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  return shamefullyFlattenGraph(deps, lockfileImporter.specifiers, {
+  return hoistGraph(deps, lockfileImporter.specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
-    pattern: opts.pattern,
+    pattern: hoistPattern,
   })
 }
 
@@ -127,7 +127,7 @@ export interface Dependency {
   absolutePath: string,
 }
 
-async function shamefullyFlattenGraph (
+async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {

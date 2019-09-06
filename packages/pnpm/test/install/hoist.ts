@@ -8,7 +8,7 @@ import { execPnpm } from '../utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test('shamefully flatten the dependency tree', async function (t) {
+test('hoist the dependency graph', async function (t) {
   const project = prepare(t)
 
   await execPnpm('install', '--shamefully-flatten', 'express@4.16.2')
@@ -24,7 +24,7 @@ test('shamefully flatten the dependency tree', async function (t) {
   await project.hasNot('cookie')
 })
 
-test('shamefully-flatten: applied only to the workspace root package when set to true in the root .npmrc file', async (t: tape.Test) => {
+test('hoist-pattern: applied only to the workspace root package when set to true in the root .npmrc file', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       location: '.',

@@ -11,12 +11,12 @@ import {
 import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
+import hoist from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
-import shamefullyFlatten from '@pnpm/shamefully-flatten'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { ImporterManifest, Registries } from '@pnpm/types'
@@ -308,7 +308,7 @@ export default async function linkPackages (
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
     const rootImporterWithFlatModules = opts.hoistPattern && importers.find(({ id }) => id === '.')
     if (rootImporterWithFlatModules) {
-      newHoistedAliases = await shamefullyFlatten({
+      newHoistedAliases = await hoist(opts.hoistPattern!, {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -321,7 +321,6 @@ export default async function linkPackages (
         lockfile: currentLockfile,
         lockfileDirectory: opts.lockfileDirectory,
         modulesDir: rootImporterWithFlatModules.modulesDir,
-        pattern: opts.hoistPattern!,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
       })

@@ -16,6 +16,7 @@ import PnpmError from '@pnpm/error'
 import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
+import hoist from '@pnpm/hoist'
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
@@ -45,7 +46,6 @@ import {
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import shamefullyFlatten from '@pnpm/shamefully-flatten'
 import {
   PackageFilesResponse,
   StoreController,
@@ -232,7 +232,7 @@ export default async (opts: HeadlessOptions) => {
   const rootImporterWithFlatModules = opts.hoistPattern && opts.importers.find((importer) => importer.id === '.')
   let newHoistedAliases!: {[depPath: string]: string[]}
   if (rootImporterWithFlatModules) {
-    newHoistedAliases = await shamefullyFlatten({
+    newHoistedAliases = await hoist(opts.hoistPattern!, {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -245,7 +245,6 @@ export default async (opts: HeadlessOptions) => {
       lockfile: filteredLockfile,
       lockfileDirectory: opts.lockfileDirectory,
       modulesDir: rootImporterWithFlatModules.modulesDir,
-      pattern: opts.hoistPattern!,
       registries: opts.registries,
       virtualStoreDir,
     })
