@@ -143,8 +143,8 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
     await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ hoistPattern: '*' }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This "node_modules" folder was created without the --shamefully-flatten option.') === 0)
+    t.equal(err['code'], 'ERR_PNPM_HOISTING_NOT_WANTED') // tslint:disable-line:no-string-literal
+    t.ok(err.message.indexOf('This "node_modules" folder was created without the --hoist-pattern option.') === 0)
   }
 })
 
@@ -156,8 +156,8 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
     await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ hoistPattern: undefined }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This "node_modules" folder was created using the --shamefully-flatten option.') === 0)
+    t.equal(err['code'], 'ERR_PNPM_HOISTING_WANTED') // tslint:disable-line:no-string-literal
+    t.ok(err.message.indexOf('This "node_modules" folder was created using the --hoist-pattern option.') === 0)
   }
 })
 

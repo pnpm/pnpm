@@ -166,17 +166,17 @@ async function validateNodeModules (
   const rootImporter = importers.find(({ id }) => id === '.')
   if (rootImporter) {
     try {
-      if (typeof opts.currentHoistPattern === 'string' && opts.currentHoistPattern !== opts.hoistPattern) {
+      if (opts.currentHoistPattern !== opts.hoistPattern) {
         if (opts.currentHoistPattern) {
           throw new PnpmError(
             'HOISTING_WANTED',
-            'This "node_modules" folder was created using the --hoist option.'
+            'This "node_modules" folder was created using the --hoist-pattern option.'
             + ' You must add this option, or else add the --force option to recreate the "node_modules" folder.',
           )
         }
         throw new PnpmError(
           'HOISTING_NOT_WANTED',
-          'This "node_modules" folder was created without the --hoist option.'
+          'This "node_modules" folder was created without the --hoist-pattern option.'
           + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
       }
