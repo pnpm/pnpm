@@ -11,7 +11,7 @@ import './findBestGlobalPrefixOnWindows'
 delete process.env['npm_config_depth']
 
 test('getConfigs()', async (t) => {
-  const configs = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {},
     packageManager: {
       name: 'pnpm',
@@ -97,7 +97,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   {
-    const opts = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'global': false,
       },
@@ -106,13 +106,13 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
         version: '1.0.0',
       },
     })
-    t.ok(opts.linkWorkspacePackages)
-    t.ok(opts.sharedWorkspaceLockfile)
-    t.ok(opts.lockfileDirectory)
+    t.ok(configs.linkWorkspacePackages)
+    t.ok(configs.sharedWorkspaceLockfile)
+    t.ok(configs.lockfileDirectory)
   }
 
   {
-    const opts = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'global': true,
       },
@@ -121,9 +121,9 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
         version: '1.0.0',
       },
     })
-    t.notOk(opts.linkWorkspacePackages, 'link-workspace-packages is false')
-    t.notOk(opts.sharedWorkspaceLockfile, 'shared-workspace-shrinkwrap is false')
-    t.notOk(opts.lockfileDirectory, 'shrinkwrap-directory is null')
+    t.notOk(configs.linkWorkspacePackages, 'link-workspace-packages is false')
+    t.notOk(configs.sharedWorkspaceLockfile, 'shared-workspace-shrinkwrap is false')
+    t.notOk(configs.lockfileDirectory, 'shrinkwrap-directory is null')
   }
 
   t.end()
@@ -138,7 +138,7 @@ test('workspace manifest is searched from specified prefix', async (t) => {
   await fs.mkdir('workspace')
   await fs.writeFile('workspace/pnpm-workspace.yaml', '', 'utf8')
 
-  const opts = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {
       prefix: 'workspace',
     },
@@ -148,12 +148,12 @@ test('workspace manifest is searched from specified prefix', async (t) => {
     },
   })
 
-  t.equal(opts.workspacePrefix, path.join(tmp, 'workspace'))
+  t.equal(configs.workspacePrefix, path.join(tmp, 'workspace'))
   t.end()
 })
 
 test('registries of scoped packages are read', async (t) => {
-  const opts = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {
       prefix: 'workspace',
       userconfig: path.join(__dirname, 'scoped-registries.ini'),
@@ -165,7 +165,7 @@ test('registries of scoped packages are read', async (t) => {
   })
 
   // tslint:disable
-  t.deepEqual(opts.registries, {
+  t.deepEqual(configs.registries, {
     'default': 'https://default.com/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
@@ -183,7 +183,7 @@ test('filter is read from .npmrc as an array', async (t) => {
   await fs.writeFile('.npmrc', 'filter=foo bar...', 'utf8')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
-  const opts = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {
       'global': false,
     },
@@ -192,14 +192,14 @@ test('filter is read from .npmrc as an array', async (t) => {
       version: '1.0.0',
     },
   })
-  t.deepEqual(opts.filter, ['foo', 'bar...'])
+  t.deepEqual(configs.filter, ['foo', 'bar...'])
 
   t.end()
 })
 
 test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'side-effects-cache': true,
       },
@@ -215,7 +215,7 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'side-effects-cache-readonly': true,
       },
@@ -235,7 +235,7 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
 
 test('depth is 0 by default for list commands', async (t) => {
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       command: ['list'],
       packageManager: {
@@ -247,7 +247,7 @@ test('depth is 0 by default for list commands', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       command: ['list', 'bole'],
       packageManager: {
@@ -259,7 +259,7 @@ test('depth is 0 by default for list commands', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       command: ['recursive', 'list'],
       packageManager: {
@@ -271,7 +271,7 @@ test('depth is 0 by default for list commands', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       command: ['recursive', 'list', 'bole'],
       packageManager: {
@@ -283,7 +283,7 @@ test('depth is 0 by default for list commands', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       command: ['recursive', 'list'],
       packageManager: {
@@ -295,7 +295,7 @@ test('depth is 0 by default for list commands', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
@@ -310,7 +310,7 @@ test('depth is 0 by default for list commands', async (t) => {
 
 test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'global': true,
       },
@@ -324,7 +324,7 @@ test('when runnning a global command inside a workspace, the workspace should be
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
@@ -383,31 +383,31 @@ test('extraBinPaths', async (t) => {
   process.chdir(tmp)
 
   {
-    const { extraBinPaths } = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
       },
     })
-    t.deepEqual(extraBinPaths, [], 'extraBinPaths is empty outside of a workspace')
+    t.deepEqual(configs.extraBinPaths, [], 'extraBinPaths is empty outside of a workspace')
   }
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   {
-    const { extraBinPaths } = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
       },
     })
-    t.deepEqual(extraBinPaths, [path.resolve('node_modules/.bin')], 'extraBinPaths has the node_modules/.bin folder from the root of the workspace')
+    t.deepEqual(configs.extraBinPaths, [path.resolve('node_modules/.bin')], 'extraBinPaths has the node_modules/.bin folder from the root of the workspace')
   }
 
   {
-    const { extraBinPaths } = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'ignore-scripts': true,
       },
@@ -416,7 +416,7 @@ test('extraBinPaths', async (t) => {
         version: '1.0.0',
       },
     })
-    t.deepEqual(extraBinPaths, [], 'extraBinPaths is empty inside a workspace if scripts are ignored')
+    t.deepEqual(configs.extraBinPaths, [], 'extraBinPaths is empty inside a workspace if scripts are ignored')
   }
 
   t.end()

@@ -8,7 +8,7 @@ export default async function (
     command: string[],
   },
 ) {
-  const configs = await getConfigs({
+  const { configs, warnings } = await getConfigs({
     cliArgs,
     command: opts.command,
     packageManager,
@@ -17,6 +17,10 @@ export default async function (
 
   if (opts.excludeReporter) {
     delete configs.reporter // This is a silly workaround because supi expects a function as opts.reporter
+  }
+
+  if (warnings.length > 0) {
+    console.log(warnings.join('\n'))
   }
 
   return configs

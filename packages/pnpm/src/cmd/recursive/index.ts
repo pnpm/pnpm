@@ -232,8 +232,8 @@ export async function recursive (
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
     if (opts.lockfileDirectory && ['add', 'install', 'uninstall', 'update'].includes(cmdFullName)) {
-      if (opts.shamefullyFlatten) {
-        logger.info({ message: 'Only the root workspace package is going to have a flat node_modules', prefix: opts.lockfileDirectory })
+      if (opts.hoistPattern) {
+        logger.info({ message: 'Only the root workspace package is going to have hoisted dependencies in node_modules', prefix: opts.lockfileDirectory })
       }
       let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
@@ -246,9 +246,6 @@ export async function recursive (
       await Promise.all(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
         const { manifest, writeImporterManifest } = manifestsByPath[prefix]
-        const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
-          ? localConfigs.shamefullyFlatten
-          : (prefix === opts.lockfileDirectory && opts.shamefullyFlatten)
         let currentInput = [...input]
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -269,7 +266,6 @@ export async function recursive (
               manifest,
               mutation,
               prefix,
-              shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter)
             return
@@ -285,7 +281,6 @@ export async function recursive (
                 savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
               }),
               prefix,
-              shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter)
             return
@@ -295,7 +290,6 @@ export async function recursive (
               manifest,
               mutation,
               prefix,
-              shamefullyFlatten,
             } as MutatedImporter)
             return
         }
@@ -581,7 +575,12 @@ function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[
 async function readLocalConfigs (prefix: string) {
   try {
     const ini = await readIniFile(path.join(prefix, '.npmrc')) as { [key: string]: string }
-    return camelcaseKeys(ini) as {[key: string]: string}
+    const configs = camelcaseKeys(ini) as {[key: string]: string}
+    if (configs.shamefullyFlatten) {
+      configs.hoistPattern = '*'
+      // TODO: print a warning
+    }
+    return configs
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
     return {}
