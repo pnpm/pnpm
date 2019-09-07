@@ -869,7 +869,7 @@ async function installInContext (
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
-        return writeModulesYaml(ctx.virtualStoreDir, {
+        return writeModulesYaml(ctx.rootModulesDir, {
           ...ctx.modulesFile,
           hoistedAliases: result.newHoistedAliases,
           hoistPattern: opts.hoistPattern,

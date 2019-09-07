@@ -222,7 +222,7 @@ test(`prefer-frozen-lockfile+hoistPattern: should prefer headless installation w
   }), 'start of headless installation logged')
 
   await project.has('pkg-with-1-dep')
-  await project.has('dep-of-pkg-with-1-dep')
+  await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
 })
 
 test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has linked dependency', async (t) => {

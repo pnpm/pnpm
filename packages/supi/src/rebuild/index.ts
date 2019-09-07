@@ -167,7 +167,7 @@ export async function rebuild (
     }
   }
 
-  await writeModulesYaml(ctx.virtualStoreDir, {
+  await writeModulesYaml(ctx.rootModulesDir, {
     ...ctx.modulesFile,
     hoistedAliases: ctx.hoistedAliases,
     hoistPattern: opts.hoistPattern,

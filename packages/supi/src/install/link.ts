@@ -320,7 +320,7 @@ export default async function linkPackages (
           : undefined,
         lockfile: currentLockfile,
         lockfileDirectory: opts.lockfileDirectory,
-        modulesDir: rootImporterWithFlatModules.modulesDir,
+        modulesDir: path.join(opts.virtualStoreDir, 'node_modules'),
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
       })

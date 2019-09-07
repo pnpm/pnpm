@@ -122,7 +122,10 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
-  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
+  const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
+  const virtualStoreDir = opts.hoistPattern
+    ? path.join(rootModulesDir, '.pnpm')
+    : rootModulesDir
 
   for (const { id, manifest, prefix } of opts.importers) {
     if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
@@ -244,7 +247,7 @@ export default async (opts: HeadlessOptions) => {
         : undefined,
       lockfile: filteredLockfile,
       lockfileDirectory: opts.lockfileDirectory,
-      modulesDir: rootImporterWithFlatModules.modulesDir,
+      modulesDir: path.join(virtualStoreDir, 'node_modules'),
       registries: opts.registries,
       virtualStoreDir,
     })
@@ -320,7 +323,7 @@ export default async (opts: HeadlessOptions) => {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
   await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
-  await writeModulesYaml(virtualStoreDir, {
+  await writeModulesYaml(rootModulesDir, {
     hoistedAliases: newHoistedAliases,
     hoistPattern: opts.hoistPattern,
     included: opts.include,

@@ -14,6 +14,7 @@ import {
   Registries,
 } from '@pnpm/types'
 import makeDir = require('make-dir')
+import path = require('path')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import checkCompatibility from './checkCompatibility'
 import readLockfileFile from './readLockfiles'
@@ -30,6 +31,7 @@ export interface PnpmContext<T> {
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
+  rootModulesDir: string,
   lockfileDirectory: string,
   virtualStoreDir: string,
   skipped: Set<string>,
@@ -101,9 +103,12 @@ export default async function getContext<T> (
       ...opts.registries,
       ...importersContext.registries,
     },
+    rootModulesDir: importersContext.rootModulesDir,
     skipped: importersContext.skipped,
     storePath: opts.store,
-    virtualStoreDir: importersContext.virtualStoreDir,
+    virtualStoreDir: opts.hoistPattern
+      ? path.join(importersContext.rootModulesDir, '.pnpm')
+      : importersContext.rootModulesDir,
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
@@ -238,6 +243,7 @@ export interface PnpmSingleContext {
   modulesFile: Modules | null,
   pendingBuilds: string[],
   registries: Registries,
+  rootModulesDir: string,
   lockfileDirectory: string,
   virtualStoreDir: string,
   skipped: Set<string>,
@@ -272,7 +278,7 @@ export async function getContextForSingleImporter (
     pendingBuilds,
     registries,
     skipped,
-    virtualStoreDir,
+    rootModulesDir,
   } = await readImportersContext(
     [
       {
@@ -315,9 +321,12 @@ export async function getContextForSingleImporter (
       ...opts.registries,
       ...registries,
     },
+    rootModulesDir,
     skipped,
     storePath,
-    virtualStoreDir,
+    virtualStoreDir: opts.hoistPattern
+      ? path.join(rootModulesDir, '.pnpm')
+      : rootModulesDir,
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,

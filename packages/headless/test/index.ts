@@ -40,7 +40,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  t.ok(project.has('.localhost+4873/colors'), 'colors is not symlinked from the store')
+  await project.has('.localhost+4873/colors') // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -267,14 +267,14 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
 
   const project = assertProject(t, prefix)
   await project.has('rimraf')
-  await project.has('glob')
-  await project.has('path-is-absolute')
+  await project.has('.pnpm/node_modules/glob')
+  await project.has('.pnpm/node_modules/path-is-absolute')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.localhost+4873/wrappy/1.0.2')
+  await project.hasNot('.pnpm/.localhost+4873/wrappy/1.0.2')
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has('.localhost+4873/rimraf/2.5.1')
+  await project.has('.pnpm/.localhost+4873/rimraf/2.5.1')
 
   await project.isExecutable('.bin/rimraf')
 
@@ -553,8 +553,8 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
-  t.ok(project.has('.localhost+4873/rimraf'), 'rimraf is not symlinked from the store')
-  t.ok(project.hasNot('.localhost+4873/colors'), 'colors is symlinked from the store')
+  await project.has('.localhost+4873/rimraf') // rimraf is not symlinked from the store
+  await project.hasNot('.localhost+4873/colors') // colors is symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -597,12 +597,12 @@ test('installing with hoistPattern=*', async (t) => {
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
-  t.ok(project.requireModule('glob'), 'prod subdep hoisted')
+  t.ok(project.requireModule('.pnpm/node_modules/glob'), 'prod subdep hoisted')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  t.ok(project.has('.localhost+4873/colors'), 'colors is not symlinked from the store')
+  await project.has('.pnpm/.localhost+4873/colors') // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -697,7 +697,7 @@ test('using side effects cache and hoistPattern=*', async (t) => {
   await headless(opts)
 
   const project = assertProject(t, prefix)
-  await project.has('es5-ext') // verifying that a flat node_modules was created
+  await project.has('.pnpm/node_modules/es5-ext') // verifying that a flat node_modules was created
 
   const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
@@ -705,9 +705,9 @@ test('using side effects cache and hoistPattern=*', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
   await headless(opts)
 
-  t.ok(await exists(path.join(prefix, 'node_modules', 'runas', 'build', 'new-file.txt')), 'side effects cache correctly used')
+  t.ok(await exists(path.join(prefix, 'node_modules/.pnpm/node_modules/runas/build/new-file.txt')), 'side effects cache correctly used')
 
-  await project.has('es5-ext') // verifying that a flat node_modules was created
+  await project.has('.pnpm/node_modules/es5-ext') // verifying that a flat node_modules was created
 
   t.end()
 })

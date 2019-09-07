@@ -47,20 +47,20 @@ test('caching side effects of native package when hoisting is used', async (t) =
   const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
   const stat1 = await fs.stat(cacheBuildDir)
 
-  t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
+  await project.has('.pnpm/node_modules/runas/build') // build folder created
   t.ok(await exists(cacheBuildDir), 'build folder created in side effects cache')
-  await project.has('es5-ext') // verifying that a flat node_modules was created
+  await project.has('.pnpm/node_modules/es5-ext') // verifying that a flat node_modules was created
 
   await addDependenciesToPackage(manifest, ['pathwatcher@7.1.1'], opts)
   const stat2 = await fs.stat(cacheBuildDir)
   t.equal(stat1.ino, stat2.ino, 'existing cache is not overridden')
-  await project.has('es5-ext') // verifying that a flat node_modules was created
+  await project.has('.pnpm/node_modules/es5-ext') // verifying that a flat node_modules was created
 
   opts.force = true
   await addDependenciesToPackage(manifest, ['pathwatcher@7.1.1'], opts)
   const stat3 = await fs.stat(cacheBuildDir)
   t.notEqual(stat1.ino, stat3.ino, 'cache is overridden when force is true')
-  await project.has('es5-ext') // verifying that a flat node_modules was created
+  await project.has('.pnpm/node_modules/es5-ext') // verifying that a flat node_modules was created
 })
 
 test('using side effects cache', async (t) => {

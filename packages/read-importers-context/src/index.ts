@@ -26,11 +26,11 @@ export default async function <T>(
   modules: Modules | null,
   pendingBuilds: string[],
   registries: Registries | null | undefined,
+  rootModulesDir: string,
   skipped: Set<string>,
-  virtualStoreDir: string,
 }> {
-  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
-  const modules = await readModulesYaml(virtualStoreDir)
+  const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
+  const modules = await readModulesYaml(rootModulesDir)
   return {
     currentHoistPattern: modules && modules.hoistPattern || undefined,
     hoistedAliases: modules && modules.hoistedAliases || {},
@@ -50,7 +50,7 @@ export default async function <T>(
     modules,
     pendingBuilds: modules && modules.pendingBuilds || [],
     registries: modules && modules.registries && normalizeRegistries(modules.registries),
+    rootModulesDir,
     skipped: new Set(modules && modules.skipped || []),
-    virtualStoreDir,
   }
 }

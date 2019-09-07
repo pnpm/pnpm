@@ -22,9 +22,9 @@ test('should hoist dependencies', async (t) => {
   await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('express')
-  await project.has('debug')
-  await project.has('cookie')
-  await project.has('mime')
+  await project.has('.pnpm/node_modules/debug')
+  await project.has('.pnpm/node_modules/cookie')
+  await project.has('.pnpm/node_modules/mime')
 
   // should also flatten bins
   await project.isExecutable('.bin/mime')
@@ -36,9 +36,9 @@ test('should hoist dependencies by pattern', async (t) => {
   await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: 'mime' }))
 
   await project.has('express')
-  await project.hasNot('debug')
-  await project.hasNot('cookie')
-  await project.has('mime')
+  await project.hasNot('.pnpm/node_modules/debug')
+  await project.hasNot('.pnpm/node_modules/cookie')
+  await project.has('.pnpm/node_modules/mime')
 
   // should also flatten bins
   await project.isExecutable('.bin/mime')
@@ -58,8 +58,8 @@ test('should remove hoisted dependencies', async (t) => {
   ], await testDefaults({ hoistPattern: '*' }))
 
   await project.hasNot('express')
-  await project.hasNot('debug')
-  await project.hasNot('cookie')
+  await project.hasNot('.pnpm/node_modules/debug')
+  await project.hasNot('.pnpm/node_modules/cookie')
 })
 
 test('should not override root packages with hoisted dependencies', async (t) => {
@@ -73,7 +73,7 @@ test('should not override root packages with hoisted dependencies', async (t) =>
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug did not get overridden by flattening')
 })
 
-test('should reflatten when uninstalling a package', async (t: tape.Test) => {
+test('should rehoist when uninstalling a package', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   // this installs debug@3.1.0 and express@4.16.0
@@ -88,8 +88,8 @@ test('should reflatten when uninstalling a package', async (t: tape.Test) => {
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  t.equal(project.requireModule('debug/package.json').version, '2.6.9', 'debug was flattened after uninstall')
-  t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express did not get updated by flattening')
+  t.equal(project.requireModule('.pnpm/node_modules/debug/package.json').version, '2.6.9', 'debug was hoisted after uninstall')
+  t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express did not get updated by hoisting')
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
@@ -109,8 +109,9 @@ test('should rehoist after running a general install', async (t) => {
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
 
+  await project.hasNot('.pnpm/node_modules/debug') // debug not hoisted because it is a direct dep
+
   // read this module path because we can't use requireModule again, as it is cached
-  const prevDebugModulePath = await resolveLinkTarget('./node_modules/debug')
   const prevExpressModulePath = await resolveLinkTarget('./node_modules/express')
 
   // now remove debug@3.1.0 from package.json, run install again, check that debug@2.6.9 has been flattened
@@ -121,10 +122,10 @@ test('should rehoist after running a general install', async (t) => {
     },
   }, await testDefaults({ hoistPattern: '*' }))
 
-  const currDebugModulePath = await resolveLinkTarget('./node_modules/debug')
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
-  t.notEqual(prevDebugModulePath, currDebugModulePath, 'debug flattened correctly')
   t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')
+
+  await project.has('.pnpm/node_modules/debug') // debug hoisted because it is not a direct dep anymore
 })
 
 test('should not override aliased dependencies', async (t: tape.Test) => {
@@ -169,8 +170,8 @@ test('hoist by alias', async (t: tape.Test) => {
   await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('pkg-with-1-aliased-dep')
-  await project.has('dep')
-  await project.hasNot('dep-of-pkg-with-1-dep')
+  await project.has('.pnpm/node_modules/dep')
+  await project.hasNot('.pnpm/node_modules/dep-of-pkg-with-1-dep')
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
@@ -221,7 +222,7 @@ test('should update .modules.yaml when pruning if we are flattening', async (t) 
   t.deepEqual(modules!.hoistedAliases, {}, '.modules.yaml updated correctly')
 })
 
-test('should reflatten after pruning', async (t) => {
+test('should rehoist after pruning', async (t) => {
   const project = prepareEmpty(t)
 
   await install({
@@ -234,8 +235,8 @@ test('should reflatten after pruning', async (t) => {
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
 
+  await project.hasNot('.pnpm/node_modules/debug') // debug is not hoisted because it is a direct dep
   // read this module path because we can't use requireModule again, as it is cached
-  const prevDebugModulePath = await resolveLinkTarget('./node_modules/debug')
   const prevExpressModulePath = await resolveLinkTarget('./node_modules/express')
 
   // now remove debug@3.1.0 from package.json, run install again, check that debug@2.6.9 has been flattened
@@ -247,17 +248,17 @@ test('should reflatten after pruning', async (t) => {
     },
   }, await testDefaults({ hoistPattern: '*', pruneStore: true }))
 
-  const currDebugModulePath = await resolveLinkTarget('./node_modules/debug')
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
-  t.notEqual(prevDebugModulePath, currDebugModulePath, 'debug flattened correctly')
   t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')
+
+  await project.has('.pnpm/node_modules/debug') // debug is hoisted because it is not a direct dep anymore
 })
 
-test('should flatten correctly peer dependencies', async (t) => {
+test('should hoist correctly peer dependencies', async (t) => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['using-ajv'], await testDefaults({ hoistPattern: '*' }))
 
-  await project.has('ajv-keywords')
+  await project.has('.pnpm/node_modules/ajv-keywords')
 })
 
 test('should uninstall correctly peer dependencies', async (t) => {
@@ -318,7 +319,7 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
   await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
 
   await projects['root'].has('pkg-with-1-dep')
-  await projects['root'].has('dep-of-pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
   await projects['root'].hasNot('foobar')
   await projects['root'].hasNot('foo')
   await projects['root'].hasNot('bar')
@@ -333,7 +334,7 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
   await mutateModules(importers, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
 
   await projects['root'].has('pkg-with-1-dep')
-  await projects['root'].has('dep-of-pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
   await projects['root'].hasNot('foobar')
   await projects['root'].hasNot('foo')
   await projects['root'].hasNot('bar')
