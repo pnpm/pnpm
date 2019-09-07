@@ -14,14 +14,14 @@ test('hoist the dependency graph', async function (t) {
   await execPnpm('install', '--shamefully-flatten', 'express@4.16.2')
 
   await project.has('express')
-  await project.has('debug')
-  await project.has('cookie')
+  await project.has('.pnpm/node_modules/debug')
+  await project.has('.pnpm/node_modules/cookie')
 
   await execPnpm('uninstall', '--shamefully-flatten', 'express')
 
   await project.hasNot('express')
-  await project.hasNot('debug')
-  await project.hasNot('cookie')
+  await project.hasNot('.pnpm/node_modules/debug')
+  await project.hasNot('.pnpm/node_modules/cookie')
 })
 
 test('hoist-pattern: applied only to the workspace root package when set to true in the root .npmrc file', async (t: tape.Test) => {
@@ -51,8 +51,8 @@ test('hoist-pattern: applied only to the workspace root package when set to true
 
   await execPnpm('recursive', 'install')
 
-  await projects['root'].has('dep-of-pkg-with-1-dep')
-  await projects['root'].hasNot('foo')
+  await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  await projects['root'].hasNot('.pnpm/node_modules/foo')
   await projects['project'].hasNot('foo')
   await projects['project'].has('foobar')
 })
