@@ -28,24 +28,28 @@ export default async function hoistByLockfile (
 ) {
   if (!opts.lockfile.packages) return {}
 
-  const lockfileImporter = opts.lockfile.importers['.']
+  const entryNodes = new Set<string>()
+  for (let importerId of Object.keys(opts.lockfile.importers).sort()) {
+    const lockfileImporter = opts.lockfile.importers[importerId]
+    ; (
+      R.toPairs({
+        ...lockfileImporter.devDependencies,
+        ...lockfileImporter.dependencies,
+        ...lockfileImporter.optionalDependencies,
+      })
+      .map((pair) => dp.refToRelative(pair[1], pair[0]))
+      .filter((nodeId) => nodeId !== null) as string[]
+    ).forEach((relativePath) => { entryNodes.add(relativePath) })
+  }
 
-  const entryNodes = R.toPairs({
-    ...lockfileImporter.devDependencies,
-    ...lockfileImporter.dependencies,
-    ...lockfileImporter.optionalDependencies,
-  })
-  .map((pair) => dp.refToRelative(pair[1], pair[0]))
-  .filter((nodeId) => nodeId !== null) as string[]
-
-  const deps = await getDependencies(opts.lockfile.packages, entryNodes, new Set(), 0, {
+  const deps = await getDependencies(opts.lockfile.packages, Array.from(entryNodes.values()), new Set(), 0, {
     getIndependentPackageLocation: opts.getIndependentPackageLocation,
     lockfileDirectory: opts.lockfileDirectory,
     registries: opts.registries,
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  const aliasesByDependencyPath = await hoistGraph(deps, lockfileImporter.specifiers, {
+  const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.'].specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
     pattern: hoistPattern,
