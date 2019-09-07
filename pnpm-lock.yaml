@@ -424,7 +424,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-importers-context': 'link:../read-importers-context'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       '@pnpm/store-path': 2.1.0
       '@types/fs-extra': 8.0.0
       '@types/mz': 0.0.32
@@ -467,7 +467,7 @@ importers:
       '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/read-importers-context': 'file:../read-importers-context'
       '@pnpm/read-package-json': 'workspace:2.0.3'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       '@pnpm/store-controller-types': 'workspace:3.0.3'
       '@pnpm/store-path': 2.1.0
       '@pnpm/symlink-dependency': 'workspace:2.0.6'
@@ -848,7 +848,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       npm-run-all: 4.1.5
       tape: 4.11.0
     specifiers:
@@ -857,7 +857,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       '@pnpm/types': 'workspace:3.2.0'
       '@types/minimatch': 3.0.3
       dependency-path: 'workspace:3.0.8'
@@ -1127,7 +1127,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/read-package-json': 'link:../read-package-json'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
@@ -1178,7 +1178,7 @@ importers:
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/read-package-json': 'link:../read-package-json'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/server': 'workspace:3.0.6'
       '@pnpm/store-controller-types': 'workspace:3.0.3'
@@ -1538,7 +1538,7 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       '@pnpm/store-path': 2.1.0
       '@types/common-tags': 1.8.0
       '@types/fs-extra': 8.0.0
@@ -1600,7 +1600,7 @@ importers:
       '@pnpm/read-importers-context': 'workspace:1.0.9'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:2.0.3'
-      '@pnpm/registry-mock': 1.4.0
+      '@pnpm/registry-mock': 1.5.0
       '@pnpm/resolve-dependencies': 'workspace:9.0.0'
       '@pnpm/resolver-base': 'workspace:3.1.2'
       '@pnpm/store-controller-types': 'workspace:3.0.3'
@@ -2215,7 +2215,7 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-rPUEWrQ+DZ+FJf6iF/7AA/q71bua1ak77qWiO8eZScD0Aib5rbmmsjIHUArgIOwbTx5q6l2gOsNtvFBnCvq9/g==
-  /@pnpm/registry-mock/1.4.0:
+  /@pnpm/registry-mock/1.5.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -2226,7 +2226,7 @@ packages:
       node: '>=8.15'
     hasBin: true
     resolution:
-      integrity: sha512-2GzsC4937QJcdWr9uWcBIaHF7CIeIeCVJhwfab31B73O9+Pc7baikKjMMUWDPgnMJG7kTRlRSadVYN6KDjiLaw==
+      integrity: sha512-a330zbfhbDdeWN9xN4n8Ns7UTC5+D95N4qx/53sNZPJHE4Iz5sapwcUiqW/KTR5ojZ39+kHrbnVzD8g3hDttJQ==
   /@pnpm/semver-diff/1.0.2:
     dev: false
     engines:
@@ -3598,7 +3598,7 @@ packages:
       integrity: sha512-0Cbj7gyvFVApzpK/uhCtQ/9kE9UnYpxMzaq5nQQC/Dh4iaj5fxp7iEFIullrYwzj8nf0qnsI1Qsx34hAeAebvw==
   /cpr/3.0.1:
     dependencies:
-      graceful-fs: 4.2.2
+      graceful-fs: 4.2.1
       minimist: 1.2.0
       mkdirp: 0.5.1
       rimraf: 2.7.1
@@ -7222,7 +7222,7 @@ packages:
       integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==
   /saxes/3.1.11:
     dependencies:
-      xmlchars: 2.1.1
+      xmlchars: 2.2.0
     dev: true
     engines:
       node: '>=8'
@@ -8496,10 +8496,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-A5CUptxDsvxKJEU3yO6DuWBSJz/qizqzJKOMIfUJHETbBw/sFaDxgd6fxm1ewUaM0jZ444Fc5vC5ROYurg/4Pw==
-  /xmlchars/2.1.1:
+  /xmlchars/2.2.0:
     dev: true
     resolution:
-      integrity: sha512-7hew1RPJ1iIuje/Y01bGD/mXokXxegAgVS+e+E0wSi2ILHQkYAH1+JXARwTjZSM4Z4Z+c73aKspEcqj+zPPL/w==
+      integrity: sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw==
   /xtend/4.0.2:
     engines:
       node: '>=0.4'

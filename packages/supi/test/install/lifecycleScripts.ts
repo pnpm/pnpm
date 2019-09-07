@@ -380,3 +380,15 @@ test('dependency should not be added to current lockfile if it was not built suc
 
   t.notOk(await project.readCurrentLockfile())
 })
+
+test('scripts have access to unlisted bins when hoisting is used', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage(
+    {},
+    [ 'pkg-that-calls-unlisted-dep-in-hooks' ],
+    await testDefaults({ hoistPattern: '*' }),
+  )
+
+  t.deepEqual(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json'), ['Hello world!'])
+})

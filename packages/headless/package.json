@@ -26,7 +26,7 @@
     "@pnpm/logger": "2.1.1",
     "@pnpm/package-store": "file:../package-store",
     "@pnpm/read-importers-context": "file:../read-importers-context",
-    "@pnpm/registry-mock": "1.4.0",
+    "@pnpm/registry-mock": "1.5.0",
     "@pnpm/store-path": "2.1.0",
     "@types/fs-extra": "8.0.0",
     "@types/mz": "0.0.32",
