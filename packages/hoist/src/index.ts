@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import linkBins from '@pnpm/link-bins'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
@@ -44,11 +45,17 @@ export default async function hoistByLockfile (
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  return hoistGraph(deps, lockfileImporter.specifiers, {
+  const aliasesByDependencyPath = await hoistGraph(deps, lockfileImporter.specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
     pattern: hoistPattern,
   })
+
+  const bin = path.join(opts.modulesDir, '.bin')
+  const warn = (message: string) => logger.warn({ message, prefix: path.join(opts.modulesDir, '../..') })
+  await linkBins(opts.modulesDir, bin, { allowExoticManifests: true, warn })
+
+  return aliasesByDependencyPath
 }
 
 async function getDependencies (

@@ -497,6 +497,7 @@ importers:
   packages/hoist:
     dependencies:
       '@pnpm/constants': 'link:../constants'
+      '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/pkgid-to-filename': 2.0.0
@@ -512,6 +513,7 @@ importers:
       rimraf: 3.0.0
     specifiers:
       '@pnpm/constants': 'workspace:1.1.0'
+      '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1

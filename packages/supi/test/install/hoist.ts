@@ -26,8 +26,8 @@ test('should hoist dependencies', async (t) => {
   await project.has('.pnpm/node_modules/cookie')
   await project.has('.pnpm/node_modules/mime')
 
-  // should also flatten bins
-  await project.isExecutable('.bin/mime')
+  // should also hoist bins
+  await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
 test('should hoist dependencies by pattern', async (t) => {
@@ -40,8 +40,8 @@ test('should hoist dependencies by pattern', async (t) => {
   await project.hasNot('.pnpm/node_modules/cookie')
   await project.has('.pnpm/node_modules/mime')
 
-  // should also flatten bins
-  await project.isExecutable('.bin/mime')
+  // should also hoist bins
+  await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
 test('should remove hoisted dependencies', async (t) => {
