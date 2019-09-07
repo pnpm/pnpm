@@ -23,6 +23,7 @@ export interface PnpmContext<T> {
   currentLockfile: Lockfile,
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
+  extraBinPaths: string[],
   hoistedAliases: {[depPath: string]: string[]}
   importers: Array<{
     modulesDir: string,
@@ -51,6 +52,7 @@ export default async function getContext<T> (
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
+    extraBinPaths: string[],
     lockfileDirectory: string,
     hoistPattern?: string,
     hooks?: {
@@ -92,7 +94,17 @@ export default async function getContext<T> (
     }))
   }
 
+  const virtualStoreDir = opts.hoistPattern
+    ? path.join(importersContext.rootModulesDir, '.pnpm')
+    : importersContext.rootModulesDir
+  const extraBinPaths = [
+    ...opts.extraBinPaths || []
+  ]
+  if (opts.hoistPattern) {
+    extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+  }
   const ctx: PnpmContext<T> = {
+    extraBinPaths,
     hoistedAliases: importersContext.hoistedAliases,
     importers: importersContext.importers,
     include: opts.include || importersContext.include,
@@ -106,9 +118,7 @@ export default async function getContext<T> (
     rootModulesDir: importersContext.rootModulesDir,
     skipped: importersContext.skipped,
     storePath: opts.store,
-    virtualStoreDir: opts.hoistPattern
-      ? path.join(importersContext.rootModulesDir, '.pnpm')
-      : importersContext.rootModulesDir,
+    virtualStoreDir,
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
@@ -234,6 +244,7 @@ export interface PnpmSingleContext {
   currentLockfile: Lockfile,
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
+  extraBinPaths: string[],
   hoistedAliases: {[depPath: string]: string[]},
   manifest: ImporterManifest,
   modulesDir: string,
@@ -256,6 +267,7 @@ export async function getContextForSingleImporter (
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
+    extraBinPaths: string[],
     lockfileDirectory: string,
     hoistPattern?: string,
     hooks?: {
@@ -307,7 +319,17 @@ export async function getContextForSingleImporter (
   }
 
   await makeDir(storePath)
+  const virtualStoreDir = opts.hoistPattern
+    ? path.join(rootModulesDir, '.pnpm')
+    : rootModulesDir
+  const extraBinPaths = [
+    ...opts.extraBinPaths || []
+  ]
+  if (opts.hoistPattern) {
+    extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+  }
   const ctx: PnpmSingleContext = {
+    extraBinPaths,
     hoistedAliases,
     importerId,
     include: opts.include || include,
@@ -324,9 +346,7 @@ export async function getContextForSingleImporter (
     rootModulesDir,
     skipped,
     storePath,
-    virtualStoreDir: opts.hoistPattern
-      ? path.join(rootModulesDir, '.pnpm')
-      : rootModulesDir,
+    virtualStoreDir,
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,

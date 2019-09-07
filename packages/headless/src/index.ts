@@ -302,9 +302,13 @@ export default async (opts: HeadlessOptions) => {
           directNodes.add(loc)
         })
     }
+    const extraBinPaths = [...opts.extraBinPaths || []]
+    if (opts.hoistPattern) {
+      extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+    }
     await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
-      extraBinPaths: opts.extraBinPaths,
+      extraBinPaths,
       optional: opts.include.optionalDependencies,
       prefix: opts.lockfileDirectory,
       rawNpmConfig: opts.rawNpmConfig,

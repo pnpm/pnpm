@@ -49,7 +49,10 @@ export default async function link (
   }
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts.manifest, opts)
+  const ctx = await getContextForSingleImporter(opts.manifest, {
+    ...opts,
+    extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
+  })
 
   const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
   const currentLockfile = R.clone(ctx.currentLockfile)

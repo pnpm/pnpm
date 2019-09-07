@@ -820,7 +820,7 @@ async function installInContext (
       await buildModules(result.depGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
-        extraBinPaths: opts.extraBinPaths,
+        extraBinPaths: ctx.extraBinPaths,
         optional: opts.include.optionalDependencies,
         prefix: ctx.lockfileDirectory,
         rawNpmConfig: opts.rawNpmConfig,

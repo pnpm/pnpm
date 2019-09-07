@@ -19,7 +19,10 @@ export default async function (maybeOpts: StoreStatusOptions) {
     storePath,
     skipped,
     wantedLockfile,
-  } = await getContextForSingleImporter({}, opts)
+  } = await getContextForSingleImporter({}, {
+    ...opts,
+    extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
+  })
   if (!wantedLockfile) return []
 
   const pkgPaths = (Object.keys(wantedLockfile.packages || {})
