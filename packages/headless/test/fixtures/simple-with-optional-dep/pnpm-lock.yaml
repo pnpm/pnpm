@@ -7,7 +7,7 @@ packages:
   /dep-of-pkg-with-1-dep/100.0.0:
     dev: false
     resolution:
-      integrity: sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==
+      integrity: sha512-JWH4RcjI/VmrhmpAzu0McfUiBX0C9PRcYmVTpPl0LXGnFnMtSlsoYskQRy1nz1+3FrlVXb7lON6sJUGgzvgexA==
   /is-positive/1.0.0:
     dev: false
     engines:
