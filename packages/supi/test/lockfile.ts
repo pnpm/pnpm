@@ -165,7 +165,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   t.equal(
-    project.requireModule('.localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
+    project.requireModule('.pnpm/localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
 
@@ -339,8 +339,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/bar'))).version, '100.0.0')
 
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
@@ -365,8 +365,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/bar'))).version, '100.0.0')
 })
 
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async (t: tape.Test) => {

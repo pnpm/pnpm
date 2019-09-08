@@ -40,7 +40,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has('.localhost+4873/colors') // colors is not symlinked from the store
+  await project.has('.pnpm/localhost+4873/colors') // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -271,10 +271,10 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
   await project.has('.pnpm/node_modules/path-is-absolute')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.pnpm/.localhost+4873/wrappy/1.0.2')
+  await project.hasNot('.pnpm/localhost+4873/wrappy/1.0.2')
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has('.pnpm/.localhost+4873/rimraf/2.5.1')
+  await project.has('.pnpm/localhost+4873/rimraf/2.5.1')
 
   await project.isExecutable('.bin/rimraf')
 
@@ -553,8 +553,8 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
-  await project.has('.localhost+4873/rimraf') // rimraf is not symlinked from the store
-  await project.hasNot('.localhost+4873/colors') // colors is symlinked from the store
+  await project.has('.pnpm/localhost+4873/rimraf') // rimraf is not symlinked from the store
+  await project.hasNot('.pnpm/localhost+4873/colors') // colors is symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -602,7 +602,7 @@ test('installing with hoistPattern=*', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has('.pnpm/.localhost+4873/colors') // colors is not symlinked from the store
+  await project.has('.pnpm/localhost+4873/colors') // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -781,7 +781,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
 
   await projectBar.has('foo')
-  t.ok(await exists(path.join(workspaceFixture, 'node_modules', '.localhost+4873', 'express', '4.16.4', 'node_modules', 'array-flatten')), 'independent package linked')
+  t.ok(await exists(path.join(workspaceFixture, 'node_modules/.pnpm/localhost+4873/express/4.16.4/node_modules/array-flatten')), 'independent package linked')
 
   t.end()
 })

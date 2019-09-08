@@ -50,6 +50,7 @@ importers:
       run-groups: 2.0.1
   packages/config:
     dependencies:
+      '@pnpm/constants': 'link:../constants'
       '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-conf': 1.2.4
@@ -67,6 +68,7 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/config': 'link:'
+      '@pnpm/constants': 'workspace:1.1.0'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32

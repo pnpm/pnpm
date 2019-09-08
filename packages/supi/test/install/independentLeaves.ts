@@ -61,8 +61,8 @@ test('installing with independent-leaves and hoistPattern', async (t) => {
   await project.has('.pnpm/node_modules/minimatch')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.pnpm/.localhost+4873/wrappy/1.0.2')
+  await project.hasNot('.pnpm/localhost+4873/wrappy/1.0.2')
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has('.pnpm/.localhost+4873/rimraf/2.5.1')
+  await project.has('.pnpm/localhost+4873/rimraf/2.5.1')
 })

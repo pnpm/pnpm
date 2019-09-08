@@ -1,3 +1,4 @@
+import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
@@ -204,7 +205,7 @@ export default async (
   if (pnpmConfig.global) {
     const independentLeavesSuffix = pnpmConfig.independentLeaves ? '_independent_leaves' : ''
     const shamefullyFlattenSuffix = pnpmConfig.shamefullyFlatten ? '_shamefully_flatten' : ''
-    const subfolder = '2' + independentLeavesSuffix + shamefullyFlattenSuffix
+    const subfolder = LAYOUT_VERSION.toString() + independentLeavesSuffix + shamefullyFlattenSuffix
     pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, subfolder)
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true

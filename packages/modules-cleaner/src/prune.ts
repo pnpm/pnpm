@@ -140,7 +140,7 @@ export default async function prune (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(opts.virtualStoreDir, `.${orphanDepPath}`, 'node_modules')
+        const pathToRemove = path.join(opts.virtualStoreDir, orphanDepPath, 'node_modules')
         removalLogger.debug(pathToRemove)
         try {
           await vacuum(pathToRemove, {

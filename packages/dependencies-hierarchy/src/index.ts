@@ -382,7 +382,7 @@ function getPkgInfo (
     isPeer: Boolean(opts.peers && opts.peers.has(opts.alias)),
     isSkipped,
     name,
-    path: packageAbsolutePath && path.join(opts.modulesDir, `.${packageAbsolutePath}`) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
+    path: packageAbsolutePath && path.join(opts.modulesDir, '.pnpm', packageAbsolutePath) || path.join(opts.modulesDir, '..', opts.ref.substr(5)),
     version,
   }
   if (resolved) {

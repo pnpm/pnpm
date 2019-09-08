@@ -517,7 +517,7 @@ test('circular dependency', async t => {
 })
 
 function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
-  const p = path.resolve(modulesDir, `.${node.path}`)
+  const p = path.resolve(modulesDir, '.pnpm', node.path)
   if (!node.dependencies) {
     return {
       ...node,

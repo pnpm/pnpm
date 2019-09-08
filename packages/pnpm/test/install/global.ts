@@ -1,3 +1,4 @@
+import { LAYOUT_VERSION } from '@pnpm/constants'
 import prepare from '@pnpm/prepare'
 import isWindows = require('is-windows')
 import path = require('path')
@@ -11,7 +12,6 @@ import {
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
-const LAYOUT_VERSION = '2'
 
 test('global installation', async (t: tape.Test) => {
   prepare(t)
@@ -27,8 +27,8 @@ test('global installation', async (t: tape.Test) => {
   await execPnpm('install', '--global', 'is-negative')
 
   const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', LAYOUT_VERSION)
-    : path.join(global, 'pnpm-global', LAYOUT_VERSION)
+    ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
+    : path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
 
   const isPositive = require(path.join(globalPrefix, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
@@ -50,8 +50,8 @@ test('always install latest when doing global installation without spec', async 
   await execPnpm('install', '-g', 'peer-c')
 
   const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', LAYOUT_VERSION)
-    : path.join(global, 'pnpm-global', LAYOUT_VERSION)
+    ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
+    : path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
 
   process.chdir(globalPrefix)
 
@@ -96,5 +96,5 @@ test('run lifecycle events of global packages in correct working directory', asy
 
   await execPnpm('install', '-g', 'postinstall-calls-pnpm@1.0.0')
 
-  t.ok(await exists(path.join(global, 'pnpm-global/2/node_modules/postinstall-calls-pnpm/created-by-postinstall')))
+  t.ok(await exists(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`)))
 })
