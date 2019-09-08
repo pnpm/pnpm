@@ -459,3 +459,20 @@ test('throw error on "update --prefer-frozen-lockfile"', async (t) => {
     t.end()
   }
 })
+
+test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
+  const { configs, warnings } = await getConfigs({
+    cliArgs: {
+      'shamefully-flatten': true,
+    },
+    command: ['install'],
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(configs.hoistPattern, '*')
+  t.deepEqual(warnings, ['The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.'])
+  t.end()
+})

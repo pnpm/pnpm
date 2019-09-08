@@ -283,7 +283,7 @@ export default async (
     pnpmConfig.extraBinPaths = []
   }
   if (pnpmConfig['shamefullyFlatten']) {
-    warnings.push('The "shamefully-flatten" setting is deprecated. Use "hoist-pattern" instead.')
+    warnings.push('The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.')
     pnpmConfig.hoistPattern = '*'
   }
 
