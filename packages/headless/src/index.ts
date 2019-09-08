@@ -16,6 +16,7 @@ import PnpmError from '@pnpm/error'
 import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
+import hoist from '@pnpm/hoist'
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
@@ -45,7 +46,6 @@ import {
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import shamefullyFlatten from '@pnpm/shamefully-flatten'
 import {
   PackageFilesResponse,
   StoreController,
@@ -78,14 +78,14 @@ export interface HeadlessOptions {
   importers: Array<{
     bin: string,
     buildIndex: number,
-    hoistedAliases: {[depPath: string]: string[]}
     manifest: ImporterManifest,
     modulesDir: string,
     id: string,
     prefix: string,
     pruneDirectDependencies?: boolean,
-    shamefullyFlatten: boolean,
   }>,
+  hoistedAliases: {[depPath: string]: string[]}
+  hoistPattern?: string,
   lockfileDirectory: string,
   storeController: StoreController,
   sideEffectsCacheRead: boolean,
@@ -122,7 +122,10 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
-  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
+  const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
+  const virtualStoreDir = opts.hoistPattern
+    ? path.join(rootModulesDir, '.pnpm')
+    : rootModulesDir
 
   for (const { id, manifest, prefix } of opts.importers) {
     if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
@@ -155,6 +158,7 @@ export default async (opts: HeadlessOptions) => {
       {
         currentLockfile,
         dryRun: false,
+        hoistedAliases: opts.hoistedAliases,
         include: opts.include,
         lockfileDirectory,
         pruneStore: opts.pruneStore,
@@ -228,9 +232,10 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const rootImporterWithFlatModules = opts.importers.find((importer) => importer.id === '.' && importer.shamefullyFlatten)
+  const rootImporterWithFlatModules = opts.hoistPattern && opts.importers.find((importer) => importer.id === '.')
+  let newHoistedAliases!: {[depPath: string]: string[]}
   if (rootImporterWithFlatModules) {
-    rootImporterWithFlatModules.hoistedAliases = await shamefullyFlatten({
+    newHoistedAliases = await hoist(opts.hoistPattern!, {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -242,10 +247,12 @@ export default async (opts: HeadlessOptions) => {
         : undefined,
       lockfile: filteredLockfile,
       lockfileDirectory: opts.lockfileDirectory,
-      modulesDir: rootImporterWithFlatModules.modulesDir,
+      modulesDir: path.join(virtualStoreDir, 'node_modules'),
       registries: opts.registries,
       virtualStoreDir,
     })
+  } else {
+    newHoistedAliases = {}
   }
 
   await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
@@ -295,9 +302,13 @@ export default async (opts: HeadlessOptions) => {
           directNodes.add(loc)
         })
     }
+    const extraBinPaths = [...opts.extraBinPaths || []]
+    if (opts.hoistPattern) {
+      extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+    }
     await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
-      extraBinPaths: opts.extraBinPaths,
+      extraBinPaths,
       optional: opts.include.optionalDependencies,
       prefix: opts.lockfileDirectory,
       rawNpmConfig: opts.rawNpmConfig,
@@ -316,14 +327,9 @@ export default async (opts: HeadlessOptions) => {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
   await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
-  await writeModulesYaml(virtualStoreDir, {
-    importers: opts.importers.reduce((acc, importer) => {
-      acc[importer.id] = {
-        hoistedAliases: importer.hoistedAliases,
-        shamefullyFlatten: importer.shamefullyFlatten,
-      }
-      return acc
-    }, {}),
+  await writeModulesYaml(rootModulesDir, {
+    hoistedAliases: newHoistedAliases,
+    hoistPattern: opts.hoistPattern,
     included: opts.include,
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,

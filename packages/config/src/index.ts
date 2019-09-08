@@ -30,6 +30,7 @@ export const types = Object.assign({
   'frozen-shrinkwrap': Boolean,
   'global-path': path,
   'global-pnpmfile': String,
+  'hoist-pattern': String,
   'ignore-pnpmfile': Boolean,
   'ignore-stop-requests': Boolean,
   'ignore-upload-requests': Boolean,
@@ -86,10 +87,11 @@ export default async (
       version: string,
     },
   },
-): Promise<PnpmConfigs> => {
+): Promise<{configs: PnpmConfigs, warnings: string[]}> => {
   const packageManager = opts && opts.packageManager || { name: 'pnpm', version: 'undefined' }
   const cliArgs = opts && opts.cliArgs || {}
   const command = opts.command || []
+  const warnings = new Array<string>()
 
   switch (command[command.length - 1]) {
     case 'update':
@@ -280,8 +282,12 @@ export default async (
   } else {
     pnpmConfig.extraBinPaths = []
   }
+  if (pnpmConfig['shamefullyFlatten']) {
+    warnings.push('The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.')
+    pnpmConfig.hoistPattern = '*'
+  }
 
-  return pnpmConfig
+  return { configs: pnpmConfig, warnings }
 }
 
 export async function findWorkspacePrefix (prefix: string) {

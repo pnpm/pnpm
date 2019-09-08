@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import linkBins from '@pnpm/link-bins'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
@@ -10,10 +11,12 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import minimatch = require('minimatch')
 import path = require('path')
 import R = require('ramda')
 
-export default async function shamefullyFlattenByLockfile (
+export default async function hoistByLockfile (
+  hoistPattern: string,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     lockfile: Lockfile,
@@ -25,27 +28,38 @@ export default async function shamefullyFlattenByLockfile (
 ) {
   if (!opts.lockfile.packages) return {}
 
-  const lockfileImporter = opts.lockfile.importers['.']
+  const entryNodes = new Set<string>()
+  for (let importerId of Object.keys(opts.lockfile.importers).sort()) {
+    const lockfileImporter = opts.lockfile.importers[importerId]
+    ; (
+      R.toPairs({
+        ...lockfileImporter.devDependencies,
+        ...lockfileImporter.dependencies,
+        ...lockfileImporter.optionalDependencies,
+      })
+      .map((pair) => dp.refToRelative(pair[1], pair[0]))
+      .filter((nodeId) => nodeId !== null) as string[]
+    ).forEach((relativePath) => { entryNodes.add(relativePath) })
+  }
 
-  const entryNodes = R.toPairs({
-    ...lockfileImporter.devDependencies,
-    ...lockfileImporter.dependencies,
-    ...lockfileImporter.optionalDependencies,
-  })
-  .map((pair) => dp.refToRelative(pair[1], pair[0]))
-  .filter((nodeId) => nodeId !== null) as string[]
-
-  const deps = await getDependencies(opts.lockfile.packages, entryNodes, new Set(), 0, {
+  const deps = await getDependencies(opts.lockfile.packages, Array.from(entryNodes.values()), new Set(), 0, {
     getIndependentPackageLocation: opts.getIndependentPackageLocation,
     lockfileDirectory: opts.lockfileDirectory,
     registries: opts.registries,
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  return shamefullyFlattenGraph(deps, lockfileImporter.specifiers, {
+  const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.'].specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
+    pattern: hoistPattern,
   })
+
+  const bin = path.join(opts.modulesDir, '.bin')
+  const warn = (message: string) => logger.warn({ message, prefix: path.join(opts.modulesDir, '../..') })
+  await linkBins(opts.modulesDir, bin, { allowExoticManifests: true, warn })
+
+  return aliasesByDependencyPath
 }
 
 async function getDependencies (
@@ -124,12 +138,13 @@ export interface Dependency {
   absolutePath: string,
 }
 
-async function shamefullyFlattenGraph (
+async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
     modulesDir: string,
     dryRun: boolean,
+    pattern: string,
   },
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
@@ -144,6 +159,7 @@ async function shamefullyFlattenGraph (
     // build the alias map and the id map
     .map((depNode) => {
       for (const childAlias of Object.keys(depNode.children)) {
+        if (!minimatch(childAlias, opts.pattern)) continue
         // if this alias has already been taken, skip it
         if (hoistedAliases.has(childAlias)) {
           continue

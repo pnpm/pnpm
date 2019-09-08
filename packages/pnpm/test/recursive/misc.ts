@@ -254,11 +254,11 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml1 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
-  t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
+  const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
+  t.equal(modulesYaml1 && modulesYaml1.hoistPattern, '*')
 
-  const modulesYaml2 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
-  t.notOk(modulesYaml2 && modulesYaml2.shamefullyFlatten)
+  const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
+  t.notOk(modulesYaml2 && modulesYaml2.hoistPattern)
 })
 
 test('workspace .npmrc is always read', async (t: tape.Test) => {
@@ -297,8 +297,8 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
-  const modulesYaml1 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
-  t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
+  const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
+  t.equal(modulesYaml1 && modulesYaml1.hoistPattern, '*')
 
   process.chdir('..')
   process.chdir('project-2')
@@ -307,8 +307,8 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml2 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
-  t.ok(modulesYaml2 && modulesYaml2.shamefullyFlatten === false)
+  const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
+  t.notOk(modulesYaml2 && modulesYaml2.hoistPattern)
 })
 
 test('recursive installation using server', async (t: tape.Test) => {

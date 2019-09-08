@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/shamefully-flatten",
-  "description": "Flattening a node_modules created by pnpm",
-  "version": "4.0.0",
+  "name": "@pnpm/hoist",
+  "description": "Hoists dependencies in a node_modules created by pnpm",
+  "version": "0.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -26,7 +26,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/shamefully-flatten#readme",
+  "homepage": "https://github.com/pnpm/hoist#readme",
   "keywords": [
     "pnpm"
   ],
@@ -34,7 +34,7 @@
   "engines": {
     "node": ">=8.15"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/shamefully-flatten",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/hoist",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "test": "pnpm run tsc && pnpm run lint",
@@ -44,12 +44,15 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:1.1.0",
+    "@pnpm/link-bins": "4.4.0",
     "@pnpm/lockfile-types": "workspace:1.1.0",
     "@pnpm/lockfile-utils": "workspace:1.0.10",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/symlink-dependency": "workspace:2.0.6",
     "@pnpm/types": "workspace:3.2.0",
+    "@types/minimatch": "3.0.3",
     "dependency-path": "workspace:3.0.8",
+    "minimatch": "3.0.4",
     "ramda": "0.26.1"
   }
 }

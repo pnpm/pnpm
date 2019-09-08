@@ -72,7 +72,8 @@ function getHelpText (command: string) {
           --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
 
         Discouraged options:
-          --shamefully-flatten               Attempt to flatten the dependency tree, similar to what npm does
+          --hoist-pattern <pattern>          Hoist all dependencies matching the pattern to the root of node_modules.
+                                             Supplying it a * will hoist all dependencies (this is similar to what npm does).
 
         Filtering options:
           -- <package selector>..., --filter <package selector>
@@ -146,7 +147,8 @@ function getHelpText (command: string) {
                                 For options that may be used with \`-r\`, see "pnpm help recursive"
 
         Discouraged options:
-          --shamefully-flatten  attempt to flatten the dependency tree, similar to what npm and Yarn do
+          --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
+                                     Supplying it a * will hoist all dependencies (this is similar to what npm does).
       `
 
     case 'link':
@@ -190,7 +192,8 @@ function getHelpText (command: string) {
           -L, --latest          ignore version ranges in package.json
 
         Discouraged options:
-          --shamefully-flatten  attempt to flatten the dependency tree, similar to what npm does
+          --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
+                                     Supplying it a * will hoist all dependencies (this is similar to what npm does).
       `
 
     case 'list':

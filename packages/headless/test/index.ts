@@ -40,7 +40,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  t.ok(project.has('.localhost+4873/colors'), 'colors is not symlinked from the store')
+  await project.has('.localhost+4873/colors') // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -243,7 +243,7 @@ test('not installing optional deps', async (t) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1547
-test('installing with independent-leaves and shamefully-flatten', async (t) => {
+test('installing with independent-leaves and hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'with-1-dep')
   await rimraf(path.join(prefix, 'node_modules'))
 
@@ -253,13 +253,11 @@ test('installing with independent-leaves and shamefully-flatten', async (t) => {
         prefix,
       },
     ],
-    prefix,
-    {
-      shamefullyFlatten: true,
-    },
+    prefix
   )
 
   await headless(await testDefaults({
+    hoistPattern: '*',
     importers: await Promise.all(
       importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
@@ -269,14 +267,14 @@ test('installing with independent-leaves and shamefully-flatten', async (t) => {
 
   const project = assertProject(t, prefix)
   await project.has('rimraf')
-  await project.has('glob')
-  await project.has('path-is-absolute')
+  await project.has('.pnpm/node_modules/glob')
+  await project.has('.pnpm/node_modules/path-is-absolute')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.localhost+4873/wrappy/1.0.2')
+  await project.hasNot('.pnpm/.localhost+4873/wrappy/1.0.2')
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has('.localhost+4873/rimraf/2.5.1')
+  await project.has('.pnpm/.localhost+4873/rimraf/2.5.1')
 
   await project.isExecutable('.bin/rimraf')
 
@@ -555,8 +553,8 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
-  t.ok(project.has('.localhost+4873/rimraf'), 'rimraf is not symlinked from the store')
-  t.ok(project.hasNot('.localhost+4873/colors'), 'colors is symlinked from the store')
+  await project.has('.localhost+4873/rimraf') // rimraf is not symlinked from the store
+  await project.hasNot('.localhost+4873/colors') // colors is symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -590,21 +588,21 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.end()
 })
 
-test('installing with shamefullyFlatten = true', async (t) => {
+test('installing with hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, shamefullyFlatten: true }))
+  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, hoistPattern: '*' }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
-  t.ok(project.requireModule('glob'), 'prod subdep hoisted')
+  t.ok(project.requireModule('.pnpm/node_modules/glob'), 'prod subdep hoisted')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  t.ok(project.has('.localhost+4873/colors'), 'colors is not symlinked from the store')
+  await project.has('.pnpm/.localhost+4873/colors') // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -643,7 +641,7 @@ test('installing with shamefullyFlatten = true', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.importers['.'].hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -672,7 +670,7 @@ test('using side effects cache', async (t) => {
   t.end()
 })
 
-test('using side effects cache and shamefully-flatten', async (t) => {
+test('using side effects cache and hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'side-effects-of-subdep')
 
   const { importers } = await readImportersContext(
@@ -682,14 +680,12 @@ test('using side effects cache and shamefully-flatten', async (t) => {
       },
     ],
     prefix,
-    {
-      shamefullyFlatten: true,
-    },
   )
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
+    hoistPattern: '*',
     importers: await Promise.all(
       importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
@@ -701,7 +697,7 @@ test('using side effects cache and shamefully-flatten', async (t) => {
   await headless(opts)
 
   const project = assertProject(t, prefix)
-  await project.has('es5-ext') // verifying that a flat node_modules was created
+  await project.has('.pnpm/node_modules/es5-ext') // verifying that a flat node_modules was created
 
   const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
@@ -709,9 +705,9 @@ test('using side effects cache and shamefully-flatten', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
   await headless(opts)
 
-  t.ok(await exists(path.join(prefix, 'node_modules', 'runas', 'build', 'new-file.txt')), 'side effects cache correctly used')
+  t.ok(await exists(path.join(prefix, 'node_modules/.pnpm/node_modules/runas/build/new-file.txt')), 'side effects cache correctly used')
 
-  await project.has('es5-ext') // verifying that a flat node_modules was created
+  await project.has('.pnpm/node_modules/es5-ext') // verifying that a flat node_modules was created
 
   t.end()
 })
@@ -729,9 +725,6 @@ test('installing in a workspace', async (t) => {
       },
     ],
     workspaceFixture,
-    {
-      shamefullyFlatten: false,
-    },
   )
 
   importers = await Promise.all(
@@ -775,9 +768,6 @@ test('independent-leaves: installing in a workspace', async (t) => {
       },
     ],
     workspaceFixture,
-    {
-      shamefullyFlatten: false,
-    },
   )
 
   await headless(await testDefaults({

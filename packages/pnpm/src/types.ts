@@ -81,7 +81,7 @@ export interface PnpmOptions {
   pnpmfile: string,
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  shamefullyFlatten?: boolean,
+  hoistPattern?: string,
   useStoreServer?: boolean,
   workspaceConcurrency: number,
   workspacePrefix?: string,

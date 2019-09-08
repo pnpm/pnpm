@@ -117,6 +117,7 @@ export async function rebuildPkgs (
     ctx.virtualStoreDir,
     ctx.currentLockfile,
     ctx.importers,
+    ctx.extraBinPaths,
     opts,
   )
 }
@@ -145,13 +146,14 @@ export async function rebuild (
     ctx.virtualStoreDir,
     ctx.currentLockfile,
     ctx.importers,
+    ctx.extraBinPaths,
     opts,
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
   const scriptsOpts = {
-    extraBinPaths: opts.extraBinPaths,
+    extraBinPaths: ctx.extraBinPaths,
     rawNpmConfig: opts.rawNpmConfig,
     unsafePerm: opts.unsafePerm || false,
   }
@@ -167,15 +169,10 @@ export async function rebuild (
     }
   }
 
-  await writeModulesYaml(ctx.virtualStoreDir, {
+  await writeModulesYaml(ctx.rootModulesDir, {
     ...ctx.modulesFile,
-    importers: {
-      ...ctx.modulesFile && ctx.modulesFile.importers,
-      ...ctx.importers.reduce((acc, { id, hoistedAliases, shamefullyFlatten }) => {
-        acc[id] = { hoistedAliases, shamefullyFlatten }
-        return acc
-      }, {}),
-    },
+    hoistedAliases: ctx.hoistedAliases,
+    hoistPattern: opts.hoistPattern,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
@@ -237,6 +234,7 @@ async function _rebuild (
   rootNodeModulesDir: string,
   lockfile: Lockfile,
   importers: Array<{ id: string, prefix: string }>,
+  extraBinPaths: string[],
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
@@ -300,6 +298,7 @@ async function _rebuild (
         }
         await runPostinstallHooks({
           depPath,
+          extraBinPaths,
           optional: pkgSnapshot.optional === true,
           pkgRoot,
           prepare: pkgSnapshot.prepare,

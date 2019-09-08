@@ -18,7 +18,6 @@ export interface StrictStoreStatusOptions {
   development: boolean,
   optional: boolean,
   bin: string,
-  shamefullyFlatten: boolean,
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
@@ -35,7 +34,6 @@ const defaults = async (opts: StoreStatusOptions) => {
     lockfileDirectory,
     prefix,
     registries: DEFAULT_REGISTRIES,
-    shamefullyFlatten: false,
     store: opts.store,
     useLockfile: true,
   } as StrictStoreStatusOptions
