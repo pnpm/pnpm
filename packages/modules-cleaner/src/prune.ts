@@ -118,9 +118,10 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      const rootImporter = importers.find(({ id }) => id === '.')
-      if (opts.currentLockfile.packages && opts.hoistPattern && rootImporter) {
-        const { bin, modulesDir, prefix } = rootImporter
+      if (opts.currentLockfile.packages && opts.hoistPattern) {
+        const modulesDir = path.join(opts.virtualStoreDir, 'node_modules')
+        const bin = path.join(modulesDir, '.bin')
+        const prefix = path.join(opts.virtualStoreDir, '../..')
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
           if (opts.hoistedAliases[orphanDepPath]) {
             await Promise.all(opts.hoistedAliases[orphanDepPath].map((alias) => {
