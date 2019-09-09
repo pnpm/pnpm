@@ -27,19 +27,7 @@ export interface Modules {
 export async function read (virtualStoreDir: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
   try {
-    const m = await readYamlFile<Modules>(modulesYamlPath)
-    // for backward compatibility
-    // tslint:disable:no-string-literal
-    if (m['storePath']) {
-      m.store = m['storePath']
-      delete m['storePath']
-    }
-    if (m['importers'] && m['importers']['.'] && m['importers']['.']['shamefullyFlatten'] === true) {
-      m.hoistedAliases = m['importers']['.']['hoistedAliases']
-      m.hoistPattern = '*'
-    }
-    // tslint:enable:no-string-literal
-    return m
+    return await readYamlFile<Modules>(modulesYamlPath)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
@@ -55,7 +43,7 @@ export function write (
   modules: Modules & { registries: Registries },
 ) {
   const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
-  if (modules['skipped']) modules['skipped'].sort() // tslint:disable-line:no-string-literal
+  if (modules.skipped) modules.skipped.sort()
 
   if (!modules.hoistPattern) {
     // Because the YAML writer fails on undefined fields

@@ -123,9 +123,7 @@ export default async (opts: HeadlessOptions) => {
 
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
-  const virtualStoreDir = opts.hoistPattern
-    ? path.join(rootModulesDir, '.pnpm')
-    : rootModulesDir
+  const virtualStoreDir = path.join(rootModulesDir, '.pnpm')
 
   for (const { id, manifest, prefix } of opts.importers) {
     if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
@@ -485,7 +483,7 @@ async function lockfileToDepGraph (
         const pkgSnapshot = lockfile.packages![relDepPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
         const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
         const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
           lockfileDirectory: opts.lockfileDirectory,
@@ -627,7 +625,7 @@ async function getChildrenPaths (
         children[alias] = pkgLocation.directory
       } else {
         const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.lockfileDirectory)}`, 'node_modules', pkgName)
+        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDirectory), 'node_modules', pkgName)
       }
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))

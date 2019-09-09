@@ -94,9 +94,7 @@ export default async function getContext<T> (
     }))
   }
 
-  const virtualStoreDir = opts.hoistPattern
-    ? path.join(importersContext.rootModulesDir, '.pnpm')
-    : importersContext.rootModulesDir
+  const virtualStoreDir = path.join(importersContext.rootModulesDir, '.pnpm')
   const extraBinPaths = [
     ...opts.extraBinPaths || []
   ]
@@ -319,9 +317,7 @@ export async function getContextForSingleImporter (
   }
 
   await makeDir(storePath)
-  const virtualStoreDir = opts.hoistPattern
-    ? path.join(rootModulesDir, '.pnpm')
-    : rootModulesDir
+  const virtualStoreDir = path.join(rootModulesDir, '.pnpm')
   const extraBinPaths = [
     ...opts.extraBinPaths || []
   ]

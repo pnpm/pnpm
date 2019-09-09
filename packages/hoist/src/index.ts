@@ -94,7 +94,7 @@ async function getDependencies (
 
     const absolutePath = dp.resolve(opts.registries, depRelPath)
     const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(absolutePath, opts.lockfileDirectory)}`, 'node_modules')
+    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(absolutePath, opts.lockfileDirectory), 'node_modules')
     const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,
