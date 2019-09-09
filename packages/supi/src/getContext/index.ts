@@ -179,7 +179,7 @@ async function validateNodeModules (
   const rootImporter = importers.find(({ id }) => id === '.')
   if (rootImporter) {
     try {
-      if (opts.currentHoistPattern !== opts.hoistPattern) {
+      if (opts.currentHoistPattern !== (opts.hoistPattern || undefined)) {
         if (opts.currentHoistPattern) {
           throw new PnpmError(
             'HOISTING_WANTED',

@@ -247,7 +247,7 @@ test('recursive installation with package-specific .npmrc', async t => {
     },
   ])
 
-  await fs.writeFile('project-1/.npmrc', 'shamefully-flatten = true', 'utf8')
+  await fs.writeFile('project-2/.npmrc', 'hoist = false', 'utf8')
 
   await execPnpm('recursive', 'install')
 
@@ -290,7 +290,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   const storeDir = path.resolve('../store')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
   await fs.writeFile('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
-  await fs.writeFile('project-2/.npmrc', 'shamefully-flatten = false', 'utf8')
+  await fs.writeFile('project-2/.npmrc', 'hoist=false', 'utf8')
 
   process.chdir('project-1')
   await execPnpm('install', '--store', storeDir)

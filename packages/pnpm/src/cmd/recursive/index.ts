@@ -575,10 +575,13 @@ function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[
 async function readLocalConfigs (prefix: string) {
   try {
     const ini = await readIniFile(path.join(prefix, '.npmrc')) as { [key: string]: string }
-    const configs = camelcaseKeys(ini) as {[key: string]: string}
+    const configs = camelcaseKeys(ini) as ({ [key: string]: string } & { hoist?: boolean })
     if (configs.shamefullyFlatten) {
       configs.hoistPattern = '*'
       // TODO: print a warning
+    }
+    if (configs.hoist === false) {
+      configs.hoistPattern = ''
     }
     return configs
   } catch (err) {
