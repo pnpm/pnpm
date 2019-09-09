@@ -115,6 +115,7 @@ export async function rebuildPkgs (
   await _rebuild(
     new Set(pkgs),
     ctx.virtualStoreDir,
+    ctx.rootModulesDir,
     ctx.currentLockfile,
     ctx.importers,
     ctx.extraBinPaths,
@@ -144,6 +145,7 @@ export async function rebuild (
   const pkgsThatWereRebuilt = await _rebuild(
     new Set(idsToRebuild),
     ctx.virtualStoreDir,
+    ctx.rootModulesDir,
     ctx.currentLockfile,
     ctx.importers,
     ctx.extraBinPaths,
@@ -231,6 +233,7 @@ const limitLinking = pLimit(16)
 
 async function _rebuild (
   pkgsToRebuild: Set<string>,
+  virtualStoreDir: string,
   rootNodeModulesDir: string,
   lockfile: Lockfile,
   importers: Array<{ id: string, prefix: string }>,
@@ -280,7 +283,7 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const pkgRoot = !independent
-        ? path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules', pkgInfo.name)
+        ? path.join(virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules', pkgInfo.name)
         : await (
           async () => {
             const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
@@ -292,7 +295,7 @@ async function _rebuild (
         )()
       try {
         if (!independent) {
-          const modules = path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+          const modules = path.join(virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { warn })
         }
@@ -338,7 +341,7 @@ async function _rebuild (
         const depPath = dp.resolve(opts.registries, relDepPath)
         const pkgSnapshot = pkgSnapshots[relDepPath]
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-        const modules = path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+        const modules = path.join(virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
         const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
         return linkBins(modules, binPath, { warn })
       })),
