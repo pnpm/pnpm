@@ -456,10 +456,11 @@ async function partitionLinkedPackages (
       nonLinkedDependencies.push(dependency)
       continue
     }
-    const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, dependency.alias, {
+    const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
       prefix: opts.prefix,
       storePath: opts.storePath,
+      virtualStoreDir: opts.virtualStoreDir,
     })
     if (isInnerLink === true) {
       nonLinkedDependencies.push(dependency)
