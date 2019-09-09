@@ -42,8 +42,8 @@
   },
   "dependencies": {
     "@pnpm/assert-store": "1.0.0",
-    "@pnpm/constants": "1.1.0",
-    "@pnpm/modules-yaml": "3.0.3",
+    "@pnpm/constants": "file:../../packages/constants",
+    "@pnpm/modules-yaml": "file:../../packages/modules-yaml",
     "@types/mz": "0.0.32",
     "is-windows": "1.0.2",
     "isexe": "2.0.0",
