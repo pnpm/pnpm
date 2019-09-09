@@ -514,3 +514,19 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
   t.deepEqual(warnings, ['The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.'])
   t.end()
 })
+
+test('hoist-pattern is undefined if --no-hoist used', async (t) => {
+  const { configs } = await getConfigs({
+    cliArgs: {
+      'hoist': false,
+    },
+    command: ['install'],
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(configs.hoistPattern, undefined)
+  t.end()
+})
