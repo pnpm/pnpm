@@ -108,7 +108,7 @@ test('recursive install using "install --recursive"', async (t: tape.Test) => {
   t.ok(projects['project-2'].requireModule('is-negative'))
 })
 
-test('installation in the root of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
+test('installation in the root of a workspace with "install"', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -129,7 +129,6 @@ test('installation in the root of a workspace with "install" when the "use-beta-
   ])
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   await execPnpm('install')
 
@@ -137,7 +136,7 @@ test('installation in the root of a workspace with "install" when the "use-beta-
   t.ok(projects['project-2'].requireModule('is-negative'))
 })
 
-test('installation in a subdirectory of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
+test('installation in a subdirectory of a workspace with "install"', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -158,7 +157,6 @@ test('installation in a subdirectory of a workspace with "install" when the "use
   ])
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   process.chdir('project-1')
 
@@ -293,7 +291,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   await fs.writeFile('project-2/.npmrc', 'hoist=false', 'utf8')
 
   process.chdir('project-1')
-  await execPnpm('install', '--store', storeDir)
+  await execPnpm('install', '--store', storeDir, '--filter', '.')
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
@@ -303,7 +301,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   process.chdir('..')
   process.chdir('project-2')
 
-  await execPnpm('install', '--store', storeDir)
+  await execPnpm('install', '--store', storeDir, '--filter', '.')
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
@@ -1219,7 +1217,6 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
   const project = prepare(t)
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   {
     const { status, stderr } = execPnpmSync('add', 'is-positive')

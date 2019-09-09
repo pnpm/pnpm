@@ -146,7 +146,7 @@ export async function recursive (
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
     case 'add':
-      if (opts.useBetaCli && (!input || !input.length)) {
+      if (!input || !input.length) {
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
       }
       break

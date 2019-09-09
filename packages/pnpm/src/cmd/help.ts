@@ -17,13 +17,11 @@ function getHelpText (command: string) {
         Aliases: i
 
         Installs all dependencies of the project in the current working directory.
-        To install dependencies in every project of a monorepo, run \`pnpm recursive install\`
-        or \`pnpm install\` with filtering. For instance, \`pnpm install -- .\`.
+        When executed inside a workspace, installs all dependencies of all workspace packages.
 
         Options:
 
-          -r                                 run installation recursively in every package found in subdirectories
-                                             or in every workspace package, when executed inside a workspace.
+          -r                                 run installation recursively in every package found in subdirectories.
                                              For options that may be used with \`-r\`, see "pnpm help recursive"
           --store                            the location where all the packages are saved on the disk.
           --offline                          trigger an error if any required dependencies are not available in local store
