@@ -83,6 +83,44 @@ test('throw error if --shrinkwrap-directory is used with --global', async (t) =>
   }
 })
 
+test('throw error if --independent-leaves is used with --global', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'global': true,
+        'independent-leaves': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'Configuration conflict. "independent-leaves" may not be used with "global"')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_INDEPENDENT_LEAVES_WITH_GLOBAL')
+    t.end()
+  }
+})
+
+test('throw error if --hoist-pattern is used with --global', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'global': true,
+        'hoist-pattern': 'eslint',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'Configuration conflict. "hoist-pattern" may not be used with "global"')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL')
+    t.end()
+  }
+})
+
 test('when using --global, link-workspace-packages, shared-workspace-shrinwrap and shrinkwrap-directory are false even if it is set to true in a .npmrc file', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)

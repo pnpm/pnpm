@@ -66,14 +66,13 @@ function getHelpText (command: string) {
           --resolution-strategy fast                the default resolution strategy. Speed is preferred over deduplication
           --resolution-strategy fewer-dependencies  already installed dependencies are preferred even if newer versions
                                                     satisfy a range
+          --no-hoist                         Dependencies inside node_modules have access only to their listed dependencies.
+          --hoist-pattern <pattern>          Hoist all dependencies matching the pattern to the root of node_modules.
+                                             Supplying it a * will hoist all dependencies (this is similar to what npm does).
 
         Experimental options:
           --side-effects-cache               use or cache the results of (pre/post)install hooks
           --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
-
-        Discouraged options:
-          --hoist-pattern <pattern>          Hoist all dependencies matching the pattern to the root of node_modules.
-                                             Supplying it a * will hoist all dependencies (this is similar to what npm does).
 
         Filtering options:
           -- <package selector>..., --filter <package selector>
@@ -142,11 +141,10 @@ function getHelpText (command: string) {
         Removes packages from \`node_modules\` and from the project's \`packages.json\`
 
         Options:
-          -r                    uninstall from every package found in subdirectories
-                                or from every workspace package, when executed inside a workspace.
-                                For options that may be used with \`-r\`, see "pnpm help recursive"
-
-        Discouraged options:
+          -r                         uninstall from every package found in subdirectories
+                                     or from every workspace package, when executed inside a workspace.
+                                     For options that may be used with \`-r\`, see "pnpm help recursive"
+          --no-hoist                 Dependencies inside node_modules have access only to their listed dependencies.
           --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
                                      Supplying it a * will hoist all dependencies (this is similar to what npm does).
       `
@@ -190,8 +188,7 @@ function getHelpText (command: string) {
           --depth               how deep should levels of dependencies be inspected
                                 0 is default, which means top-level dependencies
           -L, --latest          ignore version ranges in package.json
-
-        Discouraged options:
+          --no-hoist            Dependencies inside node_modules have access only to their listed dependencies.
           --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
                                      Supplying it a * will hoist all dependencies (this is similar to what npm does).
       `

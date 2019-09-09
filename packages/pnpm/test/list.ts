@@ -42,33 +42,6 @@ test('listing global packages', async (t: tape.Test) => {
   ` + '\n')
 })
 
-test('listing global packages installed with independent-leaves = true', async (t: tape.Test) => {
-  tempDir(t)
-
-  const global = path.resolve('global')
-
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
-
-  await execPnpm('install', '-g', '--independent-leaves', 'is-positive@3.1.0')
-
-  const result = execPnpmSync('list', '-g', '--independent-leaves')
-
-  t.equal(result.status, 0)
-
-  const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', '3_independent_leaves')
-    : path.join(global, 'pnpm-global', '3_independent_leaves')
-  t.equal(result.stdout.toString(), stripIndent`
-    Legend: production dependency, optional only, dev only
-
-    ${globalPrefix}
-
-    dependencies:
-    is-positive 3.1.0
-  ` + '\n')
-})
-
 test('listing packages', async (t: tape.Test) => {
   prepare(t, {
     dependencies: {

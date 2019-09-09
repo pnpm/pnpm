@@ -31,6 +31,7 @@ export const types = Object.assign({
   'frozen-shrinkwrap': Boolean,
   'global-path': path,
   'global-pnpmfile': String,
+  'hoist': Boolean,
   'hoist-pattern': String,
   'ignore-pnpmfile': Boolean,
   'ignore-stop-requests': Boolean,
@@ -131,6 +132,8 @@ export default async (
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
     'globalconfig': npmDefaults.globalconfig,
+    'hoist': true,
+    'hoist-pattern': '*',
     'ignore-workspace-root-check': false,
     'latest': false,
     'link-workspace-packages': true,
@@ -203,16 +206,27 @@ export default async (
 
   pnpmConfig.localPrefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
   if (pnpmConfig.global) {
-    const independentLeavesSuffix = pnpmConfig.independentLeaves ? '_independent_leaves' : ''
-    const shamefullyFlattenSuffix = pnpmConfig.shamefullyFlatten ? '_shamefully_flatten' : ''
-    const subfolder = LAYOUT_VERSION.toString() + independentLeavesSuffix + shamefullyFlattenSuffix
-    pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, subfolder)
+    pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, LAYOUT_VERSION.toString())
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
+    if (pnpmConfig.independentLeaves) {
+      if (opts.cliArgs['independent-leaves']) {
+        throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_WITH_GLOBAL',
+          'Configuration conflict. "independent-leaves" may not be used with "global"')
+      }
+      pnpmConfig.independentLeaves = false
+    }
+    if (pnpmConfig.hoistPattern !== '*') {
+      if (opts.cliArgs['hoist-pattern']) {
+        throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
+          'Configuration conflict. "hoist-pattern" may not be used with "global"')
+      }
+      pnpmConfig.independentLeaves = false
+    }
     if (pnpmConfig.linkWorkspacePackages) {
       if (opts.cliArgs['link-workspace-packages']) {
         throw new PnpmError('CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL',
@@ -286,6 +300,9 @@ export default async (
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.')
     pnpmConfig.hoistPattern = '*'
+  }
+  if (pnpmConfig['hoist'] === false) {
+    delete pnpmConfig.hoistPattern
   }
 
   return { configs: pnpmConfig, warnings }

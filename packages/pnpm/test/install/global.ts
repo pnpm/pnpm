@@ -58,30 +58,6 @@ test('always install latest when doing global installation without spec', async 
   t.equal(require(path.resolve('node_modules', 'peer-c', 'package.json')).version, '2.0.0')
 })
 
-test('global installation with --independent-leaves', async (t: tape.Test) => {
-  prepare(t)
-  const global = path.resolve('..', 'global')
-
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
-
-  await execPnpm('install', '-g', '--independent-leaves', 'is-positive')
-
-  // there was an issue when subsequent installations were removing everything installed prior
-  // https://github.com/pnpm/pnpm/issues/808
-  await execPnpm('install', '-g', '--independent-leaves', 'is-negative')
-
-  const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', `${LAYOUT_VERSION}_independent_leaves`)
-    : path.join(global, 'pnpm-global', `${LAYOUT_VERSION}_independent_leaves`)
-
-  const isPositive = require(path.join(globalPrefix, 'node_modules', 'is-positive'))
-  t.ok(typeof isPositive === 'function', 'isPositive() is available')
-
-  const isNegative = require(path.join(globalPrefix, 'node_modules', 'is-negative'))
-  t.ok(typeof isNegative === 'function', 'isNegative() is available')
-})
-
 test('run lifecycle events of global packages in correct working directory', async (t: tape.Test) => {
   if (isWindows()) {
     // Skipping this test on Windows because "$npm_execpath run create-file" will fail on Windows
