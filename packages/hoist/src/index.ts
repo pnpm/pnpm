@@ -149,6 +149,7 @@ async function hoistGraph (
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
   const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
+  const match = opts.pattern === '*' ? () => true : (packageName: string) => minimatch(packageName, opts.pattern)
 
   await Promise.all(depNodes
     // sort by depth and then alphabetically
@@ -159,7 +160,7 @@ async function hoistGraph (
     // build the alias map and the id map
     .map((depNode) => {
       for (const childAlias of Object.keys(depNode.children)) {
-        if (!minimatch(childAlias, opts.pattern)) continue
+        if (!match(childAlias)) continue
         // if this alias has already been taken, skip it
         if (hoistedAliases.has(childAlias)) {
           continue

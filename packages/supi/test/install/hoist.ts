@@ -19,12 +19,14 @@ const testOnly = promisifyTape(tape.only)
 test('should hoist dependencies', async (t) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: '*' }))
+  await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], await testDefaults({ hoistPattern: '*' }))
 
   await project.has('express')
   await project.has('.pnpm/node_modules/debug')
   await project.has('.pnpm/node_modules/cookie')
   await project.has('.pnpm/node_modules/mime')
+  await project.has('@foo/has-dep-from-same-scope')
+  await project.has('.pnpm/node_modules/@foo/no-deps')
 
   // should also hoist bins
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
