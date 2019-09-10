@@ -62,6 +62,7 @@ export interface StrictInstallOptions {
   pruneStore: boolean,
   bin: string,
   prefix: string,
+  shamefullyHoist: boolean,
 }
 
 export type InstallOptions = Partial<StrictInstallOptions> &
@@ -104,6 +105,7 @@ const defaults = async (opts: InstallOptions) => {
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,
     resolutionStrategy: 'fast',
+    shamefullyHoist: false,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
     store: opts.store,

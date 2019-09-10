@@ -33,6 +33,7 @@ export interface StrictRebuildOptions {
   unsafePerm: boolean,
   pending: boolean,
   hoistPattern: string | undefined,
+  shamefullyHoist: boolean,
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
@@ -61,6 +62,7 @@ const defaults = async (opts: RebuildOptions) => {
     production: true,
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,
+    shamefullyHoist: false,
     sideEffectsCacheRead: false,
     store: opts.store,
     unsafePerm: process.platform === 'win32' ||

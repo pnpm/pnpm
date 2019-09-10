@@ -60,6 +60,7 @@ export const types = Object.assign({
   'resolution-strategy': ['fast', 'fewer-dependencies'],
   'save-peer': Boolean,
   'shamefully-flatten': Boolean,
+  'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
   'shared-workspace-shrinkwrap': Boolean,
   'shrinkwrap-directory': path,
@@ -144,6 +145,7 @@ export default async (
     'registry': npmDefaults.registry,
     'resolution-strategy': 'fast',
     'save-peer': false,
+    'shamefully-hoist': false,
     'shared-workspace-shrinkwrap': true,
     'shrinkwrap': npmDefaults.shrinkwrap,
     'sort': true,
@@ -298,7 +300,7 @@ export default async (
     pnpmConfig.extraBinPaths = []
   }
   if (pnpmConfig['shamefullyFlatten']) {
-    warnings.push('The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.')
+    warnings.push('The "shamefully-flatten" setting is deprecated. Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. Since v4, hoisting is on by default for all dependencies.')
     pnpmConfig.hoistPattern = '*'
   }
   if (pnpmConfig['hoist'] === false) {

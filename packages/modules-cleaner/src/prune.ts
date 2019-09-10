@@ -39,7 +39,7 @@ export default async function prune (
     dryRun?: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
     hoistedAliases: {[depPath: string]: string[]},
-    hoistPattern?: string,
+    hoistedModulesDir?: string,
     wantedLockfile: Lockfile,
     currentLockfile: Lockfile,
     pruneStore?: boolean,
@@ -118,9 +118,9 @@ export default async function prune (
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-      if (opts.currentLockfile.packages && opts.hoistPattern) {
-        const modulesDir = path.join(opts.virtualStoreDir, 'node_modules')
-        const bin = path.join(modulesDir, '.bin')
+      if (opts.currentLockfile.packages && opts.hoistedModulesDir) {
+        const modulesDir = opts.hoistedModulesDir
+        const bin = path.join(opts.hoistedModulesDir, '.bin')
         const prefix = path.join(opts.virtualStoreDir, '../..')
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
           if (opts.hoistedAliases[orphanDepPath]) {

@@ -605,6 +605,7 @@ test('installing with hoistPattern=*', async (t) => {
   await project.has('.pnpm/localhost+4873/colors') // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
+  await project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
 
   t.ok(await project.readCurrentLockfile())
   t.ok(await project.readModulesManifest())
@@ -615,7 +616,67 @@ test('installing with hoistPattern=*', async (t) => {
     updated: require(path.join(prefix, 'package.json')),
   } as PackageJsonLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
-    added: 15,
+    added: 17,
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix,
+  } as StatsLog), 'added stat')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix,
+    removed: 0,
+  } as StatsLog), 'removed stat')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    name: 'pnpm:stage',
+    prefix,
+    stage: 'importing_done',
+  } as StageLog), 'importing stage done logged')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    packageId: 'localhost+4873/is-negative/2.1.0',
+    requester: prefix,
+    status: 'resolved',
+  }), 'logs that package is being resolved')
+
+  const modules = await project.readModulesManifest()
+
+  t.deepEqual(modules!.hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+
+  t.end()
+})
+
+test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
+  const prefix = path.join(fixtures, 'simple-shamefully-flatten')
+  await rimraf(path.join(prefix, 'node_modules'))
+  const reporter = sinon.spy()
+
+  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, hoistPattern: '*', shamefullyHoist: true }))
+
+  const project = assertProject(t, prefix)
+  t.ok(project.requireModule('is-positive'), 'prod dep installed')
+  t.ok(project.requireModule('rimraf'), 'prod dep installed')
+  t.ok(project.requireModule('glob'), 'prod subdep hoisted')
+  t.ok(project.requireModule('is-negative'), 'dev dep installed')
+  t.ok(project.requireModule('colors'), 'optional dep installed')
+
+  // test that independent leaves is false by default
+  await project.has('.pnpm/localhost+4873/colors') // colors is not symlinked from the store
+
+  await project.isExecutable('.bin/rimraf')
+  await project.isExecutable('.bin/hello-world-js-bin')
+
+  t.ok(await project.readCurrentLockfile())
+  t.ok(await project.readModulesManifest())
+
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    name: 'pnpm:package-json',
+    updated: require(path.join(prefix, 'package.json')),
+  } as PackageJsonLog), 'updated package.json logged')
+  t.ok(reporter.calledWithMatch({
+    added: 17,
     level: 'debug',
     name: 'pnpm:stats',
     prefix,

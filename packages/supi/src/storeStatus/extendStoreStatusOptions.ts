@@ -12,6 +12,7 @@ export interface StrictStoreStatusOptions {
   forceSharedLockfile: boolean,
   useLockfile: boolean,
   registries: Registries,
+  shamefullyHoist: boolean,
 
   reporter: ReporterFunction,
   production: boolean,
@@ -34,6 +35,7 @@ const defaults = async (opts: StoreStatusOptions) => {
     lockfileDirectory,
     prefix,
     registries: DEFAULT_REGISTRIES,
+    shamefullyHoist: false,
     store: opts.store,
     useLockfile: true,
   } as StrictStoreStatusOptions
