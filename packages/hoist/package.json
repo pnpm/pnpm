@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
+    "@types/micromatch": "3.1.0",
     "@types/ramda": "0.26.21",
     "rimraf": "3.0.0"
   },
@@ -50,9 +51,8 @@
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/symlink-dependency": "workspace:2.0.6",
     "@pnpm/types": "workspace:3.2.0",
-    "@types/minimatch": "3.0.3",
     "dependency-path": "workspace:3.0.8",
-    "minimatch": "3.0.4",
+    "micromatch": "4.0.2",
     "ramda": "0.26.1"
   }
 }

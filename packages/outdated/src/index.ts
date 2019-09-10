@@ -11,7 +11,7 @@ import {
   PackageManifest,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import minimatch = require('minimatch')
+import { isMatch } from 'micromatch'
 
 export type GetLatestManifestFunction = (packageName: string) => Promise<PackageManifest | null>
 
@@ -75,7 +75,7 @@ async function _outdated (
       let pkgs = Object.keys(opts.wantedLockfile.importers[importerId][depType]!)
 
       if (forPkgs.length) {
-        pkgs = pkgs.filter((pkgName) => forPkgs.some((forPkg) => minimatch(pkgName, forPkg)))
+        pkgs = pkgs.filter((pkgName) => forPkgs.some((forPkg) => isMatch(pkgName, forPkg)))
       }
 
       await Promise.all(

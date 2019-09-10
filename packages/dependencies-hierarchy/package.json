@@ -42,9 +42,8 @@
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/types": "workspace:3.2.0",
     "@pnpm/utils": "workspace:0.10.6",
-    "@types/minimatch": "3.0.3",
     "dependency-path": "workspace:3.0.8",
-    "minimatch": "3.0.4",
+    "micromatch": "4.0.2",
     "normalize-path": "3.0.0",
     "resolve-link-target": "1.0.1",
     "semver": "6.3.0"
@@ -52,6 +51,7 @@
   "devDependencies": {
     "@pnpm/constants": "link:../constants",
     "@pnpm/logger": "2.1.1",
+    "@types/micromatch": "3.1.0",
     "@types/semver": "6",
     "dependencies-hierarchy": "link:",
     "tape": "4.11.0"

@@ -106,7 +106,7 @@ export default async function installCmd (
       ignoredPackages: new Set([prefix]),
       packageSelectors: [
         {
-          matcher: prefix,
+          pattern: prefix,
           scope: 'dependencies',
           selectBy: 'location',
         },

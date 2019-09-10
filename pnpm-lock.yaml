@@ -207,15 +207,15 @@ importers:
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
-      '@types/minimatch': 3.0.3
       dependency-path: 'link:../dependency-path'
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
       semver: 6.3.0
     devDependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/logger': 2.1.1
+      '@types/micromatch': 3.1.0
       '@types/semver': 6.0.1
       dependencies-hierarchy: 'link:'
       tape: 4.11.0
@@ -228,11 +228,11 @@ importers:
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/types': 'workspace:3.2.0'
       '@pnpm/utils': 'workspace:0.10.6'
-      '@types/minimatch': 3.0.3
+      '@types/micromatch': 3.1.0
       '@types/semver': '6'
       dependencies-hierarchy: 'link:'
       dependency-path: 'workspace:3.0.8'
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
       semver: 6.3.0
@@ -505,12 +505,12 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
-      '@types/minimatch': 3.0.3
       dependency-path: 'link:../dependency-path'
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       ramda: 0.26.1
     devDependencies:
       '@pnpm/logger': 2.1.1
+      '@types/micromatch': 3.1.0
       '@types/ramda': 0.26.21
       rimraf: 3.0.0
     specifiers:
@@ -522,10 +522,10 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'workspace:2.0.6'
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/minimatch': 3.0.3
+      '@types/micromatch': 3.1.0
       '@types/ramda': 0.26.21
       dependency-path: 'workspace:3.0.8'
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       ramda: 0.26.1
       rimraf: 3.0.0
   packages/lifecycle:
@@ -844,13 +844,13 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/types': 'link:../types'
-      '@types/minimatch': 3.0.3
       dependency-path: 'link:../dependency-path'
-      minimatch: 3.0.4
+      micromatch: 4.0.2
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.5.0
+      '@types/micromatch': 3.1.0
       npm-run-all: 4.1.5
       tape: 4.11.0
     specifiers:
@@ -861,9 +861,9 @@ importers:
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.5.0
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/minimatch': 3.0.3
+      '@types/micromatch': 3.1.0
       dependency-path: 'workspace:3.0.8'
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       npm-run-all: 4.1.5
       tape: 4.11.0
   packages/package-is-installable:
@@ -1074,7 +1074,6 @@ importers:
       '@pnpm/utils': 'link:../utils'
       '@types/archy': 0.0.31
       '@types/lru-cache': 5.1.0
-      '@types/minimatch': 3.0.3
       '@types/mz': 0.0.32
       '@types/wrap-ansi': 3.0.0
       '@zkochan/libnpx': 11.0.1
@@ -1103,7 +1102,7 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       mz: 2.7.0
       nopt: 4.0.1
       p-filter: 2.1.0
@@ -1133,6 +1132,7 @@ importers:
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
+      '@types/micromatch': 3.1.0
       '@types/mkdirp': 0.5.2
       '@types/nopt': 3.0.29
       '@types/ramda': 0.26.21
@@ -1192,7 +1192,7 @@ importers:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
       '@types/lru-cache': ^5.1.0
-      '@types/minimatch': ^3.0.3
+      '@types/micromatch': 3.1.0
       '@types/mkdirp': 0.5.2
       '@types/mz': ^0.0.32
       '@types/nopt': 3.0.29
@@ -1232,7 +1232,7 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
-      minimatch: 3.0.4
+      micromatch: 4.0.2
       mz: 2.7.0
       ncp: 2.0.0
       nopt: 4.0.1
@@ -2307,6 +2307,10 @@ packages:
   /@types/archy/0.0.31:
     resolution:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
+  /@types/braces/3.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-TbH79tcyi9FHwbyboOKeRachRq63mSuWYXOflsNO9ZyE5ClQ/JaozNKl+aWUq87qPNsXasXxi2AbgfwIJ+8GQw==
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 12.7.4
@@ -2360,6 +2364,12 @@ packages:
   /@types/lru-cache/5.1.0:
     resolution:
       integrity: sha512-RaE0B+14ToE4l6UqdarKPnXwVDuigfFv+5j9Dze/Nqr23yyuqdNvzcZi3xB+3Agvi5R4EOgAksfv3lXX4vBt9w==
+  /@types/micromatch/3.1.0:
+    dependencies:
+      '@types/braces': 3.0.0
+    dev: true
+    resolution:
+      integrity: sha512-06uA9V7v68RTOzA3ky1Oi0HmCPa+YJ050vM+sTECwkxnHUQnO17TAcNCGX400QT6bldUiPb7ux5oKy0j8ccEDw==
   /@types/minimatch/3.0.3:
     resolution:
       integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==

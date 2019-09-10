@@ -11,7 +11,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import minimatch = require('minimatch')
+import { matcher } from 'micromatch'
 import path = require('path')
 import R = require('ramda')
 
@@ -149,7 +149,7 @@ async function hoistGraph (
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
   const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
-  const match = opts.pattern === '*' ? () => true : (packageName: string) => minimatch(packageName, opts.pattern)
+  const match = opts.pattern === '*' ? () => true : matcher(opts.pattern)
 
   await Promise.all(depNodes
     // sort by depth and then alphabetically
