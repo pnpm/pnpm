@@ -302,6 +302,7 @@ export default async (
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting is deprecated. Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. Since v4, hoisting is on by default for all dependencies.')
     pnpmConfig.hoistPattern = '*'
+    pnpmConfig.shamefullyHoist = true
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern

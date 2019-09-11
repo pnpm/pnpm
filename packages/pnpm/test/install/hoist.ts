@@ -11,17 +11,33 @@ const testOnly = promisifyTape(tape.only)
 test('hoist the dependency graph', async function (t) {
   const project = prepare(t)
 
-  await execPnpm('install', '--shamefully-flatten', 'express@4.16.2')
+  await execPnpm('install', 'express@4.16.2')
 
   await project.has('express')
   await project.has('.pnpm/node_modules/debug')
   await project.has('.pnpm/node_modules/cookie')
 
-  await execPnpm('uninstall', '--shamefully-flatten', 'express')
+  await execPnpm('uninstall', 'express')
 
   await project.hasNot('express')
   await project.hasNot('.pnpm/node_modules/debug')
   await project.hasNot('.pnpm/node_modules/cookie')
+})
+
+test('shamefully hoist the dependency graph', async function (t) {
+  const project = prepare(t)
+
+  await execPnpm('install', '--shamefully-hoist', 'express@4.16.2')
+
+  await project.has('express')
+  await project.has('debug')
+  await project.has('cookie')
+
+  await execPnpm('uninstall', '--shamefully-hoist', 'express')
+
+  await project.hasNot('express')
+  await project.hasNot('debug')
+  await project.hasNot('cookie')
 })
 
 test('hoist-pattern: applied to all the workspace packages when set to true in the root .npmrc file', async (t: tape.Test) => {
