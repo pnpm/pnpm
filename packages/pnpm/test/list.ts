@@ -143,7 +143,7 @@ test('independent-leaves=true: pnpm list --long', async (t: tape.Test) => {
     },
   })
 
-  await execPnpm('install', '--independent-leaves')
+  await execPnpm('install', '--independent-leaves', '--no-hoist')
 
   const result = execPnpmSync('list', '--long')
 

@@ -318,6 +318,9 @@ export default async (
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
+  } else if (pnpmConfig.independentLeaves === true) {
+    throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_AND_HOIST',
+      '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
   }
 
   return { configs: pnpmConfig, warnings }

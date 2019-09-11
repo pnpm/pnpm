@@ -9,6 +9,9 @@ import tempy = require('tempy')
 import './findBestGlobalPrefixOnWindows'
 
 delete process.env['npm_config_depth']
+// To override any local settings,
+// we force the default value of independent-leaves
+process.env['npm_config_independent_leaves'] = 'false'
 
 test('getConfigs()', async (t) => {
   const { configs } = await getConfigs({
@@ -589,4 +592,38 @@ test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
     t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST')
     t.end()
   }
+})
+
+test('throw error if --independent-leaves is used without --no-hoist', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'independent-leaves': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_INDEPENDENT_LEAVES_AND_HOIST')
+    t.end()
+  }
+})
+
+test('do not throw error if --independent-leaves is used with --no-hoist', async (t) => {
+  const { configs } = await getConfigs({
+    cliArgs: {
+      'hoist': false,
+      'independent-leaves': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  t.ok(configs.independentLeaves)
+  t.notOk(configs.hoistPattern)
+  t.end()
 })
