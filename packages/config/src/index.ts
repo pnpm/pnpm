@@ -107,6 +107,18 @@ export default async (
       break
   }
 
+  if (cliArgs['hoist'] === false) {
+    if (cliArgs['shamefully-hoist'] === true) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-hoist cannot be used with --no-hoist')
+    }
+    if (cliArgs['shamefully-flatten'] === true) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-flatten cannot be used with --no-hoist')
+    }
+    if (cliArgs['hoist-pattern']) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--hoist-pattern cannot be used with --no-hoist')
+    }
+  }
+
   // This is what npm does as well, overriding process.execPath with the resolved location of Node.
   // The value of process.execPath is changed only for the duration of config initialization.
   // Otherwise, npmConfig.globalPrefix would sometimes have the bad location.
