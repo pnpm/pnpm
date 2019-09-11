@@ -511,7 +511,9 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
   })
 
   t.equal(configs.hoistPattern, '*')
-  t.deepEqual(warnings, ['The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.'])
+  t.deepEqual(warnings, ['The "shamefully-flatten" setting is deprecated. ' +
+    'Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. ' +
+    'Since v4, hoisting is on by default for all dependencies.'])
   t.end()
 })
 
