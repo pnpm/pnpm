@@ -21,16 +21,30 @@ export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE 
 
 export const TABLE_OPTIONS = {
   border: {
-    bodyLeft: '',
-    bottomLeft: '',
-    joinLeft: '',
-    topLeft: '',
+    topBody: '─',
+    topJoin: '┬',
+    topLeft: '┌',
+    topRight: '┐',
+
+    bottomBody: '─',
+    bottomJoin: '┴',
+    bottomLeft: '└',
+    bottomRight: '┘',
+
+    bodyJoin: '│',
+    bodyLeft: '│',
+    bodyRight: '│',
+
+    joinBody: '─',
+    joinJoin: '┼',
+    joinLeft: '├',
+    joinRight: '┤'
   },
-  columns: {
-    0: {
-      paddingLeft: 0,
-    },
-  },
+  columns: {},
+}
+
+for (let [key, value] of Object.entries(TABLE_OPTIONS.border)) {
+  TABLE_OPTIONS.border[key] = chalk.grey(value)
 }
 
 export default async function (
@@ -78,7 +92,7 @@ export default async function (
     'Current',
     'Latest',
     'Details',
-  ]
+  ].map((name: string) => chalk.blueBright(name))
   let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
     renderPackageName,
     renderCurrent,
