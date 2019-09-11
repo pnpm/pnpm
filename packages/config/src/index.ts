@@ -60,6 +60,7 @@ export const types = Object.assign({
   'resolution-strategy': ['fast', 'fewer-dependencies'],
   'save-peer': Boolean,
   'shamefully-flatten': Boolean,
+  'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
   'shared-workspace-shrinkwrap': Boolean,
   'shrinkwrap-directory': path,
@@ -106,6 +107,18 @@ export default async (
       break
   }
 
+  if (cliArgs['hoist'] === false) {
+    if (cliArgs['shamefully-hoist'] === true) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-hoist cannot be used with --no-hoist')
+    }
+    if (cliArgs['shamefully-flatten'] === true) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-flatten cannot be used with --no-hoist')
+    }
+    if (cliArgs['hoist-pattern']) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--hoist-pattern cannot be used with --no-hoist')
+    }
+  }
+
   // This is what npm does as well, overriding process.execPath with the resolved location of Node.
   // The value of process.execPath is changed only for the duration of config initialization.
   // Otherwise, npmConfig.globalPrefix would sometimes have the bad location.
@@ -144,6 +157,7 @@ export default async (
     'registry': npmDefaults.registry,
     'resolution-strategy': 'fast',
     'save-peer': false,
+    'shamefully-hoist': false,
     'shared-workspace-shrinkwrap': true,
     'shrinkwrap': npmDefaults.shrinkwrap,
     'sort': true,
@@ -298,8 +312,9 @@ export default async (
     pnpmConfig.extraBinPaths = []
   }
   if (pnpmConfig['shamefullyFlatten']) {
-    warnings.push('The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.')
+    warnings.push('The "shamefully-flatten" setting is deprecated. Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. Since v4, hoisting is on by default for all dependencies.')
     pnpmConfig.hoistPattern = '*'
+    pnpmConfig.shamefullyHoist = true
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern

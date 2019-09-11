@@ -1,5 +1,6 @@
 dependencies:
   is-positive: 1.0.0
+  pkg-with-peer-having-bin: 1.0.0
   rimraf: 2.7.1
 devDependencies:
   is-negative: 2.1.0
@@ -44,6 +45,11 @@ packages:
     dev: false
     resolution:
       integrity: sha512-hkLPepehmnKk41pUGm3sYxoFs/umurYfYJCerbXEyFIWcAzvpipAgVkBqqT9RBKMGjnq6kMuyYwha6csxbiM1A==
+  /hello-world-js-bin/1.0.0:
+    dev: false
+    hasBin: true
+    resolution:
+      integrity: sha512-EnV7u31UVbqSFf4+acCPPRoEjjhH1OTR5e8XCxsrsuXxuhvnFRqGNR04eeAKO7LvGQkzwFXH7Cu0mZgKUjQNZQ==
   /inflight/1.0.6:
     dependencies:
       once: 1.4.0
@@ -85,6 +91,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
+  /pkg-with-peer-having-bin/1.0.0:
+    dependencies:
+      hello-world-js-bin: 1.0.0
+    dev: false
+    peerDependencies:
+      peer-with-bin: ^1.0.0
+    resolution:
+      integrity: sha512-X3GaxrRE/nIoqXCDHolew2z3v6cCx6OeJGd3GKQY2wn1rprYnEvzJa9lceEtcATQiBKiIOeOd2y9Fo+H3iIyCg==
   /rimraf/2.7.1:
     dependencies:
       glob: 7.1.4
@@ -100,4 +114,5 @@ specifiers:
   colors: 1.2.0
   is-negative: ^2.1.0
   is-positive: ^1.0.0
+  pkg-with-peer-having-bin: 1.0.0
   rimraf: ^2.6.2

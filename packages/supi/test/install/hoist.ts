@@ -32,6 +32,24 @@ test('should hoist dependencies', async (t) => {
   await project.isExecutable('.pnpm/node_modules/.bin/mime')
 })
 
+test('should shamefully hoist dependencies', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({},
+    ['express', '@foo/has-dep-from-same-scope'],
+    await testDefaults({ hoistPattern: '*', shamefullyHoist: true }))
+
+  await project.has('express')
+  await project.has('debug')
+  await project.has('cookie')
+  await project.has('mime')
+  await project.has('@foo/has-dep-from-same-scope')
+  await project.has('@foo/no-deps')
+
+  // should also hoist bins
+  await project.isExecutable('.bin/mime')
+})
+
 test('should hoist dependencies by pattern', async (t) => {
   const project = prepareEmpty(t)
 

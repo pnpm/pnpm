@@ -65,6 +65,7 @@ function getHelpText (command: string) {
           --resolution-strategy fewer-dependencies  already installed dependencies are preferred even if newer versions
                                                     satisfy a range
           --no-hoist                         Dependencies inside node_modules have access only to their listed dependencies.
+          --shamefully-hoist                 The subdeps will be hoisted into the root node_modules. Your code will have access to them.
           --hoist-pattern <pattern>          Hoist all dependencies matching the pattern to the root of node_modules.
                                              Supplying it a * will hoist all dependencies (this is similar to what npm does).
 
@@ -143,6 +144,7 @@ function getHelpText (command: string) {
                                      or from every workspace package, when executed inside a workspace.
                                      For options that may be used with \`-r\`, see "pnpm help recursive"
           --no-hoist                 Dependencies inside node_modules have access only to their listed dependencies.
+          --shamefully-hoist         The subdeps will be hoisted into the root node_modules. Your code will have access to them.
           --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
                                      Supplying it a * will hoist all dependencies (this is similar to what npm does).
       `
@@ -187,6 +189,7 @@ function getHelpText (command: string) {
                                 0 is default, which means top-level dependencies
           -L, --latest          ignore version ranges in package.json
           --no-hoist            Dependencies inside node_modules have access only to their listed dependencies.
+          --shamefully-hoist    The subdeps will be hoisted into the root node_modules. Your code will have access to them.
           --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
                                      Supplying it a * will hoist all dependencies (this is similar to what npm does).
       `

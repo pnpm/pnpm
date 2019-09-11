@@ -111,7 +111,7 @@ export default async function link (
     {
       currentLockfile,
       hoistedAliases: ctx.hoistedAliases,
-      hoistPattern: opts.hoistPattern,
+      hoistedModulesDir: opts.hoistPattern && ctx.hoistedModulesDir || undefined,
       include: ctx.include,
       lockfileDirectory: opts.lockfileDirectory,
       registries: ctx.registries,

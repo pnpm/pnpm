@@ -87,6 +87,7 @@ export interface HeadlessOptions {
   hoistedAliases: {[depPath: string]: string[]}
   hoistPattern?: string,
   lockfileDirectory: string,
+  shamefullyHoist: boolean,
   storeController: StoreController,
   sideEffectsCacheRead: boolean,
   sideEffectsCacheWrite: boolean,
@@ -124,6 +125,8 @@ export default async (opts: HeadlessOptions) => {
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
   const virtualStoreDir = path.join(rootModulesDir, '.pnpm')
+  const hoistedModulesDir = opts.shamefullyHoist
+    ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
 
   for (const { id, manifest, prefix } of opts.importers) {
     if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
@@ -157,6 +160,7 @@ export default async (opts: HeadlessOptions) => {
         currentLockfile,
         dryRun: false,
         hoistedAliases: opts.hoistedAliases,
+        hoistedModulesDir: opts.hoistPattern && hoistedModulesDir || undefined,
         include: opts.include,
         lockfileDirectory,
         pruneStore: opts.pruneStore,
@@ -245,7 +249,7 @@ export default async (opts: HeadlessOptions) => {
         : undefined,
       lockfile: filteredLockfile,
       lockfileDirectory: opts.lockfileDirectory,
-      modulesDir: path.join(virtualStoreDir, 'node_modules'),
+      modulesDir: hoistedModulesDir,
       registries: opts.registries,
       virtualStoreDir,
     })
@@ -301,7 +305,7 @@ export default async (opts: HeadlessOptions) => {
         })
     }
     const extraBinPaths = [...opts.extraBinPaths || []]
-    if (opts.hoistPattern) {
+    if (opts.hoistPattern && !opts.shamefullyHoist) {
       extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
     }
     await buildModules(graph, Array.from(directNodes), {

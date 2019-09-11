@@ -511,7 +511,10 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
   })
 
   t.equal(configs.hoistPattern, '*')
-  t.deepEqual(warnings, ['The "shamefully-flatten" setting is deprecated. Use "hoist-pattern=*" instead.'])
+  t.equal(configs.shamefullyHoist, true)
+  t.deepEqual(warnings, ['The "shamefully-flatten" setting is deprecated. ' +
+    'Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. ' +
+    'Since v4, hoisting is on by default for all dependencies.'])
   t.end()
 })
 
@@ -529,4 +532,61 @@ test('hoist-pattern is undefined if --no-hoist used', async (t) => {
 
   t.equal(configs.hoistPattern, undefined)
   t.end()
+})
+
+test('throw error if --no-hoist is used with --shamefully-hoist', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'hoist': false,
+        'shamefully-hoist': true
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '--shamefully-hoist cannot be used with --no-hoist')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST')
+    t.end()
+  }
+})
+
+test('throw error if --no-hoist is used with --shamefully-flatten', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'hoist': false,
+        'shamefully-flatten': true
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '--shamefully-flatten cannot be used with --no-hoist')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST')
+    t.end()
+  }
+})
+
+test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'hoist': false,
+        'hoist-pattern': 'eslint-*'
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '--hoist-pattern cannot be used with --no-hoist')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST')
+    t.end()
+  }
 })
