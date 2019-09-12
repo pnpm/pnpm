@@ -305,10 +305,8 @@ function fetchToStore (
         inStoreLocation: tmp.inStoreLocation,
       })
     })
-
-    fetchingFiles.promise.catch((err) => {
+    .catch(() => {
       ctx.fetchingLocker.delete(opts.pkgId)
-      throw err
     })
   }
 
