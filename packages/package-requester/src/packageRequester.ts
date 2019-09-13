@@ -10,7 +10,6 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
-  LocalPackages,
   Resolution,
   ResolveFunction,
   ResolveResult,
@@ -35,6 +34,7 @@ import * as fs from 'mz/fs'
 import PQueue from 'p-queue'
 import path = require('path')
 import exists = require('path-exists')
+import pShare = require('promise-share')
 import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
 import symlinkDir = require('symlink-dir')
@@ -324,9 +324,9 @@ function fetchToStore (
   }
 
   return {
-    fetchingFiles: postponePromise(result.fetchingFiles),
-    fetchingRawManifest: result.fetchingRawManifest ? postponePromise(result.fetchingRawManifest) : undefined,
-    finishing: postponePromise(result.finishing),
+    fetchingFiles: pShare(result.fetchingFiles),
+    fetchingRawManifest: result.fetchingRawManifest ? pShare(result.fetchingRawManifest) : undefined,
+    finishing: pShare(result.finishing),
     inStoreLocation: result.inStoreLocation,
   }
 
@@ -335,17 +335,6 @@ function fetchToStore (
       ctx.fetchingLocker.delete(opts.pkgId)
       throw err
     })
-  }
-
-  function postponePromise<T> (p: Promise<T>): () => Promise<T> {
-    const newP = differed<{ success?: T, error?: Error } & ({ success: T } | { error: Error })>()
-    p.then((success) => newP.resolve({ success }))
-      .catch((error) => newP.resolve({ error }))
-    return async () => {
-      const { success, error } = await newP.promise
-      if (error) throw error
-      return success as T
-    }
   }
 
   async function doFetchToStore (

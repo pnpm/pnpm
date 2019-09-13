@@ -854,11 +854,11 @@ async function installInContext (
       // skipped packages might have not been reanalized on a repeat install
       // so lets just ignore those by excluding nulls
       .filter(Boolean)
-      .map(({ fetchingFiles }) => fetchingFiles),
+      .map(({ fetchingFiles }) => fetchingFiles()),
   )
 
   // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing))
+  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing()))
 
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {

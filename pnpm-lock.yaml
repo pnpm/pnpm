@@ -905,6 +905,7 @@ importers:
       p-limit: 2.2.1
       p-queue: 6.1.1
       path-exists: 4.0.0
+      promise-share: 1.0.0
       rename-overwrite: 2.0.2
       ssri: 6.0.1
       symlink-dir: 3.1.1
@@ -958,6 +959,7 @@ importers:
       p-limit: 2.2.1
       p-queue: 6.1.1
       path-exists: 4.0.0
+      promise-share: 1.0.0
       rename-overwrite: 2.0.2
       rimraf: 3.0.0
       sinon: 7.4.2
@@ -1428,6 +1430,7 @@ importers:
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       p-limit: 2.2.1
+      promise-share: 1.0.0
       uuid: 3.3.3
     devDependencies:
       '@pnpm/logger': 2.1.1
@@ -1463,6 +1466,7 @@ importers:
       mz: 2.7.0
       node-fetch: 2.6.0
       p-limit: 2.2.1
+      promise-share: 1.0.0
       rimraf: 3.0.0
       tape: 4.11.0
       uuid: 3.3.3
@@ -6405,6 +6409,12 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-R9gq36Th88xZ+rWAptN5IXLwqkwA1gagCQhT6ZXQ6RxEfmjb9ZW+UBzRVqv9sm5TQmbbI/TsKgGLbOaA61xR5w==
+  /p-reflect/2.1.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-paHV8NUz8zDHu5lhr/ngGWQiW067DK/+IbJ+RfZ4k+s8y4EKyYCz8pGYWjxCg35eHztpJAt+NUgvN4L+GCbPlg==
   /p-some/4.1.0:
     dependencies:
       aggregate-error: 3.0.0
@@ -6696,6 +6706,14 @@ packages:
   /process-nextick-args/2.0.1:
     resolution:
       integrity: sha512-3ouUOpQhtgrbOa17J7+uxOTpITYWaGP7/AhoR3+A+/1e9skrzelGi/dXzEYyvbxubEF6Wn2ypscTKiKJFFn1ag==
+  /promise-share/1.0.0:
+    dependencies:
+      p-reflect: 2.1.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-lpABypysb42MdCZjMJAdapxt+uTU9F0BZW0YeYVlPD/Gv390c43CdFwBSC9YM3siAgyAjLV94WDuDnwHIJjxiw==
   /propagate/2.0.1:
     dev: true
     engines:

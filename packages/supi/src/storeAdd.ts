@@ -48,7 +48,7 @@ export default async function (
         prefix,
         registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
       })
-      await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
+      await pkgResponse['fetchingFiles']() // tslint:disable-line:no-string-literal
       storeLogger.info(`+ ${pkgResponse.body.id}`)
     } catch (e) {
       hasFailures = true

@@ -116,13 +116,13 @@ export default function (
         }
         case '/packageFilesResponse':
           body = await bodyPromise
-          const filesResponse = await filesPromises[body.msgId]
+          const filesResponse = await filesPromises[body.msgId]()
           delete filesPromises[body.msgId]
           res.end(JSON.stringify(filesResponse))
           break
         case '/rawManifestResponse':
           body = await bodyPromise
-          const manifestResponse = await rawManifestPromises[body.msgId]
+          const manifestResponse = await rawManifestPromises[body.msgId]()
           delete rawManifestPromises[body.msgId]
           res.end(JSON.stringify(manifestResponse))
           break
