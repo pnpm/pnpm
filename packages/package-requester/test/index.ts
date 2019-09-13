@@ -56,8 +56,8 @@ test('request package', async t => {
     registry,
   }) as PackageResponse & {
     body: {inStoreLocation: string, latest: string, manifest: {name: string}},
-    fetchingFiles: Promise<{filenames: string[], fromStore: boolean}>,
-    finishing: Promise<void>,
+    fetchingFiles: () => Promise<{filenames: string[], fromStore: boolean}>,
+    finishing: () => Promise<void>,
   }
 
   t.ok(pkgResponse, 'response received')
@@ -76,13 +76,13 @@ test('request package', async t => {
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   }, 'resolution returned')
 
-  const files = await pkgResponse.fetchingFiles
+  const files = await pkgResponse.fetchingFiles()
   t.deepEqual(files, {
     filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
     fromStore: false,
   }, 'returned info about files after fetch completed')
 
-  t.ok(pkgResponse.finishing)
+  t.ok(pkgResponse.finishing())
 
   t.deepEqual(storeIndex, { 'registry.npmjs.org/is-positive/1.0.0': [] })
 
@@ -108,8 +108,8 @@ test('request package but skip fetching', async t => {
     skipFetch: true,
   }) as PackageResponse & {
     body: {inStoreLocation: string, latest: string, manifest: {name: string}},
-    fetchingFiles: Promise<object>,
-    finishing: Promise<void>,
+    fetchingFiles: () => Promise<object>,
+    finishing: () => Promise<void>,
   }
 
   t.ok(pkgResponse, 'response received')
@@ -163,8 +163,8 @@ test('request package but skip fetching, when resolution is already available', 
       latest: string,
       manifest: {name: string},
     },
-    fetchingFiles: Promise<object>,
-    finishing: Promise<void>,
+    fetchingFiles: () => Promise<object>,
+    finishing: () => Promise<void>,
   }
 
   t.ok(pkgResponse, 'response received')
@@ -223,15 +223,15 @@ test('refetch local tarball if its integrity has changed', async t => {
         tarball,
       },
     }) as PackageResponse & {
-      fetchingFiles: Promise<PackageFilesResponse>,
-      finishing: Promise<void>,
+      fetchingFiles: () => Promise<PackageFilesResponse>,
+      finishing: () => Promise<void>,
     }
-    await response.fetchingFiles
-    await response.finishing
+    await response.fetchingFiles()
+    await response.finishing()
 
     t.ok(response.body.updated === false, 'resolution not updated')
-    t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
-    t.equal((await response['fetchingRawManifest']).version, '0.8.1')
+    t.notOk((await response.fetchingFiles()).fromStore, 'unpack tarball if it is not in store yet')
+    t.equal((await response['fetchingRawManifest']()).version, '0.8.1')
   }
 
   await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
@@ -251,15 +251,15 @@ test('refetch local tarball if its integrity has changed', async t => {
         tarball,
       },
     }) as PackageResponse & {
-      fetchingFiles: Promise<PackageFilesResponse>,
-      finishing: Promise<void>,
+      fetchingFiles: () => Promise<PackageFilesResponse>,
+      finishing: () => Promise<void>,
     }
-    await response.fetchingFiles
-    await response.finishing
+    await response.fetchingFiles()
+    await response.finishing()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.fetchingFiles).fromStore, 'reunpack tarball if its integrity is not up-to-date')
-    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
+    t.notOk((await response.fetchingFiles()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.equal((await response['fetchingRawManifest']()).version, '4.1.2')
   }
 
   {
@@ -276,15 +276,15 @@ test('refetch local tarball if its integrity has changed', async t => {
         tarball,
       },
     }) as PackageResponse & {
-      fetchingFiles: Promise<PackageFilesResponse>,
-      finishing: Promise<void>,
+      fetchingFiles: () => Promise<PackageFilesResponse>,
+      finishing: () => Promise<void>,
     }
-    await response.fetchingFiles
-    await response.finishing
+    await response.fetchingFiles()
+    await response.finishing()
 
     t.ok(response.body.updated === false, 'resolution not updated')
-    t.ok((await response.fetchingFiles).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
-    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
+    t.ok((await response.fetchingFiles()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.equal((await response['fetchingRawManifest']()).version, '4.1.2')
   }
 
   t.end()
@@ -315,15 +315,15 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      fetchingFiles: Promise<PackageFilesResponse>,
-      finishing: Promise<void>,
+      fetchingFiles: () => Promise<PackageFilesResponse>,
+      finishing: () => Promise<void>,
     }
-    await response.fetchingFiles
-    await response.finishing
+    await response.fetchingFiles()
+    await response.finishing()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
-    t.equal((await response['fetchingRawManifest']).version, '0.8.1')
+    t.notOk((await response.fetchingFiles()).fromStore, 'unpack tarball if it is not in store yet')
+    t.equal((await response['fetchingRawManifest']()).version, '0.8.1')
   }
 
   await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
@@ -337,15 +337,15 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      fetchingFiles: Promise<PackageFilesResponse>,
-      finishing: Promise<void>,
+      fetchingFiles: () => Promise<PackageFilesResponse>,
+      finishing: () => Promise<void>,
     }
-    await response.fetchingFiles
-    await response.finishing
+    await response.fetchingFiles()
+    await response.finishing()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.fetchingFiles).fromStore, 'reunpack tarball if its integrity is not up-to-date')
-    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
+    t.notOk((await response.fetchingFiles()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.equal((await response['fetchingRawManifest']()).version, '4.1.2')
   }
 
   {
@@ -356,14 +356,14 @@ test('refetch local tarball if its integrity has changed. The requester does not
     })
 
     const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
-      fetchingFiles: Promise<PackageFilesResponse>,
-      finishing: Promise<void>,
+      fetchingFiles: () => Promise<PackageFilesResponse>,
+      finishing: () => Promise<void>,
     }
     await response.fetchingFiles
     await response.finishing
 
-    t.ok((await response.fetchingFiles).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
-    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
+    t.ok((await response.fetchingFiles()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.equal((await response['fetchingRawManifest']()).version, '4.1.2')
   }
 
   t.end()
@@ -391,13 +391,13 @@ test('fetchPackageToStore()', async (t) => {
 
   t.notOk(fetchResult.fetchingRawManifest, 'full manifest not returned')
 
-  const files = await fetchResult.fetchingFiles
+  const files = await fetchResult.fetchingFiles()
   t.deepEqual(files, {
     filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
     fromStore: false,
   }, 'returned info about files after fetch completed')
 
-  t.ok(fetchResult.finishing)
+  t.ok(fetchResult.finishing())
 
   const fetchResult2 = await packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
@@ -413,7 +413,7 @@ test('fetchPackageToStore()', async (t) => {
 
   // This verifies that when a package has been cached with no full manifest
   // the full manifest is requested and added to the cache
-  t.ok((await fetchResult2.fetchingRawManifest)!.name, 'full manifest returned')
+  t.ok((await fetchResult2.fetchingRawManifest!()).name, 'full manifest returned')
 
   t.end()
 })
@@ -457,7 +457,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
 
   {
     const fetchResult = await fetchResults[0]
-    const files = await fetchResult.fetchingFiles
+    const files = await fetchResult.fetchingFiles()
 
     ino1 = fs.statSync(path.join(fetchResult.inStoreLocation, 'package', 'package.json')).ino
 
@@ -471,7 +471,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
 
   {
     const fetchResult = await fetchResults[1]
-    const files = await fetchResult.fetchingFiles
+    const files = await fetchResult.fetchingFiles()
 
     ino2 = fs.statSync(path.join(fetchResult.inStoreLocation, 'package', 'package.json')).ino
 
@@ -480,7 +480,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
       fromStore: false,
     }, 'returned info about files after fetch completed')
 
-    t.ok(fetchResult.finishing)
+    t.ok(fetchResult.finishing())
   }
 
   t.equal(ino1, ino2, 'package fetched only once to the store')
@@ -525,7 +525,7 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
     })
-    await badRequest.fetchingFiles
+    await badRequest.fetchingFiles()
     t.fail('first fetch should have failed')
   } catch (err) {
     t.pass('first fetch failed')
@@ -541,13 +541,13 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
   })
-  const files = await fetchResult.fetchingFiles
+  const files = await fetchResult.fetchingFiles()
   t.deepEqual(files, {
     filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
     fromStore: false,
   }, 'returned info about files after fetch completed')
 
-  t.ok(fetchResult.finishing)
+  t.ok(fetchResult.finishing())
   t.ok(nock.isDone())
 
   t.end()
@@ -590,10 +590,10 @@ test('always return a package manifest in the response', async t => {
       preferredVersions: {},
       prefix,
       registry,
-    }) as PackageResponse & {fetchingRawManifest: Promise<PackageJson>}
+    }) as PackageResponse & {fetchingRawManifest: () => Promise<PackageJson>}
 
     t.ok(pkgResponse.body, 'response has body')
-    t.ok((await pkgResponse.fetchingRawManifest).name, 'response has manifest')
+    t.ok((await pkgResponse.fetchingRawManifest()).name, 'response has manifest')
   }
 
   t.end()
@@ -634,7 +634,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
     })
   ])
 
-  t.ok(await fetchResults[1].fetchingRawManifest)
+  t.ok(await fetchResults[1].fetchingRawManifest!())
   t.end()
 })
 
@@ -666,7 +666,7 @@ test('refetch package to store if it has been modified', async (t) => {
       resolution,
     })
 
-    await fetchResult.fetchingFiles
+    await fetchResult.fetchingFiles()
   }
 
   const distPathInStore = await path.join(storePath, pkgId, 'node_modules', 'magic-hook', 'dist')
@@ -696,7 +696,7 @@ test('refetch package to store if it has been modified', async (t) => {
       resolution,
     })
 
-    await fetchResult.fetchingFiles
+    await fetchResult.fetchingFiles()
   }
 
   streamParser.removeListener('data', reporter)
@@ -740,7 +740,7 @@ test('refetch package to store if it has no integrity checksums and verification
       resolution,
     })
 
-    await fetchResult.fetchingFiles
+    await fetchResult.fetchingFiles()
 
     const integrityJson = await loadJsonFile<object>(path.join(storePath, pkgId, 'integrity.json'))
     t.notOk(integrityJson['package.json'].integrity, 'no integrity hash generated')
@@ -765,7 +765,7 @@ test('refetch package to store if it has no integrity checksums and verification
       resolution,
     })
 
-    await fetchResult.fetchingFiles
+    await fetchResult.fetchingFiles()
 
     const integrityJson = await loadJsonFile<object>(path.join(storePath, pkgId, 'integrity.json'))
     t.ok(integrityJson['package.json'].integrity, 'integrity hash generated')

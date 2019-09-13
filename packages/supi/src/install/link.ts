@@ -247,9 +247,9 @@ export default async function linkPackages (
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${absoluteDepPath}"`)
     }
-    const filesResponse = await depNode.fetchingFiles
+    const filesResponse = await depNode.fetchingFiles()
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-    const pkgJson = await depNode.fetchingRawManifest
+    const pkgJson = await depNode.fetchingRawManifest()
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
       filesResponse.filenames.includes('binding.gyp') ||
@@ -480,7 +480,7 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async ({ centralLocation, fetchingFiles, independent, peripheralLocation }) => {
-      const filesResponse = await fetchingFiles
+      const filesResponse = await fetchingFiles()
 
       if (independent) return
       return storeController.importPackage(centralLocation, peripheralLocation, {

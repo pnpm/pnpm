@@ -167,9 +167,9 @@ export interface ResolvedPackage {
   prod: boolean,
   dev: boolean,
   optional: boolean,
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageManifest>,
-  finishing: Promise<void>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
+  fetchingRawManifest?: () => Promise<PackageManifest>,
+  finishing: () => Promise<void>,
   path: string,
   name: string,
   version: string,
@@ -582,7 +582,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingRawManifest'] // tslint:disable-line:no-string-literal
+    const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingRawManifest']() // tslint:disable-line:no-string-literal
     if (options.currentDepth > 0) {
       logger.warn({
         message: `Ignoring file dependency because it is not a root dependency ${wantedDependency}`,
@@ -631,31 +631,22 @@ async function resolveDependency (
     )
   } else {
     // tslint:disable:no-string-literal
-    try {
-      pkg = ctx.readPackageHook
-        ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest'])
-        : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
+    pkg = ctx.readPackageHook
+      ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']())
+      : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']()
 
-      prepare = Boolean(
-        pkgResponse.body['resolvedVia'] === 'git-repository' &&
-        pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string',
-      )
+    prepare = Boolean(
+      pkgResponse.body['resolvedVia'] === 'git-repository' &&
+      pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string',
+    )
 
-      if (
-        options.dependencyLockfile && options.dependencyLockfile.deprecated &&
-        !pkgResponse.body.updated && !pkg.deprecated
-      ) {
-        pkg.deprecated = options.dependencyLockfile.deprecated
-      }
-      hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
-    } catch (err) {
-      // tslint:disable:no-empty
-      // avoiding unhandled promise rejections
-      if (pkgResponse['finishing']) pkgResponse['finishing'].catch(() => {})
-      if (pkgResponse['fetchingFiles']) pkgResponse['fetchingFiles'].catch(() => {})
-      // tslint:enable:no-empty
-      throw err
+    if (
+      options.dependencyLockfile && options.dependencyLockfile.deprecated &&
+      !pkgResponse.body.updated && !pkg.deprecated
+    ) {
+      pkg.deprecated = options.dependencyLockfile.deprecated
     }
+    hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
     // tslint:enable:no-string-literal
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
@@ -702,7 +693,7 @@ async function resolveDependency (
     })
     // tslint:disable:no-string-literal
     if (pkgResponse['fetchingFiles']) {
-      pkgResponse['fetchingFiles']
+      pkgResponse['fetchingFiles']()
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
             packageId: pkgResponse.body.id,
@@ -710,6 +701,9 @@ async function resolveDependency (
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })
+        })
+        .catch(() => {
+          // Ignore
         })
     }
     // tslint:enable:no-string-literal
