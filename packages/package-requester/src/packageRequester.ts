@@ -24,7 +24,6 @@ import {
 } from '@pnpm/store-controller-types'
 import {
   DependencyManifest,
-  PackageJson,
   StoreIndex,
 } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
@@ -205,8 +204,8 @@ async function resolveAndFetch (
         resolvedVia,
         updated,
       },
-      fetchingFiles: fetchResult.fetchingFiles,
-      fetchingRawManifest: fetchResult.fetchingRawManifest,
+      bundledManifest: fetchResult.bundledManifest,
+      files: fetchResult.files,
       finishing: fetchResult.finishing,
     } as PackageResponse
   } catch (err) {
@@ -224,8 +223,8 @@ function fetchToStore (
     ) => Promise<FetchResult>,
     fetchingLocker: Map<string, {
       finishing: Promise<void>,
-      fetchingFiles: Promise<PackageFilesResponse>,
-      fetchingRawManifest?: Promise<PackageJson>,
+      files: Promise<PackageFilesResponse>,
+      bundledManifest?: Promise<DependencyManifest>,
       inStoreLocation: string,
     }>,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
@@ -242,8 +241,8 @@ function fetchToStore (
     resolution: Resolution,
   },
 ): {
-  fetchingFiles: () => Promise<PackageFilesResponse>,
-  fetchingRawManifest?: () => Promise<PackageJson>,
+  files: () => Promise<PackageFilesResponse>,
+  bundledManifest?: () => Promise<DependencyManifest>,
   finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
@@ -251,42 +250,42 @@ function fetchToStore (
   const target = path.join(ctx.storePath, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
-    const fetchingRawManifest = differed<PackageJson>()
-    const fetchingFiles = differed<PackageFilesResponse>()
+    const bundledManifest = differed<DependencyManifest>()
+    const files = differed<PackageFilesResponse>()
     const finishing = differed<void>()
 
-    doFetchToStore(fetchingRawManifest, fetchingFiles, finishing) // tslint:disable-line
+    doFetchToStore(bundledManifest, files, finishing) // tslint:disable-line
 
     if (opts.fetchRawManifest) {
       ctx.fetchingLocker.set(opts.pkgId, {
-        fetchingFiles: removeKeyOnFail(fetchingFiles.promise),
-        fetchingRawManifest: removeKeyOnFail(fetchingRawManifest.promise),
+        bundledManifest: removeKeyOnFail(bundledManifest.promise),
+        files: removeKeyOnFail(files.promise),
         finishing: removeKeyOnFail(finishing.promise),
         inStoreLocation: target,
       })
     } else {
       ctx.fetchingLocker.set(opts.pkgId, {
-        fetchingFiles: removeKeyOnFail(fetchingFiles.promise),
+        files: removeKeyOnFail(files.promise),
         finishing: removeKeyOnFail(finishing.promise),
         inStoreLocation: target,
       })
     }
 
-    // When fetchingFiles resolves, the cached result has to set fromStore to true, without
+    // When files resolves, the cached result has to set fromStore to true, without
     // affecting previous invocations: so we need to replace the cache.
     //
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
     // Otherwise, if a package was not in store when the server started, it will be always
     // reported as "downloaded" instead of "reused".
-    fetchingFiles.promise.then(({ filenames, fromStore }) => { // tslint:disable-line
+    files.promise.then(({ filenames, fromStore }) => { // tslint:disable-line
       // If it's already in the store, we don't need to update the cache
       if (fromStore) {
         return
       }
 
       const tmp = ctx.fetchingLocker.get(opts.pkgId) as {
-        fetchingFiles: Promise<PackageFilesResponse>,
-        fetchingRawManifest?: Promise<PackageJson>,
+        files: Promise<PackageFilesResponse>,
+        bundledManifest?: Promise<DependencyManifest>,
         finishing: Promise<void>,
         inStoreLocation: string,
       }
@@ -296,11 +295,11 @@ function fetchToStore (
       if (!tmp) return
 
       ctx.fetchingLocker.set(opts.pkgId, {
-        fetchingFiles: Promise.resolve({
+        bundledManifest: tmp.bundledManifest,
+        files: Promise.resolve({
           filenames,
           fromStore: true,
         }),
-        fetchingRawManifest: tmp.fetchingRawManifest,
         finishing: tmp.finishing,
         inStoreLocation: tmp.inStoreLocation,
       })
@@ -311,21 +310,21 @@ function fetchToStore (
   }
 
   const result = ctx.fetchingLocker.get(opts.pkgId) as {
-    fetchingFiles: Promise<PackageFilesResponse>,
-    fetchingRawManifest?: Promise<PackageJson>,
+    files: Promise<PackageFilesResponse>,
+    bundledManifest?: Promise<DependencyManifest>,
     finishing: Promise<void>,
     inStoreLocation: string,
   }
 
-  if (opts.fetchRawManifest && !result.fetchingRawManifest) {
-    result.fetchingRawManifest = removeKeyOnFail(
-      result.fetchingFiles.then(() => readPkgFromDir(path.join(result.inStoreLocation, 'package'))),
+  if (opts.fetchRawManifest && !result.bundledManifest) {
+    result.bundledManifest = removeKeyOnFail(
+      result.files.then(() => readPkgFromDir(path.join(result.inStoreLocation, 'package'))) as Promise<DependencyManifest>,
     )
   }
 
   return {
-    fetchingFiles: pShare(result.fetchingFiles),
-    fetchingRawManifest: result.fetchingRawManifest ? pShare(result.fetchingRawManifest) : undefined,
+    bundledManifest: result.bundledManifest ? pShare(result.bundledManifest) : undefined,
+    files: pShare(result.files),
     finishing: pShare(result.finishing),
     inStoreLocation: result.inStoreLocation,
   }
@@ -338,8 +337,8 @@ function fetchToStore (
   }
 
   async function doFetchToStore (
-    fetchingRawManifest: PromiseContainer<PackageJson>,
-    fetchingFiles: PromiseContainer<PackageFilesResponse>,
+    bundledManifest: PromiseContainer<DependencyManifest>,
+    files: PromiseContainer<PackageFilesResponse>,
     finishing: PromiseContainer<void>,
   ) {
     try {
@@ -363,14 +362,14 @@ function fetchToStore (
           ? await checkPackage(linkToUnpacked)
           : await loadJsonFile<object>(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
         if (satisfiedIntegrity) {
-          fetchingFiles.resolve({
+          files.resolve({
             filenames: Object.keys(satisfiedIntegrity).filter((f) => !satisfiedIntegrity[f].isDir), // Filtering can be removed for store v3
             fromStore: true,
           })
           if (opts.fetchRawManifest) {
-            readPkgFromDir(linkToUnpacked)
-              .then(fetchingRawManifest.resolve)
-              .catch(fetchingRawManifest.reject)
+            (readPkgFromDir(linkToUnpacked) as Promise<DependencyManifest>)
+              .then(bundledManifest.resolve)
+              .catch(bundledManifest.reject)
           }
           finishing.resolve(undefined)
           return
@@ -424,7 +423,7 @@ function fetchToStore (
         targetExists && await rimraf(path.join(target, 'node_modules')),
       ])
 
-      // Ideally, fetchingFiles wouldn't care about when integrity is calculated.
+      // Ideally, files wouldn't care about when integrity is calculated.
       // However, we can only rename the temp folder once we know the package name.
       // And we cannot rename the temp folder till we're calculating integrities.
       if (ctx.verifyStoreIntegrity) {
@@ -455,7 +454,7 @@ function fetchToStore (
       let pkgName: string | undefined = opts.pkgName
       if (!pkgName || opts.fetchRawManifest) {
         const pkg = await readPkgFromDir(tempLocation) as DependencyManifest
-        fetchingRawManifest.resolve(pkg)
+        bundledManifest.resolve(pkg)
         if (!pkgName) {
           pkgName = pkg.name
         }
@@ -474,14 +473,14 @@ function fetchToStore (
       }
 
       ctx.storeIndex[targetRelative] = ctx.storeIndex[targetRelative] || []
-      fetchingFiles.resolve({
+      files.resolve({
         filenames: Object.keys(filesIndex).filter((f) => !filesIndex[f].isDir), // Filtering can be removed for store v3
         fromStore: false,
       })
     } catch (err) {
-      fetchingFiles.reject(err)
+      files.reject(err)
       if (opts.fetchRawManifest) {
-        fetchingRawManifest.reject(err)
+        bundledManifest.reject(err)
       }
     }
   }

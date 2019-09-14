@@ -7,7 +7,7 @@ import {
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
-import { Dependencies, PackageManifest } from '@pnpm/types'
+import { Dependencies, DependencyManifest } from '@pnpm/types'
 import {
   createNodeId,
   splitNodeId,
@@ -27,8 +27,8 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean,
   centralLocation: string,
   modules: string,
+  fetchingBundledManifest?: () => Promise<DependencyManifest>,
   fetchingFiles: () => Promise<PackageFilesResponse>,
-  fetchingRawManifest?: () => Promise<PackageManifest>,
   resolution: Resolution,
   peripheralLocation: string,
   children: {[alias: string]: string},
@@ -232,8 +232,8 @@ function resolvePeersOfNode (
       children: Object.assign(children, resolvedPeers),
       depth: node.depth,
       dev: node.resolvedPackage.dev,
+      fetchingBundledManifest: node.resolvedPackage.fetchingBundledManifest,
       fetchingFiles: node.resolvedPackage.fetchingFiles,
-      fetchingRawManifest: node.resolvedPackage.fetchingRawManifest,
       hasBin: node.resolvedPackage.hasBin,
       hasBundledDependencies: node.resolvedPackage.hasBundledDependencies,
       independent,

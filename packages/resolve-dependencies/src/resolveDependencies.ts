@@ -28,6 +28,7 @@ import {
 } from '@pnpm/store-controller-types'
 import {
   Dependencies,
+  DependencyManifest,
   PackageManifest,
   PeerDependenciesMeta,
   ReadPackageHook,
@@ -168,7 +169,7 @@ export interface ResolvedPackage {
   dev: boolean,
   optional: boolean,
   fetchingFiles: () => Promise<PackageFilesResponse>,
-  fetchingRawManifest?: () => Promise<PackageManifest>,
+  fetchingBundledManifest?: () => Promise<DependencyManifest>,
   finishing: () => Promise<void>,
   path: string,
   name: string,
@@ -582,7 +583,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingRawManifest']() // tslint:disable-line:no-string-literal
+    const manifest = pkgResponse.body.manifest || await pkgResponse['bundledManifest']() // tslint:disable-line:no-string-literal
     if (options.currentDepth > 0) {
       logger.warn({
         message: `Ignoring file dependency because it is not a root dependency ${wantedDependency}`,
@@ -632,8 +633,8 @@ async function resolveDependency (
   } else {
     // tslint:disable:no-string-literal
     pkg = ctx.readPackageHook
-      ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']())
-      : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']()
+      ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['bundledManifest']())
+      : pkgResponse.body['manifest'] || await pkgResponse['bundledManifest']()
 
     prepare = Boolean(
       pkgResponse.body['resolvedVia'] === 'git-repository' &&
@@ -692,8 +693,8 @@ async function resolveDependency (
       status: 'resolved',
     })
     // tslint:disable:no-string-literal
-    if (pkgResponse['fetchingFiles']) {
-      pkgResponse['fetchingFiles']()
+    if (pkgResponse['files']) {
+      pkgResponse['files']()
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
             packageId: pkgResponse.body.id,
@@ -774,8 +775,8 @@ function getResolvedPackage (
     },
     dev: options.wantedDependency.dev,
     engineCache: !options.force && options.pkgResponse.body['cacheByEngine'] && options.pkgResponse.body['cacheByEngine'][ENGINE_NAME], // tslint:disable-line:no-string-literal
-    fetchingFiles: options.pkgResponse['fetchingFiles'], // tslint:disable-line:no-string-literal
-    fetchingRawManifest: options.pkgResponse['fetchingRawManifest'], // tslint:disable-line:no-string-literal
+    fetchingBundledManifest: options.pkgResponse['bundledManifest'], // tslint:disable-line:no-string-literal
+    fetchingFiles: options.pkgResponse['files'], // tslint:disable-line:no-string-literal
     finishing: options.pkgResponse['finishing'], // tslint:disable-line:no-string-literal
     hasBin: options.hasBin,
     hasBundledDependencies: !!(options.pkg.bundledDependencies || options.pkg.bundleDependencies),

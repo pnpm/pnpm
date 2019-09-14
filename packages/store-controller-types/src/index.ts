@@ -5,7 +5,7 @@ import {
   WantedDependency,
 } from '@pnpm/resolver-base'
 import {
-  PackageJson,
+  DependencyManifest,
   PackageManifest,
 } from '@pnpm/types'
 
@@ -43,8 +43,8 @@ export type PackageUsages = {
 export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions,
 ) => {
-  fetchingFiles: () => Promise<PackageFilesResponse>,
-  fetchingRawManifest?: () => Promise<PackageJson>,
+  bundledManifest?: () => Promise<DependencyManifest>,
+  files: () => Promise<PackageFilesResponse>,
   finishing: () => Promise<void>,
   inStoreLocation: string,
 }
@@ -109,7 +109,7 @@ export type PackageResponse = {
   },
 } | (
   {
-    fetchingFiles?: () => Promise<PackageFilesResponse>,
+    files?: () => Promise<PackageFilesResponse>,
     finishing?: () => Promise<void>, // a package request is finished once its integrity is generated and saved
     body: {
       isLocal: false,
@@ -127,7 +127,7 @@ export type PackageResponse = {
     },
   } & (
     {
-      fetchingRawManifest: () => Promise<PackageJson>,
+      bundledManifest: () => Promise<DependencyManifest>,
     } | {
       body: {
         manifest: PackageManifest,

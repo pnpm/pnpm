@@ -523,12 +523,12 @@ async function lockfileToDepGraph (
           resolution,
         })
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        fetchResponse.fetchingFiles() // tslint:disable-line
-          .then((fetchResult) => {
+        fetchResponse.files() // tslint:disable-line
+          .then(({ fromStore }) => {
             progressLogger.debug({
               packageId,
               requester: opts.lockfileDirectory,
-              status: fetchResult.fromStore
+              status: fromStore
                 ? 'found_in_store' : 'fetched',
             })
           })
@@ -538,7 +538,7 @@ async function lockfileToDepGraph (
         graph[peripheralLocation] = {
           centralLocation: pkgLocation.directory,
           children: {},
-          fetchingFiles: fetchResponse.fetchingFiles,
+          fetchingFiles: fetchResponse.files,
           finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
           hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
