@@ -8,10 +8,11 @@ import tempy = require('tempy')
 
 import './findBestGlobalPrefixOnWindows'
 
-delete process.env['npm_config_depth']
 // To override any local settings,
-// we force the default value of independent-leaves
+// we force the default values of configs
+delete process.env['npm_config_depth']
 process.env['npm_config_independent_leaves'] = 'false'
+process.env['npm_config_hoist'] = 'true'
 
 test('getConfigs()', async (t) => {
   const { configs } = await getConfigs({
