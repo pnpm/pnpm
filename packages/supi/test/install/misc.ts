@@ -581,12 +581,12 @@ test('bin specified in the directories property linked to .bin folder', async (t
 test('building native addons', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['runas@3.1.1'], await testDefaults())
+  await addDependenciesToPackage({}, ['diskusage@1.1.3'], await testDefaults())
 
-  t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
+  t.ok(await exists('node_modules/diskusage/build'), 'build folder created')
 
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/runas/3.1.1'].requiresBuild)
+  t.ok(lockfile.packages['/diskusage/1.1.3'].requiresBuild)
 })
 
 test('should update subdep on second install', async (t: tape.Test) => {

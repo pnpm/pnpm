@@ -161,13 +161,13 @@ test('uploading cache can be disabled without breaking install', async (t: tape.
   await delay(2000)
 
   // install a package that has side effects
-  await execPnpm('install', '--side-effects-cache', 'runas@3.1.1')
+  await execPnpm('add', '--side-effects-cache', 'diskusage@1.1.3')
 
   // make sure the installation is successful, but the cache has not been written
-  await project.has('runas')
+  await project.has('diskusage')
   const storePath = await project.getStorePath()
   const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
-  const cacheDir = path.join(storePath, 'localhost+4873', 'runas', '3.1.1', 'side_effects', engine, 'package')
+  const cacheDir = path.join(storePath, `localhost+4873/diskusage/1.1.3/side_effects/${engine}/package`)
   t.notOk(await pathExists(cacheDir), 'side effects cache not uploaded')
 
   await execPnpm('server', 'stop')

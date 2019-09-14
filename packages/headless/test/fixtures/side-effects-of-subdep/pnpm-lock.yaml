@@ -1,250 +1,39 @@
 dependencies:
-  pathwatcher: 7.1.1
+  expire-fs: 2.2.3
 lockfileVersion: 5.1
 packages:
-  /async/0.2.10:
-    dev: false
-    resolution:
-      integrity: sha1-trvgsGdLnXGXCMo43owjfLUmw9E=
-  /async/1.5.2:
-    dev: false
-    resolution:
-      integrity: sha1-7GphrlZIDAw8skHJVhjiCJL5Zyo=
-  /balanced-match/1.0.0:
-    dev: false
-    resolution:
-      integrity: sha1-ibTRmasr7kneFk6gK4nORi1xt2c=
-  /brace-expansion/1.1.11:
+  /debug/4.1.1:
     dependencies:
-      balanced-match: 1.0.0
-      concat-map: 0.0.1
+      ms: 2.1.2
     dev: false
     resolution:
-      integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==
-  /concat-map/0.0.1:
-    dev: false
-    resolution:
-      integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=
-  /d/0.1.1:
+      integrity: sha512-pYAIzeRo8J6KPEaJ0VWOh5Pzkbw/RetuzehGM7QRRX5he4fPHx2rdKMB256ehJCkX+XRQm16eZLqLNS8RSZXZw==
+  /diskusage/1.1.3:
     dependencies:
-      es5-ext: 0.10.51
+      es6-promise: 4.2.8
+      nan: 2.14.0
+    dev: false
+    requiresBuild: true
+    resolution:
+      integrity: sha512-EAyaxl8hy4Ph07kzlzGTfpbZMNAAAHXSZtNEMwdlnSd1noHzvA6HsgKt4fEMSvaEXQYLSphe5rPMxN4WOj0hcQ==
+  /es6-promise/4.2.8:
     dev: false
     resolution:
-      integrity: sha1-2hhMU10Y2O57oqoim5FACfrhEwk=
-  /d/1.0.1:
+      integrity: sha512-HJDGx5daxeIvxdBxvG2cb9g4tEvwIk3i8+nhX0yGrYmZUzbkdg8QbDevheDB8gd0//uPj4c1EQua8Q+MViT0/w==
+  /expire-fs/2.2.3:
     dependencies:
-      es5-ext: 0.10.51
-      type: 1.0.3
+      debug: 4.1.1
+      diskusage: 1.1.3
     dev: false
     resolution:
-      integrity: sha512-m62ShEObQ39CfralilEQRjH6oAMtNCV1xJyEx5LpRYUVN+EviphDgUc/F3hnYbADmkiNs67Y+3ylmlG7Lnu+FA==
-  /emissary/1.3.3:
-    dependencies:
-      es6-weak-map: 0.1.4
-      mixto: 1.0.0
-      property-accessors: 1.1.3
-      underscore-plus: 1.7.0
+      integrity: sha512-ofQ0zNXKProir7/dtNAJiOucthMhraUznLiPd2MpoFexVi21BfGj0owPO5wMleO5cmSVOPRPJf8+XZqLpix4Ew==
+  /ms/2.1.2:
     dev: false
     resolution:
-      integrity: sha1-phjZLWgrIy0xER3DYlpd9mF5lgY=
-  /es5-ext/0.10.51:
-    dependencies:
-      es6-iterator: 2.0.3
-      es6-symbol: 3.1.2
-      next-tick: 1.0.0
-    dev: false
-    resolution:
-      integrity: sha512-oRpWzM2WcLHVKpnrcyB7OW8j/s67Ba04JCm0WnNv3RiABSvs7mrQlutB8DBv793gKcp0XENR8Il8WxGTlZ73gQ==
-  /es6-iterator/0.1.3:
-    dependencies:
-      d: 0.1.1
-      es5-ext: 0.10.51
-      es6-symbol: 2.0.1
-    dev: false
-    resolution:
-      integrity: sha1-1vWLjE/EE8JJtLqhl2j45NfIlE4=
-  /es6-iterator/2.0.3:
-    dependencies:
-      d: 1.0.1
-      es5-ext: 0.10.51
-      es6-symbol: 3.1.2
-    dev: false
-    resolution:
-      integrity: sha1-p96IkUGgWpSwhUQDstCg+/qY87c=
-  /es6-symbol/2.0.1:
-    dependencies:
-      d: 0.1.1
-      es5-ext: 0.10.51
-    dev: false
-    resolution:
-      integrity: sha1-dhtcZ8/U8dGK+yNPaR1nhoLLO/M=
-  /es6-symbol/3.1.2:
-    dependencies:
-      d: 1.0.1
-      es5-ext: 0.10.51
-    dev: false
-    resolution:
-      integrity: sha512-/ZypxQsArlv+KHpGvng52/Iz8by3EQPxhmbuz8yFG89N/caTFBSbcXONDw0aMjy827gQg26XAjP4uXFvnfINmQ==
-  /es6-weak-map/0.1.4:
-    dependencies:
-      d: 0.1.1
-      es5-ext: 0.10.51
-      es6-iterator: 0.1.3
-      es6-symbol: 2.0.1
-    dev: false
-    resolution:
-      integrity: sha1-cGzvnpmqI2undmwjnIueKG6n0ig=
-  /event-kit/2.5.3:
-    dev: false
-    resolution:
-      integrity: sha512-b7Qi1JNzY4BfAYfnIRanLk0DOD1gdkWHT4GISIn8Q2tAf3LpU8SP2CMwWaq40imYoKWbtN4ZhbSRxvsnikooZQ==
-  /fs-plus/3.1.1:
-    dependencies:
-      async: 1.5.2
-      mkdirp: 0.5.1
-      rimraf: 2.7.1
-      underscore-plus: 1.7.0
-    dev: false
-    resolution:
-      integrity: sha512-Se2PJdOWXqos1qVTkvqqjb0CSnfBnwwD+pq+z4ksT+e97mEShod/hrNg0TRCCsXPbJzcIq+NuzQhigunMWMJUA==
-  /fs.realpath/1.0.0:
-    dev: false
-    resolution:
-      integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
-  /glob/7.1.4:
-    dependencies:
-      fs.realpath: 1.0.0
-      inflight: 1.0.6
-      inherits: 2.0.4
-      minimatch: 3.0.4
-      once: 1.4.0
-      path-is-absolute: 1.0.1
-    dev: false
-    resolution:
-      integrity: sha512-hkLPepehmnKk41pUGm3sYxoFs/umurYfYJCerbXEyFIWcAzvpipAgVkBqqT9RBKMGjnq6kMuyYwha6csxbiM1A==
-  /grim/2.0.2:
-    dependencies:
-      event-kit: 2.5.3
-    dev: false
-    resolution:
-      integrity: sha512-Qj7hTJRfd87E/gUgfvM0YIH/g2UA2SV6niv6BYXk1o6w4mhgv+QyYM1EjOJQljvzgEj4SqSsRWldXIeKHz3e3Q==
-  /iconv-lite/0.4.24:
-    dependencies:
-      safer-buffer: 2.1.2
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha512-v3MXnZAcvnywkTUEZomIActle7RXXeedOR31wwl7VlyoXO4Qi9arvSenNQWne1TcRwhCL1HwLI21bEqdpj8/rA==
-  /inflight/1.0.6:
-    dependencies:
-      once: 1.4.0
-      wrappy: 1.0.2
-    dev: false
-    resolution:
-      integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
-  /inherits/2.0.4:
-    dev: false
-    resolution:
-      integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==
-  /minimatch/3.0.4:
-    dependencies:
-      brace-expansion: 1.1.11
-    dev: false
-    resolution:
-      integrity: sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==
-  /minimist/0.0.8:
-    dev: false
-    resolution:
-      integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
-  /mixto/1.0.0:
-    dev: false
-    resolution:
-      integrity: sha1-wyDvYbUvKJj1IuF9i7xtUG2EJbY=
-  /mkdirp/0.5.1:
-    dependencies:
-      minimist: 0.0.8
-    dev: false
-    hasBin: true
-    resolution:
-      integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
+      integrity: sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
   /nan/2.14.0:
     dev: false
     resolution:
       integrity: sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
-  /next-tick/1.0.0:
-    dev: false
-    resolution:
-      integrity: sha1-yobR/ogoFpsBICCOPchCS524NCw=
-  /once/1.4.0:
-    dependencies:
-      wrappy: 1.0.2
-    dev: false
-    resolution:
-      integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
-  /path-is-absolute/1.0.1:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
-  /pathwatcher/7.1.1:
-    dependencies:
-      async: 0.2.10
-      emissary: 1.3.3
-      event-kit: 2.5.3
-      fs-plus: 3.1.1
-      grim: 2.0.2
-      iconv-lite: 0.4.24
-      nan: 2.14.0
-      runas: 3.1.1
-      underscore-plus: 1.7.0
-    dev: false
-    requiresBuild: true
-    resolution:
-      integrity: sha512-OHxN+XerQiLtQENO1D+VOsblkAeh0ysezyDTbL3s3bgVFXkWiG06wZgZer2nBsIAKKzyTIrnXoi7lxDB4s/m6A==
-  /property-accessors/1.1.3:
-    dependencies:
-      es6-weak-map: 0.1.4
-      mixto: 1.0.0
-    dev: false
-    resolution:
-      integrity: sha1-Hd6EAkYxhlkJ7zBwM2VoDF+SixU=
-  /rimraf/2.7.1:
-    dependencies:
-      glob: 7.1.4
-    dev: false
-    hasBin: true
-    resolution:
-      integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==
-  /runas/3.1.1:
-    dependencies:
-      nan: 2.14.0
-    dev: false
-    requiresBuild: true
-    resolution:
-      integrity: sha1-Ut1TjbDkF0U5lTWjRwkbpFzA6rA=
-  /safer-buffer/2.1.2:
-    dev: false
-    resolution:
-      integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==
-  /type/1.0.3:
-    dev: false
-    resolution:
-      integrity: sha512-51IMtNfVcee8+9GJvj0spSuFcZHe9vSib6Xtgsny1Km9ugyz2mbS08I3rsUIRYgJohFRFU1160sgRodYz378Hg==
-  /underscore-plus/1.7.0:
-    dependencies:
-      underscore: 1.9.1
-    dev: false
-    resolution:
-      integrity: sha512-A3BEzkeicFLnr+U/Q3EyWwJAQPbA19mtZZ4h+lLq3ttm9kn8WC4R3YpuJZEXmWdLjYP47Zc8aLZm9kwdv+zzvA==
-  /underscore/1.9.1:
-    dev: false
-    resolution:
-      integrity: sha512-5/4etnCkd9c8gwgowi5/om/mYO5ajCaOgdzj/oW+0eQV9WxKBDZw5+ycmKmeaTXjInS/W0BzpGLo2xR2aBwZdg==
-  /wrappy/1.0.2:
-    dev: false
-    resolution:
-      integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 specifiers:
-  pathwatcher: 7.1.1
+  expire-fs: 2.2.3
