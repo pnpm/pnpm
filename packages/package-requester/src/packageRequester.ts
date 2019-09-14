@@ -15,6 +15,7 @@ import {
   ResolveResult,
 } from '@pnpm/resolver-base'
 import {
+  BundledManifest,
   FetchPackageToStoreFunction,
   PackageFilesResponse,
   PackageResponse,
@@ -34,12 +35,29 @@ import PQueue from 'p-queue'
 import path = require('path')
 import exists = require('path-exists')
 import pShare = require('promise-share')
+import R = require('ramda')
 import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile = require('write-json-file')
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
+
+const pickBundledManifest = R.pick([
+  'bin',
+  'bundledDependencies',
+  'bundleDependencies',
+  'dependencies',
+  'directories',
+  'engines',
+  'name',
+  'optionalDependencies',
+  'os',
+  'peerDependencies',
+  'peerDependenciesMeta',
+  'scripts',
+  'version'
+])
 
 export default function (
   resolve: ResolveFunction,
@@ -171,7 +189,7 @@ async function resolveAndFetch (
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
           inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id, options.lockfileDirectory)),
-          isLocal: false as false,
+          isLocal: false as const,
           latest,
           manifest: pkg,
           normalizedPref,
@@ -196,7 +214,7 @@ async function resolveAndFetch (
         cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
         id,
         inStoreLocation: fetchResult.inStoreLocation,
-        isLocal: false as false,
+        isLocal: false as const,
         latest,
         manifest: pkg,
         normalizedPref,
@@ -224,7 +242,7 @@ function fetchToStore (
     fetchingLocker: Map<string, {
       finishing: Promise<void>,
       files: Promise<PackageFilesResponse>,
-      bundledManifest?: Promise<DependencyManifest>,
+      bundledManifest?: Promise<BundledManifest>,
       inStoreLocation: string,
     }>,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
@@ -242,7 +260,7 @@ function fetchToStore (
   },
 ): {
   files: () => Promise<PackageFilesResponse>,
-  bundledManifest?: () => Promise<DependencyManifest>,
+  bundledManifest?: () => Promise<BundledManifest>,
   finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
@@ -250,7 +268,7 @@ function fetchToStore (
   const target = path.join(ctx.storePath, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
-    const bundledManifest = differed<DependencyManifest>()
+    const bundledManifest = differed<BundledManifest>()
     const files = differed<PackageFilesResponse>()
     const finishing = differed<void>()
 
@@ -285,7 +303,7 @@ function fetchToStore (
 
       const tmp = ctx.fetchingLocker.get(opts.pkgId) as {
         files: Promise<PackageFilesResponse>,
-        bundledManifest?: Promise<DependencyManifest>,
+        bundledManifest?: Promise<BundledManifest>,
         finishing: Promise<void>,
         inStoreLocation: string,
       }
@@ -311,14 +329,14 @@ function fetchToStore (
 
   const result = ctx.fetchingLocker.get(opts.pkgId) as {
     files: Promise<PackageFilesResponse>,
-    bundledManifest?: Promise<DependencyManifest>,
+    bundledManifest?: Promise<BundledManifest>,
     finishing: Promise<void>,
     inStoreLocation: string,
   }
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(() => readPkgFromDir(path.join(result.inStoreLocation, 'package'))) as Promise<DependencyManifest>,
+      result.files.then(() => readBundledManifest(path.join(result.inStoreLocation, 'package'))),
     )
   }
 
@@ -337,7 +355,7 @@ function fetchToStore (
   }
 
   async function doFetchToStore (
-    bundledManifest: PromiseContainer<DependencyManifest>,
+    bundledManifest: PromiseContainer<BundledManifest>,
     files: PromiseContainer<PackageFilesResponse>,
     finishing: PromiseContainer<void>,
   ) {
@@ -367,7 +385,7 @@ function fetchToStore (
             fromStore: true,
           })
           if (opts.fetchRawManifest) {
-            (readPkgFromDir(linkToUnpacked) as Promise<DependencyManifest>)
+            readBundledManifest(linkToUnpacked)
               .then(bundledManifest.resolve)
               .catch(bundledManifest.reject)
           }
@@ -453,10 +471,10 @@ function fetchToStore (
 
       let pkgName: string | undefined = opts.pkgName
       if (!pkgName || opts.fetchRawManifest) {
-        const pkg = await readPkgFromDir(tempLocation) as DependencyManifest
-        bundledManifest.resolve(pkg)
+        const manifest = await readPkgFromDir(tempLocation) as DependencyManifest
+        bundledManifest.resolve(pickBundledManifest(manifest))
         if (!pkgName) {
-          pkgName = pkg.name
+          pkgName = manifest.name
         }
       }
 
@@ -484,6 +502,10 @@ function fetchToStore (
       }
     }
   }
+}
+
+async function readBundledManifest (dir: string): Promise<BundledManifest> {
+  return pickBundledManifest(await readPkgFromDir(dir) as DependencyManifest)
 }
 
 async function tarballIsUpToDate (

@@ -76,13 +76,13 @@ test('request package', async t => {
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   }, 'resolution returned')
 
-  const files = await pkgResponse.files()
+  const files = await pkgResponse.files!()
   t.deepEqual(files, {
     filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
     fromStore: false,
   }, 'returned info about files after fetch completed')
 
-  t.ok(pkgResponse.finishing())
+  t.ok(pkgResponse.finishing!())
 
   t.deepEqual(storeIndex, { 'registry.npmjs.org/is-positive/1.0.0': [] })
 
@@ -226,12 +226,12 @@ test('refetch local tarball if its integrity has changed', async t => {
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files()
-    await response.finishing()
+    await response.files!()
+    await response.finishing!()
 
     t.ok(response.body.updated === false, 'resolution not updated')
-    t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
-    t.equal((await response['bundledManifest']()).version, '0.8.1')
+    t.notOk((await response.files!()).fromStore, 'unpack tarball if it is not in store yet')
+    t.ok(await response.bundledManifest!())
   }
 
   await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
@@ -250,16 +250,13 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
-    }) as PackageResponse & {
-      files: () => Promise<PackageFilesResponse>,
-      finishing: () => Promise<void>,
-    }
-    await response.files()
-    await response.finishing()
+    }) as PackageResponse
+    await response.files!()
+    await response.finishing!()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.files()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
-    t.equal((await response['bundledManifest']()).version, '4.1.2')
+    t.notOk((await response.files!()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.ok(await response.bundledManifest!())
   }
 
   {
@@ -279,12 +276,12 @@ test('refetch local tarball if its integrity has changed', async t => {
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files()
-    await response.finishing()
+    await response.files!()
+    await response.finishing!()
 
     t.ok(response.body.updated === false, 'resolution not updated')
-    t.ok((await response.files()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
-    t.equal((await response['bundledManifest']()).version, '4.1.2')
+    t.ok((await response.files!()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.ok(await response.bundledManifest!())
   }
 
   t.end()
@@ -318,12 +315,12 @@ test('refetch local tarball if its integrity has changed. The requester does not
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files()
-    await response.finishing()
+    await response.files!()
+    await response.finishing!()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.files()).fromStore, 'unpack tarball if it is not in store yet')
-    t.equal((await response['bundledManifest']()).version, '0.8.1')
+    t.notOk((await response.files!()).fromStore, 'unpack tarball if it is not in store yet')
+    t.ok(await response.bundledManifest!())
   }
 
   await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
@@ -340,12 +337,12 @@ test('refetch local tarball if its integrity has changed. The requester does not
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files()
-    await response.finishing()
+    await response.files!()
+    await response.finishing!()
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.files()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
-    t.equal((await response['bundledManifest']()).version, '4.1.2')
+    t.notOk((await response.files!()).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.ok(await response.bundledManifest!())
   }
 
   {
@@ -362,8 +359,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.files
     await response.finishing
 
-    t.ok((await response.files()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
-    t.equal((await response['bundledManifest']()).version, '4.1.2')
+    t.ok((await response.files!()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.ok(await response.bundledManifest!())
   }
 
   t.end()
@@ -413,7 +410,16 @@ test('fetchPackageToStore()', async (t) => {
 
   // This verifies that when a package has been cached with no full manifest
   // the full manifest is requested and added to the cache
-  t.ok((await fetchResult2.bundledManifest!()).name, 'full manifest returned')
+  t.deepEqual(
+    await fetchResult2.bundledManifest!(),
+    {
+      engines: { node: '>=0.10.0' },
+      name: 'is-positive',
+      scripts: { test: 'node test.js' },
+      version: '1.0.0',
+    },
+    'full manifest returned',
+  )
 
   t.end()
 })
@@ -593,7 +599,16 @@ test('always return a package manifest in the response', async t => {
     }) as PackageResponse & {bundledManifest: () => Promise<DependencyManifest>}
 
     t.ok(pkgResponse.body, 'response has body')
-    t.ok((await pkgResponse.bundledManifest()).name, 'response has manifest')
+    t.deepEqual(
+      await pkgResponse.bundledManifest!(),
+      {
+        engines: { node: '>=0.10.0' },
+        name: 'is-positive',
+        scripts: { test: 'node test.js' },
+        version: '1.0.0',
+      },
+      'response has manifest',
+    )
   }
 
   t.end()
