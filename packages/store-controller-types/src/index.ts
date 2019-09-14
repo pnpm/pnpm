@@ -43,9 +43,9 @@ export type PackageUsages = {
 export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions,
 ) => {
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
-  finishing: Promise<void>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
+  fetchingRawManifest?: () => Promise<PackageJson>,
+  finishing: () => Promise<void>,
   inStoreLocation: string,
 }
 
@@ -109,8 +109,8 @@ export type PackageResponse = {
   },
 } | (
   {
-    fetchingFiles?: Promise<PackageFilesResponse>,
-    finishing?: Promise<void>, // a package request is finished once its integrity is generated and saved
+    fetchingFiles?: () => Promise<PackageFilesResponse>,
+    finishing?: () => Promise<void>, // a package request is finished once its integrity is generated and saved
     body: {
       isLocal: false,
       inStoreLocation: string,
@@ -127,7 +127,7 @@ export type PackageResponse = {
     },
   } & (
     {
-      fetchingRawManifest: Promise<PackageJson>,
+      fetchingRawManifest: () => Promise<PackageJson>,
     } | {
       body: {
         manifest: PackageManifest,

@@ -10,7 +10,6 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
-  LocalPackages,
   Resolution,
   ResolveFunction,
   ResolveResult,
@@ -35,6 +34,7 @@ import * as fs from 'mz/fs'
 import PQueue from 'p-queue'
 import path = require('path')
 import exists = require('path-exists')
+import pShare = require('promise-share')
 import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
 import symlinkDir = require('symlink-dir')
@@ -242,9 +242,9 @@ function fetchToStore (
     resolution: Resolution,
   },
 ): {
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
-  finishing: Promise<void>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
+  fetchingRawManifest?: () => Promise<PackageJson>,
+  finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
   const targetRelative = pkgIdToFilename(opts.pkgId, opts.prefix)
@@ -323,7 +323,12 @@ function fetchToStore (
     )
   }
 
-  return result
+  return {
+    fetchingFiles: pShare(result.fetchingFiles),
+    fetchingRawManifest: result.fetchingRawManifest ? pShare(result.fetchingRawManifest) : undefined,
+    finishing: pShare(result.finishing),
+    inStoreLocation: result.inStoreLocation,
+  }
 
   function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
     return p.catch((err) => {

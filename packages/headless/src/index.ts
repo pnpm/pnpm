@@ -523,7 +523,7 @@ async function lockfileToDepGraph (
           resolution,
         })
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        fetchResponse.fetchingFiles // tslint:disable-line
+        fetchResponse.fetchingFiles() // tslint:disable-line
           .then((fetchResult) => {
             progressLogger.debug({
               packageId,
@@ -531,6 +531,9 @@ async function lockfileToDepGraph (
               status: fetchResult.fromStore
                 ? 'found_in_store' : 'fetched',
             })
+          })
+          .catch(() => {
+            // ignore
           })
         graph[peripheralLocation] = {
           centralLocation: pkgLocation.directory,
@@ -645,8 +648,8 @@ export interface DependenciesGraphNode {
   centralLocation: string,
   modules: string,
   name: string,
-  fetchingFiles: Promise<PackageFilesResponse>,
-  finishing: Promise<void>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
+  finishing: () => Promise<void>,
   peripheralLocation: string,
   children: {[alias: string]: string},
   // an independent package is a package that
@@ -677,7 +680,7 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
-      const filesResponse = await depNode.fetchingFiles
+      const filesResponse = await depNode.fetchingFiles()
 
       if (depNode.independent) return
       return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {

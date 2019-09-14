@@ -60,18 +60,18 @@ test('server', async t => {
     }
   )
 
-  t.equal((await response['fetchingRawManifest']).name, 'is-positive', 'responded with fetchingRawManifest')
+  t.equal((await response['fetchingRawManifest']()).name, 'is-positive', 'responded with fetchingRawManifest')
   t.equal(response.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct ID')
 
   t.equal(response.body['manifest'].name, 'is-positive', 'responded with correct name in manifest')
   t.equal(response.body['manifest'].version, '1.0.0', 'responded with correct version in manifest')
 
-  const files = await response['fetchingFiles'] as PackageFilesResponse
+  const files = await response['fetchingFiles']() as PackageFilesResponse
   t.notOk(files.fromStore)
   t.ok(files.filenames.includes('package.json'))
   t.ok(response['finishing'])
 
-  await response['finishing']
+  await response['finishing']()
 
   await server.close()
   await storeCtrl.close()
@@ -103,14 +103,14 @@ test('fetchPackage', async t => {
 
   t.equal(typeof response.inStoreLocation, 'string', 'location in store returned')
 
-  t.ok(await response.fetchingRawManifest)
+  t.ok(await response.fetchingRawManifest!())
 
-  const files = await response['fetchingFiles'] as PackageFilesResponse
+  const files = await response['fetchingFiles']() as PackageFilesResponse
   t.notOk(files.fromStore)
   t.ok(files.filenames.includes('package.json'))
   t.ok(response['finishing'])
 
-  await response['finishing']
+  await response['finishing']()
 
   t.comment('getPackageLocation()')
 
@@ -322,8 +322,8 @@ test('find package usages', async t => {
       sideEffectsCache: false,
     }
   )
-  await requestResponse['fetchingRawManifest']
-  await requestResponse['finishing']
+  await requestResponse['fetchingRawManifest']()
+  await requestResponse['finishing']()
 
   // For debugging purposes
   await storeCtrl.saveState()

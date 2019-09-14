@@ -43,7 +43,7 @@ test('store.importPackage()', async (t) => {
   const importTo = tempy.directory()
   const importFrom = path.join(fetchResult.inStoreLocation, 'node_modules', 'is-positive')
   await storeController.importPackage(importFrom, importTo, {
-    filesResponse: await fetchResult.fetchingFiles,
+    filesResponse: await fetchResult.fetchingFiles(),
     force: false,
   })
   t.equal(typeof require(importTo), 'function', `sucessfully imported to ${importTo}`)
@@ -82,7 +82,7 @@ test('store.importPackage() by copying', async (t) => {
   const importTo = tempy.directory()
   const importFrom = path.join(fetchResult.inStoreLocation, 'node_modules', 'is-positive')
   await storeController.importPackage(importFrom, importTo, {
-    filesResponse: await fetchResult.fetchingFiles,
+    filesResponse: await fetchResult.fetchingFiles(),
     force: false,
   })
   t.equal(typeof require(importTo), 'function', `sucessfully imported to ${importTo}`)

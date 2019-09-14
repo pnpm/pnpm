@@ -11,6 +11,7 @@ import {
 import { PackageJson } from '@pnpm/types'
 
 import pLimit from 'p-limit'
+import pShare = require('promise-share')
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {
@@ -131,7 +132,7 @@ function requestPackage (
     if (options.skipFetch) {
       return {
         body: packageResponseBody,
-        fetchingRawManifest,
+        fetchingRawManifest: fetchingRawManifest && pShare(fetchingRawManifest),
       }
     }
 
@@ -140,9 +141,9 @@ function requestPackage (
     })
     return {
       body: packageResponseBody,
-      fetchingFiles,
-      fetchingRawManifest,
-      finishing: Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined),
+      fetchingFiles: pShare(fetchingFiles),
+      fetchingRawManifest: fetchingRawManifest && pShare(fetchingRawManifest),
+      finishing: pShare(Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined)),
     }
   })
 }
@@ -152,9 +153,9 @@ function fetchPackage (
   limitedFetch: (url: string, body: object) => any, // tslint:disable-line
   options: FetchPackageToStoreOptions,
 ): {
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
-  finishing: Promise<void>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
+  fetchingRawManifest?: () => Promise<PackageJson>,
+  finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
   const msgId = uuid.v4()
@@ -172,9 +173,9 @@ function fetchPackage (
       msgId,
     })
     return {
-      fetchingFiles,
-      fetchingRawManifest,
-      finishing: Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined),
+      fetchingFiles: pShare(fetchingFiles),
+      fetchingRawManifest: fetchingRawManifest && pShare(fetchingRawManifest),
+      finishing: pShare(Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined)),
       inStoreLocation: fetchResponseBody.inStoreLocation,
     }
   })
