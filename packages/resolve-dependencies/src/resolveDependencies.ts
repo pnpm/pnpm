@@ -28,6 +28,7 @@ import {
 } from '@pnpm/store-controller-types'
 import {
   Dependencies,
+  DependencyManifest,
   PackageManifest,
   PeerDependenciesMeta,
   ReadPackageHook,
@@ -168,7 +169,7 @@ export interface ResolvedPackage {
   dev: boolean,
   optional: boolean,
   fetchingFiles: () => Promise<PackageFilesResponse>,
-  fetchingRawManifest?: () => Promise<PackageManifest>,
+  fetchingBundledManifest?: () => Promise<DependencyManifest>,
   finishing: () => Promise<void>,
   path: string,
   name: string,
@@ -582,7 +583,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingRawManifest']() // tslint:disable-line:no-string-literal
+    const manifest = pkgResponse.body.manifest || await pkgResponse.bundledManifest!() // tslint:disable-line:no-string-literal
     if (options.currentDepth > 0) {
       logger.warn({
         message: `Ignoring file dependency because it is not a root dependency ${wantedDependency}`,
@@ -632,12 +633,12 @@ async function resolveDependency (
   } else {
     // tslint:disable:no-string-literal
     pkg = ctx.readPackageHook
-      ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']())
-      : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']()
+      ? ctx.readPackageHook(pkgResponse.body.manifest || await pkgResponse.bundledManifest!())
+      : pkgResponse.body.manifest || await pkgResponse.bundledManifest!()
 
     prepare = Boolean(
-      pkgResponse.body['resolvedVia'] === 'git-repository' &&
-      pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string',
+      pkgResponse.body.resolvedVia === 'git-repository' &&
+      pkg.scripts && typeof pkg.scripts.prepare === 'string',
     )
 
     if (
@@ -691,9 +692,8 @@ async function resolveDependency (
       requester: ctx.lockfileDirectory,
       status: 'resolved',
     })
-    // tslint:disable:no-string-literal
-    if (pkgResponse['fetchingFiles']) {
-      pkgResponse['fetchingFiles']()
+    if (pkgResponse.files) {
+      pkgResponse.files()
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
             packageId: pkgResponse.body.id,
@@ -706,7 +706,6 @@ async function resolveDependency (
           // Ignore
         })
     }
-    // tslint:enable:no-string-literal
 
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = getResolvedPackage({
       dependencyLockfile: options.dependencyLockfile,
@@ -773,10 +772,10 @@ function getResolvedPackage (
       peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
     dev: options.wantedDependency.dev,
-    engineCache: !options.force && options.pkgResponse.body['cacheByEngine'] && options.pkgResponse.body['cacheByEngine'][ENGINE_NAME], // tslint:disable-line:no-string-literal
-    fetchingFiles: options.pkgResponse['fetchingFiles'], // tslint:disable-line:no-string-literal
-    fetchingRawManifest: options.pkgResponse['fetchingRawManifest'], // tslint:disable-line:no-string-literal
-    finishing: options.pkgResponse['finishing'], // tslint:disable-line:no-string-literal
+    engineCache: !options.force && options.pkgResponse.body.cacheByEngine && options.pkgResponse.body.cacheByEngine[ENGINE_NAME],
+    fetchingBundledManifest: options.pkgResponse.bundledManifest,
+    fetchingFiles: options.pkgResponse.files!,
+    finishing: options.pkgResponse.finishing!,
     hasBin: options.hasBin,
     hasBundledDependencies: !!(options.pkg.bundledDependencies || options.pkg.bundleDependencies),
     id: options.pkgResponse.body.id,
@@ -786,7 +785,7 @@ function getResolvedPackage (
     name: options.pkg.name,
     optional: options.wantedDependency.optional,
     optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
-    path: options.pkgResponse.body['inStoreLocation'], // tslint:disable-line:no-string-literal
+    path: options.pkgResponse.body.inStoreLocation!,
     peerDependencies: peerDependencies || {},
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,

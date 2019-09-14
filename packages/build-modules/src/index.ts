@@ -152,7 +152,7 @@ function getSubgraphToBuild (
 }
 
 export interface DependenciesGraphNode {
-  fetchingRawManifest?: () => Promise<PackageManifest>,
+  fetchingBundledManifest?: () => Promise<PackageManifest>,
   hasBundledDependencies: boolean,
   peripheralLocation: string,
   children: {[alias: string]: string},
@@ -205,7 +205,7 @@ export async function linkBinsOfDependencies (
         const dep = depGraph[childrenToLink[alias]]
         return {
           location: dep.peripheralLocation,
-          manifest: dep.fetchingRawManifest && (await dep.fetchingRawManifest()) || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
+          manifest: dep.fetchingBundledManifest && (await dep.fetchingBundledManifest()) || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
         }
       }),
   )

@@ -906,6 +906,7 @@ importers:
       p-queue: 6.1.1
       path-exists: 4.0.0
       promise-share: 1.0.0
+      ramda: 0.26.1
       rename-overwrite: 2.0.2
       ssri: 6.0.1
       symlink-dir: 3.1.1
@@ -919,6 +920,7 @@ importers:
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
       '@types/nock': 10.0.3
+      '@types/ramda': 0.26.21
       '@types/sinon': 7.0.13
       '@types/ssri': 6.0.1
       delay: 4.3.0
@@ -946,6 +948,7 @@ importers:
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
       '@types/nock': ^10.0.0
+      '@types/ramda': 0.26.21
       '@types/sinon': ^7.0.10
       '@types/ssri': 6.0.1
       '@zkochan/rimraf': 1.0.0
@@ -960,6 +963,7 @@ importers:
       p-queue: 6.1.1
       path-exists: 4.0.0
       promise-share: 1.0.0
+      ramda: 0.26.1
       rename-overwrite: 2.0.2
       rimraf: 3.0.0
       sinon: 7.4.2
@@ -2434,7 +2438,7 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.21:
     dependencies:
-      ts-toolbelt: 3.8.63
+      ts-toolbelt: 3.9.2
     resolution:
       integrity: sha512-zMYtIZMceA6BvH+or6LmewLBgojbXg5+FGCwjO8K+Z+d/ZWxILmhhASXkehW0PqJL+V0QbyDeeAHix0dvEKXfQ==
   /@types/retry/0.12.0:
@@ -7964,11 +7968,9 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-dyNS/RqyVTDcmNM4NIBAeDMpsAdaQ+ojdf0GOLqE6nwJOgzEkdRNzJywhDfwnuvB10oa6NLVG1rUJQCpRN7qoQ==
-  /ts-toolbelt/3.8.63:
-    peerDependencies:
-      typescript: ^3.5.0
+  /ts-toolbelt/3.9.2:
     resolution:
-      integrity: sha512-OlsFC8uF1mpN2O7DlvSkgnXzOvubO790eFhTvZBFI+WLge2BYzkQk73Q3yF0R8usxhkqbemLomqRhCGWasoIKw==
+      integrity: sha512-9vNqN6qJksKGEfutkJBR8GiTgKYVykv7HSO3556QmPvyu0T7D7x6kAUd2xJqi3vm6uPic5qXl54MIrsybHBddw==
   /tslib/1.10.0:
     resolution:
       integrity: sha512-qOebF53frne81cf0S9B41ByenJ3/IuH8yJKngAX35CmiZySA0khhkovshKK+jGCaMnVomla7gVlIcc3EvKPbTQ==

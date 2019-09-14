@@ -243,13 +243,13 @@ export default async function linkPackages (
 
   await Promise.all(pendingRequiresBuilds.map(async ({ absoluteDepPath, relativeDepPath }) => {
     const depNode = depGraph[absoluteDepPath]
-    if (!depNode.fetchingRawManifest) {
+    if (!depNode.fetchingBundledManifest) {
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${absoluteDepPath}"`)
     }
     const filesResponse = await depNode.fetchingFiles()
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-    const pkgJson = await depNode.fetchingRawManifest()
+    const pkgJson = await depNode.fetchingBundledManifest()
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
       filesResponse.filenames.includes('binding.gyp') ||
