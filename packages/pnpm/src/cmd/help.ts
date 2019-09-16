@@ -55,12 +55,13 @@ const FILTERING = {
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }
 
-type DescriptionItem = { shortAlias?: string, name: string, description: string }
+type DescriptionItem = { shortAlias?: string, name: string, description?: string }
 
 function renderHelp (
   config: {
+    aliases?: string[],
     descriptionLists?: Array<{ title: string, list: DescriptionItem[] }>,
-    description: string,
+    description?: string,
     usages: string[],
     url?: string,
   }
@@ -74,6 +75,9 @@ function renderHelp (
       output += `       ${usage}\n`
     }
     output += '\n'
+  }
+  if (config.aliases && config.aliases.length) {
+    output += `${config.aliases.length === 1 ? 'Alias' : 'Aliases'}: ${config.aliases.join(', ')}\n\n`
   }
   if (config.description) output += `${config.description}\n\n`
   if (config.descriptionLists) {
@@ -120,7 +124,7 @@ const DESCRIPTION_COLUMN = {
 }
 
 function renderDescriptionList (descriptionItems: DescriptionItem[]) {
-  const data = descriptionItems.map(({ shortAlias, name, description }) => [shortAlias && `${shortAlias},` || '', name, description])
+  const data = descriptionItems.map(({ shortAlias, name, description }) => [shortAlias && `${shortAlias},` || '', name, description || ''])
   const firstColumnMaxWidth = getColumnMaxWidth(data, 0)
   const descriptionColumnWidth = consoleWidth - firstColumnMaxWidth - getColumnMaxWidth(data, 1) - 2 - 2 - 1
   if (firstColumnMaxWidth === 0) {
@@ -162,7 +166,8 @@ function getHelpText (command: string) {
   switch (getCommandFullName(command)) {
     case 'install':
       return renderHelp({
-        description: 'Aliases: i\n\n' + oneLine`Installs all dependencies of the project in the current working directory.
+        aliases: ['i'],
+        description: oneLine`Installs all dependencies of the project in the current working directory.
           When executed inside a workspace, installs all dependencies of all workspace packages.`,
         descriptionLists: [
           {
@@ -244,7 +249,6 @@ function getHelpText (command: string) {
                 name: '--[no-]verify-store-integrity',
               },
               {
-                description: '',
                 name: '--[no-]lock',
               },
               {
@@ -402,7 +406,8 @@ function getHelpText (command: string) {
 
     case 'uninstall':
       return renderHelp({
-        description: `Aliases: remove, rm, r, un\n\nRemoves packages from \`node_modules\` and from the project's \`packages.json\`.`,
+        aliases: ['remove', 'rm', 'r', 'un'],
+        description: `Removes packages from \`node_modules\` and from the project's \`packages.json\`.`,
         descriptionLists: [
           {
             title: 'Options',
@@ -425,7 +430,7 @@ function getHelpText (command: string) {
 
     case 'link':
       return renderHelp({
-        description: 'Aliases: ln',
+        aliases: ['ln'],
         usages: [
           'pnpm link (in package dir)',
           'pnpm link <pkg>',
@@ -435,7 +440,8 @@ function getHelpText (command: string) {
 
     case 'unlink':
       return renderHelp({
-        description: 'Aliases: dislink\n\nRemoves the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`',
+        aliases: ['dislink'],
+        description: 'Removes the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`',
         descriptionLists: [
           {
             title: 'Options',
@@ -460,7 +466,7 @@ function getHelpText (command: string) {
 
     case 'update':
       return renderHelp({
-        description: 'Aliases: up, upgrade',
+        aliases: ['up', 'upgrade'],
         descriptionLists: [
           {
             title: 'Options',
@@ -495,7 +501,8 @@ function getHelpText (command: string) {
 
     case 'list':
       return renderHelp({
-        description: 'Aliases: list, la, ll\n\n' + oneLine`When run as ll or la, it shows extended information by default.
+        aliases: ['list', 'la', 'll'],
+        description: oneLine`When run as ll or la, it shows extended information by default.
           All dependencies are printed by default. Search by patterns is supported.
           For example: pnpm ls babel-* eslint-*`,
         descriptionLists: [
@@ -587,7 +594,8 @@ function getHelpText (command: string) {
 
     case 'install-test':
       return renderHelp({
-        description: 'Aliases: it\n\nRuns a \`pnpm install\` followed immediately by a \`pnpm test\`. It takes exactly the same arguments as \`pnpm install\`.',
+        aliases: ['it'],
+        description: 'Runs a \`pnpm install\` followed immediately by a \`pnpm test\`. It takes exactly the same arguments as \`pnpm install\`.',
         usages: ['pnpm install-test'],
       })
 
@@ -676,7 +684,8 @@ function getHelpText (command: string) {
 
     case 'rebuild':
       return renderHelp({
-        description: 'Aliases: rb\n\nRebuild a package.',
+        aliases: ['rb'],
+        description: 'Rebuild a package.',
         descriptionLists: [
           {
             title: 'Options',
@@ -701,7 +710,8 @@ function getHelpText (command: string) {
 
     case 'run':
       return renderHelp({
-        description: 'Aliases: run-script\n\nRuns a defined package script.',
+        aliases: ['run-script'],
+        description: 'Runs a defined package script.',
         descriptionLists: [
           {
             title: 'Options',
@@ -722,7 +732,8 @@ function getHelpText (command: string) {
 
     case 'test':
       return renderHelp({
-        description: `Aliases: t, tst\n\nRuns a package's "test" script, if one was provided.`,
+        aliases: ['t', 'tst'],
+        description: `Runs a package's "test" script, if one was provided.`,
         descriptionLists: [
           {
             title: 'Options',
@@ -815,7 +826,6 @@ function getHelpText (command: string) {
                 name: '--[no-]verify-store-integrity',
               },
               {
-                description: '',
                 name: '--[no-]lock',
               },
               {
@@ -833,148 +843,145 @@ function getHelpText (command: string) {
       })
 
     case 'recursive':
-      return stripIndent`
-        pnpm recursive [command] [flags] [-- <package selector>...]
-        pnpm multi [command] [flags] [-- <package selector>...]
-        pnpm m [command] [flags] [-- <package selector>...]
+      return renderHelp({
+        description: oneLine`
+          Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
+          A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.`,
+        descriptionLists: [
+          {
+            title: 'Commands',
 
-        Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
-        A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.
+            list: [
+              {
+                name: 'install',
+              },
+              {
+                name: 'add',
+              },
+              {
+                name: 'update',
+              },
+              {
+                description: 'Uninstall a dependency from each package',
+                name: 'uninstall <pkg>...',
+              },
+              {
+                description: 'Removes links to local packages and reinstalls them from the registry.',
+                name: 'unlink',
+              },
+              {
+                description: 'List dependencies in each package.',
+                name: 'list [<pkg>...]',
+              },
+              {
+                description: 'Check for outdated dependencies in every package.',
+                name: 'outdated [<pkg>...]',
+              },
+              {
+                description: oneLine`
+                  This runs an arbitrary command from each package's "scripts" object.
+                  If a package doesn't have the command, it is skipped.
+                  If none of the packages have the command, the command fails.`,
+                name: 'run <command> [-- <args>...]',
+              },
+              {
+                description: `This runs each package's "test" script, if one was provided.`,
+                name: 'test [-- <args>...]',
+              },
+              {
+                description: oneLine`
+                  This command runs the "npm build" command on each package.
+                  This is useful when you install a new version of node,
+                  and must recompile all your C++ addons with the new binary.`,
+                name: 'rebuild [[<@scope>/<name>]...]',
+              },
+              {
+                description: `Run a command in each package.`,
+                name: 'exec -- <command> [args...]',
+              },
+            ],
+          },
+          {
+            title: 'Options',
 
-        Commands:
-
-          install
-
-          add
-
-          update
-
-          uninstall <pkg>...
-            Uninstall a dependency from each package
-
-          unlink
-            Removes links to local packages and reinstalls them from the registry.
-
-          list [<pkg>...]
-            List dependencies in each package.
-
-          outdated [<pkg>...]
-            Check for outdated dependencies in every package.
-
-          run <command> [-- <args>...]
-            This runs an arbitrary command from each package's "scripts" object.
-            If a package doesn't have the command, it is skipped.
-            If none of the packages have the command, the command fails.
-
-          test [-- <args>...]
-            This runs each package's "test" script, if one was provided.
-
-          rebuild [[<@scope>/<name>]...]
-            This command runs the "npm build" command on each package.
-            This is useful when you install a new version of node,
-            and must recompile all your C++ addons with the new binary.
-
-          exec -- <command> [args...]      run a command in each package.
-
-        Options:
-
-          -- <package selector>..., --filter <package selector>
-            Run the command only on packages that satisfy at least one of the selectors.
-
-            Example: pnpm recursive install -- foo... ...@bar/* qar ./components
-
-            These selectors may be used:
-
-            <pattern>
-              Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*
-
-            <pattern>...
-              Includes all direct and indirect dependencies of the matched packages. E.g.: foo...
-
-            ...<pattern>
-              Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*
-
-            ./<directory>
-              Includes all packages that are inside a given subdirectory. E.g.: ./components
-
-            .
-              Includes all packages that are under the current working directory.
-
-          --no-bail
-            Continues executing other tasks even if a task threw an error.
-
-          --workspace-concurrency <number>
-            Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
-
-          --link-workspace-packages
-            Locally available packages are linked to node_modules instead of being downloaded from the registry.
-            Convenient to use in a multi-package repository.
-
-          --sort
-            Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
-
-          --shared-workspace-lockfile
-            Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
-            A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.
-      `
+            list: [
+              {
+                description: 'Continues executing other tasks even if a task threw an error.',
+                name: '--no-bail',
+              },
+              {
+                description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+                name: '--workspace-concurrency <number>',
+              },
+              {
+                description: oneLine`
+                  Locally available packages are linked to node_modules instead of being downloaded from the registry.
+                  Convenient to use in a multi-package repository.`,
+                name: '--link-workspace-packages',
+              },
+              {
+                description: 'Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.',
+                name: '--sort',
+              },
+              {
+                description: oneLine`
+                  Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
+                  A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.`,
+                name: '--shared-workspace-lockfile',
+              },
+            ],
+          },
+          FILTERING,
+        ],
+        usages: [
+          'pnpm recursive [command] [flags] [-- <package selector>...]',
+          'pnpm multi [command] [flags] [-- <package selector>...]',
+          'pnpm m [command] [flags] [-- <package selector>...]'
+        ]
+      })
 
     default:
       return renderHelp({
-        description: '',
         descriptionLists: [
           {
             title: 'Manage your dependencies',
 
             list: [
               {
-                description: '',
                 name: 'install',
                 shortAlias: 'i',
               },
               {
-                description: '',
                 name: 'add',
-                shortAlias: '',
               },
               {
-                description: '',
                 name: 'update',
                 shortAlias: 'up',
               },
               {
-                description: '',
                 name: 'remove',
                 shortAlias: 'rm',
               },
               {
-                description: '',
                 name: 'link',
                 shortAlias: 'ln',
               },
               {
-                description: '',
                 name: 'unlink',
-                shortAlias: '',
               },
               {
-                description: '',
                 name: 'import',
-                shortAlias: '',
               },
               {
-                description: '',
                 name: 'install-test',
                 shortAlias: 'it',
               },
               {
-                description: '',
                 name: 'rebuild',
                 shortAlias: 'rb',
               },
               {
-                description: '',
                 name: 'prune',
-                shortAlias: '',
               },
             ],
           },
@@ -983,12 +990,10 @@ function getHelpText (command: string) {
 
             list: [
               {
-                description: '',
                 name: 'list',
                 shortAlias: 'ls',
               },
               {
-                description: '',
                 name: 'outdated',
               },
             ],
@@ -998,24 +1003,19 @@ function getHelpText (command: string) {
 
             list: [
               {
-                description: '',
                 name: 'run',
               },
               {
-                description: '',
                 name: 'test',
                 shortAlias: 't',
               },
               {
-                description: '',
                 name: 'start',
               },
               {
-                description: '',
                 name: 'restart',
               },
               {
-                description: '',
                 name: 'stop',
               },
             ],
@@ -1025,15 +1025,12 @@ function getHelpText (command: string) {
 
             list: [
               {
-                description: '',
                 name: 'pack',
               },
               {
-                description: '',
                 name: 'publish',
               },
               {
-                description: '',
                 name: 'root',
               },
             ],
@@ -1043,47 +1040,36 @@ function getHelpText (command: string) {
 
             list: [
               {
-                description: '',
                 name: 'recursive exec',
               },
               {
-                description: '',
                 name: 'recursive install',
               },
               {
-                description: '',
                 name: 'recursive add',
               },
               {
-                description: '',
                 name: 'recursive list',
               },
               {
-                description: '',
                 name: 'recursive outdated',
               },
               {
-                description: '',
                 name: 'recursive rebuild',
               },
               {
-                description: '',
                 name: 'recursive run',
               },
               {
-                description: '',
                 name: 'recursive test',
               },
               {
-                description: '',
                 name: 'recursive uninstall',
               },
               {
-                description: '',
                 name: 'recursive unlink',
               },
               {
-                description: '',
                 name: 'recursive update',
               },
             ],
@@ -1093,15 +1079,12 @@ function getHelpText (command: string) {
 
             list: [
               {
-                description: '',
                 name: 'server start',
               },
               {
-                description: '',
                 name: 'server status',
               },
               {
-                description: '',
                 name: 'server stop',
               },
             ],
@@ -1111,15 +1094,12 @@ function getHelpText (command: string) {
 
             list: [
               {
-                description: '',
                 name: 'store add',
               },
               {
-                description: '',
                 name: 'store prune',
               },
               {
-                description: '',
                 name: 'store status',
               },
             ],
