@@ -31,7 +31,6 @@ const OPTIONS = {
   },
 }
 const FILTERING = {
-  title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
   options: [
     {
       description: 'Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*',
@@ -54,6 +53,7 @@ const FILTERING = {
       full: '--filter .',
     },
   ],
+  title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }
 
 type OptionInfo = { short?: string, full: string, description: string }
@@ -106,9 +106,9 @@ const NO_BORDERS = {
   bottomLeft: '',
   bottomRight: '',
 
+  bodyJoin: '',
   bodyLeft: '',
   bodyRight: '',
-  bodyJoin: '',
 
   joinBody: '',
   joinLeft: '',
@@ -170,6 +170,48 @@ function getHelpText (command: string) {
   switch (getCommandFullName(command)) {
     case 'install':
       return renderHelp({
+        description: 'Aliases: i\n\n' + oneLine`Installs all dependencies of the project in the current working directory.
+          When executed inside a workspace, installs all dependencies of all workspace packages.`,
+        groupedOptions: [
+          {
+            title: 'Output',
+
+            options: [
+              {
+                description: 'No output is logged to the console, except fatal errors',
+                full: '--silent, --reporter silent',
+                short: '-s',
+              },
+              {
+                description: 'The default reporter when the stdout is TTY',
+                full: '--reporter default',
+              },
+              {
+                description: 'The output is always appended to the end. No cursor manipulations are performed',
+                full: '--reporter append-only',
+              },
+              {
+                description: 'The most verbose reporter. Prints all logs in ndjson format',
+                full: '--reporter ndjson',
+              },
+            ],
+          },
+          FILTERING,
+          {
+            title: 'Experimental options',
+
+            options: [
+              {
+                description: 'Use or cache the results of (pre/post)install hooks',
+                full: '--side-effects-cache',
+              },
+              {
+                description: 'Only use the side effects cache if present, do not create it for new packages',
+                full: '--side-effects-cache-readonly',
+              },
+            ],
+          },
+        ],
         options: [
           {
             description: oneLine`
@@ -287,48 +329,8 @@ function getHelpText (command: string) {
           },
           OPTIONS.help,
         ],
-        groupedOptions: [
-          {
-            title: 'Output',
-            options: [
-              {
-                description: 'No output is logged to the console, except fatal errors',
-                full: '--silent, --reporter silent',
-                short: '-s',
-              },
-              {
-                description: 'The default reporter when the stdout is TTY',
-                full: '--reporter default',
-              },
-              {
-                description: 'The output is always appended to the end. No cursor manipulations are performed',
-                full: '--reporter append-only',
-              },
-              {
-                description: 'The most verbose reporter. Prints all logs in ndjson format',
-                full: '--reporter ndjson',
-              },
-            ],
-          },
-          FILTERING,
-          {
-            title: 'Experimental options',
-            options: [
-              {
-                description: 'Use or cache the results of (pre/post)install hooks',
-                full: '--side-effects-cache',
-              },
-              {
-                description: 'Only use the side effects cache if present, do not create it for new packages',
-                full: '--side-effects-cache-readonly',
-              },
-            ],
-          },
-        ],
-        description: 'Aliases: i\n\n' + oneLine`Installs all dependencies of the project in the current working directory.
-          When executed inside a workspace, installs all dependencies of all workspace packages.`,
-        usages: ['pnpm install [options]'],
         url: 'https://pnpm.js.org/en/cli/install',
+        usages: ['pnpm install [options]'],
       })
 
     case 'add':
@@ -376,6 +378,7 @@ function getHelpText (command: string) {
           OPTIONS.preferOffline,
           OPTIONS.help,
         ],
+        url: 'https://pnpm.js.org/en/cli/add',
         usages: [
           'pnpm add <name>',
           'pnpm add <name>@<tag>',
@@ -387,18 +390,16 @@ function getHelpText (command: string) {
           'pnpm add <tarball url>',
           'pnpm add <folder>',
         ],
-        url: 'https://pnpm.js.org/en/cli/add',
       })
 
     case 'import':
       return renderHelp({
-        usages: ['pnpm import'],
         description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json) file.`,
+        usages: ['pnpm import'],
       })
 
     case 'uninstall':
       return renderHelp({
-        usages: ['pnpm uninstall <pkg>[@<version>]...'],
         description: `Aliases: remove, rm, r, un\n\nRemoves packages from \`node_modules\` and from the project's \`packages.json\`.`,
         options: [
           {
@@ -411,35 +412,41 @@ function getHelpText (command: string) {
             short: '-r',
           }
         ],
+        usages: ['pnpm uninstall <pkg>[@<version>]...'],
       })
 
     case 'link':
       return renderHelp({
+        description: 'Aliases: ln',
         usages: [
           'pnpm link (in package dir)',
           'pnpm link <pkg>',
           'pnpm link <folder>',
         ],
-        description: 'Aliases: ln',
       })
 
     case 'unlink':
-      return stripIndent`
-        pnpm unlink (in package dir)
-        pnpm unlink <pkg>...
-
-        Aliases: dislink
-
-        Removes the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`
-
-        Options:
-          -r  unlink in every package found in subdirectories
+      return renderHelp({
+        description: 'Aliases: dislink\n\nRemoves the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`',
+        options: [
+          {
+            description: oneLine`
+              Unlink in every package found in subdirectories
               or in every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            full: '--recursive',
+            short: '-r',
+          },
+        ],
+        usages: [
+          'pnpm unlink (in package dir)',
+          'pnpm unlink <pkg>...',
+        ],
+      })
 
     case 'update':
       return renderHelp({
+        description: 'Aliases: up, upgrade',
         options: [
           {
             description: oneLine`Update in every package found in subdirectories
@@ -463,12 +470,14 @@ function getHelpText (command: string) {
             short: '-L',
           },
         ],
-        description: 'Aliases: up, upgrade',
         usages: ['pnpm update [-g] [<pkg>...]'],
       })
 
     case 'list':
       return renderHelp({
+        description: 'Aliases: list, la, ll\n\n' + oneLine`When run as ll or la, it shows extended information by default.
+          All dependencies are printed by default. Search by patterns is supported.
+          For example: pnpm ls babel-* eslint-*`,
         options: [
           {
             description: oneLine`Perform command on every package in subdirectories
@@ -518,14 +527,10 @@ function getHelpText (command: string) {
         usages: [
           'pnpm ls [<pkg> ...]',
         ],
-        description: 'Aliases: list, la, ll\n\n' + oneLine`When run as ll or la, it shows extended information by default.
-          All dependencies are printed by default. Search by patterns is supported.
-          For example: pnpm ls babel-* eslint-*`,
       })
 
     case 'prune':
       return renderHelp({
-        usages: ['pnpm prune [--production]'],
         description: 'Removes extraneous packages',
         options: [
           {
@@ -533,33 +538,34 @@ function getHelpText (command: string) {
             full: '--prod, --production',
           },
         ],
+        usages: ['pnpm prune [--production]'],
       })
 
     case 'pack':
       return renderHelp({
-        usages: ['pnpm pack'],
         description: 'Creates a compressed gzip archive of package dependencies.',
+        usages: ['pnpm pack'],
       })
 
     case 'publish':
-        return renderHelp({
-          usages: ['pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]'],
-          description: 'Publishes a package to the npm registry.',
-        })
+      return renderHelp({
+        description: 'Publishes a package to the npm registry.',
+        usages: ['pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]'],
+      })
 
     case 'install-test':
-        return renderHelp({
-          usages: ['pnpm install-test'],
-          description: 'Aliases: it\n\nRuns a \`pnpm install\` followed immediately by a \`pnpm test\`. It takes exactly the same arguments as \`pnpm install\`.',
-        })
+      return renderHelp({
+        description: 'Aliases: it\n\nRuns a \`pnpm install\` followed immediately by a \`pnpm test\`. It takes exactly the same arguments as \`pnpm install\`.',
+        usages: ['pnpm install-test'],
+      })
 
     case 'store':
       return renderHelp({
-        usages: ['pnpm store <command>'],
         description: 'Reads and performs actions on pnpm store that is on the current filesystem.',
         groupedOptions: [
           {
             title: 'Commands',
+
             options: [
               {
                 description: oneLine`
@@ -587,110 +593,120 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        usages: ['pnpm store <command>'],
       })
 
     case 'root':
-      return stripIndent`
-        pnpm root [-g [--independent-leaves]]
-
-        Options:
-
-          -g                             print the global \`node_modules\` folder
-
-        Print the effective \`node_modules\` folder.
-      `
+      return renderHelp({
+        description: 'Print the effective \`node_modules\` folder.',
+        options: [
+          {
+            description: 'Print the global \`node_modules\` folder',
+            full: '--global',
+            short: '-g',
+          },
+        ],
+        usages: ['pnpm root [-g [--independent-leaves]]'],
+      })
 
     case 'outdated':
-      return stripIndent`
-        pnpm outdated [<pkg> ...]
+      return renderHelp({
+        description: stripIndent`
+          Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
-        Check for outdated packages. The check can be limited to a subset of the installed
-        packages by providing arguments (patterns are supported).
-
-        Examples:
-        pnpm outdated
-        pnpm outdated gulp-* @babel/core
-
-        Options:
-          -r  check for outdated dependencies in every package found in subdirectories
+          Examples:
+          pnpm outdated
+          pnpm outdated gulp-* @babel/core`,
+        options: [
+          {
+            description: oneLine`
+              Check for outdated dependencies in every package found in subdirectories
               or in every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            full: '--recursive',
+            short: '-r',
+          },
+        ],
+        usages: ['pnpm outdated [<pkg> ...]'],
+      })
 
     case 'rebuild':
-      return stripIndent`
-        pnpm rebuild [<pkg> ...]
-
-        Aliases: rb
-
-        Rebuild a package.
-
-        Options:
-          -r         rebuild every package found in subdirectories
-                     or every workspace package, when executed inside a workspace.
-                     For options that may be used with \`-r\`, see "pnpm help recursive"
-          --pending  rebuild packages that were not build during installation.
-                     Packages are not build when installing with the --ignore-scripts flag
-      `
+      return renderHelp({
+        description: 'Aliases: rb\n\nRebuild a package.',
+        options: [
+          {
+            description: oneLine`Rebuild every package found in subdirectories
+              or every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            full: '--recursive',
+            short: '-r',
+          },
+          {
+            description: 'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
+            full: '--pending',
+          },
+        ],
+        usages: ['pnpm rebuild [<pkg> ...]'],
+      })
 
     case 'run':
-      return stripIndent`
-        pnpm run <command> [-- <args>...]
-
-        Aliases: run-script
-
-        Runs a defined package script.
-
-        Options:
-          -r         run the defined package script in every package found in subdirectories
-                     or every workspace package, when executed inside a workspace.
-                     For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+      return renderHelp({
+        description: 'Aliases: run-script\n\nRuns a defined package script.',
+        options: [
+          {
+            description: oneLine`Run the defined package script in every package found in subdirectories
+              or every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            full: '--recursive',
+            short: '-r',
+          },
+        ],
+        usages: ['pnpm run <command> [-- <args>...]'],
+      })
 
     case 'test':
-      return stripIndent`
-        pnpm test [-- <args>...]
-
-        Aliases: t, tst
-
-        Runs a package's "test" script, if one was provided.
-
-        Options:
-          -r         run the tests in every package found in subdirectories
-                     or every workspace package, when executed inside a workspace.
-                     For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+      return renderHelp({
+        description: `Aliases: t, tst\n\nRuns a package's "test" script, if one was provided.`,
+        options: [
+          {
+            description: oneLine`
+              Run the tests in every package found in subdirectories
+              or every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            full: '--recursive',
+            short: '-r',
+          },
+        ],
+        usages: ['pnpm test [-- <args>...]'],
+      })
 
     case 'start':
-      return stripIndent`
-        pnpm start [-- <args>...]
-
-        Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
-        If no "start" property is specified on the "scripts" object, it will run node server.js.
-      `
+      return renderHelp({
+        description: oneLine`
+          Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
+          If no "start" property is specified on the "scripts" object, it will run node server.js.`,
+        usages: ['pnpm start [-- <args>...]'],
+      })
 
     case 'stop':
-      return stripIndent`
-        pnpm stop [-- <args>...]
-
-        Runs a package's "stop" script, if one was provided.
-      `
+      return renderHelp({
+        description: `Runs a package's "stop" script, if one was provided.`,
+        usages: ['pnpm stop [-- <args>...]'],
+      })
 
     case 'restart':
-      return stripIndent`
-        pnpm restart [-- <args>...]
-
-        Restarts a package.
-        Runs a package's "stop", "restart", and "start" scripts, and associated pre- and post- scripts.
-      `
+      return renderHelp({
+        description: `Restarts a package. Runs a package's "stop", "restart", and "start" scripts, and associated pre- and post- scripts.`,
+        usages: ['pnpm restart [-- <args>...]'],
+      })
 
     case 'server':
       return renderHelp({
-        usages: ['pnpm server <command>'],
         description: 'Manage a store server',
         groupedOptions: [
           {
             title: 'Commands',
+
             options: [
               {
                 description: oneLine`
@@ -710,6 +726,7 @@ function getHelpText (command: string) {
           },
           {
             title: 'Start options',
+
             options: [
               {
                 description: 'Runs the server in the background',
@@ -750,6 +767,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        usages: ['pnpm server <command>'],
       })
 
     case 'recursive':
@@ -839,62 +857,213 @@ function getHelpText (command: string) {
       `
 
     default:
-      return stripIndent`
-        Usage: pnpm [command] [flags]
-               pnpm [ -h | --help | -v | --version ]
+      return renderHelp({
+        description: '',
+        groupedOptions: [
+          {
+            title: 'Manage your dependencies',
 
-        manage your dependencies:
-          - install
-          - add
-          - update
-          - uninstall
-          - link
-          - unlink
-          - import
-          - install-test
-          - rebuild
-          - prune
+            options: [
+              {
+                description: '',
+                full: 'install',
+                short: 'i',
+              },
+              {
+                description: '',
+                full: 'add',
+                short: '',
+              },
+              {
+                description: '',
+                full: 'update',
+                short: 'up',
+              },
+              {
+                description: '',
+                full: 'remove',
+                short: 'rm',
+              },
+              {
+                description: '',
+                full: 'link',
+                short: 'ln',
+              },
+              {
+                description: '',
+                full: 'unlink',
+                short: '',
+              },
+              {
+                description: '',
+                full: 'import',
+                short: '',
+              },
+              {
+                description: '',
+                full: 'install-test',
+                short: 'it',
+              },
+              {
+                description: '',
+                full: 'rebuild',
+                short: 'rb',
+              },
+              {
+                description: '',
+                full: 'prune',
+                short: '',
+              },
+            ],
+          },
+          {
+            title: 'Review your dependencies',
 
-        review your dependencies:
-          - list
-          - outdated
+            options: [
+              {
+                description: '',
+                full: 'list',
+                short: 'ls',
+              },
+              {
+                description: '',
+                full: 'outdated',
+              },
+            ],
+          },
+          {
+            title: 'Run your scripts',
 
-        run your scripts:
-          - run
-          - test
-          - start
-          - restart
-          - stop
+            options: [
+              {
+                description: '',
+                full: 'run',
+              },
+              {
+                description: '',
+                full: 'test',
+                short: 't',
+              },
+              {
+                description: '',
+                full: 'start',
+              },
+              {
+                description: '',
+                full: 'restart',
+              },
+              {
+                description: '',
+                full: 'stop',
+              },
+            ],
+          },
+          {
+            title: 'Other',
 
-        other:
-          - pack
-          - publish
-          - root
+            options: [
+              {
+                description: '',
+                full: 'pack',
+              },
+              {
+                description: '',
+                full: 'publish',
+              },
+              {
+                description: '',
+                full: 'root',
+              },
+            ],
+          },
+          {
+            title: 'Manage you monorepo',
 
-        manage you monorepo:
-          - recursive exec
-          - recursive install
-          - recursive add
-          - recursive list
-          - recursive outdated
-          - recursive rebuild
-          - recursive run
-          - recursive test
-          - recursive uninstall
-          - recursive unlink
-          - recursive update
+            options: [
+              {
+                description: '',
+                full: 'recursive exec',
+              },
+              {
+                description: '',
+                full: 'recursive install',
+              },
+              {
+                description: '',
+                full: 'recursive add',
+              },
+              {
+                description: '',
+                full: 'recursive list',
+              },
+              {
+                description: '',
+                full: 'recursive outdated',
+              },
+              {
+                description: '',
+                full: 'recursive rebuild',
+              },
+              {
+                description: '',
+                full: 'recursive run',
+              },
+              {
+                description: '',
+                full: 'recursive test',
+              },
+              {
+                description: '',
+                full: 'recursive uninstall',
+              },
+              {
+                description: '',
+                full: 'recursive unlink',
+              },
+              {
+                description: '',
+                full: 'recursive update',
+              },
+            ],
+          },
+          {
+            title: 'Use a store server',
 
-        use a store server:
-          - server start
-          - server status
-          - server stop
+            options: [
+              {
+                description: '',
+                full: 'server start',
+              },
+              {
+                description: '',
+                full: 'server status',
+              },
+              {
+                description: '',
+                full: 'server stop',
+              },
+            ],
+          },
+          {
+            title: 'Manage your store',
 
-        manage your store:
-          - store add
-          - store prune
-          - store status
-
-        Other commands are passed through to npm
-      `
+            options: [
+              {
+                description: '',
+                full: 'store add',
+              },
+              {
+                description: '',
+                full: 'store prune',
+              },
+              {
+                description: '',
+                full: 'store status',
+              },
+            ],
+          },
+        ],
+        usages: ['pnpm [command] [flags]', 'pnpm [ -h | --help | -v | --version ]'],
+      })
   }
 }
