@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { oneLine, stripIndent } from 'common-tags'
-import { table } from 'table'
+import renderHelp = require('render-help')
 import getCommandFullName from '../getCommandFullName'
 import pnpmPkgJson from '../pnpmPkgJson'
 
@@ -9,7 +9,8 @@ export default function (input: string[]) {
   console.log(`Version ${pnpmPkgJson.version}\n${getHelpText(cmdName)}`)
 }
 
-const consoleWidth = process.stdout.columns || 80
+const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
+
 const OPTIONS = {
   help: {
     description: 'Output usage information',
@@ -53,113 +54,6 @@ const FILTERING = {
     },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
-}
-
-type DescriptionItem = { shortAlias?: string, name: string, description?: string }
-
-function renderHelp (
-  config: {
-    aliases?: string[],
-    descriptionLists?: Array<{ title: string, list: DescriptionItem[] }>,
-    description?: string,
-    usages: string[],
-    url?: string,
-  }
-) {
-  let output = ''
-
-  if (config.usages.length > 0) {
-    const [firstUsage, ...restUsages] = config.usages
-    output += `Usage: ${firstUsage}\n`
-    for (let usage of restUsages) {
-      output += `       ${usage}\n`
-    }
-    output += '\n'
-  }
-  if (config.aliases && config.aliases.length) {
-    output += `${config.aliases.length === 1 ? 'Alias' : 'Aliases'}: ${config.aliases.join(', ')}\n\n`
-  }
-  if (config.description) output += `${config.description}\n\n`
-  if (config.descriptionLists) {
-    for (let { title, list } of config.descriptionLists) {
-      output += `${title}:\n` + renderDescriptionList(list)
-    }
-  }
-  if (config.url) {
-    output += `Visit ${config.url} for documentation about this command.`
-  }
-  return output
-}
-
-const NO_BORDERS = {
-  topBody: '',
-  topJoin: '',
-  topLeft: '',
-  topRight: '',
-
-  bottomBody: '',
-  bottomJoin: '',
-  bottomLeft: '',
-  bottomRight: '',
-
-  bodyJoin: '',
-  bodyLeft: '',
-  bodyRight: '',
-
-  joinBody: '',
-  joinLeft: '',
-  joinRight: '',
-}
-const TABLE_OPTIONS = {
-  border: NO_BORDERS,
-  singleLine: true,
-}
-
-const FIRST_COLUMN = { paddingLeft: 2 }
-const SHORT_OPTION_COLUMN = { alignment: 'right' as const }
-const LONG_OPTION_COLUMN = { paddingLeft: 0 }
-const DESCRIPTION_COLUMN = {
-  paddingRight: 0,
-  wrapWord: true,
-}
-
-function renderDescriptionList (descriptionItems: DescriptionItem[]) {
-  const data = descriptionItems.map(({ shortAlias, name, description }) => [shortAlias && `${shortAlias},` || '', name, description || ''])
-  const firstColumnMaxWidth = getColumnMaxWidth(data, 0)
-  const descriptionColumnWidth = consoleWidth - firstColumnMaxWidth - getColumnMaxWidth(data, 1) - 2 - 2 - 1
-  if (firstColumnMaxWidth === 0) {
-    return table(data.map(([, ...row]) => row), {
-      ...TABLE_OPTIONS,
-      columns: [
-        {
-          ...LONG_OPTION_COLUMN,
-          ...FIRST_COLUMN,
-        },
-        {
-          width: descriptionColumnWidth,
-          ...DESCRIPTION_COLUMN,
-        },
-      ],
-    })
-  }
-  return table(data, {
-    ...TABLE_OPTIONS,
-    columns: [
-      {
-        ...SHORT_OPTION_COLUMN,
-        ...FIRST_COLUMN,
-      },
-      LONG_OPTION_COLUMN,
-      {
-        width: descriptionColumnWidth,
-        ...DESCRIPTION_COLUMN,
-      },
-    ],
-  })
-}
-
-function getColumnMaxWidth (data: string[][], columnNumber: number) {
-  return data.reduce((maxWidth, row) => Math.max(maxWidth, row[columnNumber].length), 0)
 }
 
 function getHelpText (command: string) {
@@ -329,7 +223,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
-        url: 'https://pnpm.js.org/en/cli/install',
+        url: docsUrl(command),
         usages: ['pnpm install [options]'],
       })
 
@@ -384,7 +278,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
-        url: 'https://pnpm.js.org/en/cli/add',
+        url: docsUrl(command),
         usages: [
           'pnpm add <name>',
           'pnpm add <name>@<tag>',
@@ -401,6 +295,7 @@ function getHelpText (command: string) {
     case 'import':
       return renderHelp({
         description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json) file.`,
+        url: docsUrl(command),
         usages: ['pnpm import'],
       })
 
@@ -425,12 +320,14 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl('remove'),
         usages: ['pnpm uninstall <pkg>[@<version>]...'],
       })
 
     case 'link':
       return renderHelp({
         aliases: ['ln'],
+        url: docsUrl(command),
         usages: [
           'pnpm link (in package dir)',
           'pnpm link <pkg>',
@@ -458,6 +355,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: [
           'pnpm unlink (in package dir)',
           'pnpm unlink <pkg>...',
@@ -496,6 +394,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm update [-g] [<pkg>...]'],
       })
 
@@ -557,6 +456,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: [
           'pnpm ls [<pkg> ...]',
         ],
@@ -577,6 +477,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm prune [--production]'],
       })
 
@@ -589,6 +490,7 @@ function getHelpText (command: string) {
     case 'publish':
       return renderHelp({
         description: 'Publishes a package to the npm registry.',
+        url: docsUrl(command),
         usages: ['pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]'],
       })
 
@@ -596,6 +498,7 @@ function getHelpText (command: string) {
       return renderHelp({
         aliases: ['it'],
         description: 'Runs a \`pnpm install\` followed immediately by a \`pnpm test\`. It takes exactly the same arguments as \`pnpm install\`.',
+        url: docsUrl(command),
         usages: ['pnpm install-test'],
       })
 
@@ -633,6 +536,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm store <command>'],
       })
 
@@ -679,6 +583,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm outdated [<pkg> ...]'],
       })
 
@@ -705,6 +610,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm rebuild [<pkg> ...]'],
       })
 
@@ -727,6 +633,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm run <command> [-- <args>...]'],
       })
 
@@ -750,6 +657,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm test [-- <args>...]'],
       })
 
@@ -758,12 +666,14 @@ function getHelpText (command: string) {
         description: oneLine`
           Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
           If no "start" property is specified on the "scripts" object, it will run node server.js.`,
+        url: docsUrl(command),
         usages: ['pnpm start [-- <args>...]'],
       })
 
     case 'stop':
       return renderHelp({
         description: `Runs a package's "stop" script, if one was provided.`,
+        url: docsUrl(command),
         usages: ['pnpm stop [-- <args>...]'],
       })
 
@@ -839,6 +749,7 @@ function getHelpText (command: string) {
             ],
           },
         ],
+        url: docsUrl(command),
         usages: ['pnpm server <command>'],
       })
 
@@ -933,11 +844,12 @@ function getHelpText (command: string) {
           },
           FILTERING,
         ],
+        url: docsUrl(command),
         usages: [
           'pnpm recursive [command] [flags] [-- <package selector>...]',
           'pnpm multi [command] [flags] [-- <package selector>...]',
           'pnpm m [command] [flags] [-- <package selector>...]'
-        ]
+        ],
       })
 
     default:

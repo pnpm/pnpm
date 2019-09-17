@@ -1120,6 +1120,7 @@ importers:
       ramda: 0.26.1
       read-ini-file: 2.0.0
       read-yaml-file: 1.1.0
+      render-help: 0.0.0
       signal-exit: 3.0.2
       supi: 'link:../supi'
       table: 5.4.6
@@ -1256,6 +1257,7 @@ importers:
       ramda: 0.26.1
       read-ini-file: 2.0.0
       read-yaml-file: 1.1.0
+      render-help: 0.0.0
       retry: 0.12.0
       rimraf: 3.0.0
       semver: 6.3.0
@@ -7007,6 +7009,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-XodkUmbg11ZzZoAkYfJYEmj8FscfeRL2KHGALeDSB76ia8A1zqQq0+WkcepXm7QkuzmW0CE3uiFUBr/UJfin+w==
+  /render-help/0.0.0:
+    dependencies:
+      table: 5.4.6
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-ciOIIDKRJpY6+Gdpap9KsfwkYxICvIQ/ULzcavZlyKkPhIGFsSM0EGFAMTQdG6JRioyDZC+b/JVCNomYjydP5A==
   /replace-string/3.0.0:
     dev: false
     engines:
