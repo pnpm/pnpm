@@ -63,6 +63,7 @@ export default async function (
     independentLeaves: boolean,
     key?: string,
     localAddress?: string,
+    long?: boolean,
     networkConcurrency: number,
     offline: boolean,
     prefix: string,
@@ -87,18 +88,27 @@ export default async function (
 
   if (!outdatedPackages.length) return
 
-  const columnNames = [
+  let columnNames = [
     'Package',
     'Current',
-    'Latest',
-    'Details',
-  ].map((name: string) => chalk.blueBright(name))
+    'Latest'
+  ]
+
+  if (opts.long) {
+    columnNames.push('Details')
+  }
+
+  columnNames = columnNames.map((name: string) => chalk.blueBright(name))
   let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
     renderPackageName,
     renderCurrent,
     renderLatest,
-    renderDetails,
   ]
+
+  if (opts.long) {
+    columnFns.push(renderDetails)
+  }
+
   return table([
     columnNames,
     ...R.sortWith(
