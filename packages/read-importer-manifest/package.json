@@ -38,7 +38,7 @@
     "@pnpm/write-importer-manifest": "workspace:3.0.0",
     "detect-indent": "6.0.0",
     "fast-deep-equal": "2.0.1",
-    "graceful-fs": "4.2.1",
+    "graceful-fs": "4.2.2",
     "is-windows": "1.0.2",
     "json5": "2.1.0",
     "parse-json": "5.0.0",

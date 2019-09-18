@@ -63,7 +63,7 @@
     "fast-glob": "3.0.4",
     "find-packages": "workspace:5.0.10",
     "get-port": "5.0.0",
-    "graceful-fs": "4.2.1",
+    "graceful-fs": "4.2.2",
     "graph-sequencer": "2.0.0",
     "is-ci": "2.0.0",
     "is-subdir": "1.0.3",
