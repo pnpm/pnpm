@@ -6,7 +6,7 @@ import promisifyTape from 'tape-promise'
 import {
   execPnpm,
   retryLoadJsonFile,
-  spawn,
+  spawnPnpm,
 } from '../utils'
 
 const test = promisifyTape(tape)
@@ -15,7 +15,7 @@ test['only'] = promisifyTape(tape.only)
 test('self-update stops the store server', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start'])
+  const server = spawnPnpm(['server', 'start'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
