@@ -1,4 +1,8 @@
 /// <reference types="node-fetch" />
+interface URL {
+  href: string
+}
+
 export {
   FetchError,
   Headers,
@@ -13,5 +17,11 @@ export {
   Response,
   ResponseType,
   ResponseInit,
-  default,
-} from 'node-fetch';
+} from 'node-fetch'
+
+export type RequestInfo = string | URL | Request
+
+export default function fetch(
+  url: RequestInfo,
+  init?: RequestInit
+): Promise<Response>
