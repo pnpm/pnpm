@@ -1,4 +1,5 @@
 import { PnpmConfigs } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 
 export default async function (
@@ -34,16 +35,21 @@ export async function render (
   },
   command: string,
 ) {
+  const isWhy = command === 'why'
+  if (isWhy && !args.length) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
+  }
   opts.long = opts.long || command === 'll' || command === 'la'
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: opts.depth || 0,
+    depth: isWhy ? Infinity : opts.depth || 0,
     include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     long: opts.long,
+    // tslint:disable-next-line: no-unnecessary-type-assertion
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
-  return args.length
+  return isWhy || args.length
     ? listForPackages(args, prefixes, listOpts)
     : list(prefixes, listOpts)
 }

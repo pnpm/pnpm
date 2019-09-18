@@ -40,7 +40,7 @@ export default function getCommandFullName (cmd: string) {
     case 'multi':
     case 'm':
       return 'recursive'
-    // some commands have no aliases: publish, prune, add
+    // some commands have no aliases: publish, prune, add, why
     default:
       return cmd
   }

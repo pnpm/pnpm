@@ -55,6 +55,7 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'uninstall'
   | 'unlink'
   | 'update'
+  | 'why'
 
 const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
 
@@ -83,6 +84,7 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'import',
   'test',
   'run',
+  'why',
   // These might have to be implemented:
   // 'cache',
   // 'completion',
