@@ -46,6 +46,7 @@ const supportedRecursiveCommands = new Set([
   'update',
   'unlink',
   'list',
+  'why',
   'outdated',
   'rebuild',
   'run',
@@ -139,6 +140,7 @@ export async function recursive (
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
 
   switch (cmdFullName) {
+    case 'why':
     case 'list':
       await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
