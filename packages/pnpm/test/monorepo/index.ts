@@ -12,7 +12,7 @@ import symlink from 'symlink-dir'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm, spawnPnpxSync } from '../utils'
+import { execPnpm, execPnpxSync } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -998,11 +998,11 @@ test('pnpx sees the bins from the root of the workspace', async (t: tape.Test) =
 
   process.chdir('project-1')
 
-  const result = spawnPnpxSync('print-version')
+  const result = execPnpxSync('print-version')
 
   t.ok(result.stdout.toString().includes('2.0.0'), 'bin from workspace root is found')
 
   process.chdir('../project-2')
 
-  t.ok(spawnPnpxSync('print-version').stdout.toString().includes('1.0.0'), "workspace package's bin has priority")
+  t.ok(execPnpxSync('print-version').stdout.toString().includes('1.0.0'), "workspace package's bin has priority")
 })

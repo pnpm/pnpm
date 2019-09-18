@@ -14,7 +14,7 @@ import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
-  spawn,
+  spawnPnpm,
 } from '../utils'
 
 const test = promisifyTape(tape)
@@ -330,7 +330,7 @@ test('recursive installation using server', async (t: tape.Test) => {
   ])
 
   const storeDir = path.resolve('store')
-  const server = spawn(['server', 'start'], { storeDir })
+  const server = spawnPnpm(['server', 'start'], { storeDir })
 
   const serverJsonPath = path.resolve(storeDir, '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
