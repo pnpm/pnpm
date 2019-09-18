@@ -19,7 +19,7 @@ export default async (
       ...opts,
       alwaysPrintRootPackage: opts.depth === -1,
       lockfileDirectory: opts.lockfileDirectory,
-    }, cmd, true))
+    }, cmd))
     return
   }
   const outputs = []
@@ -29,7 +29,7 @@ export default async (
         ...opts,
         alwaysPrintRootPackage: opts.depth === -1,
         lockfileDirectory: opts.lockfileDirectory || path,
-      }, cmd, true)
+      }, cmd)
       if (!output) continue
       outputs.push(output)
     } catch (err) {

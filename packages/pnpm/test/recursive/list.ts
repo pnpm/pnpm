@@ -173,5 +173,5 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
   const { status, stdout } = execPnpmSync('recursive', 'why')
 
   t.equal(status, 1)
-  t.ok(stdout.toString().includes('`pnpm recursive why` requires the package name'))
+  t.ok(stdout.toString().includes('`pnpm why` requires the package name'))
 })

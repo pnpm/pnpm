@@ -34,11 +34,10 @@ export async function render (
     parseable?: boolean,
   },
   command: string,
-  isRecursive = false,
 ) {
   const isWhy = command === 'why'
   if (isWhy && !args.length) {
-    throw new PnpmError('MISSING_PACKAGE_NAME', `${isRecursive ? '`pnpm recursive why`' : '`pnpm why`'} requires the package name'`)
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
   }
   opts.long = opts.long || command === 'll' || command === 'la'
   const listOpts = {
