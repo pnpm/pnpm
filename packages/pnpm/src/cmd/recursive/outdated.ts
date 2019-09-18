@@ -48,6 +48,7 @@ export default async (
     independentLeaves: boolean,
     key?: string,
     localAddress?: string,
+    long?: boolean,
     networkConcurrency: number,
     offline: boolean,
     prefix: string,
@@ -88,13 +89,18 @@ export default async (
     }))
   }
 
-  const columnNames = [
+  let columnNames = [
     'Package',
     'Current',
     'Latest',
-    'Dependents',
-    'Details'
-  ].map((name: string) => chalk.blueBright(name))
+    'Dependents'
+  ]
+
+  if (opts.long) {
+    columnNames.push('Details')
+  }
+
+  columnNames = columnNames.map((name: string) => chalk.blueBright(name))
   const data = [
     columnNames,
     ...R.sortWith(
@@ -114,9 +120,8 @@ export default async (
         outdatedPkg.dependentPkgs
           .map(({ manifest, location }) => manifest.name || location)
           .sort()
-          .join(', '),
-        renderDetails(outdatedPkg),
-      ]),
+          .join(', ')
+      ].concat(opts.long ? [renderDetails(outdatedPkg)] : [])),
   ]
   process.stdout.write(
     table(data, {
