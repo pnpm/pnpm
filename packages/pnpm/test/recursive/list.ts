@@ -166,3 +166,14 @@ test('recursive list --filter', async (t: tape.Test) => {
     is-negative 1.0.0
   ` + '\n')
 })
+
+test('`pnpm recursive why` should fail if no package name was provided', async (t: tape.Test) => {
+  prepare(t)
+
+  const { status, stdout } = execPnpmSync('recursive', 'why')
+
+  console.log(status, String(stdout))
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('`pnpm recursive why` requires the package name'))
+})

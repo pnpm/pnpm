@@ -42,4 +42,5 @@ export default {
   uninstall,
   unlink,
   update,
+  why: list,
 }

@@ -400,7 +400,7 @@ function getHelpText (command: string) {
 
     case 'list':
       return renderHelp({
-        aliases: ['list', 'la', 'll'],
+        aliases: ['list', 'ls', 'la', 'll'],
         description: oneLine`When run as ll or la, it shows extended information by default.
           All dependencies are printed by default. Search by patterns is supported.
           For example: pnpm ls babel-* eslint-*`,
@@ -459,6 +459,56 @@ function getHelpText (command: string) {
         url: docsUrl(command),
         usages: [
           'pnpm ls [<pkg> ...]',
+        ],
+      })
+
+    case 'why':
+      return renderHelp({
+        description: oneLine`Shows the packages that depend on <pkg>
+          For example: pnpm why babel-* eslint-*`,
+        descriptionLists: [
+          {
+            title: 'Options',
+
+            list: [
+              {
+                description: oneLine`Perform command on every package in subdirectories
+                  or on every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+              {
+                description: 'Show extended information',
+                name: '--long',
+              },
+              {
+                description: 'Show parseable output instead of tree view',
+                name: '--parseable',
+              },
+              {
+                description: 'Show information in JSON format',
+                name: '--json',
+              },
+              {
+                description: 'List packages in the global install prefix instead of in the current project',
+                name: '--global',
+                shortAlias: '-g',
+              },
+              {
+                description: 'Display only the dependency tree for packages in \`dependencies\`',
+                name: '--prod, --production',
+              },
+              {
+                description: 'Display only the dependency tree for packages in \`devDependencies\`',
+                name: '--dev',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: [
+          'pnpm why <pkg> ...',
         ],
       })
 
@@ -785,6 +835,10 @@ function getHelpText (command: string) {
                 name: 'list [<pkg>...]',
               },
               {
+                description: 'List packages that depend on <pkg>.',
+                name: 'why <pkg>...',
+              },
+              {
                 description: 'Check for outdated dependencies in every package.',
                 name: 'outdated [<pkg>...]',
               },
@@ -962,6 +1016,9 @@ function getHelpText (command: string) {
               },
               {
                 name: 'recursive list',
+              },
+              {
+                name: 'recursive why',
               },
               {
                 name: 'recursive outdated',
