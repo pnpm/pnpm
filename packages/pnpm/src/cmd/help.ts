@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { stripIndent } from 'common-tags'
+import { oneLine, stripIndent } from 'common-tags'
+import renderHelp = require('render-help')
 import getCommandFullName from '../getCommandFullName'
 import pnpmPkgJson from '../pnpmPkgJson'
 
@@ -8,553 +9,1015 @@ export default function (input: string[]) {
   console.log(`Version ${pnpmPkgJson.version}\n${getHelpText(cmdName)}`)
 }
 
+const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
+
+const OPTIONS = {
+  help: {
+    description: 'Output usage information',
+    name: '--help',
+    shortAlias: '-h',
+  },
+  ignoreScripts: {
+    description: "Don't run lifecycle scripts",
+    name: '--ignore-scripts',
+  },
+  offline: {
+    description: 'Trigger an error if any required dependencies are not available in local store',
+    name: '--offline',
+  },
+  preferOffline: {
+    description: 'Skip staleness checks for cached data, but request missing data from the server',
+    name: '--prefer-offline',
+  },
+}
+const FILTERING = {
+  list: [
+    {
+      description: 'Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*',
+      name: '--filter <pattern>',
+    },
+    {
+      description: 'Includes all direct and indirect dependencies of the matched packages. E.g.: foo...',
+      name: '--filter <pattern>...',
+    },
+    {
+      description: 'Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*',
+      name: '--filter ...<pattern>',
+    },
+    {
+      description: 'Includes all packages that are inside a given subdirectory. E.g.: ./components',
+      name: '--filter ./<directory>',
+    },
+    {
+      description: 'Includes all packages that are under the current working directory',
+      name: '--filter .',
+    },
+  ],
+  title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
+}
+
 function getHelpText (command: string) {
   switch (getCommandFullName(command)) {
     case 'install':
-      return stripIndent`
-        pnpm install
+      return renderHelp({
+        aliases: ['i'],
+        description: oneLine`Installs all dependencies of the project in the current working directory.
+          When executed inside a workspace, installs all dependencies of all workspace packages.`,
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: i
+            list: [
+              {
+                description: oneLine`
+                  Run installation recursively in every package found in subdirectories.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+              OPTIONS.ignoreScripts,
+              OPTIONS.offline,
+              OPTIONS.preferOffline,
+              {
+                description: "Packages in \`devDependencies\` won't be installed",
+                name: '--production, --only prod[uction]',
+              },
+              {
+                description: 'Only \`devDependencies\` are installed regardless of the \`NODE_ENV\`',
+                name: '--only dev[elopment]',
+              },
+              {
+                description: `Don't read or generate a \`${WANTED_LOCKFILE}\` file`,
+                name: '--no-lockfile',
+              },
+              {
+                description: `Dependencies are not downloaded. Only \`${WANTED_LOCKFILE}\` is updated`,
+                name: '--lockfile-only',
+              },
+              {
+                description: "Don't generate a lockfile and fail if an update is needed",
+                name: '--frozen-lockfile',
+              },
+              {
+                description: `If the available \`${WANTED_LOCKFILE}\` satisfies the \`package.json\` then perform a headless installation`,
+                name: '--prefer-frozen-lockfile',
+              },
+              {
+                description: `The directory in which the ${WANTED_LOCKFILE} of the package will be created. Several projects may share a single lockfile`,
+                name: '--lockfile-directory <path>',
+              },
+              {
+                description: 'Dependencies inside node_modules have access only to their listed dependencies',
+                name: '--no-hoist',
+              },
+              {
+                description: 'The subdeps will be hoisted into the root node_modules. Your code will have access to them',
+                name: '--shamefully-hoist',
+              },
+              {
+                description: 'Hoist all dependencies matching the pattern to the root of node_modules. Supplying it a * will hoist all dependencies (this is similar to what npm does)',
+                name: '--hoist-pattern <pattern>',
+              },
+              {
+                description: 'The location where all the packages are saved on the disk',
+                name: '--store <path>',
+              },
+              {
+                description: 'Maximum number of concurrent network requests',
+                name: '--network-concurrency <number>',
+              },
+              {
+                description: 'Controls the number of child processes run parallelly to build node modules',
+                name: '--child-concurrency <number>',
+              },
+              {
+                description: 'Disable pnpm hooks defined in pnpmfile.js',
+                name: '--ignore-pnpmfile',
+              },
+              {
+                description: 'Symlinks leaf dependencies directly from the global store',
+                name: '--independent-leaves',
+              },
+              {
+                description: "If false, doesn't check whether packages in the store were mutated",
+                name: '--[no-]verify-store-integrity',
+              },
+              {
+                name: '--[no-]lock',
+              },
+              {
+                description: 'Fail on missing or invalid peer dependencies',
+                name: '--strict-peer-dependencies',
+              },
+              {
+                description: 'Starts a store server in the background. The store server will keep running after installation is done. To stop the store server, run \`pnpm server stop\`',
+                name: '--use-store-server',
+              },
+              {
+                description: 'Only allows installation with a store server. If no store server is running, installation will fail',
+                name: '--use-running-store-server',
+              },
+              {
+                description: 'Try to hardlink packages from the store. If it fails, fallback to copy',
+                name: '--package-import-method auto',
+              },
+              {
+                description: 'Hardlink packages from the store',
+                name: '--package-import-method hardlink',
+              },
+              {
+                description: 'Copy packages from the store',
+                name: '--package-import-method copy',
+              },
+              {
+                description: 'Reflink (aka copy-on-write) packages from the store',
+                name: '--package-import-method reflink',
+              },
+              {
+                description: 'The default resolution strategy. Speed is preferred over deduplication',
+                name: '--resolution-strategy fast',
+              },
+              {
+                description: 'Already installed dependencies are preferred even if newer versions satisfy a range',
+                name: '--resolution-strategy fewer-dependencies',
+              },
+              OPTIONS.help,
+            ],
+          },
+          {
+            title: 'Output',
 
-        Installs all dependencies of the project in the current working directory.
-        When executed inside a workspace, installs all dependencies of all workspace packages.
+            list: [
+              {
+                description: 'No output is logged to the console, except fatal errors',
+                name: '--silent, --reporter silent',
+                shortAlias: '-s',
+              },
+              {
+                description: 'The default reporter when the stdout is TTY',
+                name: '--reporter default',
+              },
+              {
+                description: 'The output is always appended to the end. No cursor manipulations are performed',
+                name: '--reporter append-only',
+              },
+              {
+                description: 'The most verbose reporter. Prints all logs in ndjson format',
+                name: '--reporter ndjson',
+              },
+            ],
+          },
+          FILTERING,
+          {
+            title: 'Experimental options',
 
-        Options:
-
-          -r                                 run installation recursively in every package found in subdirectories.
-                                             For options that may be used with \`-r\`, see "pnpm help recursive"
-          --store                            the location where all the packages are saved on the disk.
-          --offline                          trigger an error if any required dependencies are not available in local store
-          --prefer-offline                   skip staleness checks for cached data, but request missing data from the server
-          --network-concurrency <number>     maximum number of concurrent network requests
-          --child-concurrency <number>       controls the number of child processes run parallelly to build node modules
-          --ignore-pnpmfile                  disable pnpm hooks defined in pnpmfile.js
-          --independent-leaves               symlinks leaf dependencies directly from the global store
-          --[no-]verify-store-integrity      if false, doesn't check whether packages in the store were mutated
-          --production, --only prod[uction]  packages in \`devDependencies\` won't be installed
-          --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
-          --[no-]lock
-          --strict-peer-dependencies         fail on missing or invalid peer dependencies.
-
-          --no-lockfile                      don't read or generate a \`${WANTED_LOCKFILE}\` file
-          --lockfile-only                    dependencies are not downloaded only \`${WANTED_LOCKFILE}\` is updated
-          --frozen-lockfile                  don't generate a lockfile and fail if an update is needed
-          --prefer-frozen-lockfile           if the available \`${WANTED_LOCKFILE}\` satisfies the \`package.json\`
-                                             then perform a headless installation.
-          --lockfile-directory <path>        the directory in which the ${WANTED_LOCKFILE} of the package will be created.
-                                             Several projects may share a single lockfile.
-
-          --use-store-server                 starts a store server in the background.
-                                             The store server will keep running after installation is done.
-                                             To stop the store server, run \`pnpm server stop\`
-
-          --use-running-store-server         only allows installation with a store server. If no store server
-                                             is running, installation will fail.
-
-          --package-import-method auto       try to hardlink packages from the store. If it fails, fallback to copy
-          --package-import-method hardlink   hardlink packages from the store
-          --package-import-method copy       copy packages from the store
-          --package-import-method reflink    reflink (aka copy-on-write) packages from the store
-
-          -s, --silent, --reporter silent    no output is logged to the console, except fatal errors
-          --reporter default                 the default reporter when the stdout is TTY
-          --reporter append-only             the output is always appended to the end. No cursor manipulations are performed
-          --reporter ndjson                  the most verbose reporter. Prints all logs in ndjson format
-
-          --resolution-strategy fast                the default resolution strategy. Speed is preferred over deduplication
-          --resolution-strategy fewer-dependencies  already installed dependencies are preferred even if newer versions
-                                                    satisfy a range
-          --no-hoist                         Dependencies inside node_modules have access only to their listed dependencies.
-          --shamefully-hoist                 The subdeps will be hoisted into the root node_modules. Your code will have access to them.
-          --hoist-pattern <pattern>          Hoist all dependencies matching the pattern to the root of node_modules.
-                                             Supplying it a * will hoist all dependencies (this is similar to what npm does).
-
-        Experimental options:
-          --side-effects-cache               use or cache the results of (pre/post)install hooks
-          --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
-
-        Filtering options:
-          -- <package selector>..., --filter <package selector>
-            Run the command only on packages that satisfy at least one of the selectors.
-
-            Example: pnpm install -- foo... ...@bar/* qar ./components
-
-            These selectors may be used:
-
-            <pattern>
-              Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*
-
-            <pattern>...
-              Includes all direct and indirect dependencies of the matched packages. E.g.: foo...
-
-            ...<pattern>
-              Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*
-
-            ./<directory>
-              Includes all packages that are inside a given subdirectory. E.g.: ./components
-
-            .
-              Includes all packages that are under the current working directory.
-      `
+            list: [
+              {
+                description: 'Use or cache the results of (pre/post)install hooks',
+                name: '--side-effects-cache',
+              },
+              {
+                description: 'Only use the side effects cache if present, do not create it for new packages',
+                name: '--side-effects-cache-readonly',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm install [options]'],
+      })
 
     case 'add':
-      return stripIndent`
-        pnpm add [<@scope>/]<name>
-        pnpm add [<@scope>/]<name>@<tag>
-        pnpm add [<@scope>/]<name>@<version>
-        pnpm add [<@scope>/]<name>@<version range>
-        pnpm add <git-host>:<git-user>/<repo-name>
-        pnpm add <git repo url>
-        pnpm add <tarball file>
-        pnpm add <tarball url>
-        pnpm add <folder>
+      return renderHelp({
+        description: 'Installs a package and any packages that it depends on.',
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Installs a package and any packages that it depends on.
-
-        Options:
-
-          -P, --save-prod                    save package to your \`dependencies\`. The default behavior
-          -D, --save-dev                     save package to your \`devDependencies\`
-          -O, --save-optional                save package to your \`optionalDependencies\`
-          --save-peer                        save package to your \`peerDependencies\` and \`devDependencies\`
-          -E, --save-exact                   install exact version
-          -g, --global                       install as a global package
-          -r                                 run installation recursively in every package found in subdirectories
-                                             or in every workspace package, when executed inside a workspace.
-                                             For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+            list: [
+              {
+                description: 'Save package to your \`dependencies\`. The default behavior',
+                name: '--save-prod',
+                shortAlias: '-P',
+              },
+              {
+                description: 'Save package to your \`devDependencies\`',
+                name: '--save-dev',
+                shortAlias: '-D',
+              },
+              {
+                description: 'Save package to your \`optionalDependencies\`',
+                name: '--save-optional',
+                shortAlias: '-O',
+              },
+              {
+                description: 'Save package to your \`peerDependencies\` and \`devDependencies\`',
+                name: '--save-peer',
+              },
+              {
+                description: 'Install exact version',
+                name: '--save-exact',
+                shortAlias: '-E',
+              },
+              {
+                description: 'Install as a global package',
+                name: '--global',
+                shortAlias: '-g',
+              },
+              {
+                description: oneLine`Run installation recursively in every package found in subdirectories
+                  or in every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+              OPTIONS.ignoreScripts,
+              OPTIONS.offline,
+              OPTIONS.preferOffline,
+              OPTIONS.help,
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: [
+          'pnpm add <name>',
+          'pnpm add <name>@<tag>',
+          'pnpm add <name>@<version>',
+          'pnpm add <name>@<version range>',
+          'pnpm add <git host>:<git user>/<repo name>',
+          'pnpm add <git repo url>',
+          'pnpm add <tarball file>',
+          'pnpm add <tarball url>',
+          'pnpm add <folder>',
+        ],
+      })
 
     case 'import':
-      return stripIndent`
-        pnpm import
-
-        Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json) file.
-      `
+      return renderHelp({
+        description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json) file.`,
+        url: docsUrl(command),
+        usages: ['pnpm import'],
+      })
 
     case 'uninstall':
-      return stripIndent`
-        pnpm uninstall [<@scope>/]<pkg>[@<version>]...
+      return renderHelp({
+        aliases: ['remove', 'rm', 'r', 'un'],
+        description: `Removes packages from \`node_modules\` and from the project's \`packages.json\`.`,
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: remove, rm, r, un
-
-        Removes packages from \`node_modules\` and from the project's \`packages.json\`
-
-        Options:
-          -r                         uninstall from every package found in subdirectories
-                                     or from every workspace package, when executed inside a workspace.
-                                     For options that may be used with \`-r\`, see "pnpm help recursive"
-          --no-hoist                 Dependencies inside node_modules have access only to their listed dependencies.
-          --shamefully-hoist         The subdeps will be hoisted into the root node_modules. Your code will have access to them.
-          --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
-                                     Supplying it a * will hoist all dependencies (this is similar to what npm does).
-      `
+            list: [
+              {
+                description: oneLine`
+                  Uninstall from every package found in subdirectories
+                  or from every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"
+                `,
+                name: '--recursive',
+                shortAlias: '-r',
+              }
+            ],
+          },
+        ],
+        url: docsUrl('remove'),
+        usages: ['pnpm uninstall <pkg>[@<version>]...'],
+      })
 
     case 'link':
-      return stripIndent`
-        pnpm link (in package dir)
-        pnpm link [<@scope>/]<pkg>
-        pnpm link <folder>
-
-        Aliases: ln
-      `
+      return renderHelp({
+        aliases: ['ln'],
+        url: docsUrl(command),
+        usages: [
+          'pnpm link (in package dir)',
+          'pnpm link <pkg>',
+          'pnpm link <folder>',
+        ],
+      })
 
     case 'unlink':
-      return stripIndent`
-        pnpm unlink (in package dir)
-        pnpm unlink [<@scope>/]<pkg>...
+      return renderHelp({
+        aliases: ['dislink'],
+        description: 'Removes the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`',
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: dislink
-
-        Removes the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`
-
-        Options:
-          -r  unlink in every package found in subdirectories
-              or in every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+            list: [
+              {
+                description: oneLine`
+                  Unlink in every package found in subdirectories
+                  or in every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: [
+          'pnpm unlink (in package dir)',
+          'pnpm unlink <pkg>...',
+        ],
+      })
 
     case 'update':
-      return stripIndent`
-        pnpm update [-g] [<pkg>...]
+      return renderHelp({
+        aliases: ['up', 'upgrade'],
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: up, upgrade
-
-        Options:
-
-          -r                    update in every package found in subdirectories
-                                or every workspace package, when executed inside a workspace.
-                                For options that may be used with \`-r\`, see "pnpm help recursive"
-          -g, --global          update globally installed packages
-          --depth               how deep should levels of dependencies be inspected
-                                0 is default, which means top-level dependencies
-          -L, --latest          ignore version ranges in package.json
-          --no-hoist            Dependencies inside node_modules have access only to their listed dependencies.
-          --shamefully-hoist    The subdeps will be hoisted into the root node_modules. Your code will have access to them.
-          --hoist-pattern <pattern>  Hoist all dependencies matching the pattern to the root of node_modules.
-                                     Supplying it a * will hoist all dependencies (this is similar to what npm does).
-      `
+            list: [
+              {
+                description: oneLine`Update in every package found in subdirectories
+                  or every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+              {
+                description: 'Update globally installed packages',
+                name: '--global',
+                shortAlias: '-g',
+              },
+              {
+                description: 'How deep should levels of dependencies be inspected. 0 is default, which means top-level dependencies',
+                name: '--depth <number>',
+              },
+              {
+                description: 'Ignore version ranges in package.json',
+                name: '--latest',
+                shortAlias: '-L',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm update [-g] [<pkg>...]'],
+      })
 
     case 'list':
-      return stripIndent`
-        pnpm ls [[<@scope>/]<pkg> ...]
+      return renderHelp({
+        aliases: ['list', 'la', 'll'],
+        description: oneLine`When run as ll or la, it shows extended information by default.
+          All dependencies are printed by default. Search by patterns is supported.
+          For example: pnpm ls babel-* eslint-*`,
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: list, la, ll
-
-        When run as ll or la, it shows extended information by default.
-        All dependencies are printed by default. Search by patterns is supported.
-        For example: pnpm ls babel-* eslint-*
-
-        Options:
-
-          -r                    perform command on every package in subdirectories
-                                or on every workspace package, when executed inside a workspace.
-                                For options that may be used with \`-r\`, see "pnpm help recursive"
-          --long                show extended information
-          --parseable           show parseable output instead of tree view
-          --json                show information in JSON format
-          -g, --global          list packages in the global install prefix instead of in the current project
-          --depth               max display depth of the dependency tree
-          --depth 0             display only direct dependencies
-          --depth -1            display only projects. Useful in a monorepo.
-                                \`pnpm recursive ls --depth -1\` lists all projects in a monorepo.
-          --prod, --production  display only the dependency tree for packages in \`dependencies\`.
-          --dev                 display only the dependency tree for packages in \`devDependencies\`.
-      `
+            list: [
+              {
+                description: oneLine`Perform command on every package in subdirectories
+                  or on every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+              {
+                description: 'Show extended information',
+                name: '--long',
+              },
+              {
+                description: 'Show parseable output instead of tree view',
+                name: '--parseable',
+              },
+              {
+                description: 'Show information in JSON format',
+                name: '--json',
+              },
+              {
+                description: 'List packages in the global install prefix instead of in the current project',
+                name: '--global',
+                shortAlias: '-g',
+              },
+              {
+                description: 'Max display depth of the dependency tree',
+                name: '--depth <number>',
+              },
+              {
+                description: 'Display only direct dependencies',
+                name: '--depth 0',
+              },
+              {
+                description: 'Display only projects. Useful in a monorepo. \`pnpm ls -r --depth -1\` lists all projects in a monorepo',
+                name: '--depth -1',
+              },
+              {
+                description: 'Display only the dependency tree for packages in \`dependencies\`',
+                name: '--prod, --production',
+              },
+              {
+                description: 'Display only the dependency tree for packages in \`devDependencies\`',
+                name: '--dev',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: [
+          'pnpm ls [<pkg> ...]',
+        ],
+      })
 
     case 'prune':
-      return stripIndent`
-        pnpm prune [--production]
+      return renderHelp({
+        description: 'Removes extraneous packages',
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Options:
-
-          --prod, --production            remove the packages specified in \`devDependencies\`
-
-        Removes extraneous packages
-      `
+            list: [
+              {
+                description: 'Remove the packages specified in \`devDependencies\`',
+                name: '--prod, --production',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm prune [--production]'],
+      })
 
     case 'pack':
-      return stripIndent`
-        pnpm pack
-
-        Creates a compressed gzip archive of package dependencies.
-      `
+      return renderHelp({
+        description: 'Creates a compressed gzip archive of package dependencies.',
+        usages: ['pnpm pack'],
+      })
 
     case 'publish':
-      return stripIndent`
-        pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]
-
-        Publishes a package to the npm registry.
-      `
+      return renderHelp({
+        description: 'Publishes a package to the npm registry.',
+        url: docsUrl(command),
+        usages: ['pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]'],
+      })
 
     case 'install-test':
-      return stripIndent`
-        pnpm install-test
-
-        Aliases: it
-
-        Runs a \`pnpm install\` followed immediately by a \`pnpm test\`.
-        It takes exactly the same arguments as \`pnpm install\`.
-      `
+      return renderHelp({
+        aliases: ['it'],
+        description: 'Runs a \`pnpm install\` followed immediately by a \`pnpm test\`. It takes exactly the same arguments as \`pnpm install\`.',
+        url: docsUrl(command),
+        usages: ['pnpm install-test'],
+      })
 
     case 'store':
-      return stripIndent`
-        pnpm store <command>
+      return renderHelp({
+        description: 'Reads and performs actions on pnpm store that is on the current filesystem.',
+        descriptionLists: [
+          {
+            title: 'Commands',
 
-        Reads and performs actions on pnpm store that is on the current filesystem.
-
-        Commands:
-
-          status
-
-            Checks for modified packages in the store.
-            Returns exit code 0 if the content of the package is the same as it was at the time of unpacking.
-
-          add [<@scope>/]<pkg>...
-
-            Adds new packages to the store.
-
-            Example: pnpm store add express@4 typescript@2.1.0
-
-          usages [<@scope>/]<pkg>...
-
-            Lists all pnpm projects on the current filesystem that depend on the specified packages.
-
-            Example: pnpm store usages flatmap-stream
-
-          prune
-
-            Removes unreferenced (extraneous, orphan) packages from the store.
-            Pruning the store is not harmful, but might slow down future installations.
-            Visit the documentation for more information on unreferenced packages and why they occur.
-
-      `
+            list: [
+              {
+                description: oneLine`
+                  Checks for modified packages in the store.
+                  Returns exit code 0 if the content of the package is the same as it was at the time of unpacking
+                `,
+                name: 'status',
+              },
+              {
+                description: 'Adds new packages to the store. Example: pnpm store add express@4 typescript@2.1.0',
+                name: 'add <pkg>...',
+              },
+              {
+                description: 'Lists all pnpm projects on the current filesystem that depend on the specified packages. Example: pnpm store usages flatmap-stream',
+                name: 'usages <pkg>...',
+              },
+              {
+                description: oneLine`
+                  Removes unreferenced (extraneous, orphan) packages from the store.
+                  Pruning the store is not harmful, but might slow down future installations.
+                  Visit the documentation for more information on unreferenced packages and why they occur
+                `,
+                name: 'prune',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm store <command>'],
+      })
 
     case 'root':
-      return stripIndent`
-        pnpm root [-g [--independent-leaves]]
+      return renderHelp({
+        description: 'Print the effective \`node_modules\` folder.',
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Options:
-
-          -g                             print the global \`node_modules\` folder
-          --independent-leaves           print the global \`node_modules\` folder installed with --independent-leaves option
-
-        Print the effective \`node_modules\` folder.
-      `
+            list: [
+              {
+                description: 'Print the global \`node_modules\` folder',
+                name: '--global',
+                shortAlias: '-g',
+              },
+            ],
+          },
+        ],
+        usages: ['pnpm root [-g [--independent-leaves]]'],
+      })
 
     case 'outdated':
-      return stripIndent`
-        pnpm outdated [[<@scope>/]<pkg> ...]
+      return renderHelp({
+        description: stripIndent`
+          Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
 
-        Check for outdated packages. The check can be limited to a subset of the installed
-        packages by providing arguments (patterns are supported).
+          Examples:
+          pnpm outdated
+          pnpm outdated gulp-* @babel/core`,
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Examples:
-        pnpm outdated
-        pnpm outdated gulp-* @babel/core
-
-        Options:
-          -r  check for outdated dependencies in every package found in subdirectories
-              or in every workspace package, when executed inside a workspace.
-              For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+            list: [
+              {
+                description: oneLine`
+                  Check for outdated dependencies in every package found in subdirectories
+                  or in every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm outdated [<pkg> ...]'],
+      })
 
     case 'rebuild':
-      return stripIndent`
-        pnpm rebuild [[<@scope>/]<pkg> ...]
+      return renderHelp({
+        aliases: ['rb'],
+        description: 'Rebuild a package.',
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: rb
-
-        Rebuild a package.
-
-        Options:
-          -r         rebuild every package found in subdirectories
-                     or every workspace package, when executed inside a workspace.
-                     For options that may be used with \`-r\`, see "pnpm help recursive"
-          --pending  rebuild packages that were not build during installation.
-                     Packages are not build when installing with the --ignore-scripts flag
-      `
+            list: [
+              {
+                description: oneLine`Rebuild every package found in subdirectories
+                  or every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+              {
+                description: 'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
+                name: '--pending',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm rebuild [<pkg> ...]'],
+      })
 
     case 'run':
-      return stripIndent`
-        pnpm run <command> [-- <args>...]
+      return renderHelp({
+        aliases: ['run-script'],
+        description: 'Runs a defined package script.',
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: run-script
-
-        Runs a defined package script.
-
-        Options:
-          -r         run the defined package script in every package found in subdirectories
-                     or every workspace package, when executed inside a workspace.
-                     For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+            list: [
+              {
+                description: oneLine`Run the defined package script in every package found in subdirectories
+                  or every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm run <command> [-- <args>...]'],
+      })
 
     case 'test':
-      return stripIndent`
-        pnpm test [-- <args>...]
+      return renderHelp({
+        aliases: ['t', 'tst'],
+        description: `Runs a package's "test" script, if one was provided.`,
+        descriptionLists: [
+          {
+            title: 'Options',
 
-        Aliases: t, tst
-
-        Runs a package's "test" script, if one was provided.
-
-        Options:
-          -r         run the tests in every package found in subdirectories
-                     or every workspace package, when executed inside a workspace.
-                     For options that may be used with \`-r\`, see "pnpm help recursive"
-      `
+            list: [
+              {
+                description: oneLine`
+                  Run the tests in every package found in subdirectories
+                  or every workspace package, when executed inside a workspace.
+                  For options that may be used with \`-r\`, see "pnpm help recursive"`,
+                name: '--recursive',
+                shortAlias: '-r',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm test [-- <args>...]'],
+      })
 
     case 'start':
-      return stripIndent`
-        pnpm start [-- <args>...]
-
-        Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
-        If no "start" property is specified on the "scripts" object, it will run node server.js.
-      `
+      return renderHelp({
+        description: oneLine`
+          Runs an arbitrary command specified in the package's "start" property of its "scripts" object.
+          If no "start" property is specified on the "scripts" object, it will run node server.js.`,
+        url: docsUrl(command),
+        usages: ['pnpm start [-- <args>...]'],
+      })
 
     case 'stop':
-      return stripIndent`
-        pnpm stop [-- <args>...]
-
-        Runs a package's "stop" script, if one was provided.
-      `
+      return renderHelp({
+        description: `Runs a package's "stop" script, if one was provided.`,
+        url: docsUrl(command),
+        usages: ['pnpm stop [-- <args>...]'],
+      })
 
     case 'restart':
-      return stripIndent`
-        pnpm restart [-- <args>...]
-
-        Restarts a package.
-        Runs a package's "stop", "restart", and "start" scripts, and associated pre- and post- scripts.
-      `
+      return renderHelp({
+        description: `Restarts a package. Runs a package's "stop", "restart", and "start" scripts, and associated pre- and post- scripts.`,
+        usages: ['pnpm restart [-- <args>...]'],
+      })
 
     case 'server':
-      return stripIndent`
-        pnpm server start
+      return renderHelp({
+        description: 'Manage a store server',
+        descriptionLists: [
+          {
+            title: 'Commands',
 
-        Starts a service that does all interactions with the store.
-        Other commands will delegate any store-related tasks to this service.
+            list: [
+              {
+                description: oneLine`
+                  Starts a service that does all interactions with the store.
+                  Other commands will delegate any store-related tasks to this service`,
+                name: 'start',
+              },
+              {
+                description: 'Stops the store server',
+                name: 'stop',
+              },
+              {
+                description: 'Prints information about the running server',
+                name: 'status',
+              },
+            ],
+          },
+          {
+            title: 'Start options',
 
-        Options:
-
-          --background                    runs the server in the background
-          --protocol <auto|tcp|ipc>       the communication protocol used by the server
-          --port <number>                 the port number to use, when TCP is used for communication
-          --store                         the location where all the packages are saved on the disk.
-          --network-concurrency <number>  maximum number of concurrent network requests
-          --[no-]verify-store-integrity   if false, doesn't check whether packages in the store were mutated
-          --[no-]lock
-          --ignore-stop-requests          disallows stopping the server using \`pnpm server stop\`
-          --ignore-upload-requests        disallows creating new side effect cache during install
-
-        pnpm server stop
-
-        Stops the store server.
-
-        pnpm server status
-
-        Prints information about the running server.
-      `
+            list: [
+              {
+                description: 'Runs the server in the background',
+                name: '--background',
+              },
+              {
+                description: 'The communication protocol used by the server',
+                name: '--protocol <auto|tcp|ipc>',
+              },
+              {
+                description: 'The port number to use, when TCP is used for communication',
+                name: '--port <number>',
+              },
+              {
+                description: 'The location where all the packages are saved on the disk',
+                name: '--store',
+              },
+              {
+                description: 'Maximum number of concurrent network requests',
+                name: '--network-concurrency <number>',
+              },
+              {
+                description: "If false, doesn't check whether packages in the store were mutated",
+                name: '--[no-]verify-store-integrity',
+              },
+              {
+                name: '--[no-]lock',
+              },
+              {
+                description: 'Disallows stopping the server using \`pnpm server stop\`',
+                name: '--ignore-stop-requests',
+              },
+              {
+                description: 'Disallows creating new side effect cache during install',
+                name: '--ignore-upload-requests',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm server <command>'],
+      })
 
     case 'recursive':
-      return stripIndent`
-        pnpm recursive [command] [flags] [-- <package selector>...]
-        pnpm multi [command] [flags] [-- <package selector>...]
-        pnpm m [command] [flags] [-- <package selector>...]
+      return renderHelp({
+        description: oneLine`
+          Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
+          A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.`,
+        descriptionLists: [
+          {
+            title: 'Commands',
 
-        Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
-        A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.
+            list: [
+              {
+                name: 'install',
+              },
+              {
+                name: 'add',
+              },
+              {
+                name: 'update',
+              },
+              {
+                description: 'Uninstall a dependency from each package',
+                name: 'uninstall <pkg>...',
+              },
+              {
+                description: 'Removes links to local packages and reinstalls them from the registry.',
+                name: 'unlink',
+              },
+              {
+                description: 'List dependencies in each package.',
+                name: 'list [<pkg>...]',
+              },
+              {
+                description: 'Check for outdated dependencies in every package.',
+                name: 'outdated [<pkg>...]',
+              },
+              {
+                description: oneLine`
+                  This runs an arbitrary command from each package's "scripts" object.
+                  If a package doesn't have the command, it is skipped.
+                  If none of the packages have the command, the command fails.`,
+                name: 'run <command> [-- <args>...]',
+              },
+              {
+                description: `This runs each package's "test" script, if one was provided.`,
+                name: 'test [-- <args>...]',
+              },
+              {
+                description: oneLine`
+                  This command runs the "npm build" command on each package.
+                  This is useful when you install a new version of node,
+                  and must recompile all your C++ addons with the new binary.`,
+                name: 'rebuild [[<@scope>/<name>]...]',
+              },
+              {
+                description: `Run a command in each package.`,
+                name: 'exec -- <command> [args...]',
+              },
+            ],
+          },
+          {
+            title: 'Options',
 
-        Commands:
-
-          install
-
-          add
-
-          update
-
-          uninstall [<@scope>/]<pkg>...
-            Uninstall a dependency from each package
-
-          unlink
-            Removes links to local packages and reinstalls them from the registry.
-
-          list [[<@scope>/]<pkg>...]
-            List dependencies in each package.
-
-          outdated [[<@scope>/]<pkg>...]
-            Check for outdated dependencies in every package.
-
-          run <command> [-- <args>...]
-            This runs an arbitrary command from each package's "scripts" object.
-            If a package doesn't have the command, it is skipped.
-            If none of the packages have the command, the command fails.
-
-          test [-- <args>...]
-            This runs each package's "test" script, if one was provided.
-
-          rebuild [[<@scope>/<name>]...]
-            This command runs the "npm build" command on each package.
-            This is useful when you install a new version of node,
-            and must recompile all your C++ addons with the new binary.
-
-          exec -- <command> [args...]      run a command in each package.
-
-        Options:
-
-          -- <package selector>..., --filter <package selector>
-            Run the command only on packages that satisfy at least one of the selectors.
-
-            Example: pnpm recursive install -- foo... ...@bar/* qar ./components
-
-            These selectors may be used:
-
-            <pattern>
-              Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*
-
-            <pattern>...
-              Includes all direct and indirect dependencies of the matched packages. E.g.: foo...
-
-            ...<pattern>
-              Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*
-
-            ./<directory>
-              Includes all packages that are inside a given subdirectory. E.g.: ./components
-
-            .
-              Includes all packages that are under the current working directory.
-
-          --no-bail
-            Continues executing other tasks even if a task threw an error.
-
-          --workspace-concurrency <number>
-            Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
-
-          --link-workspace-packages
-            Locally available packages are linked to node_modules instead of being downloaded from the registry.
-            Convenient to use in a multi-package repository.
-
-          --sort
-            Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
-
-          --shared-workspace-lockfile
-            Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
-            A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.
-      `
+            list: [
+              {
+                description: 'Continues executing other tasks even if a task threw an error.',
+                name: '--no-bail',
+              },
+              {
+                description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+                name: '--workspace-concurrency <number>',
+              },
+              {
+                description: oneLine`
+                  Locally available packages are linked to node_modules instead of being downloaded from the registry.
+                  Convenient to use in a multi-package repository.`,
+                name: '--link-workspace-packages',
+              },
+              {
+                description: 'Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.',
+                name: '--sort',
+              },
+              {
+                description: oneLine`
+                  Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
+                  A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.`,
+                name: '--shared-workspace-lockfile',
+              },
+            ],
+          },
+          FILTERING,
+        ],
+        url: docsUrl(command),
+        usages: [
+          'pnpm recursive [command] [flags] [-- <package selector>...]',
+          'pnpm multi [command] [flags] [-- <package selector>...]',
+          'pnpm m [command] [flags] [-- <package selector>...]'
+        ],
+      })
 
     default:
-      return stripIndent`
-        Usage: pnpm [command] [flags]
+      return renderHelp({
+        descriptionLists: [
+          {
+            title: 'Manage your dependencies',
 
-        manage your dependencies:
-          - install
-          - add
-          - update
-          - uninstall
-          - link
-          - unlink
-          - import
-          - install-test
-          - rebuild
-          - prune
+            list: [
+              {
+                name: 'install',
+                shortAlias: 'i',
+              },
+              {
+                name: 'add',
+              },
+              {
+                name: 'update',
+                shortAlias: 'up',
+              },
+              {
+                name: 'remove',
+                shortAlias: 'rm',
+              },
+              {
+                name: 'link',
+                shortAlias: 'ln',
+              },
+              {
+                name: 'unlink',
+              },
+              {
+                name: 'import',
+              },
+              {
+                name: 'install-test',
+                shortAlias: 'it',
+              },
+              {
+                name: 'rebuild',
+                shortAlias: 'rb',
+              },
+              {
+                name: 'prune',
+              },
+            ],
+          },
+          {
+            title: 'Review your dependencies',
 
-        review your dependencies:
-          - list
-          - outdated
+            list: [
+              {
+                name: 'list',
+                shortAlias: 'ls',
+              },
+              {
+                name: 'outdated',
+              },
+            ],
+          },
+          {
+            title: 'Run your scripts',
 
-        run your scripts:
-          - run
-          - test
-          - start
-          - restart
-          - stop
+            list: [
+              {
+                name: 'run',
+              },
+              {
+                name: 'test',
+                shortAlias: 't',
+              },
+              {
+                name: 'start',
+              },
+              {
+                name: 'restart',
+              },
+              {
+                name: 'stop',
+              },
+            ],
+          },
+          {
+            title: 'Other',
 
-        other:
-          - pack
-          - publish
-          - root
+            list: [
+              {
+                name: 'pack',
+              },
+              {
+                name: 'publish',
+              },
+              {
+                name: 'root',
+              },
+            ],
+          },
+          {
+            title: 'Manage you monorepo',
 
-        manage you monorepo:
-          - recursive exec
-          - recursive install
-          - recursive add
-          - recursive list
-          - recursive outdated
-          - recursive rebuild
-          - recursive run
-          - recursive test
-          - recursive uninstall
-          - recursive unlink
-          - recursive update
+            list: [
+              {
+                name: 'recursive exec',
+              },
+              {
+                name: 'recursive install',
+              },
+              {
+                name: 'recursive add',
+              },
+              {
+                name: 'recursive list',
+              },
+              {
+                name: 'recursive outdated',
+              },
+              {
+                name: 'recursive rebuild',
+              },
+              {
+                name: 'recursive run',
+              },
+              {
+                name: 'recursive test',
+              },
+              {
+                name: 'recursive uninstall',
+              },
+              {
+                name: 'recursive unlink',
+              },
+              {
+                name: 'recursive update',
+              },
+            ],
+          },
+          {
+            title: 'Use a store server',
 
-        use a store server:
-          - server start
-          - server status
-          - server stop
+            list: [
+              {
+                name: 'server start',
+              },
+              {
+                name: 'server status',
+              },
+              {
+                name: 'server stop',
+              },
+            ],
+          },
+          {
+            title: 'Manage your store',
 
-        manage your store:
-          - store add
-          - store prune
-          - store status
-
-        Other commands are passed through to npm
-      `
+            list: [
+              {
+                name: 'store add',
+              },
+              {
+                name: 'store prune',
+              },
+              {
+                name: 'store status',
+              },
+            ],
+          },
+        ],
+        usages: ['pnpm [command] [flags]', 'pnpm [ -h | --help | -v | --version ]'],
+      })
   }
 }
