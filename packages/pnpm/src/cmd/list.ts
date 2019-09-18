@@ -43,7 +43,7 @@ export async function render (
   opts.long = opts.long || command === 'll' || command === 'la'
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: isWhy ? undefined : opts.depth || 0,
+    depth: isWhy ? Infinity : opts.depth || 0,
     include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     long: opts.long,
