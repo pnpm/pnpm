@@ -1,10 +1,9 @@
 /// <reference types="node-fetch" />
-import { RequestInit as NodeRequestInit, Response } from 'node-fetch'
+import { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 export {
   FetchError,
   Headers,
   HeadersInit,
-  Request,
   RequestContext,
   RequestMode,
   RequestRedirect,
@@ -15,7 +14,8 @@ export {
 } from 'node-fetch'
 
 export {
-  Response
+  Request,
+  Response,
 }
 
 interface URLLike {
