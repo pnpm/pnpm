@@ -221,6 +221,22 @@ test('list on a project with skipped optional dependencies', async (t: tape.Test
   }
 
   {
+    const result = execPnpmSync('list', '--depth', '10', 'not-compatible-with-any-os')
+
+    t.equal(result.status, 0)
+
+    t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
+      project@0.0.0 ${process.cwd()}
+
+      dependencies:
+      pkg-with-optional 1.0.0
+      └── not-compatible-with-any-os 1.0.0 skipped
+    ` + '\n')
+  }
+
+  {
     const result = execPnpmSync('why', 'not-compatible-with-any-os')
 
     t.equal(result.status, 0)
@@ -241,8 +257,6 @@ test('`pnpm why` should fail if no package name was provided', async (t: tape.Te
   prepare(t)
 
   const { status, stdout } = execPnpmSync('why')
-
-  console.log(status, String(stdout))
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('`pnpm why` requires the package name'))

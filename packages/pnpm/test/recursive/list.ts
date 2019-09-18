@@ -1,4 +1,4 @@
-import { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
@@ -171,8 +171,6 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
   prepare(t)
 
   const { status, stdout } = execPnpmSync('recursive', 'why')
-
-  console.log(status, String(stdout))
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('`pnpm recursive why` requires the package name'))

@@ -464,7 +464,8 @@ function getHelpText (command: string) {
 
     case 'why':
       return renderHelp({
-        description: oneLine`Shows the packages that depend on <pkg>
+        description: stripIndent`
+          Shows the packages that depend on <pkg>
           For example: pnpm why babel-* eslint-*`,
         descriptionLists: [
           {
