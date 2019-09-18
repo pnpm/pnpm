@@ -1,27 +1,48 @@
 /// <reference types="node-fetch" />
-interface URL {
-  href: string
-}
-
+import { RequestInit as NodeRequestInit, Response } from 'node-fetch'
 export {
   FetchError,
   Headers,
   HeadersInit,
   Request,
-  RequestInit,
   RequestContext,
   RequestMode,
   RequestRedirect,
   RequestCredentials,
   RequestCache,
-  Response,
   ResponseType,
   ResponseInit,
 } from 'node-fetch'
 
-export type RequestInfo = string | URL | Request
+export {
+  Response
+}
 
-export default function fetch(
+interface URLLike {
+  href: string
+}
+
+export interface RetryOpts {
+  minTimeout?: number
+  retries?: number
+  factor?: number
+  onRetry?(error: any): void
+}
+
+export interface RequestInit extends NodeRequestInit {
+  retry?: RetryOpts
+  onRetry?(error: any, opts: RequestInit): void
+}
+
+export type RequestInfo = string | URLLike | Request
+
+declare function fetch(
   url: RequestInfo,
   init?: RequestInit
 ): Promise<Response>
+
+declare namespace fetch {
+  function isRedirect(code: number): boolean;
+}
+
+export default fetch;

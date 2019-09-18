@@ -77,7 +77,7 @@ export default function (
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       redirects++
-      url = response.headers.get('location')
+      url = response.headers.get('location')!
       delete headers['authorization']
     }
   }
