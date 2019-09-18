@@ -64,54 +64,6 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
   }
 
   {
-    const result = execPnpmSync('recursive', 'outdated', 'is-positive')
-
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    ┌─────────────┬─────────┬────────┬──────────────────────┐
-    │ Package     │ Current │ Latest │ Dependents           │
-    ├─────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
-    └─────────────┴─────────┴────────┴──────────────────────┘
-    ` + '\n')
-  }
-})
-
-test('pnpm recursive outdated: show details', async (t: tape.Test) => {
-  preparePackages(t, [
-    {
-      name: 'project-1',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
-    },
-    {
-      name: 'project-2',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-negative': '1.0.0',
-      },
-    },
-    {
-      name: 'project-3',
-      version: '1.0.0',
-
-      dependencies: {
-        'is-positive': '1.0.0',
-      },
-      devDependencies: {
-        'is-negative': '1.0.0',
-      },
-    },
-  ])
-
-  await execPnpm('recursive', 'install')
-
-  {
     const result = execPnpmSync('recursive', 'outdated', '--long')
 
     t.equal(result.status, 0)
@@ -135,11 +87,11 @@ test('pnpm recursive outdated: show details', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    ┌─────────────┬─────────┬────────┬──────────────────────┬─────────────────────────────────────────────┐
-    │ Package     │ Current │ Latest │ Dependents           │ Details                                     │
-    ├─────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │ https://github.com/kevva/is-positive#readme │
-    └─────────────┴─────────┴────────┴──────────────────────┴─────────────────────────────────────────────┘
+    ┌─────────────┬─────────┬────────┬──────────────────────┐
+    │ Package     │ Current │ Latest │ Dependents           │
+    ├─────────────┼─────────┼────────┼──────────────────────┤
+    │ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
+    └─────────────┴─────────┴────────┴──────────────────────┘
     ` + '\n')
   }
 })

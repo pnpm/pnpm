@@ -34,7 +34,6 @@ test('pnpm outdated', async (t: tape.Test) => {
       fetchRetryMintimeout: 10000,
       global: false,
       independentLeaves: false,
-      long: true,
       networkConcurrency: 16,
       offline: false,
       prefix: process.cwd(),
@@ -45,13 +44,13 @@ test('pnpm outdated', async (t: tape.Test) => {
       userAgent: '',
     }, 'outdated'),
     stripIndent`
-    ┌─────────────┬──────────────────────┬────────┬─────────────────────────────────────────────┐
-    │ ${chalk.blueBright.bold('Package')}     │ ${chalk.blueBright.bold('Current')}              │ ${chalk.blueBright.bold('Latest')} │ ${chalk.blueBright.bold('Details')}                                     │
-    ├─────────────┼──────────────────────┼────────┼─────────────────────────────────────────────┤
-    │ is-positive │ 1.0.0 (wanted 3.1.0) │ 3.1.0  │ https://github.com/kevva/is-positive#readme │
-    ├─────────────┼──────────────────────┼────────┼─────────────────────────────────────────────┤
-    │ is-negative │ 1.0.0 (wanted 1.1.0) │ ${chalk.redBright.bold('2.1.0')}  │ https://github.com/kevva/is-negative#readme │
-    └─────────────┴──────────────────────┴────────┴─────────────────────────────────────────────┘
+    ┌─────────────┬──────────────────────┬────────┐
+    │ ${chalk.blueBright.bold('Package')}     │ ${chalk.blueBright.bold('Current')}              │ ${chalk.blueBright.bold('Latest')} │
+    ├─────────────┼──────────────────────┼────────┤
+    │ is-positive │ 1.0.0 (wanted 3.1.0) │ 3.1.0  │
+    ├─────────────┼──────────────────────┼────────┤
+    │ is-negative │ 1.0.0 (wanted 1.1.0) │ ${chalk.redBright.bold('2.1.0')}  │
+    └─────────────┴──────────────────────┴────────┘
     ` + '\n',
   )
 })

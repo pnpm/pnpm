@@ -617,12 +617,19 @@ function getHelpText (command: string) {
 
           Examples:
           pnpm outdated
+          pnpm outdated --long
           pnpm outdated gulp-* @babel/core`,
         descriptionLists: [
           {
             title: 'Options',
 
             list: [
+              {
+                description: oneLine`
+                By default, details about the outdated packages (such as a link to the repo) are not displayed.
+                To display the details, pass this option.`,
+                name: '--long'
+              },
               {
                 description: oneLine`
                   Check for outdated dependencies in every package found in subdirectories
