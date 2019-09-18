@@ -1,10 +1,14 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "declaration": false,
     "outDir": "lib"
   },
   "include": [
     "src/**/*.ts",
+    "src/**/*.js",
     "../../typings/**/*.d.ts"
   ]
 }

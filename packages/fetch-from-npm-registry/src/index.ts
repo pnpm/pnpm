@@ -1,4 +1,4 @@
-import fetch from '@pnpm/fetch'
+import fetch, { Response } from '@pnpm/fetch'
 import npmRegistryAgent from '@pnpm/npm-registry-agent'
 import { URL } from 'url'
 
@@ -41,7 +41,7 @@ export default function (
     userAgent?: string,
   },
 ) {
-  return async (url: string, opts?: {auth?: Auth}) => {
+  return async (url: string, opts?: {auth?: Auth}): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,
       ...getHeaders({
@@ -77,7 +77,7 @@ export default function (
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       redirects++
-      url = response.headers.get('location')
+      url = response.headers.get('location')!
       delete headers['authorization']
     }
   }
