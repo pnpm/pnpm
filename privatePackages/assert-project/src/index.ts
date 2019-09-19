@@ -3,7 +3,8 @@ import {
   CURRENT_LOCKFILE,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
-import { read as readModules } from '@pnpm/modules-yaml'
+import { Lockfile, LockfileImporter } from '@pnpm/lockfile-types'
+import { Modules, read as readModules } from '@pnpm/modules-yaml'
 import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
@@ -11,9 +12,26 @@ import { Test } from 'tape'
 import writePkg = require('write-pkg')
 import isExecutable from './isExecutable'
 
-export { isExecutable }
+export { isExecutable, Modules }
 
-export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
+export type RawLockfile = Lockfile & Partial<LockfileImporter>
+
+export interface Project {
+  requireModule: NodeRequireFunction
+  has (pkgName: string): Promise<void>
+  hasNot (pkgName: string): Promise<void>
+  getStorePath (): Promise<string>
+  resolve (pkgName: string, version?: string, relativePath?: string): Promise<string>
+  storeHas (pkgName: string, version?: string): Promise<string>
+  storeHasNot (pkgName: string, version?: string): Promise<void>
+  isExecutable (pathToExe: string): Promise<void>
+  readCurrentLockfile (): Promise<RawLockfile | null>
+  readModulesManifest (): Promise<Modules | null>
+  readLockfile (): Promise<RawLockfile | null>
+  writePackageJson (pkgJson: object): Promise<void>
+}
+
+export default (t: Test, projectPath: string, encodedRegistryName?: string): Project => {
   const ern = encodedRegistryName || 'localhost+4873'
   const modules = path.join(projectPath, 'node_modules')
 
@@ -77,7 +95,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     },
     async readCurrentLockfile () {
       try {
-        return await readYamlFile<any>(path.join(modules, '..', CURRENT_LOCKFILE)) // tslint:disable-line
+        return await readYamlFile(path.join(modules, '..', CURRENT_LOCKFILE)) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err
@@ -86,7 +104,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     readModulesManifest: () => readModules(modules),
     async readLockfile () {
       try {
-        return await readYamlFile<any>(path.join(projectPath, WANTED_LOCKFILE)) // tslint:disable-line
+        return await readYamlFile(path.join(projectPath, WANTED_LOCKFILE)) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err
