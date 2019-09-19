@@ -374,14 +374,14 @@ test('pnpm recursive run finds bins from the root of the workspace', async (t: t
   await execPnpm('recursive', 'install')
 
   t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'))),
+    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8')),
     ['project-postinstall'],
   )
 
   await execPnpm('recursive', 'run', 'build')
 
   t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('build-output.json'))),
+    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8')),
     ['project-build'],
   )
 
@@ -390,21 +390,21 @@ test('pnpm recursive run finds bins from the root of the workspace', async (t: t
   process.chdir('..')
 
   t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('build-output.json'))),
+    JSON.parse(await fs.readFile(path.resolve('build-output.json'), 'utf8')),
     ['project-build', 'project-build'],
   )
 
   await execPnpm('recursive', 'rebuild')
 
   t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'))),
+    JSON.parse(await fs.readFile(path.resolve('postinstall-output.json'), 'utf8')),
     ['project-postinstall', 'project-postinstall'],
   )
 
   await execPnpm('recursive', 'run', 'testBinPriority')
 
   t.deepEqual(
-    JSON.parse(await fs.readFile(path.resolve('testBinPriority.json'))),
+    JSON.parse(await fs.readFile(path.resolve('testBinPriority.json'), 'utf8')),
     ['1.0.0\n'],
   )
 })

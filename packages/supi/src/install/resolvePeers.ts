@@ -309,7 +309,7 @@ function resolvePeers (
 
     if (!resolved || resolved.nodeId && !ctx.dependenciesTree[resolved.nodeId].installable) {
       try {
-        const { version } = importFrom(ctx.rootDir, `${peerName}/package.json`)
+        const { version } = importFrom(ctx.rootDir, `${peerName}/package.json`) as { version: string }
         resolved = {
           depth: -1,
           version,

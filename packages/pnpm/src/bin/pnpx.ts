@@ -4,6 +4,7 @@ import path = require('path')
 
 const PNPM_PATH = path.join(__dirname, 'pnpm.js')
 
+// tslint:disable-next-line: no-floating-promises
 ; (async () => {
   const workspaceRoot = await findWorkspacePrefix(process.cwd())
   if (workspaceRoot) {

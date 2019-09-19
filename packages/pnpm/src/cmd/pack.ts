@@ -28,7 +28,7 @@ export async function handler (
     workspaceDir: opts.workspaceDir || opts.dir,
   }, async () => {
     const { status } = await runNpm(['pack', ...opts.argv.original.slice(1)])
-    _status = status
+    _status = status!
   })
   if (_status !== 0) {
     process.exit(_status)
