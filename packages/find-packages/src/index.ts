@@ -10,23 +10,27 @@ const DEFAULT_IGNORE = [
   '**/tests/**',
 ]
 
-async function findPkgs (
-  root: string,
-  opts?: {
-    ignore?: string[],
-    patterns?: string[],
-  },
-) {
+declare namespace findPkgs {
+  interface Options {
+    ignore?: string[]
+    includeRoot?: boolean
+    patterns?: string[]
+  }
+}
+
+async function findPkgs (root: string, opts?: findPkgs.Options) {
   opts = opts || {}
-  const globOpts = { ...opts, cwd: root }
+  const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
-  globOpts.patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
+  const patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
+  const paths: string[] = await fastGlob(patterns, globOpts)
 
-  const paths: string[] = await fastGlob(globOpts.patterns, globOpts)
-
-  if (opts.patterns) {
+  if (opts.includeRoot) {
     // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
-    Array.prototype.push.apply(paths, await fastGlob(normalizePatterns(['.']), globOpts))
+    Array.prototype.push.apply(
+      paths,
+      await fastGlob(normalizePatterns(['.']), globOpts)
+    )
   }
 
   return pFilter(
@@ -34,7 +38,13 @@ async function findPkgs (
     // unlike `array.map()`
     Array.from(
       // Remove duplicate paths using `Set`
-      new Set(paths.map(manifestPath => path.join(root, manifestPath)).sort()),
+      new Set(
+        paths
+          .map(manifestPath => path.join(root, manifestPath))
+          .sort((path1, path2) =>
+            path.dirname(path1).localeCompare(path.dirname(path2))
+          )
+      ),
       async manifestPath => {
         try {
           return {
