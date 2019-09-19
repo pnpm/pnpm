@@ -1,12 +1,13 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
-import prepare, { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages, tempDir as makeTempDir } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
+import findWorkspacePackages from 'pnpm/src/findWorkspacePackages'
 import readYamlFile from 'read-yaml-file'
 import symlink from 'symlink-dir'
 import tape = require('tape')
@@ -1005,4 +1006,80 @@ test('pnpx sees the bins from the root of the workspace', async (t: tape.Test) =
   process.chdir('../project-2')
 
   t.ok(execPnpxSync('print-version').stdout.toString().includes('1.0.0'), "workspace package's bin has priority")
+})
+
+test('root package is included when not specified', async (t: tape.Test) => {
+  const tempDir = makeTempDir(t)
+  const projects = Object.assign(
+    {
+      ['.']: prepare(t, undefined, { tempDir }),
+    },
+    preparePackages(
+      t,
+      [
+        {
+          name: 'project-1',
+          version: '1.0.0',
+        },
+        {
+          name: 'project-2',
+          version: '2.0.0',
+        },
+        {
+          name: 'project-3',
+          version: '3.0.0',
+        },
+        {
+          name: 'project-4',
+          version: '4.0.0',
+        },
+      ],
+      { tempDir: `${tempDir}/project` }
+    )
+  )
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!store/**'] })
+  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
+
+  t.ok(workspacePackages.some(project => {
+    const relativePath = path.join('.', path.relative(tempDir, project.path))
+    return relativePath === '.' && project.manifest.name === 'project'
+  }), 'root project is present even if not specified')
+})
+
+test("root package can't be ignored using '!.' (or any other such glob)", async (t: tape.Test) => {
+  const tempDir = makeTempDir(t)
+  const projects = Object.assign(
+    {
+      ['.']: prepare(t, undefined, { tempDir }),
+    },
+    preparePackages(
+      t,
+      [
+        {
+          name: 'project-1',
+          version: '1.0.0',
+        },
+        {
+          name: 'project-2',
+          version: '2.0.0',
+        },
+        {
+          name: 'project-3',
+          version: '3.0.0',
+        },
+        {
+          name: 'project-4',
+          version: '4.0.0',
+        },
+      ],
+      { tempDir: `${tempDir}/project` }
+    )
+  )
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!.', '!./', '!store/**'] })
+  const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
+
+  t.ok(workspacePackages.some(project => {
+    const relativePath = path.join('.', path.relative(tempDir, project.path))
+    return relativePath === '.' && project.manifest.name === 'project'
+  }), 'root project is present even when explicitly ignored')
 })

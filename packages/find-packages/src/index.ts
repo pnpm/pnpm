@@ -24,11 +24,18 @@ async function findPkgs (
 
   const paths: string[] = await fastGlob(globOpts.patterns, globOpts)
 
+  if (opts.patterns) {
+    // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
+    Array.prototype.push.apply(paths, await fastGlob(normalizePatterns(['.']), globOpts))
+  }
+
   return pFilter(
-    paths
-      .sort()
-      .map((manifestPath) => path.join(root, manifestPath))
-      .map(async (manifestPath) => {
+    // `Array.from()` doesn't create an intermediate instance,
+    // unlike `array.map()`
+    Array.from(
+      // Remove duplicate paths using `Set`
+      new Set(paths.map(manifestPath => path.join(root, manifestPath)).sort()),
+      async manifestPath => {
         try {
           return {
             path: path.dirname(manifestPath),
