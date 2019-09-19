@@ -18,6 +18,8 @@
   ],
   "devDependencies": {
     "@pnpm/assert-project": "link:",
+    "@types/is-windows": "0.2.0",
+    "@types/isexe": "2.0.0",
     "rimraf": "3.0.0"
   },
   "directories": {
