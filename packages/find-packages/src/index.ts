@@ -10,25 +10,42 @@ const DEFAULT_IGNORE = [
   '**/tests/**',
 ]
 
-async function findPkgs (
-  root: string,
-  opts?: {
-    ignore?: string[],
-    patterns?: string[],
-  },
-) {
-  opts = opts || {}
-  const globOpts = { ...opts, cwd: root }
-  globOpts.ignore = opts.ignore || DEFAULT_IGNORE
-  globOpts.patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
+declare namespace findPkgs {
+  interface Options {
+    ignore?: string[]
+    includeRoot?: boolean
+    patterns?: string[]
+  }
+}
 
-  const paths: string[] = await fastGlob(globOpts.patterns, globOpts)
+async function findPkgs (root: string, opts?: findPkgs.Options) {
+  opts = opts || {}
+  const globOpts = { ...opts, cwd: root, includeRoot: undefined }
+  globOpts.ignore = opts.ignore || DEFAULT_IGNORE
+  const patterns = normalizePatterns(opts.patterns ? opts.patterns : ['.', '**'])
+  const paths: string[] = await fastGlob(patterns, globOpts)
+
+  if (opts.includeRoot) {
+    // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
+    Array.prototype.push.apply(
+      paths,
+      await fastGlob(normalizePatterns(['.']), globOpts)
+    )
+  }
 
   return pFilter(
-    paths
-      .sort()
-      .map((manifestPath) => path.join(root, manifestPath))
-      .map(async (manifestPath) => {
+    // `Array.from()` doesn't create an intermediate instance,
+    // unlike `array.map()`
+    Array.from(
+      // Remove duplicate paths using `Set`
+      new Set(
+        paths
+          .map(manifestPath => path.join(root, manifestPath))
+          .sort((path1, path2) =>
+            path.dirname(path1).localeCompare(path.dirname(path2))
+          )
+      ),
+      async manifestPath => {
         try {
           return {
             path: path.dirname(manifestPath),
