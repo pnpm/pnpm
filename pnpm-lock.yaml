@@ -277,17 +277,15 @@ importers:
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
     devDependencies:
-      '@types/nock': 10.0.3
       fetch-from-npm-registry: 'link:'
-      nock: 11.3.4
+      nock: 11.3.5
       rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.1'
       '@pnpm/npm-registry-agent': 'workspace:1.0.3'
-      '@types/nock': 10.0.3
       fetch-from-npm-registry: 'link:'
-      nock: 11.3.4
+      nock: 11.3.5
       rimraf: 3.0.0
       tape: 4.11.0
   packages/fetcher-base:
@@ -806,11 +804,10 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'link:'
-      '@types/nock': 10.0.3
       '@types/normalize-path': 3.0.0
       '@types/semver': 6.0.2
       '@types/ssri': 6.0.1
-      nock: 11.3.4
+      nock: 11.3.5
       path-exists: 4.0.0
       rimraf: 3.0.0
       tape: 4.11.0
@@ -821,7 +818,6 @@ importers:
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolver-base': 'workspace:3.1.2'
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/nock': ^10.0.0
       '@types/normalize-path': ^3.0.0
       '@types/semver': '6'
       '@types/ssri': ^6.0.0
@@ -830,7 +826,7 @@ importers:
       fetch-from-npm-registry: 'workspace:2.0.7'
       load-json-file: 6.2.0
       mem: 5.1.1
-      nock: 11.3.4
+      nock: 11.3.5
       normalize-path: 3.0.0
       p-limit: 2.2.1
       parse-npm-tarball-url: 3.0.0
@@ -923,13 +919,12 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
-      '@types/nock': 10.0.3
       '@types/ramda': 0.26.21
       '@types/sinon': 7.0.13
       '@types/ssri': 6.0.1
       delay: 4.3.0
       ncp: 2.0.0
-      nock: 11.3.4
+      nock: 11.3.5
       normalize-path: 3.0.0
       rimraf: 3.0.0
       sinon: 7.4.2
@@ -951,7 +946,6 @@ importers:
       '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
-      '@types/nock': ^10.0.0
       '@types/ramda': 0.26.21
       '@types/sinon': ^7.0.10
       '@types/ssri': 6.0.1
@@ -961,7 +955,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       ncp: 2.0.0
-      nock: 11.3.4
+      nock: 11.3.5
       normalize-path: 3.0.0
       p-limit: 2.2.1
       p-queue: 6.1.1
@@ -1720,12 +1714,11 @@ importers:
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': 4.1.3
       '@types/mz': 0.0.32
-      '@types/nock': 10.0.3
       '@types/retry': 0.12.0
       '@types/rimraf': 2.0.2
       '@types/ssri': 6.0.1
       cp-file: 7.0.0
-      nock: 11.3.4
+      nock: 11.3.5
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
@@ -1735,7 +1728,6 @@ importers:
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': ^4.1.2
       '@types/mz': ^0.0.32
-      '@types/nock': ^10.0.0
       '@types/retry': ^0.12.0
       '@types/rimraf': ^2.0.2
       '@types/ssri': ^6.0.1
@@ -1746,7 +1738,7 @@ importers:
       make-dir: 3.0.0
       mem: 5.1.1
       mz: 2.7.0
-      nock: 11.3.4
+      nock: 11.3.5
       path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 3.0.0
@@ -2418,12 +2410,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-TeiJ7uvv/92ugSqZ0v9l0eNXzutlki0aK+R1K5bfA5SYUil46ITlxLW4iNTCf55P4L5weCmaOdtxGeGWvudwPg==
-  /@types/nock/10.0.3:
-    dependencies:
-      '@types/node': 12.7.5
-    dev: true
-    resolution:
-      integrity: sha512-OthuN+2FuzfZO3yONJ/QVjKmLEuRagS9TV9lEId+WHL9KhftYG+/2z+pxlr0UgVVXSpVD8woie/3fzQn8ft/Ow==
   /@types/node-fetch/2.5.1:
     dependencies:
       '@types/node': 12.7.5
@@ -6565,7 +6551,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-/6RhOUlicRCbE9s+94qCUsyE+pKlVJ5AhIv+jEE7ESKwnbXqulKZ1FYU+XAtHHWE9TinYvAxDUJAb912PwPoWA==
-  /nock/11.3.4:
+  /nock/11.3.5:
     dependencies:
       chai: 4.2.0
       debug: 4.1.1
@@ -6577,7 +6563,7 @@ packages:
     engines:
       node: '>= 8.0'
     resolution:
-      integrity: sha512-Mqjk3DeOkuji8eYaveUku+vMswxzVyhrKAz1J9jE86IsEHQg4136Z/PHz81lcjyz9F3yrJXu56Gb/S+LFUOZVg==
+      integrity: sha512-6WGeZcWc3RExkBcMSYSrUm/5YukDo52m/jhwniQyrnuiCnKRljBwwje9vTwJyEi4J6m2bq0Aj6C1vzuM6iuaeg==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:
