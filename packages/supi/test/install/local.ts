@@ -41,7 +41,7 @@ test('local file', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], await testDefaults())
 
-  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
+  const expectedSpecs = { 'local-pkg': `file:..${path.sep}local-pkg` }
   t.deepEqual(manifest.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
@@ -65,7 +65,7 @@ test('local file via link:', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], await testDefaults())
 
-  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
+  const expectedSpecs = { 'local-pkg': `file:..${path.sep}local-pkg` }
   t.deepEqual(manifest.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
@@ -91,7 +91,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], await testDefaults())
 
-  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
+  const expectedSpecs = { 'local-pkg': `file:..${path.sep}local-pkg` }
   t.deepEqual(manifest.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')

@@ -65,13 +65,13 @@ function fromLocal (
   if (/^~[/]/.test(spec)) {
     // this is needed for windows and for file:~/foo/bar
     fetchSpec = resolvePath(os.homedir(), spec.slice(2))
-    normalizedPref = `${protocol}${spec}`
+    normalizedPref = `file:${spec}`
   } else {
     fetchSpec = resolvePath(importerPrefix, spec)
     if (isAbsolute(spec)) {
-      normalizedPref = `${protocol}${spec}`
+      normalizedPref = `file:${spec}`
     } else {
-      normalizedPref = `${protocol}${path.relative(importerPrefix, fetchSpec)}`
+      normalizedPref = `file:${path.relative(importerPrefix, fetchSpec)}`
     }
   }
 
