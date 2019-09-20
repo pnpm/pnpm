@@ -33,7 +33,7 @@
     "node-fetch-unix": "2.3.0"
   },
   "devDependencies": {
-    "@types/node-fetch": "2.5.0",
+    "@types/node-fetch": "^2.5.0",
     "cpy-cli": "2.0.0",
     "rimraf": "3.0.0"
   }

@@ -262,11 +262,11 @@ importers:
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
     devDependencies:
-      '@types/node-fetch': 2.5.0
+      '@types/node-fetch': 2.5.1
       cpy-cli: 2.0.0
       rimraf: 3.0.0
     specifiers:
-      '@types/node-fetch': 2.5.0
+      '@types/node-fetch': ^2.5.0
       '@zeit/fetch-retry': 4.0.1
       cpy-cli: 2.0.0
       node-fetch: 2.6.0
@@ -2424,12 +2424,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-OthuN+2FuzfZO3yONJ/QVjKmLEuRagS9TV9lEId+WHL9KhftYG+/2z+pxlr0UgVVXSpVD8woie/3fzQn8ft/Ow==
-  /@types/node-fetch/2.5.0:
-    dependencies:
-      '@types/node': 12.7.5
-    dev: true
-    resolution:
-      integrity: sha512-TLFRywthBgL68auWj+ziWu+vnmmcHCDFC/sqCOQf1xTz4hRq8cu79z8CtHU9lncExGBsB8fXA4TiLDLt6xvMzw==
   /@types/node-fetch/2.5.1:
     dependencies:
       '@types/node': 12.7.5
