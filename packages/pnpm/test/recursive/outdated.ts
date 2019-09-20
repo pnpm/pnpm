@@ -12,7 +12,7 @@ import {
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test('pnpm recursive outdated', async (t: tape.Test) => {
+testOnly('pnpm recursive outdated', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -51,15 +51,16 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    ┌───────────────────┬─────────┬────────┬──────────────────────┐
-    │ Package           │ Current │ Latest │ Dependents           │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │
-    ├───────────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
-    └───────────────────┴─────────┴────────┴──────────────────────┘
+    ┌───────────────────┬─────────┬────────┬────────────┐
+    │ Package           │ Current │ Latest │ Dependents │
+    ├───────────────────┼─────────┼────────┼────────────┤
+    │ is-negative       │ 1.0.0   │ 2.1.0  │ project-2  │
+    ├───────────────────┼─────────┼────────┼────────────┤
+    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │
+    ├───────────────────┼─────────┼────────┼────────────┤
+    │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1  │
+    │                   │         │        │ project-3  │
+    └───────────────────┴─────────┴────────┴────────────┘
     ` + '\n')
   }
 
@@ -69,15 +70,61 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    ┌───────────────────┬─────────┬────────┬──────────────────────┬─────────────────────────────────────────────┐
-    │ Package           │ Current │ Latest │ Dependents           │ Details                                     │
-    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-negative       │ 1.0.0   │ 2.1.0  │ project-2            │ https://github.com/kevva/is-negative#readme │
-    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │ https://github.com/kevva/is-negative#readme │
-    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
-    │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │ https://github.com/kevva/is-positive#readme │
-    └───────────────────┴─────────┴────────┴──────────────────────┴─────────────────────────────────────────────┘
+    ┌───────────────────┬─────────┬────────┬────────────┬─────────────────────────────────────────────┐
+    │ Package           │ Current │ Latest │ Dependents │ Details                                     │
+    ├───────────────────┼─────────┼────────┼────────────┼─────────────────────────────────────────────┤
+    │ is-negative       │ 1.0.0   │ 2.1.0  │ project-2  │ https://github.com/kevva/is-negative#readme │
+    ├───────────────────┼─────────┼────────┼────────────┼─────────────────────────────────────────────┤
+    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │ https://github.com/kevva/is-negative#readme │
+    ├───────────────────┼─────────┼────────┼────────────┼─────────────────────────────────────────────┤
+    │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1  │ https://github.com/kevva/is-positive#readme │
+    │                   │         │        │ project-3  │                                             │
+    └───────────────────┴─────────┴────────┴────────────┴─────────────────────────────────────────────┘
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('recursive', 'outdated', '--no-table')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    is-negative
+    1.0.0 => 2.1.0
+    project-2
+
+    is-negative (dev)
+    1.0.0 => 2.1.0
+    project-3
+
+    is-positive
+    1.0.0 => 3.1.0
+    project-1
+    project-3
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('recursive', 'outdated', '--no-table', '--long')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    is-negative
+    1.0.0 => 2.1.0
+    project-2
+    https://github.com/kevva/is-negative#readme
+
+    is-negative (dev)
+    1.0.0 => 2.1.0
+    project-3
+    https://github.com/kevva/is-negative#readme
+
+    is-positive
+    1.0.0 => 3.1.0
+    project-1
+    project-3
+    https://github.com/kevva/is-positive#readme
     ` + '\n')
   }
 
@@ -87,11 +134,12 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    ┌─────────────┬─────────┬────────┬──────────────────────┐
-    │ Package     │ Current │ Latest │ Dependents           │
-    ├─────────────┼─────────┼────────┼──────────────────────┤
-    │ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
-    └─────────────┴─────────┴────────┴──────────────────────┘
+    ┌─────────────┬─────────┬────────┬────────────┐
+    │ Package     │ Current │ Latest │ Dependents │
+    ├─────────────┼─────────┼────────┼────────────┤
+    │ is-positive │ 1.0.0   │ 3.1.0  │ project-1  │
+    │             │         │        │ project-3  │
+    └─────────────┴─────────┴────────┴────────────┘
     ` + '\n')
   }
 })

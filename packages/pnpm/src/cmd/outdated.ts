@@ -11,7 +11,9 @@ import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
+import { stripIndent } from 'common-tags'
 import R = require('ramda')
+import stripAnsi from 'strip-ansi'
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
 import createLatestManifestGetter from '../createLatestManifestGetter'
@@ -65,6 +67,7 @@ export default async function (
     localAddress?: string,
     long?: boolean,
     networkConcurrency: number,
+    table?: boolean,
     offline: boolean,
     prefix: string,
     proxy?: string,
@@ -88,42 +91,72 @@ export default async function (
 
   if (!outdatedPackages.length) return
 
-  let columnNames = [
-    'Package',
-    'Current',
-    'Latest'
-  ]
+  if (opts.table !== false) {
+    let columnNames = [
+      'Package',
+      'Current',
+      'Latest'
+    ]
 
-  if (opts.long) {
-    columnNames.push('Details')
+    if (opts.long) {
+      columnNames.push('Details')
+    }
+
+    columnNames = columnNames.map((name: string) => chalk.blueBright(name))
+    let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
+      renderPackageName,
+      renderCurrent,
+      renderLatest,
+    ]
+
+    if (opts.long) {
+      columnFns.push(renderDetails)
+    }
+
+    return table([
+      columnNames,
+      ...sortedPackages(outdatedPackages).map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
+    ], TABLE_OPTIONS)
+  } else {
+    return sortedPackages(outdatedPackages)
+      .map((outdatedPkg) => {
+        let info = stripIndent`
+          ${renderPackageName(outdatedPkg)}
+          ${renderCurrent(outdatedPkg)} => ${renderLatest(outdatedPkg)}`
+
+        if (opts.long) {
+          const details = renderDetails(outdatedPkg)
+
+          if (details) {
+            info += `\n${details}`
+          }
+        }
+
+        return info
+      })
+      .join('\n\n') + '\n'
   }
+}
 
-  columnNames = columnNames.map((name: string) => chalk.blueBright(name))
-  let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
-    renderPackageName,
-    renderCurrent,
-    renderLatest,
-  ]
-
-  if (opts.long) {
-    columnFns.push(renderDetails)
-  }
-
-  return table([
-    columnNames,
-    ...R.sortWith(
-      [
-        sortBySemverChange,
-        (o1, o2) => o1.packageName.localeCompare(o2.packageName),
-      ],
-      outdatedPackages.map(toOutdatedWithVersionDiff)
-    )
-      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-  ], TABLE_OPTIONS)
+function sortedPackages (outdatedPackages: Array<OutdatedPackage>) {
+  return R.sortWith(
+    [
+      sortBySemverChange,
+      (o1, o2) => o1.packageName.localeCompare(o2.packageName),
+    ],
+    outdatedPackages.map(toOutdatedWithVersionDiff)
+  )
 }
 
 export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number) {
-  return Math.min(maxWidth, data.reduce((maxWidth, row) => Math.max(maxWidth, row[columnNumber].length), 0))
+  const maxCellWidth = data.reduce((cellWidth, row) => {
+    const cellLines = stripAnsi(row[columnNumber]).split('\n')
+    const currentCellWidth = cellLines.reduce((lineWidth, line) => {
+      return Math.max(lineWidth, line.length)
+    }, 0)
+    return Math.max(cellWidth, currentCellWidth)
+  }, 0)
+  return Math.min(maxWidth, maxCellWidth)
 }
 
 export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {

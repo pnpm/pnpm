@@ -81,6 +81,53 @@ test('pnpm outdated: show details', async (t: tape.Test) => {
   ` + '\n')
 })
 
+test('pnpm outdated: no table', async (t: tape.Test) => {
+  tempDir(t)
+
+  await makeDir(path.resolve('node_modules'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm-lock.yaml'), path.resolve('node_modules/.pnpm-lock.yaml'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  {
+    const result = execPnpmSync('outdated', '--no-table')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    flatten
+    1.0.2 => Deprecated
+
+    is-negative
+    1.0.0 => 2.1.0
+
+    is-positive
+    1.0.0 => 3.1.0
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('outdated', '--no-table', '--long')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    flatten
+    1.0.2 => Deprecated
+    I wrote this module a very long time
+    ago; you should use something else.
+    https://github.com/jesusabdullah/node-flatten#readme
+
+    is-negative
+    1.0.0 => 2.1.0
+    https://github.com/kevva/is-negative#readme
+
+    is-positive
+    1.0.0 => 3.1.0
+    https://github.com/kevva/is-positive#readme
+    ` + '\n')
+  }
+})
+
 test('pnpm outdated: only current lockfile is available', async (t: tape.Test) => {
   tempDir(t)
 

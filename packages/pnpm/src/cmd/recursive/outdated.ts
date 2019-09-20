@@ -2,6 +2,7 @@ import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
+import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'
 import {
@@ -58,6 +59,7 @@ export default async (
     lockfileDirectory?: string,
     store?: string,
     strictSsl: boolean,
+    table?: boolean,
     tag: string,
     userAgent: string,
   },
@@ -89,51 +91,86 @@ export default async (
     }))
   }
 
-  let columnNames = [
-    'Package',
-    'Current',
-    'Latest',
-    'Dependents'
-  ]
+  let output
 
-  if (opts.long) {
-    columnNames.push('Details')
-  }
+  if (opts.table !== false) {
+    let columnNames = [
+      'Package',
+      'Current',
+      'Latest',
+      'Dependents'
+    ]
 
-  columnNames = columnNames.map((name: string) => chalk.blueBright(name))
-  const data = [
-    columnNames,
-    ...R.sortWith(
-      [
-        sortBySemverChange,
-        (o1, o2) => o1.packageName.localeCompare(o2.packageName),
-        (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
-      ],
-      (
-        Object.values(outdatedByNameAndType).map(toOutdatedWithVersionDiff)
-      ),
-    )
-      .map((outdatedPkg) => [
-        renderPackageName(outdatedPkg),
-        renderCurrent(outdatedPkg),
-        renderLatest(outdatedPkg),
-        outdatedPkg.dependentPkgs
-          .map(({ manifest, location }) => manifest.name || location)
-          .sort()
-          .join(', ')
-      ].concat(opts.long ? [renderDetails(outdatedPkg)] : [])),
-  ]
-  process.stdout.write(
-    table(data, {
+    if (opts.long) {
+      columnNames.push('Details')
+    }
+
+    columnNames = columnNames.map((name: string) => chalk.blueBright(name))
+    const data = [
+      columnNames,
+      ...sortedPackages(outdatedByNameAndType)
+        .map((outdatedPkg) => [
+          renderPackageName(outdatedPkg),
+          renderCurrent(outdatedPkg),
+          renderLatest(outdatedPkg),
+          dependentPackages(outdatedPkg)
+        ].concat(opts.long ? [renderDetails(outdatedPkg)] : [])),
+    ]
+    output = table(data, {
       ...TABLE_OPTIONS,
       columns: {
         ...TABLE_OPTIONS.columns,
         // Dependents column:
         3: {
-          width: getCellWidth(data, 3, 30),
-          wrapWord: true,
+          width: getCellWidth(data, 3, 30)
         },
       },
-    }),
+    })
+  } else {
+    output = sortedPackages(outdatedByNameAndType)
+      .map((outdatedPkg) => {
+        let info = stripIndent`
+          ${renderPackageName(outdatedPkg)}
+          ${renderCurrent(outdatedPkg)} => ${renderLatest(outdatedPkg)}`
+
+        const dependents = dependentPackages(outdatedPkg)
+
+        if (dependents) {
+          info += `\n${dependents}`
+        }
+
+        if (opts.long) {
+          const details = renderDetails(outdatedPkg)
+
+          if (details) {
+            info += `\n${details}`
+          }
+        }
+
+        return info
+      })
+      .join('\n\n') + '\n'
+  }
+
+  process.stdout.write(output)
+}
+
+function dependentPackages (outdatedPkg: OutdatedInWorkspace) {
+  return outdatedPkg.dependentPkgs
+    .map(({ manifest, location }) => manifest.name || location)
+    .sort()
+    .join('\n')
+}
+
+function sortedPackages (outdatedByNameAndType: Record<string, OutdatedInWorkspace>) {
+  return R.sortWith(
+    [
+      sortBySemverChange,
+      (o1, o2) => o1.packageName.localeCompare(o2.packageName),
+      (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
+    ],
+    (
+      Object.values(outdatedByNameAndType).map(toOutdatedWithVersionDiff)
+    )
   )
 }
