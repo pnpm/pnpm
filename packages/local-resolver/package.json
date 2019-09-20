@@ -36,7 +36,7 @@
     "@pnpm/types": "workspace:3.2.0",
     "graceful-fs": "4.2.1",
     "normalize-path": "3.0.0",
-    "ssri": "6.0.1"
+    "ssri": "7.0.0"
   },
   "devDependencies": {
     "@pnpm/local-resolver": "link:",

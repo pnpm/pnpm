@@ -43,7 +43,7 @@
     "path-temp": "2.0.0",
     "retry": "0.12.0",
     "rimraf": "3.0.0",
-    "ssri": "6.0.1",
+    "ssri": "7.0.0",
     "unpack-stream": "6.0.0"
   },
   "devDependencies": {

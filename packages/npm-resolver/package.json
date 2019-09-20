@@ -44,7 +44,7 @@
     "p-limit": "2.2.1",
     "parse-npm-tarball-url": "3.0.0",
     "semver": "6.3.0",
-    "ssri": "6.0.1",
+    "ssri": "7.0.0",
     "version-selector-type": "2.0.1",
     "write-json-file": "4.0.0"
   },
