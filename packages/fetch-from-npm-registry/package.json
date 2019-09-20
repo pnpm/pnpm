@@ -34,7 +34,7 @@
   "devDependencies": {
     "@types/nock": "10.0.3",
     "fetch-from-npm-registry": "link:",
-    "nock": "11.3.4",
+    "nock": "11.3.5",
     "rimraf": "3.0.0",
     "tape": "4.11.0"
   }
