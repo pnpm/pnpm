@@ -71,79 +71,82 @@ export default async (
     }))
   }
 
-  // TODO: Try and de-duplicate the following code into ../outdated.ts
-  let output: string
-
   if (opts.table !== false) {
-    let columnNames = [
-      'Package',
-      'Current',
-      'Latest',
-      'Dependents'
-    ]
+    process.stdout.write(renderOutdatedTable(outdatedByNameAndType, opts))
+    return
+  }
+  process.stdout.write(renderOutdatedList(outdatedByNameAndType, opts))
+}
 
-    let columnFns = [
-      renderPackageName,
-      renderCurrent,
-      renderLatest,
-      dependentPackages,
-    ]
+function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  let columnNames = [
+    'Package',
+    'Current',
+    'Latest',
+    'Dependents'
+  ]
 
-    if (opts.long) {
-      columnNames.push('Details')
-      columnFns.push(renderDetails)
-    }
+  let columnFns = [
+    renderPackageName,
+    renderCurrent,
+    renderLatest,
+    dependentPackages,
+  ]
 
-    // Avoid the overhead of allocating a new array caused by calling `array.map()`
-    for (let i = 0; i < columnNames.length; i++)
-      columnNames[i] = chalk.blueBright(columnNames[i])
-
-    const data = [
-      columnNames,
-      ...sortOutdatedPackages(Object.values(outdatedByNameAndType))
-        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-    ]
-    output = table(data, {
-      ...TABLE_OPTIONS,
-      columns: {
-        ...TABLE_OPTIONS.columns,
-        // Dependents column:
-        3: {
-          width: getCellWidth(data, 3, 30)
-        },
-      },
-    })
-  } else {
-    output = sortOutdatedPackages(Object.values(outdatedByNameAndType))
-      .map((outdatedPkg) => {
-        let info = stripIndent`
-          ${chalk.bold(renderPackageName(outdatedPkg))}
-          ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
-
-        const dependents = dependentPackages(outdatedPkg)
-
-        if (dependents) {
-          info += `\n${chalk.bold(
-              outdatedPkg.dependentPkgs.length > 1
-                ? 'Dependents:'
-                : 'Dependent:'
-            )} ${dependents}`
-        }
-
-        if (opts.long) {
-          const details = renderDetails(outdatedPkg)
-
-          if (details) {
-            info += `\n${details}`
-          }
-        }
-
-        return info
-      })
-      .join('\n\n') + '\n'
+  if (opts.long) {
+    columnNames.push('Details')
+    columnFns.push(renderDetails)
   }
 
-  process.stdout.write(output)
+  // Avoid the overhead of allocating a new array caused by calling `array.map()`
+  for (let i = 0; i < columnNames.length; i++)
+    columnNames[i] = chalk.blueBright(columnNames[i])
+
+  const data = [
+    columnNames,
+    ...sortOutdatedPackages(Object.values(outdatedByNameAndType))
+      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
+  ]
+  return table(data, {
+    ...TABLE_OPTIONS,
+    columns: {
+      ...TABLE_OPTIONS.columns,
+      // Dependents column:
+      3: {
+        width: getCellWidth(data, 3, 30)
+      },
+    },
+  })
+}
+
+function renderOutdatedList (outdatedByNameAndType: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  return sortOutdatedPackages(Object.values(outdatedByNameAndType))
+    .map((outdatedPkg) => {
+      let info = stripIndent`
+        ${chalk.bold(renderPackageName(outdatedPkg))}
+        ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
+
+      const dependents = dependentPackages(outdatedPkg)
+
+      if (dependents) {
+        info += `\n${chalk.bold(
+            outdatedPkg.dependentPkgs.length > 1
+              ? 'Dependents:'
+              : 'Dependent:'
+          )} ${dependents}`
+      }
+
+      if (opts.long) {
+        const details = renderDetails(outdatedPkg)
+
+        if (details) {
+          info += `\n${details}`
+        }
+      }
+
+      return info
+    })
+    .join('\n\n') + '\n'
 }
 
 function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {

@@ -101,54 +101,60 @@ export default async function (
 
   if (!outdatedPackages.length) return
 
-  // TODO: Try and de-duplicate the following code from ./recursive/outdated.ts
-
   if (opts.table !== false) {
-    let columnNames = [
-      'Package',
-      'Current',
-      'Latest'
-    ]
-
-    let columnFns = [
-      renderPackageName,
-      renderCurrent,
-      renderLatest,
-    ]
-
-    if (opts.long) {
-      columnNames.push('Details')
-      columnFns.push(renderDetails)
-    }
-
-    // Avoid the overhead of allocating a new array caused by calling `array.map()`
-    for (let i = 0; i < columnNames.length; i++)
-      columnNames[i] = chalk.blueBright(columnNames[i])
-
-    return table([
-      columnNames,
-      ...sortOutdatedPackages(outdatedPackages)
-        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
-    ], TABLE_OPTIONS)
+    return renderOutdatedTable(outdatedPackages, opts)
   } else {
-    return sortOutdatedPackages(outdatedPackages)
-      .map((outdatedPkg) => {
-        let info = stripIndent`
-          ${chalk.bold(renderPackageName(outdatedPkg))}
-          ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
-
-        if (opts.long) {
-          const details = renderDetails(outdatedPkg)
-
-          if (details) {
-            info += `\n${details}`
-          }
-        }
-
-        return info
-      })
-      .join('\n\n') + '\n'
+    return renderOutdatedList(outdatedPackages, opts)
   }
+}
+
+function renderOutdatedTable (outdatedPackages: ReadonlyArray<OutdatedPackage>, opts: { long?: boolean }) {
+  let columnNames = [
+    'Package',
+    'Current',
+    'Latest'
+  ]
+
+  let columnFns = [
+    renderPackageName,
+    renderCurrent,
+    renderLatest,
+  ]
+
+  if (opts.long) {
+    columnNames.push('Details')
+    columnFns.push(renderDetails)
+  }
+
+  // Avoid the overhead of allocating a new array caused by calling `array.map()`
+  for (let i = 0; i < columnNames.length; i++)
+    columnNames[i] = chalk.blueBright(columnNames[i])
+
+  return table([
+    columnNames,
+    ...sortOutdatedPackages(outdatedPackages)
+      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
+  ], TABLE_OPTIONS)
+}
+
+function renderOutdatedList (outdatedPackages: ReadonlyArray<OutdatedPackage>, opts: { long?: boolean }) {
+  return sortOutdatedPackages(outdatedPackages)
+    .map((outdatedPkg) => {
+      let info = stripIndent`
+        ${chalk.bold(renderPackageName(outdatedPkg))}
+        ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
+
+      if (opts.long) {
+        const details = renderDetails(outdatedPkg)
+
+        if (details) {
+          info += `\n${details}`
+        }
+      }
+
+      return info
+    })
+    .join('\n\n') + '\n'
 }
 
 function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedPackage>) {
