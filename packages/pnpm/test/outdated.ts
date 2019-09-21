@@ -59,7 +59,7 @@ test('pnpm outdated: show details', async (t: tape.Test) => {
   tempDir(t)
 
   await makeDir(path.resolve('node_modules/.pnpm'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/pnpm-lock.yaml'), path.resolve('node_modules/.pnpm/pnpm-lock.yaml'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   const result = execPnpmSync('outdated', '--long')
@@ -85,7 +85,7 @@ test('pnpm outdated: only current lockfile is available', async (t: tape.Test) =
   tempDir(t)
 
   await makeDir(path.resolve('node_modules/.pnpm'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/pnpm-lock.yaml'), path.resolve('node_modules/.pnpm/pnpm-lock.yaml'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   const result = execPnpmSync('outdated')
