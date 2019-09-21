@@ -29,7 +29,7 @@ const COMPARATORS = [
   (o1: OutdatedInWorkspace, o2: OutdatedInWorkspace) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
 ]
 
-type OutdatedInWorkspace = OutdatedPackage & {
+interface OutdatedInWorkspace extends OutdatedPackage {
   belongsTo: DependenciesField,
   current?: string,
   dependentPkgs: Array<{ location: string, manifest: PackageJson }>,
@@ -123,7 +123,11 @@ export default async (
         const dependents = dependentPackages(outdatedPkg)
 
         if (dependents) {
-          info += `\n${dependents}`
+          info += `\n${chalk.bold(
+              outdatedPkg.dependentPkgs.length > 1
+                ? 'Dependents:'
+                : 'Dependent:'
+            )} ${dependents}`
         }
 
         if (opts.long) {
@@ -142,11 +146,11 @@ export default async (
   process.stdout.write(output)
 }
 
-function dependentPackages (outdatedPkg: OutdatedInWorkspace) {
-  return outdatedPkg.dependentPkgs
+function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
+  return dependentPkgs
     .map(({ manifest, location }) => manifest.name || location)
     .sort()
-    .join('\n')
+    .join(', ')
 }
 
 function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedInWorkspace>) {
