@@ -262,11 +262,11 @@ importers:
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
     devDependencies:
-      '@types/node-fetch': 2.5.0
+      '@types/node-fetch': 2.5.1
       cpy-cli: 2.0.0
       rimraf: 3.0.0
     specifiers:
-      '@types/node-fetch': 2.5.0
+      '@types/node-fetch': ^2.5.0
       '@zeit/fetch-retry': 4.0.1
       cpy-cli: 2.0.0
       node-fetch: 2.6.0
@@ -277,17 +277,15 @@ importers:
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
     devDependencies:
-      '@types/nock': 10.0.3
       fetch-from-npm-registry: 'link:'
-      nock: 11.3.4
+      nock: 11.3.5
       rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.1'
       '@pnpm/npm-registry-agent': 'workspace:1.0.3'
-      '@types/nock': 10.0.3
       fetch-from-npm-registry: 'link:'
-      nock: 11.3.4
+      nock: 11.3.5
       rimraf: 3.0.0
       tape: 4.11.0
   packages/fetcher-base:
@@ -806,11 +804,10 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/npm-resolver': 'link:'
-      '@types/nock': 10.0.3
       '@types/normalize-path': 3.0.0
       '@types/semver': 6.0.2
       '@types/ssri': 6.0.1
-      nock: 11.3.4
+      nock: 11.3.5
       path-exists: 4.0.0
       rimraf: 3.0.0
       tape: 4.11.0
@@ -821,7 +818,6 @@ importers:
       '@pnpm/npm-resolver': 'link:'
       '@pnpm/resolver-base': 'workspace:3.1.2'
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/nock': ^10.0.0
       '@types/normalize-path': ^3.0.0
       '@types/semver': '6'
       '@types/ssri': ^6.0.0
@@ -830,7 +826,7 @@ importers:
       fetch-from-npm-registry: 'workspace:2.0.7'
       load-json-file: 6.2.0
       mem: 5.1.1
-      nock: 11.3.4
+      nock: 11.3.5
       normalize-path: 3.0.0
       p-limit: 2.2.1
       parse-npm-tarball-url: 3.0.0
@@ -923,13 +919,12 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
-      '@types/nock': 10.0.3
       '@types/ramda': 0.26.21
       '@types/sinon': 7.0.13
       '@types/ssri': 6.0.1
       delay: 4.3.0
       ncp: 2.0.0
-      nock: 11.3.4
+      nock: 11.3.5
       normalize-path: 3.0.0
       rimraf: 3.0.0
       sinon: 7.4.2
@@ -951,7 +946,6 @@ importers:
       '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
-      '@types/nock': ^10.0.0
       '@types/ramda': 0.26.21
       '@types/sinon': ^7.0.10
       '@types/ssri': 6.0.1
@@ -961,7 +955,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       ncp: 2.0.0
-      nock: 11.3.4
+      nock: 11.3.5
       normalize-path: 3.0.0
       p-limit: 2.2.1
       p-queue: 6.1.1
@@ -1720,12 +1714,11 @@ importers:
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': 4.1.3
       '@types/mz': 0.0.32
-      '@types/nock': 10.0.3
       '@types/retry': 0.12.0
       '@types/rimraf': 2.0.2
       '@types/ssri': 6.0.1
       cp-file: 7.0.0
-      nock: 11.3.4
+      nock: 11.3.5
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
@@ -1735,7 +1728,6 @@ importers:
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': ^4.1.2
       '@types/mz': ^0.0.32
-      '@types/nock': ^10.0.0
       '@types/retry': ^0.12.0
       '@types/rimraf': ^2.0.2
       '@types/ssri': ^6.0.1
@@ -1746,7 +1738,7 @@ importers:
       make-dir: 3.0.0
       mem: 5.1.1
       mz: 2.7.0
-      nock: 11.3.4
+      nock: 11.3.5
       path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 3.0.0
@@ -1883,14 +1875,14 @@ importers:
       write-yaml-file: 3.0.1
   tools:
     devDependencies:
-      '@commitlint/cli': 8.1.0
-      '@commitlint/config-conventional': 8.1.0
-      '@commitlint/prompt-cli': 8.1.0
+      '@commitlint/cli': 8.2.0
+      '@commitlint/config-conventional': 8.2.0
+      '@commitlint/prompt-cli': 8.2.0
       husky: 3.0.5
     specifiers:
-      '@commitlint/cli': 8.1.0
-      '@commitlint/config-conventional': 8.1.0
-      '@commitlint/prompt-cli': 8.1.0
+      '@commitlint/cli': 8.2.0
+      '@commitlint/config-conventional': 8.2.0
+      '@commitlint/prompt-cli': 8.2.0
       husky: 3.0.5
   typings:
     specifiers: {}
@@ -1917,14 +1909,14 @@ packages:
       js-tokens: 4.0.0
     resolution:
       integrity: sha512-7dV4eu9gBxoM0dAnj/BCFDW9LFU0zvTrkq0ugM7pnHEgguOEeOz1so2ZghEdzviYzQEED0r4EAgpsBChKy1TRQ==
-  /@commitlint/cli/8.1.0:
+  /@commitlint/cli/8.2.0:
     dependencies:
       '@commitlint/format': 8.2.0
       '@commitlint/lint': 8.2.0
       '@commitlint/load': 8.2.0
       '@commitlint/read': 8.2.0
       babel-polyfill: 6.26.0
-      chalk: 2.3.1
+      chalk: 2.4.2
       get-stdin: 7.0.0
       lodash: 4.17.14
       meow: 5.0.0
@@ -1935,11 +1927,11 @@ packages:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-83K5C2nIAgoZlzMegf0/MEBjX+ampUyc/u79RxgX9ZYjzos+RQtNyO7I43dztVxPXSwAnX9XRgoOfkGWA4nbig==
-  /@commitlint/config-conventional/8.1.0:
+      integrity: sha512-8fJ5pmytc38yw2QWbTTJmXLfSiWPwMkHH4govo9zJ/+ERPBF2jvlxD/dQvk24ezcizjKc6LFka2edYC4OQ+Dgw==
+  /@commitlint/config-conventional/8.2.0:
     dev: true
     resolution:
-      integrity: sha512-/JY+FNBnrT91qzDVIoV1Buiigvj7Le7ezFw+oRqu0nYREX03k7xnaG/7t7rUSvm7hM6dnLSOlaUsevjgMI9AEw==
+      integrity: sha512-HuwlHQ3DyVhpK9GHgTMhJXD8Zp8PGIQVpQGYh/iTrEU6TVxdRC61BxIDZvfWatCaiG617Z/U8maRAFrqFM4TqA==
   /@commitlint/ensure/8.2.0:
     dependencies:
       lodash: 4.17.14
@@ -2013,15 +2005,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-vzouqroTXG6QXApkrps0gbeSYW6w5drpUk7QAeZIcaCSPsQXDM8eqqt98ZzlzLJHo5oPNXPX1AAVSTrssvHemA==
-  /@commitlint/prompt-cli/8.1.0:
+  /@commitlint/prompt-cli/8.2.0:
     dependencies:
       '@commitlint/prompt': 8.2.0
-      execa: 0.9.0
+      execa: 0.11.0
       string-to-stream: 1.1.1
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-Or47gRs3TfoC+Bnkaw8t8um4c1nPPojKY2IpSksDrtq0gPHF1F4AUNEmP1bW4MzB7ZUUKGFgcYv72Z3b8rjWPA==
+      integrity: sha512-o8PFlOji4NpLo4dwM23KMe4TCayXucDKtJr/vbO/0tFGBIcPVZH16MrQaMiOTuIphGgUAlw9DGytFgXNlSJ1og==
   /@commitlint/prompt/8.2.0:
     dependencies:
       '@commitlint/load': 8.2.0
@@ -2420,18 +2412,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-TeiJ7uvv/92ugSqZ0v9l0eNXzutlki0aK+R1K5bfA5SYUil46ITlxLW4iNTCf55P4L5weCmaOdtxGeGWvudwPg==
-  /@types/nock/10.0.3:
-    dependencies:
-      '@types/node': 12.7.5
-    dev: true
-    resolution:
-      integrity: sha512-OthuN+2FuzfZO3yONJ/QVjKmLEuRagS9TV9lEId+WHL9KhftYG+/2z+pxlr0UgVVXSpVD8woie/3fzQn8ft/Ow==
-  /@types/node-fetch/2.5.0:
-    dependencies:
-      '@types/node': 12.7.5
-    dev: true
-    resolution:
-      integrity: sha512-TLFRywthBgL68auWj+ziWu+vnmmcHCDFC/sqCOQf1xTz4hRq8cu79z8CtHU9lncExGBsB8fXA4TiLDLt6xvMzw==
   /@types/node-fetch/2.5.1:
     dependencies:
       '@types/node': 12.7.5
@@ -3399,16 +3379,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-qBFcVeSnAv5NFQq9OHKCKn4J/Jg=
-  /chalk/2.3.1:
-    dependencies:
-      ansi-styles: 3.2.1
-      escape-string-regexp: 1.0.5
-      supports-color: 5.5.0
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-QUU4ofkDoMIVO7hcx1iPTISs88wsO8jA92RQIm4JAwZvFGGAV2hSAA1NX7oVj2Ej2Q6NDTcRDjPTFrMCRZoJ6g==
   /chalk/2.4.2:
     dependencies:
       ansi-styles: 3.2.1
@@ -3824,6 +3794,7 @@ packages:
       lru-cache: 4.1.5
       shebang-command: 1.2.0
       which: 1.3.1
+    dev: false
     resolution:
       integrity: sha1-6L0O/uWPz/b4+UUQoKVUu/ojVEk=
   /cross-spawn/6.0.5:
@@ -4407,6 +4378,20 @@ packages:
     dev: false
     resolution:
       integrity: sha512-ko08oRZHjAjd2URR5knpuQQZhEyS3aCcET4NDt65GKxg/8mzakufW0NZZSjHSu7dU76cMkbiLNTGRT8XIxOIng==
+  /execa/0.11.0:
+    dependencies:
+      cross-spawn: 6.0.5
+      get-stream: 4.1.0
+      is-stream: 1.1.0
+      npm-run-path: 2.0.2
+      p-finally: 1.0.0
+      signal-exit: 3.0.2
+      strip-eof: 1.0.0
+    dev: true
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-k5AR22vCt1DcfeiRixW46U5tMLtBg44ssdJM9PiXw3D8Bn5qyxFCSnKY/eR22y+ctFDGPqafpaXg2G4Emyua4A==
   /execa/0.7.0:
     dependencies:
       cross-spawn: 5.1.0
@@ -4421,20 +4406,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-lEvs00zEHuMqY6n68nrVpl/Fl3c=
-  /execa/0.9.0:
-    dependencies:
-      cross-spawn: 5.1.0
-      get-stream: 3.0.0
-      is-stream: 1.1.0
-      npm-run-path: 2.0.2
-      p-finally: 1.0.0
-      signal-exit: 3.0.2
-      strip-eof: 1.0.0
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-BbUMBiX4hqiHZUA5+JujIjNb6TyAlp2D5KLheMjMluwOuzcnylDL4AxZYLLn1n2AGB49eSWwyKvvEQoRpnAtmA==
   /execa/1.0.0:
     dependencies:
       cross-spawn: 6.0.5
@@ -4901,6 +4872,7 @@ packages:
     resolution:
       integrity: sha1-Xzj5PzRgCWZu4BUKBUFn+Rvdld4=
   /get-stream/3.0.0:
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -6138,6 +6110,7 @@ packages:
     dependencies:
       pseudomap: 1.0.2
       yallist: 2.1.2
+    dev: false
     resolution:
       integrity: sha512-sWZlbEP2OsHNkXrMl5GYk/jKk70MBng6UU4YI/qGDYbgf6YbP4EvmqISbXCoJiRKs+1bSpFHVgQxvJ17F2li5g==
   /lru-cache/5.1.1:
@@ -6580,7 +6553,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-/6RhOUlicRCbE9s+94qCUsyE+pKlVJ5AhIv+jEE7ESKwnbXqulKZ1FYU+XAtHHWE9TinYvAxDUJAb912PwPoWA==
-  /nock/11.3.4:
+  /nock/11.3.5:
     dependencies:
       chai: 4.2.0
       debug: 4.1.1
@@ -6592,7 +6565,7 @@ packages:
     engines:
       node: '>= 8.0'
     resolution:
-      integrity: sha512-Mqjk3DeOkuji8eYaveUku+vMswxzVyhrKAz1J9jE86IsEHQg4136Z/PHz81lcjyz9F3yrJXu56Gb/S+LFUOZVg==
+      integrity: sha512-6WGeZcWc3RExkBcMSYSrUm/5YukDo52m/jhwniQyrnuiCnKRljBwwje9vTwJyEi4J6m2bq0Aj6C1vzuM6iuaeg==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:
@@ -7382,6 +7355,7 @@ packages:
     resolution:
       integrity: sha512-DSpMj8PI5W7v2G4+rE+BymTKZPjlu6t/M1N6rPAa6Hwn+/e8jDmFJaq8/kpoGCvwd75g2h5DbjF2MduOMNyrsQ==
   /pseudomap/1.0.2:
+    dev: false
     resolution:
       integrity: sha1-8FKijacOYYkX7wqKw0wa5aaChrM=
   /psl/1.4.0:
@@ -9349,6 +9323,7 @@ packages:
     resolution:
       integrity: sha512-r9S/ZyXu/Xu9q1tYlpsLIsa3EeLXXk0VwlxqTcFRfg9EhMW+17kbt9G0NrgCmhGb5vT2hyhJZLfDGx+7+5Uj/w==
   /yallist/2.1.2:
+    dev: false
     resolution:
       integrity: sha1-HBH5IY8HYImkfdUS+TxmmaaoHVI=
   /yallist/3.0.3:

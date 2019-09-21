@@ -15,6 +15,7 @@ export default async (
       '**/node_modules/**',
       '**/bower_components/**',
     ],
+    includeRoot: true,
     patterns: packagesManifest && packagesManifest.packages || undefined,
   })
   pkgs.sort((pkg1: {path: string}, pkg2: {path: string}) => pkg1.path.localeCompare(pkg2.path))
@@ -25,9 +26,9 @@ export default async (
   return pkgs
 }
 
-async function requirePackagesManifest (dir: string): Promise<{packages: string[]} | null> {
+async function requirePackagesManifest (dir: string): Promise<{packages?: string[]} | null> {
   try {
-    return await readYamlFile<{ packages: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
+    return await readYamlFile<{ packages?: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
   } catch (err) {
     if (err['code'] === 'ENOENT') { // tslint:disable-line
       return null
