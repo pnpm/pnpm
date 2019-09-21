@@ -57,6 +57,223 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'update'
   | 'why'
 
+type CLI_OPTIONS = 'access'
+  | 'background'
+  | 'bail'
+  | 'child-concurrency'
+  | 'depth'
+  | 'development'
+  | 'engine-strict'
+  | 'filter'
+  | 'force'
+  | 'frozen-lockfile'
+  | 'global-pnpmfile'
+  | 'global'
+  | 'help'
+  | 'hoist-pattern'
+  | 'hoist'
+  | 'ignore-pnpmfile'
+  | 'ignore-scripts'
+  | 'ignore-stop-requests'
+  | 'ignore-upload-requests'
+  | 'ignore-workspace-root-check'
+  | 'independent-leaves'
+  | 'json'
+  | 'latest'
+  | 'link-workspace-packages'
+  | 'lockfile-directory'
+  | 'lockfile-only'
+  | 'lockfile'
+  | 'long'
+  | 'network-concurrency'
+  | 'offline'
+  | 'only'
+  | 'optional'
+  | 'package-import-method'
+  | 'parseable'
+  | 'pnpmfile'
+  | 'port'
+  | 'prefer-frozen-lockfile'
+  | 'prefer-offline'
+  | 'production'
+  | 'protocol'
+  | 'recursive'
+  | 'reporter'
+  | 'resolution-strategy'
+  | 'save-dev'
+  | 'save-exact'
+  | 'save-optional'
+  | 'save-peer'
+  | 'save-prod'
+  | 'shamefully-flatten'
+  | 'shamefully-hoist'
+  | 'shared-workspace-lockfile'
+  | 'side-effects-cache-readonly'
+  | 'side-effects-cache'
+  | 'silent'
+  | 'sort'
+  | 'store'
+  | 'strict-peer-dependencies'
+  | 'table'
+  | 'use-running-store-server'
+  | 'use-store-server'
+  | 'verify-store-integrity'
+  | 'workspace-concurrency'
+
+const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['filter', 'help'])
+
+const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
+  'child-concurrency',
+  'development',
+  'engine-strict',
+  'frozen-lockfile',
+  'force',
+  'global-pnpmfile',
+  'global',
+  'ignore-pnpmfile',
+  'ignore-scripts',
+  'ignore-workspace-root-check',
+  'lockfile-directory',
+  'lockfile-only',
+  'lockfile',
+  'package-import-method',
+  'pnpmfile',
+  'prefer-frozen-lockfile',
+  'prefer-offline',
+  'production',
+  'recursive',
+  'reporter',
+  'save-dev',
+  'save-exact',
+  'save-optional',
+  'save-peer',
+  'save-prod',
+  'shamefully-hoist',
+  'shared-workspace-lockfile',
+  'side-effects-cache-readonly',
+  'side-effects-cache',
+  'store',
+  'strict-peer-dependencies',
+  'offline',
+  'only',
+  'optional',
+  'use-store-server',
+  'verify-store-integrity',
+])
+
+const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> = {
+  'help': new Set([]),
+  'add': INSTALL_CLI_OPTIONS,
+  'import': new Set([]),
+  'install-test': INSTALL_CLI_OPTIONS,
+  'install': INSTALL_CLI_OPTIONS,
+  'link': new Set([
+    'only',
+    'package-import-method',
+    'production',
+    'reporter',
+    'save-dev',
+    'save-exact',
+    'save-optional',
+  ]),
+  'list': new Set([
+    'depth',
+    'development',
+    'global',
+    'json',
+    'long',
+    'only',
+    'optional',
+    'parseable',
+    'production',
+    'recursive',
+  ]),
+  'outdated': new Set([
+    'depth',
+    'long',
+    'table',
+    'recursive',
+  ]),
+  'pack': new Set([]),
+  'prune': new Set([]),
+  'publish': new Set([]),
+  'rebuild': new Set([
+    'recursive',
+  ]),
+  'recursive': new Set([
+    'bail',
+    'link-workspace-packages',
+    'shared-workspace-lockfile',
+    'sort',
+    'workspace-concurrency',
+  ]),
+  'restart': new Set([]),
+  'root': new Set([]),
+  'run': new Set([
+    'recursive',
+  ]),
+  'server': new Set([
+    'background',
+    'ignore-stop-requests',
+    'ignore-upload-requests',
+    'port',
+    'protocol',
+    'store',
+  ]),
+  'start': new Set([]),
+  'stop': new Set([]),
+  'store': new Set([]),
+  'test': new Set([
+    'recursive',
+  ]),
+  'uninstall': new Set([
+    'force',
+    'global-pnpmfile',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'package-import-method',
+    'pnpmfile',
+    'recursive',
+    'reporter',
+    'shamefully-hoist',
+    'shared-workspace-lockfile',
+    'store',
+  ]),
+  'unlink': new Set([
+    'recursive',
+  ]),
+  'update': new Set([
+    'development',
+    'engine-strict',
+    'force',
+    'global-pnpmfile',
+    'ignore-pnpmfile',
+    'ignore-scripts',
+    'latest',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'only',
+    'optional',
+    'package-import-method',
+    'prefer-offline',
+    'production',
+    'pnpmfile',
+    'recursive',
+    'reporter',
+    'shamefully-hoist',
+    'shared-workspace-lockfile',
+    'side-effects-cache-readonly',
+    'side-effects-cache',
+    'store',
+    'offline',
+  ]),
+  'why': new Set([
+    'recursive',
+  ]),
+}
+
 const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
 
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
@@ -185,6 +402,18 @@ export default async function run (inputArgv: string[]) {
     cliArgs.unshift(subCmd)
   } else if (subCmd && !supportedCmds.has(subCmd as CANONICAL_COMMAND_NAMES)) {
     subCmd = null
+  }
+
+  const allowedOptions = !subCmd
+    ? SUPPORTED_CLI_OPTIONS[cmd]
+    : new Set([...Array.from(SUPPORTED_CLI_OPTIONS[cmd]), ...Array.from(SUPPORTED_CLI_OPTIONS[subCmd])])
+  for (const cliOption of Object.keys(cliConf)) {
+    if (!GLOBAL_OPTIONS.has(cliOption as CLI_OPTIONS) && !allowedOptions.has(cliOption)) {
+      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
+      console.log(`For help, run: pnpm help ${cmd}`)
+      process.exit(1)
+      return
+    }
   }
 
   let opts!: PnpmConfigs
