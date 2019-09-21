@@ -12,7 +12,7 @@ import {
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-testOnly('pnpm recursive outdated', async (t: tape.Test) => {
+test('pnpm recursive outdated', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-1',

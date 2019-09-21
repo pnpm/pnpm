@@ -6,13 +6,14 @@ import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'
 import {
+  DEFAULT_COMPARATORS,
   getCellWidth,
   outdatedDependenciesOfWorkspacePackages,
+  OutdatedOptions,
   renderCurrent,
   renderDetails,
   renderLatest,
   renderPackageName,
-  sortBySemverChange,
   TABLE_OPTIONS,
   toOutdatedWithVersionDiff,
 } from '../outdated'
@@ -22,6 +23,11 @@ const DEP_PRIORITY: Record<DependenciesField, number> = {
   devDependencies: 2,
   optionalDependencies: 0,
 }
+
+const COMPARATORS = [
+  ...DEFAULT_COMPARATORS,
+  (o1: OutdatedInWorkspace, o2: OutdatedInWorkspace) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
+]
 
 type OutdatedInWorkspace = OutdatedPackage & {
   belongsTo: DependenciesField,
@@ -36,33 +42,7 @@ export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
   args: string[],
   cmd: string,
-  opts: {
-    alwaysAuth: boolean,
-    ca?: string,
-    cert?: string,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMaxtimeout: number,
-    fetchRetryMintimeout: number,
-    global: boolean,
-    httpsProxy?: string,
-    independentLeaves: boolean,
-    key?: string,
-    localAddress?: string,
-    long?: boolean,
-    networkConcurrency: number,
-    offline: boolean,
-    prefix: string,
-    proxy?: string,
-    rawNpmConfig: object,
-    registries: Registries,
-    lockfileDirectory?: string,
-    store?: string,
-    strictSsl: boolean,
-    table?: boolean,
-    tag: string,
-    userAgent: string,
-  },
+  opts: OutdatedOptions,
 ) => {
   const outdatedByNameAndType = {} as Record<string, OutdatedInWorkspace>
   if (opts.lockfileDirectory) {
@@ -91,7 +71,8 @@ export default async (
     }))
   }
 
-  let output
+  // TODO: Try and de-duplicate the following code into ../outdated.ts
+  let output: string
 
   if (opts.table !== false) {
     let columnNames = [
@@ -101,20 +82,26 @@ export default async (
       'Dependents'
     ]
 
+    let columnFns = [
+      renderPackageName,
+      renderCurrent,
+      renderLatest,
+      dependentPackages,
+    ]
+
     if (opts.long) {
       columnNames.push('Details')
+      columnFns.push(renderDetails)
     }
 
-    columnNames = columnNames.map((name: string) => chalk.blueBright(name))
+    // Avoid the overhead of allocating a new array caused by calling `array.map()`
+    for (let i = 0; i < columnNames.length; i++)
+      columnNames[i] = chalk.blueBright(columnNames[i])
+
     const data = [
       columnNames,
-      ...sortedPackages(outdatedByNameAndType)
-        .map((outdatedPkg) => [
-          renderPackageName(outdatedPkg),
-          renderCurrent(outdatedPkg),
-          renderLatest(outdatedPkg),
-          dependentPackages(outdatedPkg)
-        ].concat(opts.long ? [renderDetails(outdatedPkg)] : [])),
+      ...sortOutdatedPackages(Object.values(outdatedByNameAndType))
+        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
     ]
     output = table(data, {
       ...TABLE_OPTIONS,
@@ -127,7 +114,7 @@ export default async (
       },
     })
   } else {
-    output = sortedPackages(outdatedByNameAndType)
+    output = sortOutdatedPackages(Object.values(outdatedByNameAndType))
       .map((outdatedPkg) => {
         let info = stripIndent`
           ${renderPackageName(outdatedPkg)}
@@ -162,15 +149,9 @@ function dependentPackages (outdatedPkg: OutdatedInWorkspace) {
     .join('\n')
 }
 
-function sortedPackages (outdatedByNameAndType: Record<string, OutdatedInWorkspace>) {
+function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedInWorkspace>) {
   return R.sortWith(
-    [
-      sortBySemverChange,
-      (o1, o2) => o1.packageName.localeCompare(o2.packageName),
-      (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
-    ],
-    (
-      Object.values(outdatedByNameAndType).map(toOutdatedWithVersionDiff)
-    )
+    COMPARATORS,
+    outdatedPackages.map(toOutdatedWithVersionDiff),
   )
 }

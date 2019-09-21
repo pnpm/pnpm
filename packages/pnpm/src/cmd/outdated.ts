@@ -49,36 +49,46 @@ for (let [key, value] of Object.entries(TABLE_OPTIONS.border)) {
   TABLE_OPTIONS.border[key] = chalk.grey(value)
 }
 
+/**
+ * Default comparators used as the argument to `ramda.sortWith()`.
+ */
+export const DEFAULT_COMPARATORS = [
+  sortBySemverChange,
+  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff) => o1.packageName.localeCompare(o2.packageName),
+] as const
+
+export interface OutdatedOptions {
+  alwaysAuth: boolean
+  ca?: string
+  cert?: string
+  engineStrict?: boolean
+  fetchRetries: number
+  fetchRetryFactor: number
+  fetchRetryMaxtimeout: number
+  fetchRetryMintimeout: number
+  global: boolean
+  httpsProxy?: string
+  independentLeaves: boolean
+  key?: string
+  localAddress?: string
+  long?: boolean
+  networkConcurrency: number
+  offline: boolean
+  prefix: string
+  proxy?: string
+  rawNpmConfig: object
+  registries: Registries
+  lockfileDirectory?: string
+  store?: string
+  strictSsl: boolean
+  table?: boolean
+  tag: string
+  userAgent: string
+}
+
 export default async function (
   args: string[],
-  opts: {
-    alwaysAuth: boolean,
-    ca?: string,
-    cert?: string,
-    engineStrict?: boolean,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMaxtimeout: number,
-    fetchRetryMintimeout: number,
-    global: boolean,
-    httpsProxy?: string,
-    independentLeaves: boolean,
-    key?: string,
-    localAddress?: string,
-    long?: boolean,
-    networkConcurrency: number,
-    table?: boolean,
-    offline: boolean,
-    prefix: string,
-    proxy?: string,
-    rawNpmConfig: object,
-    registries: Registries,
-    lockfileDirectory?: string,
-    store?: string,
-    strictSsl: boolean,
-    tag: string,
-    userAgent: string,
-  },
+  opts: OutdatedOptions,
   command: string,
 ) {
   const packages = [
@@ -91,6 +101,8 @@ export default async function (
 
   if (!outdatedPackages.length) return
 
+  // TODO: Try and de-duplicate the following code from ./recursive/outdated.ts
+
   if (opts.table !== false) {
     let columnNames = [
       'Package',
@@ -98,27 +110,28 @@ export default async function (
       'Latest'
     ]
 
-    if (opts.long) {
-      columnNames.push('Details')
-    }
-
-    columnNames = columnNames.map((name: string) => chalk.blueBright(name))
-    let columnFns: Array<(outdatedPkg: OutdatedWithVersionDiff) => string> = [
+    let columnFns = [
       renderPackageName,
       renderCurrent,
       renderLatest,
     ]
 
     if (opts.long) {
+      columnNames.push('Details')
       columnFns.push(renderDetails)
     }
 
+    // Avoid the overhead of allocating a new array caused by calling `array.map()`
+    for (let i = 0; i < columnNames.length; i++)
+      columnNames[i] = chalk.blueBright(columnNames[i])
+
     return table([
       columnNames,
-      ...sortedPackages(outdatedPackages).map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
+      ...sortOutdatedPackages(outdatedPackages)
+        .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
     ], TABLE_OPTIONS)
   } else {
-    return sortedPackages(outdatedPackages)
+    return sortOutdatedPackages(outdatedPackages)
       .map((outdatedPkg) => {
         let info = stripIndent`
           ${renderPackageName(outdatedPkg)}
@@ -138,13 +151,10 @@ export default async function (
   }
 }
 
-function sortedPackages (outdatedPackages: Array<OutdatedPackage>) {
+function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedPackage>) {
   return R.sortWith(
-    [
-      sortBySemverChange,
-      (o1, o2) => o1.packageName.localeCompare(o2.packageName),
-    ],
-    outdatedPackages.map(toOutdatedWithVersionDiff)
+    DEFAULT_COMPARATORS,
+    outdatedPackages.map(toOutdatedWithVersionDiff),
   )
 }
 
@@ -172,7 +182,7 @@ export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T 
   }
 }
 
-export function renderPackageName ({ belongsTo, packageName }: OutdatedWithVersionDiff) {
+export function renderPackageName ({ belongsTo, packageName }: OutdatedPackage) {
   switch (belongsTo) {
     case 'devDependencies': return `${packageName} ${chalk.dim('(dev)')}`
     case 'optionalDependencies': return `${packageName} ${chalk.dim('(optional)')}`
@@ -180,7 +190,7 @@ export function renderPackageName ({ belongsTo, packageName }: OutdatedWithVersi
   }
 }
 
-export function renderCurrent ({ current, wanted }: OutdatedWithVersionDiff) {
+export function renderCurrent ({ current, wanted }: OutdatedPackage) {
   let output = current || 'missing'
   if (current === wanted) return output
   return `${output} (wanted ${wanted})`
@@ -191,7 +201,8 @@ const DIFF_COLORS = {
   fix: chalk.greenBright.bold,
 }
 
-export function renderLatest ({ latestManifest, change, diff }: OutdatedWithVersionDiff) {
+export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
+  const { latestManifest, change, diff } = outdatedPkg
   if (!latestManifest) return ''
   if (change === null || !diff) {
     return latestManifest.deprecated
@@ -236,7 +247,7 @@ function pkgPriority (pkg: OutdatedWithVersionDiff) {
   }
 }
 
-export function renderDetails ({ latestManifest }: OutdatedWithVersionDiff) {
+export function renderDetails ({ latestManifest }: OutdatedPackage) {
   if (!latestManifest) return ''
   const outputs = []
   if (latestManifest.deprecated) {
@@ -251,31 +262,7 @@ export function renderDetails ({ latestManifest }: OutdatedWithVersionDiff) {
 export async function outdatedDependenciesOfWorkspacePackages (
   pkgs: Array<{path: string, manifest: PackageJson}>,
   args: string[],
-  opts: {
-    alwaysAuth: boolean,
-    ca?: string,
-    cert?: string,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMaxtimeout: number,
-    fetchRetryMintimeout: number,
-    global: boolean,
-    httpsProxy?: string,
-    independentLeaves: boolean,
-    key?: string,
-    localAddress?: string,
-    networkConcurrency: number,
-    offline: boolean,
-    prefix: string,
-    proxy?: string,
-    rawNpmConfig: object,
-    registries: Registries,
-    lockfileDirectory?: string,
-    store?: string,
-    strictSsl: boolean,
-    tag: string,
-    userAgent: string,
-  },
+  opts: OutdatedOptions,
 ) {
   const lockfileDirectory = opts.lockfileDirectory || opts.prefix
   const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })

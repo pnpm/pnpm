@@ -375,7 +375,9 @@ test('JSON list with aliased dep', async t => {
 
           resolved: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
 
-          description: '[Could not find additional info about this dependency]',
+          description: 'Test if a number is positive',
+          homepage: 'https://github.com/kevva/is-positive#readme',
+          repository: 'git+https://github.com/kevva/is-positive.git',
         },
       },
     }], null, 2),

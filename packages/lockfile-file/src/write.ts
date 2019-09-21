@@ -40,7 +40,7 @@ export async function writeCurrentLockfile (
     forceSharedFormat?: boolean,
   },
 ) {
-  await makeDir(path.join(pkgPath, 'node_modules'))
+  await makeDir(path.join(pkgPath, 'node_modules/.pnpm'))
   return writeLockfile(CURRENT_LOCKFILE, pkgPath, currentLockfile, opts)
 }
 
