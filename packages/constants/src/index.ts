@@ -1,5 +1,5 @@
 export const WANTED_LOCKFILE = 'pnpm-lock.yaml'
-export const CURRENT_LOCKFILE = 'node_modules/.pnpm/pnpm-lock.yaml'
+export const CURRENT_LOCKFILE = 'node_modules/.pnpm/lock.yaml'
 export const LOCKFILE_VERSION = 5.1
 
 export const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`

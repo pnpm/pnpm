@@ -53,7 +53,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   const lockfile = await project.readLockfile()
 
   t.equal(
-    lockfile.packages['/using-ajv/1.0.0'].dependencies['ajv-keywords'],
+    lockfile.packages['/using-ajv/1.0.0'].dependencies!['ajv-keywords'],
     '1.5.0_ajv@4.10.4',
     `${WANTED_LOCKFILE}: correct reference is created to ajv-keywords from using-ajv`,
   )
@@ -415,8 +415,8 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
   const lockfile = await project.readLockfile()
 
   t.notOk(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].peerDependencies, 'peerDependencies not added to lockfile')
-  t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].dependencies['peer-c'])
-  t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies['peer-b'])
+  t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].dependencies!['peer-c'])
+  t.ok(lockfile.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies!['peer-b'])
 })
 
 test('package that has parent as peer dependency', async (t: tape.Test) => {
