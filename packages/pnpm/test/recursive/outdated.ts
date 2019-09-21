@@ -82,6 +82,49 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
   }
 
   {
+    const result = execPnpmSync('recursive', 'outdated', '--no-table')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    is-negative
+    1.0.0 => 2.1.0
+    Dependent: project-2
+
+    is-negative (dev)
+    1.0.0 => 2.1.0
+    Dependent: project-3
+
+    is-positive
+    1.0.0 => 3.1.0
+    Dependents: project-1, project-3
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('recursive', 'outdated', '--no-table', '--long')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    is-negative
+    1.0.0 => 2.1.0
+    Dependent: project-2
+    https://github.com/kevva/is-negative#readme
+
+    is-negative (dev)
+    1.0.0 => 2.1.0
+    Dependent: project-3
+    https://github.com/kevva/is-negative#readme
+
+    is-positive
+    1.0.0 => 3.1.0
+    Dependents: project-1, project-3
+    https://github.com/kevva/is-positive#readme
+    ` + '\n')
+  }
+
+  {
     const result = execPnpmSync('recursive', 'outdated', 'is-positive')
 
     t.equal(result.status, 0)

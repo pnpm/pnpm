@@ -84,4 +84,5 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,
+  table: boolean,
 }

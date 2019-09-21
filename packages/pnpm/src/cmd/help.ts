@@ -638,6 +638,10 @@ function getHelpText (command: string) {
                 name: '--recursive',
                 shortAlias: '-r',
               },
+              {
+                description: 'Prints the outdated packages in a list. Good for small consoles',
+                name: '--no-table',
+              }
             ],
           },
         ],

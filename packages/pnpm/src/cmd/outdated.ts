@@ -11,7 +11,9 @@ import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
+import { stripIndent } from 'common-tags'
 import R = require('ramda')
+import stripAnsi from 'strip-ansi'
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
 import createLatestManifestGetter from '../createLatestManifestGetter'
@@ -79,6 +81,7 @@ export interface OutdatedOptions {
   lockfileDirectory?: string
   store?: string
   strictSsl: boolean
+  table?: boolean
   tag: string
   userAgent: string
 }
@@ -98,8 +101,14 @@ export default async function (
 
   if (!outdatedPackages.length) return
 
-  // TODO: Try and de-duplicate the following code from ./recursive/outdated.ts
+  if (opts.table !== false) {
+    return renderOutdatedTable(outdatedPackages, opts)
+  } else {
+    return renderOutdatedList(outdatedPackages, opts)
+  }
+}
 
+function renderOutdatedTable (outdatedPackages: ReadonlyArray<OutdatedPackage>, opts: { long?: boolean }) {
   let columnNames = [
     'Package',
     'Current',
@@ -128,6 +137,26 @@ export default async function (
   ], TABLE_OPTIONS)
 }
 
+function renderOutdatedList (outdatedPackages: ReadonlyArray<OutdatedPackage>, opts: { long?: boolean }) {
+  return sortOutdatedPackages(outdatedPackages)
+    .map((outdatedPkg) => {
+      let info = stripIndent`
+        ${chalk.bold(renderPackageName(outdatedPkg))}
+        ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
+
+      if (opts.long) {
+        const details = renderDetails(outdatedPkg)
+
+        if (details) {
+          info += `\n${details}`
+        }
+      }
+
+      return info
+    })
+    .join('\n\n') + '\n'
+}
+
 function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedPackage>) {
   return R.sortWith(
     DEFAULT_COMPARATORS,
@@ -136,7 +165,14 @@ function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedPackage>)
 }
 
 export function getCellWidth (data: string[][], columnNumber: number, maxWidth: number) {
-  return Math.min(maxWidth, data.reduce((maxWidth, row) => Math.max(maxWidth, row[columnNumber].length), 0))
+  const maxCellWidth = data.reduce((cellWidth, row) => {
+    const cellLines = stripAnsi(row[columnNumber]).split('\n')
+    const currentCellWidth = cellLines.reduce((lineWidth, line) => {
+      return Math.max(lineWidth, line.length)
+    }, 0)
+    return Math.max(cellWidth, currentCellWidth)
+  }, 0)
+  return Math.min(maxWidth, maxCellWidth)
 }
 
 export function toOutdatedWithVersionDiff<T> (outdated: T & OutdatedPackage): T & OutdatedWithVersionDiff {

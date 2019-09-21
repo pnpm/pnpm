@@ -70,6 +70,7 @@ export const types = Object.assign({
   'sort': Boolean,
   'store': path,
   'strict-peer-dependencies': Boolean,
+  'table': Boolean,
   'use-beta-cli': Boolean,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
