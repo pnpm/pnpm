@@ -85,7 +85,7 @@ test('pnpm outdated: no table', async (t: tape.Test) => {
   tempDir(t)
 
   await makeDir(path.resolve('node_modules/.pnpm'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/pnpm-lock.yaml'), path.resolve('node_modules/.pnpm/pnpm-lock.yaml'))
+  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
   await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   {
