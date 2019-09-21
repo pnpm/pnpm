@@ -117,8 +117,8 @@ export default async (
     output = sortOutdatedPackages(Object.values(outdatedByNameAndType))
       .map((outdatedPkg) => {
         let info = stripIndent`
-          ${renderPackageName(outdatedPkg)}
-          ${renderCurrent(outdatedPkg)} => ${renderLatest(outdatedPkg)}`
+          ${chalk.bold(renderPackageName(outdatedPkg))}
+          ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 
         const dependents = dependentPackages(outdatedPkg)
 

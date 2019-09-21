@@ -134,8 +134,8 @@ export default async function (
     return sortOutdatedPackages(outdatedPackages)
       .map((outdatedPkg) => {
         let info = stripIndent`
-          ${renderPackageName(outdatedPkg)}
-          ${renderCurrent(outdatedPkg)} => ${renderLatest(outdatedPkg)}`
+          ${chalk.bold(renderPackageName(outdatedPkg))}
+          ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
 
         if (opts.long) {
           const details = renderDetails(outdatedPkg)
