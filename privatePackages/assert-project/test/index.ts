@@ -1,8 +1,8 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import { CURRENT_LOCKFILE, WANTED_LOCKFILE } from '@pnpm/constants'
-import test = require('tape')
 import assertProject from '@pnpm/assert-project'
+import { CURRENT_LOCKFILE, WANTED_LOCKFILE } from '@pnpm/constants'
 import path = require('path')
+import test = require('tape')
 
 test('assertProject()', async (t) => {
   const project = assertProject(t, path.join(__dirname, '..'))

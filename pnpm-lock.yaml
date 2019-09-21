@@ -1805,7 +1805,9 @@ importers:
     dependencies:
       '@pnpm/assert-store': 'link:../assert-store'
       '@pnpm/constants': 'link:../../packages/constants'
+      '@pnpm/lockfile-types': 'link:../../packages/lockfile-types'
       '@pnpm/modules-yaml': 'link:../../packages/modules-yaml'
+      '@pnpm/types': 'link:../../packages/types'
       '@types/mz': 0.0.32
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -1821,7 +1823,9 @@ importers:
       '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': 1.0.0
       '@pnpm/constants': 'file:../../packages/constants'
+      '@pnpm/lockfile-types': 1.1.0
       '@pnpm/modules-yaml': 'file:../../packages/modules-yaml'
+      '@pnpm/types': 3.2.0
       '@types/mz': 0.0.32
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -1846,7 +1850,6 @@ importers:
   privatePackages/prepare:
     dependencies:
       '@pnpm/assert-project': 'link:../assert-project'
-      '@pnpm/modules-yaml': 'link:../../packages/modules-yaml'
       '@pnpm/types': 'link:../../packages/types'
       '@types/mkdirp': 0.5.2
       make-dir: 3.0.0
@@ -1860,7 +1863,6 @@ importers:
       tslint-eslint-rules: 5.4.0
     specifiers:
       '@pnpm/assert-project': 2.0.0
-      '@pnpm/modules-yaml': 'file:../../packages/modules-yaml'
       '@pnpm/types': 'file:../../packages/types'
       '@types/mkdirp': 0.5.2
       make-dir: 3.0.0
