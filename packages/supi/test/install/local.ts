@@ -179,13 +179,13 @@ test('update tarball local package when its integrity changes', async (t) => {
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
 
   const lockfile1 = await project.readLockfile()
-  t.equal(lockfile1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')
+  t.equal(lockfile1.packages['file:../tar.tgz'].dependencies!['is-positive'], '1.0.0')
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
   await install(manifest, await testDefaults())
 
   const lockfile2 = await project.readLockfile()
-  t.equal(lockfile2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')
+  t.equal(lockfile2.packages['file:../tar.tgz'].dependencies!['is-positive'], '2.0.0', 'the local tarball dep has been updated')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1878

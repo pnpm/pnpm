@@ -3,7 +3,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity } from '@pnpm/registry-mock'
@@ -66,10 +66,10 @@ test('lockfile has correct format', async (t: tape.Test) => {
   t.ok(lockfile.packages, 'has packages field')
   t.ok(lockfile.packages[id], `has resolution for ${id}`)
   t.ok(lockfile.packages[id].dependencies, `has dependency resolutions for ${id}`)
-  t.ok(lockfile.packages[id].dependencies['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
+  t.ok(lockfile.packages[id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
   t.ok(lockfile.packages[id].resolution, `has resolution for ${id}`)
-  t.ok(lockfile.packages[id].resolution.integrity, `has integrity for package in the default registry`)
-  t.notOk(lockfile.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
+  t.ok((lockfile.packages[id].resolution as {integrity: string}).integrity, `has integrity for package in the default registry`)
+  t.notOk((lockfile.packages[id].resolution as TarballResolution).tarball, `has no tarball for package in the default registry`)
 
   const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
   t.ok(lockfile.packages[absDepPath])
@@ -390,7 +390,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
     },
   }
 
-  lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+  lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies!['dep-of-pkg-with-1-dep'] = '100.1.0'
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
 
@@ -831,7 +831,7 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
 
   const lockfile = await project.readLockfile()
 
-  t.equal(lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, 'esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
+  t.equal((lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball, 'esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {
@@ -907,7 +907,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   t.equal(modules['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
 
   {
-    const lockfile = await readYamlFile(WANTED_LOCKFILE) as Lockfile
+    const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
     const id = '/pkg-with-1-dep/100.0.0'
 
     t.equal(lockfile.lockfileVersion, 5.1, 'correct lockfile version')

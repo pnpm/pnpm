@@ -25,9 +25,19 @@ export interface Project {
   storeHas (pkgName: string, version?: string): Promise<string>
   storeHasNot (pkgName: string, version?: string): Promise<void>
   isExecutable (pathToExe: string): Promise<void>
-  readCurrentLockfile (): Promise<RawLockfile | null>
+  /**
+   * TODO: Remove the `Required<T>` cast.
+   *
+   * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
+   */
+  readCurrentLockfile (): Promise<Required<RawLockfile>>
   readModulesManifest (): Promise<Modules | null>
-  readLockfile (): Promise<RawLockfile | null>
+  /**
+   * TODO: Remove the `Required<T>` cast.
+   *
+   * https://github.com/microsoft/TypeScript/pull/32695 might help with this.
+   */
+  readLockfile (): Promise<Required<RawLockfile>>
   writePackageJson (pkgJson: object): Promise<void>
 }
 
@@ -97,7 +107,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
       try {
         return await readYamlFile(path.join(modules, '..', CURRENT_LOCKFILE)) // tslint:disable-line
       } catch (err) {
-        if (err.code === 'ENOENT') return null
+        if (err.code === 'ENOENT') return null!
         throw err
       }
     },
@@ -106,7 +116,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
       try {
         return await readYamlFile(path.join(projectPath, WANTED_LOCKFILE)) // tslint:disable-line
       } catch (err) {
-        if (err.code === 'ENOENT') return null
+        if (err.code === 'ENOENT') return null!
         throw err
       }
     },
