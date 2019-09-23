@@ -62,7 +62,7 @@ type CLI_OPTIONS = 'access'
   | 'bail'
   | 'child-concurrency'
   | 'depth'
-  | 'development'
+  | 'dev'
   | 'engine-strict'
   | 'filter'
   | 'force'
@@ -124,7 +124,7 @@ const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['filter', 'help'])
 
 const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'child-concurrency',
-  'development',
+  'dev',
   'engine-strict',
   'frozen-lockfile',
   'force',
@@ -178,7 +178,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'list': new Set([
     'depth',
-    'development',
+    'dev',
     'global',
     'json',
     'long',
@@ -244,7 +244,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'recursive',
   ]),
   'update': new Set([
-    'development',
+    'dev',
     'engine-strict',
     'force',
     'global-pnpmfile',
