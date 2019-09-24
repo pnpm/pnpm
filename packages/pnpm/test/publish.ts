@@ -10,11 +10,9 @@ import { execPnpm, execPnpmSync } from './utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-const CREDENTIALS = [
-  '--//localhost:4873/:username=username',
-  `--//localhost:4873/:_password=${Buffer.from('password').toString('base64')}`,
-  '--//localhost:4873/:email=foo@bar.net',
-]
+const CREDENTIALS = `//localhost:4873/:username=username
+//localhost:4873/:_password=${Buffer.from('password').toString('base64')}
+//localhost:4873/:email=foo@bar.net`
 
 test('publish: package with package.json', async (t: tape.Test) => {
   prepare(t, {
@@ -22,7 +20,9 @@ test('publish: package with package.json', async (t: tape.Test) => {
     version: '0.0.0',
   })
 
-  await execPnpm('publish', ...CREDENTIALS)
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
+  await execPnpm('publish')
 })
 
 test('publish: package with package.yaml', async (t: tape.Test) => {
@@ -31,7 +31,9 @@ test('publish: package with package.yaml', async (t: tape.Test) => {
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
 
-  await execPnpm('publish', ...CREDENTIALS)
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
+  await execPnpm('publish')
 
   t.ok(await exists('package.yaml'))
   t.notOk(await exists('package.json'))
@@ -43,7 +45,9 @@ test('publish: package with package.json5', async (t: tape.Test) => {
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })
 
-  await execPnpm('publish', ...CREDENTIALS)
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
+  await execPnpm('publish')
 
   t.ok(await exists('package.json5'))
   t.notOk(await exists('package.json'))
@@ -55,9 +59,11 @@ test('publish: package with package.json5 running publish from different folder'
     version: '0.0.1',
   }, { manifestFormat: 'JSON5' })
 
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+
   process.chdir('..')
 
-  await execPnpm('publish', 'project', ...CREDENTIALS)
+  await execPnpm('publish', 'project')
 
   t.ok(await exists('project/package.json5'))
   t.notOk(await exists('project/package.json'))
@@ -120,12 +126,13 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('LICENSE', 'workspace license', 'utf8')
   await fs.writeFile('project-200/LICENSE', 'project-200 license', 'utf8')
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
   process.chdir('project-100')
-  await execPnpm('publish', ...CREDENTIALS)
+  await execPnpm('publish')
 
   process.chdir('../project-200')
-  await execPnpm('publish', ...CREDENTIALS)
+  await execPnpm('publish')
 
   process.chdir('../target')
 
@@ -164,7 +171,8 @@ test('publish: package with main, module, typings and types in publishConfig', a
   ])
 
   process.chdir('test-publish-config')
-  await execPnpm('publish', ...CREDENTIALS)
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  await execPnpm('publish')
 
   const originalManifests = await import(path.resolve('package.json'))
   t.deepEqual(originalManifests, {
@@ -244,7 +252,8 @@ test['skip']('publish package that calls executable from the workspace .bin fold
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('test-publish-scripts')
-  await execPnpm('publish', ...CREDENTIALS)
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  await execPnpm('publish')
 
   t.deepEqual(
     await import(path.resolve('output.json')),
@@ -299,10 +308,11 @@ test('convert specs with workspace protocols to regular version ranges', async (
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
   process.chdir('workspace-protocol-package')
 
-  const { status, stdout } = execPnpmSync('publish', ...CREDENTIALS)
+  const { status, stdout } = execPnpmSync('publish')
 
   t.equal(status, 1, 'publish fails if cannot resolve workspace:*')
   t.ok(
@@ -315,7 +325,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
   await execPnpm('multi', 'install', '--store', 'store')
 
   process.chdir('workspace-protocol-package')
-  await execPnpm('publish', ...CREDENTIALS)
+  await execPnpm('publish')
 
   process.chdir('../target')
 
