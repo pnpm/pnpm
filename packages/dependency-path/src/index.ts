@@ -88,8 +88,12 @@ export function refToRelative (
 }
 
 export function parse (dependencyPath: string) {
+  // tslint:disable-next-line: strict-type-predicates
   if (typeof dependencyPath !== 'string') {
-    throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${typeof dependencyPath}\``)
+    throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${
+      // tslint:disable-next-line: strict-type-predicates
+      dependencyPath === null ? 'null' : typeof dependencyPath
+    }\``)
   }
   const _isAbsolute = isAbsolute(dependencyPath)
   const parts = dependencyPath.split('/')
@@ -101,14 +105,17 @@ export function parse (dependencyPath: string) {
   let version = parts.shift()
   if (version) {
     const underscoreIndex = version.indexOf('_')
+    let peersSuffix: string | undefined
     if (underscoreIndex !== -1) {
-      version = version.substr(0, underscoreIndex)
+      peersSuffix = version.substring(underscoreIndex + 1)
+      version = version.substring(0, underscoreIndex)
     }
     if (semver.valid(version)) {
       return {
         host,
         isAbsolute: _isAbsolute,
         name,
+        peersSuffix,
         version,
       }
     }

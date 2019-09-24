@@ -1,13 +1,14 @@
-///<reference path="../../typings/index.d.ts"/>
-import test = require('tape')
+///<reference path="../../../typings/index.d.ts"/>
+// tslint:disable: no-any
 import {
-  refToAbsolute,
-  refToRelative,
   isAbsolute,
   parse,
+  refToAbsolute,
+  refToRelative,
   relative,
   resolve,
 } from 'dependency-path'
+import test = require('tape')
 
 test('isAbsolute()', t => {
   t.notOk(isAbsolute('/foo/1.0.0'))
@@ -17,53 +18,61 @@ test('isAbsolute()', t => {
 
 test('parse()', t => {
   t.throws(() => parse(undefined as any), /got `undefined`/)
+  t.throws(() => parse(null as any), /got `null`/)
+  t.throws(() => parse({} as any), /got `object`/)
   t.throws(() => parse(1 as any), /got `number`/)
 
   t.deepEqual(parse('/foo/1.0.0'), {
+    host: undefined,
     isAbsolute: false,
     name: 'foo',
+    peersSuffix: undefined,
     version: '1.0.0',
-    host: undefined,
   })
 
   t.deepEqual(parse('/@foo/bar/1.0.0'), {
+    host: undefined,
     isAbsolute: false,
     name: '@foo/bar',
+    peersSuffix: undefined,
     version: '1.0.0',
-    host: undefined,
   })
 
   t.deepEqual(parse('registry.npmjs.org/foo/1.0.0'), {
+    host: 'registry.npmjs.org',
     isAbsolute: true,
     name: 'foo',
+    peersSuffix: undefined,
     version: '1.0.0',
-    host: 'registry.npmjs.org',
   })
 
   t.deepEqual(parse('registry.npmjs.org/@foo/bar/1.0.0'), {
+    host: 'registry.npmjs.org',
     isAbsolute: true,
     name: '@foo/bar',
+    peersSuffix: undefined,
     version: '1.0.0',
-    host: 'registry.npmjs.org',
   })
 
   t.deepEqual(parse('github.com/kevva/is-positive'), {
-    isAbsolute: true,
     host: 'github.com',
+    isAbsolute: true,
   })
 
   t.deepEqual(parse('example.com/foo/1.0.0'), {
+    host: 'example.com',
     isAbsolute: true,
     name: 'foo',
+    peersSuffix: undefined,
     version: '1.0.0',
-    host: 'example.com',
   })
 
   t.deepEqual(parse('example.com/foo/1.0.0_bar@2.0.0'), {
+    host: 'example.com',
     isAbsolute: true,
     name: 'foo',
+    peersSuffix: 'bar@2.0.0',
     version: '1.0.0',
-    host: 'example.com',
   })
 
   t.throws(() => parse('/foo/bar'), /\/foo\/bar is an invalid relative dependency path/)
@@ -73,8 +82,8 @@ test('parse()', t => {
 
 test('refToAbsolute()', t => {
   const registries = {
-    'default': 'https://registry.npmjs.org/',
     '@foo': 'http://foo.com/',
+    'default': 'https://registry.npmjs.org/',
   }
   t.equal(refToAbsolute('1.0.0', 'foo', registries), 'registry.npmjs.org/foo/1.0.0')
   t.equal(refToAbsolute('1.0.0', '@foo/foo', registries), 'foo.com/@foo/foo/1.0.0')
@@ -94,8 +103,8 @@ test('refToRelative()', t => {
 
 test('relative()', t => {
   const registries = {
-    'default': 'https://registry.npmjs.org/',
     '@foo': 'http://localhost:4873/',
+    'default': 'https://registry.npmjs.org/',
   }
   t.equal(relative(registries, 'foo', 'registry.npmjs.org/foo/1.0.0'), '/foo/1.0.0')
   t.equal(relative(registries, '@foo/foo', 'localhost+4873/@foo/foo/1.0.0'), '/@foo/foo/1.0.0')
@@ -106,8 +115,8 @@ test('relative()', t => {
 
 test('resolve()', (t) => {
   const registries = {
-    'default': 'htts://foo.com/',
     '@bar': 'https://bar.com/',
+    'default': 'https://foo.com/',
   }
   t.equal(resolve(registries, '/foo/1.0.0'), 'foo.com/foo/1.0.0')
   t.equal(resolve(registries, '/@bar/bar/1.0.0'), 'bar.com/@bar/bar/1.0.0')
