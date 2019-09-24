@@ -502,7 +502,7 @@ test('deep update', async function (t: tape.Test) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await execPnpm('install', 'pkg-with-1-dep', '-S')
+  await execPnpm('add', 'pkg-with-1-dep')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 

@@ -260,6 +260,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'recursive',
   ]),
   'update': new Set([
+    'depth',
     'dev',
     'engine-strict',
     'force',
@@ -280,6 +281,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'recursive',
     'registry',
     'reporter',
+    'save-exact',
     'shamefully-hoist',
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
