@@ -95,7 +95,7 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   // 'help-search',
 ])
 
-export default async function run (argv: string[]) {
+export default async function run (inputArgv: string[]) {
   // tslint:disable
   const shortHands = {
     's': ['--loglevel', 'silent'],
@@ -143,9 +143,9 @@ export default async function run (argv: string[]) {
     'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
-  const cliConf = nopt(types, shortHands, argv, 0)
+  const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
 
-  let cmd = getCommandFullName(cliConf.argv.remain[0]) as CANONICAL_COMMAND_NAMES
+  let cmd = getCommandFullName(argv.remain[0]) as CANONICAL_COMMAND_NAMES
     || 'help'
   if (!supportedCmds.has(cmd)) {
     cmd = 'help'
@@ -156,33 +156,34 @@ export default async function run (argv: string[]) {
     process.exit(1)
   }
 
-  cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
-  let subCmd = cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])
+  let subCmd: string | null = argv.remain[1] && getCommandFullName(argv.remain[1])
 
   const dashDashFilterUsed = (
     (
       cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
       || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
     )
-    && cliConf.argv.cooked.includes('--')
+    && argv.cooked.includes('--')
   )
 
   const filterArgs = [] as string[]
 
   if (dashDashFilterUsed) {
-    const dashDashIndex = cliConf.argv.cooked.indexOf('--')
-    Array.prototype.push.apply(filterArgs, cliConf.argv.cooked.slice(dashDashIndex + 1))
-    const afterDashDash = cliConf.argv.cooked.length - dashDashIndex - 1
-    cliConf.argv.remain = cliConf.argv.remain.slice(0, cliConf.argv.remain.length - afterDashDash)
+    const dashDashIndex = argv.cooked.indexOf('--')
+    Array.prototype.push.apply(filterArgs, argv.cooked.slice(dashDashIndex + 1))
+    const afterDashDash = argv.cooked.length - dashDashIndex - 1
+    argv.remain = argv.remain.slice(0, argv.remain.length - afterDashDash)
   }
 
   // `pnpm install ""` is going to be just `pnpm install`
-  const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
+  const cliArgs = argv.remain.slice(1).filter(Boolean)
 
-  if (cmd !== 'recursive' && (dashDashFilterUsed || argv.includes('--filter') || cliConf['recursive'] === true)) {
+  if (cmd !== 'recursive' && (dashDashFilterUsed || inputArgv.includes('--filter') || cliConf['recursive'] === true)) {
     subCmd = cmd
     cmd = 'recursive'
     cliArgs.unshift(subCmd)
+  } else if (subCmd && !supportedCmds.has(subCmd as CANONICAL_COMMAND_NAMES)) {
+    subCmd = null
   }
 
   let opts!: PnpmConfigs
@@ -192,7 +193,7 @@ export default async function run (argv: string[]) {
       excludeReporter: false,
     })
     opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
-    opts.argv = cliConf.argv
+    opts.argv = argv
     if (opts.filter) {
       Array.prototype.push.apply(opts.filter, filterArgs)
     } else {
@@ -229,7 +230,7 @@ export default async function run (argv: string[]) {
     }
   }
 
-  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.includes(packageManager.name)
+  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && argv.remain.includes(packageManager.name)
 
   // Don't check for updates
   //   1. on CI environments
@@ -280,7 +281,7 @@ export default async function run (argv: string[]) {
       }
 
       try {
-        const result = pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
+        const result = pnpmCmds[cmd](cliArgs, opts, argv.remain[0])
         if (result instanceof Promise) {
           result
             .then((output) => {
