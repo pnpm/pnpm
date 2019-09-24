@@ -144,6 +144,7 @@ export default async function run (inputArgv: string[]) {
   }
   // tslint:enable
   const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
+  process.env['npm_config_argv'] = JSON.stringify(argv)
 
   let cmd = getCommandFullName(argv.remain[0]) as CANONICAL_COMMAND_NAMES
     || 'help'

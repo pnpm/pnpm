@@ -91,7 +91,7 @@ test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
 
   await execPnpm('recursive', 'install', '--store', 'store')
 
-  const result = execPnpmSync('recursive', 'list')
+  const result = execPnpmSync('recursive', 'list', '--depth', '2')
 
   t.equal(result.status, 0)
 
