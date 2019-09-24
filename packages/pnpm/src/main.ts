@@ -95,9 +95,11 @@ type CLI_OPTIONS = 'access'
   | 'port'
   | 'prefer-frozen-lockfile'
   | 'prefer-offline'
+  | 'prefix'
   | 'production'
   | 'protocol'
   | 'recursive'
+  | 'registry'
   | 'reporter'
   | 'resolution-strategy'
   | 'save-dev'
@@ -119,8 +121,9 @@ type CLI_OPTIONS = 'access'
   | 'use-store-server'
   | 'verify-store-integrity'
   | 'workspace-concurrency'
+  | 'workspace-prefix'
 
-const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['filter', 'help'])
+const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['filter', 'help', 'prefix'])
 
 const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'child-concurrency',
@@ -130,9 +133,12 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'force',
   'global-pnpmfile',
   'global',
+  'hoist',
   'ignore-pnpmfile',
   'ignore-scripts',
   'ignore-workspace-root-check',
+  'independent-leaves',
+  'link-workspace-packages',
   'lockfile-directory',
   'lockfile-only',
   'lockfile',
@@ -142,6 +148,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'prefer-offline',
   'production',
   'recursive',
+  'registry',
   'reporter',
   'save-dev',
   'save-exact',
@@ -157,8 +164,10 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'offline',
   'only',
   'optional',
+  'use-running-store-server',
   'use-store-server',
   'verify-store-integrity',
+  'workspace-prefix',
 ])
 
 const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> = {
@@ -171,6 +180,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'only',
     'package-import-method',
     'production',
+    'registry',
     'reporter',
     'save-dev',
     'save-exact',
@@ -190,9 +200,10 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'outdated': new Set([
     'depth',
+    'global',
     'long',
-    'table',
     'recursive',
+    'table',
   ]),
   'pack': new Set([]),
   'prune': new Set([]),
@@ -208,7 +219,9 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'workspace-concurrency',
   ]),
   'restart': new Set([]),
-  'root': new Set([]),
+  'root': new Set([
+    'global',
+  ]),
   'run': new Set([
     'recursive',
   ]),
@@ -222,13 +235,16 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'start': new Set([]),
   'stop': new Set([]),
-  'store': new Set([]),
+  'store': new Set([
+    'registry',
+  ]),
   'test': new Set([
     'recursive',
   ]),
   'uninstall': new Set([
     'force',
     'global-pnpmfile',
+    'global',
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
@@ -254,20 +270,22 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'offline',
     'only',
     'optional',
     'package-import-method',
+    'pnpmfile',
     'prefer-offline',
     'production',
-    'pnpmfile',
     'recursive',
+    'registry',
     'reporter',
     'shamefully-hoist',
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store',
-    'offline',
+    'use-running-store-server',
   ]),
   'why': new Set([
     'recursive',

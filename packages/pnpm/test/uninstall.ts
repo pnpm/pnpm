@@ -40,7 +40,7 @@ test('uninstall global package with its bin files', async (t: tape.Test) => {
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  await execPnpm('install', '-g', 'sh-hello-world@1.0.1')
+  await execPnpm('add', '-g', 'sh-hello-world@1.0.1')
 
   let stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
   t.ok(stat, 'sh-hello-world is in .bin')
