@@ -8,8 +8,8 @@
     "lib"
   ],
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc && pnpm link . && pnpm run lint && ts-node test.ts",
+    "lint": "tslint --project tsconfig.json -c tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run tsc && pnpm link . && pnpm run lint && ts-node test",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },
@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@types/semver": "6",
+    "dependency-path": "link:",
     "tape": "4.11.0"
   }
 }
