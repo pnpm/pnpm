@@ -171,8 +171,8 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
 ])
 
 const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> = {
-  'help': new Set([]),
   'add': INSTALL_CLI_OPTIONS,
+  'help': new Set([]),
   'import': new Set([]),
   'install-test': INSTALL_CLI_OPTIONS,
   'install': INSTALL_CLI_OPTIONS,
