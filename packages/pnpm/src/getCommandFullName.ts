@@ -1,6 +1,5 @@
 export default function getCommandFullName (cmd: string) {
   switch (cmd) {
-    case 'add':
     case 'install':
     case 'i':
       return 'install'
@@ -41,7 +40,7 @@ export default function getCommandFullName (cmd: string) {
     case 'multi':
     case 'm':
       return 'recursive'
-    // some commands have no aliases: publish, prune
+    // some commands have no aliases: publish, prune, add, why
     default:
       return cmd
   }

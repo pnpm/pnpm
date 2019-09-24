@@ -5,7 +5,11 @@ process.setMaxListeners(0)
 
 let argv = process.argv.slice(2)
 
-if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
+const dashDashIndex = argv.indexOf('--')
+const nonEscapedArgv = dashDashIndex === -1 ? argv : argv.slice(0, dashDashIndex)
+const helpOptions = new Set(['--help', '-h', '--h'])
+
+if (nonEscapedArgv.some((arg) => helpOptions.has(arg))) {
   argv = ['help'].concat(argv)
 }
 
@@ -18,7 +22,7 @@ if (argv.includes('--help') || argv.includes('-h') || argv.includes('--h')) {
       break
     case 'help':
       const help = (await import('../cmd/help')).default
-      help(argv.slice(1))
+      help(argv.filter((arg) => !helpOptions.has(arg)).slice(1))
       break
     // commands that are passed through to npm:
     case 'access':

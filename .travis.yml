@@ -2,6 +2,7 @@ language: node_js
 node_js:
   - 8.15
   - 10
+  - 12
 git:
   depth: 5
 sudo: false
@@ -13,7 +14,7 @@ before_install:
   - pnpm i -g pnpm@next
   - pnpm -v
 install:
-  - pnpm recursive install --no-lock
+  - pnpm install --no-lock --force
 script:
   - set -e # Fail on first error
   # TODO: fix commitlint
@@ -21,6 +22,8 @@ script:
   # - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
   - pnpm t
   - set +e
+cache:
+  npm: false
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1

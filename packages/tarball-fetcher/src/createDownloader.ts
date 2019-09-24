@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { FetchResult } from '@pnpm/fetcher-base'
 import logger from '@pnpm/logger'
 import createFetcher from 'fetch-from-npm-registry'
@@ -14,6 +15,19 @@ import urlLib = require('url')
 import { BadTarballError } from './errorTypes'
 
 const ignorePackageFileLogger = logger('_ignore-package-file')
+
+class TarballFetchError extends PnpmError {
+  public readonly httpStatusCode: number
+  public readonly uri: string
+  public readonly response: unknown & { status: number, statusText: string }
+
+  constructor (uri: string, response: { status: number, statusText: string }) {
+    super('TARBALL_FETCH', `${response.status} ${response.statusText}: ${uri}`)
+    this.httpStatusCode = response.status
+    this.uri = uri
+    this.response = response
+  }
+}
 
 export interface HttpResponse {
   body: string
@@ -130,14 +144,7 @@ export default (
         const res = await fetchFromNpmRegistry(url, {auth: shouldAuth && opts.auth as any || undefined}) // tslint:disable-line
 
         if (res.status !== 200) {
-          const err = new Error(`${res.status} ${res.statusText}: ${url}`)
-          // tslint:disable
-          err['code'] = 'ERR_PNPM_TARBALL_FETCH'
-          err['httpStatusCode'] = res.status
-          err['uri'] = url
-          err['response'] = res
-          // tslint:enable
-          throw err
+          throw new TarballFetchError(url, res)
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')

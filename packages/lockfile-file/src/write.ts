@@ -4,16 +4,17 @@ import {
 } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import yaml = require('js-yaml')
 import makeDir = require('make-dir')
 import path = require('path')
 import R = require('ramda')
-import rimraf = require('rimraf-then')
-import { promisify } from 'util'
 import writeFileAtomicCB = require('write-file-atomic')
 import logger from './logger'
 
-const writeFileAtomic = promisify(writeFileAtomicCB)
+function writeFileAtomic (filename: string, data: string) {
+  return new Promise((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err: Error) => err ? reject(err) : resolve()))
+}
 
 const LOCKFILE_YAML_FORMAT = {
   lineWidth: 1000,
@@ -39,7 +40,7 @@ export async function writeCurrentLockfile (
     forceSharedFormat?: boolean,
   },
 ) {
-  await makeDir(path.join(pkgPath, 'node_modules'))
+  await makeDir(path.join(pkgPath, 'node_modules/.pnpm'))
   return writeLockfile(CURRENT_LOCKFILE, pkgPath, currentLockfile, opts)
 }
 

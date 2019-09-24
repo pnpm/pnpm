@@ -1,14 +1,19 @@
 scripts:
   test: >-
-    pnpm recursive test --reporter append-only --workspace-concurrency 1
-    --filter ./packages --filter ./privatePackages
+    pnpm run build &&
+    pnpm recursive test
+    --reporter=append-only
+    --workspace-concurrency=1
+    --filter=./packages
+    --filter=./privatePackages
   build: pnpm recursive run tsc
-dependencies:
+devDependencies:
   '@pnpm/tsconfig': 'link:utils/tsconfig'
   '@pnpm/tslint-config': 'link:utils/tslint-config'
   '@types/node': '*'
   '@types/tape': ^4.2.31
-devDependencies:
-  ts-node: 8.2.0
-  tslint: 5.17.0
-  typescript: 3.5.2
+  ts-node: 8.3.0
+  tslint: 5.20.0
+  typescript: 3.6.3
+engines:
+  pnpm: '>=3.7'

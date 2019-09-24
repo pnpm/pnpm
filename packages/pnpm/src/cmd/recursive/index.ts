@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
 import { getSaveType } from '@pnpm/utils'
@@ -39,11 +40,13 @@ import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
 
 const supportedRecursiveCommands = new Set([
+  'add',
   'install',
   'uninstall',
   'update',
   'unlink',
   'list',
+  'why',
   'outdated',
   'rebuild',
   'run',
@@ -56,9 +59,7 @@ export default async (
   opts: PnpmOptions,
 ) => {
   if (opts.workspaceConcurrency < 1) {
-    const err = new Error('Workspace concurrency should be at least 1')
-    err['code'] = 'ERR_PNPM_INVALID_WORKSPACE_CONCURRENCY' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
   }
 
   const cmd = input.shift()
@@ -69,13 +70,12 @@ export default async (
   const cmdFullName = getCommandFullName(cmd)
   if (!supportedRecursiveCommands.has(cmdFullName)) {
     help(['recursive'])
-    const err = new Error(`"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
-    err['code'] = 'ERR_PNPM_INVALID_RECURSIVE_COMMAND' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('INVALID_RECURSIVE_COMMAND',
+      `"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
   }
 
   const workspacePrefix = opts.workspacePrefix || process.cwd()
-  const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix)
+  const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix, opts)
 
   if (!allWorkspacePkgs.length) {
     logger.info({ message: `No packages found in "${workspacePrefix}"`, prefix: workspacePrefix })
@@ -104,6 +104,7 @@ export async function recursive (
     allowNew?: boolean,
     packageSelectors?: PackageSelector[],
     ignoredPackages?: Set<string>,
+    useBetaCli?: boolean,
   },
   cmdFullName: string,
   cmd: string,
@@ -117,7 +118,7 @@ export async function recursive (
   let pkgs: Array<{path: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
-    pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+    pkgs = allPkgs.filter(({ path }) => pkgGraphResult.graph[path])
   } else {
     pkgs = allPkgs
   }
@@ -126,11 +127,8 @@ export async function recursive (
     return false
   }
   const manifestsByPath: { [path: string]: { manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> } } = {}
-  for (const pkg of pkgs) {
-    manifestsByPath[pkg.path] = {
-      manifest: pkg.manifest,
-      writeImporterManifest: pkg.writeImporterManifest,
-    }
+  for (const { manifest, path, writeImporterManifest } of pkgs) {
+    manifestsByPath[path] = { manifest, writeImporterManifest }
   }
 
   scopeLogger.debug({
@@ -142,12 +140,18 @@ export async function recursive (
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
 
   switch (cmdFullName) {
+    case 'why':
     case 'list':
       await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
     case 'outdated':
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
+    case 'add':
+      if (!input || !input.length) {
+        throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
+      }
+      break
   }
 
   const chunks = opts.sort
@@ -229,7 +233,10 @@ export async function recursive (
 
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
-    if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
+    if (opts.lockfileDirectory && ['add', 'install', 'uninstall', 'update'].includes(cmdFullName)) {
+      if (opts.hoistPattern) {
+        logger.info({ message: 'Only the root workspace package is going to have hoisted dependencies in node_modules', prefix: opts.lockfileDirectory })
+      }
       let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
@@ -241,9 +248,6 @@ export async function recursive (
       await Promise.all(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
         const { manifest, writeImporterManifest } = manifestsByPath[prefix]
-        const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
-          ? localConfigs.shamefullyFlatten
-          : opts.shamefullyFlatten
         let currentInput = [...input]
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -264,13 +268,12 @@ export async function recursive (
               manifest,
               mutation,
               prefix,
-              shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter)
             return
           case 'installSome':
             mutatedImporters.push({
-              allowNew: cmdFullName === 'install',
+              allowNew: cmdFullName === 'install' || cmdFullName === 'add',
               dependencySelectors: currentInput,
               manifest,
               mutation,
@@ -280,7 +283,6 @@ export async function recursive (
                 savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
               }),
               prefix,
-              shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter)
             return
@@ -290,7 +292,6 @@ export async function recursive (
               manifest,
               mutation,
               prefix,
-              shamefullyFlatten,
             } as MutatedImporter)
             return
         }
@@ -348,7 +349,9 @@ export async function recursive (
               ], opts)
               break
             default:
-              action = currentInput.length === 0 ? install : R.flip(addDependenciesToPackage).bind(null, currentInput)
+              action = currentInput.length === 0
+                ? install
+                : (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // tslint:disable-line:no-any
               break
           }
 
@@ -361,6 +364,10 @@ export async function recursive (
               bin: path.join(prefix, 'node_modules', '.bin'),
               hooks,
               ignoreScripts: true,
+              pinnedVersion: getPinnedVersion({
+                saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
+                savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
+              }),
               prefix,
               rawNpmConfig: {
                 ...installOpts.rawNpmConfig,
@@ -396,7 +403,12 @@ export async function recursive (
 
   if (
     cmdFullName === 'rebuild' ||
-    !opts.lockfileOnly && !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')
+    !opts.lockfileOnly && !opts.ignoreScripts && (
+      cmdFullName === 'add' ||
+      cmdFullName === 'install' ||
+      cmdFullName === 'update' ||
+      cmdFullName === 'unlink'
+    )
   ) {
     const action = (
       cmdFullName !== 'rebuild' || input.length === 0
@@ -565,7 +577,15 @@ function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[
 async function readLocalConfigs (prefix: string) {
   try {
     const ini = await readIniFile(path.join(prefix, '.npmrc')) as { [key: string]: string }
-    return camelcaseKeys(ini) as {[key: string]: string}
+    const configs = camelcaseKeys(ini) as ({ [key: string]: string } & { hoist?: boolean })
+    if (configs.shamefullyFlatten) {
+      configs.hoistPattern = '*'
+      // TODO: print a warning
+    }
+    if (configs.hoist === false) {
+      configs.hoistPattern = ''
+    }
+    return configs
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
     return {}

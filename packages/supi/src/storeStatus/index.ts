@@ -14,16 +14,24 @@ export default async function (maybeOpts: StoreStatusOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter({}, opts)
-  if (!ctx.wantedLockfile) return []
+  const {
+    registries,
+    storePath,
+    skipped,
+    wantedLockfile,
+  } = await getContextForSingleImporter({}, {
+    ...opts,
+    extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
+  })
+  if (!wantedLockfile) return []
 
-  const pkgPaths = Object.keys(ctx.wantedLockfile.packages || {})
+  const pkgPaths = (Object.keys(wantedLockfile.packages || {})
     .map((id) => {
       if (id === '/') return null
-      return dp.resolve(ctx.registries, id)
+      return dp.resolve(registries, id)
     })
-    .filter((pkgId) => pkgId && !ctx.skipped.has(pkgId))
-    .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))
+    .filter((pkgId) => pkgId && !skipped.has(pkgId)) as string[])
+    .map((pkgPath: string) => path.join(storePath, pkgPath))
 
   const modified = await pFilter(pkgPaths, async (pkgPath: string) => !await checkPackage(path.join(pkgPath, 'package')))
 

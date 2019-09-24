@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
@@ -12,78 +13,26 @@ import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
-export interface BaseInstallOptions {
-  forceSharedLockfile?: boolean,
-  frozenLockfile?: boolean,
-  extraBinPaths?: string[],
-  useLockfile?: boolean,
-  lockfileOnly?: boolean,
-  preferFrozenLockfile?: boolean,
-  shamefullyFlatten?: boolean,
-  storeController: StoreController,
-  store: string,
-  reporter?: ReporterFunction,
-  force?: boolean,
-  update?: boolean,
-  depth?: number,
-  resolutionStrategy?: 'fast' | 'fewer-dependencies',
-  repeatInstallDepth?: number,
-  lockfileDirectory?: string,
-  rawNpmConfig?: object,
-  verifyStoreIntegrity?: boolean,
-  engineStrict?: boolean,
-  nodeVersion?: string,
-  packageManager?: {
-    name: string,
-    version: string,
-  },
-  pruneLockfileImporters?: boolean,
-  hooks?: {
-    readPackage?: ReadPackageHook,
-    afterAllResolved?: (lockfile: Lockfile) => Lockfile,
-  },
-  sideEffectsCacheRead?: boolean,
-  sideEffectsCacheWrite?: boolean,
-  strictPeerDependencies?: boolean,
-  include?: IncludedDependencies,
-  independentLeaves?: boolean,
-  ignoreCurrentPrefs?: boolean,
-  ignoreScripts?: boolean,
-  childConcurrency?: number,
-  userAgent?: string,
-  unsafePerm?: boolean,
-  registries?: Registries,
-  lock?: boolean,
-  lockStaleDuration?: number,
-  tag?: string,
-  locks?: string,
-  ownLifecycleHooksStdio?: 'inherit' | 'pipe',
-  localPackages?: LocalPackages,
-  pruneStore?: boolean,
-}
-
-export type InstallOptions = BaseInstallOptions & {
-  bin?: string,
-  prefix?: string,
-}
-
-export type StrictInstallOptions = BaseInstallOptions & {
+export interface StrictInstallOptions {
   forceSharedLockfile: boolean,
   frozenLockfile: boolean,
   extraBinPaths: string[],
-  preferFrozenLockfile: boolean,
-  shamefullyFlatten: boolean,
   useLockfile: boolean,
-  lockfileDirectory: string,
   lockfileOnly: boolean,
+  preferFrozenLockfile: boolean,
+  hoistPattern: string | undefined,
+  storeController: StoreController,
+  store: string,
+  reporter: ReporterFunction,
   force: boolean,
   update: boolean,
   depth: number,
-  repeatInstallDepth: number,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
+  lockfileDirectory: string,
+  rawNpmConfig: object,
+  verifyStoreIntegrity: boolean,
   engineStrict: boolean,
   nodeVersion: string,
-  rawNpmConfig: object,
   packageManager: {
     name: string,
     version: string,
@@ -91,6 +40,7 @@ export type StrictInstallOptions = BaseInstallOptions & {
   pruneLockfileImporters: boolean,
   hooks: {
     readPackage?: ReadPackageHook,
+    afterAllResolved?: (lockfile: Lockfile) => Lockfile,
   },
   sideEffectsCacheRead: boolean,
   sideEffectsCacheWrite: boolean,
@@ -101,16 +51,22 @@ export type StrictInstallOptions = BaseInstallOptions & {
   ignoreScripts: boolean,
   childConcurrency: number,
   userAgent: string,
-  lock: boolean,
+  unsafePerm: boolean,
   registries: Registries,
+  lock: boolean,
   lockStaleDuration: number,
   tag: string,
   locks: string,
-  unsafePerm: boolean,
   ownLifecycleHooksStdio: 'inherit' | 'pipe',
   localPackages: LocalPackages,
   pruneStore: boolean,
+  bin: string,
+  prefix: string,
+  shamefullyHoist: boolean,
 }
+
+export type InstallOptions = Partial<StrictInstallOptions> &
+  Pick<StrictInstallOptions, 'store' | 'storeController'>
 
 const defaults = async (opts: InstallOptions) => {
   const packageManager = opts.packageManager || {
@@ -124,6 +80,7 @@ const defaults = async (opts: InstallOptions) => {
     force: false,
     forceSharedLockfile: false,
     frozenLockfile: false,
+    hoistPattern: undefined,
     hooks: {},
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
@@ -147,9 +104,8 @@ const defaults = async (opts: InstallOptions) => {
     pruneStore: false,
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,
-    repeatInstallDepth: -1,
     resolutionStrategy: 'fast',
-    shamefullyFlatten: false,
+    shamefullyHoist: false,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
     store: opts.store,
@@ -185,9 +141,8 @@ export default async (
     store: defaultOpts.store,
   }
   if (!extendedOpts.useLockfile && extendedOpts.lockfileOnly) {
-    const err = new Error(`Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
-    err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',
+      `Cannot generate a ${WANTED_LOCKFILE} because lockfile is set to false`)
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`

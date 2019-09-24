@@ -1,11 +1,14 @@
+import PnpmError from '@pnpm/error'
 import { ImporterManifest } from '@pnpm/types'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
 import detectIndent = require('detect-indent')
+import equal = require('fast-deep-equal')
 import fs = require('fs')
 import { Stats } from 'fs'
 import isWindows = require('is-windows')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
+import sortKeys = require('sort-keys')
 import { promisify } from 'util'
 import {
   readJson5File,
@@ -29,9 +32,8 @@ export default async function readImporterManifest (importerDir: string): Promis
       writeImporterManifest: WriteImporterManifest
     }
   }
-  const err = new Error(`No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
-  err['code'] = 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND'
-  throw err
+  throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
+    `No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
 }
 
 export async function readImporterManifestOnly (importerDir: string): Promise<ImporterManifest> {
@@ -105,7 +107,7 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
   return {
     fileName: 'package.json',
     manifest: null,
-    writeImporterManifest: writeImporterManifest.bind(null, filePath),
+    writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(filePath, manifest),
   }
 }
 
@@ -165,10 +167,32 @@ function createManifestWriter (
     manifestPath: string,
   },
 ): (WriteImporterManifest) {
-  const stringifiedInitialManifest = JSON.stringify(opts.initialManifest)
+  const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))
   return async (updatedManifest: ImporterManifest, force?: boolean) => {
-    if (force === true || stringifiedInitialManifest !== JSON.stringify(updatedManifest)) {
+    updatedManifest = normalize(updatedManifest)
+    if (force === true || !equal(initialManifest, updatedManifest)) {
       return writeImporterManifest(opts.manifestPath, updatedManifest, { indent: opts.indent })
     }
   }
+}
+
+const dependencyKeys = new Set([
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+])
+
+function normalize (manifest: ImporterManifest) {
+  const result = {}
+
+  for (const key of Object.keys(manifest)) {
+    if (!dependencyKeys.has(key)) {
+      result[key] = manifest[key]
+    } else if (Object.keys(manifest[key]).length !== 0) {
+      result[key] = sortKeys(manifest[key])
+    }
+  }
+
+  return result
 }

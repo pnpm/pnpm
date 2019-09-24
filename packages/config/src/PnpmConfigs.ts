@@ -3,6 +3,7 @@ import { Registries } from '@pnpm/types'
 export interface PnpmConfigs extends Record<string, any> { // tslint:disable-line
   bail: boolean,
   cliArgs: Record<string, any>, // tslint:disable-line
+  useBetaCli: boolean,
   extraBinPaths: string[],
   filter: string[],
   rawNpmConfig: Record<string, any>, // tslint:disable-line
@@ -11,6 +12,7 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   prefix: string,
+  localPrefix: string,
   bin?: string,
   ignoreScripts?: boolean
   save?: boolean,
@@ -66,7 +68,7 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   pnpmfile: string,
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  shamefullyFlatten?: boolean,
+  hoistPattern?: string,
   useStoreServer?: boolean,
   workspaceConcurrency: number,
   workspacePrefix?: string,
@@ -81,4 +83,6 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   resolutionStrategy: 'fast' | 'fewer-dependencies',
 
   registries: Registries,
+  ignoreWorkspaceRootCheck: boolean,
+  table: boolean,
 }

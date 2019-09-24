@@ -1,4 +1,5 @@
 import { Log } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import chalk from 'chalk'
 import commonTags = require('common-tags')
 import R = require('ramda')
@@ -18,7 +19,7 @@ const colorPath = chalk.gray
 
 export default function reportError (logObj: Log) {
   if (logObj['err']) {
-    const err = logObj['err'] as (Error & { code: string, stack: object })
+    const err = logObj['err'] as (PnpmError & { stack: object })
     switch (err.code) {
       case 'ERR_PNPM_UNEXPECTED_STORE':
         return reportUnexpectedStore(err, logObj['message'])
@@ -40,6 +41,8 @@ export default function reportError (logObj: Log) {
         return reportBadTarballSize(err, logObj['message'])
       case 'ELIFECYCLE':
         return reportLifecycleError(logObj['message'])
+      case 'ERR_PNPM_UNSUPPORTED_ENGINE':
+        return reportEngineError(err, logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -77,11 +80,15 @@ function reportUnexpectedStore (err: Error, msg: object) {
   return stripIndent`
     ${formatErrorSummary(err.message)}
 
-    expected: ${highlight(msg['expectedStorePath'])}
-    actual: ${highlight(msg['actualStorePath'])}
+    The dependencies at "${msg['modulesDir']}" are currently linked from the store at "${msg['expectedStorePath']}".
 
-    If you want to use the new store, run the same command with the ${highlight('--force')} parameter.
-  `
+    pnpm now wants to use the store at "${msg['actualStorePath']}" to link dependencies.
+
+    If you want to use the new store location, reinstall your dependencies with "pnpm install --force".
+
+    You may change the global store location by running "pnpm config set store <location>".
+      (This error may happen if the node_modules was installed with a different major version of pnpm)
+    `
 }
 
 function reportStoreBreakingChange (msg: object) {
@@ -175,9 +182,9 @@ function reportLockfileBreakingChange (err: Error, msg: object) {
   `
 }
 
-function formatRecursiveCommandSummary (msg: {fails: Error[], passes: number}) {
+function formatRecursiveCommandSummary (msg: { fails: Array<Error & {prefix: string}>, passes: number }) {
   const output = EOL + `Summary: ${chalk.red(`${msg.fails.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
-    msg.fails.map((fail: Error & {prefix: string}) => {
+    msg.fails.map((fail) => {
       return fail.prefix + ':' + EOL + formatErrorSummary(fail.message)
     }).join(EOL + EOL)
   return output
@@ -217,4 +224,49 @@ function reportLifecycleError (
     return formatErrorSummary(`Command failed with exit code ${msg.errno}.`)
   }
   return formatErrorSummary('Command failed.')
+}
+
+function reportEngineError (
+  err: Error,
+  msg: {
+    message: string,
+    current: {
+      node: string,
+      pnpm: string,
+    },
+    packageId: string,
+    wanted: {
+      node?: string,
+      pnpm?: string,
+    },
+  },
+) {
+  let output = ''
+  if (msg.wanted.pnpm) {
+    output += stripIndent`
+      ${formatErrorSummary(`Your pnpm version is incompatible with "${msg.packageId}".`)}
+
+      Expected version: ${msg.wanted.pnpm}
+      Got: ${msg.current.pnpm}
+
+      This is happening because the package's manifest has an engines.pnpm field specified.
+      To fix this issue, install the required pnpm version globally.
+
+      To install the latest version of pnpm, run "pnpm i -g pnpm".
+      To check your pnpm version, run "pnpm -v".
+    `
+  }
+  if (msg.wanted.node) {
+    if (output) output += EOL + EOL
+    output += stripIndent`
+      ${formatErrorSummary(`Your Node version is incompatible with "${msg.packageId}".`)}
+
+      Expected version: ${msg.wanted.node}
+      Got: ${msg.current.node}
+
+      This is happening because the package's manifest has an engines.node field specified.
+      To fix this issue, install the required Node version.
+    `
+  }
+  return output || formatErrorSummary(err.message)
 }

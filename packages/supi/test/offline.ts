@@ -1,5 +1,5 @@
 import { prepareEmpty } from '@pnpm/prepare'
-import rimraf = require('rimraf-then')
+import rimraf = require('@zkochan/rimraf')
 import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

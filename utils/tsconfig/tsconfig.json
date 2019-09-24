@@ -1,17 +1,17 @@
 {
   "compilerOptions": {
-    "removeComments": false,
-    "preserveConstEnums": true,
-    "sourceMap": false,
+    "allowSyntheticDefaultImports": true,
     "declaration": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
     "noImplicitAny": true,
     "noImplicitReturns": true,
+    "preserveConstEnums": true,
+    "removeComments": false,
+    "sourceMap": false,
+    "strict": true,
     "suppressImplicitAnyIndexErrors": true,
-    "allowSyntheticDefaultImports": true,
-    "strictNullChecks": true,
-    "target": "es2017",
-    "module": "commonjs",
-    "moduleResolution": "node"
+    "target": "es2017"
   },
   "atom": {
     "rewriteTsconfig": true

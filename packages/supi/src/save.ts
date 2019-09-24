@@ -5,15 +5,17 @@ import {
   ImporterManifest,
 } from '@pnpm/types'
 
+export type PackageSpecObject = {
+  name: string,
+  peer?: boolean,
+  pref?: string,
+  saveType?: DependenciesField | 'peerDependencies',
+}
+
 export default async function save (
   prefix: string,
   packageJson: ImporterManifest,
-  packageSpecs: Array<{
-    name: string,
-    peer?: boolean,
-    pref?: string,
-    saveType?: DependenciesField | 'peerDependencies',
-  }>,
+  packageSpecs: Array<PackageSpecObject>,
   opts?: {
     dryRun?: boolean,
   }

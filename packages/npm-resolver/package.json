@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "3.0.13",
+  "version": "3.1.1",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,17 +32,18 @@
     "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/types": "workspace:3.2.0",
     "credentials-by-uri": "1.0.0",
-    "encode-registry": "2.0.0",
-    "fetch-from-npm-registry": "2.0.5",
-    "load-json-file": "6.0.0",
-    "mem": "5.1.0",
+    "encode-registry": "2.0.1",
+    "fetch-from-npm-registry": "workspace:2.0.7",
+    "load-json-file": "6.2.0",
+    "mem": "5.1.1",
     "normalize-path": "3.0.0",
-    "p-limit": "2.2.0",
+    "p-limit": "2.2.1",
     "parse-npm-tarball-url": "3.0.0",
-    "semver": "6.1.1",
+    "semver": "6.3.0",
     "ssri": "6.0.1",
     "version-selector-type": "2.0.1",
     "write-json-file": "4.0.0"
@@ -50,15 +51,13 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
     "@pnpm/npm-resolver": "link:",
-    "@types/nock": "^10.0.0",
     "@types/normalize-path": "^3.0.0",
-    "@types/path-exists": "^3.0.0",
-    "@types/semver": "6.0.0",
+    "@types/semver": "6",
     "@types/ssri": "^6.0.0",
-    "nock": "^10.0.0",
+    "nock": "11.3.5",
     "path-exists": "4.0.0",
-    "rimraf": "^2.6.2",
-    "tape": "4.10.2",
+    "rimraf": "3.0.0",
+    "tape": "4.11.0",
     "tempy": "^0.3.0"
   }
 }

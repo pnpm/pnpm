@@ -1,4 +1,4 @@
-import { readImporterManifestOnly, tryReadImporterManifest } from '@pnpm/read-importer-manifest'
+import PnpmError from '@pnpm/error'
 import { getSaveType } from '@pnpm/utils'
 import {
   install,
@@ -8,6 +8,7 @@ import {
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
+import { readImporterManifestOnly, tryReadImporterManifest } from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
@@ -27,7 +28,9 @@ export default async function installCmd (
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
+    useBetaCli?: boolean,
   },
+  invocation?: string,
 ) {
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
@@ -35,7 +38,9 @@ export default async function installCmd (
   const prefix = opts.prefix || process.cwd()
 
   const localPackages = opts.linkWorkspacePackages && opts.workspacePrefix
-    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
+    ? arrayOfLocalPackagesToMap(
+      await findWorkspacePackages(opts.workspacePrefix, opts),
+    )
     : undefined
 
   if (!opts.ignorePnpmfile) {
@@ -53,12 +58,10 @@ export default async function installCmd (
     storeController: store.ctrl,
   }
 
-  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix)
+  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix, opts)
   if (manifest === null) {
     if (opts.update) {
-      const err = new Error('No package.json found')
-      err['code'] = 'ERR_PNPM_NO_IMPORTER_MANIFEST' // tslint:disable-line
-      throw err
+      throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
     }
     manifest = {}
   }
@@ -72,6 +75,9 @@ export default async function installCmd (
     delete installOpts.include
   }
   if (!input || !input.length) {
+    if (invocation === 'add') {
+      throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
+    }
     await install(manifest, installOpts)
   } else {
     const [updatedImporter] = await mutateModules([
@@ -93,14 +99,14 @@ export default async function installCmd (
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {
     // TODO: reuse somehow the previous read of packages
     // this is not optimal
-    const allWorkspacePkgs = await findWorkspacePackages(opts.workspacePrefix)
+    const allWorkspacePkgs = await findWorkspacePackages(opts.workspacePrefix, opts)
     await recursive(allWorkspacePkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
       ignoredPackages: new Set([prefix]),
       packageSelectors: [
         {
-          matcher: prefix,
+          pattern: prefix,
           scope: 'dependencies',
           selectBy: 'location',
         },
@@ -113,13 +119,15 @@ export default async function installCmd (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(opts.prefix),
+          manifest: await readImporterManifestOnly(opts.prefix, opts),
           prefix: opts.prefix,
         },
       ], {
         ...opts,
         pending: true,
-      } as any, // tslint:disable-line:no-any
+        store: store.path,
+        storeController: store.ctrl,
+      },
     )
   }
 }

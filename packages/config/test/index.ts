@@ -1,5 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import getConfigs from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
@@ -7,10 +8,14 @@ import tempy = require('tempy')
 
 import './findBestGlobalPrefixOnWindows'
 
+// To override any local settings,
+// we force the default values of configs
 delete process.env['npm_config_depth']
+process.env['npm_config_independent_leaves'] = 'false'
+process.env['npm_config_hoist'] = 'true'
 
 test('getConfigs()', async (t) => {
-  const configs = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {},
     packageManager: {
       name: 'pnpm',
@@ -39,7 +44,7 @@ test('throw error if --link-workspace-packages is used with --global', async (t)
     })
   } catch (err) {
     t.equal(err.message, 'Configuration conflict. "link-workspace-packages" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL')
     t.end()
   }
 })
@@ -58,7 +63,7 @@ test('throw error if --shared-workspace-shrinkwrap is used with --global', async
     })
   } catch (err) {
     t.equal(err.message, 'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL')
     t.end()
   }
 })
@@ -77,7 +82,45 @@ test('throw error if --shrinkwrap-directory is used with --global', async (t) =>
     })
   } catch (err) {
     t.equal(err.message, 'Configuration conflict. "lockfile-directory" may not be used with "global"')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL')
+    t.end()
+  }
+})
+
+test('throw error if --independent-leaves is used with --global', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'global': true,
+        'independent-leaves': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'Configuration conflict. "independent-leaves" may not be used with "global"')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_INDEPENDENT_LEAVES_WITH_GLOBAL')
+    t.end()
+  }
+})
+
+test('throw error if --hoist-pattern is used with --global', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'global': true,
+        'hoist-pattern': 'eslint',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'Configuration conflict. "hoist-pattern" may not be used with "global"')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL')
     t.end()
   }
 })
@@ -96,7 +139,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   {
-    const opts = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'global': false,
       },
@@ -105,13 +148,13 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
         version: '1.0.0',
       },
     })
-    t.ok(opts.linkWorkspacePackages)
-    t.ok(opts.sharedWorkspaceLockfile)
-    t.ok(opts.lockfileDirectory)
+    t.ok(configs.linkWorkspacePackages)
+    t.ok(configs.sharedWorkspaceLockfile)
+    t.ok(configs.lockfileDirectory)
   }
 
   {
-    const opts = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'global': true,
       },
@@ -120,9 +163,9 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
         version: '1.0.0',
       },
     })
-    t.notOk(opts.linkWorkspacePackages, 'link-workspace-packages is false')
-    t.notOk(opts.sharedWorkspaceLockfile, 'shared-workspace-shrinkwrap is false')
-    t.notOk(opts.lockfileDirectory, 'shrinkwrap-directory is null')
+    t.notOk(configs.linkWorkspacePackages, 'link-workspace-packages is false')
+    t.notOk(configs.sharedWorkspaceLockfile, 'shared-workspace-shrinkwrap is false')
+    t.notOk(configs.lockfileDirectory, 'shrinkwrap-directory is null')
   }
 
   t.end()
@@ -137,7 +180,7 @@ test('workspace manifest is searched from specified prefix', async (t) => {
   await fs.mkdir('workspace')
   await fs.writeFile('workspace/pnpm-workspace.yaml', '', 'utf8')
 
-  const opts = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {
       prefix: 'workspace',
     },
@@ -147,12 +190,12 @@ test('workspace manifest is searched from specified prefix', async (t) => {
     },
   })
 
-  t.equal(opts.workspacePrefix, path.join(tmp, 'workspace'))
+  t.equal(configs.workspacePrefix, path.join(tmp, 'workspace'))
   t.end()
 })
 
 test('registries of scoped packages are read', async (t) => {
-  const opts = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {
       prefix: 'workspace',
       userconfig: path.join(__dirname, 'scoped-registries.ini'),
@@ -164,7 +207,7 @@ test('registries of scoped packages are read', async (t) => {
   })
 
   // tslint:disable
-  t.deepEqual(opts.registries, {
+  t.deepEqual(configs.registries, {
     'default': 'https://default.com/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
@@ -182,7 +225,7 @@ test('filter is read from .npmrc as an array', async (t) => {
   await fs.writeFile('.npmrc', 'filter=foo bar...', 'utf8')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
-  const opts = await getConfigs({
+  const { configs } = await getConfigs({
     cliArgs: {
       'global': false,
     },
@@ -191,14 +234,14 @@ test('filter is read from .npmrc as an array', async (t) => {
       version: '1.0.0',
     },
   })
-  t.deepEqual(opts.filter, ['foo', 'bar...'])
+  t.deepEqual(configs.filter, ['foo', 'bar...'])
 
   t.end()
 })
 
 test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'side-effects-cache': true,
       },
@@ -214,7 +257,7 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'side-effects-cache-readonly': true,
       },
@@ -234,7 +277,7 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
 
 test('depth is 0 by default for list commands', async (t) => {
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       command: ['list'],
       packageManager: {
@@ -246,7 +289,19 @@ test('depth is 0 by default for list commands', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
+      cliArgs: {},
+      command: ['list', 'bole'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const { configs } = await getConfigs({
       cliArgs: {},
       command: ['recursive', 'list'],
       packageManager: {
@@ -258,7 +313,31 @@ test('depth is 0 by default for list commands', async (t) => {
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
+      cliArgs: {},
+      command: ['recursive', 'list', 'bole'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const { configs } = await getConfigs({
+      cliArgs: {},
+      command: ['recursive', 'list'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.equal(configs.depth, 0)
+  }
+
+  {
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
@@ -273,7 +352,7 @@ test('depth is 0 by default for list commands', async (t) => {
 
 test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'global': true,
       },
@@ -287,7 +366,7 @@ test('when runnning a global command inside a workspace, the workspace should be
   }
 
   {
-    const configs = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
@@ -315,7 +394,7 @@ test('throw error if --save-prod is used with --save-peer', async (t) => {
     })
   } catch (err) {
     t.equal(err.message, 'A package cannot be a peer dependency and a prod dependency at the same time')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP')
     t.end()
   }
 })
@@ -334,7 +413,7 @@ test('throw error if --save-optional is used with --save-peer', async (t) => {
     })
   } catch (err) {
     t.equal(err.message, 'A package cannot be a peer dependency and an optional dependency at the same time')
-    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP')
     t.end()
   }
 })
@@ -346,31 +425,31 @@ test('extraBinPaths', async (t) => {
   process.chdir(tmp)
 
   {
-    const { extraBinPaths } = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
       },
     })
-    t.deepEqual(extraBinPaths, [], 'extraBinPaths is empty outside of a workspace')
+    t.deepEqual(configs.extraBinPaths, [], 'extraBinPaths is empty outside of a workspace')
   }
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   {
-    const { extraBinPaths } = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
       },
     })
-    t.deepEqual(extraBinPaths, [path.resolve('node_modules/.bin')], 'extraBinPaths has the node_modules/.bin folder from the root of the workspace')
+    t.deepEqual(configs.extraBinPaths, [path.resolve('node_modules/.bin')], 'extraBinPaths has the node_modules/.bin folder from the root of the workspace')
   }
 
   {
-    const { extraBinPaths } = await getConfigs({
+    const { configs } = await getConfigs({
       cliArgs: {
         'ignore-scripts': true,
       },
@@ -379,8 +458,173 @@ test('extraBinPaths', async (t) => {
         version: '1.0.0',
       },
     })
-    t.deepEqual(extraBinPaths, [], 'extraBinPaths is empty inside a workspace if scripts are ignored')
+    t.deepEqual(configs.extraBinPaths, [], 'extraBinPaths is empty inside a workspace if scripts are ignored')
   }
 
+  t.end()
+})
+
+test('throw error on "update --frozen-lockfile"', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'frozen-lockfile': true,
+      },
+      command: ['update'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'The "frozen-lockfile" option cannot be used with the "update" command')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_BAD_OPTION')
+    t.end()
+  }
+})
+
+test('throw error on "update --prefer-frozen-lockfile"', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'prefer-frozen-lockfile': true,
+      },
+      command: ['update'],
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_BAD_OPTION')
+    t.end()
+  }
+})
+
+test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
+  const { configs, warnings } = await getConfigs({
+    cliArgs: {
+      'shamefully-flatten': true,
+    },
+    command: ['install'],
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(configs.hoistPattern, '*')
+  t.equal(configs.shamefullyHoist, true)
+  t.deepEqual(warnings, ['The "shamefully-flatten" setting is deprecated. ' +
+    'Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. ' +
+    'Since v4, hoisting is on by default for all dependencies.'])
+  t.end()
+})
+
+test('hoist-pattern is undefined if --no-hoist used', async (t) => {
+  const { configs } = await getConfigs({
+    cliArgs: {
+      'hoist': false,
+    },
+    command: ['install'],
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(configs.hoistPattern, undefined)
+  t.end()
+})
+
+test('throw error if --no-hoist is used with --shamefully-hoist', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'hoist': false,
+        'shamefully-hoist': true
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '--shamefully-hoist cannot be used with --no-hoist')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST')
+    t.end()
+  }
+})
+
+test('throw error if --no-hoist is used with --shamefully-flatten', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'hoist': false,
+        'shamefully-flatten': true
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '--shamefully-flatten cannot be used with --no-hoist')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST')
+    t.end()
+  }
+})
+
+test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'hoist': false,
+        'hoist-pattern': 'eslint-*'
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '--hoist-pattern cannot be used with --no-hoist')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_HOIST')
+    t.end()
+  }
+})
+
+test('throw error if --independent-leaves is used without --no-hoist', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'independent-leaves': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_INDEPENDENT_LEAVES_AND_HOIST')
+    t.end()
+  }
+})
+
+test('do not throw error if --independent-leaves is used with --no-hoist', async (t) => {
+  const { configs } = await getConfigs({
+    cliArgs: {
+      'hoist': false,
+      'independent-leaves': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  t.ok(configs.independentLeaves)
+  t.notOk(configs.hoistPattern)
   t.end()
 })

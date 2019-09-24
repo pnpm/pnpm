@@ -3,6 +3,7 @@ import {
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshot,
@@ -27,6 +28,7 @@ import {
 } from '@pnpm/store-controller-types'
 import {
   Dependencies,
+  DependencyManifest,
   PackageManifest,
   PeerDependenciesMeta,
   ReadPackageHook,
@@ -117,7 +119,7 @@ export interface ResolutionContext {
   childrenByParentId: ChildrenByParentId,
   pendingNodes: PendingNode[],
   wantedLockfile: Lockfile,
-  hasManifestInLockfile: boolean,
+  updateLockfile: boolean,
   currentLockfile: Lockfile,
   lockfileDirectory: string,
   sideEffectsCache: boolean,
@@ -148,6 +150,7 @@ const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.
 
 export interface PkgAddress {
   alias: string,
+  depIsLinked: boolean,
   isNew: boolean,
   nodeId: string,
   pkgId: string,
@@ -165,9 +168,9 @@ export interface ResolvedPackage {
   prod: boolean,
   dev: boolean,
   optional: boolean,
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageManifest>,
-  finishing: Promise<void>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
+  fetchingBundledManifest?: () => Promise<DependencyManifest>,
+  finishing: () => Promise<void>,
   path: string,
   name: string,
   version: string,
@@ -201,6 +204,7 @@ export default async function resolveDependencies (
     dependentId?: string,
     parentDependsOnPeers: boolean,
     parentNodeId: string,
+    proceed: boolean,
     updateDepth: number,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
@@ -218,8 +222,10 @@ export default async function resolveDependencies (
     parentDependsOnPeers: options.parentDependsOnPeers,
     preferedDependencies: options.preferedDependencies,
     prefix: ctx.prefix,
+    proceed: options.proceed,
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
+    updateLockfile: ctx.updateLockfile,
   })
   const resolveDepOpts = {
     currentDepth: options.currentDepth,
@@ -276,6 +282,9 @@ export default async function resolveDependencies (
                   ? extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
                   : undefined,
                 preferredVersions,
+                // If the package is not linked, we should also gather information about its dependencies.
+                // After linking the package we'll need to symlink its dependencies.
+                proceed: !resolveDependencyResult.depIsLinked,
                 resolvedDependencies,
                 updateDepth,
               },
@@ -311,8 +320,8 @@ export default async function resolveDependencies (
     const newPreferredVersions = {
       ...options.preferredVersions,
     }
-    for (const pkgAddress of pkgAddresses) {
-      const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgAddress.pkgId]
+    for (const { pkgId } of pkgAddresses) {
+      const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
       if (newPreferredVersions[resolvedPackage.name] && newPreferredVersions[resolvedPackage.name].type !== 'tag') {
         newPreferredVersions[resolvedPackage.name] = {
           selector: `${newPreferredVersions[resolvedPackage.name].selector} || ${resolvedPackage.version}`,
@@ -338,8 +347,10 @@ function getDepsToResolve (
     parentDependsOnPeers: boolean,
     preferedDependencies?: ResolvedDependencies,
     prefix: string,
+    proceed: boolean,
     registries: Registries,
     resolvedDependencies?: ResolvedDependencies,
+    updateLockfile: boolean,
   },
 ) {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -348,7 +359,7 @@ function getDepsToResolve (
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
   // be merged with the resolved peers.
-  const proceedAll = options.parentDependsOnPeers
+  const proceedAll = options.proceed || options.parentDependsOnPeers || options.updateLockfile
   let allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
@@ -420,8 +431,8 @@ function preferedSatisfiesWanted (
     })
     return false
   }
-  const nameVer = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-  return semver.satisfies(nameVer.version, wantedDep.pref, true)
+  const { version } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+  return semver.satisfies(version, wantedDep.pref, true)
 }
 
 function getInfoFromLockfile (
@@ -504,15 +515,15 @@ async function resolveDependency (
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath]) : undefined
-
-  if (
-    !proceed && options.depPath &&
+  const depIsLinked = Boolean(options.depPath &&
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
-    await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}`)) &&
-    (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias)))
-  ) {
+    options.relDepPath && options.dependencyLockfile &&
+    await exists(path.join(ctx.virtualStoreDir, `${options.depPath}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
+    (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))))
+
+  if (!proceed && depIsLinked) {
     return null
   }
 
@@ -572,7 +583,7 @@ async function resolveDependency (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingRawManifest'] // tslint:disable-line:no-string-literal
+    const manifest = pkgResponse.body.manifest || await pkgResponse.bundledManifest!() // tslint:disable-line:no-string-literal
     if (options.currentDepth > 0) {
       logger.warn({
         message: `Ignoring file dependency because it is not a root dependency ${wantedDependency}`,
@@ -605,7 +616,7 @@ async function resolveDependency (
   let prepare!: boolean
   let hasBin!: boolean
   if (
-    ctx.hasManifestInLockfile && !options.update && options.dependencyLockfile && options.relDepPath &&
+    !options.update && options.dependencyLockfile && options.relDepPath &&
     !pkgResponse.body.updated &&
     // peerDependencies field is also used for transitive peer dependencies which should not be linked
     // That's why we cannot omit reading package.json of such dependencies.
@@ -621,39 +632,26 @@ async function resolveDependency (
     )
   } else {
     // tslint:disable:no-string-literal
-    try {
-      pkg = ctx.readPackageHook
-        ? ctx.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest'])
-        : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
+    pkg = ctx.readPackageHook
+      ? ctx.readPackageHook(pkgResponse.body.manifest || await pkgResponse.bundledManifest!())
+      : pkgResponse.body.manifest || await pkgResponse.bundledManifest!()
 
-      prepare = Boolean(
-        pkgResponse.body['resolvedVia'] === 'git-repository' &&
-        pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string',
-      )
+    prepare = Boolean(
+      pkgResponse.body.resolvedVia === 'git-repository' &&
+      pkg.scripts && typeof pkg.scripts.prepare === 'string',
+    )
 
-      if (
-        options.dependencyLockfile && options.dependencyLockfile.deprecated &&
-        !pkgResponse.body.updated && !pkg.deprecated
-      ) {
-        pkg.deprecated = options.dependencyLockfile.deprecated
-      }
-      hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
-    } catch (err) {
-      // tslint:disable:no-empty
-      // avoiding unhandled promise rejections
-      if (pkgResponse['finishing']) pkgResponse['finishing'].catch(() => {})
-      if (pkgResponse['fetchingFiles']) pkgResponse['fetchingFiles'].catch(() => {})
-      // tslint:enable:no-empty
-      throw err
+    if (
+      options.dependencyLockfile && options.dependencyLockfile.deprecated &&
+      !pkgResponse.body.updated && !pkg.deprecated
+    ) {
+      pkg.deprecated = options.dependencyLockfile.deprecated
     }
+    hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
     // tslint:enable:no-string-literal
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
-    const err = new Error(`Can't install ${wantedDependency.raw}: Missing package name`)
-    // tslint:disable:no-string-literal
-    err['code'] = 'ERR_PNPM_MISSING_PACKAGE_NAME'
-    // tslint:enable:no-string-literal
-    throw err
+    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.raw}: Missing package name`)
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
@@ -694,9 +692,8 @@ async function resolveDependency (
       requester: ctx.lockfileDirectory,
       status: 'resolved',
     })
-    // tslint:disable:no-string-literal
-    if (pkgResponse['fetchingFiles']) {
-      pkgResponse['fetchingFiles']
+    if (pkgResponse.files) {
+      pkgResponse.files()
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
             packageId: pkgResponse.body.id,
@@ -705,8 +702,10 @@ async function resolveDependency (
               ? 'found_in_store' : 'fetched',
           })
         })
+        .catch(() => {
+          // Ignore
+        })
     }
-    // tslint:enable:no-string-literal
 
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = getResolvedPackage({
       dependencyLockfile: options.dependencyLockfile,
@@ -733,6 +732,7 @@ async function resolveDependency (
 
   return {
     alias: wantedDependency.alias || pkg.name,
+    depIsLinked,
     isNew,
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
@@ -772,10 +772,10 @@ function getResolvedPackage (
       peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
     dev: options.wantedDependency.dev,
-    engineCache: !options.force && options.pkgResponse.body['cacheByEngine'] && options.pkgResponse.body['cacheByEngine'][ENGINE_NAME], // tslint:disable-line:no-string-literal
-    fetchingFiles: options.pkgResponse['fetchingFiles'], // tslint:disable-line:no-string-literal
-    fetchingRawManifest: options.pkgResponse['fetchingRawManifest'], // tslint:disable-line:no-string-literal
-    finishing: options.pkgResponse['finishing'], // tslint:disable-line:no-string-literal
+    engineCache: !options.force && options.pkgResponse.body.cacheByEngine && options.pkgResponse.body.cacheByEngine[ENGINE_NAME],
+    fetchingBundledManifest: options.pkgResponse.bundledManifest,
+    fetchingFiles: options.pkgResponse.files!,
+    finishing: options.pkgResponse.finishing!,
     hasBin: options.hasBin,
     hasBundledDependencies: !!(options.pkg.bundledDependencies || options.pkg.bundleDependencies),
     id: options.pkgResponse.body.id,
@@ -785,7 +785,7 @@ function getResolvedPackage (
     name: options.pkg.name,
     optional: options.wantedDependency.optional,
     optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
-    path: options.pkgResponse.body['inStoreLocation'], // tslint:disable-line:no-string-literal
+    path: options.pkgResponse.body.inStoreLocation!,
     peerDependencies: peerDependencies || {},
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,

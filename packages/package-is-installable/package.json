@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "2.0.7",
+  "version": "2.2.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,15 +30,16 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/types": "3.2.0",
-    "semver": "6.1.1"
+    "@pnpm/core-loggers": "workspace:3.0.3",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/types": "workspace:3.2.0",
+    "semver": "6.3.0"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
     "@pnpm/package-is-installable": "link:",
-    "@types/semver": "6.0.0",
-    "rimraf": "2.6.3",
-    "tape": "4.10.2"
+    "@types/semver": "6",
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   }
 }

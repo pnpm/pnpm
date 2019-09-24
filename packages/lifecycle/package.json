@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lifecycle",
-  "version": "6.2.0",
+  "version": "6.2.3",
   "description": "Package lifecycle hook runner",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,20 +33,20 @@
     "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/read-package-json": "2.0.2",
-    "@pnpm/types": "3.2.0",
-    "@zkochan/npm-lifecycle": "3.1.1",
+    "@pnpm/core-loggers": "workspace:3.0.3",
+    "@pnpm/read-package-json": "workspace:2.0.3",
+    "@pnpm/types": "workspace:3.2.0",
+    "@zkochan/npm-lifecycle": "3.1.2",
     "path-exists": "4.0.0",
-    "run-groups": "2.0.0"
+    "run-groups": "2.0.1"
   },
   "devDependencies": {
     "@pnpm/lifecycle": "link:",
     "@pnpm/logger": "2.1.1",
     "@types/rimraf": "2.0.2",
     "json-append": "1.1.1",
-    "load-json-file": "6.0.0",
-    "rimraf": "2.6.3",
-    "tape": "4.10.2"
+    "load-json-file": "6.2.0",
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   }
 }

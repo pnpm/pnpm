@@ -18,7 +18,7 @@ import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
-  spawn,
+  spawnPnpm,
 } from './utils'
 
 // Third element is true if and only if we attempted to kill the process via a signal.
@@ -36,7 +36,7 @@ const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 test('installation using pnpm server', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start'])
+  const server = spawnPnpm(['server', 'start'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object, pnpmVersion: string }>(serverJsonPath)
@@ -58,7 +58,7 @@ test('installation using pnpm server', async (t: tape.Test) => {
 test('store server: headless installation', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start'])
+  const server = spawnPnpm(['server', 'start'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
@@ -100,7 +100,7 @@ test('installation using pnpm server that runs in the background', async (t: tap
 test('installation using pnpm server via TCP', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start', '--protocol', 'tcp'])
+  const server = spawnPnpm(['server', 'start', '--protocol', 'tcp'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
@@ -121,7 +121,7 @@ test('installation using pnpm server via TCP', async (t: tape.Test) => {
 test('pnpm server uses TCP when port specified', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start', '--port', '7856'])
+  const server = spawnPnpm(['server', 'start', '--port', '7856'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
@@ -142,7 +142,7 @@ test('pnpm server fails when trying to set --port for IPC protocol', async (t: t
 test('stopping server fails when the server disallows stopping via remote call', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start', '--ignore-stop-requests'])
+  const server = spawnPnpm(['server', 'start', '--ignore-stop-requests'])
 
   await delay(2000) // lets' wait till the server starts
 
@@ -154,20 +154,20 @@ test('stopping server fails when the server disallows stopping via remote call',
 test('uploading cache can be disabled without breaking install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start', '--ignore-upload-requests'])
+  const server = spawnPnpm(['server', 'start', '--ignore-upload-requests'])
 
   // TODO: remove the delay and run install by connecting it to the store server
   // Can be done once this gets implemented: https://github.com/pnpm/pnpm/issues/1018
   await delay(2000)
 
   // install a package that has side effects
-  await execPnpm('install', '--side-effects-cache', 'runas@3.1.1')
+  await execPnpm('add', '--side-effects-cache', 'diskusage@1.1.3')
 
   // make sure the installation is successful, but the cache has not been written
-  await project.has('runas')
+  await project.has('diskusage')
   const storePath = await project.getStorePath()
   const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
-  const cacheDir = path.join(storePath, 'localhost+4873', 'runas', '3.1.1', 'side_effects', engine, 'package')
+  const cacheDir = path.join(storePath, `localhost+4873/diskusage/1.1.3/side_effects/${engine}/package`)
   t.notOk(await pathExists(cacheDir), 'side effects cache not uploaded')
 
   await execPnpm('server', 'stop')
@@ -227,7 +227,7 @@ async function testParallelServerStart (
   for (let i = 0; i < options.n; i++) {
     const item: ServerProcess = {
       attemptedToKill: false,
-      childProcess: spawn(['server', 'start']),
+      childProcess: spawnPnpm(['server', 'start']),
       running: createDeferred<void>(),
       // This is true if and only if we attempted to kill the process via a signal.
     }
@@ -342,7 +342,7 @@ test['skip']('fail if the store server is run by a different version of pnpm', a
 test('print server status', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start'])
+  const server = spawnPnpm(['server', 'start'])
 
   await delay(2000)
 

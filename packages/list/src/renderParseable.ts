@@ -1,28 +1,47 @@
 import { PackageNode } from 'dependencies-hierarchy'
 import R = require('ramda')
+import { PackageDependencyHierarchy } from './types'
 
 const sortPackages = R.sortBy(R.prop('name'))
 
 export default async function (
-  project: {
-    name?: string,
-    version?: string,
-    path: string,
-  },
-  tree: PackageNode[],
+  pkgs: PackageDependencyHierarchy[],
   opts: {
     long: boolean,
+    depth: number,
     alwaysPrintRootPackage: boolean,
+    search: boolean,
   },
 ) {
-  const pkgs = sortPackages(flatten(tree))
+  return pkgs.map((pkg) => renderParseableForPackage(pkg, opts)).join('\n')
+}
+
+function renderParseableForPackage (
+  pkg: PackageDependencyHierarchy,
+  opts: {
+    long: boolean,
+    depth: number,
+    alwaysPrintRootPackage: boolean,
+    search: boolean,
+  },
+) {
+  const pkgs = sortPackages(
+    flatten(
+      [
+        ...(pkg.optionalDependencies || []),
+        ...(pkg.dependencies || []),
+        ...(pkg.devDependencies || []),
+        ...(pkg.unsavedDependencies || []),
+      ],
+    ),
+  )
   if (!opts.alwaysPrintRootPackage && !pkgs.length) return ''
   if (opts.long) {
-    let firstLine = project.path
-    if (project.name) {
-      firstLine += `:${project.name}`
-      if (project.version) {
-        firstLine += `@${project.version}`
+    let firstLine = pkg.path
+    if (pkg.name) {
+      firstLine += `:${pkg.name}`
+      if (pkg.version) {
+        firstLine += `@${pkg.version}`
       }
     }
     return [
@@ -31,7 +50,7 @@ export default async function (
     ].join('\n')
   }
   return [
-    project.path,
+    pkg.path,
     ...pkgs.map((pkg) => pkg.path),
   ].join('\n')
 }
@@ -43,7 +62,7 @@ function flatten (
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
   for (const node of nodes) {
-    packages.push(node.pkg)
+    packages.push(node)
     if (node.dependencies && node.dependencies.length) {
       packages = packages.concat(flatten(node.dependencies))
     }

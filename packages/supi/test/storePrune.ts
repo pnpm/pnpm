@@ -1,8 +1,8 @@
 import assertStore from '@pnpm/assert-store'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import R = require('ramda')
-import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,

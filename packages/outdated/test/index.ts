@@ -1,68 +1,176 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import { WANTED_LOCKFILE } from '@pnpm/constants'
 import outdated, { forPackages as outdatedForPackages } from '@pnpm/outdated'
-import path = require('path')
 import test = require('tape')
 
-process.chdir(path.join(__dirname, 'fixtures'))
-const temp = path.join(__dirname, '..', '.tmp')
-
-const outdatedOpts = {
-  alwaysAuth: false,
-  fetchRetries: 2,
-  fetchRetryFactor: 10,
-  fetchRetryMaxtimeout: 6e4,
-  fetchRetryMintimeout: 1e4,
-  networkConcurrency: 16,
-  offline: false,
-  rawNpmConfig: {
-    registry: 'https://registry.npmjs.org/',
-  },
-  store: temp,
-  strictSsl: true,
-  tag: 'latest',
-  userAgent: 'pnpm',
+async function getLatestManifest (packageName: string) {
+  return ({
+    'deprecated-pkg': {
+      deprecated: 'This package is deprecated',
+      name: 'deprecated-pkg',
+      version: '1.0.0',
+    },
+    'is-negative': {
+      name: 'is-negative',
+      version: '2.1.0',
+    },
+    'is-positive': {
+      name: 'is-positive',
+      version: '3.1.0',
+    },
+    'pkg-with-1-dep': {
+      name: 'pkg-with-1-dep',
+      version: '1.0.0',
+    },
+  })[packageName] || null
 }
 
-test(`fail when there is no ${WANTED_LOCKFILE} file in the root of the project`, async (t) => {
-  try {
-    await outdated('no-shrinkwrap', outdatedOpts)
-    t.fail('the call should have failed')
-  } catch (err) {
-    t.equal(err.message, 'No lockfile in this directory. Run `pnpm install` to generate one.')
-    t.end()
-  }
-})
-
-test(`dont fail when there is no ${WANTED_LOCKFILE} file but no dependencies in package.json`, async (t) => {
-  t.deepEqual(await outdated('no-deps', outdatedOpts), [])
-  t.end()
-})
-
 test('outdated()', async (t) => {
-  const outdatedPkgs = await outdated('wanted-shrinkwrap', outdatedOpts)
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+          },
+          devDependencies: {
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+          },
+          optionalDependencies: {
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-negative/2.1.0': {
+          dev: true,
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        '/is-positive/1.0.0': {
+          dev: true,
+          resolution: {
+            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          },
+        },
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
+          name: 'from-github',
+          version: '1.1.0',
+
+          dev: false,
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+    getLatestManifest,
+    lockfileDirectory: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      devDependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^3.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+          devDependencies: {
+            'is-negative': '1.1.0',
+            'is-positive': '3.1.0',
+          },
+          optionalDependencies: {
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-negative/1.1.0': {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        '/is-positive/3.1.0': {
+          resolution: {
+            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          },
+        },
+        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+          name: 'from-github-2',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+          name: 'from-github',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+  })
   t.deepEqual(outdatedPkgs, [
     {
+      alias: 'from-github',
+      belongsTo: 'dependencies',
       current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
-      latest: undefined,
+      latestManifest: undefined,
       packageName: 'from-github',
       wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
     {
+      alias: 'from-github-2',
+      belongsTo: 'dependencies',
       current: undefined,
-      latest: undefined,
+      latestManifest: undefined,
       packageName: 'from-github-2',
       wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
     {
+      alias: 'is-negative',
+      belongsTo: 'devDependencies',
       current: '1.0.0',
-      latest: '2.1.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
       packageName: 'is-negative',
       wanted: '1.1.0',
     },
     {
+      alias: 'is-positive',
+      belongsTo: 'devDependencies',
       current: '1.0.0',
-      latest: '3.1.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
       packageName: 'is-positive',
       wanted: '3.1.0',
     },
@@ -70,99 +178,358 @@ test('outdated()', async (t) => {
   t.end()
 })
 
-test('forPackages()', async (t) => {
-  const outdatedPkgs = await outdatedForPackages(['is-negative'], 'wanted-shrinkwrap', outdatedOpts)
-  t.deepEqual(outdatedPkgs, [
-    {
-      current: '1.0.0',
-      latest: '2.1.0',
-      packageName: 'is-negative',
-      wanted: '1.1.0',
+test('outdated() should return deprecated package even if its current version is latest', async (t) => {
+  const lockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'deprecated-pkg': '1.0.0',
+        },
+        specifiers: {
+          'deprecated-pkg': '^1.0.0',
+        },
+      },
     },
-  ])
-  t.end()
-})
-
-test('outdated() when only current lockfile is present', async (t) => {
-  const outdatedPkgs = await outdated('current-shrinkwrap-only', outdatedOpts)
-  t.deepEqual(outdatedPkgs, [
-    {
-      current: '1.1.0',
-      latest: '2.1.0',
-      packageName: 'is-negative',
-      wanted: '1.1.0',
+    lockfileVersion: 5,
+    packages: {
+      '/deprecated-pkg/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
     },
-  ])
-  t.end()
-})
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    getLatestManifest,
+    lockfileDirectory: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
 
-test('outdated() on package with external lockfile', async (t) => {
-  const outdatedPkgs = await outdated('../external-wanted-shrinkwrap/pkg', {
-    ...outdatedOpts,
-    lockfileDirectory: path.resolve('../external-wanted-shrinkwrap'),
+      dependencies: {
+        'deprecated-pkg': '1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
   })
   t.deepEqual(outdatedPkgs, [
     {
-      current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
-      latest: undefined,
-      packageName: 'from-github',
-      wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
-    },
-    {
-      current: undefined,
-      latest: undefined,
-      packageName: 'from-github-2',
-      wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
-    },
-    {
+      alias: 'deprecated-pkg',
+      belongsTo: 'dependencies',
       current: '1.0.0',
-      latest: '2.1.0',
-      packageName: 'is-negative',
-      wanted: '1.1.0',
-    },
-    {
-      current: '1.0.0',
-      latest: '3.1.0',
-      packageName: 'is-positive',
-      wanted: '3.1.0',
-    },
-  ])
-  t.end()
-})
-
-test('outdated() on package with external lockfile when the package is not present in the node_modules/.pnpm-lock.yaml', async (t) => {
-  const outdatedPkgs = await outdated('./package-with-external-incomplete-lockfile/package', {
-    ...outdatedOpts,
-    lockfileDirectory: path.resolve('./package-with-external-incomplete-lockfile'),
-  })
-  t.deepEqual(outdatedPkgs, [
-    { latest: '1.0.0', packageName: 'pkg-with-1-dep', wanted: '100.0.0' },
-  ])
-  t.end()
-})
-
-test('outdated() on package that has one outdated dev dependency', async (t) => {
-  const outdatedPkgs = await outdated('outdated-dev-dep', outdatedOpts)
-  t.deepEqual(outdatedPkgs, [
-    {
-      current: '1.0.0',
-      latest: '2.1.0',
-      packageName: 'is-negative',
+      latestManifest: {
+        deprecated: 'This package is deprecated',
+        name: 'deprecated-pkg',
+        version: '1.0.0',
+      },
+      packageName: 'deprecated-pkg',
       wanted: '1.0.0',
     },
   ])
   t.end()
 })
 
-// NOTE: this test is unstable. It will fail if a new version of ajv will be released!
-test('outdated() on a package that has external lockfile and direct dependencies with resolved peers', async (t) => {
-  const outdatedPkgs = await outdated('package-with-external-shrinkwrap/package', {
-    ...outdatedOpts,
-    lockfileDirectory: path.resolve('package-with-external-shrinkwrap'),
-    registries: {
-      default: 'http://localhost:4873',
+test('forPackages()', async (t) => {
+  const outdatedPkgs = await outdatedForPackages(['is-negative'], {
+    currentLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-negative/2.1.0': {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        '/is-positive/1.0.0': {
+          resolution: {
+            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          },
+        },
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
+          name: 'from-github',
+          version: '1.1.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+    getLatestManifest,
+    lockfileDirectory: 'wanted-shrinkwrap',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^3.1.0',
+      },
+    },
+    prefix: 'wanted-shrinkwrap',
+    wantedLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'is-negative': '1.1.0',
+            'is-positive': '3.1.0',
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-negative/1.1.0': {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        '/is-positive/3.1.0': {
+          resolution: {
+            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          },
+        },
+        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+          name: 'from-github-2',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+          name: 'from-github',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
     },
   })
-  t.deepEqual(outdatedPkgs, [])
+  t.deepEqual(outdatedPkgs, [
+    {
+      alias: 'is-negative',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
+      packageName: 'is-negative',
+      wanted: '1.1.0',
+    },
+  ])
+  t.end()
+})
+
+test('forPackages() by pattern', async (t) => {
+  const outdatedPkgs = await outdatedForPackages(['*-negative'], {
+    currentLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+            'is-negative': '1.0.0',
+            'is-positive': '1.0.0',
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-negative/2.1.0': {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        '/is-positive/1.0.0': {
+          resolution: {
+            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          },
+        },
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4': {
+          name: 'from-github',
+          version: '1.1.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+    getLatestManifest,
+    lockfileDirectory: 'wanted-shrinkwrap',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '^2.1.0',
+        'is-positive': '^3.1.0',
+      },
+    },
+    prefix: 'wanted-shrinkwrap',
+    wantedLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'from-github': 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'from-github-2': 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+            'is-negative': '1.1.0',
+            'is-positive': '3.1.0',
+            'linked-1': 'link:../linked-1',
+            'linked-2': 'file:../linked-2',
+          },
+          specifiers: {
+            'is-negative': '^2.1.0',
+            'is-positive': '^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-negative/1.1.0': {
+          resolution: {
+            integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+          },
+        },
+        '/is-positive/3.1.0': {
+          resolution: {
+            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          },
+        },
+        'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+          name: 'from-github-2',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github-2/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+        'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3': {
+          name: 'from-github',
+          version: '1.0.0',
+
+          resolution: {
+            tarball: 'https://codeload.github.com/blabla/from-github/tar.gz/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+          },
+        },
+      },
+    },
+  })
+  t.deepEqual(outdatedPkgs, [
+    {
+      alias: 'is-negative',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
+      packageName: 'is-negative',
+      wanted: '1.1.0',
+    },
+  ])
+  t.end()
+})
+
+test('outdated() aliased dependency', async (t) => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'positive': '/is-positive/1.0.0',
+          },
+          specifiers: {
+            'positive': 'npm:is-positive@^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-positive/1.0.0': {
+          resolution: {
+            integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+          },
+        },
+      },
+    },
+    getLatestManifest,
+    lockfileDirectory: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'positive': 'npm:is-positive@^3.1.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: {
+      importers: {
+        '.': {
+          dependencies: {
+            'positive': '/is-positive/3.1.0',
+          },
+          specifiers: {
+            'positive': 'npm:is-positive@^3.1.0',
+          },
+        },
+      },
+      lockfileVersion: 5,
+      packages: {
+        '/is-positive/3.1.0': {
+          resolution: {
+            integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          },
+        },
+      },
+    },
+  })
+  t.deepEqual(outdatedPkgs, [
+    {
+      alias: 'positive',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+    },
+  ])
   t.end()
 })

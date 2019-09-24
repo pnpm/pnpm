@@ -2,7 +2,7 @@ import path = require('path')
 import exists = require('path-exists')
 import { Test } from 'tape'
 
-export default (t: Test, storePath: string, encodedRegistryName?: string) => {
+export default (t: Test, storePath: string | Promise<string>, encodedRegistryName?: string) => {
   const ern = encodedRegistryName || 'localhost+4873'
   const store = {
     async storeHas (pkgName: string, version?: string): Promise<void> {

@@ -25,11 +25,11 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/tarball-resolver#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "3.1.2"
+    "@pnpm/resolver-base": "workspace:3.1.2"
   },
   "devDependencies": {
     "@pnpm/tarball-resolver": "link:",
-    "rimraf": "^2.6.2",
-    "tape": "4.10.2"
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "3.0.16",
+  "version": "3.1.3",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,16 +29,16 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/git-resolver": "2.0.7",
-    "@pnpm/local-resolver": "2.0.9",
-    "@pnpm/npm-resolver": "3.0.13",
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/tarball-resolver": "2.0.3"
+    "@pnpm/git-resolver": "workspace:2.0.10",
+    "@pnpm/local-resolver": "workspace:2.0.14",
+    "@pnpm/npm-resolver": "workspace:3.1.1",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/tarball-resolver": "workspace:2.0.3"
   },
   "devDependencies": {
     "@pnpm/default-resolver": "link:",
     "@pnpm/logger": "2.1.1",
-    "rimraf": "2.6.3",
-    "tape": "4.10.2"
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   }
 }

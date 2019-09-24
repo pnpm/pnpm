@@ -31,7 +31,7 @@ export default (
     : nonThrottledProgressOutput
 
   return getModulesInstallProgress$(log$.stage, log$.progress)
-    .map(({ importingDone$, progress$, requirer }: ModulesInstallProgress) => {
+    .map(({ importingDone$, progress$, requirer }) => {
       const output$ = progressOutput(importingDone$, progress$)
 
       if (requirer === opts.cwd) {
@@ -80,7 +80,7 @@ function nonThrottledProgressOutput (
 function getModulesInstallProgress$ (
   stage$: most.Stream<StageLog>,
   progress$: most.Stream<ProgressLog>,
-) {
+): most.Stream<ModulesInstallProgress> {
   const modulesInstallProgressPushStream = new PushStream<ModulesInstallProgress>()
   const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
 

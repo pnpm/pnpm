@@ -50,19 +50,19 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1547
-test('installing with independent-leaves and shamefully-flatten', async (t) => {
+test('installing with independent-leaves and hoistPattern', async (t) => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({
+    hoistPattern: '*',
     independentLeaves: true,
-    shamefullyFlatten: true,
   }))
 
   await project.has('rimraf')
-  await project.has('minimatch')
+  await project.has('.pnpm/node_modules/minimatch')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.localhost+4873/wrappy/1.0.2')
+  await project.hasNot('.pnpm/localhost+4873/wrappy/1.0.2')
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has('.localhost+4873/rimraf/2.5.1')
+  await project.has('.pnpm/localhost+4873/rimraf/2.5.1')
 })

@@ -43,7 +43,7 @@ test('linking multiple packages', async (t: tape.Test) => {
   project.has('linked-bar')
 
   const modules = await readYamlFile<object>('../linked-bar/node_modules/.modules.yaml')
-  t.ok(modules['shamefullyFlatten'] === true, 'the linked package used its own configs during installation') // tslint:disable-line:no-string-literal
+  t.equal(modules['hoistPattern'], '*', 'the linked package used its own configs during installation') // tslint:disable-line:no-string-literal
 })
 
 test('link global bin', async function (t: tape.Test) {
@@ -98,6 +98,13 @@ test('link --production', async (t: tape.Test) => {
     {
       name: 'target',
       version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
     },
     {
       name: 'source',
@@ -114,8 +121,13 @@ test('link --production', async (t: tape.Test) => {
 
   process.chdir('target')
 
+  await execPnpm('install')
   await execPnpm('link', '--production', '../source')
 
   await projects['source'].has('is-positive')
   await projects['source'].hasNot('is-negative')
+
+  // --production should not have effect on the target
+  await projects['target'].has('is-positive')
+  await projects['target'].has('is-negative')
 })

@@ -1,9 +1,10 @@
-import readImporterManifest from '@pnpm/read-importer-manifest'
 import {
   mutateModules,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
+import readImporterManifest from '../readImporterManifest'
+import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 
 export default async function uninstallCmd (
@@ -15,10 +16,13 @@ export default async function uninstallCmd (
     store: store.path,
     storeController: store.ctrl,
   })
+  if (!opts.ignorePnpmfile) {
+    opts.hooks = requireHooks(opts.lockfileDirectory || opts.prefix, opts)
+  }
   uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
-    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
+    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix, opts))
     : undefined
-  const currentManifest = await readImporterManifest(opts.prefix)
+  const currentManifest = await readImporterManifest(opts.prefix, opts)
   const [mutationResult] = await mutateModules(
     [
       {

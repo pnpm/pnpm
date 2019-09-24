@@ -1,12 +1,14 @@
+import PnpmError from '@pnpm/error'
 import semver = require('semver')
 
-class UnsupportedEngineError extends Error {
-  public code: 'ERR_PNPM_UNSUPPORTED_ENGINE' = 'ERR_PNPM_UNSUPPORTED_ENGINE'
+export class UnsupportedEngineError extends PnpmError {
   public wanted: WantedEngine
   public current: Engine
+  public packageId: string
 
   constructor (packageId: string, wanted: WantedEngine, current: Engine) {
-    super(`Unsupported engine for ${packageId}: wanted: ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`)
+    super('UNSUPPORTED_ENGINE', `Unsupported engine for ${packageId}: wanted: ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`)
+    this.packageId = packageId
     this.wanted = wanted
     this.current = current
   }
@@ -18,11 +20,15 @@ export default function checkEngine (
   currentEngine: Engine,
 ) {
   if (!wantedEngine) return null
-  if (
-    (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node)) ||
-    (wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm))
-  ) {
-    return new UnsupportedEngineError(packageId, wantedEngine, currentEngine)
+  const unsatisfiedWanted: WantedEngine = {}
+  if (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node)) {
+    unsatisfiedWanted.node = wantedEngine.node
+  }
+  if (wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm)) {
+    unsatisfiedWanted.pnpm = wantedEngine.pnpm
+  }
+  if (Object.keys(unsatisfiedWanted).length) {
+    return new UnsupportedEngineError(packageId, unsatisfiedWanted, currentEngine)
   }
   return null
 }

@@ -152,7 +152,7 @@ function getSubgraphToBuild (
 }
 
 export interface DependenciesGraphNode {
-  fetchingRawManifest?: Promise<PackageManifest>,
+  fetchingBundledManifest?: () => Promise<PackageManifest>,
   hasBundledDependencies: boolean,
   peripheralLocation: string,
   children: {[alias: string]: string},
@@ -180,8 +180,8 @@ export async function linkBinsOfDependencies (
 ) {
   const childrenToLink = opts.optional
     ? depNode.children
-    : R.keys(depNode.children)
-      .reduce((nonOptionalChildren, childAlias: string) => {
+    : Object.keys(depNode.children)
+      .reduce((nonOptionalChildren, childAlias) => {
         if (!depNode.optionalDependencies.has(childAlias)) {
           nonOptionalChildren[childAlias] = depNode.children[childAlias]
         }
@@ -191,12 +191,12 @@ export async function linkBinsOfDependencies (
   const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
 
   const pkgs = await Promise.all(
-    R.keys(childrenToLink)
+    Object.keys(childrenToLink)
       .filter((alias) => {
         const dep = depGraph[childrenToLink[alias]]
         if (!dep) {
           // TODO: Try to reproduce this issue with a test in supi
-          opts.warn(`Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.`)
+          logger.debug({ message: `Failed to link bins of "${alias}" to "${binPath}". This is probably not an issue.` })
           return false
         }
         return dep.hasBin && dep.installable !== false
@@ -205,7 +205,7 @@ export async function linkBinsOfDependencies (
         const dep = depGraph[childrenToLink[alias]]
         return {
           location: dep.peripheralLocation,
-          manifest: dep.fetchingRawManifest && (await dep.fetchingRawManifest) || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
+          manifest: dep.fetchingBundledManifest && (await dep.fetchingBundledManifest()) || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
         }
       }),
   )

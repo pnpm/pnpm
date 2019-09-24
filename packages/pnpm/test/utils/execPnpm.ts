@@ -1,3 +1,4 @@
+import { ChildProcess as NodeChildProcess } from 'child_process'
 import crossSpawn = require('cross-spawn')
 import path = require('path')
 
@@ -7,7 +8,7 @@ const pnpxBinLocation = path.join(binDir, 'pnpx.js')
 
 export async function execPnpm (...args: string[]): Promise<void> {
   await new Promise((resolve, reject) => {
-    const proc = spawn(args)
+    const proc = spawnPnpm(args)
 
     proc.on('error', reject)
 
@@ -18,7 +19,7 @@ export async function execPnpm (...args: string[]): Promise<void> {
   })
 }
 
-export function spawn (args: string[], opts?: {storeDir?: string}) {
+export function spawnPnpm (args: string[], opts?: {storeDir?: string}): NodeChildProcess {
   return crossSpawn.spawn('node', [pnpmBinLocation, ...args], {
     env: createEnv(opts),
     stdio: 'inherit',
@@ -27,7 +28,7 @@ export function spawn (args: string[], opts?: {storeDir?: string}) {
 
 export async function execPnpx (...args: string[]): Promise<void> {
   await new Promise((resolve, reject) => {
-    const proc = spawn(args)
+    const proc = spawnPnpx(args)
 
     proc.on('error', reject)
 
@@ -38,7 +39,7 @@ export async function execPnpx (...args: string[]): Promise<void> {
   })
 }
 
-export function spawnPnpx (args: string[], opts?: {storeDir?: string}) {
+export function spawnPnpx (args: string[], opts?: {storeDir?: string}): NodeChildProcess {
   return crossSpawn.spawn('node', [pnpxBinLocation, ...args], {
     env: createEnv(opts),
     stdio: 'inherit',
@@ -51,13 +52,13 @@ export type ChildProcess = {
   stderr: Object,
 }
 
-export function sync (...args: string[]): ChildProcess {
+export function execPnpmSync (...args: string[]): ChildProcess {
   return crossSpawn.sync('node', [pnpmBinLocation, ...args], {
     env: createEnv(),
   })
 }
 
-export function spawnPnpxSync (...args: string[]): ChildProcess {
+export function execPnpxSync (...args: string[]): ChildProcess {
   return crossSpawn.sync('node', [pnpxBinLocation, ...args], {
     env: createEnv(),
   })
@@ -66,6 +67,8 @@ export function spawnPnpxSync (...args: string[]): ChildProcess {
 function createEnv (opts?: {storeDir?: string}) {
   const _ = {
     ...process.env,
+    npm_config_fetch_retries: 4,
+    npm_config_hoist: true,
     npm_config_independent_leaves: false,
     npm_config_registry: 'http://localhost:4873/',
     npm_config_silent: 'true',
@@ -78,5 +81,6 @@ function createEnv (opts?: {storeDir?: string}) {
   delete _.npm_config_save_exact
   delete _.npm_config_shared_workspace_lockfile
   delete _.npm_config_workspace_concurrency
+  delete _.npm_config_use_beta_cli
   return _
 }

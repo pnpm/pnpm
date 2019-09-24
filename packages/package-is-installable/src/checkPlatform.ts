@@ -1,10 +1,11 @@
-class UnsupportedPlatformError extends Error {
-  public code: 'ERR_PNPM_UNSUPPORTED_PLATFORM' = 'ERR_PNPM_UNSUPPORTED_PLATFORM'
+import PnpmError from '@pnpm/error'
+
+export class UnsupportedPlatformError extends PnpmError {
   public wanted: Platform
   public current: Platform
 
   constructor (packageId: string, wanted: Platform, current: Platform) {
-    super(`Unsupported platform for ${packageId}: wanted ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`)
+    super('UNSUPPORTED_PLATFORM', `Unsupported platform for ${packageId}: wanted ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`)
     this.wanted = wanted
     this.current = current
   }

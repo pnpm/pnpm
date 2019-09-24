@@ -30,7 +30,7 @@ test('store.importPackage()', async (t) => {
     verifyStoreIntegrity: true,
   })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const fetchResult = await storeController.fetchPackage({
+  const fetchResponse = await storeController.fetchPackage({
     force: false,
     pkgId,
     prefix: tempy.directory(),
@@ -41,9 +41,9 @@ test('store.importPackage()', async (t) => {
     },
   })
   const importTo = tempy.directory()
-  const importFrom = path.join(fetchResult.inStoreLocation, 'node_modules', 'is-positive')
+  const importFrom = path.join(fetchResponse.inStoreLocation, 'node_modules', 'is-positive')
   await storeController.importPackage(importFrom, importTo, {
-    filesResponse: await fetchResult.fetchingFiles,
+    filesResponse: await fetchResponse.files(),
     force: false,
   })
   t.equal(typeof require(importTo), 'function', `sucessfully imported to ${importTo}`)
@@ -69,7 +69,7 @@ test('store.importPackage() by copying', async (t) => {
     verifyStoreIntegrity: true,
   })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const fetchResult = await storeController.fetchPackage({
+  const fetchResponse = await storeController.fetchPackage({
     force: false,
     pkgId,
     prefix: tempy.directory(),
@@ -80,9 +80,9 @@ test('store.importPackage() by copying', async (t) => {
     },
   })
   const importTo = tempy.directory()
-  const importFrom = path.join(fetchResult.inStoreLocation, 'node_modules', 'is-positive')
+  const importFrom = path.join(fetchResponse.inStoreLocation, 'node_modules', 'is-positive')
   await storeController.importPackage(importFrom, importTo, {
-    filesResponse: await fetchResult.fetchingFiles,
+    filesResponse: await fetchResponse.files(),
     force: false,
   })
   t.equal(typeof require(importTo), 'function', `sucessfully imported to ${importTo}`)

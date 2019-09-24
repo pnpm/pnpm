@@ -1,6 +1,6 @@
 {
   "name": "fetch-from-npm-registry",
-  "version": "2.0.5",
+  "version": "2.0.7",
   "description": "A fetch lib specifically for using with the npm registry",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -28,14 +28,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch-from-npm-registry#readme",
   "dependencies": {
-    "@pnpm/fetch": "1.0.0",
-    "@pnpm/npm-registry-agent": "1.0.2"
+    "@pnpm/fetch": "workspace:1.0.1",
+    "@pnpm/npm-registry-agent": "workspace:1.0.3"
   },
   "devDependencies": {
-    "@types/nock": "10.0.3",
     "fetch-from-npm-registry": "link:",
-    "nock": "10.0.6",
-    "rimraf": "^2.6.2",
-    "tape": "4.10.2"
+    "nock": "11.3.5",
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   }
 }

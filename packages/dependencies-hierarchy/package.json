@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "5.0.10",
+  "version": "7.0.0-2",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -10,9 +10,9 @@
   "scripts": {
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "pretest": "cd fixtures && pnpm recursive install --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && cd ../fixtureWithLinks && pnpm recursive install --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile && cd ..",
+    "pretest": "cd fixtures && node ../../pnpm recursive install --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages -f && cd ../fixtureWithLinks && node ../../pnpm/bin/pnpm.js recursive install --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "prepublishOnly": "tsc",
+    "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },
   "engines": {
@@ -36,21 +36,24 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
-    "@pnpm/lockfile-file": "1.1.0",
-    "@pnpm/modules-yaml": "3.0.3",
-    "@pnpm/read-modules-dir": "2.0.1",
-    "@pnpm/types": "3.2.0",
-    "@pnpm/utils": "0.10.5",
-    "dependency-path": "3.0.7",
+    "@pnpm/lockfile-file": "workspace:2.0.0-0",
+    "@pnpm/lockfile-utils": "workspace:1.0.10",
+    "@pnpm/modules-yaml": "workspace:4.0.0-0",
+    "@pnpm/read-modules-dir": "workspace:2.0.1",
+    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/utils": "workspace:0.10.6",
+    "dependency-path": "workspace:3.0.8",
+    "micromatch": "4.0.2",
     "normalize-path": "3.0.0",
     "resolve-link-target": "1.0.1",
-    "semver": "6.1.1"
+    "semver": "6.3.0"
   },
   "devDependencies": {
-    "@pnpm/constants": "1.1.0",
+    "@pnpm/constants": "link:../constants",
     "@pnpm/logger": "2.1.1",
-    "@types/semver": "6.0.0",
+    "@types/micromatch": "3.1.0",
+    "@types/semver": "6",
     "dependencies-hierarchy": "link:",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }

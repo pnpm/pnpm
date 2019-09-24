@@ -1,49 +1,55 @@
+import { PnpmConfigs } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 
 export default async function (
   args: string[],
-  opts: {
+  opts: PnpmConfigs & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    development: boolean,
     lockfileDirectory?: string,
     long?: boolean,
     parseable?: boolean,
     prefix: string,
-    production: boolean,
   },
   command: string,
 ) {
-  const output = await render(args, opts, command)
+  const output = await render([opts.prefix], args, {
+    ...opts,
+    lockfileDirectory: opts.lockfileDirectory || opts.prefix,
+  }, command)
 
   if (output) console.log(output)
 }
 
 export async function render (
+  prefixes: string[],
   args: string[],
-  opts: {
+  opts: PnpmConfigs & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    development: boolean,
-    lockfileDirectory?: string,
+    lockfileDirectory: string,
     long?: boolean,
+    json?: boolean,
     parseable?: boolean,
-    prefix: string,
-    production: boolean,
   },
   command: string,
 ) {
+  const isWhy = command === 'why'
+  if (isWhy && !args.length) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
+  }
   opts.long = opts.long || command === 'll' || command === 'la'
-  const only = (opts.production && opts.development ? undefined : (opts.production ? 'prod' : 'dev')) as ('prod' | 'dev' | undefined) // tslint:disable-line:no-unnecessary-type-assertion
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: opts.depth || 0,
+    depth: isWhy ? Infinity : opts.depth || 0,
+    include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     long: opts.long,
-    only,
-    parseable: opts.parseable,
+    // tslint:disable-next-line: no-unnecessary-type-assertion
+    reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
-  return args.length
-    ? listForPackages(args, opts.prefix, listOpts)
-    : list(opts.prefix, listOpts)
+  return isWhy || args.length
+    ? listForPackages(args, prefixes, listOpts)
+    : list(prefixes, listOpts)
 }

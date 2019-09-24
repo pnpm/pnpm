@@ -8,6 +8,7 @@ packages:
   - "!**/__package_previews__/**"
   - "!**/example/**"
   - "!**/test/**"
+  - "!packages/local-resolver/example-package/**"
   - "!packages/dependencies-hierarchy/fixtures/**"
   - "!packages/dependencies-hierarchy/fixtureMonorepo/**"
   - "!packages/dependencies-hierarchy/fixtureWithLinks/**"

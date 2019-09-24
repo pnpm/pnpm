@@ -1,4 +1,5 @@
 import { toOutput$ } from '@pnpm/default-reporter'
+import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
@@ -87,8 +88,7 @@ test('prints no matching version error when many dist-tags exist', async (t) => 
     },
   })
 
-  const err = new Error('No matching version found for pnpm@1000.0.0')
-  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
+  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for pnpm@1000.0.0')
   err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'pnpm-meta.json'))
   logger.error(err, err)
 })
@@ -115,8 +115,7 @@ test('prints no matching version error when only the latest dist-tag exists', as
     },
   })
 
-  const err = new Error('No matching version found for is-positive@1000.0.0')
-  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
+  const err = new PnpmError('NO_MATCHING_VERSION', 'No matching version found for is-positive@1000.0.0')
   err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'is-positive-meta.json'))
   logger.error(err, err)
 })
@@ -154,8 +153,7 @@ test('prints suggestions when an internet-connection related error happens', asy
     },
   })
 
-  const err = new Error('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
-  err['code'] = 'ERR_PNPM_BAD_TARBALL_SIZE'
+  const err = new PnpmError('BAD_TARBALL_SIZE', 'Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
   err['expectedSize'] = 100
   err['receivedSize'] = 99
   logger.error(err, err)
@@ -225,5 +223,111 @@ test('prints command error without exit code', async (t) => {
   const err = new Error('Command failed')
   err['stage'] = 'lint'
   err['code'] = 'ELIFECYCLE'
+  logger.error(err, err)
+})
+
+test('prints unsupported pnpm version error', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: 2
+        Got: 3.0.0
+
+        This is happening because the package's manifest has an engines.pnpm field specified.
+        To fix this issue, install the required pnpm version globally.
+
+        To install the latest version of pnpm, run "pnpm i -g pnpm".
+        To check your pnpm version, run "pnpm -v".
+      `)
+    },
+  })
+
+  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
+  err['packageId'] = '/home/zoltan/project'
+  err['wanted'] = { pnpm: '2' }
+  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  logger.error(err, err)
+})
+
+test('prints unsupported Node version error', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: >=12
+        Got: 10.0.0
+
+        This is happening because the package's manifest has an engines.node field specified.
+        To fix this issue, install the required Node version.
+      `)
+    },
+  })
+
+  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
+  err['packageId'] = '/home/zoltan/project'
+  err['wanted'] = { node: '>=12' }
+  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
+  logger.error(err, err)
+})
+
+test('prints unsupported pnpm and Node versions error', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('Your pnpm version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: 2
+        Got: 3.0.0
+
+        This is happening because the package's manifest has an engines.pnpm field specified.
+        To fix this issue, install the required pnpm version globally.
+
+        To install the latest version of pnpm, run "pnpm i -g pnpm".
+        To check your pnpm version, run "pnpm -v".` + '\n\n' + stripIndent`
+        ${ERROR} ${chalk.red('Your Node version is incompatible with "/home/zoltan/project".')}
+
+        Expected version: >=12
+        Got: 10.0.0
+
+        This is happening because the package's manifest has an engines.node field specified.
+        To fix this issue, install the required Node version.
+      `)
+    },
+  })
+
+  const err = new PnpmError('UNSUPPORTED_ENGINE', 'Unsupported pnpm version')
+  err['packageId'] = '/home/zoltan/project'
+  err['wanted'] = { pnpm: '2', node: '>=12' }
+  err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
   logger.error(err, err)
 })

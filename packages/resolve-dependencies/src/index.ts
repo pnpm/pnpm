@@ -8,7 +8,6 @@ import {
 import {
   createNodeId,
   nodeIdContainsSequence,
-  ROOT_NODE_ID,
   WantedDependency,
 } from '@pnpm/utils'
 import resolveDependencies, {
@@ -55,8 +54,8 @@ export default async function (
     tag: string,
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
-    hasManifestInLockfile: boolean,
     localPackages: LocalPackages,
+    updateLockfile: boolean,
   },
 ) {
   const directNonLinkedDepsByImporterId = {} as {[id: string]: PkgAddress[]}
@@ -71,7 +70,6 @@ export default async function (
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
-    hasManifestInLockfile: opts.hasManifestInLockfile,
     lockfileDirectory: opts.lockfileDirectory,
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
@@ -83,6 +81,7 @@ export default async function (
     sideEffectsCache: opts.sideEffectsCache,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
+    updateLockfile: opts.updateLockfile,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
   }
@@ -103,8 +102,9 @@ export default async function (
       currentDepth: 0,
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,
-      parentNodeId: ROOT_NODE_ID,
+      parentNodeId: `>${importer.id}>`,
       preferredVersions: importer.preferredVersions || {},
+      proceed: true,
       resolvedDependencies: {
         ...lockfileImporter.dependencies,
         ...lockfileImporter.devDependencies,
@@ -150,18 +150,18 @@ export default async function (
     },
   }
 
-  for (const importer of importers) {
-    const directNonLinkedDeps = directNonLinkedDepsByImporterId[importer.id]
-    const linkedDependencies = linkedDependenciesByImporterId[importer.id]
+  for (const { id } of importers) {
+    const directNonLinkedDeps = directNonLinkedDepsByImporterId[id]
+    const linkedDependencies = linkedDependenciesByImporterId[id]
 
-    resolvedImporters[importer.id] = {
+    resolvedImporters[id] = {
       directDependencies: [
         ...directNonLinkedDeps
-          .map((dependency) => ({
-            ...ctx.dependenciesTree[dependency.nodeId].resolvedPackage,
-            alias: dependency.alias,
-            normalizedPref: dependency.normalizedPref,
-            specRaw: dependency.specRaw,
+          .map(({ alias, nodeId, normalizedPref, specRaw }) => ({
+            ...ctx.dependenciesTree[nodeId].resolvedPackage,
+            alias,
+            normalizedPref,
+            specRaw,
           })) as Array<{
             alias: string,
             optional: boolean,

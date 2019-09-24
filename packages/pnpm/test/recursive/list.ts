@@ -1,4 +1,5 @@
-import { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import { addDistTag } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
 import path = require('path')
@@ -44,15 +45,24 @@ test('recursive list', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     project-1@1.0.0 ${path.resolve('project-1')}
-    └── is-positive@1.0.0
+
+    dependencies:
+    is-positive 1.0.0
+
+    Legend: production dependency, optional only, dev only
 
     project-2@1.0.0 ${path.resolve('project-2')}
-    └── is-negative@1.0.0
+
+    dependencies:
+    is-negative 1.0.0
   ` + '\n')
 })
 
 test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -86,12 +96,20 @@ test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     project-1@1.0.0 ${path.resolve('project-1')}
-    └─┬ pkg-with-1-dep@100.0.0
-      └── dep-of-pkg-with-1-dep@100.1.0
+
+    dependencies:
+    pkg-with-1-dep 100.0.0
+    └── dep-of-pkg-with-1-dep 100.1.0
+
+    Legend: production dependency, optional only, dev only
 
     project-2@1.0.0 ${path.resolve('project-2')}
-    └── is-negative@1.0.0
+
+    dependencies:
+    is-negative 1.0.0
   ` + '\n')
 })
 
@@ -132,11 +150,28 @@ test('recursive list --filter', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     project-1@1.0.0 ${path.resolve('project-1')}
-    ├── is-positive@1.0.0
-    └── project-2@link:../project-2
+
+    dependencies:
+    is-positive 1.0.0
+    project-2 link:../project-2
+
+    Legend: production dependency, optional only, dev only
 
     project-2@1.0.0 ${path.resolve('project-2')}
-    └── is-negative@1.0.0
+
+    dependencies:
+    is-negative 1.0.0
   ` + '\n')
+})
+
+test('`pnpm recursive why` should fail if no package name was provided', async (t: tape.Test) => {
+  prepare(t)
+
+  const { status, stdout } = execPnpmSync('recursive', 'why')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('`pnpm why` requires the package name'))
 })

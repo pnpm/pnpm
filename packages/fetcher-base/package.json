@@ -29,10 +29,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetcher-base#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "3.1.2",
+    "@pnpm/resolver-base": "workspace:3.1.2",
     "@types/ssri": "6.0.1"
   },
   "devDependencies": {
-    "rimraf": "^2.6.2"
+    "rimraf": "3.0.0"
   }
 }

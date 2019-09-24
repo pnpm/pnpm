@@ -8,7 +8,7 @@ export default function checkCompatibility (
   modules: Modules,
   opts: {
     storePath: string,
-    modulesPath: string,
+    modulesDir: string,
   },
 ) {
   // Important: comparing paths with path.relative()
@@ -19,11 +19,12 @@ export default function checkCompatibility (
     throw new UnexpectedStoreError({
       actualStorePath: opts.storePath,
       expectedStorePath: modules.store,
+      modulesDir: opts.modulesDir,
     })
   }
   if (!modules.layoutVersion || modules.layoutVersion !== LAYOUT_VERSION) {
     throw new ModulesBreakingChangeError({
-      modulesPath: opts.modulesPath,
+      modulesPath: opts.modulesDir,
     })
   }
 }

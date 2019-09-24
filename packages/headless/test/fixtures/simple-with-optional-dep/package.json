@@ -1,0 +1,10 @@
+{
+  "name": "simple-with-optional-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "pkg-with-good-optional": "*"
+  },
+  "optionalDependencies": {
+    "is-positive": "1.0.0"
+  }
+}

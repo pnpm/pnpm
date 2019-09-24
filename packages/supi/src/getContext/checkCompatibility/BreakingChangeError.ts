@@ -1,8 +1,8 @@
-import { PnpmError, PnpmErrorCode } from '../../errorTypes'
+import PnpmError from '@pnpm/error'
 import ErrorRelatedSources from './ErrorRelatedSources'
 
 export type BreakingChangeErrorOptions = ErrorRelatedSources & {
-  code: PnpmErrorCode,
+  code: string,
   message: string,
 }
 

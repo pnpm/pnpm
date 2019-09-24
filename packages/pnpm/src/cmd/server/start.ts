@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { storeLogger } from '@pnpm/logger'
 import { createServer } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
@@ -43,9 +44,7 @@ export default async (
     if (error.code !== 'EEXIST') {
       throw error
     }
-    const err = new Error(`Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
-    err['code'] = 'ERR_PNPM_SERVER_MANIFEST_LOCKED' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('SERVER_MANIFEST_LOCKED', `Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
   }
   let server: null|{close (): Promise<void>} = null
   onExit(() => {

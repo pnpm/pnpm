@@ -29,12 +29,12 @@ export default function (
 } {
   lockfile.packages = lockfile.packages || {}
   const pendingRequiresBuilds = [] as PendingRequiresBuild[]
-  for (const depPath of R.keys(depGraph)) {
+  for (const depPath of Object.keys(depGraph)) {
     const depNode = depGraph[depPath]
     const relDepPath = dp.relative(registries, depNode.name, depPath)
     const result = R.partition(
       (child) => depNode.optionalDependencies.has(depGraph[child.depPath].name),
-      R.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
+      Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
     )
     lockfile.packages[relDepPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
       depGraph,
@@ -49,7 +49,7 @@ export default function (
   }
   const warn = (message: string) => logger.warn({ message, prefix })
   return {
-    newLockfile: pruneSharedLockfile(lockfile, { defaultRegistry: registries.default, warn }),
+    newLockfile: pruneSharedLockfile(lockfile, { warn }),
     pendingRequiresBuilds,
   }
 }
@@ -206,12 +206,12 @@ function updateResolvedDeps (
 ) {
   const newResolvedDeps = R.fromPairs<string>(
     updatedDeps
-      .map((dep): R.KeyValuePair<string, string> => {
-        const depNode = depGraph[dep.depPath]
+      .map(({ alias, depPath }): R.KeyValuePair<string, string> => {
+        const depNode = depGraph[depPath]
         return [
-          dep.alias,
+          alias,
           absolutePathToRef(depNode.absolutePath, {
-            alias: dep.alias,
+            alias,
             realName: depNode.name,
             registries,
             resolution: depNode.resolution,

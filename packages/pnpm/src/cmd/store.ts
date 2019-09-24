@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger, { storeLogger } from '@pnpm/logger'
 import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
@@ -9,14 +10,13 @@ import {
   storeUsages
 } from 'supi'
 import createStoreController from '../createStoreController'
-import { PnpmError } from '../errorTypes'
 import { PnpmOptions } from '../types'
 import help from './help'
 
 class StoreStatusError extends PnpmError {
   public modified: string[]
   constructor (modified: string[]) {
-    super('ERR_PNPM_MODIFIED_DEPENDENCY', '')
+    super('MODIFIED_DEPENDENCY', '')
     this.modified = modified
   }
 }
@@ -54,9 +54,7 @@ export default async function (input: string[], opts: PnpmOptions) {
     default:
       help(['store'])
       if (input[0]) {
-        const err = new Error(`"store ${input[0]}" is not a pnpm command. See "pnpm help store".`)
-        err['code'] = 'ERR_PNPM_INVALID_STORE_COMMAND' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('INVALID_STORE_COMMAND', `"store ${input[0]}" is not a pnpm command. See "pnpm help store".`)
       }
   }
 }

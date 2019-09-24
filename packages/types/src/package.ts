@@ -68,6 +68,7 @@ interface BaseManifest {
   engines?: {
     node?: string,
     npm?: string,
+    pnpm?: string,
   },
   cpu?: string[],
   os?: string[],
@@ -83,22 +84,17 @@ interface BaseManifest {
   },
 }
 
-export type DependencyManifest = BaseManifest & {
-  name: string,
-  version: string,
-}
+export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
 
-// TODO: rename to ImporterManifest
 export type ImporterManifest = BaseManifest & {
   private?: boolean,
 }
 
+// TODO: remove
 export type PackageJson = BaseManifest & {
   private?: boolean,
 }
 
-export type PackageManifest = BaseManifest & {
-  name: string,
-  version: string,
+export type PackageManifest = DependencyManifest & {
   deprecated?: string,
 }

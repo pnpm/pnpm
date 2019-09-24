@@ -41,7 +41,7 @@
     "@pnpm/resolve-dependencies",
     "@pnpm/resolver-base",
     "@pnpm/server",
-    "@pnpm/shamefully-flatten",
+    "@pnpm/hoist",
     "@pnpm/store-controller-types",
     "@pnpm/store-path",
     "@pnpm/symlink-dependency",
@@ -76,6 +76,22 @@
     {
       "packageNames": ["agentkeepalive"],
       "allowedVersions": "4.0.0"
+    },
+    {
+      "packageNames": ["graceful-fs"],
+      "allowedVersions": "4.2.1"
+    },
+    {
+      "packageNames": ["https-proxy-agent"],
+      "allowedVersions": "2.2.1"
+    },
+    {
+      "packageNames": ["write-json-file"],
+      "allowedVersions": "4.0.0"
+    },
+    {
+      "packageNames": ["write-file-atomic"],
+      "allowedVersions": "2.4.3"
     }
   ],
   "pinVersions": false,

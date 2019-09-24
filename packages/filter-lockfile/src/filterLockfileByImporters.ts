@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshots,
@@ -85,9 +86,7 @@ function pkgAllDeps (
     if (!pkgSnapshot && !relDepPath.startsWith('link:')) {
       const message = `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`
       if (opts.failOnMissingDependencies) {
-        const err = new Error(message)
-        err['code'] = 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY' // tslint:disable-line:no-string-literal
-        throw err
+        throw new PnpmError('LOCKFILE_MISSING_DEPENDENCY', message)
       }
       logger.debug(message)
       continue

@@ -49,10 +49,13 @@ export default async function link (
   }
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts.manifest, opts)
+  const ctx = await getContextForSingleImporter(opts.manifest, {
+    ...opts,
+    extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
+  })
 
   const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.prefix)
-  const oldLockfile = R.clone(ctx.currentLockfile)
+  const currentLockfile = R.clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
   const saveType = getSaveType(opts)
@@ -91,41 +94,42 @@ export default async function link (
     })
   }
 
-  const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile, { defaultRegistry: opts.registries.default })
+  const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile)
 
   const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
-  const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, {
-    defaultRegistry: opts.registries.default,
-    warn,
-  })
+  const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, { warn })
 
-  await prune({
-    importers: [
+  await prune(
+    [
       {
         bin: opts.bin,
-        hoistedAliases: ctx.hoistedAliases,
         id: importerId,
         modulesDir: ctx.modulesDir,
         prefix: opts.prefix,
-        shamefullyFlatten: opts.shamefullyFlatten,
       },
     ],
-    lockfileDirectory: opts.lockfileDirectory,
-    newLockfile: updatedCurrentLockfile,
-    oldLockfile,
-    registries: ctx.registries,
-    storeController: opts.storeController,
-    virtualStoreDir: ctx.virtualStoreDir,
-  })
+    {
+      currentLockfile,
+      hoistedAliases: ctx.hoistedAliases,
+      hoistedModulesDir: opts.hoistPattern && ctx.hoistedModulesDir || undefined,
+      include: ctx.include,
+      lockfileDirectory: opts.lockfileDirectory,
+      registries: ctx.registries,
+      skipped: ctx.skipped,
+      storeController: opts.storeController,
+      virtualStoreDir: ctx.virtualStoreDir,
+      wantedLockfile: updatedCurrentLockfile,
+    },
+  )
 
   // Linking should happen after removing orphans
   // Otherwise would've been removed
-  for (const linkedPkg of linkedPkgs) {
+  for (const { alias, manifest, path } of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
-    const stu = specsToUpsert.find((s) => s.name === linkedPkg.manifest.name)
-    await symlinkDirectRootDependency(linkedPkg.path, destModules, linkedPkg.alias, {
+    const stu = specsToUpsert.find((s) => s.name === manifest.name)
+    await symlinkDirectRootDependency(path, destModules, alias, {
       fromDependenciesField: stu && stu.saveType || saveType,
-      linkedPackage: linkedPkg.manifest,
+      linkedPackage: manifest,
       prefix: opts.prefix,
     })
   }
@@ -138,8 +142,8 @@ export default async function link (
   let newPkg!: ImporterManifest
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     newPkg = await save(opts.prefix, opts.manifest, specsToUpsert)
-    for (const specToUpsert of specsToUpsert) {
-      updatedWantedLockfile.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
+    for (const { name } of specsToUpsert) {
+      updatedWantedLockfile.importers[importerId].specifiers[name] = getSpecFromPackageJson(newPkg, name)
     }
   } else {
     newPkg = opts.manifest

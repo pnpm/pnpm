@@ -1,5 +1,5 @@
 import isSubdir = require('is-subdir')
-import minimatch = require('minimatch')
+import { matcher } from 'micromatch'
 import { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
 import { PackageSelector } from '../../parsePackageSelectors'
@@ -21,12 +21,12 @@ export function filterGraph<T> (
   const walkedDependents = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
   let reversedGraph: Graph | undefined
-  for (const selector of packageSelectors) {
-    const entryPackages = selector.selectBy === 'name'
-      ? matchPackages(pkgGraph, selector.matcher)
-      : matchPackagesByPath(pkgGraph, selector.matcher)
+  for (const { pattern, scope, selectBy } of packageSelectors) {
+    const entryPackages = selectBy === 'name'
+      ? matchPackages(pkgGraph, pattern)
+      : matchPackagesByPath(pkgGraph, pattern)
 
-    switch (selector.scope) {
+    switch (scope) {
       case 'dependencies':
         pickSubgraph(graph, entryPackages, walkedDependencies)
         continue
@@ -72,14 +72,15 @@ function matchPackages<T> (
   graph: PackageGraph<T>,
   pattern: string,
 ) {
-  return R.keys(graph).filter((id) => graph[id].package.manifest.name && minimatch(graph[id].package.manifest.name, pattern))
+  const match = matcher(pattern)
+  return Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name))
 }
 
 function matchPackagesByPath<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string,
 ) {
-  return R.keys(graph).filter((location) => isSubdir(pathStartsWith, location))
+  return Object.keys(graph).filter((location) => isSubdir(pathStartsWith, location))
 }
 
 function pickSubgraph (

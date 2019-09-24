@@ -1,9 +1,9 @@
 import pnpmLogger, { storeLogger } from '@pnpm/logger'
+import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
-import rimraf = require('rimraf-then')
 
 const hardLinkingLogger = pnpmLogger('_hardlink-already-exists')
 

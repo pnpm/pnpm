@@ -3,7 +3,6 @@ import './fs/gracefulify'
 
 export { PackageManifest, PnpmOptions } from '@pnpm/types'
 export * from './api'
-export { PnpmError, PnpmErrorCode } from './errorTypes'
 
 export { ImportersOptions } from './getContext'
 export { InstallOptions } from './install/extendInstallOptions'

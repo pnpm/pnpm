@@ -9,6 +9,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import headless from '@pnpm/headless'
 import {
   runLifecycleHooksConcurrently,
@@ -45,6 +46,7 @@ import {
   safeReadPackageFromDir as safeReadPkgFromDir,
   WantedDependency,
 } from '@pnpm/utils'
+import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
@@ -53,16 +55,14 @@ import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
-import rimraf = require('rimraf-then')
 import semver = require('semver')
-import { PnpmError } from '../errorTypes'
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import lock from '../lock'
 import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
-import save from '../save'
+import save, { PackageSpecObject } from '../save'
 import removeDeps from '../uninstall/removeDeps'
 import getPref from '../utils/getPref'
 import extendOptions, {
@@ -152,14 +152,14 @@ export async function mutateModules (
   const opts = await extendOptions(maybeOpts)
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
-    throw new PnpmError('ERR_PNPM_OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
+    throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
   const ctx = await getContext(importers, opts)
 
-  for (const importer of ctx.importers) {
-    if (!importer.manifest) {
-      throw new Error(`No package.json found in "${importer.prefix}"`)
+  for (const { manifest, prefix } of ctx.importers) {
+    if (!manifest) {
+      throw new Error(`No package.json found in "${prefix}"`)
     }
   }
 
@@ -215,17 +215,17 @@ export async function mutateModules (
           engineStrict: opts.engineStrict,
           extraBinPaths: opts.extraBinPaths,
           force: opts.force,
+          hoistedAliases: ctx.hoistedAliases,
+          hoistPattern: opts.hoistPattern,
           ignoreScripts: opts.ignoreScripts,
           importers: ctx.importers as Array<{
             bin: string,
             buildIndex: number,
-            hoistedAliases: {[depPath: string]: string[]}
             id: string,
             manifest: ImporterManifest,
             modulesDir: string,
             prefix: string,
             pruneDirectDependencies?: boolean,
-            shamefullyFlatten: boolean,
           }>,
           include: opts.include,
           independentLeaves: opts.independentLeaves,
@@ -236,6 +236,7 @@ export async function mutateModules (
           pruneStore: opts.pruneStore,
           rawNpmConfig: opts.rawNpmConfig,
           registries: opts.registries,
+          shamefullyHoist: opts.shamefullyHoist,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
           skipped: ctx.skipped,
@@ -251,7 +252,7 @@ export async function mutateModules (
 
     const importersToInstall = [] as ImporterToUpdate[]
 
-    const importersToBeInstalled = ctx.importers.filter((importer) => importer.mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
+    const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
     const scriptsOpts = {
       extraBinPaths: opts.extraBinPaths,
       rawNpmConfig: opts.rawNpmConfig,
@@ -390,22 +391,25 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
+        newPkgRawSpecs: wantedDeps.map(({ raw }) => raw),
         updatePackageJson,
         wantedDeps,
       })
     }
 
+    const equalLockfiles = lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
+    const currentLockfileIsUpToDate = !ctx.existsWantedLockfile || equalLockfiles
     // Unfortunately, the private lockfile may differ from the public one.
     // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
     const makePartialCurrentLockfile = !installsOnly && (
       ctx.existsWantedLockfile && !ctx.existsCurrentLockfile ||
       // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
       // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-      !lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
+      !equalLockfiles
     )
     const result = await installInContext(importersToInstall, ctx, {
       ...opts,
+      currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
@@ -457,10 +461,11 @@ async function partitionLinkedPackages (
       nonLinkedDependencies.push(dependency)
       continue
     }
-    const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, dependency.alias, {
+    const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
       prefix: opts.prefix,
       storePath: opts.storePath,
+      virtualStoreDir: opts.virtualStoreDir,
     })
     if (isInnerLink === true) {
       nonLinkedDependencies.push(dependency)
@@ -486,13 +491,13 @@ function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDe
   importer.dependencies = importer.dependencies || {}
   importer.devDependencies = importer.devDependencies || {}
   importer.optionalDependencies = importer.optionalDependencies || {}
-  for (const wantedDep of wantedDeps) {
-    if (wantedDep.alias && importer.specifiers[wantedDep.alias] !== wantedDep.pref) {
-      if (importer.dependencies[wantedDep.alias] && !importer.dependencies[wantedDep.alias].startsWith('link:')) {
-        delete importer.dependencies[wantedDep.alias]
+  for (const { alias, pref } of wantedDeps) {
+    if (alias && importer.specifiers[alias] !== pref) {
+      if (importer.dependencies[alias] && !importer.dependencies[alias].startsWith('link:')) {
+        delete importer.dependencies[alias]
       }
-      delete importer.devDependencies[wantedDep.alias]
-      delete importer.optionalDependencies[wantedDep.alias]
+      delete importer.devDependencies[alias]
+      delete importer.optionalDependencies[alias]
     }
   }
 }
@@ -518,7 +523,8 @@ async function linkedPackagesAreUpToDate (
         : (localPackages && localPackages[depName] && localPackages[depName] && localPackages[depName][importerDeps[depName]] && localPackages[depName][importerDeps[depName]].directory)
       if (!dir) continue
       const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
-      const localPackageSatisfiesRange = linkedPkg && semver.satisfies(linkedPkg.version, pkgDeps[depName])
+      const availableVersion = pkgDeps[depName].startsWith('workspace:') ? pkgDeps[depName].substr(10) : pkgDeps[depName]
+      const localPackageSatisfiesRange = linkedPkg && semver.satisfies(linkedPkg.version, availableVersion)
       if (isLinked !== localPackageSatisfiesRange) return false
     }
   }
@@ -568,7 +574,6 @@ export async function addDependenciesToPackage (
         peer: opts.peer,
         pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
-        shamefullyFlatten: opts.shamefullyFlatten,
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
@@ -581,7 +586,6 @@ export async function addDependenciesToPackage (
 
 type ImporterToUpdate = {
   bin: string,
-  hoistedAliases: {[depPath: string]: string[]},
   id: string,
   manifest: ImporterManifest,
   modulesDir: string,
@@ -589,7 +593,6 @@ type ImporterToUpdate = {
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
-  shamefullyFlatten: boolean,
   updatePackageJson: boolean,
   wantedDeps: WantedDependency[],
 } & DependenciesMutation
@@ -606,6 +609,7 @@ async function installInContext (
         type: 'version' | 'range' | 'tag',
       },
     },
+    currentLockfileIsUpToDate: boolean,
   },
 ) {
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
@@ -615,17 +619,14 @@ async function installInContext (
     })
   }
 
-  // Avoid requesting package meta info from registry only when the lockfile version is at least the expected
-  const hasManifestInLockfile = ctx.wantedLockfile.lockfileVersion >= LOCKFILE_VERSION
-
   ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
-  for (const importer of importers) {
-    if (!ctx.wantedLockfile.importers[importer.id]) {
-      ctx.wantedLockfile.importers[importer.id] = { specifiers: {} }
+  for (const { id } of importers) {
+    if (!ctx.wantedLockfile.importers[id]) {
+      ctx.wantedLockfile.importers[id] = { specifiers: {} }
     }
   }
   if (opts.pruneLockfileImporters) {
-    const importerIds = new Set(importers.map((importer) => importer.id))
+    const importerIds = new Set(importers.map(({ id }) => id))
     for (const wantedImporter of Object.keys(ctx.wantedLockfile.importers)) {
       if (!importerIds.has(wantedImporter)) {
         delete ctx.wantedLockfile.importers[wantedImporter]
@@ -650,27 +651,11 @@ async function installInContext (
   })
 
   const defaultUpdateDepth = (() => {
-    // This can be remove from lockfile v4
-    if (!hasManifestInLockfile) {
-      // The lockfile has to be updated to contain
-      // the necessary info from package manifests
-      return Infinity
-    }
     if (opts.force) return Infinity
     if (opts.update) {
       return opts.depth
     }
-    if (
-      modulesIsUpToDate({
-        currentLockfile: ctx.currentLockfile,
-        defaultRegistry: ctx.registries.default,
-        skippedRelDepPaths: Array.from(ctx.skipped),
-        wantedLockfile: ctx.wantedLockfile,
-      })
-    ) {
-      return opts.repeatInstallDepth
-    }
-    return Infinity
+    return -1
   })()
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth,
@@ -687,13 +672,12 @@ async function installInContext (
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies(
-    await Promise.all(importers.map((importer) => _toResolveImporter(importer))),
+    await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(opts.hoistPattern && importer.id === '.')))),
     {
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       force: opts.force,
-      hasManifestInLockfile,
       hooks: opts.hooks,
       localPackages: opts.localPackages,
       lockfileDirectory: opts.lockfileDirectory,
@@ -704,6 +688,7 @@ async function installInContext (
       sideEffectsCache: opts.sideEffectsCacheRead,
       storeController: opts.storeController,
       tag: opts.tag,
+      updateLockfile: ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION || !opts.currentLockfileIsUpToDate,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
     },
@@ -721,21 +706,19 @@ async function installInContext (
       if (!importer.manifest) {
         throw new Error('Cannot save because no package.json found')
       }
-      const specsToUpsert = <any>resolvedImporter.directDependencies // tslint:disable-line
-        .filter((dep) => importer.newPkgRawSpecs.includes(dep.specRaw))
-        .map((dep) => {
-          return {
-            name: dep.alias,
-            peer: importer.peer,
-            pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-              pinnedVersion: importer.pinnedVersion,
-              rawSpec: dep.specRaw,
-            }),
-            saveType: importer.targetDependenciesField,
-          }
-        })
+      const specsToUpsert: PackageSpecObject[] = resolvedImporter.directDependencies
+        .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
+        .map(({ alias, name, normalizedPref, specRaw, version }) => ({
+          name: alias,
+          peer: importer.peer,
+          pref: normalizedPref || getPref(alias, name, version, {
+            pinnedVersion: importer.pinnedVersion,
+            rawSpec: specRaw,
+          }),
+          saveType: importer.targetDependenciesField,
+        }))
       for (const pkgToInstall of importer.wantedDeps) {
-        if (pkgToInstall.alias && !specsToUpsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
+        if (pkgToInstall.alias && !specsToUpsert.some(({ name }) => name === pkgToInstall.alias)) {
           specsToUpsert.push({
             name: pkgToInstall.alias,
             peer: importer.peer,
@@ -770,10 +753,10 @@ async function installInContext (
     const topParents = importer.manifest
       ? await getTopParents(
           R.difference(
-            R.keys(getAllDependenciesFromPackage(importer.manifest)),
+            Object.keys(getAllDependenciesFromPackage(importer.manifest)),
             importer.newPkgRawSpecs && resolvedImporter.directDependencies
-              .filter((directDep) => importer.newPkgRawSpecs.includes(directDep.specRaw))
-              .map((directDep) => directDep.alias) || [],
+              .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
+              .map(({ alias }) => alias) || [],
           ),
           importer.modulesDir,
         )
@@ -782,7 +765,6 @@ async function installInContext (
     return {
       bin: importer.bin,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      hoistedAliases: importer.hoistedAliases,
       id: importer.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
       manifest: newPkg || importer.manifest,
@@ -790,7 +772,6 @@ async function installInContext (
       prefix: importer.prefix,
       pruneDirectDependencies: importer.pruneDirectDependencies,
       removePackages: importer.removePackages,
-      shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
     }
   }))
@@ -803,6 +784,9 @@ async function installInContext (
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       force: opts.force,
+      hoistedAliases: ctx.hoistedAliases,
+      hoistedModulesDir: ctx.hoistedModulesDir,
+      hoistPattern: opts.hoistPattern,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
@@ -810,6 +794,7 @@ async function installInContext (
       outdatedDependencies,
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: ctx.skipped,
       storeController: opts.storeController,
       strictPeerDependencies: opts.strictPeerDependencies,
@@ -842,7 +827,7 @@ async function installInContext (
       await buildModules(result.depGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
-        extraBinPaths: opts.extraBinPaths,
+        extraBinPaths: ctx.extraBinPaths,
         optional: opts.include.optionalDependencies,
         prefix: ctx.lockfileDirectory,
         rawNpmConfig: opts.rawNpmConfig,
@@ -867,6 +852,18 @@ async function installInContext (
     }
   }
 
+  // waiting till the skipped packages are downloaded to the store
+  await Promise.all(
+    R.props<string, ResolvedPackage>(Array.from(ctx.skipped), resolvedPackagesByPackageId)
+      // skipped packages might have not been reanalized on a repeat install
+      // so lets just ignore those by excluding nulls
+      .filter(Boolean)
+      .map(({ fetchingFiles }) => fetchingFiles()),
+  )
+
+  // waiting till package requests are finished
+  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing()))
+
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
     await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
@@ -879,18 +876,10 @@ async function installInContext (
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
-        return writeModulesYaml(ctx.virtualStoreDir, {
+        return writeModulesYaml(ctx.rootModulesDir, {
           ...ctx.modulesFile,
-          importers: {
-            ...ctx.modulesFile && ctx.modulesFile.importers,
-            ...importersToLink.reduce((acc, importer) => {
-              acc[importer.id] = {
-                hoistedAliases: importer.hoistedAliases,
-                shamefullyFlatten: importer.shamefullyFlatten,
-              }
-              return acc
-            }, {}),
-          },
+          hoistedAliases: result.newHoistedAliases,
+          hoistPattern: opts.hoistPattern,
           included: ctx.include,
           independentLeaves: opts.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
@@ -904,24 +893,12 @@ async function installInContext (
     ])
   }
 
-  // waiting till the skipped packages are downloaded to the store
-  await Promise.all(
-    R.props<string, ResolvedPackage>(Array.from(ctx.skipped), resolvedPackagesByPackageId)
-      // skipped packages might have not been reanalized on a repeat install
-      // so lets just ignore those by excluding nulls
-      .filter(Boolean)
-      .map((pkg) => pkg.fetchingFiles),
-  )
-
-  // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByPackageId).map((installed) => installed.finishing))
-
   summaryLogger.debug({ prefix: opts.lockfileDirectory })
 
   await opts.storeController.close()
 
   return {
-    importers: importersToLink.map((importer) => ({ prefix: importer.prefix, manifest: importer.manifest })),
+    importers: importersToLink.map(({ manifest, prefix }) => ({ prefix, manifest })),
     wantedLockfile: ctx.wantedLockfile,
   }
 }
@@ -941,6 +918,7 @@ async function toResolveImporter (
     },
   },
   importer: ImporterToUpdate,
+  hoist: boolean,
 ) {
   const allDeps = getWantedDependencies(importer.manifest)
   const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
@@ -956,16 +934,16 @@ async function toResolveImporter (
     isNew: true,
   }))
   const existingDeps = nonLinkedDependencies
-    .filter((nonLinkedDependency) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === nonLinkedDependency.alias))
+    .filter(({ alias }) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
-  if (!importer.manifest || importer.shamefullyFlatten) {
+  if (!importer.manifest || hoist) {
     wantedDependencies = [
       ...depsToUpdate,
       ...existingDeps,
     ]
     .map((dep) => ({
       ...dep,
-      updateDepth: importer.shamefullyFlatten ? Infinity : opts.defaultUpdateDepth,
+      updateDepth: hoist ? Infinity : opts.defaultUpdateDepth,
     }))
   } else {
     wantedDependencies = [
@@ -977,7 +955,7 @@ async function toResolveImporter (
     ...importer,
     preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
     wantedDependencies: wantedDependencies
-      .filter((wantedDep) => wantedDep.updateDepth >= 0 || !linkedAliases.has(wantedDep.alias)),
+      .filter(({ alias, updateDepth }) => updateDepth >= 0 || !linkedAliases.has(alias)),
   }
 }
 
@@ -999,22 +977,6 @@ async function linkAllBins (
   return Promise.all(
     depNodes.map((depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))),
   )
-}
-
-function modulesIsUpToDate (
-  opts: {
-    defaultRegistry: string,
-    currentLockfile: Lockfile,
-    wantedLockfile: Lockfile,
-    skippedRelDepPaths: string[],
-  }
-) {
-  const currentWithSkipped = [
-    ...R.keys(opts.currentLockfile.packages),
-    ...opts.skippedRelDepPaths,
-  ]
-  currentWithSkipped.sort()
-  return R.equals(R.keys(opts.wantedLockfile.packages), currentWithSkipped)
 }
 
 function addDirectDependenciesToLockfile (
@@ -1053,7 +1015,11 @@ function addDirectDependenciesToLockfile (
   const optionalDependencies = R.keys(newManifest.optionalDependencies)
   const dependencies = R.difference(R.keys(newManifest.dependencies), optionalDependencies)
   const devDependencies = R.difference(R.difference(R.keys(newManifest.devDependencies), optionalDependencies), dependencies)
-  const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
+  const allDeps = [
+    ...optionalDependencies,
+    ...devDependencies,
+    ...dependencies,
+  ]
 
   for (const alias of allDeps) {
     if (directDependenciesByAlias[alias]) {
@@ -1120,8 +1086,9 @@ async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir),
   )
-  return pkgs.filter(Boolean).map((manifest: DependencyManifest) => ({
-    name: manifest.name,
-    version: manifest.version,
-  }))
+  return (
+    pkgs
+    .filter(Boolean) as DependencyManifest[]
+  )
+    .map(({ name, version }: DependencyManifest) => ({ name, version }))
 }

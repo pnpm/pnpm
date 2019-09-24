@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "3.2.8",
+  "version": "4.0.0-2",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,22 +34,22 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "dependencies": {
-    "@pnpm/config": "3.4.0",
-    "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/config": "workspace:4.0.0-2",
+    "@pnpm/core-loggers": "workspace:3.0.3",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/types": "workspace:3.2.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
     "chalk": "2.4.2",
-    "cli-cursor": "3.1.0",
     "common-tags": "1.8.0",
     "most": "1.7.3",
     "normalize-path": "3.0.0",
-    "pretty-bytes": "5.2.0",
+    "pretty-bytes": "5.3.0",
     "pretty-time": "1.1.0",
     "ramda": "0.26.1",
     "right-pad": "1.0.1",
-    "semver": "6.1.1",
-    "stacktracey": "1.2.112",
+    "semver": "6.3.0",
+    "stacktracey": "1.2.117",
     "string-length": "3.1.0",
     "strip-ansi": "5.2.0"
   },
@@ -57,13 +57,13 @@
     "@pnpm/default-reporter": "link:",
     "@pnpm/logger": "2.1.1",
     "@types/common-tags": "1.8.0",
-    "@types/ramda": "0.25.34",
-    "@types/semver": "6.0.0",
+    "@types/ramda": "0.26.21",
+    "@types/semver": "6",
     "delay": "4.3.0",
     "ghooks": "2.0.4",
-    "load-json-file": "6.0.0",
+    "load-json-file": "6.2.0",
     "normalize-newline": "3.0.0",
-    "rimraf": "2.6.3",
-    "tape": "4.10.2"
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   }
 }

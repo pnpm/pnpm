@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "1.0.12",
+  "version": "3.0.0-2",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -10,8 +10,9 @@
   "scripts": {
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "prepareFixtures": "cd test && pnpm recursive install --no-link-workspace-packages && cd ..",
-    "prepublishOnly": "tsc",
+    "prepareFixtures": "cd test && node ../../pnpm recursive install --no-link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
+    "prepublishOnly": "pnpm run tsc",
+    "pretest": "pnpm run pretest --filter dependencies-hierarchy",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "tsc": "tsc"
   },
@@ -35,14 +36,15 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
-    "@pnpm/read-importer-manifest": "1.0.4",
-    "@pnpm/read-package-json": "2.0.2",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/read-importer-manifest": "workspace:1.0.9",
+    "@pnpm/read-package-json": "workspace:2.0.3",
+    "@pnpm/types": "workspace:3.2.0",
     "@zkochan/npm-package-arg": "1.0.2",
     "archy": "1.0.0",
     "chalk": "2.4.2",
-    "dependencies-hierarchy": "5.0.10",
-    "p-limit": "2.2.0",
+    "cli-columns": "3.1.2",
+    "dependencies-hierarchy": "workspace:7.0.0-2",
+    "p-limit": "2.2.1",
     "ramda": "0.26.1"
   },
   "devDependencies": {
@@ -50,8 +52,8 @@
     "@pnpm/logger": "2.1.1",
     "@types/archy": "0.0.31",
     "@types/common-tags": "1.8.0",
-    "@types/ramda": "0.25.39",
+    "@types/ramda": "0.26.21",
     "common-tags": "1.8.0",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   }
 }

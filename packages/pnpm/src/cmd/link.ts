@@ -1,8 +1,4 @@
 import { StoreController } from '@pnpm/package-store'
-import readImporterManifest, {
-  readImporterManifestOnly,
-  tryReadImporterManifest,
-} from '@pnpm/read-importer-manifest'
 import pLimit from 'p-limit'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -17,6 +13,10 @@ import {
 import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfigs from '../getConfigs'
+import readImporterManifest, {
+  readImporterManifestOnly,
+  tryReadImporterManifest,
+} from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 const installLimit = pLimit(4)
@@ -31,7 +31,7 @@ export default async (
   let workspacePackages
   let localPackages!: LocalPackages
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {
-    workspacePackages = await findWorkspacePackages(opts.workspacePrefix)
+    workspacePackages = await findWorkspacePackages(opts.workspacePrefix, opts)
     localPackages = arrayOfLocalPackagesToMap(workspacePackages)
   } else {
     localPackages = {}
@@ -46,7 +46,7 @@ export default async (
 
   // pnpm link
   if (!input || !input.length) {
-    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalPrefix)
+    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalPrefix, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       manifest: manifest || {},
@@ -60,7 +60,7 @@ export default async (
   if (pkgNames.length) {
     let globalPkgNames!: string[]
     if (opts.workspacePrefix) {
-      workspacePackages = await findWorkspacePackages(opts.workspacePrefix)
+      workspacePackages = await findWorkspacePackages(opts.workspacePrefix, opts)
 
       const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.includes(pkg.manifest.name))
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))
@@ -81,7 +81,7 @@ export default async (
     pkgPaths.map((prefix) => installLimit(async () => {
       const s = await createStoreController(storeControllerCache, opts)
       await install(
-        await readImporterManifestOnly(prefix), {
+        await readImporterManifestOnly(prefix, opts), {
           ...await getConfigs(
             { ...opts.cliArgs, prefix },
             {
@@ -96,7 +96,14 @@ export default async (
       )
     })),
   )
-  const { manifest, writeImporterManifest } = await readImporterManifest(cwd)
+  const { manifest, writeImporterManifest } = await readImporterManifest(cwd, opts)
+
+  // When running `pnpm link --production ../source`
+  // only the `source` project should be pruned using the --production flag.
+  // The target directory should keep its existing dependencies.
+  // Except the ones that are replaced by the link.
+  delete linkOpts.include
+
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,
     manifest,

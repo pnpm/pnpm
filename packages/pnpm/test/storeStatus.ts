@@ -1,5 +1,5 @@
 import prepare from '@pnpm/prepare'
-import rimraf = require('rimraf-then')
+import rimraf = require('@zkochan/rimraf')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from './utils'

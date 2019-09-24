@@ -2,12 +2,17 @@ import { PnpmConfigs } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
 import createDiffer = require('ansi-diff')
-import cliCursor = require('cli-cursor')
 import most = require('most')
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
 import reporterForServer from './reporterForServer'
+
+let lastChar: string = ''
+
+process.on('exit', () => {
+  if (lastChar && lastChar !== EOL) process.stdout.write(EOL)
+})
 
 export default function (
   opts: {
@@ -39,7 +44,6 @@ export default function (
       })
     return
   }
-  cliCursor.hide()
   const diff = createDiffer({
     height: process.stdout.rows,
     outputMaxWidth,
@@ -51,7 +55,8 @@ export default function (
       next: logUpdate,
     })
   function logUpdate (view: string) {
-    process.stdout.write(diff.update(`${view}${EOL}`))
+    lastChar = view[view.length - 1]
+    process.stdout.write(diff.update(view))
   }
 }
 

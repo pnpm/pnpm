@@ -53,8 +53,12 @@ export default function<T> (pkgs: Array<Package & T>): {
     return Object.keys(dependencies)
       .map(depName => {
         let spec!: { fetchSpec: string, type: string }
+        let rawSpec = dependencies[depName]
         try {
-          spec = npa.resolve(depName, dependencies[depName], pkg.path)
+          if (rawSpec.startsWith('workspace:')) {
+            rawSpec = rawSpec.substr(10)
+          }
+          spec = npa.resolve(depName, rawSpec, pkg.path)
         } catch (err) {
           return ''
         }
@@ -69,18 +73,16 @@ export default function<T> (pkgs: Array<Package & T>): {
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
 
-        const range = dependencies[depName]
-
         const pkgs = R.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
         if (!pkgs.length) return ''
         const versions = pkgs.map(pkg => pkg.manifest.version)
-        if (versions.indexOf(range) !== -1) {
-          const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === range)
+        if (versions.indexOf(rawSpec) !== -1) {
+          const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
           return matchedPkg!.path
         }
-        const matched = semver.maxSatisfying(versions, range)
+        const matched = semver.maxSatisfying(versions, rawSpec)
         if (!matched) {
-          unmatched.push({ pkgName: depName, range })
+          unmatched.push({ pkgName: depName, range: rawSpec })
           return ''
         }
         const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === matched)

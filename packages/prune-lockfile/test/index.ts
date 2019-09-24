@@ -8,7 +8,6 @@ import test = require('tape')
 import yaml = require('yaml-tag')
 
 const DEFAULT_OPTS = {
-  defaultRegistry: 'https://registry.npmjs.org',
   warn (msg: string) {
     // ignore
   },

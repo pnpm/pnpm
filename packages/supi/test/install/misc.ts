@@ -7,6 +7,8 @@ import {
   StatsLog,
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import { getIntegrity } from '@pnpm/registry-mock'
+import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
@@ -15,16 +17,17 @@ import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import rimraf = require('rimraf-then')
 import semver = require('semver')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')
+import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
   local,
@@ -478,10 +481,10 @@ test('concurrent circular deps', async (t: tape.Test) => {
   const m = project.requireModule('es6-iterator')
 
   t.ok(m, 'es6-iterator is installed')
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.0', 'node_modules', 'es5-ext')))
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.1', 'node_modules', 'es5-ext')))
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.31', 'node_modules', 'es6-iterator')))
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.31', 'node_modules', 'es6-symbol')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es6-iterator/2.0.0/node_modules/es5-ext')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es6-iterator/2.0.1/node_modules/es5-ext')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es5-ext/0.10.31/node_modules/es6-iterator')))
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/es5-ext/0.10.31/node_modules/es6-symbol')))
 })
 
 test('concurrent installation of the same packages', async (t) => {
@@ -578,12 +581,12 @@ test('bin specified in the directories property linked to .bin folder', async (t
 test('building native addons', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['runas@3.1.1'], await testDefaults())
+  await addDependenciesToPackage({}, ['diskusage@1.1.3'], await testDefaults())
 
-  t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
+  t.ok(await exists('node_modules/diskusage/build'), 'build folder created')
 
   const lockfile = await project.readLockfile()
-  t.ok(lockfile.packages['/runas/3.1.1'].requiresBuild)
+  t.ok(lockfile.packages['/diskusage/1.1.3'].requiresBuild)
 })
 
 test('should update subdep on second install', async (t: tape.Test) => {
@@ -737,7 +740,7 @@ test('lockfile locks npm dependencies', async (t: tape.Test) => {
     status: 'found_in_store',
   } as ProgressLog), 'logged that package was found in store')
 
-  const m = project.requireModule('.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
+  const m = project.requireModule('.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 
   t.equal(m.version, '100.0.0', `dependency specified in ${WANTED_LOCKFILE} is installed`)
 })
@@ -849,7 +852,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 test('reinstalls missing packages to node_modules', async (t) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
-  const depLocation = path.resolve('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive')
+  const depLocation = path.resolve('node_modules/.pnpm/localhost+4873/is-positive/1.0.0/node_modules/is-positive')
   const missingDepLog = {
     level: 'debug',
     missing: depLocation,
@@ -885,7 +888,7 @@ test('reinstalls missing packages to node_modules', async (t) => {
 test('reinstalls missing packages to node_modules during headless install', async (t) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
-  const depLocation = path.resolve('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive')
+  const depLocation = path.resolve('node_modules/.pnpm/localhost+4873/is-positive/1.0.0/node_modules/is-positive')
   const missingDepLog = {
     level: 'debug',
     missing: depLocation,
@@ -914,4 +917,192 @@ test('reinstalls missing packages to node_modules during headless install', asyn
 
   t.ok(reporter.calledWithMatch(missingDepLog))
   t.ok(await import(path.resolve('node_modules/is-positive')))
+})
+
+test('do not update deps when lockfile is present', async (t) => {
+  await addDistTag('peer-a', '1.0.0', 'latest')
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['peer-a'], await testDefaults({ lockfileOnly: true }))
+
+  const initialLockfile = await project.readLockfile()
+
+  await addDistTag('peer-a', '1.0.1', 'latest')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      prefix: process.cwd(),
+    }
+  ], await testDefaults({ preferFrozenLockfile: false }))
+
+  const latestLockfile = await project.readLockfile()
+
+  t.deepEqual(initialLockfile, latestLockfile)
+})
+
+test('all the subdeps of dependencies are linked when a node_modules is partially up-to-date', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'foobarqar': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults())
+
+  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+    dependencies: {
+      foobarqar: '1.0.1',
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/bar/100.0.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('bar', '100.0.0'),
+        },
+      },
+      '/foo/100.1.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('foo', '100.1.0'),
+        },
+      },
+      '/foobarqar/1.0.1': {
+        dependencies: {
+          'bar': '100.0.0',
+          'foo': '100.1.0',
+          'is-positive': '3.1.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('foobarqar', '1.0.1'),
+        },
+      },
+      '/is-positive/3.1.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+        },
+      },
+    },
+    specifiers: {
+      foobarqar: '1.0.1'
+    },
+  })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'foobarqar': '1.0.1',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ preferFrozenLockfile: false }))
+
+  t.deepEqual(
+    await fs.readdir(path.resolve('node_modules/.pnpm/localhost+4873/foobarqar/1.0.1/node_modules')),
+    [
+      'bar',
+      'foo',
+      'foobarqar',
+      'is-positive',
+    ],
+  )
+})
+
+test('subdep symlinks are updated if the lockfile has new subdep versions specified', async (t: tape.Test) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  const project = prepareEmpty(t)
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'parent-of-pkg-with-1-dep': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  t.deepEqual(
+    Object.keys(lockfile.packages),
+    [
+      '/dep-of-pkg-with-1-dep/100.0.0',
+      '/parent-of-pkg-with-1-dep/1.0.0',
+      '/pkg-with-1-dep/100.0.0',
+    ],
+  )
+
+  await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
+    dependencies: {
+      'parent-of-pkg-with-1-dep': '1.0.0',
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/dep-of-pkg-with-1-dep/100.1.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
+        },
+      },
+      '/parent-of-pkg-with-1-dep/1.0.0': {
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('parent-of-pkg-with-1-dep', '1.0.0'),
+        },
+      },
+      '/pkg-with-1-dep/100.0.0': {
+        dependencies: {
+          'dep-of-pkg-with-1-dep': '100.1.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('pkg-with-1-dep', '100.0.0'),
+        },
+      },
+    },
+    specifiers: {
+      'parent-of-pkg-with-1-dep': '1.0.0',
+    },
+  })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'parent-of-pkg-with-1-dep': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      prefix: process.cwd(),
+    },
+  ], await testDefaults({ preferFrozenLockfile: false }))
+
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')))
 })

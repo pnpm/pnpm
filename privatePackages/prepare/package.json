@@ -6,18 +6,16 @@
   "typings": "lib/index.d.ts",
   "dependencies": {
     "@pnpm/assert-project": "2.0.0",
-    "@pnpm/modules-yaml": "3.0.3",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/types": "file:../../packages/types",
     "@types/mkdirp": "0.5.2",
-    "@types/write-pkg": "3.1.0",
     "make-dir": "3.0.0",
-    "tape": "4.10.2",
-    "write-json5-file": "2.1.1",
+    "tape": "4.11.0",
+    "write-json5-file": "2.1.2",
     "write-pkg": "4.0.0",
     "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
-    "rimraf": "2.6.3",
+    "rimraf": "3.0.0",
     "tslint-config-standard": "8.0.1",
     "tslint-eslint-rules": "5.4.0"
   },

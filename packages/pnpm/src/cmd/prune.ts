@@ -1,6 +1,6 @@
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { InstallOptions, mutateModules } from 'supi'
 import createStoreController from '../createStoreController'
+import { readImporterManifestOnly } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 
 export default async (input: string[], opts: PnpmOptions) => {
@@ -8,7 +8,7 @@ export default async (input: string[], opts: PnpmOptions) => {
   return mutateModules([
     {
       buildIndex: 0,
-      manifest: await readImporterManifestOnly(process.cwd()),
+      manifest: await readImporterManifestOnly(process.cwd(), opts),
       mutation: 'install',
       prefix: process.cwd(),
       pruneDirectDependencies: true,

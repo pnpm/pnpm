@@ -1,11 +1,9 @@
 import {
   IncludedDependencies,
   LogBase,
-  PackageManifest,
+  ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-
-export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
 
 export interface PnpmOptions {
   argv: {
@@ -23,6 +21,7 @@ export interface PnpmOptions {
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   prefix: string,
+  localPrefix: string,
   bin?: string,
   ignoreScripts?: boolean
   save?: boolean,
@@ -82,7 +81,7 @@ export interface PnpmOptions {
   pnpmfile: string,
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  shamefullyFlatten?: boolean,
+  hoistPattern?: string,
   useStoreServer?: boolean,
   workspaceConcurrency: number,
   workspacePrefix?: string,

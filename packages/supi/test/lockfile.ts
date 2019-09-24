@@ -3,17 +3,17 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
-import { Lockfile } from '@pnpm/lockfile-file'
+import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { PackageJson } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
-import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
@@ -66,10 +66,10 @@ test('lockfile has correct format', async (t: tape.Test) => {
   t.ok(lockfile.packages, 'has packages field')
   t.ok(lockfile.packages[id], `has resolution for ${id}`)
   t.ok(lockfile.packages[id].dependencies, `has dependency resolutions for ${id}`)
-  t.ok(lockfile.packages[id].dependencies['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
+  t.ok(lockfile.packages[id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
   t.ok(lockfile.packages[id].resolution, `has resolution for ${id}`)
-  t.ok(lockfile.packages[id].resolution.integrity, `has integrity for package in the default registry`)
-  t.notOk(lockfile.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
+  t.ok((lockfile.packages[id].resolution as {integrity: string}).integrity, `has integrity for package in the default registry`)
+  t.notOk((lockfile.packages[id].resolution as TarballResolution).tarball, `has no tarball for package in the default registry`)
 
   const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
   t.ok(lockfile.packages[absDepPath])
@@ -148,7 +148,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
       dependencies: {
         'is-negative': '2.1.0',
       },
-    }, await testDefaults())
+    }, await testDefaults({}, {}, { fetchRetries: 0 }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'EINTEGRITY')
@@ -165,7 +165,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   t.equal(
-    project.requireModule('.localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
+    project.requireModule('.pnpm/localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
 
@@ -339,8 +339,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/bar'))).version, '100.0.0')
 
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
@@ -365,8 +365,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/bar'))).version, '100.0.0')
 })
 
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async (t: tape.Test) => {
@@ -390,7 +390,7 @@ test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not
     },
   }
 
-  lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+  lockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies!['dep-of-pkg-with-1-dep'] = '100.1.0'
 
   await writeYamlFile(WANTED_LOCKFILE, lockfile)
 
@@ -831,7 +831,7 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
 
   const lockfile = await project.readLockfile()
 
-  t.equal(lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, 'esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
+  t.equal((lockfile.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution as TarballResolution).tarball, 'esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {
@@ -907,7 +907,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
   t.equal(modules['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
 
   {
-    const lockfile = await readYamlFile(WANTED_LOCKFILE) as Lockfile
+    const lockfile: Lockfile = await readYamlFile(WANTED_LOCKFILE)
     const id = '/pkg-with-1-dep/100.0.0'
 
     t.equal(lockfile.lockfileVersion, 5.1, 'correct lockfile version')
@@ -1073,4 +1073,31 @@ test(`use current ${WANTED_LOCKFILE} as initial wanted one, when wanted was remo
 
   await project.has('lodash')
   await project.has('underscore')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1876
+test('existing dependencies are preserved when updating a lockfile to a newer format', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults())
+
+  const initialLockfile = await project.readLockfile()
+  await writeYamlFile(WANTED_LOCKFILE, { ...initialLockfile, lockfileVersion: 5.01 })
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      prefix: process.cwd(),
+    }
+  ], await testDefaults())
+
+  const updatedLockfile = await project.readLockfile()
+
+  t.deepEqual(initialLockfile.packages, updatedLockfile.packages, 'dependency versions preserved')
 })

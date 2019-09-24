@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "3.0.3",
+  "version": "4.0.0-0",
   "description": "Types for the store controller",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -27,10 +27,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/store-controller-types#readme",
   "devDependencies": {
-    "rimraf": "2.6.3"
+    "rimraf": "3.0.0"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/types": "3.2.0"
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/types": "workspace:3.2.0"
   }
 }

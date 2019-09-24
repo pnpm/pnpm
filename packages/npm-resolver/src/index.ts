@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import {
   LocalPackages,
   ResolveResult,
@@ -19,8 +20,17 @@ import pickPackage, {
   PackageInRegistry,
   PackageMeta,
   PackageMetaCache,
+  PickPackageOptions,
 } from './pickPackage'
 import toRaw from './toRaw'
+
+class NoMatchingVersionError extends PnpmError {
+  public readonly packageMeta: PackageMeta
+  constructor (opts: { spec: RegistryPackageSpec, packageMeta: PackageMeta}) {
+    super('NO_MATCHING_VERSION', `No matching version found for ${toRaw(opts.spec)}`)
+    this.packageMeta = opts.packageMeta
+  }
+}
 
 export {
   PackageMeta,
@@ -118,16 +128,27 @@ export type ResolveFromNpmOptions = {
 
 async function resolveNpm (
   ctx: {
-    pickPackage: (spec: RegistryPackageSpec, opts: object) => ReturnType<typeof pickPackage>,
+    pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>,
     getCredentialsByURI: (registry: string) => object,
   },
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions,
 ): Promise<ResolveResult | null> {
+  const defaultTag = opts.defaultTag || 'latest'
+  const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
+    defaultTag,
+    localPackages: opts.localPackages,
+    prefix: opts.prefix,
+    registry: opts.registry,
+  })
+  if (resolvedFromWorkspace) {
+    return resolvedFromWorkspace
+  }
   const spec = wantedDependency.pref
-    ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
-    : defaultTagForAlias(wantedDependency.alias!, opts.defaultTag || 'latest')
+    ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
+    : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (!spec) return null
+
   const auth = ctx.getCredentialsByURI(opts.registry)
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
   try {
@@ -151,12 +172,7 @@ async function resolveNpm (
       const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
       if (resolvedFromLocal) return resolvedFromLocal
     }
-    const err = new Error(`No matching version found for ${toRaw(spec)}`)
-    // tslint:disable:no-string-literal
-    err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
-    err['packageMeta'] = meta
-    // tslint:enable:no-string-literal
-    throw err
+    throw new NoMatchingVersionError({ spec, packageMeta: meta })
   }
 
   if (opts.localPackages && opts.localPackages[pickedPackage.name]) {
@@ -189,6 +205,37 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
   }
+}
+
+function tryResolveFromWorkspace (
+  wantedDependency: WantedDependency,
+  opts: {
+    defaultTag: string,
+    localPackages?: LocalPackages,
+    prefix?: string,
+    registry: string,
+  }
+) {
+  if (!wantedDependency.pref || !wantedDependency.pref.startsWith('workspace:')) {
+    return null
+  }
+  const pref = wantedDependency.pref.substr(10)
+  const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
+  if (!spec) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
+  if (!opts.localPackages) {
+    throw new Error('Cannot resolve package from workspace because opts.localPackages is not defined')
+  }
+  if (!opts.prefix) {
+    throw new Error('Cannot resolve package from workspace because opts.prefix is not defined')
+  }
+  const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
+  if (!resolvedFromLocal) {
+    throw new PnpmError(
+      'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
+      `No matching version found for ${wantedDependency.alias}@${pref} inside the workspace`,
+    )
+  }
+  return resolvedFromLocal
 }
 
 function tryResolveFromLocalPackages (

@@ -5,8 +5,8 @@ import {
 import binify from '@pnpm/package-bins'
 import { DependenciesField, DependencyManifest } from '@pnpm/types'
 import { safeReadPackageFromDir } from '@pnpm/utils'
+import rimraf = require('@zkochan/rimraf')
 import path = require('path')
-import rimraf = require('rimraf-then')
 
 export default async function removeDirectDependency (
   dependency: {
@@ -23,7 +23,7 @@ export default async function removeDirectDependency (
 ) {
   const results = await Promise.all([
     removeBins(dependency.name, opts),
-    !opts.dryRun && remove(path.join(opts.modulesDir, dependency.name)),
+    !opts.dryRun && remove(path.join(opts.modulesDir, dependency.name)) as any, // tslint:disable-line:no-any
   ])
 
   const uninstalledPkg = results[0]

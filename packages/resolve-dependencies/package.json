@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "7.0.1",
+  "version": "10.0.0-0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,26 +30,27 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/lockfile-utils": "1.0.9",
-    "@pnpm/npm-resolver": "3.0.13",
-    "@pnpm/package-is-installable": "2.0.7",
-    "@pnpm/resolver-base": "3.1.2",
-    "@pnpm/store-controller-types": "3.0.3",
-    "@pnpm/types": "3.2.0",
-    "@pnpm/utils": "0.10.5",
-    "dependency-path": "3.0.7",
+    "@pnpm/core-loggers": "workspace:3.0.3",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/lockfile-types": "workspace:1.1.0",
+    "@pnpm/lockfile-utils": "workspace:1.0.10",
+    "@pnpm/npm-resolver": "workspace:3.1.1",
+    "@pnpm/package-is-installable": "workspace:2.2.1",
+    "@pnpm/resolver-base": "workspace:3.1.2",
+    "@pnpm/store-controller-types": "workspace:4.0.0-0",
+    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/utils": "workspace:0.10.6",
+    "dependency-path": "workspace:3.0.8",
     "path-exists": "4.0.0",
     "ramda": "0.26.1",
     "replace-string": "3.0.0",
-    "semver": "6.1.1"
+    "semver": "6.3.0"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",
     "@pnpm/resolve-dependencies": "link:",
-    "@types/ramda": "0.25.38",
-    "@types/semver": "6.0.0",
-    "rimraf": "2.6.3"
+    "@types/ramda": "0.26.21",
+    "@types/semver": "6",
+    "rimraf": "3.0.0"
   }
 }

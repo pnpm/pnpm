@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "3.1.12",
+  "version": "3.1.16",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,16 +32,17 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/fetcher-base": "3.0.4",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/fetcher-base": "workspace:3.0.4",
     "credentials-by-uri": "1.0.0",
-    "fetch-from-npm-registry": "2.0.5",
-    "graceful-fs": "4.1.15",
+    "fetch-from-npm-registry": "workspace:2.0.7",
+    "graceful-fs": "4.2.1",
     "make-dir": "3.0.0",
-    "mem": "5.1.0",
+    "mem": "5.1.1",
     "mz": "2.7.0",
     "path-temp": "2.0.0",
     "retry": "0.12.0",
-    "rimraf": "2.6.3",
+    "rimraf": "3.0.0",
     "ssri": "6.0.1",
     "unpack-stream": "6.0.0"
   },
@@ -50,13 +51,12 @@
     "@pnpm/tarball-fetcher": "link:",
     "@types/graceful-fs": "^4.1.2",
     "@types/mz": "^0.0.32",
-    "@types/nock": "^10.0.0",
     "@types/retry": "^0.12.0",
     "@types/rimraf": "^2.0.2",
     "@types/ssri": "^6.0.1",
     "cp-file": "7.0.0",
-    "nock": "10.0.6",
-    "tape": "4.10.2",
+    "nock": "11.3.5",
+    "tape": "4.11.0",
     "tempy": "0.3.0"
   }
 }

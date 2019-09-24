@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import {
   FetchFunction,
   FetchOptions,
@@ -13,7 +14,6 @@ import rimraf = require('rimraf')
 import ssri = require('ssri')
 import * as unpackStream from 'unpack-stream'
 import createDownloader, { DownloadFunction } from './createDownloader'
-import { PnpmError } from './errorTypes'
 
 export type IgnoreFunction = (filename: string) => boolean
 
@@ -72,7 +72,7 @@ export default function (
         offline: opts.offline,
       }),
       ignore: opts.ignoreFile,
-    }),
+    }) as FetchFunction,
   }
 }
 
@@ -86,7 +86,7 @@ function fetchFromTarball (
         tarball: string,
       },
       opts: FetchOptions
-    ) => unpackStream.Index,
+    ) => Promise<FetchResult>,
     ignore?: IgnoreFunction,
   },
   resolution: {
@@ -109,9 +109,9 @@ function fetchFromTarball (
 
 async function fetchFromRemoteTarball (
   ctx: {
-    offline: boolean,
+    offline?: boolean,
     download: DownloadFunction,
-    ignoreFile: IgnoreFunction,
+    ignoreFile?: IgnoreFunction,
     getCredentialsByURI: (registry: string) => {
       scope: string,
       token: string | undefined,
@@ -140,7 +140,7 @@ async function fetchFromRemoteTarball (
       case 'Z_BUF_ERROR':
         if (ctx.offline) {
           throw new PnpmError(
-            'ERR_PNPM_CORRUPTED_TARBALL',
+            'CORRUPTED_TARBALL',
             `The cached tarball at "${opts.cachedTarballLocation}" is corrupted. Cannot redownload it as offline mode was requested.`,
           )
         }
@@ -149,7 +149,7 @@ async function fetchFromRemoteTarball (
       case 'EINTEGRITY':
         if (ctx.offline) {
           throw new PnpmError(
-            'ERR_PNPM_BAD_TARBALL_CHECKSUM',
+            'BAD_TARBALL_CHECKSUM',
             `The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Cannot redownload it as offline mode was requested.`,
           )
         }
@@ -157,7 +157,7 @@ async function fetchFromRemoteTarball (
         break
       case 'ENOENT':
         if (ctx.offline) {
-          throw new PnpmError('ERR_PNPM_NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
+          throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
         }
         break
       default:

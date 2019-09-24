@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
@@ -6,10 +7,9 @@ import {
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
-import { Dependencies, PackageManifest } from '@pnpm/types'
+import { Dependencies, DependencyManifest } from '@pnpm/types'
 import {
   createNodeId,
-  ROOT_NODE_ID,
   splitNodeId,
 } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
@@ -18,7 +18,6 @@ import importFrom = require('import-from')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
-import { PnpmError } from '../errorTypes'
 
 export interface DependenciesGraphNode {
   name: string,
@@ -28,8 +27,8 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean,
   centralLocation: string,
   modules: string,
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageManifest>,
+  fetchingBundledManifest?: () => Promise<DependencyManifest>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
   resolution: Resolution,
   peripheralLocation: string,
   children: {[alias: string]: string},
@@ -89,20 +88,19 @@ export default function (
   const depGraph: DependenciesGraph = {}
   const absolutePathsByNodeId = {}
 
-  for (const importer of opts.importers) {
-    const { directNodeIdsByAlias, topParents } = importer
+  for (const { directNodeIdsByAlias, topParents, prefix } of opts.importers) {
     const pkgsByName = Object.assign(
       R.fromPairs(
-        topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
-          parent.name,
+        topParents.map(({ name, version }: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
+          name,
           {
             depth: 0,
-            version: parent.version,
+            version,
           },
         ]),
       ),
       toPkgByName(
-        R
+        Object
           .keys(directNodeIdsByAlias)
           .map((alias) => ({
             alias,
@@ -118,7 +116,7 @@ export default function (
       depGraph,
       independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
-      prefix: importer.prefix,
+      prefix,
       purePkgs: new Set(),
       strictPeerDependencies: opts.strictPeerDependencies,
       virtualStoreDir: opts.virtualStoreDir,
@@ -133,9 +131,8 @@ export default function (
   })
 
   const importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}} = {}
-  for (const importer of opts.importers) {
-    const { directNodeIdsByAlias } = importer
-    importersDirectAbsolutePathsByAlias[importer.id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
+  for (const { directNodeIdsByAlias, id } of opts.importers) {
+    importersDirectAbsolutePathsByAlias[id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
       rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[directNodeIdsByAlias[alias]]
       return rootAbsolutePathsByAlias
     }, {})
@@ -172,7 +169,7 @@ function resolvePeersOfNode (
     ? parentParentPkgs
     : {
       ...parentParentPkgs,
-      ...toPkgByName(R.keys(children).map((alias) => ({ alias, nodeId: children[alias], node: ctx.dependenciesTree[children[alias]] }))),
+      ...toPkgByName(Object.keys(children).map((alias) => ({ alias, nodeId: children[alias], node: ctx.dependenciesTree[children[alias]] }))),
     }
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
 
@@ -191,7 +188,7 @@ function resolvePeersOfNode (
 
   let modules: string
   let absolutePath: string
-  const localLocation = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(node.resolvedPackage.id, ctx.lockfileDirectory)}`)
+  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.id, ctx.lockfileDirectory))
   const isPure = R.isEmpty(allResolvedPeers)
   if (isPure) {
     modules = path.join(localLocation, 'node_modules')
@@ -201,7 +198,7 @@ function resolvePeersOfNode (
     }
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
-      R.keys(allResolvedPeers).map((alias) => ({
+      Object.keys(allResolvedPeers).map((alias) => ({
         name: alias,
         version: ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage.version,
       })))
@@ -235,8 +232,8 @@ function resolvePeersOfNode (
       children: Object.assign(children, resolvedPeers),
       depth: node.depth,
       dev: node.resolvedPackage.dev,
+      fetchingBundledManifest: node.resolvedPackage.fetchingBundledManifest,
       fetchingFiles: node.resolvedPackage.fetchingFiles,
-      fetchingRawManifest: node.resolvedPackage.fetchingRawManifest,
       hasBin: node.resolvedPackage.hasBin,
       hasBundledDependencies: node.resolvedPackage.hasBundledDependencies,
       independent,
@@ -330,7 +327,7 @@ function resolvePeers (
           ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.resolvedPackage)}
           requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
         if (ctx.strictPeerDependencies) {
-          throw new PnpmError('ERR_PNPM_MISSING_PEER_DEPENDENCY', message)
+          throw new PnpmError('MISSING_PEER_DEPENDENCY', message)
         }
         logger.warn({
           message,
@@ -346,7 +343,7 @@ function resolvePeers (
         ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.resolvedPackage)}
         requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
       if (ctx.strictPeerDependencies) {
-        throw new PnpmError('ERR_PNPM_INVALID_PEER_DEPENDENCY', message)
+        throw new PnpmError('INVALID_PEER_DEPENDENCY', message)
       }
       logger.warn({
         message,
@@ -370,10 +367,12 @@ function packageFriendlyId (manifest: {name: string, version: string}) {
 }
 
 function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTree) {
-  const parts = splitNodeId(nodeId).slice(2, -2)
-  return R.tail(R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), ROOT_NODE_ID, parts))
+  const parts = splitNodeId(nodeId).slice(1, -2)
+  const result = R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
+    .slice(2)
     .map((nid) => dependenciesTree[nid].resolvedPackage.name)
     .join(' > ')
+  return result
 }
 
 interface ParentRefs {
@@ -389,18 +388,18 @@ interface ParentRef {
 
 function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: DependenciesTreeNode}>): ParentRefs {
   const pkgsByName: ParentRefs = {}
-  for (const node of nodes) {
-    pkgsByName[node.alias] = {
-      depth: node.node.depth,
-      nodeId: node.nodeId,
-      version: node.node.resolvedPackage.version,
+  for (const { alias, node, nodeId } of nodes) {
+    pkgsByName[alias] = {
+      depth: node.depth,
+      nodeId,
+      version: node.resolvedPackage.version,
     }
   }
   return pkgsByName
 }
 
 function createPeersFolderSuffix (peers: Array<{name: string, version: string}>) {
-  const folderName = peers.map((peer) => `${peer.name.replace('/', '+')}@${peer.version}`).sort().join('+')
+  const folderName = peers.map(({ name, version }) => `${name.replace('/', '+')}@${version}`).sort().join('+')
 
   // We don't want the folder name to get too long.
   // Otherwise, an ENAMETOOLONG error might happen.

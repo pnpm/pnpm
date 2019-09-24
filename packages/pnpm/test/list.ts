@@ -30,34 +30,15 @@ test('listing global packages', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', '2')
-    : path.join(global, 'pnpm-global', '2')
+    ? path.join(global, 'npm/pnpm-global/3')
+    : path.join(global, 'pnpm-global/3')
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     ${globalPrefix}
-    └── is-positive@3.1.0
-  ` + '\n')
-})
 
-test('listing global packages installed with independent-leaves = true', async (t: tape.Test) => {
-  tempDir(t)
-
-  const global = path.resolve('global')
-
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
-
-  await execPnpm('install', '-g', '--independent-leaves', 'is-positive@3.1.0')
-
-  const result = execPnpmSync('list', '-g', '--independent-leaves')
-
-  t.equal(result.status, 0)
-
-  const globalPrefix = isWindows()
-    ? path.join(global, 'npm', 'pnpm-global', '2_independent_leaves')
-    : path.join(global, 'pnpm-global', '2_independent_leaves')
-  t.equal(result.stdout.toString(), stripIndent`
-    ${globalPrefix}
-    └── is-positive@3.1.0
+    dependencies:
+    is-positive 3.1.0
   ` + '\n')
 })
 
@@ -79,8 +60,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-positive@1.0.0
+
+      dependencies:
+      is-positive 1.0.0
     ` + '\n', 'prints prod deps only')
   }
 
@@ -90,8 +75,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-positive@1.0.0
+
+      dependencies:
+      is-positive 1.0.0
     ` + '\n', 'prints prod deps only using --only prod')
   }
 
@@ -101,8 +90,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-negative@1.0.0
+
+      devDependencies:
+      is-negative 1.0.0
     ` + '\n', 'prints dev deps only')
   }
 
@@ -112,8 +105,12 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      └── is-negative@1.0.0
+
+      devDependencies:
+      is-negative 1.0.0
     ` + '\n', 'prints dev deps only using --only dev')
   }
 
@@ -123,11 +120,49 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
       project@0.0.0 ${process.cwd()}
-      ├── is-negative@1.0.0
-      └── is-positive@1.0.0
+
+      dependencies:
+      is-positive 1.0.0
+
+      devDependencies:
+      is-negative 1.0.0
     ` + '\n', 'prints all deps')
   }
+})
+
+test('independent-leaves=true: pnpm list --long', async (t: tape.Test) => {
+  prepare(t, {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    devDependencies: {
+      'is-negative': '1.0.0',
+    },
+  })
+
+  await execPnpm('install', '--independent-leaves', '--no-hoist')
+
+  const result = execPnpmSync('list', '--long')
+
+  t.equal(result.status, 0)
+
+  // TODO: the --long flag should work with --independent-leaves
+  t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
+    project@0.0.0 ${process.cwd()}
+
+    dependencies:
+    is-positive 1.0.0
+      [Could not find additional info about this dependency]
+
+    devDependencies:
+    is-negative 1.0.0
+      [Could not find additional info about this dependency]
+  ` + '\n')
 })
 
 test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
@@ -154,7 +189,75 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
   t.equal(result.status, 0)
 
   t.equal(result.stdout.toString(), stripIndent`
+    Legend: production dependency, optional only, dev only
+
     pkg@1.0.0 ${process.cwd()}
-    └── is-positive@1.0.0
+
+    dependencies:
+    is-positive 1.0.0
   ` + '\n', 'prints all deps')
+})
+
+test('list on a project with skipped optional dependencies', async (t: tape.Test) => {
+  prepare(t)
+
+  await execPnpm('add', '--no-optional', 'pkg-with-optional', 'is-positive@1.0.0')
+
+  {
+    const result = execPnpmSync('list', '--depth', '10')
+
+    t.equal(result.status, 0)
+
+    t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
+      project@0.0.0 ${process.cwd()}
+
+      dependencies:
+      is-positive 1.0.0
+      pkg-with-optional 1.0.0
+      └── not-compatible-with-any-os 1.0.0 skipped
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('list', '--depth', '10', 'not-compatible-with-any-os')
+
+    t.equal(result.status, 0)
+
+    t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
+      project@0.0.0 ${process.cwd()}
+
+      dependencies:
+      pkg-with-optional 1.0.0
+      └── not-compatible-with-any-os 1.0.0 skipped
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('why', 'not-compatible-with-any-os')
+
+    t.equal(result.status, 0)
+
+    t.equal(result.stdout.toString(), stripIndent`
+      Legend: production dependency, optional only, dev only
+
+      project@0.0.0 ${process.cwd()}
+
+      dependencies:
+      pkg-with-optional 1.0.0
+      └── not-compatible-with-any-os 1.0.0 skipped
+    ` + '\n')
+  }
+})
+
+test('`pnpm why` should fail if no package name was provided', async (t: tape.Test) => {
+  prepare(t)
+
+  const { status, stdout } = execPnpmSync('why')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('`pnpm why` requires the package name'))
 })

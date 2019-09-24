@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetch",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "node-fetch with retries",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -12,7 +12,7 @@
   },
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rimraf lib && tsc && cpy src/**/*.d.ts lib",
     "test": "pnpm run tsc && pnpm run lint",
     "prepublishOnly": "pnpm run tsc"
   },
@@ -28,11 +28,13 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch#readme",
   "dependencies": {
-    "@zeit/fetch-retry": "4.0.0",
+    "@zeit/fetch-retry": "4.0.1",
     "node-fetch": "2.6.0",
     "node-fetch-unix": "2.3.0"
   },
   "devDependencies": {
-    "rimraf": "^2.6.2"
+    "@types/node-fetch": "^2.5.0",
+    "cpy-cli": "2.0.0",
+    "rimraf": "3.0.0"
   }
 }

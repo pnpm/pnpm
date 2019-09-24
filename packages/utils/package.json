@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/utils",
   "description": "Utils for pnpm",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -22,7 +22,7 @@
     "@pnpm/logger": "2.1.1",
     "@pnpm/utils": "link:",
     "@types/mz": "0.0.32",
-    "rimraf": "2.6.3"
+    "rimraf": "3.0.0"
   },
   "directories": {
     "test": "test"
@@ -41,8 +41,8 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/read-package-json": "2.0.2",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/read-package-json": "workspace:2.0.3",
+    "@pnpm/types": "workspace:3.2.0",
     "mz": "2.7.0",
     "normalize-registry-url": "1.0.0"
   }

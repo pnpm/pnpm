@@ -1,7 +1,7 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import RegClient = require('anonymous-npm-registry-client')
 import path = require('path')
-import rimraf = require('rimraf-then')
 import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

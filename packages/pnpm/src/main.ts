@@ -5,6 +5,7 @@ process
   .once('SIGTERM', () => process.exit(0))
 
 // Patch the global fs module here at the app level
+import chalk from 'chalk'
 import fs = require('fs')
 import gfs = require('graceful-fs')
 
@@ -31,6 +32,7 @@ import initReporter, { ReporterType } from './reporter'
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
 type CANONICAL_COMMAND_NAMES = 'help'
+  | 'add'
   | 'import'
   | 'install-test'
   | 'install'
@@ -53,10 +55,12 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'uninstall'
   | 'unlink'
   | 'update'
+  | 'why'
 
 const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
 
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
+  'add',
   'install',
   'uninstall',
   'update',
@@ -80,6 +84,7 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'import',
   'test',
   'run',
+  'why',
   // These might have to be implemented:
   // 'cache',
   // 'completion',
@@ -135,6 +140,7 @@ export default async function run (argv: string[]) {
     'shared-workspace-lockfile': ['--shared-workspace-shrinkwrap'],
     'frozen-lockfile': ['--frozen-shrinkwrap'],
     'prefer-frozen-lockfile': ['--prefer-frozen-shrinkwrap'],
+    'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
   const cliConf = nopt(types, shortHands, argv, 0)
@@ -194,9 +200,33 @@ export default async function run (argv: string[]) {
     }
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
-    console.error(err.message)
+    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
+    console.log(`For help, run: pnpm help ${cmd}`)
     process.exit(1)
     return
+  }
+
+  if (
+    (cmd === 'add' || cmd === 'install') &&
+    typeof opts.workspacePrefix === 'string'
+  ) {
+    if (cliArgs.length === 0) {
+      subCmd = cmd
+      cmd = 'recursive'
+      cliArgs.unshift(subCmd)
+    } else if (
+      opts.workspacePrefix === opts.prefix &&
+      !opts.ignoreWorkspaceRootCheck
+    ) {
+      // Reporting is not initialized at this point, so just printing the error
+      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
+        chalk.red('Running this command will add the dependency to the workspace root, ' +
+          'which might not be what you want - if you really meant it, ' +
+          'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).')}`)
+      console.log(`For help, run: pnpm help ${cmd}`)
+      process.exit(1)
+      return
+    }
   }
 
   const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.includes(packageManager.name)
@@ -253,9 +283,17 @@ export default async function run (argv: string[]) {
         const result = pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
         if (result instanceof Promise) {
           result
-            .then(resolve)
+            .then((output) => {
+              if (typeof output === 'string') {
+                process.stdout.write(output)
+              }
+              resolve()
+            })
             .catch(reject)
         } else {
+          if (typeof result === 'string') {
+            process.stdout.write(result)
+          }
           resolve()
         }
       } catch (err) {

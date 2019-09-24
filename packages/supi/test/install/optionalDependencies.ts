@@ -1,11 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
-import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import { addDependenciesToPackage, install, mutateModules, rebuild } from 'supi'
 import tape = require('tape')
@@ -71,7 +71,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
-  t.notOk(await exists(path.resolve('node_modules', '.localhost+4873', 'dep-of-optional-pkg', '1.0.0')), "isn't linked into node_modules")
+  t.notOk(await exists(path.resolve('node_modules/.pnpm/localhost+4873/dep-of-optional-pkg/1.0.0')), "isn't linked into node_modules")
 
   const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/not-compatible-with-any-os/1.0.0'], 'lockfile contains optional dependency')
@@ -208,8 +208,8 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
     t.deepEqual(modulesInfo.skipped, ['/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
   }
 
-  t.ok(await exists('node_modules/.localhost+4873/pkg-with-optional/1.0.0'), 'regular dependency linked')
-  t.notOk(await exists('node_modules/.localhost+4873/not-compatible-with-any-os/1.0.0'), 'optional dependency not linked')
+  t.ok(await exists('node_modules/.pnpm/localhost+4873/pkg-with-optional/1.0.0'), 'regular dependency linked')
+  t.notOk(await exists('node_modules/.pnpm/localhost+4873/not-compatible-with-any-os/1.0.0'), 'optional dependency not linked')
 
   const logMatcher = sinon.match({
     package: {
@@ -235,7 +235,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
     await testDefaults({ force: true, frozenLockfile: true }),
   )
 
-  t.ok(await exists('node_modules/.localhost+4873/not-compatible-with-any-os/1.0.0'), 'optional dependency linked after forced headless install')
+  t.ok(await exists('node_modules/.pnpm/localhost+4873/not-compatible-with-any-os/1.0.0'), 'optional dependency linked after forced headless install')
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
@@ -349,10 +349,10 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     },
   }, await testDefaults({ preferredVersions }))
 
-  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
-  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/duplexify/3.6.0')), 'duplexify is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/stream-shift/1.0.0')), 'stream-shift is linked into node_modules')
 
-  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'got', '3.3.1', 'node_modules', 'duplexify')), 'duplexify is linked into node_modules of got')
+  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/got/3.3.1/node_modules/duplexify')), 'duplexify is linked into node_modules of got')
 })
 
 test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.Test) => {

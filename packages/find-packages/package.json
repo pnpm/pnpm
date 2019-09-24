@@ -1,6 +1,6 @@
 {
   "name": "find-packages",
-  "version": "5.0.4",
+  "version": "5.1.0",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
@@ -33,11 +33,11 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages#readme",
   "devDependencies": {
     "find-packages": "link:",
-    "tape": "4.10.2"
+    "tape": "4.11.0"
   },
   "dependencies": {
-    "@pnpm/read-importer-manifest": "1.0.4",
-    "fast-glob": "^2.0.4",
+    "@pnpm/read-importer-manifest": "workspace:1.0.9",
+    "fast-glob": "^3.0.0",
     "p-filter": "^2.0.0"
   }
 }

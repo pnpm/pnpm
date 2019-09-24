@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
@@ -32,6 +33,7 @@ export default async <T> (
     opts.workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
   ) ? 'inherit' : 'pipe'
+  const passedThruArgs = args.slice(1)
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
@@ -43,6 +45,7 @@ export default async <T> (
         hasCommand++
         try {
           const lifecycleOpts = {
+            args: passedThruArgs,
             depPath: prefix,
             extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
@@ -82,9 +85,7 @@ export default async <T> (
   }
 
   if (scriptName !== 'test' && !hasCommand) {
-    const err = new Error(`None of the packages has a "${scriptName}" script`)
-    err['code'] = 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
   }
 
   return result

@@ -19,7 +19,7 @@
 
 1. Run `pnpm recursive install` in the root of the repository to install all dependencies.
 2. For compiling all packages in the repo, run `pnpm recursive run tsc` or `npm run build` in the root of the repo.
-3. To run tests, run `npm test` in the root of the repo.
+3. To run tests, run `pnpm test` in the root of the repo.
 
 ## Submitting a Pull Request (PR)
 

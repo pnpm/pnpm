@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "1.1.0",
+  "version": "2.0.0-0",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,21 +29,21 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/constants": "1.1.0",
-    "@pnpm/core-loggers": "3.0.3",
-    "@pnpm/lifecycle": "6.2.0",
+    "@pnpm/constants": "workspace:2.0.0-1",
+    "@pnpm/core-loggers": "workspace:3.0.3",
+    "@pnpm/lifecycle": "workspace:6.2.3",
     "@pnpm/link-bins": "4.4.0",
-    "@pnpm/read-package-json": "2.0.2",
-    "@pnpm/store-controller-types": "3.0.3",
-    "@pnpm/types": "3.2.0",
+    "@pnpm/read-package-json": "workspace:2.0.3",
+    "@pnpm/store-controller-types": "workspace:4.0.0-0",
+    "@pnpm/types": "workspace:3.2.0",
     "graph-sequencer": "2.0.0",
     "ramda": "0.26.1",
-    "run-groups": "2.0.0"
+    "run-groups": "2.0.1"
   },
   "devDependencies": {
     "@pnpm/build-modules": "link:",
     "@pnpm/logger": "2.1.1",
-    "@types/ramda": "0.26.6",
-    "rimraf": "2.6.3"
+    "@types/ramda": "0.26.21",
+    "rimraf": "3.0.0"
   }
 }

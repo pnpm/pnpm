@@ -3,7 +3,7 @@ dependencies:
   once: 1.4.0
 devDependencies:
   inflight: 1.0.6
-lockfileVersion: 5
+lockfileVersion: 5.1
 packages:
   /inflight/1.0.6:
     dependencies:

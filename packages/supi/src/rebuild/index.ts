@@ -40,7 +40,7 @@ function findPackages (
     prefix: string,
   },
 ): string[] {
-  return R.keys(packages)
+  return Object.keys(packages)
     .filter((relativeDepPath) => {
       const pkgLockfile = packages[relativeDepPath]
       const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgLockfile)
@@ -91,32 +91,34 @@ export async function rebuildPkgs (
   const packages = ctx.currentLockfile.packages
 
   const searched: PackageSelector[] = pkgSpecs.map((arg) => {
-    const parsed = npa(arg)
-    if (parsed.raw === parsed.name) {
-      return parsed.name
+    const { fetchSpec, name, raw, type } = npa(arg)
+    if (raw === name) {
+      return name
     }
-    if (parsed.type !== 'version' && parsed.type !== 'range') {
+    if (type !== 'version' && type !== 'range') {
       throw new Error(`Invalid argument - ${arg}. Rebuild can only select by version or range`)
     }
     return {
-      name: parsed.name,
-      range: parsed.fetchSpec,
+      name,
+      range: fetchSpec,
     }
   })
 
   let pkgs = [] as string[]
-  for (const importer of importers) {
+  for (const { prefix } of importers) {
     pkgs = [
       ...pkgs,
-      ...findPackages(packages, searched, { prefix: importer.prefix }),
+      ...findPackages(packages, searched, { prefix }),
     ]
   }
 
   await _rebuild(
     new Set(pkgs),
     ctx.virtualStoreDir,
+    ctx.rootModulesDir,
     ctx.currentLockfile,
     ctx.importers,
+    ctx.extraBinPaths,
     opts,
   )
 }
@@ -137,21 +139,23 @@ export async function rebuild (
   if (opts.pending) {
     idsToRebuild = ctx.pendingBuilds
   } else if (ctx.currentLockfile && ctx.currentLockfile.packages) {
-    idsToRebuild = R.keys(ctx.currentLockfile.packages)
+    idsToRebuild = Object.keys(ctx.currentLockfile.packages)
   }
 
   const pkgsThatWereRebuilt = await _rebuild(
     new Set(idsToRebuild),
     ctx.virtualStoreDir,
+    ctx.rootModulesDir,
     ctx.currentLockfile,
     ctx.importers,
+    ctx.extraBinPaths,
     opts,
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
   const scriptsOpts = {
-    extraBinPaths: opts.extraBinPaths,
+    extraBinPaths: ctx.extraBinPaths,
     rawNpmConfig: opts.rawNpmConfig,
     unsafePerm: opts.unsafePerm || false,
   }
@@ -161,24 +165,16 @@ export async function rebuild (
     opts.childConcurrency || 5,
     scriptsOpts,
   )
-  for (const importer of ctx.importers) {
-    if (importer.manifest && importer.manifest.scripts && (!opts.pending || ctx.pendingBuilds.includes(importer.id))) {
-      ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(importer.id), 1)
+  for (const { id, manifest } of ctx.importers) {
+    if (manifest && manifest.scripts && (!opts.pending || ctx.pendingBuilds.includes(id))) {
+      ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
     }
   }
 
-  await writeModulesYaml(ctx.virtualStoreDir, {
+  await writeModulesYaml(ctx.rootModulesDir, {
     ...ctx.modulesFile,
-    importers: {
-      ...ctx.modulesFile && ctx.modulesFile.importers,
-      ...ctx.importers.reduce((acc, importer) => {
-        acc[importer.id] = {
-          hoistedAliases: importer.hoistedAliases,
-          shamefullyFlatten: importer.shamefullyFlatten,
-        }
-        return acc
-      }, {}),
-    },
+    hoistedAliases: ctx.hoistedAliases,
+    hoistPattern: opts.hoistPattern,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
@@ -220,7 +216,7 @@ function getSubgraphToBuild (
       ...pkgSnapshot.dependencies,
       ...(opts.optional && pkgSnapshot.optionalDependencies || {}),
     })
-    .map((pair) => dp.refToRelative(pair[1], pair[0]))
+    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
 
     const childShouldBeBuilt = getSubgraphToBuild(pkgSnapshots, nextEntryNodes, nodesToBuildAndTransitive, walked, opts)
@@ -237,9 +233,11 @@ const limitLinking = pLimit(16)
 
 async function _rebuild (
   pkgsToRebuild: Set<string>,
+  virtualStoreDir: string,
   rootNodeModulesDir: string,
   lockfile: Lockfile,
   importers: Array<{ id: string, prefix: string }>,
+  extraBinPaths: string[],
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
@@ -255,7 +253,7 @@ async function _rebuild (
       ...(opts.production && lockfileImporter.dependencies || {}),
       ...(opts.optional && lockfileImporter.optionalDependencies || {}),
     })
-    .map((pair) => dp.refToRelative(pair[1], pair[0]))
+    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null)
     .forEach((relDepPath) => {
       entryNodes.push(relDepPath as string)
@@ -269,7 +267,7 @@ async function _rebuild (
   for (const relDepPath of nodesToBuildAndTransitiveArray) {
     const pkgSnapshot = pkgSnapshots[relDepPath]
     graph.set(relDepPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
-      .map((pair) => dp.refToRelative(pair[1], pair[0]))
+      .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
       .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
   const graphSequencerResult = graphSequencer({
@@ -285,7 +283,7 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const pkgRoot = !independent
-        ? path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules', pkgInfo.name)
+        ? path.join(virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules', pkgInfo.name)
         : await (
           async () => {
             const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
@@ -297,12 +295,13 @@ async function _rebuild (
         )()
       try {
         if (!independent) {
-          const modules = path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+          const modules = path.join(virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { warn })
         }
         await runPostinstallHooks({
           depPath,
+          extraBinPaths,
           optional: pkgSnapshot.optional === true,
           pkgRoot,
           prepare: pkgSnapshot.prepare,
@@ -335,20 +334,20 @@ async function _rebuild (
 
   // It may be optimized because some bins were already linked before running lifecycle scripts
   await Promise.all(
-    R
+    Object
       .keys(pkgSnapshots)
       .filter((relDepPath) => !packageIsIndependent(pkgSnapshots[relDepPath]))
       .map((relDepPath) => limitLinking(() => {
         const depPath = dp.resolve(opts.registries, relDepPath)
         const pkgSnapshot = pkgSnapshots[relDepPath]
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-        const modules = path.join(rootNodeModulesDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+        const modules = path.join(virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
         const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
         return linkBins(modules, binPath, { warn })
       })),
   )
-  await Promise.all(importers.map((importer) => limitLinking(() => {
-    const modules = path.join(importer.prefix, 'node_modules')
+  await Promise.all(importers.map(({ prefix }) => limitLinking(() => {
+    const modules = path.join(prefix, 'node_modules')
     const binPath = path.join(modules, '.bin')
     return linkBins(modules, binPath, {
       allowExoticManifests: true,

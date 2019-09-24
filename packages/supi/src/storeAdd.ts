@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import {
   storeLogger,
   streamParser,
@@ -47,7 +48,7 @@ export default async function (
         prefix,
         registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
       })
-      await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
+      await pkgResponse.files!()
       storeLogger.info(`+ ${pkgResponse.body.id}`)
     } catch (e) {
       hasFailures = true
@@ -62,8 +63,6 @@ export default async function (
   }
 
   if (hasFailures) {
-    const err = new Error('Some packages have not been added correctly')
-    err['code'] = 'ERR_PNPM_STORE_ADD_FAILURE' // tslint:disable-line:no-string-literal
-    throw err
+    throw new PnpmError('STORE_ADD_FAILURE', 'Some packages have not been added correctly')
   }
 }

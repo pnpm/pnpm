@@ -1,8 +1,8 @@
+import rimraf = require('@zkochan/rimraf')
 import dint = require('dint')
 import execa = require('execa')
 import path = require('path')
 import pathTemp = require('path-temp')
-import rimraf = require('rimraf-then')
 
 export default () => {
   return {

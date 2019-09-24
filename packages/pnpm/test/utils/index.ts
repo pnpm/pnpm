@@ -2,10 +2,11 @@ import createDeferred, { Deferred } from './deferred'
 import { add as addDistTag } from './distTags'
 import {
   execPnpm,
+  execPnpmSync,
   execPnpx,
-  spawn,
-  spawnPnpxSync,
-  sync as execPnpmSync,
+  execPnpxSync,
+  spawnPnpm,
+  spawnPnpx,
 } from './execPnpm'
 import { pathToLocalPkg } from './localPkg'
 import retryLoadJsonFile from './retryLoadJsonFile'
@@ -17,12 +18,13 @@ export {
   pathToLocalPkg,
   testDefaults,
   execPnpm,
-  execPnpx,
   execPnpmSync,
-  spawn,
+  execPnpx,
+  execPnpxSync,
+  spawnPnpm,
+  spawnPnpx,
   addDistTag,
   retryLoadJsonFile,
-  spawnPnpxSync,
 }
 
 export { ResolveFunction } from './deferred'
