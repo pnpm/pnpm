@@ -1,4 +1,3 @@
-import pnp = require('@berry/pnp')
 import getConfigs from '@pnpm/config'
 import { Lockfile, readWantedLockfile } from '@pnpm/lockfile-file'
 import {
@@ -9,6 +8,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readImporterManifest from '@pnpm/read-importer-manifest'
 import resolveStoreDir from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
+import pnp = require('@yarnpkg/pnp')
 import { refToRelative } from 'dependency-path'
 import fs = require('mz/fs')
 import path = require('path')

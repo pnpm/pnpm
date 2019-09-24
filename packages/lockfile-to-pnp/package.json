@@ -41,21 +41,21 @@
   "devDependencies": {
     "@pnpm/lockfile-to-pnp": "link:",
     "@pnpm/logger": "2.1.1",
-    "@pnpm/types": "3.2.0",
-    "@types/ramda": "0.25.39",
+    "@pnpm/types": "workspace:3.2.0",
     "@types/mz": "0.0.32",
-    "rimraf": "2.6.3",
-    "tape": "4.10.2"
+    "@types/ramda": "0.26.21",
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   },
   "dependencies": {
-    "@berry/pnp": "0.0.3",
-    "@pnpm/config": "3.4.0",
-    "@pnpm/lockfile-file": "1.1.0",
-    "@pnpm/lockfile-utils": "1.0.9",
+    "@pnpm/config": "workspace:4.0.0-2",
+    "@pnpm/lockfile-file": "workspace:2.0.0-0",
+    "@pnpm/lockfile-utils": "workspace:1.0.10",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/read-importer-manifest": "1.0.4",
+    "@pnpm/read-importer-manifest": "workspace:1.0.9",
     "@pnpm/store-path": "2.1.0",
-    "dependency-path": "3.0.7",
+    "@yarnpkg/pnp": "2.0.0-rc.3",
+    "dependency-path": "workspace:3.0.8",
     "mz": "2.7.0",
     "ramda": "0.26.1"
   }
