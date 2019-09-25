@@ -13,7 +13,6 @@ export interface StrictRebuildOptions {
   sideEffectsCacheRead: boolean,
   store: string, // TODO: remove this property
   storeController: StoreController,
-  independentLeaves: boolean,
   force: boolean,
   forceSharedLockfile: boolean,
   useLockfile: boolean,
@@ -53,7 +52,6 @@ const defaults = async (opts: RebuildOptions) => {
     force: false,
     forceSharedLockfile: false,
     hoistPattern: undefined,
-    independentLeaves: false,
     lockfileDirectory,
     optional: true,
     packageManager,

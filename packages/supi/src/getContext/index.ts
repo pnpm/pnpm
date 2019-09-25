@@ -30,6 +30,7 @@ export interface PnpmContext<T> {
     id: string,
   } & T & Required<ImportersOptions>>,
   include: IncludedDependencies,
+  independentLeaves: boolean,
   modulesFile: Modules | null,
   pendingBuilds: string[],
   rootModulesDir: string,
@@ -60,7 +61,7 @@ export default async function getContext<T> (
       readPackage?: ReadPackageHook,
     },
     include?: IncludedDependencies,
-    independentLeaves: boolean,
+    independentLeaves?: boolean,
     registries: Registries,
     shamefullyHoist: boolean,
     store: string,
@@ -111,6 +112,7 @@ export default async function getContext<T> (
     hoistedModulesDir,
     importers: importersContext.importers,
     include: opts.include || importersContext.include,
+    independentLeaves: importersContext.independentLeaves,
     lockfileDirectory: opts.lockfileDirectory,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
@@ -147,12 +149,12 @@ async function validateNodeModules (
     force: boolean,
     hoistPattern?: string,
     include?: IncludedDependencies,
-    independentLeaves: boolean,
+    independentLeaves?: boolean,
     lockfileDirectory: string,
     store: string,
   },
 ) {
-  if (Boolean(modules.independentLeaves) !== opts.independentLeaves) {
+  if (typeof opts.independentLeaves === 'boolean' && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
     if (opts.force) {
       await Promise.all(importers.map(async (importer) => {
         logger.info({
