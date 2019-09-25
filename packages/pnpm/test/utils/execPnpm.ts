@@ -65,8 +65,7 @@ export function execPnpxSync (...args: string[]): ChildProcess {
 }
 
 function createEnv (opts?: {storeDir?: string}) {
-  const _ = {
-    ...process.env,
+  const env = {
     npm_config_fetch_retries: 4,
     npm_config_hoist: true,
     npm_config_independent_leaves: false,
@@ -76,11 +75,11 @@ function createEnv (opts?: {storeDir?: string}) {
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     npm_config_verify_store_integrity: 'true',
-  } as any // tslint:disable-line:no-any
-  delete _.npm_config_link_workspace_packages
-  delete _.npm_config_save_exact
-  delete _.npm_config_shared_workspace_lockfile
-  delete _.npm_config_workspace_concurrency
-  delete _.npm_config_use_beta_cli
-  return _
+  }
+  for (let [key, value] of Object.entries(process.env)) {
+    if (!key.startsWith('npm_config_')) {
+      env[key] = value
+    }
+  }
+  return env
 }

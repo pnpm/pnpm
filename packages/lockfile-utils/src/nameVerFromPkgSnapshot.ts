@@ -15,6 +15,7 @@ export default (
   }
   return {
     name: pkgSnapshot.name,
+    peersSuffix: undefined,
     version: pkgSnapshot.version as string,
   }
 }
