@@ -10,6 +10,8 @@ import { execPnpm, execPnpmSync } from './utils'
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
+const testFromNode10 = parseInt(process.version.split('.')[0].substr(1), 10) >= 10 ? test : promisifyTape(test['skip'])
+
 const CREDENTIALS = `//localhost:4873/:username=username
 //localhost:4873/:_password=${Buffer.from('password').toString('base64')}
 //localhost:4873/:email=foo@bar.net`
@@ -53,7 +55,7 @@ test('publish: package with package.json5', async (t: tape.Test) => {
   t.notOk(await exists('package.json'))
 })
 
-test('publish: package with package.json5 running publish from different folder', async (t: tape.Test) => {
+testFromNode10('publish: package with package.json5 running publish from different folder', async (t: tape.Test) => {
   prepare(t, {
     name: 'test-publish-package.json5',
     version: '0.0.1',
@@ -107,7 +109,7 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
   t.ok(await exists('project-2/LICENSE'))
 })
 
-test('publish packages with workspace LICENSE if no own LICENSE is present', async (t: tape.Test) => {
+testFromNode10('publish packages with workspace LICENSE if no own LICENSE is present', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-100',
@@ -269,7 +271,7 @@ test['skip']('publish package that calls executable from the workspace .bin fold
   )
 })
 
-test('convert specs with workspace protocols to regular version ranges', async (t: tape.Test) => {
+testFromNode10('convert specs with workspace protocols to regular version ranges', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'workspace-protocol-package',
