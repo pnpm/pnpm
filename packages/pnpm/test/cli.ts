@@ -88,3 +88,12 @@ test('pass through to npm with all the args', async t => {
 
   t.equal(result.status, 0, 'command was successfull')
 })
+
+test('command fails when unsupport flag is used', async (t) => {
+  const project = prepare(t)
+
+  const { status, stderr } = execPnpmSync('update', '--save-dev')
+
+  t.equal(status, 1, 'command failed')
+  t.ok(stderr.toString().includes("Unknown option 'save-dev'"))
+})

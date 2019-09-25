@@ -74,10 +74,12 @@ test('install --no-lockfile', async (t: tape.Test) => {
   t.notOk(await project.readLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
-test('install --no-package-lock', async (t: tape.Test) => {
+test('install with package-lock=false in .npmrc', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive', '--no-package-lock')
+  await fs.writeFile('.npmrc', 'package-lock=false', 'utf8')
+
+  await execPnpm('add', 'is-positive')
 
   await project.has('is-positive')
 
