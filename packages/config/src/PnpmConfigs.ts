@@ -6,6 +6,7 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   useBetaCli: boolean,
   extraBinPaths: string[],
   filter: string[],
+  localConfigs: Record<string, any>, // tslint:disable-line
   rawNpmConfig: Record<string, any>, // tslint:disable-line
   globalPrefix: string,
   globalBin: string,

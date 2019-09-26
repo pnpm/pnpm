@@ -56,16 +56,22 @@ export default async function getContext<T> (
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDirectory: string,
-    hoistPattern?: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
     include?: IncludedDependencies,
-    independentLeaves?: boolean,
     registries: Registries,
-    shamefullyHoist: boolean,
     store: string,
     useLockfile: boolean,
+
+    independentLeaves?: boolean,
+    forceIndependentLeaves?: boolean,
+
+    hoistPattern?: string | undefined,
+    forceHoistPattern?: boolean,
+
+    shamefullyHoist?: boolean,
+    forceShamefullyHoist?: boolean,
   },
 ): Promise<PnpmContext<T>> {
   const importersContext = await readImportersContext(importers, opts.lockfileDirectory)
@@ -74,11 +80,15 @@ export default async function getContext<T> (
     await validateNodeModules(importersContext.modules, importersContext.importers, {
       currentHoistPattern: importersContext.currentHoistPattern,
       force: opts.force,
-      hoistPattern: opts.hoistPattern,
       include: opts.include,
-      independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
+
+      independentLeaves: opts.independentLeaves,
+      forceIndependentLeaves: opts.forceIndependentLeaves,
+      
+      hoistPattern: opts.hoistPattern,
+      forceHoistPattern: opts.forceHoistPattern,
     })
   }
 
@@ -147,14 +157,18 @@ async function validateNodeModules (
   opts: {
     currentHoistPattern?: string,
     force: boolean,
-    hoistPattern?: string,
     include?: IncludedDependencies,
-    independentLeaves?: boolean,
     lockfileDirectory: string,
     store: string,
+
+    independentLeaves?: boolean,
+    forceIndependentLeaves?: boolean,
+
+    hoistPattern?: string | undefined,
+    forceHoistPattern?: boolean,
   },
 ) {
-  if (typeof opts.independentLeaves === 'boolean' && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
+  if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
     if (opts.force) {
       await Promise.all(importers.map(async (importer) => {
         logger.info({
@@ -184,7 +198,7 @@ async function validateNodeModules (
     )
   }
   const rootImporter = importers.find(({ id }) => id === '.')
-  if (rootImporter) {
+  if (opts.forceHoistPattern && rootImporter) {
     try {
       if (opts.currentHoistPattern !== (opts.hoistPattern || undefined)) {
         if (opts.currentHoistPattern) {
@@ -275,17 +289,23 @@ export async function getContextForSingleImporter (
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDirectory: string,
-    hoistPattern?: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
     include?: IncludedDependencies,
-    independentLeaves: boolean,
     prefix: string,
     registries: Registries,
-    shamefullyHoist: boolean,
     store: string,
     useLockfile: boolean,
+
+    hoistPattern?: string | undefined,
+    forceHoistPattern?: boolean,
+
+    shamefullyHoist?: boolean,
+    forceShamefullyHoist?: boolean,
+
+    independentLeaves?: boolean,
+    forceIndependentLeaves?: boolean,
   },
 ): Promise<PnpmSingleContext> {
   const {
@@ -317,11 +337,15 @@ export async function getContextForSingleImporter (
     await validateNodeModules(modules, importers, {
       currentHoistPattern,
       force: opts.force,
-      hoistPattern: opts.hoistPattern,
       include: opts.include,
-      independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
+      
+      hoistPattern: opts.hoistPattern,
+      forceHoistPattern: opts.forceHoistPattern,
+      
+      independentLeaves: opts.independentLeaves,
+      forceIndependentLeaves: opts.forceIndependentLeaves,
     })
   }
 

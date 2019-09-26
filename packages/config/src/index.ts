@@ -172,9 +172,6 @@ export default async (
 
   process.execPath = originalExecPath
 
-  if (!cliArgs['user-agent']) {
-    cliArgs['user-agent'] = `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  }
   const pnpmConfig: PnpmConfigs = Object.keys(types) // tslint:disable-line
     .reduce((acc, configKey) => {
       acc[camelcase(configKey)] = typeof cliArgs[configKey] !== 'undefined'
@@ -182,7 +179,14 @@ export default async (
         : npmConfig.get(configKey)
       return acc
     }, {} as PnpmConfigs)
-  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliArgs]))
+  if (!cliArgs['user-agent']) {
+    pnpmConfig.userAgent = `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  }
+  pnpmConfig.localConfigs = Object.assign.apply(Object, [
+    cliArgs,
+    ...npmConfig.list.slice(3)
+  ])
+  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.concat([cliArgs]))
   pnpmConfig.registries = {
     default: normalizeRegistry(pnpmConfig.registry || 'https://registry.npmjs.org/'),
     ...getScopeRegistries(pnpmConfig.rawNpmConfig),

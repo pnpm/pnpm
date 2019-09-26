@@ -14,15 +14,21 @@ interface StrictLinkOptions {
   saveProd: boolean,
   saveDev: boolean,
   saveOptional: boolean,
-  shamefullyHoist: boolean,
   storeController: StoreController,
   manifest: ImporterManifest,
   prefix: string,
-  hoistPattern: string | undefined,
-  independentLeaves: boolean,
   registries: Registries,
   store: string,
   reporter: ReporterFunction,
+  
+  hoistPattern: string | undefined,
+  forceHoistPattern: boolean,
+  
+  shamefullyHoist: boolean,
+  forceShamefullyHoist: boolean,
+  
+  independentLeaves: boolean,
+  forceIndependentLeaves: boolean,
 }
 
 export type LinkOptions = Partial<StrictLinkOptions> &
