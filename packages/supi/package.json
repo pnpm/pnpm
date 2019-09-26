@@ -107,7 +107,7 @@
     "read-yaml-file": "1.1.0",
     "resolve-link-target": "1.0.1",
     "rimraf": "3.0.0",
-    "sinon": "7.4.2",
+    "sinon": "7.5.0",
     "supi": "link:",
     "symlink-dir": "3.1.1",
     "tape": "4.11.0",

@@ -12,7 +12,7 @@ devDependencies:
   '@pnpm/tslint-config': 'link:utils/tslint-config'
   '@types/node': '*'
   '@types/tape': ^4.2.31
-  ts-node: 8.3.0
+  ts-node: 8.4.1
   tslint: 5.20.0
   typescript: 3.6.3
 engines:
