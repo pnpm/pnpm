@@ -17,6 +17,7 @@ export default async function <T>(
   lockfileDirectory: string,
 ): Promise<{
   currentHoistPattern?: string,
+  hoist?: boolean,
   hoistedAliases: { [depPath: string]: string[] },
   importers: Array<{
     id: string,
@@ -34,6 +35,7 @@ export default async function <T>(
   const modules = await readModulesYaml(rootModulesDir)
   return {
     currentHoistPattern: modules && modules.hoistPattern || undefined,
+    hoist: !modules ? undefined : Boolean(modules.hoistPattern),
     hoistedAliases: modules && modules.hoistedAliases || {},
     importers: await Promise.all(
       importers.map(async (importer) => {

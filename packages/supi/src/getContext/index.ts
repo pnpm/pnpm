@@ -34,6 +34,7 @@ export interface PnpmContext<T> {
   modulesFile: Modules | null,
   pendingBuilds: string[],
   rootModulesDir: string,
+  hoistPattern: string | undefined,
   hoistedModulesDir: string,
   lockfileDirectory: string,
   virtualStoreDir: string,
@@ -120,6 +121,8 @@ export default async function getContext<T> (
     extraBinPaths,
     hoistedAliases: importersContext.hoistedAliases,
     hoistedModulesDir,
+    hoistPattern: typeof importersContext.hoist === 'boolean' ?
+      importersContext.currentHoistPattern : opts.hoistPattern,
     importers: importersContext.importers,
     include: opts.include || importersContext.include,
     independentLeaves: importersContext.independentLeaves,
@@ -266,6 +269,7 @@ export interface PnpmSingleContext {
   extraBinPaths: string[],
   hoistedAliases: {[depPath: string]: string[]},
   hoistedModulesDir: string,
+  hoistPattern: string | undefined,
   manifest: ImporterManifest,
   modulesDir: string,
   importerId: string,
@@ -310,6 +314,7 @@ export async function getContextForSingleImporter (
 ): Promise<PnpmSingleContext> {
   const {
     currentHoistPattern,
+    hoist,
     hoistedAliases,
     importers,
     include,
@@ -365,6 +370,8 @@ export async function getContextForSingleImporter (
     hoistedModulesDir,
     importerId,
     include: opts.include || include,
+    hoistPattern: typeof hoist === 'boolean' ?
+      currentHoistPattern : opts.hoistPattern,
     lockfileDirectory: opts.lockfileDirectory,
     manifest: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(manifest) : manifest,
     modulesDir,
