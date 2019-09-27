@@ -174,18 +174,27 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
 
 test('hoistPattern=undefined throws exception when executed on node_modules installed with hoist-pattern=*', async (t: tape.Test) => {
   prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ hoistPattern: '*' }))
+  const opts = await testDefaults({ hoistPattern: '*' })
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], opts)
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
+    await addDependenciesToPackage(manifest, ['is-negative'], {
+      ...opts,
       forceHoistPattern: true,
       hoistPattern: undefined,
-    }))
+    })
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_HOISTING_WANTED') // tslint:disable-line:no-string-literal
     t.ok(err.message.indexOf('This "node_modules" folder was created using the --hoist-pattern option.') === 0)
   }
+
+  // Instatll doesn't fail if the value of hoistPattern isn't forced
+  await addDependenciesToPackage(manifest, ['is-negative'], {
+    ...opts,
+    forceHoistPattern: false,
+    hoistPattern: undefined,
+  })
 })
 
 test('hoist by alias', async (t: tape.Test) => {
