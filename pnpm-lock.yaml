@@ -132,7 +132,7 @@ importers:
       ramda: 0.26.1
       right-pad: 1.0.1
       semver: 6.3.0
-      stacktracey: 1.2.117
+      stacktracey: 1.2.120
       string-length: 3.1.0
       strip-ansi: 5.2.0
     devDependencies:
@@ -173,7 +173,7 @@ importers:
       right-pad: 1.0.1
       rimraf: 3.0.0
       semver: 6.3.0
-      stacktracey: 1.2.117
+      stacktracey: 1.2.120
       string-length: 3.1.0
       strip-ansi: 5.2.0
       tape: 4.11.0
@@ -2425,10 +2425,6 @@ packages:
   /@types/node/12.7.8:
     resolution:
       integrity: sha512-FMdVn84tJJdV+xe+53sYiZS4R5yn1mAIxfj+DVoNiQjTYz1+OYmjwEZr1ev9nU0axXwda0QDbYl06QHanRVH3A==
-  /@types/node/8.10.54:
-    dev: false
-    resolution:
-      integrity: sha512-kaYyLYf6ICn6/isAyD4K1MyWWd5Q3JgH6bnMN089LUx88+s4W8GvK9Q6JMBVu5vsFFp7pMdSxdKmlBXwH/VFRg==
   /@types/nopt/3.0.29:
     dev: true
     resolution:
@@ -3882,12 +3878,10 @@ packages:
       node: '>=0.10'
     resolution:
       integrity: sha1-hTz6D3y+L+1d4gMmuN1YEDX24vA=
-  /data-uri-to-buffer/2.0.1:
-    dependencies:
-      '@types/node': 8.10.54
+  /data-uri-to-buffer/2.0.2:
     dev: false
     resolution:
-      integrity: sha512-OkVVLrerfAKZlW2ZZ3Ve2y65jgiWqBKsTfUIAFbn8nVbPcCZg6l6gikKlEYv0kXcmzqGm6mFq/Jf2vriuEkv8A==
+      integrity: sha512-ND9qDTLc6diwj+Xe5cdAgVTbLVdXbtxTJRXRhli8Mowuaan+0EJOtdqJ0QCHNSSPyoXGx9HX2/VMnKeC34AChA==
   /data-urls/1.1.0:
     dependencies:
       abab: 2.0.2
@@ -4853,13 +4847,13 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-imzMU0FjsZqNa6BqOjbbW6w5BivHIuQKopjpPqcnx0AVHJQKCxK1O+Ab3OrVXhrekqfVMjwA9ZYu062R+KcIsQ==
-  /get-source/1.0.40:
+  /get-source/1.0.41:
     dependencies:
-      data-uri-to-buffer: 2.0.1
+      data-uri-to-buffer: 2.0.2
       source-map: 0.6.1
     dev: false
     resolution:
-      integrity: sha512-grbzSLO9gCVpb+ngrUf2ch4nzcfAs9pYqlnu0v2+Ho0rOpwnJqhZsHWLXaqdNHMtmnY+OwGgS4SPdzMRXEwVtQ==
+      integrity: sha512-v5HEBUciVkZ9mwhGae2tcKAJiX6p2FkBuZsC18vVy2Dz8xz1LUk3kJ6UgUBHJXwrPBUgNyZVWRHCQrFq+UEaLQ==
   /get-stdin/7.0.0:
     dev: true
     engines:
@@ -8241,13 +8235,13 @@ packages:
     dev: false
     resolution:
       integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==
-  /stacktracey/1.2.117:
+  /stacktracey/1.2.120:
     dependencies:
       as-table: 1.0.55
-      get-source: 1.0.40
+      get-source: 1.0.41
     dev: false
     resolution:
-      integrity: sha512-sj9olGCco8jxMw3fcmhL5er1yuVL2qSMhNfycwx+iIWz6uVpG+bQ2YNpVSlWscGmSskt61gSmUBjZ0Mb5jYBLw==
+      integrity: sha512-j3XOapcQoiXuK8kXHcbWuZQhVkoAqpKorj80dXpT183MZNKFMgadc7PnDBxP3+dg+AbFRZcLLkYnR8fw9JdVsw==
   /static-extend/0.1.2:
     dependencies:
       define-property: 0.2.5
