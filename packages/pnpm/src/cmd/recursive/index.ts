@@ -200,7 +200,7 @@ export async function recursive (
 
     forceHoistPattern: typeof opts.localConfigs['hoist-pattern'] !== 'undefined',
     forceIndependentLeaves: typeof opts.localConfigs['independent-leaves'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.localConfigs['force-shamefully-hoist'] !== 'undefined',
+    forceShamefullyHoist: typeof opts.localConfigs['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
   const result = {

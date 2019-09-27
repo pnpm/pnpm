@@ -97,3 +97,15 @@ test('command fails when unsupport flag is used', async (t) => {
   t.equal(status, 1, 'command failed')
   t.ok(stderr.toString().includes("Unknown option 'save-dev'"))
 })
+
+test('adding new dep does not fail if node_modules was created with --no-hoist', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('add', 'is-positive', '--no-hoist')
+
+  const { status } = await execPnpmSync('add', 'is-negative')
+
+  t.equal(status, 0)
+
+  await project.has('is-negative')
+})

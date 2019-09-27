@@ -33,7 +33,7 @@ test('shamefully hoist the dependency graph', async function (t) {
   await project.has('debug')
   await project.has('cookie')
 
-  await execPnpm('remove', '--shamefully-hoist', 'express')
+  await execPnpm('remove', 'express')
 
   await project.hasNot('express')
   await project.hasNot('debug')

@@ -252,7 +252,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'pnpmfile',
     'recursive',
     'reporter',
-    'shamefully-hoist',
     'shared-workspace-lockfile',
     'store',
   ]),
