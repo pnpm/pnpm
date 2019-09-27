@@ -161,7 +161,10 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ hoistPattern: undefined }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ hoistPattern: '*' }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
+      forceHoistPattern: true,
+      hoistPattern: '*',
+    }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_HOISTING_NOT_WANTED') // tslint:disable-line:no-string-literal
@@ -174,7 +177,10 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ hoistPattern: '*' }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ hoistPattern: undefined }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
+      forceHoistPattern: true,
+      hoistPattern: undefined,
+    }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_HOISTING_WANTED') // tslint:disable-line:no-string-literal

@@ -60,13 +60,13 @@ export interface StrictInstallOptions {
   pruneStore: boolean,
   bin: string,
   prefix: string,
-  
+
   hoistPattern: string | undefined,
   forceHoistPattern: boolean,
-  
+
   shamefullyHoist: boolean,
   forceShamefullyHoist: boolean,
-  
+
   independentLeaves: boolean,
   forceIndependentLeaves: boolean,
 }

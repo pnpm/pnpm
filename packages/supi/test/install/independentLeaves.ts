@@ -28,7 +28,10 @@ test('--independent-leaves throws exception when executed on node_modules instal
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: false }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ independentLeaves: true }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
+      forceIndependentLeaves: true,
+      independentLeaves: true
+    }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_INDEPENDENT_LEAVES_NOT_WANTED') // tslint:disable-line:no-string-literal
@@ -41,7 +44,10 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: true }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ independentLeaves: false }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
+      forceIndependentLeaves: true,
+      independentLeaves: false,
+    }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_INDEPENDENT_LEAVES_WANTED') // tslint:disable-line:no-string-literal

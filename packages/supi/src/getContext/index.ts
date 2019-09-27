@@ -85,11 +85,11 @@ export default async function getContext<T> (
       lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
 
-      independentLeaves: opts.independentLeaves,
       forceIndependentLeaves: opts.forceIndependentLeaves,
-      
-      hoistPattern: opts.hoistPattern,
+      independentLeaves: opts.independentLeaves,
+
       forceHoistPattern: opts.forceHoistPattern,
+      hoistPattern: opts.hoistPattern,
     })
   }
 
@@ -345,12 +345,12 @@ export async function getContextForSingleImporter (
       include: opts.include,
       lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
-      
-      hoistPattern: opts.hoistPattern,
+
       forceHoistPattern: opts.forceHoistPattern,
-      
-      independentLeaves: opts.independentLeaves,
+      hoistPattern: opts.hoistPattern,
+
       forceIndependentLeaves: opts.forceIndependentLeaves,
+      independentLeaves: opts.independentLeaves,
     })
   }
 
@@ -368,10 +368,9 @@ export async function getContextForSingleImporter (
     extraBinPaths,
     hoistedAliases,
     hoistedModulesDir,
+    hoistPattern: typeof hoist === 'boolean' ? currentHoistPattern : opts.hoistPattern,
     importerId,
     include: opts.include || include,
-    hoistPattern: typeof hoist === 'boolean' ?
-      currentHoistPattern : opts.hoistPattern,
     lockfileDirectory: opts.lockfileDirectory,
     manifest: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(manifest) : manifest,
     modulesDir,

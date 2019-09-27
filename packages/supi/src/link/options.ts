@@ -20,13 +20,13 @@ interface StrictLinkOptions {
   registries: Registries,
   store: string,
   reporter: ReporterFunction,
-  
+
   hoistPattern: string | undefined,
   forceHoistPattern: boolean,
-  
+
   shamefullyHoist: boolean,
   forceShamefullyHoist: boolean,
-  
+
   independentLeaves: boolean,
   forceIndependentLeaves: boolean,
 }
