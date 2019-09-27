@@ -628,3 +628,56 @@ test('do not throw error if --independent-leaves is used with --no-hoist', async
   t.notOk(configs.hoistPattern)
   t.end()
 })
+
+test('localConfigs in a workspace', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'independent-leaves=true', 'utf8')
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.mkdir('package')
+  process.chdir('package')
+  await fs.writeFile('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
+
+  const { configs } = await getConfigs({
+    cliArgs: {
+      'save-exact': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.deepEqual(configs.localConfigs, {
+    'hoist-pattern': 'eslint-*',
+    'independent-leaves': true,
+    'save-exact': true,
+  })
+  t.end()
+})
+
+test('localConfigs', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'independent-leaves=true', 'utf8')
+
+  const { configs } = await getConfigs({
+    cliArgs: {
+      'save-exact': true,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.deepEqual(configs.localConfigs, {
+    'independent-leaves': true,
+    'save-exact': true,
+  })
+  t.end()
+})

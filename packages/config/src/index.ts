@@ -83,7 +83,7 @@ const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 
 export default async (
   opts: {
-    cliArgs: object,
+    cliArgs: Record<string, any>, // tslint:disable-line:no-any
     // The canonical names of commands. "pnpm i -r"=>"pnpm recursive install"
     command?: string[],
     packageManager: {
@@ -180,9 +180,9 @@ export default async (
       return acc
     }, {} as PnpmConfigs)
   pnpmConfig.localConfigs = Object.assign.apply(Object, [
+    ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== pnpmConfig.localPrefix ? 5 : 4),
     cliArgs,
-    ...npmConfig.list.slice(3)
-  ])
+  ] as any) // tslint:disable-line:no-any
   pnpmConfig.userAgent = pnpmConfig.localConfigs['user-agent']
     ? pnpmConfig.localConfigs['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
