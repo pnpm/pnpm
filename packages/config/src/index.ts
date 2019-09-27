@@ -179,14 +179,14 @@ export default async (
         : npmConfig.get(configKey)
       return acc
     }, {} as PnpmConfigs)
-  if (!cliArgs['user-agent']) {
-    pnpmConfig.userAgent = `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  }
   pnpmConfig.localConfigs = Object.assign.apply(Object, [
     cliArgs,
     ...npmConfig.list.slice(3)
   ])
-  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.concat([cliArgs]))
+  pnpmConfig.userAgent = pnpmConfig.localConfigs['user-agent']
+    ? pnpmConfig.localConfigs['user-agent']
+    : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.concat([cliArgs, { 'user-agent': pnpmConfig.userAgent }]))
   pnpmConfig.registries = {
     default: normalizeRegistry(pnpmConfig.registry || 'https://registry.npmjs.org/'),
     ...getScopeRegistries(pnpmConfig.rawNpmConfig),
