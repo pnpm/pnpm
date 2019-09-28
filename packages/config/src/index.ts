@@ -83,7 +83,7 @@ const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 
 export default async (
   opts: {
-    cliArgs: object,
+    cliArgs: Record<string, any>, // tslint:disable-line:no-any
     // The canonical names of commands. "pnpm i -r"=>"pnpm recursive install"
     command?: string[],
     packageManager: {
@@ -172,9 +172,6 @@ export default async (
 
   process.execPath = originalExecPath
 
-  if (!cliArgs['user-agent']) {
-    cliArgs['user-agent'] = `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  }
   const pnpmConfig: PnpmConfigs = Object.keys(types) // tslint:disable-line
     .reduce((acc, configKey) => {
       acc[camelcase(configKey)] = typeof cliArgs[configKey] !== 'undefined'
@@ -182,9 +179,23 @@ export default async (
         : npmConfig.get(configKey)
       return acc
     }, {} as PnpmConfigs)
-  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliArgs]))
+  pnpmConfig.localConfigs = Object.assign.apply(Object, [
+    {},
+    ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== pnpmConfig.localPrefix ? 5 : 4),
+    cliArgs,
+  ] as any) // tslint:disable-line:no-any
+  pnpmConfig.userAgent = pnpmConfig.localConfigs['user-agent']
+    ? pnpmConfig.localConfigs['user-agent']
+    : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  const defaultRegistry = normalizeRegistry(pnpmConfig.registry || 'https://registry.npmjs.org/')
+  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, [
+    { registry: defaultRegistry },
+    ...npmConfig.list,
+    cliArgs,
+    { 'user-agent': pnpmConfig.userAgent },
+  ] as any) // tslint:disable-line:no-any
   pnpmConfig.registries = {
-    default: normalizeRegistry(pnpmConfig.registry || 'https://registry.npmjs.org/'),
+    default: defaultRegistry,
     ...getScopeRegistries(pnpmConfig.rawNpmConfig),
   }
   const npmGlobalPrefix: string = pnpmConfig.rawNpmConfig['pnpm-prefix'] ||

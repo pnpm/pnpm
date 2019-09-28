@@ -16,6 +16,7 @@ export interface PnpmOptions {
   extraBinPaths: string[],
   filter: string[],
   rawNpmConfig: object,
+  localConfigs: object,
   globalPrefix: string,
   globalBin: string,
   dryRun?: boolean, // This option might be not supported ever
