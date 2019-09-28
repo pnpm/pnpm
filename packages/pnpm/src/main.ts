@@ -81,6 +81,7 @@ type CLI_OPTIONS = 'access'
   | 'json'
   | 'latest'
   | 'link-workspace-packages'
+  | 'lock'
   | 'lockfile-directory'
   | 'lockfile-only'
   | 'lockfile'
@@ -140,6 +141,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'ignore-workspace-root-check',
   'independent-leaves',
   'link-workspace-packages',
+  'lock',
   'lockfile-directory',
   'lockfile-only',
   'lockfile',
