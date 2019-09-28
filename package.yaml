@@ -2,7 +2,6 @@ scripts:
   test: >-
     pnpm run build &&
     pnpm recursive test
-    --reporter=append-only
     --workspace-concurrency=1
     --filter=./packages
     --filter=./privatePackages
