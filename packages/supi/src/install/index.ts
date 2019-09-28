@@ -236,7 +236,7 @@ export async function mutateModules (
           pruneStore: opts.pruneStore,
           rawNpmConfig: opts.rawNpmConfig,
           registries: opts.registries,
-          shamefullyHoist: opts.shamefullyHoist,
+          shamefullyHoist: ctx.shamefullyHoist,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
           skipped: ctx.skipped,
@@ -882,6 +882,7 @@ async function installInContext (
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           registries: ctx.registries,
+          shamefullyHoist: ctx.shamefullyHoist,
           skipped: Array.from(ctx.skipped),
           store: ctx.storePath,
         })

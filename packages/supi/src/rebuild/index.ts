@@ -177,6 +177,7 @@ export async function rebuild (
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     registries: ctx.registries,
+    shamefullyHoist: ctx.shamefullyHoist,
     skipped: Array.from(ctx.skipped),
     store: ctx.storePath,
   })

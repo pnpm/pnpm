@@ -29,6 +29,7 @@ export default async function <T>(
   pendingBuilds: string[],
   registries: Registries | null | undefined,
   rootModulesDir: string,
+  shamefullyHoist?: boolean,
   skipped: Set<string>,
 }> {
   const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
@@ -55,6 +56,7 @@ export default async function <T>(
     pendingBuilds: modules && modules.pendingBuilds || [],
     registries: modules && modules.registries && normalizeRegistries(modules.registries),
     rootModulesDir,
+    shamefullyHoist: modules && modules.shamefullyHoist || undefined,
     skipped: new Set(modules && modules.skipped || []),
   }
 }

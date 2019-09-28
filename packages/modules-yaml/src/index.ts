@@ -20,6 +20,7 @@ export interface Modules {
   packageManager: string,
   pendingBuilds: string[],
   registries?: Registries, // nullable for backward compatibility
+  shamefullyHoist: boolean,
   skipped: string[],
   store: string,
 }

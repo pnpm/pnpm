@@ -338,6 +338,7 @@ export default async (opts: HeadlessOptions) => {
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
     registries: opts.registries,
+    shamefullyHoist: opts.shamefullyHoist || false,
     skipped: Array.from(skipped),
     store: opts.store,
   })

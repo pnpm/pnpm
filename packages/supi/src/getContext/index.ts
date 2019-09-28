@@ -38,6 +38,7 @@ export interface PnpmContext<T> {
   hoistedModulesDir: string,
   lockfileDirectory: string,
   virtualStoreDir: string,
+  shamefullyHoist: boolean,
   skipped: Set<string>,
   storePath: string,
   wantedLockfile: Lockfile,
@@ -112,10 +113,11 @@ export default async function getContext<T> (
   const extraBinPaths = [
     ...opts.extraBinPaths || []
   ]
-  if (opts.hoistPattern && !opts.shamefullyHoist) {
+  const shamefullyHoist = Boolean(typeof importersContext.shamefullyHoist === 'undefined' ? opts.shamefullyHoist : importersContext.shamefullyHoist)
+  if (opts.hoistPattern && !shamefullyHoist) {
     extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
   }
-  const hoistedModulesDir = opts.shamefullyHoist
+  const hoistedModulesDir = shamefullyHoist
     ? importersContext.rootModulesDir : path.join(virtualStoreDir, 'node_modules')
   const ctx: PnpmContext<T> = {
     extraBinPaths,
@@ -134,6 +136,7 @@ export default async function getContext<T> (
       ...importersContext.registries,
     },
     rootModulesDir: importersContext.rootModulesDir,
+    shamefullyHoist,
     skipped: importersContext.skipped,
     storePath: opts.store,
     virtualStoreDir,
@@ -281,6 +284,7 @@ export interface PnpmSingleContext {
   rootModulesDir: string,
   lockfileDirectory: string,
   virtualStoreDir: string,
+  shamefullyHoist: boolean,
   skipped: Set<string>,
   storePath: string,
   wantedLockfile: Lockfile,
@@ -321,6 +325,7 @@ export async function getContextForSingleImporter (
     modules,
     pendingBuilds,
     registries,
+    shamefullyHoist,
     skipped,
     rootModulesDir,
   } = await readImportersContext(
@@ -359,10 +364,11 @@ export async function getContextForSingleImporter (
   const extraBinPaths = [
     ...opts.extraBinPaths || []
   ]
-  if (opts.hoistPattern && !opts.shamefullyHoist) {
+  const sHoist = Boolean(typeof shamefullyHoist === 'undefined' ? opts.shamefullyHoist : shamefullyHoist)
+  if (opts.hoistPattern && !sHoist) {
     extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
   }
-  const hoistedModulesDir = opts.shamefullyHoist
+  const hoistedModulesDir = sHoist
     ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
   const ctx: PnpmSingleContext = {
     extraBinPaths,
@@ -382,6 +388,7 @@ export async function getContextForSingleImporter (
       ...registries,
     },
     rootModulesDir,
+    shamefullyHoist: sHoist,
     skipped,
     storePath,
     virtualStoreDir,

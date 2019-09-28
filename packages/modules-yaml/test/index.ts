@@ -18,6 +18,7 @@ test('write() and read()', async (t) => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
+    shamefullyHoist: false,
     skipped: [],
     store: '/.pnpm-store',
   }
