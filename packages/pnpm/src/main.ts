@@ -134,6 +134,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'global-pnpmfile',
   'global',
   'hoist',
+  'hoist-pattern',
   'ignore-pnpmfile',
   'ignore-scripts',
   'ignore-workspace-root-check',

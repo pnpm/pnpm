@@ -91,6 +91,9 @@ export default async function getContext<T> (
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
+
+      forceShamefullyHoist: opts.forceShamefullyHoist,
+      shamefullyHoist: opts.shamefullyHoist,
     })
   }
 
@@ -172,22 +175,34 @@ async function validateNodeModules (
 
     hoistPattern?: string | undefined,
     forceHoistPattern?: boolean,
+
+    shamefullyHoist?: boolean | undefined,
+    forceShamefullyHoist?: boolean,
   },
 ) {
+  const rootImporter = importers.find(({ id }) => id === '.')
+  if (opts.forceShamefullyHoist && modules.shamefullyHoist !== opts.shamefullyHoist) {
+    if (opts.force && rootImporter) {
+      await purgeModulesDirsOfImporter(rootImporter)
+      return
+    }
+    if (modules.shamefullyHoist) {
+      throw new PnpmError(
+        'SHAMEFULLY_HOIST_WANTED',
+        'This "node_modules" folder was created using the --shamefully-flatten option.'
+        + ' You must add that option, or else run "pnpm install --force" to recreate the "node_modules" folder.',
+      )
+    }
+    throw new PnpmError(
+      'SHAMEFULLY_HOIST_NOT_WANTED',
+      'This "node_modules" folder was created without the --shamefully-flatten option.'
+      + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
+    )
+  }
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
     if (opts.force) {
-      await Promise.all(importers.map(async (importer) => {
-        logger.info({
-          message: `Recreating ${importer.modulesDir}`,
-          prefix: importer.prefix,
-        })
-        try {
-          await removeAllExceptOuterLinks(importer.modulesDir)
-        } catch (err) {
-          if (err.code !== 'ENOENT') throw err
-        }
-      }))
       // TODO: remove the node_modules in the lockfile directory
+      await Promise.all(importers.map(purgeModulesDirsOfImporter))
       return
     }
     if (modules.independentLeaves) {
@@ -203,7 +218,6 @@ async function validateNodeModules (
       + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
     )
   }
-  const rootImporter = importers.find(({ id }) => id === '.')
   if (opts.forceHoistPattern && rootImporter) {
     try {
       if (opts.currentHoistPattern !== (opts.hoistPattern || undefined)) {
@@ -222,15 +236,7 @@ async function validateNodeModules (
       }
     } catch (err) {
       if (!opts.force) throw err
-      logger.info({
-        message: `Recreating ${rootImporter.modulesDir}`,
-        prefix: rootImporter.prefix,
-      })
-      try {
-        await removeAllExceptOuterLinks(rootImporter.modulesDir)
-      } catch (err) {
-        if (err.code !== 'ENOENT') throw err
-      }
+      await purgeModulesDirsOfImporter(rootImporter)
     }
   }
   await Promise.all(importers.map(async (importer) => {
@@ -248,17 +254,26 @@ async function validateNodeModules (
       }
     } catch (err) {
       if (!opts.force) throw err
-      logger.info({
-        message: `Recreating ${importer.modulesDir}`,
-        prefix: importer.prefix,
-      })
-      try {
-        await removeAllExceptOuterLinks(importer.modulesDir)
-      } catch (err) {
-        if (err.code !== 'ENOENT') throw err
-      }
+      await purgeModulesDirsOfImporter(importer)
     }
   }))
+}
+
+async function purgeModulesDirsOfImporter (
+  importer: {
+    modulesDir: string,
+    prefix: string,
+  }
+) {
+  logger.info({
+    message: `Recreating ${importer.modulesDir}`,
+    prefix: importer.prefix,
+  })
+  try {
+    await removeAllExceptOuterLinks(importer.modulesDir)
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
 }
 
 function stringifyIncludedDeps (included: IncludedDependencies) {
@@ -356,6 +371,9 @@ export async function getContextForSingleImporter (
 
       forceIndependentLeaves: opts.forceIndependentLeaves,
       independentLeaves: opts.independentLeaves,
+
+      forceShamefullyHoist: opts.forceShamefullyHoist,
+      shamefullyHoist: opts.shamefullyHoist,
     })
   }
 

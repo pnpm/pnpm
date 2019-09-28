@@ -877,7 +877,7 @@ async function installInContext (
           hoistedAliases: result.newHoistedAliases,
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
-          independentLeaves: opts.independentLeaves,
+          independentLeaves: ctx.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,

@@ -57,7 +57,7 @@ export default async function installCmd (
     store: store.path,
     storeController: store.ctrl,
 
-    forceHoistPattern: typeof opts.localConfigs['hoist-pattern'] !== 'undefined',
+    forceHoistPattern: typeof opts.localConfigs['hoist-pattern'] !== 'undefined' || typeof opts.localConfigs['hoist'] !== 'undefined',
     forceIndependentLeaves: typeof opts.localConfigs['independent-leaves'] !== 'undefined',
     forceShamefullyHoist: typeof opts.localConfigs['shamefully-hoist'] !== 'undefined',
   }
