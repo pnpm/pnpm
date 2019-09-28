@@ -1,12 +1,13 @@
-import { Registries } from '@pnpm/types'
+import { IncludedDependencies, Registries } from '@pnpm/types'
 
-export interface Config extends Record<string, any> { // tslint:disable-line
+export interface Config {
+  allowNew: boolean,
   bail: boolean,
   cliArgs: Record<string, any>, // tslint:disable-line
   useBetaCli: boolean,
   extraBinPaths: string[],
   filter: string[],
-  localConfigs: Record<string, any>, // tslint:disable-line
+  localConfig: Record<string, any>, // tslint:disable-line
   rawNpmConfig: Record<string, any>, // tslint:disable-line
   globalPrefix: string,
   globalBin: string,
@@ -16,6 +17,7 @@ export interface Config extends Record<string, any> { // tslint:disable-line
   localPrefix: string,
   bin?: string,
   ignoreScripts?: boolean
+  include: IncludedDependencies
   save?: boolean,
   saveProd?: boolean,
   saveDev?: boolean,
@@ -38,6 +40,20 @@ export interface Config extends Record<string, any> { // tslint:disable-line
   optional?: boolean,
   unsafePerm?: boolean,
   loglevel?: 'silent' | 'error' | 'warn' | 'notice' | 'http' | 'timing' | 'info' | 'verbose' | 'silly',
+  frozenLockfile?: boolean,
+  preferFrozenLockfile?: boolean,
+  only?: 'prod' | 'production' | 'dev' | 'development',
+  packageManager: {
+    name: string,
+    version: string,
+  },
+  sideEffectsCache?: boolean,
+  sideEffectsCacheRead?: boolean,
+  sideEffectsCacheWrite?: boolean,
+  sideEffectsCacheReadonly?: boolean,
+  shamefullyHoist?: boolean,
+  dev?: boolean,
+  ignoreCurrentPrefs?: boolean,
 
   // proxy
   proxy?: string,
@@ -71,6 +87,7 @@ export interface Config extends Record<string, any> { // tslint:disable-line
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   hoistPattern?: string,
   useStoreServer?: boolean,
+  useRunningStoreServer?: boolean,
   workspaceConcurrency: number,
   workspacePrefix?: string,
   reporter?: string,
@@ -79,11 +96,21 @@ export interface Config extends Record<string, any> { // tslint:disable-line
   strictPeerDependencies: boolean,
   pending: boolean,
   lockfileDirectory?: string,
-  sharedWorkspaceLockfile: boolean,
+  sharedWorkspaceLockfile?: boolean,
   useLockfile: boolean,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
+  globalPnpmfile?: string,
+  latest?: boolean,
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,
   table: boolean,
+}
+
+export interface ConfigWithDeprecatedSettings extends Config {
+  frozenShrinkwrap?: boolean,
+  shrinkwrapDirectory?: string,
+  shrinkwrapOnly?: boolean,
+  preferFrozenShrinkwrap?: boolean,
+  sharedWorkspaceShrinkwrap?: boolean,
 }

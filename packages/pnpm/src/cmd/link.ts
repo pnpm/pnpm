@@ -49,6 +49,9 @@ export default async (
     const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalPrefix, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
+      // A temporary workaround. global bin/prefix are always defined when --global is set
+      globalBin: linkOpts.globalBin!,
+      globalPrefix: linkOpts.globalPrefix!,
       manifest: manifest || {},
     })
     await writeImporterManifest(newManifest)

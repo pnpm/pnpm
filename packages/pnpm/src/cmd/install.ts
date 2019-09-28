@@ -28,6 +28,7 @@ export default async function installCmd (
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
+    update?: boolean,
     useBetaCli?: boolean,
   },
   invocation?: string,

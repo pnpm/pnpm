@@ -6,7 +6,7 @@ import camelcase from 'camelcase'
 import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
-import { Config } from './Config'
+import { Config, ConfigWithDeprecatedSettings } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 
@@ -172,7 +172,7 @@ export default async (
 
   process.execPath = originalExecPath
 
-  const pnpmConfig: Config = Object.keys(types) // tslint:disable-line
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.keys(types) // tslint:disable-line
     .reduce((acc, configKey) => {
       acc[camelcase(configKey)] = typeof cliArgs[configKey] !== 'undefined'
         ? cliArgs[configKey]

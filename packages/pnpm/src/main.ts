@@ -436,7 +436,7 @@ export default async function run (inputArgv: string[]) {
     }
   }
 
-  let config!: Config
+  let config!: Config & { forceSharedLockfile?: boolean, argv?: { remain: string[], cooked: string[], original: string[] } }
   try {
     config = await getConfig(cliConf, {
       command: subCmd ? [cmd, subCmd] : [cmd],

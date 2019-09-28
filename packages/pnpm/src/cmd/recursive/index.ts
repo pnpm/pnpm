@@ -104,6 +104,7 @@ export async function recursive (
     allowNew?: boolean,
     packageSelectors?: PackageSelector[],
     ignoredPackages?: Set<string>,
+    update?: boolean,
     useBetaCli?: boolean,
   },
   cmdFullName: string,
