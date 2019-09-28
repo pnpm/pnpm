@@ -1,5 +1,5 @@
-import createFetcher from '@pnpm/default-fetcher'
 import { Config } from '@pnpm/config'
+import createFetcher from '@pnpm/default-fetcher'
 import logger from '@pnpm/logger'
 import createStore from '@pnpm/package-store'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'

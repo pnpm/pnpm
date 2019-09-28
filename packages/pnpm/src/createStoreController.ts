@@ -1,5 +1,5 @@
-import PnpmError from '@pnpm/error'
 import { Config } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { StoreController } from '@pnpm/package-store'
 import { connectStoreController } from '@pnpm/server'
