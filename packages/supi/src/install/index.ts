@@ -216,7 +216,7 @@ export async function mutateModules (
           extraBinPaths: opts.extraBinPaths,
           force: opts.force,
           hoistedAliases: ctx.hoistedAliases,
-          hoistPattern: opts.hoistPattern,
+          hoistPattern: ctx.hoistPattern,
           ignoreScripts: opts.ignoreScripts,
           importers: ctx.importers as Array<{
             bin: string,
@@ -236,7 +236,7 @@ export async function mutateModules (
           pruneStore: opts.pruneStore,
           rawNpmConfig: opts.rawNpmConfig,
           registries: opts.registries,
-          shamefullyHoist: opts.shamefullyHoist,
+          shamefullyHoist: ctx.shamefullyHoist,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
           skipped: ctx.skipped,
@@ -668,7 +668,7 @@ async function installInContext (
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies(
-    await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(opts.hoistPattern && importer.id === '.')))),
+    await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(ctx.hoistPattern && importer.id === '.')))),
     {
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
@@ -782,7 +782,7 @@ async function installInContext (
       force: opts.force,
       hoistedAliases: ctx.hoistedAliases,
       hoistedModulesDir: ctx.hoistedModulesDir,
-      hoistPattern: opts.hoistPattern,
+      hoistPattern: ctx.hoistPattern,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
@@ -875,13 +875,14 @@ async function installInContext (
         return writeModulesYaml(ctx.rootModulesDir, {
           ...ctx.modulesFile,
           hoistedAliases: result.newHoistedAliases,
-          hoistPattern: opts.hoistPattern,
+          hoistPattern: ctx.hoistPattern,
           included: ctx.include,
-          independentLeaves: opts.independentLeaves,
+          independentLeaves: ctx.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           registries: ctx.registries,
+          shamefullyHoist: ctx.shamefullyHoist,
           skipped: Array.from(ctx.skipped),
           store: ctx.storePath,
         })

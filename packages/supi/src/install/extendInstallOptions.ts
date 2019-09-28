@@ -20,7 +20,6 @@ export interface StrictInstallOptions {
   useLockfile: boolean,
   lockfileOnly: boolean,
   preferFrozenLockfile: boolean,
-  hoistPattern: string | undefined,
   storeController: StoreController,
   store: string,
   reporter: ReporterFunction,
@@ -46,7 +45,6 @@ export interface StrictInstallOptions {
   sideEffectsCacheWrite: boolean,
   strictPeerDependencies: boolean,
   include: IncludedDependencies,
-  independentLeaves: boolean,
   ignoreCurrentPrefs: boolean,
   ignoreScripts: boolean,
   childConcurrency: number,
@@ -62,7 +60,15 @@ export interface StrictInstallOptions {
   pruneStore: boolean,
   bin: string,
   prefix: string,
+
+  hoistPattern: string | undefined,
+  forceHoistPattern: boolean,
+
   shamefullyHoist: boolean,
+  forceShamefullyHoist: boolean,
+
+  independentLeaves: boolean,
+  forceIndependentLeaves: boolean,
 }
 
 export type InstallOptions = Partial<StrictInstallOptions> &
