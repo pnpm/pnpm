@@ -24,7 +24,7 @@ export default async function <T>(
     modulesDir: string,
   } & T & Required<ImporterOptions>>,
   include: Record<DependenciesField, boolean>,
-  independentLeaves: boolean,
+  independentLeaves: boolean | undefined,
   modules: Modules | null,
   pendingBuilds: string[],
   registries: Registries | null | undefined,
@@ -51,7 +51,7 @@ export default async function <T>(
         }
       })),
     include: modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
-    independentLeaves: modules && modules.independentLeaves || false,
+    independentLeaves: modules && modules.independentLeaves || undefined,
     modules,
     pendingBuilds: modules && modules.pendingBuilds || [],
     registries: modules && modules.registries && normalizeRegistries(modules.registries),
