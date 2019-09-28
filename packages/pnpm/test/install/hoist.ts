@@ -27,13 +27,13 @@ test('hoist the dependency graph', async function (t) {
 test('shamefully hoist the dependency graph', async function (t) {
   const project = prepare(t)
 
-  await execPnpm('install', '--shamefully-hoist', 'express@4.16.2')
+  await execPnpm('add', '--shamefully-hoist', 'express@4.16.2')
 
   await project.has('express')
   await project.has('debug')
   await project.has('cookie')
 
-  await execPnpm('uninstall', '--shamefully-hoist', 'express')
+  await execPnpm('remove', '--shamefully-hoist', 'express')
 
   await project.hasNot('express')
   await project.hasNot('debug')

@@ -3,10 +3,11 @@ export default function getCommandFullName (cmd: string) {
     case 'install':
     case 'i':
       return 'install'
-    case 'uninstall':
     case 'r':
+    case 'remove':
     case 'rm':
     case 'un':
+    case 'uninstall':
       return 'uninstall'
     case 'link':
     case 'ln':
