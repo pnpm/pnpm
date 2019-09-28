@@ -6,11 +6,11 @@ import camelcase from 'camelcase'
 import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
+import { Config } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
-import { PnpmConfigs } from './PnpmConfigs'
 
-export { PnpmConfigs }
+export { Config }
 
 const npmDefaults = loadNpmConf.defaults
 
@@ -91,7 +91,7 @@ export default async (
       version: string,
     },
   },
-): Promise<{configs: PnpmConfigs, warnings: string[]}> => {
+): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts && opts.packageManager || { name: 'pnpm', version: 'undefined' }
   const cliArgs = opts && opts.cliArgs || {}
   const command = opts.command || []
@@ -172,20 +172,20 @@ export default async (
 
   process.execPath = originalExecPath
 
-  const pnpmConfig: PnpmConfigs = Object.keys(types) // tslint:disable-line
+  const pnpmConfig: Config = Object.keys(types) // tslint:disable-line
     .reduce((acc, configKey) => {
       acc[camelcase(configKey)] = typeof cliArgs[configKey] !== 'undefined'
         ? cliArgs[configKey]
         : npmConfig.get(configKey)
       return acc
-    }, {} as PnpmConfigs)
-  pnpmConfig.localConfigs = Object.assign.apply(Object, [
+    }, {} as Config)
+  pnpmConfig.localConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== pnpmConfig.localPrefix ? 5 : 4),
     cliArgs,
   ] as any) // tslint:disable-line:no-any
-  pnpmConfig.userAgent = pnpmConfig.localConfigs['user-agent']
-    ? pnpmConfig.localConfigs['user-agent']
+  pnpmConfig.userAgent = pnpmConfig.localConfig['user-agent']
+    ? pnpmConfig.localConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   const defaultRegistry = normalizeRegistry(pnpmConfig.registry || 'https://registry.npmjs.org/')
   pnpmConfig.rawNpmConfig = Object.assign.apply(Object, [
@@ -335,7 +335,7 @@ export default async (
       '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
   }
 
-  return { configs: pnpmConfig, warnings }
+  return { config: pnpmConfig, warnings }
 }
 
 export async function findWorkspacePrefix (prefix: string) {

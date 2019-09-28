@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/config",
   "version": "4.0.0-2",
-  "description": "Gets configs for pnpm",
+  "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [

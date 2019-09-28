@@ -1,4 +1,4 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
 import { render as renderList } from '../list'
@@ -7,7 +7,7 @@ export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
   args: string[],
   cmd: string,
-  opts: PnpmConfigs & {
+  opts: Config & {
     depth?: number,
     long?: boolean,
     parseable?: boolean,

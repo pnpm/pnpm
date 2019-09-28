@@ -1,4 +1,4 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import most = require('most')
 import reportBigTarballsProgress from './reportBigTarballsProgress'
@@ -39,11 +39,11 @@ export default function (
     width?: number,
     appendOnly?: boolean,
     throttleProgress?: number,
-    pnpmConfigs?: PnpmConfigs,
+    pnpmConfig?: Config,
   },
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = opts.width || process.stdout.columns || 80
-  const cwd = opts.pnpmConfigs && opts.pnpmConfigs.prefix || process.cwd()
+  const cwd = opts.pnpmConfig && opts.pnpmConfig.prefix || process.cwd()
 
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = [
     reportProgress(log$, {
@@ -83,7 +83,7 @@ export default function (
   if (!opts.isRecursive) {
     outputs.push(reportSummary(log$, {
       cwd,
-      pnpmConfigs: opts.pnpmConfigs,
+      pnpmConfig: opts.pnpmConfig,
     }))
   }
 

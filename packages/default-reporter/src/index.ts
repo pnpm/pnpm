@@ -1,4 +1,4 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
 import createDiffer = require('ansi-diff')
@@ -24,7 +24,7 @@ export default function (
     },
     context: {
       argv: string[],
-      configs?: PnpmConfigs,
+      config?: Config,
     },
   },
 ) {
@@ -70,7 +70,7 @@ export function toOutput$ (
     },
     context: {
       argv: string[],
-      configs?: PnpmConfigs,
+      config?: Config,
     },
   },
 ): most.Stream<string> {
@@ -171,7 +171,7 @@ export function toOutput$ (
       appendOnly: opts.reportingOptions && opts.reportingOptions.appendOnly,
       cmd: opts.context.argv[0],
       isRecursive: opts.context.argv[0] === 'recursive',
-      pnpmConfigs: opts.context.configs,
+      pnpmConfig: opts.context.config,
       subCmd: opts.context.argv[1],
       throttleProgress: opts.reportingOptions && opts.reportingOptions.throttleProgress,
       width: opts.reportingOptions && opts.reportingOptions.outputMaxWidth,

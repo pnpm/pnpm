@@ -1,4 +1,4 @@
-import getConfigs from '@pnpm/config'
+import getConfig from '@pnpm/config'
 import packageManager from './pnpmPkgJson'
 
 export default async function (
@@ -8,20 +8,20 @@ export default async function (
     command: string[],
   },
 ) {
-  const { configs, warnings } = await getConfigs({
+  const { config, warnings } = await getConfig({
     cliArgs,
     command: opts.command,
     packageManager,
   })
-  configs.cliArgs = cliArgs
+  config.cliArgs = cliArgs
 
   if (opts.excludeReporter) {
-    delete configs.reporter // This is a silly workaround because supi expects a function as opts.reporter
+    delete config.reporter // This is a silly workaround because supi expects a function as opts.reporter
   }
 
   if (warnings.length > 0) {
     console.log(warnings.join('\n'))
   }
 
-  return configs
+  return config
 }

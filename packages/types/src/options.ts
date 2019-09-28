@@ -66,7 +66,7 @@ export type StrictPnpmOptions = {
   metaCache: Map<string, object>,
   alwaysAuth: boolean,
 
-  // pnpm specific configs
+  // pnpm specific config
   store: string,
   verifyStoreIntegrity: boolean,
   networkConcurrency: number,
@@ -81,7 +81,7 @@ export type StrictPnpmOptions = {
   locks: string,
   packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
 
-  // cannot be specified via configs
+  // cannot be specified via config
   update: boolean,
   packageManager: {
     name: string,

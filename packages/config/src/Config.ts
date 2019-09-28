@@ -1,6 +1,6 @@
 import { Registries } from '@pnpm/types'
 
-export interface PnpmConfigs extends Record<string, any> { // tslint:disable-line
+export interface Config extends Record<string, any> { // tslint:disable-line
   bail: boolean,
   cliArgs: Record<string, any>, // tslint:disable-line
   useBetaCli: boolean,

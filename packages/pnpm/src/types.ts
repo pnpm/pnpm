@@ -16,7 +16,7 @@ export interface PnpmOptions {
   extraBinPaths: string[],
   filter: string[],
   rawNpmConfig: object,
-  localConfigs: object,
+  localConfig: object,
   globalPrefix: string,
   globalBin: string,
   dryRun?: boolean, // This option might be not supported ever
@@ -67,7 +67,7 @@ export interface PnpmOptions {
   metaCache?: Map<string, object>,
   alwaysAuth?: boolean,
 
-  // pnpm specific configs
+  // pnpm specific config
   storePath?: string, // DEPRECATED! store should be used
   store?: string,
   verifyStoreIntegrity?: boolean,
@@ -91,7 +91,7 @@ export interface PnpmOptions {
   pending: boolean,
   lockfileDirectory?: string,
 
-  // cannot be specified via configs
+  // cannot be specified via config
   latest?: boolean,
   update?: boolean,
   reporter?: (logObj: LogBase) => void,

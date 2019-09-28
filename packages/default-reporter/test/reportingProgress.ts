@@ -1,4 +1,4 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import {
   fetchingProgressLogger,
   progressLogger,
@@ -26,7 +26,7 @@ test('prints progress beginning', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix: '/src/project' } as PnpmConfigs,
+      config: { prefix: '/src/project' } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -56,7 +56,7 @@ test('prints progress beginning of node_modules from not cwd', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix: '/src/projects' } as PnpmConfigs,
+      config: { prefix: '/src/projects' } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -86,7 +86,7 @@ test('prints progress beginning when appendOnly is true', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix: '/src/project' } as PnpmConfigs,
+      config: { prefix: '/src/project' } as Config,
     },
     reportingOptions: {
       appendOnly: true,
@@ -119,7 +119,7 @@ test('prints progress beginning during recursive install', t => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/src/project' } as PnpmConfigs,
+      config: { prefix: '/src/project' } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -151,7 +151,7 @@ test('prints progress on first download', async t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix: '/src/project' } as PnpmConfigs,
+      config: { prefix: '/src/project' } as Config,
     },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
@@ -191,7 +191,7 @@ test('moves fixed line to the end', async t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix } as PnpmConfigs,
+      config: { prefix } as Config,
     },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
@@ -271,7 +271,7 @@ test('prints progress of big files download', async t => {
   let output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix: '/src/project' } as PnpmConfigs,
+      config: { prefix: '/src/project' } as Config,
     },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),

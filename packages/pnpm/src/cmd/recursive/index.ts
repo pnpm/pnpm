@@ -198,9 +198,9 @@ export async function recursive (
     storeController,
     targetDependenciesField: getSaveType(opts),
 
-    forceHoistPattern: typeof opts.localConfigs['hoist-pattern'] !== 'undefined' || typeof opts.localConfigs['hoist'] !== 'undefined',
-    forceIndependentLeaves: typeof opts.localConfigs['independent-leaves'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.localConfigs['shamefully-hoist'] !== 'undefined',
+    forceHoistPattern: typeof opts.localConfig['hoist-pattern'] !== 'undefined' || typeof opts.localConfig['hoist'] !== 'undefined',
+    forceIndependentLeaves: typeof opts.localConfig['independent-leaves'] !== 'undefined',
+    forceShamefullyHoist: typeof opts.localConfig['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
   const result = {
@@ -208,7 +208,7 @@ export async function recursive (
     passes: 0,
   } as RecursiveSummary
 
-  const memReadLocalConfigs = mem(readLocalConfigs)
+  const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters () {
     const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>
@@ -250,7 +250,7 @@ export async function recursive (
       const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
       const mutatedImporters = [] as MutatedImporter[]
       await Promise.all(importers.map(async ({ buildIndex, prefix }) => {
-        const localConfigs = await memReadLocalConfigs(prefix)
+        const localConfig = await memReadLocalConfig(prefix)
         const { manifest, writeImporterManifest } = manifestsByPath[prefix]
         let currentInput = [...input]
         if (updateToLatest) {
@@ -283,8 +283,8 @@ export async function recursive (
               mutation,
               peer: opts.savePeer,
               pinnedVersion: getPinnedVersion({
-                saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
-                savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
+                saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+                savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
               prefix,
               targetDependenciesField: getSaveType(installOpts),
@@ -359,23 +359,23 @@ export async function recursive (
               break
           }
 
-          const localConfigs = await memReadLocalConfigs(prefix)
+          const localConfig = await memReadLocalConfig(prefix)
           const newManifest = await action(
             manifest,
             {
               ...installOpts,
-              ...localConfigs,
+              ...localConfig,
               bin: path.join(prefix, 'node_modules', '.bin'),
               hooks,
               ignoreScripts: true,
               pinnedVersion: getPinnedVersion({
-                saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
-                savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
+                saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+                savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
               prefix,
               rawNpmConfig: {
                 ...installOpts.rawNpmConfig,
-                ...localConfigs,
+                ...localConfig,
               },
               storeController,
             },
@@ -438,7 +438,7 @@ export async function recursive (
             if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
               return
             }
-            const localConfigs = await memReadLocalConfigs(prefix)
+            const localConfig = await memReadLocalConfig(prefix)
             await action(
               [
                 {
@@ -449,13 +449,13 @@ export async function recursive (
               ],
               {
                 ...installOpts,
-                ...localConfigs,
+                ...localConfig,
                 bin: path.join(prefix, 'node_modules', '.bin'),
                 pending: cmdFullName !== 'rebuild' || opts.pending === true,
                 prefix,
                 rawNpmConfig: {
                   ...installOpts.rawNpmConfig,
-                  ...localConfigs,
+                  ...localConfig,
                 },
               },
             )
@@ -578,18 +578,18 @@ function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[
   return graphSequencerResult.chunks
 }
 
-async function readLocalConfigs (prefix: string) {
+async function readLocalConfig (prefix: string) {
   try {
     const ini = await readIniFile(path.join(prefix, '.npmrc')) as { [key: string]: string }
-    const configs = camelcaseKeys(ini) as ({ [key: string]: string } & { hoist?: boolean })
-    if (configs.shamefullyFlatten) {
-      configs.hoistPattern = '*'
+    const config = camelcaseKeys(ini) as ({ [key: string]: string } & { hoist?: boolean })
+    if (config.shamefullyFlatten) {
+      config.hoistPattern = '*'
       // TODO: print a warning
     }
-    if (configs.hoist === false) {
-      configs.hoistPattern = ''
+    if (config.hoist === false) {
+      config.hoistPattern = ''
     }
-    return configs
+    return config
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
     return {}

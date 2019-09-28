@@ -1,5 +1,5 @@
 ///<reference path="../../../typings/index.d.ts"/>
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import {
   deprecationLogger,
   hookLogger,
@@ -40,7 +40,7 @@ test('prints summary (of current package only)', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix } as PnpmConfigs,
+      config: { prefix } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -218,10 +218,10 @@ test('prints summary for global installation', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: {
+      config: {
         global: true,
         prefix,
-      } as PnpmConfigs,
+      } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -281,9 +281,9 @@ test('prints added peer dependency', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: {
+      config: {
         prefix,
-      } as PnpmConfigs,
+      } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -327,9 +327,9 @@ test('prints summary correctly when the same package is specified both in option
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: {
+      config: {
         prefix,
-      } as PnpmConfigs,
+      } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -696,7 +696,7 @@ test('prints added/removed stats and warnings during recursive installation', t 
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: rootPrefix } as PnpmConfigs,
+      config: { prefix: rootPrefix } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -757,7 +757,7 @@ test('recursive installation: prints only the added stats if nothing was removed
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { prefix: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 60 },
     streamParser: createStreamParser(),
@@ -783,7 +783,7 @@ test('recursive installation: prints only the removed stats if nothing was added
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { prefix: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 60 },
     streamParser: createStreamParser(),
@@ -809,7 +809,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { prefix: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -835,7 +835,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { prefix: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -861,7 +861,7 @@ test('recursive uninstall: prints removed packages number', t => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive', 'uninstall'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { prefix: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),
@@ -886,7 +886,7 @@ test('install: print hook message', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { prefix: '/home/jane/repo' } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -915,7 +915,7 @@ test('recursive: print hook message', t => {
   const output$ = toOutput$({
     context: {
       argv: ['recursive'],
-      configs: { prefix: '/home/jane/repo' } as PnpmConfigs,
+      config: { prefix: '/home/jane/repo' } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -945,7 +945,7 @@ test('prints skipped optional dependency info message', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
-      configs: { prefix } as PnpmConfigs,
+      config: { prefix } as Config,
     },
     streamParser: createStreamParser(),
   })

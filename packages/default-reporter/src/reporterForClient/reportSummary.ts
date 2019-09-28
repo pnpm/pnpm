@@ -1,4 +1,4 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import {
   DeprecationLog,
   PackageJsonLog,
@@ -29,7 +29,7 @@ export default (
   },
   opts: {
     cwd: string,
-    pnpmConfigs?: PnpmConfigs,
+    pnpmConfig?: Config,
   },
 ) => {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
@@ -44,7 +44,7 @@ export default (
         const diffs = R.values(pkgsDiff[depType])
         if (diffs.length) {
           msg += EOL
-          if (opts.pnpmConfigs && opts.pnpmConfigs.global) {
+          if (opts.pnpmConfig && opts.pnpmConfig.global) {
             msg += chalk.cyanBright(`${opts.cwd}:`)
           } else {
             msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)

@@ -1,4 +1,4 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import defaultReporter from '@pnpm/default-reporter'
 import { streamParser, writeToConsole } from '@pnpm/logger'
 import silentReporter from './silentReporter'
@@ -10,7 +10,7 @@ export default (
   opts: {
     cmd: string,
     subCmd: string | null,
-    pnpmConfigs: PnpmConfigs,
+    config: Config,
   },
 ) => {
   switch (reporterType) {
@@ -18,7 +18,7 @@ export default (
       defaultReporter({
         context: {
           argv: opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd],
-          configs: opts.pnpmConfigs,
+          config: opts.config,
         },
         reportingOptions: {
           appendOnly: false,
@@ -31,7 +31,7 @@ export default (
       defaultReporter({
         context: {
           argv: opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd],
-          configs: opts.pnpmConfigs,
+          config: opts.config,
         },
         reportingOptions: {
           appendOnly: true,

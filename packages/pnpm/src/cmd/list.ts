@@ -1,10 +1,10 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 
 export default async function (
   args: string[],
-  opts: PnpmConfigs & {
+  opts: Config & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     lockfileDirectory?: string,
@@ -25,7 +25,7 @@ export default async function (
 export async function render (
   prefixes: string[],
   args: string[],
-  opts: PnpmConfigs & {
+  opts: Config & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     lockfileDirectory: string,

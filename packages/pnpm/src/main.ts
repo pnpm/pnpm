@@ -14,7 +14,7 @@ gfs.gracefulify(fs)
 import loudRejection from 'loud-rejection'
 loudRejection()
 import {
-  PnpmConfigs,
+  Config,
   types,
 } from '@pnpm/config'
 import logger from '@pnpm/logger'
@@ -23,7 +23,7 @@ import nopt = require('nopt')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds from './cmd'
 import getCommandFullName from './getCommandFullName'
-import getConfigs from './getConfigs'
+import getConfig from './getConfig'
 import { scopeLogger } from './loggers'
 import './logging/fileLogger'
 import packageManager from './pnpmPkgJson'
@@ -436,18 +436,18 @@ export default async function run (inputArgv: string[]) {
     }
   }
 
-  let opts!: PnpmConfigs
+  let config!: Config
   try {
-    opts = await getConfigs(cliConf, {
+    config = await getConfig(cliConf, {
       command: subCmd ? [cmd, subCmd] : [cmd],
       excludeReporter: false,
     })
-    opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
-    opts.argv = argv
-    if (opts.filter) {
-      Array.prototype.push.apply(opts.filter, filterArgs)
+    config.forceSharedLockfile = typeof config.workspacePrefix === 'string' && config.sharedWorkspaceLockfile === true
+    config.argv = argv
+    if (config.filter) {
+      Array.prototype.push.apply(config.filter, filterArgs)
     } else {
-      opts.filter = filterArgs
+      config.filter = filterArgs
     }
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
@@ -459,15 +459,15 @@ export default async function run (inputArgv: string[]) {
 
   if (
     (cmd === 'add' || cmd === 'install') &&
-    typeof opts.workspacePrefix === 'string'
+    typeof config.workspacePrefix === 'string'
   ) {
     if (cliArgs.length === 0) {
       subCmd = cmd
       cmd = 'recursive'
       cliArgs.unshift(subCmd)
     } else if (
-      opts.workspacePrefix === opts.prefix &&
-      !opts.ignoreWorkspaceRootCheck
+      config.workspacePrefix === config.prefix &&
+      !config.ignoreWorkspaceRootCheck
     ) {
       // Reporting is not initialized at this point, so just printing the error
       console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
@@ -480,7 +480,7 @@ export default async function run (inputArgv: string[]) {
     }
   }
 
-  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && argv.remain.includes(packageManager.name)
+  const selfUpdate = config.global && (cmd === 'install' || cmd === 'update') && argv.remain.includes(packageManager.name)
 
   // Don't check for updates
   //   1. on CI environments
@@ -490,21 +490,21 @@ export default async function run (inputArgv: string[]) {
   }
 
   const reporterType: ReporterType = (() => {
-    if (opts.loglevel === 'silent') return 'silent'
-    if (opts.reporter) return opts.reporter as ReporterType
+    if (config.loglevel === 'silent') return 'silent'
+    if (config.reporter) return config.reporter as ReporterType
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
 
   initReporter(reporterType, {
     cmd,
-    pnpmConfigs: opts,
+    config,
     subCmd,
   })
-  delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
+  delete config.reporter // This is a silly workaround because supi expects a function as config.reporter
 
   if (selfUpdate) {
-    await pnpmCmds.server(['stop'], opts as any) // tslint:disable-line:no-any
+    await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
@@ -513,25 +513,25 @@ export default async function run (inputArgv: string[]) {
       if (cliConf['shamefully-flatten'] === true) {
         logger.info({
           message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
-          prefix: opts.prefix,
+          prefix: config.prefix,
         })
       }
-      if (opts.force === true) {
+      if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
-          prefix: opts.prefix,
+          prefix: config.prefix,
         })
       }
 
       if (cmd !== 'recursive') {
         scopeLogger.debug({
           selected: 1,
-          workspacePrefix: opts.workspacePrefix,
+          workspacePrefix: config.workspacePrefix,
         })
       }
 
       try {
-        const result = pnpmCmds[cmd](cliArgs, opts, argv.remain[0])
+        const result = pnpmCmds[cmd](cliArgs, config, argv.remain[0])
         if (result instanceof Promise) {
           result
             .then((output) => {
