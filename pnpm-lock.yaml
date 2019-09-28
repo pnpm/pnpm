@@ -1104,7 +1104,7 @@ importers:
       is-subdir: 1.0.3
       is-windows: 1.0.2
       load-json-file: 6.2.0
-      loud-rejection: 2.1.0
+      loud-rejection: 2.2.0
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
@@ -1236,7 +1236,7 @@ importers:
       is-subdir: 1.0.3
       is-windows: 1.0.2
       load-json-file: 6.2.0
-      loud-rejection: 2.1.0
+      loud-rejection: 2.2.0
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
@@ -6083,7 +6083,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-W0b4AUft7leIcPCG0Eghz5mOVR8=
-  /loud-rejection/2.1.0:
+  /loud-rejection/2.2.0:
     dependencies:
       currently-unhandled: 0.4.1
       signal-exit: 3.0.2
@@ -6091,7 +6091,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-g/6MQxUXYHeVqZ4PGpPL1fS1fOvlXoi7bay0pizmjAd/3JhyXwxzwrnr74yzdmhuerlslbRJ3x7IOXzFz0cE5w==
+      integrity: sha512-S0FayMXku80toa5sZ6Ro4C+s+EtFDCsyJNG/AzFMfX3AxD5Si4dZsgzm/kKnbOxHl5Cv8jBlno8+3XYIh2pNjQ==
   /lowercase-keys/1.0.1:
     dev: false
     engines:
