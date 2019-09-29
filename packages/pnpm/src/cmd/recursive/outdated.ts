@@ -2,15 +2,19 @@ import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
 import chalk from 'chalk'
+import { stripIndent } from 'common-tags'
 import R = require('ramda')
-import stripColor = require('strip-color')
-import table = require('text-table')
+import { table } from 'table'
 import {
+  DEFAULT_COMPARATORS,
+  getCellWidth,
   outdatedDependenciesOfWorkspacePackages,
+  OutdatedOptions,
   renderCurrent,
+  renderDetails,
   renderLatest,
   renderPackageName,
-  sortBySemverChange,
+  TABLE_OPTIONS,
   toOutdatedWithVersionDiff,
 } from '../outdated'
 
@@ -20,7 +24,12 @@ const DEP_PRIORITY: Record<DependenciesField, number> = {
   optionalDependencies: 0,
 }
 
-type OutdatedInWorkspace = OutdatedPackage & {
+const COMPARATORS = [
+  ...DEFAULT_COMPARATORS,
+  (o1: OutdatedInWorkspace, o2: OutdatedInWorkspace) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
+]
+
+interface OutdatedInWorkspace extends OutdatedPackage {
   belongsTo: DependenciesField,
   current?: string,
   dependentPkgs: Array<{ location: string, manifest: PackageJson }>,
@@ -33,31 +42,7 @@ export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
   args: string[],
   cmd: string,
-  opts: {
-    alwaysAuth: boolean,
-    ca?: string,
-    cert?: string,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMaxtimeout: number,
-    fetchRetryMintimeout: number,
-    global: boolean,
-    httpsProxy?: string,
-    independentLeaves: boolean,
-    key?: string,
-    localAddress?: string,
-    networkConcurrency: number,
-    offline: boolean,
-    prefix: string,
-    proxy?: string,
-    rawNpmConfig: object,
-    registries: Registries,
-    lockfileDirectory?: string,
-    store?: string,
-    strictSsl: boolean,
-    tag: string,
-    userAgent: string,
-  },
+  opts: OutdatedOptions,
 ) => {
   const outdatedByNameAndType = {} as Record<string, OutdatedInWorkspace>
   if (opts.lockfileDirectory) {
@@ -86,31 +71,94 @@ export default async (
     }))
   }
 
-  const columnNames = ['Package', 'Current', 'Latest', 'Dependents'].map((txt) => chalk.underline(txt))
-  console.log(
-    table([
-      columnNames,
-      ...R.sortWith(
-        [
-          sortBySemverChange,
-          (o1, o2) => o1.packageName.localeCompare(o2.packageName),
-          (o1, o2) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
-        ],
-        (
-          Object.values(outdatedByNameAndType).map(toOutdatedWithVersionDiff)
-        ),
-      )
-        .map((outdatedPkg) => [
-          renderPackageName(outdatedPkg),
-          renderCurrent(outdatedPkg),
-          renderLatest(outdatedPkg),
-          outdatedPkg.dependentPkgs
-            .map(({ manifest, location }) => manifest.name || location)
-            .sort()
-            .join(', '),
-        ]),
-    ], {
-      stringLength: (s: string) => stripColor(s).length,
-    }),
+  if (opts.table !== false) {
+    process.stdout.write(renderOutdatedTable(outdatedByNameAndType, opts))
+    return
+  }
+  process.stdout.write(renderOutdatedList(outdatedByNameAndType, opts))
+}
+
+function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  let columnNames = [
+    'Package',
+    'Current',
+    'Latest',
+    'Dependents'
+  ]
+
+  let columnFns = [
+    renderPackageName,
+    renderCurrent,
+    renderLatest,
+    dependentPackages,
+  ]
+
+  if (opts.long) {
+    columnNames.push('Details')
+    columnFns.push(renderDetails)
+  }
+
+  // Avoid the overhead of allocating a new array caused by calling `array.map()`
+  for (let i = 0; i < columnNames.length; i++)
+    columnNames[i] = chalk.blueBright(columnNames[i])
+
+  const data = [
+    columnNames,
+    ...sortOutdatedPackages(Object.values(outdatedByNameAndType))
+      .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
+  ]
+  return table(data, {
+    ...TABLE_OPTIONS,
+    columns: {
+      ...TABLE_OPTIONS.columns,
+      // Dependents column:
+      3: {
+        width: getCellWidth(data, 3, 30)
+      },
+    },
+  })
+}
+
+function renderOutdatedList (outdatedByNameAndType: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  return sortOutdatedPackages(Object.values(outdatedByNameAndType))
+    .map((outdatedPkg) => {
+      let info = stripIndent`
+        ${chalk.bold(renderPackageName(outdatedPkg))}
+        ${renderCurrent(outdatedPkg)} ${chalk.grey('=>')} ${renderLatest(outdatedPkg)}`
+
+      const dependents = dependentPackages(outdatedPkg)
+
+      if (dependents) {
+        info += `\n${chalk.bold(
+            outdatedPkg.dependentPkgs.length > 1
+              ? 'Dependents:'
+              : 'Dependent:'
+          )} ${dependents}`
+      }
+
+      if (opts.long) {
+        const details = renderDetails(outdatedPkg)
+
+        if (details) {
+          info += `\n${details}`
+        }
+      }
+
+      return info
+    })
+    .join('\n\n') + '\n'
+}
+
+function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
+  return dependentPkgs
+    .map(({ manifest, location }) => manifest.name || location)
+    .sort()
+    .join(', ')
+}
+
+function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedInWorkspace>) {
+  return R.sortWith(
+    COMPARATORS,
+    outdatedPackages.map(toOutdatedWithVersionDiff),
   )
 }

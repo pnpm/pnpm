@@ -259,7 +259,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 
   await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults())
 
-  t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
 test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
@@ -379,4 +379,16 @@ test('dependency should not be added to current lockfile if it was not built suc
   t.ok(err)
 
   t.notOk(await project.readCurrentLockfile())
+})
+
+test('scripts have access to unlisted bins when hoisting is used', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage(
+    {},
+    [ 'pkg-that-calls-unlisted-dep-in-hooks' ],
+    await testDefaults({ hoistPattern: '*' }),
+  )
+
+  t.deepEqual(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json'), ['Hello world!'])
 })

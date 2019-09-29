@@ -331,39 +331,3 @@ test('prints unsupported pnpm and Node versions error', async (t) => {
   err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
   logger.error(err, err)
 })
-
-test('prints shamefully-flatten is only allowed in the root workspace package error', async (t) => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    streamParser: createStreamParser(),
-  })
-
-  t.plan(1)
-
-  output$.take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('Shamefully flatten can be only used in the lockfile directory')}
-
-        You were trying to install a flat node_modules in /home/zoltan/repo/package
-        Flat node_modules is only possible in the directory that contains the lockfile (pnpm-lock.yaml).
-        In your case: /home/zoltan/repo
-
-        If you really need a flat node_modules in /home/zoltan/repo/package,
-        then you should use a dedicated lockfile.
-        Create a .npmrc in the root of your workspace with the following content:
-        shared-workspace-lockfile=false
-
-        If you don't need a flat node_modules, remove shamefully-flatten=true
-        from the .npmrc file in /home/zoltan/repo/package
-      `)
-    },
-  })
-
-  const err = new PnpmError('SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR', 'Shamefully flatten can be only used in the lockfile directory')
-  err['shamefullyFlattenDirectory'] = '/home/zoltan/repo/package'
-  err['lockfileDirectory'] = '/home/zoltan/repo'
-  logger.error(err, err)
-})

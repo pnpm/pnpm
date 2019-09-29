@@ -1,37 +1,37 @@
 import path = require('path')
 
 export interface PackageSelector {
-  matcher: string,
+  pattern: string,
   scope: 'exact' | 'dependencies' | 'dependents',
   selectBy: 'name' | 'location',
 }
 
 export default (rawSelector: string, prefix: string): PackageSelector => {
   if (rawSelector.endsWith('...')) {
-    const matcher = rawSelector.substring(0, rawSelector.length - 3)
+    const pattern = rawSelector.substring(0, rawSelector.length - 3)
     return {
-      matcher,
+      pattern,
       scope: 'dependencies',
       selectBy: 'name',
     }
   }
   if (rawSelector.startsWith('...')) {
-    const matcher = rawSelector.substring(3)
+    const pattern = rawSelector.substring(3)
     return {
-      matcher,
+      pattern,
       scope: 'dependents',
       selectBy: 'name',
     }
   }
   if (isSelectorByLocation(rawSelector)) {
     return {
-      matcher: path.join(prefix, rawSelector),
+      pattern: path.join(prefix, rawSelector),
       scope: 'exact',
       selectBy: 'location',
     }
   }
   return {
-    matcher: rawSelector,
+    pattern: rawSelector,
     scope: 'exact',
     selectBy: 'name',
   }

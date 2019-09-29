@@ -37,13 +37,15 @@
     "lint-test": "tslint -c tslint.json --project test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc",
-    "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-lockfile && cd ../../..",
+    "pretest": "cd test/fixture/project && node ../../../../../packages/pnpm/bin/pnpm.js i --force --no-shared-workspace-lockfile && cd ../../..",
     "test": "pnpm run lint && pnpm run lint-test && pnpm run tsc && ts-node test"
   },
   "dependencies": {
     "@pnpm/assert-store": "1.0.0",
-    "@pnpm/constants": "1.1.0",
-    "@pnpm/modules-yaml": "3.0.3",
+    "@pnpm/constants": "file:../../packages/constants",
+    "@pnpm/lockfile-types": "1.1.0",
+    "@pnpm/modules-yaml": "file:../../packages/modules-yaml",
+    "@pnpm/types": "3.2.0",
     "@types/mz": "0.0.32",
     "is-windows": "1.0.2",
     "isexe": "2.0.0",

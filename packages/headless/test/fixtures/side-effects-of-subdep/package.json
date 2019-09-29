@@ -1,5 +1,5 @@
 {
 	"dependencies": {
-		"pathwatcher": "7.1.1"
+		"expire-fs": "2.2.3"
 	}
 }

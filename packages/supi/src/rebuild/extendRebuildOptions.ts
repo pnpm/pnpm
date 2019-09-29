@@ -13,7 +13,6 @@ export interface StrictRebuildOptions {
   sideEffectsCacheRead: boolean,
   store: string, // TODO: remove this property
   storeController: StoreController,
-  independentLeaves: boolean,
   force: boolean,
   forceSharedLockfile: boolean,
   useLockfile: boolean,
@@ -32,7 +31,8 @@ export interface StrictRebuildOptions {
   },
   unsafePerm: boolean,
   pending: boolean,
-  shamefullyFlatten: boolean,
+  hoistPattern: string | undefined,
+  shamefullyHoist: boolean,
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
@@ -51,7 +51,7 @@ const defaults = async (opts: RebuildOptions) => {
     development: true,
     force: false,
     forceSharedLockfile: false,
-    independentLeaves: false,
+    hoistPattern: undefined,
     lockfileDirectory,
     optional: true,
     packageManager,
@@ -60,7 +60,7 @@ const defaults = async (opts: RebuildOptions) => {
     production: true,
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,
-    shamefullyFlatten: false,
+    shamefullyHoist: false,
     sideEffectsCacheRead: false,
     store: opts.store,
     unsafePerm: process.platform === 'win32' ||

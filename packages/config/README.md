@@ -1,6 +1,6 @@
 # @pnpm/config
 
-> Gets configs for pnpm
+> Gets configution options for pnpm
 
 <!--@shields('npm')-->
 [![npm version](https://img.shields.io/npm/v/@pnpm/config.svg)](https://www.npmjs.com/package/@pnpm/config)
@@ -15,9 +15,9 @@
 ## Usage
 
 ```ts
-import getConfigs from '@pnpm/config'
+import getConfig from '@pnpm/config'
 
-getConfigs().then(pnpmConfigs => console.log(pnpmConfigs))
+getConfig().then(pnpmConfig => console.log(pnpmConfig))
 ```
 
 ## License

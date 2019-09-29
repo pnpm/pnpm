@@ -1,3 +1,4 @@
+import { Config } from '@pnpm/config'
 import createFetcher from '@pnpm/default-fetcher'
 import logger from '@pnpm/logger'
 import createStore from '@pnpm/package-store'
@@ -7,31 +8,32 @@ import path = require('path')
 import createResolver from './createResolver'
 
 export default async (
-  opts: {
-    alwaysAuth?: boolean,
-    ca?: string,
-    cert?: string,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMaxtimeout?: number,
-    fetchRetryMintimeout?: number,
-    httpsProxy?: string,
+  opts: Pick<Config,
+    'alwaysAuth' |
+    'ca' |
+    'cert' |
+    'fetchRetries' |
+    'fetchRetryFactor' |
+    'fetchRetryMaxtimeout' |
+    'fetchRetryMintimeout' |
+    'fetchRetryMintimeout' |
+    'httpsProxy' |
+    'key' |
+    'localAddress' |
+    'lock' |
+    'lockStaleDuration' |
+    'networkConcurrency' |
+    'offline' |
+    'packageImportMethod' |
+    'proxy' |
+    'rawNpmConfig' |
+    'registry' |
+    'strictSsl' |
+    'userAgent' |
+    'verifyStoreIntegrity'
+  > & {
     ignoreFile?: (filename: string) => boolean,
-    key?: string,
-    localAddress?: string,
-    lock: boolean,
-    lockStaleDuration?: number,
-    networkConcurrency?: number,
-    offline?: boolean,
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
-    proxy?: string,
-    rawNpmConfig: object,
-    registry?: string,
-    store: string,
-    strictSsl?: boolean,
-    userAgent?: string,
-    verifyStoreIntegrity?: boolean,
-  },
+  } & Required<Pick<Config, 'store'>>,
 ) => {
   // TODO: either print a warning or just log if --no-lock is used
   const sopts = Object.assign(opts, {

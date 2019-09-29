@@ -11,12 +11,12 @@ import {
 import {
   filterLockfileByImporters,
 } from '@pnpm/filter-lockfile'
+import hoist from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
-import shamefullyFlatten from '@pnpm/shamefully-flatten'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { ImporterManifest, Registries } from '@pnpm/types'
@@ -42,7 +42,6 @@ export {
 export interface Importer {
   bin: string,
   directNodeIdsByAlias: {[alias: string]: string},
-  hoistedAliases: {[depPath: string]: string[]},
   id: string,
   linkedDependencies: LinkedDependency[],
   manifest: ImporterManifest,
@@ -50,7 +49,6 @@ export interface Importer {
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
-  shamefullyFlatten: boolean,
   topParents: Array<{name: string, version: string}>,
 }
 
@@ -59,30 +57,34 @@ export default async function linkPackages (
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile,
-    force: boolean,
-    dryRun: boolean,
-    virtualStoreDir: string,
-    wantedLockfile: Lockfile,
     currentLockfile: Lockfile,
-    makePartialCurrentLockfile: boolean,
-    pruneStore: boolean,
-    registries: Registries,
-    lockfileDirectory: string,
-    skipped: Set<string>,
-    storeController: StoreController,
-    wantedToBeSkippedPackageIds: Set<string>,
+    dryRun: boolean,
+    force: boolean,
+    hoistedAliases: {[depPath: string]: string[]},
+    hoistedModulesDir: string,
+    hoistPattern?: string,
     include: IncludedDependencies,
     independentLeaves: boolean,
+    lockfileDirectory: string,
+    makePartialCurrentLockfile: boolean,
+    outdatedDependencies: {[pkgId: string]: string},
+    pruneStore: boolean,
+    registries: Registries,
+    sideEffectsCacheRead: boolean,
+    skipped: Set<string>,
+    storeController: StoreController,
+    strictPeerDependencies: boolean,
     // This is only needed till lockfile v4
     updateLockfileMinorVersion: boolean,
-    outdatedDependencies: {[pkgId: string]: string},
-    strictPeerDependencies: boolean,
-    sideEffectsCacheRead: boolean,
+    virtualStoreDir: string,
+    wantedLockfile: Lockfile,
+    wantedToBeSkippedPackageIds: Set<string>,
   },
 ): Promise<{
   currentLockfile: Lockfile,
   depGraph: DependenciesGraph,
   newDepPaths: string[],
+  newHoistedAliases: {[depPath: string]: string[]},
   removedDepPaths: Set<string>,
   wantedLockfile: Lockfile,
 }> {
@@ -149,6 +151,8 @@ export default async function linkPackages (
   const removedDepPaths = await prune(importers, {
     currentLockfile: opts.currentLockfile,
     dryRun: opts.dryRun,
+    hoistedAliases: opts.hoistedAliases,
+    hoistedModulesDir: opts.hoistPattern && opts.hoistedModulesDir || undefined,
     include: opts.include,
     lockfileDirectory: opts.lockfileDirectory,
     pruneStore: opts.pruneStore,
@@ -239,13 +243,13 @@ export default async function linkPackages (
 
   await Promise.all(pendingRequiresBuilds.map(async ({ absoluteDepPath, relativeDepPath }) => {
     const depNode = depGraph[absoluteDepPath]
-    if (!depNode.fetchingRawManifest) {
+    if (!depNode.fetchingBundledManifest) {
       // This should never ever happen
       throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${absoluteDepPath}"`)
     }
-    const filesResponse = await depNode.fetchingFiles
+    const filesResponse = await depNode.fetchingFiles()
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-    const pkgJson = await depNode.fetchingRawManifest
+    const pkgJson = await depNode.fetchingBundledManifest()
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
       filesResponse.filenames.includes('binding.gyp') ||
@@ -301,10 +305,11 @@ export default async function linkPackages (
     currentLockfile = newCurrentLockfile
   }
 
+  let newHoistedAliases: {[depPath: string]: string[]} = {}
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    const rootImporterWithFlatModules = importers.find((importer) => importer.id === '.' && importer.shamefullyFlatten)
+    const rootImporterWithFlatModules = opts.hoistPattern && importers.find(({ id }) => id === '.')
     if (rootImporterWithFlatModules) {
-      rootImporterWithFlatModules.hoistedAliases = await shamefullyFlatten({
+      newHoistedAliases = await hoist(opts.hoistPattern!, {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -316,7 +321,7 @@ export default async function linkPackages (
           : undefined,
         lockfile: currentLockfile,
         lockfileDirectory: opts.lockfileDirectory,
-        modulesDir: rootImporterWithFlatModules.modulesDir,
+        modulesDir: opts.hoistedModulesDir,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
       })
@@ -342,6 +347,7 @@ export default async function linkPackages (
     currentLockfile,
     depGraph,
     newDepPaths,
+    newHoistedAliases,
     removedDepPaths,
     wantedLockfile: newWantedLockfile,
   }
@@ -474,7 +480,7 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async ({ centralLocation, fetchingFiles, independent, peripheralLocation }) => {
-      const filesResponse = await fetchingFiles
+      const filesResponse = await fetchingFiles()
 
       if (independent) return
       return storeController.importPackage(centralLocation, peripheralLocation, {

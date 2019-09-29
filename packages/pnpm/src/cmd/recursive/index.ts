@@ -40,11 +40,13 @@ import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
 
 const supportedRecursiveCommands = new Set([
+  'add',
   'install',
   'uninstall',
   'update',
   'unlink',
   'list',
+  'why',
   'outdated',
   'rebuild',
   'run',
@@ -102,6 +104,7 @@ export async function recursive (
     allowNew?: boolean,
     packageSelectors?: PackageSelector[],
     ignoredPackages?: Set<string>,
+    update?: boolean,
     useBetaCli?: boolean,
   },
   cmdFullName: string,
@@ -138,14 +141,15 @@ export async function recursive (
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
 
   switch (cmdFullName) {
+    case 'why':
     case 'list':
       await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
     case 'outdated':
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return true
-    case 'install':
-      if (cmd === 'add' && opts.useBetaCli && (!input || !input.length)) {
+    case 'add':
+      if (!input || !input.length) {
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
       }
       break
@@ -194,6 +198,10 @@ export async function recursive (
     store: store.path,
     storeController,
     targetDependenciesField: getSaveType(opts),
+
+    forceHoistPattern: typeof opts.localConfig['hoist-pattern'] !== 'undefined' || typeof opts.localConfig['hoist'] !== 'undefined',
+    forceIndependentLeaves: typeof opts.localConfig['independent-leaves'] !== 'undefined',
+    forceShamefullyHoist: typeof opts.localConfig['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
   const result = {
@@ -201,7 +209,7 @@ export async function recursive (
     passes: 0,
   } as RecursiveSummary
 
-  const memReadLocalConfigs = mem(readLocalConfigs)
+  const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters () {
     const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>
@@ -230,9 +238,9 @@ export async function recursive (
 
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
-    if (opts.lockfileDirectory && ['install', 'uninstall', 'update'].includes(cmdFullName)) {
-      if (opts.shamefullyFlatten) {
-        logger.info({ message: 'Only the root workspace package is going to have a flat node_modules', prefix: opts.lockfileDirectory })
+    if (opts.lockfileDirectory && ['add', 'install', 'uninstall', 'update'].includes(cmdFullName)) {
+      if (opts.hoistPattern) {
+        logger.info({ message: 'Only the root workspace package is going to have hoisted dependencies in node_modules', prefix: opts.lockfileDirectory })
       }
       let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDirectory)
@@ -243,11 +251,8 @@ export async function recursive (
       const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
       const mutatedImporters = [] as MutatedImporter[]
       await Promise.all(importers.map(async ({ buildIndex, prefix }) => {
-        const localConfigs = await memReadLocalConfigs(prefix)
+        const localConfig = await memReadLocalConfig(prefix)
         const { manifest, writeImporterManifest } = manifestsByPath[prefix]
-        const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
-          ? localConfigs.shamefullyFlatten
-          : (prefix === opts.lockfileDirectory && opts.shamefullyFlatten)
         let currentInput = [...input]
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -268,23 +273,21 @@ export async function recursive (
               manifest,
               mutation,
               prefix,
-              shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter)
             return
           case 'installSome':
             mutatedImporters.push({
-              allowNew: cmdFullName === 'install',
+              allowNew: cmdFullName === 'install' || cmdFullName === 'add',
               dependencySelectors: currentInput,
               manifest,
               mutation,
               peer: opts.savePeer,
               pinnedVersion: getPinnedVersion({
-                saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
-                savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
+                saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+                savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
               prefix,
-              shamefullyFlatten,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter)
             return
@@ -294,7 +297,6 @@ export async function recursive (
               manifest,
               mutation,
               prefix,
-              shamefullyFlatten,
             } as MutatedImporter)
             return
         }
@@ -358,23 +360,23 @@ export async function recursive (
               break
           }
 
-          const localConfigs = await memReadLocalConfigs(prefix)
+          const localConfig = await memReadLocalConfig(prefix)
           const newManifest = await action(
             manifest,
             {
               ...installOpts,
-              ...localConfigs,
+              ...localConfig,
               bin: path.join(prefix, 'node_modules', '.bin'),
               hooks,
               ignoreScripts: true,
               pinnedVersion: getPinnedVersion({
-                saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
-                savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
+                saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+                savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
               prefix,
               rawNpmConfig: {
                 ...installOpts.rawNpmConfig,
-                ...localConfigs,
+                ...localConfig,
               },
               storeController,
             },
@@ -406,7 +408,12 @@ export async function recursive (
 
   if (
     cmdFullName === 'rebuild' ||
-    !opts.lockfileOnly && !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')
+    !opts.lockfileOnly && !opts.ignoreScripts && (
+      cmdFullName === 'add' ||
+      cmdFullName === 'install' ||
+      cmdFullName === 'update' ||
+      cmdFullName === 'unlink'
+    )
   ) {
     const action = (
       cmdFullName !== 'rebuild' || input.length === 0
@@ -432,7 +439,7 @@ export async function recursive (
             if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
               return
             }
-            const localConfigs = await memReadLocalConfigs(prefix)
+            const localConfig = await memReadLocalConfig(prefix)
             await action(
               [
                 {
@@ -443,13 +450,13 @@ export async function recursive (
               ],
               {
                 ...installOpts,
-                ...localConfigs,
+                ...localConfig,
                 bin: path.join(prefix, 'node_modules', '.bin'),
                 pending: cmdFullName !== 'rebuild' || opts.pending === true,
                 prefix,
                 rawNpmConfig: {
                   ...installOpts.rawNpmConfig,
-                  ...localConfigs,
+                  ...localConfig,
                 },
               },
             )
@@ -572,10 +579,18 @@ function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[
   return graphSequencerResult.chunks
 }
 
-async function readLocalConfigs (prefix: string) {
+async function readLocalConfig (prefix: string) {
   try {
     const ini = await readIniFile(path.join(prefix, '.npmrc')) as { [key: string]: string }
-    return camelcaseKeys(ini) as {[key: string]: string}
+    const config = camelcaseKeys(ini) as ({ [key: string]: string } & { hoist?: boolean })
+    if (config.shamefullyFlatten) {
+      config.hoistPattern = '*'
+      // TODO: print a warning
+    }
+    if (config.hoist === false) {
+      config.hoistPattern = ''
+    }
+    return config
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
     return {}

@@ -88,3 +88,36 @@ test('pass through to npm with all the args', async t => {
 
   t.equal(result.status, 0, 'command was successfull')
 })
+
+test('command fails when unsupport flag is used', async (t) => {
+  const project = prepare(t)
+
+  const { status, stderr } = execPnpmSync('update', '--save-dev')
+
+  t.equal(status, 1, 'command failed')
+  t.ok(stderr.toString().includes("Unknown option 'save-dev'"))
+})
+
+test('adding new dep does not fail if node_modules was created with --no-hoist and --independent-leaves', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('add', 'is-positive', '--no-hoist', '--independent-leaves')
+
+  t.equal(execPnpmSync('add', 'is-negative', '--hoist').status, 1)
+  t.equal(execPnpmSync('add', 'is-negative', '--no-independent-leaves').status, 1)
+  t.equal(execPnpmSync('add', 'is-negative').status, 0)
+
+  await project.has('is-negative')
+})
+
+test('adding new dep does not fail if node_modules was created with --hoist-pattern=eslint-* and --shamefully-hoist', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('add', 'is-positive', '--hoist-pattern=eslint-*', '--shamefully-hoist')
+
+  t.equal(execPnpmSync('add', 'is-negative', '--no-hoist').status, 1)
+  t.equal(execPnpmSync('add', 'is-negative', '--no-shamefully-hoist').status, 1)
+  t.equal(execPnpmSync('add', 'is-negative').status, 0)
+
+  await project.has('is-negative')
+})

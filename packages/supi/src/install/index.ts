@@ -133,17 +133,6 @@ export async function install (
 
 export type MutatedImporter = ImportersOptions & DependenciesMutation
 
-export class ShamefullyFlattenNotInLockfileDirectoryError extends PnpmError {
-  public readonly shamefullyFlattenDirectory: string
-  public readonly lockfileDirectory: string
-
-  constructor (shamefullyFlattenDirectory: string, lockfileDirectory: string) {
-    super('SHAMEFULLY_FLATTEN_NOT_IN_LOCKFILE_DIR', 'Shamefully flatten can be only used in the lockfile directory')
-    this.shamefullyFlattenDirectory = shamefullyFlattenDirectory
-    this.lockfileDirectory = lockfileDirectory
-  }
-}
-
 export async function mutateModules (
   importers: MutatedImporter[],
   maybeOpts: InstallOptions & {
@@ -164,11 +153,6 @@ export async function mutateModules (
 
   if (!opts.include.dependencies && opts.include.optionalDependencies) {
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
-  }
-  for (const { prefix, shamefullyFlatten } of importers) {
-    if (prefix !== opts.lockfileDirectory && shamefullyFlatten) {
-      throw new ShamefullyFlattenNotInLockfileDirectoryError(prefix, opts.lockfileDirectory)
-    }
   }
 
   const ctx = await getContext(importers, opts)
@@ -231,17 +215,17 @@ export async function mutateModules (
           engineStrict: opts.engineStrict,
           extraBinPaths: opts.extraBinPaths,
           force: opts.force,
+          hoistedAliases: ctx.hoistedAliases,
+          hoistPattern: ctx.hoistPattern,
           ignoreScripts: opts.ignoreScripts,
           importers: ctx.importers as Array<{
             bin: string,
             buildIndex: number,
-            hoistedAliases: {[depPath: string]: string[]}
             id: string,
             manifest: ImporterManifest,
             modulesDir: string,
             prefix: string,
             pruneDirectDependencies?: boolean,
-            shamefullyFlatten: boolean,
           }>,
           include: opts.include,
           independentLeaves: opts.independentLeaves,
@@ -252,6 +236,7 @@ export async function mutateModules (
           pruneStore: opts.pruneStore,
           rawNpmConfig: opts.rawNpmConfig,
           registries: opts.registries,
+          shamefullyHoist: ctx.shamefullyHoist,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
           skipped: ctx.skipped,
@@ -472,10 +457,11 @@ async function partitionLinkedPackages (
       nonLinkedDependencies.push(dependency)
       continue
     }
-    const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, dependency.alias, {
+    const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
       prefix: opts.prefix,
       storePath: opts.storePath,
+      virtualStoreDir: opts.virtualStoreDir,
     })
     if (isInnerLink === true) {
       nonLinkedDependencies.push(dependency)
@@ -584,7 +570,6 @@ export async function addDependenciesToPackage (
         peer: opts.peer,
         pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
-        shamefullyFlatten: opts.shamefullyFlatten,
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
@@ -597,7 +582,6 @@ export async function addDependenciesToPackage (
 
 type ImporterToUpdate = {
   bin: string,
-  hoistedAliases: {[depPath: string]: string[]},
   id: string,
   manifest: ImporterManifest,
   modulesDir: string,
@@ -605,7 +589,6 @@ type ImporterToUpdate = {
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
-  shamefullyFlatten: boolean,
   updatePackageJson: boolean,
   wantedDeps: WantedDependency[],
 } & DependenciesMutation
@@ -685,7 +668,7 @@ async function installInContext (
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies(
-    await Promise.all(importers.map((importer) => _toResolveImporter(importer))),
+    await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(ctx.hoistPattern && importer.id === '.')))),
     {
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
@@ -789,7 +772,6 @@ async function installInContext (
     return {
       bin: importer.bin,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      hoistedAliases: importer.hoistedAliases,
       id: importer.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
       manifest: newPkg || importer.manifest,
@@ -797,7 +779,6 @@ async function installInContext (
       prefix: importer.prefix,
       pruneDirectDependencies: importer.pruneDirectDependencies,
       removePackages: importer.removePackages,
-      shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
     }
   }))
@@ -810,6 +791,9 @@ async function installInContext (
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       force: opts.force,
+      hoistedAliases: ctx.hoistedAliases,
+      hoistedModulesDir: ctx.hoistedModulesDir,
+      hoistPattern: ctx.hoistPattern,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
       lockfileDirectory: opts.lockfileDirectory,
@@ -850,7 +834,7 @@ async function installInContext (
       await buildModules(result.depGraph, rootNodes, {
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
-        extraBinPaths: opts.extraBinPaths,
+        extraBinPaths: ctx.extraBinPaths,
         optional: opts.include.optionalDependencies,
         prefix: ctx.lockfileDirectory,
         rawNpmConfig: opts.rawNpmConfig,
@@ -881,11 +865,11 @@ async function installInContext (
       // skipped packages might have not been reanalized on a repeat install
       // so lets just ignore those by excluding nulls
       .filter(Boolean)
-      .map(({ fetchingFiles }) => fetchingFiles),
+      .map(({ fetchingFiles }) => fetchingFiles()),
   )
 
   // waiting till package requests are finished
-  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing))
+  await Promise.all(R.values(resolvedPackagesByPackageId).map(({ finishing }) => finishing()))
 
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
@@ -899,24 +883,17 @@ async function installInContext (
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
-        return writeModulesYaml(ctx.virtualStoreDir, {
+        return writeModulesYaml(ctx.rootModulesDir, {
           ...ctx.modulesFile,
-          importers: {
-            ...ctx.modulesFile && ctx.modulesFile.importers,
-            ...importersToLink.reduce((acc, importer) => {
-              acc[importer.id] = {
-                hoistedAliases: importer.hoistedAliases,
-                shamefullyFlatten: importer.shamefullyFlatten,
-              }
-              return acc
-            }, {}),
-          },
+          hoistedAliases: result.newHoistedAliases,
+          hoistPattern: ctx.hoistPattern,
           included: ctx.include,
-          independentLeaves: opts.independentLeaves,
+          independentLeaves: ctx.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
           registries: ctx.registries,
+          shamefullyHoist: ctx.shamefullyHoist,
           skipped: Array.from(ctx.skipped),
           store: ctx.storePath,
         })
@@ -946,6 +923,7 @@ async function toResolveImporter (
     },
   },
   importer: ImporterToUpdate,
+  hoist: boolean,
 ) {
   const allDeps = getWantedDependencies(importer.manifest)
   const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
@@ -963,14 +941,14 @@ async function toResolveImporter (
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
-  if (!importer.manifest || importer.shamefullyFlatten) {
+  if (!importer.manifest || hoist) {
     wantedDependencies = [
       ...depsToUpdate,
       ...existingDeps,
     ]
     .map((dep) => ({
       ...dep,
-      updateDepth: importer.shamefullyFlatten ? Infinity : opts.defaultUpdateDepth,
+      updateDepth: hoist ? Infinity : opts.defaultUpdateDepth,
     }))
   } else {
     wantedDependencies = [

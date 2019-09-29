@@ -172,11 +172,6 @@ declare module 'import-from' {
   export = anything;
 }
 
-declare module 'text-table' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'is-windows' {
   function isWindows(): boolean;
   export = isWindows;
@@ -190,11 +185,6 @@ declare module 'diable' {
 declare module 'signal-exit' {
   const anything: any;
   export = anything;
-}
-
-declare module 'strip-color' {
-  function stripColor (text: string): string
-  export = stripColor;
 }
 
 declare module '@zkochan/libnpx/index' {

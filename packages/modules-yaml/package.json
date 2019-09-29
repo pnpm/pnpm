@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-yaml",
-  "version": "3.0.3",
+  "version": "4.0.0-1",
   "description": "Reads/writes `node_modules/.modules.yaml`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
     "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
-    "@pnpm/modules-yaml": "3.0.3",
+    "@pnpm/modules-yaml": "link:",
     "rimraf": "3.0.0",
     "tape": "4.11.0",
     "tempy": "0.3.0"

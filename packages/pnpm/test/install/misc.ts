@@ -74,10 +74,12 @@ test('install --no-lockfile', async (t: tape.Test) => {
   t.notOk(await project.readLockfile(), `${WANTED_LOCKFILE} not created`)
 })
 
-test('install --no-package-lock', async (t: tape.Test) => {
+test('install with package-lock=false in .npmrc', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive', '--no-package-lock')
+  await fs.writeFile('.npmrc', 'package-lock=false', 'utf8')
+
+  await execPnpm('add', 'is-positive')
 
   await project.has('is-positive')
 
@@ -302,10 +304,10 @@ test('pnpm install --save-peer', async (t) => {
   }
 })
 
-test('`pnpm add` should fail if no package name was provided (beta)', (t: tape.Test) => {
+test('`pnpm add` should fail if no package name was provided', (t: tape.Test) => {
   prepare(t)
 
-  const { status, stdout } = execPnpmSync('add', '--use-beta-cli')
+  const { status, stdout } = execPnpmSync('add')
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('`pnpm add` requires the package name'))
@@ -313,10 +315,10 @@ test('`pnpm add` should fail if no package name was provided (beta)', (t: tape.T
   t.end()
 })
 
-test('`pnpm recursive add` should fail if no package name was provided (beta)', (t: tape.Test) => {
+test('`pnpm recursive add` should fail if no package name was provided', (t: tape.Test) => {
   prepare(t)
 
-  const { status, stdout } = execPnpmSync('recursive', 'add', '--use-beta-cli')
+  const { status, stdout } = execPnpmSync('recursive', 'add')
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('`pnpm recursive add` requires the package name'))

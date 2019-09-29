@@ -7,10 +7,9 @@ import {
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
-import { Dependencies, PackageManifest } from '@pnpm/types'
+import { Dependencies, DependencyManifest } from '@pnpm/types'
 import {
   createNodeId,
-  ROOT_NODE_ID,
   splitNodeId,
 } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
@@ -28,8 +27,8 @@ export interface DependenciesGraphNode {
   hasBundledDependencies: boolean,
   centralLocation: string,
   modules: string,
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageManifest>,
+  fetchingBundledManifest?: () => Promise<DependencyManifest>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
   resolution: Resolution,
   peripheralLocation: string,
   children: {[alias: string]: string},
@@ -189,7 +188,7 @@ function resolvePeersOfNode (
 
   let modules: string
   let absolutePath: string
-  const localLocation = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(node.resolvedPackage.id, ctx.lockfileDirectory)}`)
+  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.id, ctx.lockfileDirectory))
   const isPure = R.isEmpty(allResolvedPeers)
   if (isPure) {
     modules = path.join(localLocation, 'node_modules')
@@ -233,8 +232,8 @@ function resolvePeersOfNode (
       children: Object.assign(children, resolvedPeers),
       depth: node.depth,
       dev: node.resolvedPackage.dev,
+      fetchingBundledManifest: node.resolvedPackage.fetchingBundledManifest,
       fetchingFiles: node.resolvedPackage.fetchingFiles,
-      fetchingRawManifest: node.resolvedPackage.fetchingRawManifest,
       hasBin: node.resolvedPackage.hasBin,
       hasBundledDependencies: node.resolvedPackage.hasBundledDependencies,
       independent,
@@ -368,10 +367,12 @@ function packageFriendlyId (manifest: {name: string, version: string}) {
 }
 
 function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTree) {
-  const parts = splitNodeId(nodeId).slice(2, -2)
-  return R.tail(R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), ROOT_NODE_ID, parts))
+  const parts = splitNodeId(nodeId).slice(1, -2)
+  const result = R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
+    .slice(2)
     .map((nid) => dependenciesTree[nid].resolvedPackage.name)
     .join(' > ')
+  return result
 }
 
 interface ParentRefs {

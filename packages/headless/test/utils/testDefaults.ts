@@ -32,9 +32,6 @@ export default async function testDefaults (
       },
     ],
     lockfileDirectory,
-    {
-      shamefullyFlatten: opts.shamefullyFlatten,
-    },
   )
   store = await storePath(lockfileDirectory, store)
   const rawNpmConfig = { registry }

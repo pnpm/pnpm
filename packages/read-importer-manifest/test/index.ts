@@ -95,13 +95,23 @@ test('preserve space indentation in json5 file', async (t) => {
 test('do not save manifest if it had no changes', async (t) => {
   process.chdir(tempy.directory())
 
-  await writeFile('package.json5', JSON.stringify({ dependencies: { foo: '*', bar: '*' } }), 'utf8')
+  await writeFile(
+    'package.json5',
+    JSON.stringify({
+      dependencies: { foo: '*', bar: '*' },
+      devDependencies: {},
+    }),
+    'utf8',
+  )
 
-  const { manifest, writeImporterManifest } = await readImporterManifest(process.cwd())
+  const { writeImporterManifest } = await readImporterManifest(process.cwd())
 
   const stat1 = await stat('package.json5')
 
-  await writeImporterManifest(manifest)
+  await writeImporterManifest({
+    dependencies: { bar: '*', foo: '*' },
+    peerDependencies: {},
+  })
 
   const stat2 = await stat('package.json5')
 

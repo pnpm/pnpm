@@ -28,6 +28,7 @@ export default async function installCmd (
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
+    update?: boolean,
     useBetaCli?: boolean,
   },
   invocation?: string,
@@ -56,6 +57,10 @@ export default async function installCmd (
     localPackages,
     store: store.path,
     storeController: store.ctrl,
+
+    forceHoistPattern: typeof opts.localConfig['hoist-pattern'] !== 'undefined' || typeof opts.localConfig['hoist'] !== 'undefined',
+    forceIndependentLeaves: typeof opts.localConfig['independent-leaves'] !== 'undefined',
+    forceShamefullyHoist: typeof opts.localConfig['shamefully-hoist'] !== 'undefined',
   }
 
   let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix, opts)
@@ -75,7 +80,7 @@ export default async function installCmd (
     delete installOpts.include
   }
   if (!input || !input.length) {
-    if (invocation === 'add' && opts.useBetaCli) {
+    if (invocation === 'add') {
       throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
     }
     await install(manifest, installOpts)
@@ -106,7 +111,7 @@ export default async function installCmd (
       ignoredPackages: new Set([prefix]),
       packageSelectors: [
         {
-          matcher: prefix,
+          pattern: prefix,
           scope: 'dependencies',
           selectBy: 'location',
         },

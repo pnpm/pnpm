@@ -12,7 +12,7 @@ import {
 } from 'supi'
 import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
-import getConfigs from '../getConfigs'
+import getConfig from '../getConfig'
 import readImporterManifest, {
   readImporterManifestOnly,
   tryReadImporterManifest,
@@ -49,6 +49,9 @@ export default async (
     const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalPrefix, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
+      // A temporary workaround. global bin/prefix are always defined when --global is set
+      globalBin: linkOpts.globalBin!,
+      globalPrefix: linkOpts.globalPrefix!,
       manifest: manifest || {},
     })
     await writeImporterManifest(newManifest)
@@ -82,7 +85,7 @@ export default async (
       const s = await createStoreController(storeControllerCache, opts)
       await install(
         await readImporterManifestOnly(prefix, opts), {
-          ...await getConfigs(
+          ...await getConfig(
             { ...opts.cliArgs, prefix },
             {
               command: ['link'],

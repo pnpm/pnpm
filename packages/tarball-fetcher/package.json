@@ -51,12 +51,11 @@
     "@pnpm/tarball-fetcher": "link:",
     "@types/graceful-fs": "^4.1.2",
     "@types/mz": "^0.0.32",
-    "@types/nock": "^10.0.0",
     "@types/retry": "^0.12.0",
     "@types/rimraf": "^2.0.2",
     "@types/ssri": "^6.0.1",
     "cp-file": "7.0.0",
-    "nock": "10.0.6",
+    "nock": "11.3.5",
     "tape": "4.11.0",
     "tempy": "0.3.0"
   }

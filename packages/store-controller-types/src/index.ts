@@ -5,11 +5,27 @@ import {
   WantedDependency,
 } from '@pnpm/resolver-base'
 import {
-  PackageJson,
+  DependencyManifest,
   PackageManifest,
 } from '@pnpm/types'
 
 export * from '@pnpm/resolver-base'
+export type BundledManifest = Pick<
+  DependencyManifest,
+  'bin' |
+  'bundledDependencies' |
+  'bundleDependencies' |
+  'dependencies' |
+  'directories' |
+  'engines' |
+  'name' |
+  'optionalDependencies' |
+  'os' |
+  'peerDependencies' |
+  'peerDependenciesMeta' |
+  'scripts' |
+  'version'
+>
 
 export interface StoreController {
   getPackageLocation (
@@ -43,9 +59,9 @@ export type PackageUsages = {
 export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions,
 ) => {
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
-  finishing: Promise<void>,
+  bundledManifest?: () => Promise<BundledManifest>,
+  files: () => Promise<PackageFilesResponse>,
+  finishing: () => Promise<void>,
   inStoreLocation: string,
 }
 
@@ -98,41 +114,29 @@ export interface RequestPackageOptions {
 }
 
 export type PackageResponse = {
+  bundledManifest?: () => Promise<BundledManifest>,
+  files?: () => Promise<PackageFilesResponse>,
+  finishing?: () => Promise<void>, // a package request is finished once its integrity is generated and saved
   body: {
-    isLocal: true,
-    resolution: DirectoryResolution,
-    manifest: PackageManifest
+    isLocal: boolean,
+    resolution: Resolution,
+    manifest?: PackageManifest
     id: string,
     normalizedPref?: string,
     updated: boolean,
     resolvedVia?: string,
-  },
-} | (
-  {
-    fetchingFiles?: Promise<PackageFilesResponse>,
-    finishing?: Promise<void>, // a package request is finished once its integrity is generated and saved
-    body: {
-      isLocal: false,
-      inStoreLocation: string,
-      cacheByEngine: Map<string, string>,
-      id: string,
-      resolution: Resolution,
-      // This is useful for recommending updates.
-      // If latest does not equal the version of the
-      // resolved package, it is out-of-date.
-      latest?: string,
-      normalizedPref?: string,
-      updated: boolean,
-      resolvedVia?: string,
-    },
+    inStoreLocation?: string,
+    cacheByEngine?: Map<string, string>,
+    // This is useful for recommending updates.
+    // If latest does not equal the version of the
+    // resolved package, it is out-of-date.
+    latest?: string,
   } & (
     {
-      fetchingRawManifest: Promise<PackageJson>,
+      isLocal: true,
+      resolution: DirectoryResolution,
     } | {
-      body: {
-        manifest: PackageManifest,
-        updated: boolean,
-      },
+      isLocal: false,
     }
-  )
-)
+  ),
+}

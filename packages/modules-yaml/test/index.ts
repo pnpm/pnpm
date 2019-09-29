@@ -5,12 +5,7 @@ import tempy = require('tempy')
 
 test('write() and read()', async (t) => {
   const modulesYaml = {
-    importers: {
-      '.': {
-        hoistedAliases: {},
-        shamefullyFlatten: false,
-      },
-    },
+    hoistedAliases: {},
     included: {
       dependencies: true,
       devDependencies: true,
@@ -23,6 +18,7 @@ test('write() and read()', async (t) => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
+    shamefullyHoist: false,
     skipped: [],
     store: '/.pnpm-store',
   }

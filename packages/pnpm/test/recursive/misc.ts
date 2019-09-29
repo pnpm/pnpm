@@ -14,7 +14,7 @@ import {
   execPnpm,
   execPnpmSync,
   retryLoadJsonFile,
-  spawn,
+  spawnPnpm,
 } from '../utils'
 
 const test = promisifyTape(tape)
@@ -108,7 +108,7 @@ test('recursive install using "install --recursive"', async (t: tape.Test) => {
   t.ok(projects['project-2'].requireModule('is-negative'))
 })
 
-test('installation in the root of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
+test('installation in the root of a workspace with "install"', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -129,7 +129,6 @@ test('installation in the root of a workspace with "install" when the "use-beta-
   ])
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   await execPnpm('install')
 
@@ -137,7 +136,7 @@ test('installation in the root of a workspace with "install" when the "use-beta-
   t.ok(projects['project-2'].requireModule('is-negative'))
 })
 
-test('installation in a subdirectory of a workspace with "install" when the "use-beta-cli" config is true', async (t: tape.Test) => {
+test('installation in a subdirectory of a workspace with "install"', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -158,7 +157,6 @@ test('installation in a subdirectory of a workspace with "install" when the "use
   ])
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   process.chdir('project-1')
 
@@ -247,18 +245,18 @@ test('recursive installation with package-specific .npmrc', async t => {
     },
   ])
 
-  await fs.writeFile('project-1/.npmrc', 'shamefully-flatten = true', 'utf8')
+  await fs.writeFile('project-2/.npmrc', 'hoist = false', 'utf8')
 
   await execPnpm('recursive', 'install')
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml1 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
-  t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
+  const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
+  t.equal(modulesYaml1 && modulesYaml1.hoistPattern, '*')
 
-  const modulesYaml2 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
-  t.notOk(modulesYaml2 && modulesYaml2.shamefullyFlatten)
+  const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
+  t.notOk(modulesYaml2 && modulesYaml2.hoistPattern)
 })
 
 test('workspace .npmrc is always read', async (t: tape.Test) => {
@@ -290,25 +288,25 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   const storeDir = path.resolve('../store')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
   await fs.writeFile('.npmrc', 'shamefully-flatten = true\nshared-workspace-lockfile=false', 'utf8')
-  await fs.writeFile('project-2/.npmrc', 'shamefully-flatten = false', 'utf8')
+  await fs.writeFile('project-2/.npmrc', 'hoist=false', 'utf8')
 
   process.chdir('project-1')
-  await execPnpm('install', '--store', storeDir)
+  await execPnpm('install', '--store', storeDir, '--filter', '.')
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
-  const modulesYaml1 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
-  t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
+  const modulesYaml1 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
+  t.equal(modulesYaml1 && modulesYaml1.hoistPattern, '*')
 
   process.chdir('..')
   process.chdir('project-2')
 
-  await execPnpm('install', '--store', storeDir)
+  await execPnpm('install', '--store', storeDir, '--filter', '.')
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml2 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
-  t.ok(modulesYaml2 && modulesYaml2.shamefullyFlatten === false)
+  const modulesYaml2 = await readYamlFile<{ hoistPattern: string }>(path.resolve('node_modules', '.modules.yaml'))
+  t.notOk(modulesYaml2 && modulesYaml2.hoistPattern)
 })
 
 test('recursive installation using server', async (t: tape.Test) => {
@@ -332,7 +330,7 @@ test('recursive installation using server', async (t: tape.Test) => {
   ])
 
   const storeDir = path.resolve('store')
-  const server = spawn(['server', 'start'], { storeDir })
+  const server = spawnPnpm(['server', 'start'], { storeDir })
 
   const serverJsonPath = path.resolve(storeDir, '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
@@ -1219,7 +1217,6 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
   const project = prepare(t)
 
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-  await fs.writeFile('.npmrc', 'use-beta-cli=true', 'utf8')
 
   {
     const { status, stderr } = execPnpmSync('add', 'is-positive')

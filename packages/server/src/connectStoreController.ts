@@ -8,9 +8,10 @@ import {
   StoreController,
   WantedDependency,
 } from '@pnpm/store-controller-types'
-import { PackageJson } from '@pnpm/types'
+import { DependencyManifest } from '@pnpm/types'
 
 import pLimit from 'p-limit'
+import pShare = require('promise-share')
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {
@@ -121,17 +122,17 @@ function requestPackage (
     wantedDependency,
   })
   .then((packageResponseBody: object) => {
-    const fetchingRawManifest = !packageResponseBody['fetchingRawManifestInProgress'] // tslint:disable-line
+    const fetchingBundledManifest = !packageResponseBody['fetchingBundledManifestInProgress'] // tslint:disable-line
       ? undefined
       : limitedFetch(`${remotePrefix}/rawManifestResponse`, {
         msgId,
       })
-    delete packageResponseBody['fetchingRawManifestInProgress'] // tslint:disable-line
+    delete packageResponseBody['fetchingBundledManifestInProgress'] // tslint:disable-line
 
     if (options.skipFetch) {
       return {
         body: packageResponseBody,
-        fetchingRawManifest,
+        bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
       }
     }
 
@@ -140,9 +141,9 @@ function requestPackage (
     })
     return {
       body: packageResponseBody,
-      fetchingFiles,
-      fetchingRawManifest,
-      finishing: Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined),
+      bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+      files: pShare(fetchingFiles),
+      finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
     }
   })
 }
@@ -152,9 +153,9 @@ function fetchPackage (
   limitedFetch: (url: string, body: object) => any, // tslint:disable-line
   options: FetchPackageToStoreOptions,
 ): {
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
-  finishing: Promise<void>,
+  files: () => Promise<PackageFilesResponse>,
+  bundledManifest?: () => Promise<DependencyManifest>,
+  finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
   const msgId = uuid.v4()
@@ -164,7 +165,7 @@ function fetchPackage (
     options,
   })
   .then((fetchResponseBody: object & {inStoreLocation: string}) => {
-    const fetchingRawManifest = options.fetchRawManifest
+    const fetchingBundledManifest = options.fetchRawManifest
       ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
       : undefined
 
@@ -172,9 +173,9 @@ function fetchPackage (
       msgId,
     })
     return {
-      fetchingFiles,
-      fetchingRawManifest,
-      finishing: Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined),
+      bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
+      files: pShare(fetchingFiles),
+      finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
       inStoreLocation: fetchResponseBody.inStoreLocation,
     }
   })

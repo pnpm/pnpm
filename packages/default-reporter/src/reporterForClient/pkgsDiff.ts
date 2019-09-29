@@ -91,7 +91,7 @@ export default function (
       log$.summary.filter((log) => log.prefix === opts.prefix).constant({}),
     )
     .take(2)
-    .reduce(R.merge, {}),
+    .reduce(R.merge, {} as any), // tslint:disable-line:no-any
   )
 
   return most.combine(

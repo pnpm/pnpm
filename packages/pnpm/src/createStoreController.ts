@@ -1,3 +1,4 @@
+import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { StoreController } from '@pnpm/package-store'
@@ -11,34 +12,37 @@ import packageManager from './pnpmPkgJson'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
 
+export type CreateStoreControllerOptions = Pick<Config,
+  'alwaysAuth' |
+  'registry' |
+  'rawNpmConfig' |
+  'strictSsl' |
+  'proxy' |
+  'httpsProxy' |
+  'localAddress' |
+  'cert' |
+  'key' |
+  'ca' |
+  'fetchRetries' |
+  'fetchRetryFactor' |
+  'fetchRetryMintimeout' |
+  'fetchRetryMaxtimeout' |
+  'userAgent' |
+  'offline' |
+  'lock' |
+  'lockStaleDuration' |
+  'networkConcurrency' |
+  'store' |
+  'prefix' |
+  'useRunningStoreServer' |
+  'useStoreServer'
+> & {
+  ignoreFile?: (filename: string) => boolean,
+}
+
 export async function cached (
   storeControllerCache: Map<string, Promise<{ctrl: StoreController, path: string}>>,
-  opts: {
-    alwaysAuth?: boolean,
-    registry?: string,
-    rawNpmConfig: object,
-    strictSsl?: boolean,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
-    ca?: string,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMintimeout?: number,
-    fetchRetryMaxtimeout?: number,
-    userAgent?: string,
-    ignoreFile?: (filename: string) => boolean,
-    offline?: boolean,
-    lock: boolean,
-    lockStaleDuration?: number,
-    networkConcurrency?: number,
-    store?: string,
-    prefix: string,
-    useRunningStoreServer?: boolean,
-    useStoreServer?: boolean,
-  },
+  opts: CreateStoreControllerOptions,
 ) {
   const sp = await storePath(opts.prefix, opts.store)
   if (!storeControllerCache.has(sp)) {
@@ -48,32 +52,7 @@ export async function cached (
 }
 
 export default async function createStoreController (
-  opts: {
-    alwaysAuth?: boolean,
-    registry?: string,
-    rawNpmConfig: object,
-    strictSsl?: boolean,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
-    ca?: string,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMintimeout?: number,
-    fetchRetryMaxtimeout?: number,
-    userAgent?: string,
-    ignoreFile?: (filename: string) => boolean,
-    offline?: boolean,
-    lock: boolean,
-    lockStaleDuration?: number,
-    networkConcurrency?: number,
-    store?: string,
-    prefix: string,
-    useRunningStoreServer?: boolean,
-    useStoreServer?: boolean,
-  },
+  opts: CreateStoreControllerOptions,
 ): Promise<{
   ctrl: StoreController,
   path: string,

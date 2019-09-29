@@ -25,15 +25,30 @@ test('install with --independent-leaves', async (t: tape.Test) => {
 
 test('--independent-leaves throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: false }))
+  const opts = await testDefaults({ independentLeaves: false })
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], opts)
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ independentLeaves: true }))
+    await addDependenciesToPackage(manifest, ['is-negative'], {
+      ...opts,
+      forceIndependentLeaves: true,
+      independentLeaves: true
+    })
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_INDEPENDENT_LEAVES_NOT_WANTED') // tslint:disable-line:no-string-literal
     t.ok(err.message.indexOf('This "node_modules" folder was created without the --independent-leaves option.') === 0)
   }
+
+  // Install doesn't fail if independentLeaves is not forced
+  await addDependenciesToPackage(manifest, ['is-negative'], {
+    ...opts,
+    forceIndependentLeaves: false,
+    independentLeaves: true,
+    lock: false,
+  })
+
+  await project.has('is-negative')
 })
 
 test('--no-independent-leaves throws exception when executed on node_modules installed with --independent-leaves', async (t: tape.Test) => {
@@ -41,7 +56,10 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
   const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: true }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ independentLeaves: false }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({
+      forceIndependentLeaves: true,
+      independentLeaves: false,
+    }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_INDEPENDENT_LEAVES_WANTED') // tslint:disable-line:no-string-literal
@@ -50,19 +68,19 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1547
-test('installing with independent-leaves and shamefully-flatten', async (t) => {
+test('installing with independent-leaves and hoistPattern', async (t) => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({
+    hoistPattern: '*',
     independentLeaves: true,
-    shamefullyFlatten: true,
   }))
 
   await project.has('rimraf')
-  await project.has('minimatch')
+  await project.has('.pnpm/node_modules/minimatch')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.localhost+4873/wrappy/1.0.2')
+  await project.hasNot('.pnpm/localhost+4873/wrappy/1.0.2')
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has('.localhost+4873/rimraf/2.5.1')
+  await project.has('.pnpm/localhost+4873/rimraf/2.5.1')
 })

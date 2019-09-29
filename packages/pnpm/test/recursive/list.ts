@@ -1,4 +1,4 @@
-import { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
@@ -91,7 +91,7 @@ test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
 
   await execPnpm('recursive', 'install', '--store', 'store')
 
-  const result = execPnpmSync('recursive', 'list')
+  const result = execPnpmSync('recursive', 'list', '--depth', '2')
 
   t.equal(result.status, 0)
 
@@ -165,4 +165,13 @@ test('recursive list --filter', async (t: tape.Test) => {
     dependencies:
     is-negative 1.0.0
   ` + '\n')
+})
+
+test('`pnpm recursive why` should fail if no package name was provided', async (t: tape.Test) => {
+  prepare(t)
+
+  const { status, stdout } = execPnpmSync('recursive', 'why')
+
+  t.equal(status, 1)
+  t.ok(stdout.toString().includes('`pnpm why` requires the package name'))
 })

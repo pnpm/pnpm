@@ -1,3 +1,4 @@
+import { LAYOUT_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
@@ -5,11 +6,11 @@ import camelcase from 'camelcase'
 import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
+import { Config, ConfigWithDeprecatedSettings } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
-import { PnpmConfigs } from './PnpmConfigs'
 
-export { PnpmConfigs }
+export { Config }
 
 const npmDefaults = loadNpmConf.defaults
 
@@ -30,6 +31,8 @@ export const types = Object.assign({
   'frozen-shrinkwrap': Boolean,
   'global-path': path,
   'global-pnpmfile': String,
+  'hoist': Boolean,
+  'hoist-pattern': String,
   'ignore-pnpmfile': Boolean,
   'ignore-stop-requests': Boolean,
   'ignore-upload-requests': Boolean,
@@ -57,6 +60,7 @@ export const types = Object.assign({
   'resolution-strategy': ['fast', 'fewer-dependencies'],
   'save-peer': Boolean,
   'shamefully-flatten': Boolean,
+  'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
   'shared-workspace-shrinkwrap': Boolean,
   'shrinkwrap-directory': path,
@@ -66,6 +70,7 @@ export const types = Object.assign({
   'sort': Boolean,
   'store': path,
   'strict-peer-dependencies': Boolean,
+  'table': Boolean,
   'use-beta-cli': Boolean,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
@@ -78,7 +83,7 @@ const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 
 export default async (
   opts: {
-    cliArgs: object,
+    cliArgs: Record<string, any>, // tslint:disable-line:no-any
     // The canonical names of commands. "pnpm i -r"=>"pnpm recursive install"
     command?: string[],
     packageManager: {
@@ -86,10 +91,11 @@ export default async (
       version: string,
     },
   },
-): Promise<PnpmConfigs> => {
+): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts && opts.packageManager || { name: 'pnpm', version: 'undefined' }
   const cliArgs = opts && opts.cliArgs || {}
   const command = opts.command || []
+  const warnings = new Array<string>()
 
   switch (command[command.length - 1]) {
     case 'update':
@@ -100,6 +106,18 @@ export default async (
         throw new PnpmError('CONFIG_BAD_OPTION', 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
       }
       break
+  }
+
+  if (cliArgs['hoist'] === false) {
+    if (cliArgs['shamefully-hoist'] === true) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-hoist cannot be used with --no-hoist')
+    }
+    if (cliArgs['shamefully-flatten'] === true) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-flatten cannot be used with --no-hoist')
+    }
+    if (cliArgs['hoist-pattern']) {
+      throw new PnpmError('CONFIG_CONFLICT_HOIST', '--hoist-pattern cannot be used with --no-hoist')
+    }
   }
 
   // This is what npm does as well, overriding process.execPath with the resolved location of Node.
@@ -122,12 +140,14 @@ export default async (
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
-    'depth': command[command.length - 1] === 'list' ? 0 : Infinity,
+    'depth': (command[0] === 'list' || command[1] === 'list') ? 0 : Infinity,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,
     'fetch-retry-mintimeout': 10000,
     'globalconfig': npmDefaults.globalconfig,
+    'hoist': true,
+    'hoist-pattern': '*',
     'ignore-workspace-root-check': false,
     'latest': false,
     'link-workspace-packages': true,
@@ -138,6 +158,7 @@ export default async (
     'registry': npmDefaults.registry,
     'resolution-strategy': 'fast',
     'save-peer': false,
+    'shamefully-hoist': false,
     'shared-workspace-shrinkwrap': true,
     'shrinkwrap': npmDefaults.shrinkwrap,
     'sort': true,
@@ -151,19 +172,29 @@ export default async (
 
   process.execPath = originalExecPath
 
-  if (!cliArgs['user-agent']) {
-    cliArgs['user-agent'] = `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  }
-  const pnpmConfig: PnpmConfigs = Object.keys(types) // tslint:disable-line
+  const pnpmConfig: ConfigWithDeprecatedSettings = Object.keys(types) // tslint:disable-line
     .reduce((acc, configKey) => {
       acc[camelcase(configKey)] = typeof cliArgs[configKey] !== 'undefined'
         ? cliArgs[configKey]
         : npmConfig.get(configKey)
       return acc
-    }, {} as PnpmConfigs)
-  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliArgs]))
+    }, {} as Config)
+  pnpmConfig.localConfig = Object.assign.apply(Object, [
+    {},
+    ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== pnpmConfig.localPrefix ? 5 : 4),
+    cliArgs,
+  ] as any) // tslint:disable-line:no-any
+  pnpmConfig.userAgent = pnpmConfig.localConfig['user-agent']
+    ? pnpmConfig.localConfig['user-agent']
+    : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, [
+    { registry: 'https://registry.npmjs.org/' },
+    ...npmConfig.list,
+    cliArgs,
+    { 'user-agent': pnpmConfig.userAgent },
+  ] as any) // tslint:disable-line:no-any
   pnpmConfig.registries = {
-    default: normalizeRegistry(pnpmConfig.registry || 'https://registry.npmjs.org/'),
+    default: normalizeRegistry(pnpmConfig.rawNpmConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawNpmConfig),
   }
   const npmGlobalPrefix: string = pnpmConfig.rawNpmConfig['pnpm-prefix'] ||
@@ -200,16 +231,27 @@ export default async (
 
   pnpmConfig.localPrefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
   if (pnpmConfig.global) {
-    const independentLeavesSuffix = pnpmConfig.independentLeaves ? '_independent_leaves' : ''
-    const shamefullyFlattenSuffix = pnpmConfig.shamefullyFlatten ? '_shamefully_flatten' : ''
-    const subfolder = '2' + independentLeavesSuffix + shamefullyFlattenSuffix
-    pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, subfolder)
+    pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, LAYOUT_VERSION.toString())
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
+    if (pnpmConfig.independentLeaves) {
+      if (opts.cliArgs['independent-leaves']) {
+        throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_WITH_GLOBAL',
+          'Configuration conflict. "independent-leaves" may not be used with "global"')
+      }
+      pnpmConfig.independentLeaves = false
+    }
+    if (pnpmConfig.hoistPattern !== '*') {
+      if (opts.cliArgs['hoist-pattern']) {
+        throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
+          'Configuration conflict. "hoist-pattern" may not be used with "global"')
+      }
+      pnpmConfig.independentLeaves = false
+    }
     if (pnpmConfig.linkWorkspacePackages) {
       if (opts.cliArgs['link-workspace-packages']) {
         throw new PnpmError('CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL',
@@ -280,8 +322,19 @@ export default async (
   } else {
     pnpmConfig.extraBinPaths = []
   }
+  if (pnpmConfig['shamefullyFlatten']) {
+    warnings.push('The "shamefully-flatten" setting is deprecated. Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. Since v4, hoisting is on by default for all dependencies.')
+    pnpmConfig.hoistPattern = '*'
+    pnpmConfig.shamefullyHoist = true
+  }
+  if (pnpmConfig['hoist'] === false) {
+    delete pnpmConfig.hoistPattern
+  } else if (pnpmConfig.independentLeaves === true) {
+    throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_AND_HOIST',
+      '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
+  }
 
-  return pnpmConfig
+  return { config: pnpmConfig, warnings }
 }
 
 export async function findWorkspacePrefix (prefix: string) {

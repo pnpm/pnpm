@@ -41,7 +41,7 @@ test('finds packages by default pattern', async t => {
   const root = path.join(fixtures, 'many-pkgs-2')
   const pkgs = await findPackages(root)
 
-  t.equal(pkgs.length, 5)
+  t.equal(pkgs.length, 4)
   t.deepEqual([pkgs[0].manifest.name, pkgs[1].manifest.name, pkgs[2].manifest.name].sort(), ['component-1', 'component-2', 'many-pkgs-2'])
   t.end()
 })

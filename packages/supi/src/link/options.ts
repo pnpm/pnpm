@@ -17,11 +17,18 @@ interface StrictLinkOptions {
   storeController: StoreController,
   manifest: ImporterManifest,
   prefix: string,
-  shamefullyFlatten: boolean,
-  independentLeaves: boolean,
   registries: Registries,
   store: string,
   reporter: ReporterFunction,
+
+  hoistPattern: string | undefined,
+  forceHoistPattern: boolean,
+
+  shamefullyHoist: boolean,
+  forceShamefullyHoist: boolean,
+
+  independentLeaves: boolean,
+  forceIndependentLeaves: boolean,
 }
 
 export type LinkOptions = Partial<StrictLinkOptions> &
@@ -47,11 +54,12 @@ async function defaults (opts: LinkOptions) {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
     forceSharedLockfile: false,
+    hoistPattern: undefined,
     independentLeaves: false,
     lockfileDirectory: opts.lockfileDirectory || prefix,
     prefix,
     registries: DEFAULT_REGISTRIES,
-    shamefullyFlatten: false,
+    shamefullyHoist: false,
     store: opts.store,
     storeController: opts.storeController,
     useLockfile: true,

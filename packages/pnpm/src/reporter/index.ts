@@ -1,4 +1,4 @@
-import { PnpmConfigs } from '@pnpm/config'
+import { Config } from '@pnpm/config'
 import defaultReporter from '@pnpm/default-reporter'
 import { streamParser, writeToConsole } from '@pnpm/logger'
 import silentReporter from './silentReporter'
@@ -9,16 +9,16 @@ export default (
   reporterType: ReporterType,
   opts: {
     cmd: string,
-    subCmd: string,
-    pnpmConfigs: PnpmConfigs,
+    subCmd: string | null,
+    config: Config,
   },
 ) => {
   switch (reporterType) {
     case 'default':
       defaultReporter({
         context: {
-          argv: [opts.cmd, opts.subCmd],
-          configs: opts.pnpmConfigs,
+          argv: opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd],
+          config: opts.config,
         },
         reportingOptions: {
           appendOnly: false,
@@ -30,8 +30,8 @@ export default (
     case 'append-only':
       defaultReporter({
         context: {
-          argv: [opts.cmd, opts.subCmd],
-          configs: opts.pnpmConfigs,
+          argv: opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd],
+          config: opts.config,
         },
         reportingOptions: {
           appendOnly: true,

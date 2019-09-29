@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "8.0.8",
+  "version": "10.0.0-0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -37,7 +37,7 @@
     "@pnpm/npm-resolver": "workspace:3.1.1",
     "@pnpm/package-is-installable": "workspace:2.2.1",
     "@pnpm/resolver-base": "workspace:3.1.2",
-    "@pnpm/store-controller-types": "workspace:3.0.3",
+    "@pnpm/store-controller-types": "workspace:4.0.0-0",
     "@pnpm/types": "workspace:3.2.0",
     "@pnpm/utils": "workspace:0.10.6",
     "dependency-path": "workspace:3.0.8",

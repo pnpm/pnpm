@@ -14,7 +14,7 @@ gfs.gracefulify(fs)
 import loudRejection from 'loud-rejection'
 loudRejection()
 import {
-  PnpmConfigs,
+  Config,
   types,
 } from '@pnpm/config'
 import logger from '@pnpm/logger'
@@ -23,7 +23,7 @@ import nopt = require('nopt')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds from './cmd'
 import getCommandFullName from './getCommandFullName'
-import getConfigs from './getConfigs'
+import getConfig from './getConfig'
 import { scopeLogger } from './loggers'
 import './logging/fileLogger'
 import packageManager from './pnpmPkgJson'
@@ -55,6 +55,246 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'uninstall'
   | 'unlink'
   | 'update'
+  | 'why'
+
+type CLI_OPTIONS = 'access'
+  | 'background'
+  | 'bail'
+  | 'child-concurrency'
+  | 'depth'
+  | 'dev'
+  | 'engine-strict'
+  | 'filter'
+  | 'force'
+  | 'frozen-lockfile'
+  | 'global-pnpmfile'
+  | 'global'
+  | 'help'
+  | 'hoist-pattern'
+  | 'hoist'
+  | 'ignore-pnpmfile'
+  | 'ignore-scripts'
+  | 'ignore-stop-requests'
+  | 'ignore-upload-requests'
+  | 'ignore-workspace-root-check'
+  | 'independent-leaves'
+  | 'json'
+  | 'latest'
+  | 'link-workspace-packages'
+  | 'lock'
+  | 'lockfile-directory'
+  | 'lockfile-only'
+  | 'lockfile'
+  | 'long'
+  | 'network-concurrency'
+  | 'offline'
+  | 'only'
+  | 'optional'
+  | 'package-import-method'
+  | 'parseable'
+  | 'pnpmfile'
+  | 'port'
+  | 'prefer-frozen-lockfile'
+  | 'prefer-offline'
+  | 'prefix'
+  | 'production'
+  | 'protocol'
+  | 'recursive'
+  | 'registry'
+  | 'reporter'
+  | 'resolution-strategy'
+  | 'save-dev'
+  | 'save-exact'
+  | 'save-optional'
+  | 'save-peer'
+  | 'save-prod'
+  | 'shamefully-flatten'
+  | 'shamefully-hoist'
+  | 'shared-workspace-lockfile'
+  | 'side-effects-cache-readonly'
+  | 'side-effects-cache'
+  | 'silent'
+  | 'sort'
+  | 'store'
+  | 'strict-peer-dependencies'
+  | 'table'
+  | 'use-running-store-server'
+  | 'use-store-server'
+  | 'verify-store-integrity'
+  | 'workspace-concurrency'
+  | 'workspace-prefix'
+
+const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['filter', 'help', 'prefix'])
+
+const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
+  'child-concurrency',
+  'dev',
+  'engine-strict',
+  'frozen-lockfile',
+  'force',
+  'global-pnpmfile',
+  'global',
+  'hoist',
+  'hoist-pattern',
+  'ignore-pnpmfile',
+  'ignore-scripts',
+  'ignore-workspace-root-check',
+  'independent-leaves',
+  'link-workspace-packages',
+  'lock',
+  'lockfile-directory',
+  'lockfile-only',
+  'lockfile',
+  'package-import-method',
+  'pnpmfile',
+  'prefer-frozen-lockfile',
+  'prefer-offline',
+  'production',
+  'recursive',
+  'registry',
+  'reporter',
+  'save-dev',
+  'save-exact',
+  'save-optional',
+  'save-peer',
+  'save-prod',
+  'shamefully-hoist',
+  'shared-workspace-lockfile',
+  'side-effects-cache-readonly',
+  'side-effects-cache',
+  'store',
+  'strict-peer-dependencies',
+  'offline',
+  'only',
+  'optional',
+  'use-running-store-server',
+  'use-store-server',
+  'verify-store-integrity',
+  'workspace-prefix',
+])
+
+const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> = {
+  'add': INSTALL_CLI_OPTIONS,
+  'help': new Set([]),
+  'import': new Set([]),
+  'install': INSTALL_CLI_OPTIONS,
+  'install-test': INSTALL_CLI_OPTIONS,
+  'link': new Set([
+    'only',
+    'package-import-method',
+    'production',
+    'registry',
+    'reporter',
+    'save-dev',
+    'save-exact',
+    'save-optional',
+  ]),
+  'list': new Set([
+    'depth',
+    'dev',
+    'global',
+    'json',
+    'long',
+    'only',
+    'optional',
+    'parseable',
+    'production',
+    'recursive',
+  ]),
+  'outdated': new Set([
+    'depth',
+    'global',
+    'long',
+    'recursive',
+    'table',
+  ]),
+  'pack': new Set([]),
+  'prune': new Set([]),
+  'publish': new Set([]),
+  'rebuild': new Set([
+    'recursive',
+  ]),
+  'recursive': new Set([
+    'bail',
+    'link-workspace-packages',
+    'shared-workspace-lockfile',
+    'sort',
+    'workspace-concurrency',
+  ]),
+  'restart': new Set([]),
+  'root': new Set([
+    'global',
+  ]),
+  'run': new Set([
+    'recursive',
+  ]),
+  'server': new Set([
+    'background',
+    'ignore-stop-requests',
+    'ignore-upload-requests',
+    'port',
+    'protocol',
+    'store',
+  ]),
+  'start': new Set([]),
+  'stop': new Set([]),
+  'store': new Set([
+    'registry',
+  ]),
+  'test': new Set([
+    'recursive',
+  ]),
+  'uninstall': new Set([
+    'force',
+    'global-pnpmfile',
+    'global',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'package-import-method',
+    'pnpmfile',
+    'recursive',
+    'reporter',
+    'shared-workspace-lockfile',
+    'store',
+  ]),
+  'unlink': new Set([
+    'recursive',
+  ]),
+  'update': new Set([
+    'depth',
+    'dev',
+    'engine-strict',
+    'force',
+    'global-pnpmfile',
+    'ignore-pnpmfile',
+    'ignore-scripts',
+    'latest',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'offline',
+    'only',
+    'optional',
+    'package-import-method',
+    'pnpmfile',
+    'prefer-offline',
+    'production',
+    'recursive',
+    'registry',
+    'reporter',
+    'save-exact',
+    'shamefully-hoist',
+    'shared-workspace-lockfile',
+    'side-effects-cache-readonly',
+    'side-effects-cache',
+    'store',
+    'use-running-store-server',
+  ]),
+  'why': new Set([
+    'recursive',
+  ]),
+}
 
 const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
 
@@ -83,6 +323,7 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'import',
   'test',
   'run',
+  'why',
   // These might have to be implemented:
   // 'cache',
   // 'completion',
@@ -93,7 +334,7 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   // 'help-search',
 ])
 
-export default async function run (argv: string[]) {
+export default async function run (inputArgv: string[]) {
   // tslint:disable
   const shortHands = {
     's': ['--loglevel', 'silent'],
@@ -141,9 +382,10 @@ export default async function run (argv: string[]) {
     'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
-  const cliConf = nopt(types, shortHands, argv, 0)
+  const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
+  process.env['npm_config_argv'] = JSON.stringify(argv)
 
-  let cmd = getCommandFullName(cliConf.argv.remain[0]) as CANONICAL_COMMAND_NAMES
+  let cmd = getCommandFullName(argv.remain[0]) as CANONICAL_COMMAND_NAMES
     || 'help'
   if (!supportedCmds.has(cmd)) {
     cmd = 'help'
@@ -154,47 +396,60 @@ export default async function run (argv: string[]) {
     process.exit(1)
   }
 
-  cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
-  let subCmd = cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])
+  let subCmd: string | null = argv.remain[1] && getCommandFullName(argv.remain[1])
 
   const dashDashFilterUsed = (
     (
       cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
       || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
     )
-    && cliConf.argv.cooked.includes('--')
+    && argv.cooked.includes('--')
   )
 
   const filterArgs = [] as string[]
 
   if (dashDashFilterUsed) {
-    const dashDashIndex = cliConf.argv.cooked.indexOf('--')
-    Array.prototype.push.apply(filterArgs, cliConf.argv.cooked.slice(dashDashIndex + 1))
-    const afterDashDash = cliConf.argv.cooked.length - dashDashIndex - 1
-    cliConf.argv.remain = cliConf.argv.remain.slice(0, cliConf.argv.remain.length - afterDashDash)
+    const dashDashIndex = argv.cooked.indexOf('--')
+    Array.prototype.push.apply(filterArgs, argv.cooked.slice(dashDashIndex + 1))
+    const afterDashDash = argv.cooked.length - dashDashIndex - 1
+    argv.remain = argv.remain.slice(0, argv.remain.length - afterDashDash)
   }
 
   // `pnpm install ""` is going to be just `pnpm install`
-  const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
+  const cliArgs = argv.remain.slice(1).filter(Boolean)
 
-  if (cmd !== 'recursive' && (dashDashFilterUsed || argv.includes('--filter') || cliConf['recursive'] === true)) {
+  if (cmd !== 'recursive' && (dashDashFilterUsed || inputArgv.includes('--filter') || cliConf['recursive'] === true)) {
     subCmd = cmd
     cmd = 'recursive'
     cliArgs.unshift(subCmd)
+  } else if (subCmd && !supportedCmds.has(subCmd as CANONICAL_COMMAND_NAMES)) {
+    subCmd = null
   }
 
-  let opts!: PnpmConfigs
+  const allowedOptions = !subCmd
+    ? SUPPORTED_CLI_OPTIONS[cmd]
+    : new Set([...Array.from(SUPPORTED_CLI_OPTIONS[cmd]), ...Array.from(SUPPORTED_CLI_OPTIONS[subCmd])])
+  for (const cliOption of Object.keys(cliConf)) {
+    if (!GLOBAL_OPTIONS.has(cliOption as CLI_OPTIONS) && !allowedOptions.has(cliOption)) {
+      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
+      console.log(`For help, run: pnpm help ${cmd}`)
+      process.exit(1)
+      return
+    }
+  }
+
+  let config!: Config & { forceSharedLockfile?: boolean, argv?: { remain: string[], cooked: string[], original: string[] } }
   try {
-    opts = await getConfigs(cliConf, {
+    config = await getConfig(cliConf, {
       command: subCmd ? [cmd, subCmd] : [cmd],
       excludeReporter: false,
     })
-    opts.forceSharedLockfile = typeof opts.workspacePrefix === 'string' && opts.sharedWorkspaceLockfile === true
-    opts.argv = cliConf.argv
-    if (opts.filter) {
-      Array.prototype.push.apply(opts.filter, filterArgs)
+    config.forceSharedLockfile = typeof config.workspacePrefix === 'string' && config.sharedWorkspaceLockfile === true
+    config.argv = argv
+    if (config.filter) {
+      Array.prototype.push.apply(config.filter, filterArgs)
     } else {
-      opts.filter = filterArgs
+      config.filter = filterArgs
     }
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
@@ -205,17 +460,16 @@ export default async function run (argv: string[]) {
   }
 
   if (
-    opts.useBetaCli &&
-    cmd === 'install' &&
-    typeof opts.workspacePrefix === 'string'
+    (cmd === 'add' || cmd === 'install') &&
+    typeof config.workspacePrefix === 'string'
   ) {
     if (cliArgs.length === 0) {
       subCmd = cmd
       cmd = 'recursive'
       cliArgs.unshift(subCmd)
     } else if (
-      opts.workspacePrefix === opts.prefix &&
-      !opts.ignoreWorkspaceRootCheck
+      config.workspacePrefix === config.prefix &&
+      !config.ignoreWorkspaceRootCheck
     ) {
       // Reporting is not initialized at this point, so just printing the error
       console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
@@ -228,7 +482,7 @@ export default async function run (argv: string[]) {
     }
   }
 
-  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.includes(packageManager.name)
+  const selfUpdate = config.global && (cmd === 'install' || cmd === 'update') && argv.remain.includes(packageManager.name)
 
   // Don't check for updates
   //   1. on CI environments
@@ -238,21 +492,21 @@ export default async function run (argv: string[]) {
   }
 
   const reporterType: ReporterType = (() => {
-    if (opts.loglevel === 'silent') return 'silent'
-    if (opts.reporter) return opts.reporter as ReporterType
+    if (config.loglevel === 'silent') return 'silent'
+    if (config.reporter) return config.reporter as ReporterType
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
 
   initReporter(reporterType, {
     cmd,
-    pnpmConfigs: opts,
+    config,
     subCmd,
   })
-  delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
+  delete config.reporter // This is a silly workaround because supi expects a function as config.reporter
 
   if (selfUpdate) {
-    await pnpmCmds.server(['stop'], opts as any) // tslint:disable-line:no-any
+    await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
@@ -261,37 +515,37 @@ export default async function run (argv: string[]) {
       if (cliConf['shamefully-flatten'] === true) {
         logger.info({
           message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
-          prefix: opts.prefix,
+          prefix: config.prefix,
         })
       }
-      if (opts.force === true) {
+      if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
-          prefix: opts.prefix,
+          prefix: config.prefix,
         })
       }
 
       if (cmd !== 'recursive') {
         scopeLogger.debug({
           selected: 1,
-          workspacePrefix: opts.workspacePrefix,
+          workspacePrefix: config.workspacePrefix,
         })
       }
 
       try {
-        const result = pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
+        const result = pnpmCmds[cmd](cliArgs, config, argv.remain[0])
         if (result instanceof Promise) {
           result
             .then((output) => {
               if (typeof output === 'string') {
-                console.log(output)
+                process.stdout.write(output)
               }
               resolve()
             })
             .catch(reject)
         } else {
           if (typeof result === 'string') {
-            console.log(result)
+            process.stdout.write(result)
           }
           resolve()
         }

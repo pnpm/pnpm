@@ -12,18 +12,15 @@ export type IncludedDependencies = {
 }
 
 export interface Modules {
-  importers: {
-    [id: string]: {
-      hoistedAliases: {[depPath: string]: string[]}
-      shamefullyFlatten: boolean,
-    },
-  },
+  hoistedAliases: {[depPath: string]: string[]}
+  hoistPattern?: string
   included: IncludedDependencies,
   independentLeaves: boolean,
   layoutVersion: number,
   packageManager: string,
   pendingBuilds: string[],
   registries?: Registries, // nullable for backward compatibility
+  shamefullyHoist: boolean,
   skipped: string[],
   store: string,
 }
@@ -31,25 +28,7 @@ export interface Modules {
 export async function read (virtualStoreDir: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
   try {
-    const m = await readYamlFile<Modules>(modulesYamlPath)
-    // for backward compatibility
-    // tslint:disable:no-string-literal
-    if (m['storePath']) {
-      m.store = m['storePath']
-      delete m['storePath']
-    }
-    if (!m.importers) {
-      m.importers = {
-        '.': {
-          hoistedAliases: m['hoistedAliases'],
-          shamefullyFlatten: m['shamefullyFlatten'],
-        },
-      }
-      delete m['hoistedAliases']
-      delete m['shamefullyFlatten']
-    }
-    // tslint:enable:no-string-literal
-    return m
+    return await readYamlFile<Modules>(modulesYamlPath)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
@@ -65,16 +44,12 @@ export function write (
   modules: Modules & { registries: Registries },
 ) {
   const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
-  if (modules['skipped']) modules['skipped'].sort() // tslint:disable-line:no-string-literal
+  if (modules.skipped) modules.skipped.sort()
 
-  return writeYamlFile(modulesYamlPath, normalizeModules(modules), YAML_OPTS)
-}
-
-function normalizeModules (m: Modules) {
-  const normalized = { ...m }
-  if (Object.keys(m.importers).length === 1 && m.importers['.']) {
-    Object.assign(normalized, m.importers['.'])
-    delete normalized.importers
+  if (!modules.hoistPattern) {
+    // Because the YAML writer fails on undefined fields
+    delete modules.hoistPattern
+    delete modules.hoistedAliases
   }
-  return normalized
+  return writeYamlFile(modulesYamlPath, modules, YAML_OPTS)
 }

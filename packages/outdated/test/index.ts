@@ -2,11 +2,25 @@
 import outdated, { forPackages as outdatedForPackages } from '@pnpm/outdated'
 import test = require('tape')
 
-async function getLatestVersion (packageName: string) {
+async function getLatestManifest (packageName: string) {
   return ({
-    'is-negative': '2.1.0',
-    'is-positive': '3.1.0',
-    'pkg-with-1-dep': '1.0.0',
+    'deprecated-pkg': {
+      deprecated: 'This package is deprecated',
+      name: 'deprecated-pkg',
+      version: '1.0.0',
+    },
+    'is-negative': {
+      name: 'is-negative',
+      version: '2.1.0',
+    },
+    'is-positive': {
+      name: 'is-positive',
+      version: '3.1.0',
+    },
+    'pkg-with-1-dep': {
+      name: 'pkg-with-1-dep',
+      version: '1.0.0',
+    },
   })[packageName] || null
 }
 
@@ -57,7 +71,7 @@ test('outdated()', async (t) => {
         },
       },
     },
-    getLatestVersion,
+    getLatestManifest,
     lockfileDirectory: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -126,7 +140,7 @@ test('outdated()', async (t) => {
       alias: 'from-github',
       belongsTo: 'dependencies',
       current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
-      latest: undefined,
+      latestManifest: undefined,
       packageName: 'from-github',
       wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
@@ -134,7 +148,7 @@ test('outdated()', async (t) => {
       alias: 'from-github-2',
       belongsTo: 'dependencies',
       current: undefined,
-      latest: undefined,
+      latestManifest: undefined,
       packageName: 'from-github-2',
       wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
     },
@@ -142,7 +156,10 @@ test('outdated()', async (t) => {
       alias: 'is-negative',
       belongsTo: 'devDependencies',
       current: '1.0.0',
-      latest: '2.1.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
       packageName: 'is-negative',
       wanted: '1.1.0',
     },
@@ -150,9 +167,66 @@ test('outdated()', async (t) => {
       alias: 'is-positive',
       belongsTo: 'devDependencies',
       current: '1.0.0',
-      latest: '3.1.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
       packageName: 'is-positive',
       wanted: '3.1.0',
+    },
+  ])
+  t.end()
+})
+
+test('outdated() should return deprecated package even if its current version is latest', async (t) => {
+  const lockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'deprecated-pkg': '1.0.0',
+        },
+        specifiers: {
+          'deprecated-pkg': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: 5,
+    packages: {
+      '/deprecated-pkg/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+    },
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    getLatestManifest,
+    lockfileDirectory: 'project',
+    manifest: {
+      name: 'wanted-shrinkwrap',
+      version: '1.0.0',
+
+      dependencies: {
+        'deprecated-pkg': '1.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+  t.deepEqual(outdatedPkgs, [
+    {
+      alias: 'deprecated-pkg',
+      belongsTo: 'dependencies',
+      current: '1.0.0',
+      latestManifest: {
+        deprecated: 'This package is deprecated',
+        name: 'deprecated-pkg',
+        version: '1.0.0',
+      },
+      packageName: 'deprecated-pkg',
+      wanted: '1.0.0',
     },
   ])
   t.end()
@@ -198,7 +272,7 @@ test('forPackages()', async (t) => {
         },
       },
     },
-    getLatestVersion,
+    getLatestManifest,
     lockfileDirectory: 'wanted-shrinkwrap',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -263,7 +337,10 @@ test('forPackages()', async (t) => {
       alias: 'is-negative',
       belongsTo: 'dependencies',
       current: '1.0.0',
-      latest: '2.1.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
       packageName: 'is-negative',
       wanted: '1.1.0',
     },
@@ -311,7 +388,7 @@ test('forPackages() by pattern', async (t) => {
         },
       },
     },
-    getLatestVersion,
+    getLatestManifest,
     lockfileDirectory: 'wanted-shrinkwrap',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -376,7 +453,10 @@ test('forPackages() by pattern', async (t) => {
       alias: 'is-negative',
       belongsTo: 'dependencies',
       current: '1.0.0',
-      latest: '2.1.0',
+      latestManifest: {
+        name: 'is-negative',
+        version: '2.1.0',
+      },
       packageName: 'is-negative',
       wanted: '1.1.0',
     },
@@ -406,7 +486,7 @@ test('outdated() aliased dependency', async (t) => {
         },
       },
     },
-    getLatestVersion,
+    getLatestManifest,
     lockfileDirectory: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
@@ -443,7 +523,10 @@ test('outdated() aliased dependency', async (t) => {
       alias: 'positive',
       belongsTo: 'dependencies',
       current: '1.0.0',
-      latest: '3.1.0',
+      latestManifest: {
+        name: 'is-positive',
+        version: '3.1.0',
+      },
       packageName: 'is-positive',
       wanted: '3.1.0',
     },

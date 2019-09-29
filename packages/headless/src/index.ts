@@ -16,6 +16,7 @@ import PnpmError from '@pnpm/error'
 import {
   filterLockfileByImportersAndEngine,
 } from '@pnpm/filter-lockfile'
+import hoist from '@pnpm/hoist'
 import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
@@ -45,7 +46,6 @@ import {
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import shamefullyFlatten from '@pnpm/shamefully-flatten'
 import {
   PackageFilesResponse,
   StoreController,
@@ -78,15 +78,16 @@ export interface HeadlessOptions {
   importers: Array<{
     bin: string,
     buildIndex: number,
-    hoistedAliases: {[depPath: string]: string[]}
     manifest: ImporterManifest,
     modulesDir: string,
     id: string,
     prefix: string,
     pruneDirectDependencies?: boolean,
-    shamefullyFlatten: boolean,
   }>,
+  hoistedAliases: {[depPath: string]: string[]}
+  hoistPattern?: string,
   lockfileDirectory: string,
+  shamefullyHoist: boolean,
   storeController: StoreController,
   sideEffectsCacheRead: boolean,
   sideEffectsCacheWrite: boolean,
@@ -122,7 +123,10 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
-  const virtualStoreDir = await realNodeModulesDir(lockfileDirectory)
+  const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
+  const virtualStoreDir = path.join(rootModulesDir, '.pnpm')
+  const hoistedModulesDir = opts.shamefullyHoist
+    ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
 
   for (const { id, manifest, prefix } of opts.importers) {
     if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
@@ -155,6 +159,8 @@ export default async (opts: HeadlessOptions) => {
       {
         currentLockfile,
         dryRun: false,
+        hoistedAliases: opts.hoistedAliases,
+        hoistedModulesDir: opts.hoistPattern && hoistedModulesDir || undefined,
         include: opts.include,
         lockfileDirectory,
         pruneStore: opts.pruneStore,
@@ -228,9 +234,10 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const rootImporterWithFlatModules = opts.importers.find((importer) => importer.id === '.' && importer.shamefullyFlatten)
+  const rootImporterWithFlatModules = opts.hoistPattern && opts.importers.find((importer) => importer.id === '.')
+  let newHoistedAliases!: {[depPath: string]: string[]}
   if (rootImporterWithFlatModules) {
-    rootImporterWithFlatModules.hoistedAliases = await shamefullyFlatten({
+    newHoistedAliases = await hoist(opts.hoistPattern!, {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
@@ -242,10 +249,12 @@ export default async (opts: HeadlessOptions) => {
         : undefined,
       lockfile: filteredLockfile,
       lockfileDirectory: opts.lockfileDirectory,
-      modulesDir: rootImporterWithFlatModules.modulesDir,
+      modulesDir: hoistedModulesDir,
       registries: opts.registries,
       virtualStoreDir,
     })
+  } else {
+    newHoistedAliases = {}
   }
 
   await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
@@ -295,9 +304,13 @@ export default async (opts: HeadlessOptions) => {
           directNodes.add(loc)
         })
     }
+    const extraBinPaths = [...opts.extraBinPaths || []]
+    if (opts.hoistPattern && !opts.shamefullyHoist) {
+      extraBinPaths.unshift(path.join(virtualStoreDir, 'node_modules/.bin'))
+    }
     await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
-      extraBinPaths: opts.extraBinPaths,
+      extraBinPaths,
       optional: opts.include.optionalDependencies,
       prefix: opts.lockfileDirectory,
       rawNpmConfig: opts.rawNpmConfig,
@@ -316,20 +329,16 @@ export default async (opts: HeadlessOptions) => {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
   await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
-  await writeModulesYaml(virtualStoreDir, {
-    importers: opts.importers.reduce((acc, importer) => {
-      acc[importer.id] = {
-        hoistedAliases: importer.hoistedAliases,
-        shamefullyFlatten: importer.shamefullyFlatten,
-      }
-      return acc
-    }, {}),
+  await writeModulesYaml(rootModulesDir, {
+    hoistedAliases: newHoistedAliases,
+    hoistPattern: opts.hoistPattern,
     included: opts.include,
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
     registries: opts.registries,
+    shamefullyHoist: opts.shamefullyHoist || false,
     skipped: Array.from(skipped),
     store: opts.store,
   })
@@ -479,7 +488,7 @@ async function lockfileToDepGraph (
         const pkgSnapshot = lockfile.packages![relDepPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.lockfileDirectory)}`, 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
         const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
         const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
           lockfileDirectory: opts.lockfileDirectory,
@@ -515,19 +524,22 @@ async function lockfileToDepGraph (
           resolution,
         })
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-        fetchResponse.fetchingFiles // tslint:disable-line
-          .then((fetchResult) => {
+        fetchResponse.files() // tslint:disable-line
+          .then(({ fromStore }) => {
             progressLogger.debug({
               packageId,
               requester: opts.lockfileDirectory,
-              status: fetchResult.fromStore
+              status: fromStore
                 ? 'found_in_store' : 'fetched',
             })
+          })
+          .catch(() => {
+            // ignore
           })
         graph[peripheralLocation] = {
           centralLocation: pkgLocation.directory,
           children: {},
-          fetchingFiles: fetchResponse.fetchingFiles,
+          fetchingFiles: fetchResponse.files,
           finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
           hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
@@ -621,7 +633,7 @@ async function getChildrenPaths (
         children[alias] = pkgLocation.directory
       } else {
         const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.lockfileDirectory)}`, 'node_modules', pkgName)
+        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDirectory), 'node_modules', pkgName)
       }
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
@@ -637,8 +649,8 @@ export interface DependenciesGraphNode {
   centralLocation: string,
   modules: string,
   name: string,
-  fetchingFiles: Promise<PackageFilesResponse>,
-  finishing: Promise<void>,
+  fetchingFiles: () => Promise<PackageFilesResponse>,
+  finishing: () => Promise<void>,
   peripheralLocation: string,
   children: {[alias: string]: string},
   // an independent package is a package that
@@ -669,7 +681,7 @@ async function linkAllPkgs (
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
-      const filesResponse = await depNode.fetchingFiles
+      const filesResponse = await depNode.fetchingFiles()
 
       if (depNode.independent) return
       return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {
