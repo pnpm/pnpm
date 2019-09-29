@@ -23,6 +23,7 @@ export interface Config {
   saveDev?: boolean,
   saveOptional?: boolean,
   savePeer?: boolean,
+  saveWorkspaceProtocol?: boolean,
   production?: boolean,
   development?: boolean,
   fetchRetries?: number,

@@ -713,7 +713,7 @@ async function installInContext (
               pinnedVersion: importer.pinnedVersion,
               rawSpec: specRaw,
             })
-            if (resolution.type === 'directory') {
+            if (resolution.type === 'directory' && opts.saveWorkspaceProtocol) {
               pref = `workspace:${pref}`
             }
           }

@@ -108,6 +108,7 @@ type CLI_OPTIONS = 'access'
   | 'save-optional'
   | 'save-peer'
   | 'save-prod'
+  | 'save-workspace-protocol'
   | 'shamefully-flatten'
   | 'shamefully-hoist'
   | 'shared-workspace-lockfile'
@@ -158,6 +159,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'save-optional',
   'save-peer',
   'save-prod',
+  'save-workspace-protocol',
   'shamefully-hoist',
   'shared-workspace-lockfile',
   'side-effects-cache-readonly',

@@ -256,8 +256,12 @@ function getHelpText (command: string) {
               },
               {
                 description: 'Install exact version',
-                name: '--save-exact',
+                name: '--[no-]save-exact',
                 shortAlias: '-E',
+              },
+              {
+                description: 'Save packages from the workspace with a "workspace:" protocol. True by default',
+                name: '--[no-]save-workspace-protocol',
               },
               {
                 description: 'Install as a global package',

@@ -582,7 +582,7 @@ test('adding a new dependency with the workspace: protocol', async (t) => {
         },
       },
     },
-    useWorkspaceProtocol: true,
+    saveWorkspaceProtocol: true,
   }))
 
   t.deepEqual(manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
