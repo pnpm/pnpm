@@ -27,7 +27,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
   // - clone: clone the packages, no fallback
-  // - auto: try to hardlink the packages, if it fails, fallback to copy
+  // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod || 'auto') {
     case 'clone':
