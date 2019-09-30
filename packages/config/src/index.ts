@@ -157,7 +157,7 @@ export default async (
     'pending': false,
     'prefix': npmDefaults.prefix,
     'registry': npmDefaults.registry,
-    'resolution-strategy': 'fast',
+    'resolution-strategy': 'fewer-dependencies',
     'save-peer': false,
     'save-workspace-protocol': true,
     'shamefully-hoist': false,
