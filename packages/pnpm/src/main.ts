@@ -298,8 +298,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
 }
 
-const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'restart', 'start', 'stop', 'test'])
-
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'add',
   'install',
@@ -400,27 +398,12 @@ export default async function run (inputArgv: string[]) {
 
   let subCmd: string | null = argv.remain[1] && getCommandFullName(argv.remain[1])
 
-  const dashDashFilterUsed = (
-    (
-      cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
-      || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
-    )
-    && argv.cooked.includes('--')
-  )
-
   const filterArgs = [] as string[]
-
-  if (dashDashFilterUsed) {
-    const dashDashIndex = argv.cooked.indexOf('--')
-    Array.prototype.push.apply(filterArgs, argv.cooked.slice(dashDashIndex + 1))
-    const afterDashDash = argv.cooked.length - dashDashIndex - 1
-    argv.remain = argv.remain.slice(0, argv.remain.length - afterDashDash)
-  }
 
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = argv.remain.slice(1).filter(Boolean)
 
-  if (cmd !== 'recursive' && (dashDashFilterUsed || inputArgv.includes('--filter') || cliConf['recursive'] === true)) {
+  if (cmd !== 'recursive' && (inputArgv.includes('--filter') || cliConf['recursive'] === true)) {
     subCmd = cmd
     cmd = 'recursive'
     cliArgs.unshift(subCmd)

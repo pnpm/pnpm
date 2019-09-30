@@ -626,7 +626,7 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
   const lockfile = await readYamlFile<Lockfile>(`./${WANTED_LOCKFILE}`)
   t.ok(lockfile.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 
-  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store', '--', 'project-1')
+  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store', '--filter', 'project-1')
 
   await projects['project-1'].hasNot('project-1')
 })

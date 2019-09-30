@@ -916,9 +916,9 @@ function getHelpText (command: string) {
         ],
         url: docsUrl(command),
         usages: [
-          'pnpm recursive [command] [flags] [-- <package selector>...]',
-          'pnpm multi [command] [flags] [-- <package selector>...]',
-          'pnpm m [command] [flags] [-- <package selector>...]'
+          'pnpm recursive [command] [flags] [--filter <package selector>]',
+          'pnpm multi [command] [flags] [--filter <package selector>]',
+          'pnpm m [command] [flags] [--filter <package selector>]'
         ],
       })
 
