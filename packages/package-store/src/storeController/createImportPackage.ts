@@ -24,14 +24,39 @@ export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): I
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
-  let auto = async (
+  // this works in the following way:
+  // - hardlink: hardlink the packages, no fallback
+  // - clone: clone the packages, no fallback
+  // - auto: try to hardlink the packages, if it fails, fallback to copy
+  // - copy: copy the packages, do not try to link them first
+  switch (packageImportMethod || 'auto') {
+    case 'clone':
+      return clonePkg
+    case 'hardlink':
+      return hardlinkPkg
+    case 'auto': {
+      return createAutoImporter()
+    }
+    case 'copy':
+      return copyPkg
+    default:
+      throw new Error(`Unknown package import method ${packageImportMethod}`)
+  }
+}
+
+function createAutoImporter () {
+  let auto = initialAuto
+
+  return auto
+
+  async function initialAuto (
     from: string,
     to: string,
     opts: {
       filesResponse: PackageFilesResponse,
       force: boolean,
     },
-  ) => {
+  ) {
     try {
       await clonePkg(from, to, opts)
       auto = clonePkg
@@ -48,24 +73,6 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
       auto = copyPkg
       await auto(from, to, opts)
     }
-  }
-
-  // this works in the following way:
-  // - hardlink: hardlink the packages, no fallback
-  // - clone: clone the packages, no fallback
-  // - auto: try to hardlink the packages, if it fails, fallback to copy
-  // - copy: copy the packages, do not try to link them first
-  switch (packageImportMethod || 'auto') {
-    case 'clone':
-      return clonePkg
-    case 'hardlink':
-      return hardlinkPkg
-    case 'auto':
-      return auto
-    case 'copy':
-      return copyPkg
-    default:
-      throw new Error(`Unknown package import method ${packageImportMethod}`)
   }
 }
 
