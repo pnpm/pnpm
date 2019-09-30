@@ -555,3 +555,35 @@ test('partial installation in a monorepo does not remove dependencies of other w
   t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/pkg-with-1-dep')))
   t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep')))
 })
+
+test('adding a new dependency with the workspace: protocol', async (t) => {
+  await addDistTag('foo', '1.0.0', 'latest')
+  prepareEmpty(t)
+
+  let [{ manifest }] = await mutateModules([
+    {
+      dependencySelectors: ['foo'],
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+      },
+      mutation: 'installSome',
+      prefix: path.resolve('project-1'),
+    },
+  ], await testDefaults({
+    localPackages: {
+      foo: {
+        '1.0.0': {
+          directory: '',
+          package: {
+            name: 'foo',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    saveWorkspaceProtocol: true,
+  }))
+
+  t.deepEqual(manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
+})

@@ -84,16 +84,16 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   process.chdir('project-1')
 
-  await execPnpm('install', 'project-2')
+  await execPnpm('add', 'project-2')
 
-  await execPnpm('install', 'project-3', '--save-dev')
+  await execPnpm('add', 'project-3', '--save-dev')
 
-  await execPnpm('install', 'project-4', '--save-optional')
+  await execPnpm('add', 'project-4', '--save-optional', '--no-save-workspace-protocol')
 
   const pkg = await import(path.resolve('package.json'))
 
-  t.deepEqual(pkg && pkg.dependencies, { 'project-2': '^2.0.0' }, 'spec of linked package added to dependencies')
-  t.deepEqual(pkg && pkg.devDependencies, { 'project-3': '^3.0.0' }, 'spec of linked package added to devDependencies')
+  t.deepEqual(pkg && pkg.dependencies, { 'project-2': 'workspace:^2.0.0' }, 'spec of linked package added to dependencies')
+  t.deepEqual(pkg && pkg.devDependencies, { 'project-3': 'workspace:^3.0.0' }, 'spec of linked package added to devDependencies')
   t.deepEqual(pkg && pkg.optionalDependencies, { 'project-4': '^4.0.0' }, 'spec of linked package added to optionalDependencies')
 
   await projects['project-1'].has('project-2')
