@@ -68,7 +68,6 @@
     "p-limit": "2.2.1",
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
-    "remove-all-except-outer-links": "2.0.1",
     "run-groups": "2.0.1",
     "semver": "6.3.0",
     "validate-npm-package-name": "3.0.0",

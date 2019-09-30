@@ -13,9 +13,9 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import path = require('path')
-import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import checkCompatibility from './checkCompatibility'
 import readLockfileFile from './readLockfiles'
 
@@ -270,7 +270,7 @@ async function purgeModulesDirsOfImporter (
     prefix: importer.prefix,
   })
   try {
-    await removeAllExceptOuterLinks(importer.modulesDir)
+    await rimraf(importer.modulesDir)
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
