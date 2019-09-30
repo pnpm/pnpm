@@ -30,7 +30,7 @@ export default async function (
     lockStaleDuration?: number,
     store: string,
     networkConcurrency?: number,
-    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
     verifyStoreIntegrity: boolean,
   },
 ): Promise<StoreController & { closeSync: () => void, saveStateSync: () => void }> {

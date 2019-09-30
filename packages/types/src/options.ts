@@ -79,7 +79,7 @@ export type StrictPnpmOptions = {
   ignorePnpmfile: boolean,
   independentLeaves: boolean,
   locks: string,
-  packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
+  packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'clone',
 
   // cannot be specified via config
   update: boolean,

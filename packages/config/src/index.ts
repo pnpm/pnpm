@@ -47,7 +47,7 @@ export const types = Object.assign({
   'lockfile-only': Boolean,
   'network-concurrency': Number,
   'offline': Boolean,
-  'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
+  'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
   'pending': Boolean,
   'pnpmfile': String,
   'port': Number,

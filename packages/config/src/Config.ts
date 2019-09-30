@@ -85,7 +85,7 @@ export interface Config {
   ignorePnpmfile?: boolean,
   pnpmfile: string,
   independentLeaves?: boolean,
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
   hoistPattern?: string,
   useStoreServer?: boolean,
   useRunningStoreServer?: boolean,

@@ -4,7 +4,6 @@ import {
   ImportPackageFunction,
   PackageFilesResponse,
 } from '@pnpm/store-controller-types'
-import child_process = require('child_process')
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -16,50 +15,53 @@ import renameOverwrite = require('rename-overwrite')
 import { promisify } from 'util'
 import linkIndexedDir from '../fs/linkIndexedDir'
 
-const execFilePromise = promisify(child_process.execFile)
 const ncp = promisify(ncpCB)
 const limitLinking = pLimit(16)
 
-export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink'): ImportPackageFunction => {
+export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): ImportPackageFunction => {
   const importPackage = createImportPackage(packageImportMethod)
   return (filesResponse, dependency, opts) => limitLinking(() => importPackage(filesResponse, dependency, opts))
 }
 
-function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink') {
-  let fallbackToCopying = false
+function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
+  let auto = async (
+    from: string,
+    to: string,
+    opts: {
+      filesResponse: PackageFilesResponse,
+      force: boolean,
+    },
+  ) => {
+    try {
+      await clonePkg(from, to, opts)
+      auto = clonePkg
+    } catch (err) {
+      // ignore
+    }
+    try {
+      await hardlinkPkg(from, to, opts)
+      auto = hardlinkPkg
+    } catch (err) {
+      if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
+      storeLogger.warn(err.message)
+      storeLogger.info('Falling back to copying packages from store')
+      auto = copyPkg
+      await auto(from, to, opts)
+    }
+  }
 
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
-  // - reflink: reflink the packages, no fallback
+  // - clone: clone the packages, no fallback
   // - auto: try to hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod || 'auto') {
-    case 'reflink':
-      return reflinkPkg
+    case 'clone':
+      return clonePkg
     case 'hardlink':
       return hardlinkPkg
     case 'auto':
-      return async function importPackage (
-        from: string,
-        to: string,
-        opts: {
-          filesResponse: PackageFilesResponse,
-          force: boolean,
-        }) {
-        if (fallbackToCopying) {
-          await copyPkg(from, to, opts)
-          return
-        }
-        try {
-          await hardlinkPkg(from, to, opts)
-        } catch (err) {
-          if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
-          storeLogger.warn(err.message)
-          storeLogger.info('Falling back to copying packages from store')
-          fallbackToCopying = true
-          await importPackage(from, to, opts)
-        }
-      }
+      return auto
     case 'copy':
       return copyPkg
     default:
@@ -67,7 +69,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   }
 }
 
-async function reflinkPkg (
+async function clonePkg (
   from: string,
   to: string,
   opts: {
@@ -78,10 +80,10 @@ async function reflinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ from, to, method: 'reflink' })
+    importingLogger.debug({ from, to, method: 'clone' })
     const staging = pathTemp(path.dirname(to))
     await makeDir(staging)
-    await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
+    await fs.copyFile(from, staging, fs.constants.COPYFILE_FICLONE_FORCE)
     await renameOverwrite(staging, to)
   }
 }
