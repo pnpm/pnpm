@@ -834,17 +834,17 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   await project.has('with-same-file-in-different-cases')
 
-  const hardlinkAlreadyExistsReported = reporter.calledWithMatch({
+  const packageFileAlreadyExistsReported = reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:_hardlink-already-exists',
+    name: 'pnpm:_package-file-already-exists',
   })
 
   if (await dirIsCaseSensitive(opts.store)) {
     t.comment('store is not case sensitive')
-    t.notOk(hardlinkAlreadyExistsReported, 'hard link already exists not reported')
+    t.notOk(packageFileAlreadyExistsReported, 'hard link already exists not reported')
   } else {
     t.comment('store is not case sensitive')
-    t.ok(hardlinkAlreadyExistsReported, 'hard link already exists reported')
+    t.ok(packageFileAlreadyExistsReported, 'hard link already exists reported')
   }
 })
 

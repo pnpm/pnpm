@@ -5,13 +5,15 @@ import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
 
-const hardLinkingLogger = pnpmLogger('_hardlink-already-exists')
+const importingLogger = pnpmLogger('_package-file-already-exists')
 
-export default async function linkIndexedDir (existingDir: string, newDir: string, filenames: string[]) {
+type ImporterFunction = (src: string, dest: string) => Promise<void>
+
+export default async function linkIndexedDir (importer: ImporterFunction, existingDir: string, newDir: string, filenames: string[]) {
   const stage = pathTemp(path.dirname(newDir))
   try {
     await rimraf(stage)
-    await tryLinkIndexedDir(existingDir, stage, filenames)
+    await tryLinkIndexedDir(importer, existingDir, stage, filenames)
     await rimraf(newDir)
     await fs.rename(stage, newDir)
   } catch (err) {
@@ -20,7 +22,7 @@ export default async function linkIndexedDir (existingDir: string, newDir: strin
   }
 }
 
-async function tryLinkIndexedDir (existingDir: string, newDir: string, filenames: string[]) {
+async function tryLinkIndexedDir (importer: ImporterFunction, existingDir: string, newDir: string, filenames: string[]) {
   const alldirs = new Set<string>()
   filenames
     .forEach((f) => {
@@ -36,7 +38,7 @@ async function tryLinkIndexedDir (existingDir: string, newDir: string, filenames
         const src = path.join(existingDir, f)
         const dest = path.join(newDir, f)
         try {
-          await fs.link(src, dest)
+          await importer(src, dest)
         } catch (err) {
           if (err['code'] !== 'EEXIST') throw err
           // If the file is already linked, we ignore the error.
@@ -47,7 +49,7 @@ async function tryLinkIndexedDir (existingDir: string, newDir: string, filenames
           // but they cannot be both linked to node_modules.
           // More details at https://github.com/pnpm/pnpm/issues/1685
           allLinked = false
-          hardLinkingLogger.debug({ src, dest })
+          importingLogger.debug({ src, dest })
         }
       }),
   )

@@ -81,11 +81,12 @@ async function clonePkg (
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
     importingLogger.debug({ from, to, method: 'clone' })
-    const staging = pathTemp(path.dirname(to))
-    await makeDir(staging)
-    await fs.copyFile(from, staging, fs.constants.COPYFILE_FICLONE_FORCE)
-    await renameOverwrite(staging, to)
+    await linkIndexedDir(cloneFile, from, to, opts.filesResponse.filenames)
   }
+}
+
+async function cloneFile (from: string, to: string) {
+  await fs.copyFile(from, to, fs.constants.COPYFILE_FICLONE_FORCE)
 }
 
 async function hardlinkPkg (
@@ -100,7 +101,7 @@ async function hardlinkPkg (
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, from, to)) {
     importingLogger.debug({ from, to, method: 'hardlink' })
-    await linkIndexedDir(from, to, opts.filesResponse.filenames)
+    await linkIndexedDir(fs.link, from, to, opts.filesResponse.filenames)
   }
 }
 
