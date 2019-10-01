@@ -6,6 +6,7 @@ install:
   - npm set verify-store-integrity false
   - set PNPM_VERSION=next
   - curl -L https://unpkg.com/@pnpm/self-installer | node
+  - npm install --global npm@latest
   - pnpm -v
   - pnpm recursive install --no-lock
 matrix:
