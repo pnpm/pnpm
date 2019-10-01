@@ -21,7 +21,7 @@
   },
   "license": "MIT",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

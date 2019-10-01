@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "description": "Types for the pnpm-lock.yaml lockfile",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10"
   },
   "files": [
     "index.d.ts"
