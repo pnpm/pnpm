@@ -6,6 +6,7 @@ import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
+import './createImportPackage.spec'
 
 test('public API', t => {
   t.equal(typeof packageStore.read, 'function')

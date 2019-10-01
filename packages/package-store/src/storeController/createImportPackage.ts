@@ -20,7 +20,7 @@ const limitLinking = pLimit(16)
 
 export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): ImportPackageFunction => {
   const importPackage = createImportPackage(packageImportMethod)
-  return (filesResponse, dependency, opts) => limitLinking(() => importPackage(filesResponse, dependency, opts))
+  return (from, to, opts) => limitLinking(() => importPackage(from, to, opts))
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
@@ -60,12 +60,14 @@ function createAutoImporter () {
     try {
       await clonePkg(from, to, opts)
       auto = clonePkg
+      return
     } catch (err) {
       // ignore
     }
     try {
       await hardlinkPkg(from, to, opts)
       auto = hardlinkPkg
+      return
     } catch (err) {
       if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
       storeLogger.warn(err.message)
