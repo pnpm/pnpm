@@ -13,7 +13,7 @@ import exists = require('path-exists')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import { promisify } from 'util'
-import linkIndexedDir from '../fs/linkIndexedDir'
+import importIndexedDir from '../fs/importIndexedDir'
 
 const ncp = promisify(ncpCB)
 const limitLinking = pLimit(16)
@@ -88,7 +88,7 @@ async function clonePkg (
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
     importingLogger.debug({ from, to, method: 'clone' })
-    await linkIndexedDir(cloneFile, from, to, opts.filesResponse.filenames)
+    await importIndexedDir(cloneFile, from, to, opts.filesResponse.filenames)
   }
 }
 
@@ -108,7 +108,7 @@ async function hardlinkPkg (
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, from, to)) {
     importingLogger.debug({ from, to, method: 'hardlink' })
-    await linkIndexedDir(fs.link, from, to, opts.filesResponse.filenames)
+    await importIndexedDir(fs.link, from, to, opts.filesResponse.filenames)
   }
 }
 

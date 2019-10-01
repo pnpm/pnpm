@@ -7,13 +7,13 @@ import pathTemp = require('path-temp')
 
 const importingLogger = pnpmLogger('_package-file-already-exists')
 
-type ImporterFunction = (src: string, dest: string) => Promise<void>
+type ImportFile = (src: string, dest: string) => Promise<void>
 
-export default async function linkIndexedDir (importer: ImporterFunction, existingDir: string, newDir: string, filenames: string[]) {
+export default async function importIndexedDir (importFile: ImportFile, existingDir: string, newDir: string, filenames: string[]) {
   const stage = pathTemp(path.dirname(newDir))
   try {
     await rimraf(stage)
-    await tryLinkIndexedDir(importer, existingDir, stage, filenames)
+    await tryImportIndexedDir(importFile, existingDir, stage, filenames)
     await rimraf(newDir)
     await fs.rename(stage, newDir)
   } catch (err) {
@@ -22,7 +22,7 @@ export default async function linkIndexedDir (importer: ImporterFunction, existi
   }
 }
 
-async function tryLinkIndexedDir (importer: ImporterFunction, existingDir: string, newDir: string, filenames: string[]) {
+async function tryImportIndexedDir (importFile: ImportFile, existingDir: string, newDir: string, filenames: string[]) {
   const alldirs = new Set<string>()
   filenames
     .forEach((f) => {
@@ -38,7 +38,7 @@ async function tryLinkIndexedDir (importer: ImporterFunction, existingDir: strin
         const src = path.join(existingDir, f)
         const dest = path.join(newDir, f)
         try {
-          await importer(src, dest)
+          await importFile(src, dest)
         } catch (err) {
           if (err['code'] !== 'EEXIST') throw err
           // If the file is already linked, we ignore the error.
