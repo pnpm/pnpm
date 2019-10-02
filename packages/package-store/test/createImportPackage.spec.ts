@@ -1,13 +1,13 @@
 import fs = require('fs')
 import path = require('path')
-import proxiquire = require('proxyquire')
+import proxyquire = require('proxyquire')
 import sinon = require('sinon')
 import test = require('tape')
 
 const fsMock = {} as any // tslint:disable-line
 const makeDirMock = sinon.spy()
-const createImportPackage = proxiquire('@pnpm/package-store/lib/storeController/createImportPackage', {
-  '../fs/importIndexedDir': proxiquire('@pnpm/package-store/lib/fs/importIndexedDir', {
+const createImportPackage = proxyquire('@pnpm/package-store/lib/storeController/createImportPackage', {
+  '../fs/importIndexedDir': proxyquire('@pnpm/package-store/lib/fs/importIndexedDir', {
     'make-dir': makeDirMock,
     'mz/fs': fsMock,
     'path-temp': (dir: string) => path.join(dir, '_tmp')
