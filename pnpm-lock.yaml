@@ -1000,8 +1000,12 @@ importers:
       '@pnpm/package-store': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 0.0.32
+      '@types/proxyquire': 1.3.28
       '@types/ramda': 0.26.21
+      '@types/sinon': 7.5.0
+      proxyquire: 2.1.3
       rimraf: 3.0.0
+      sinon: 7.5.0
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
@@ -1018,7 +1022,9 @@ importers:
       '@pnpm/tarball-fetcher': 'file:../tarball-fetcher'
       '@pnpm/types': 'workspace:3.2.0'
       '@types/mz': 0.0.32
+      '@types/proxyquire': 1.3.28
       '@types/ramda': 0.26.21
+      '@types/sinon': 7.5.0
       '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
       make-dir: 3.0.0
@@ -1028,9 +1034,11 @@ importers:
       p-limit: 2.2.1
       path-exists: 4.0.0
       path-temp: 2.0.0
+      proxyquire: 2.1.3
       ramda: 0.26.1
       rename-overwrite: 2.0.2
       rimraf: 3.0.0
+      sinon: 7.5.0
       tape: 4.11.0
       tempy: 0.3.0
       write-json-file: 4.0.0
@@ -2467,6 +2475,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-d7c/C/+H/knZ3L8/cxhicHUiTDxdgap0b/aNJfsmLwFu/iOP17mdgbQsbHA3SJmrzsjD0l3UEE5SN4xxuz5ung==
+  /@types/sinon/7.5.0:
+    dev: true
+    resolution:
+      integrity: sha512-NyzhuSBy97B/zE58cDw4NyGvByQbAHNP9069KVSgnXt/sc0T6MFRh0InKAeBVHJWdSXG1S3+PxgVIgKo9mTHbw==
   /@types/ssri/6.0.1:
     resolution:
       integrity: sha512-Sf5NnDETSFGTHXIfG4zTTczRFhGEjSCfwfvHZ5oFmyX0fUA5BJKV/hdQ2zDnfcC6WXvE78ZTh+/18VzMyMM1QQ==

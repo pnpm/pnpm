@@ -158,7 +158,7 @@ function getHelpText (command: string) {
                 name: '--use-running-store-server',
               },
               {
-                description: 'Try to hardlink packages from the store. If it fails, fallback to copy',
+                description: 'Clones/hardlinks or copies packages. The selected method depends from the file system',
                 name: '--package-import-method auto',
               },
               {
@@ -170,8 +170,8 @@ function getHelpText (command: string) {
                 name: '--package-import-method copy',
               },
               {
-                description: 'Reflink (aka copy-on-write) packages from the store',
-                name: '--package-import-method reflink',
+                description: 'Clone (aka copy-on-write) packages from the store',
+                name: '--package-import-method clone',
               },
               {
                 description: 'The default resolution strategy. Speed is preferred over deduplication',

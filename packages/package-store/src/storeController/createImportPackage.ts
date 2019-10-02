@@ -4,7 +4,6 @@ import {
   ImportPackageFunction,
   PackageFilesResponse,
 } from '@pnpm/store-controller-types'
-import child_process = require('child_process')
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -14,52 +13,30 @@ import exists = require('path-exists')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import { promisify } from 'util'
-import linkIndexedDir from '../fs/linkIndexedDir'
+import importIndexedDir from '../fs/importIndexedDir'
 
-const execFilePromise = promisify(child_process.execFile)
 const ncp = promisify(ncpCB)
 const limitLinking = pLimit(16)
 
-export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink'): ImportPackageFunction => {
+export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): ImportPackageFunction => {
   const importPackage = createImportPackage(packageImportMethod)
-  return (filesResponse, dependency, opts) => limitLinking(() => importPackage(filesResponse, dependency, opts))
+  return (from, to, opts) => limitLinking(() => importPackage(from, to, opts))
 }
 
-function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink') {
-  let fallbackToCopying = false
-
+function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
   // this works in the following way:
   // - hardlink: hardlink the packages, no fallback
-  // - reflink: reflink the packages, no fallback
-  // - auto: try to hardlink the packages, if it fails, fallback to copy
+  // - clone: clone the packages, no fallback
+  // - auto: try to clone or hardlink the packages, if it fails, fallback to copy
   // - copy: copy the packages, do not try to link them first
   switch (packageImportMethod || 'auto') {
-    case 'reflink':
-      return reflinkPkg
+    case 'clone':
+      return clonePkg
     case 'hardlink':
       return hardlinkPkg
-    case 'auto':
-      return async function importPackage (
-        from: string,
-        to: string,
-        opts: {
-          filesResponse: PackageFilesResponse,
-          force: boolean,
-        }) {
-        if (fallbackToCopying) {
-          await copyPkg(from, to, opts)
-          return
-        }
-        try {
-          await hardlinkPkg(from, to, opts)
-        } catch (err) {
-          if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
-          storeLogger.warn(err.message)
-          storeLogger.info('Falling back to copying packages from store')
-          fallbackToCopying = true
-          await importPackage(from, to, opts)
-        }
-      }
+    case 'auto': {
+      return createAutoImporter()
+    }
     case 'copy':
       return copyPkg
     default:
@@ -67,7 +44,41 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
   }
 }
 
-async function reflinkPkg (
+function createAutoImporter () {
+  let auto = initialAuto
+
+  return auto
+
+  async function initialAuto (
+    from: string,
+    to: string,
+    opts: {
+      filesResponse: PackageFilesResponse,
+      force: boolean,
+    },
+  ) {
+    try {
+      await clonePkg(from, to, opts)
+      auto = clonePkg
+      return
+    } catch (err) {
+      // ignore
+    }
+    try {
+      await hardlinkPkg(from, to, opts)
+      auto = hardlinkPkg
+      return
+    } catch (err) {
+      if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
+      storeLogger.warn(err.message)
+      storeLogger.info('Falling back to copying packages from store')
+      auto = copyPkg
+      await auto(from, to, opts)
+    }
+  }
+}
+
+async function clonePkg (
   from: string,
   to: string,
   opts: {
@@ -78,12 +89,13 @@ async function reflinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ from, to, method: 'reflink' })
-    const staging = pathTemp(path.dirname(to))
-    await makeDir(staging)
-    await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
-    await renameOverwrite(staging, to)
+    importingLogger.debug({ from, to, method: 'clone' })
+    await importIndexedDir(cloneFile, from, to, opts.filesResponse.filenames)
   }
+}
+
+async function cloneFile (from: string, to: string) {
+  await fs.copyFile(from, to, fs.constants.COPYFILE_FICLONE_FORCE)
 }
 
 async function hardlinkPkg (
@@ -98,7 +110,7 @@ async function hardlinkPkg (
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, from, to)) {
     importingLogger.debug({ from, to, method: 'hardlink' })
-    await linkIndexedDir(from, to, opts.filesResponse.filenames)
+    await importIndexedDir(fs.link, from, to, opts.filesResponse.filenames)
   }
 }
 

@@ -46,8 +46,12 @@
     "@pnpm/package-store": "link:",
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
     "@types/mz": "0.0.32",
+    "@types/proxyquire": "1.3.28",
     "@types/ramda": "0.26.21",
+    "@types/sinon": "7.5.0",
+    "proxyquire": "2.1.3",
     "rimraf": "3.0.0",
+    "sinon": "7.5.0",
     "tape": "4.11.0",
     "tempy": "0.3.0"
   },
