@@ -119,6 +119,7 @@ type CLI_OPTIONS = 'access'
   | 'store'
   | 'strict-peer-dependencies'
   | 'table'
+  | 'tag'
   | 'use-running-store-server'
   | 'use-store-server'
   | 'verify-store-integrity'
@@ -212,7 +213,9 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'pack': new Set([]),
   'prune': new Set([]),
-  'publish': new Set([]),
+  'publish': new Set([
+    'tag',
+  ]),
   'rebuild': new Set([
     'recursive',
   ]),
