@@ -824,6 +824,7 @@ test('rewrites node_modules created by npm', async (t) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1685
+// also, there's a better version of this test (with the same name) in the pnpm package
 // TODO: move this test to @pnpm/package-store
 test("don't fail on case insensitive filesystems when package has 2 files with same name", async (t) => {
   const project = prepareEmpty(t)
@@ -833,19 +834,6 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   await addDependenciesToPackage({}, ['with-same-file-in-different-cases'], opts)
 
   await project.has('with-same-file-in-different-cases')
-
-  const packageFileAlreadyExistsReported = reporter.calledWithMatch({
-    level: 'debug',
-    name: 'pnpm:_package-file-already-exists',
-  })
-
-  if (await dirIsCaseSensitive(opts.store)) {
-    t.comment('store is not case sensitive')
-    t.notOk(packageFileAlreadyExistsReported, 'hard link already exists not reported')
-  } else {
-    t.comment('store is not case sensitive')
-    t.ok(packageFileAlreadyExistsReported, 'hard link already exists reported')
-  }
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1134
