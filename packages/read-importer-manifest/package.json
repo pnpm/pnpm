@@ -40,7 +40,7 @@
     "fast-deep-equal": "2.0.1",
     "graceful-fs": "4.2.1",
     "is-windows": "1.0.2",
-    "json5": "2.1.0",
+    "json5": "2.1.1",
     "parse-json": "5.0.0",
     "read-yaml-file": "1.1.0",
     "sort-keys": "4.0.0",
