@@ -45,7 +45,7 @@ export default function (
     cert: opts.cert,
     fsIsCaseSensitive: typeof opts.fsIsCaseSensitive === 'boolean'
       ? opts.fsIsCaseSensitive
-      : true, // TODO: change the default value to false
+      : false,
     key: opts.key,
     localAddress: opts.localAddress,
     proxy: opts.httpsProxy || opts.proxy,
