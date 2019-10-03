@@ -5,7 +5,7 @@ import test = require('tape')
 test('createResolver()', t => {
   const resolve = createResolver({
     metaCache: new Map(),
-    rawNpmConfig: {
+    rawConfig: {
       registry: 'https://registry.npmjs.org/',
     },
     store: '.store',

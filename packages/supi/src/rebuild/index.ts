@@ -152,7 +152,7 @@ export async function rebuild (
 
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
-    rawNpmConfig: opts.rawNpmConfig,
+    rawConfig: opts.rawConfig,
     unsafePerm: opts.unsafePerm || false,
   }
   await runLifecycleHooksConcurrently(
@@ -308,7 +308,7 @@ async function _rebuild (
           optional: pkgSnapshot.optional === true,
           pkgRoot,
           prepare: pkgSnapshot.prepare,
-          rawNpmConfig: opts.rawNpmConfig,
+          rawConfig: opts.rawConfig,
           rootNodeModulesDir: ctx.rootModulesDir,
           unsafePerm: opts.unsafePerm || false,
         })

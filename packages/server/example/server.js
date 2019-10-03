@@ -10,10 +10,10 @@ main()
 
 async function main() {
   const registry = 'https://registry.npmjs.org/'
-  const rawNpmConfig = { registry }
+  const rawConfig = { registry }
   const store = '.store'
   const resolve = createResolver({
-    rawNpmConfig,
+    rawConfig,
     store,
     metaCache: new Map(),
   })
@@ -21,7 +21,7 @@ async function main() {
     alwaysAuth: true,
     registry,
     strictSsl: true,
-    rawNpmConfig,
+    rawConfig,
   })
   const storeCtrl = await createStore(resolve, fetchers, {
     networkConcurrency: 1,

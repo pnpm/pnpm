@@ -177,7 +177,7 @@ test('scoped package with custom registry', async (t) => {
 
   await addDependenciesToPackage({}, ['@scoped/peer'], await testDefaults({
     // setting an incorrect default registry URL
-    rawNpmConfig: {
+    rawConfig: {
       '@scoped:registry': 'http://localhost:4873/',
     },
     registry: 'http://localhost:9999/',

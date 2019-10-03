@@ -14,7 +14,7 @@ export default function (
     localAddress?: string,
     offline?: boolean,
     proxy?: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     store: string,
     strictSsl?: boolean,
     userAgent?: string,

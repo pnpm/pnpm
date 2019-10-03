@@ -37,7 +37,7 @@ test('pnpm outdated', async (t: tape.Test) => {
       networkConcurrency: 16,
       offline: false,
       prefix: process.cwd(),
-      rawNpmConfig: { registry: 'https://localhost:4873' },
+      rawConfig: { registry: 'https://localhost:4873' },
       registries: { default: 'https://localhost:4873' },
       strictSsl: false,
       tag: 'latest',

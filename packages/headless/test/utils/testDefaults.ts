@@ -34,11 +34,11 @@ export default async function testDefaults (
     lockfileDirectory,
   )
   store = await storePath(lockfileDirectory, store)
-  const rawNpmConfig = { registry }
+  const rawConfig = { registry }
   const storeController = await createStore(
     createResolver({
       metaCache: new Map(),
-      rawNpmConfig,
+      rawConfig,
       store,
       strictSsl: true,
       ...retryOpts,
@@ -46,7 +46,7 @@ export default async function testDefaults (
     }),
     createFetcher({
       alwaysAuth: true,
-      rawNpmConfig,
+      rawConfig,
       registry,
       ...retryOpts,
       ...fetchOpts,
@@ -75,7 +75,7 @@ export default async function testDefaults (
       version: '1.0.0',
     },
     pendingBuilds,
-    rawNpmConfig: {},
+    rawConfig: {},
     registries: registries || {
       default: registry,
     },

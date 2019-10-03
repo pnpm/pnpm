@@ -20,7 +20,7 @@ export type IgnoreFunction = (filename: string) => boolean
 export default function (
   opts: {
     registry: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     alwaysAuth?: boolean,
     proxy?: string,
     httpsProxy?: string,
@@ -67,7 +67,7 @@ export default function (
     tarball: fetchFromTarball.bind(null, {
       fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
         download,
-        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
+        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawConfig)),
         ignoreFile: opts.ignoreFile,
         offline: opts.offline,
       }),

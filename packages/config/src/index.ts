@@ -189,17 +189,17 @@ export default async (
   pnpmConfig.userAgent = pnpmConfig.localConfig['user-agent']
     ? pnpmConfig.localConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  pnpmConfig.rawNpmConfig = Object.assign.apply(Object, [
+  pnpmConfig.rawConfig = Object.assign.apply(Object, [
     { registry: 'https://registry.npmjs.org/' },
     ...npmConfig.list,
     cliArgs,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // tslint:disable-line:no-any
   pnpmConfig.registries = {
-    default: normalizeRegistry(pnpmConfig.rawNpmConfig.registry),
-    ...getScopeRegistries(pnpmConfig.rawNpmConfig),
+    default: normalizeRegistry(pnpmConfig.rawConfig.registry),
+    ...getScopeRegistries(pnpmConfig.rawConfig),
   }
-  const npmGlobalPrefix: string = pnpmConfig.rawNpmConfig['pnpm-prefix'] ||
+  const npmGlobalPrefix: string = pnpmConfig.rawConfig['pnpm-prefix'] ||
     (
       process.platform !== 'win32'
         ? npmConfig.globalPrefix

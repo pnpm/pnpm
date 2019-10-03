@@ -76,7 +76,7 @@ export interface OutdatedOptions {
   offline: boolean
   prefix: string
   proxy?: string
-  rawNpmConfig: object
+  rawConfig: object
   registries: Registries
   lockfileDirectory?: string
   store?: string

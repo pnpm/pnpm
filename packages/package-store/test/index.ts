@@ -16,14 +16,14 @@ test('public API', t => {
 test('store.importPackage()', async (t) => {
   const store = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
-  const rawNpmConfig = { registry }
+  const rawConfig = { registry }
   const resolver = createResolver({
     metaCache: new Map(),
-    rawNpmConfig,
+    rawConfig,
     store,
   }) as ResolveFunction
   const fetcher = createFetcher({
-    rawNpmConfig,
+    rawConfig,
     registry,
   })
   const storeController = await createStore(resolver, fetcher, {
@@ -54,14 +54,14 @@ test('store.importPackage()', async (t) => {
 test('store.importPackage() by copying', async (t) => {
   const store = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
-  const rawNpmConfig = { registry }
+  const rawConfig = { registry }
   const resolver = createResolver({
     metaCache: new Map(),
-    rawNpmConfig,
+    rawConfig,
     store,
   }) as ResolveFunction
   const fetcher = createFetcher({
-    rawNpmConfig,
+    rawConfig,
     registry,
   })
   const storeController = await createStore(resolver, fetcher, {

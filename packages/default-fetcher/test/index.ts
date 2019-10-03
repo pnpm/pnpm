@@ -5,7 +5,7 @@ import test = require('tape')
 test('createFetcher()', t => {
   const fetcher = createFetcher({
     alwaysAuth: false,
-    rawNpmConfig: {},
+    rawConfig: {},
     registry: 'https://registry.npmjs.org/',
     strictSsl: false,
   })

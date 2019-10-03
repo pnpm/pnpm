@@ -26,7 +26,7 @@ export default async (
     'offline' |
     'packageImportMethod' |
     'proxy' |
-    'rawNpmConfig' |
+    'rawConfig' |
     'registry' |
     'strictSsl' |
     'userAgent' |

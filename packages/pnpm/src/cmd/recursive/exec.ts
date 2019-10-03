@@ -13,7 +13,7 @@ export default async <T> (
     bail: boolean,
     workspaceConcurrency: number,
     unsafePerm: boolean,
-    rawNpmConfig: object,
+    rawConfig: object,
   },
 ): Promise<RecursiveSummary> => {
   const limitRun = pLimit(opts.workspaceConcurrency)

@@ -12,7 +12,7 @@ export default function (
     alwaysAuth?: boolean,
     fsIsCaseSensitive?: boolean,
     registry: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     strictSsl?: boolean,
     proxy?: string,
     httpsProxy?: string,

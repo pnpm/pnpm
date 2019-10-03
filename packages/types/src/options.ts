@@ -22,7 +22,7 @@ export interface ReadPackageHook {
 }
 
 export type StrictPnpmOptions = {
-  rawNpmConfig: object,
+  rawConfig: object,
   dryRun: boolean, // This option might be not supported ever
   global: boolean,
   prefix: string,

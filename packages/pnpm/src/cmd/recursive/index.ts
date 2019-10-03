@@ -374,8 +374,8 @@ export async function recursive (
                 savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
               prefix,
-              rawNpmConfig: {
-                ...installOpts.rawNpmConfig,
+              rawConfig: {
+                ...installOpts.rawConfig,
                 ...localConfig,
               },
               storeController,
@@ -454,8 +454,8 @@ export async function recursive (
                 bin: path.join(prefix, 'node_modules', '.bin'),
                 pending: cmdFullName !== 'rebuild' || opts.pending === true,
                 prefix,
-                rawNpmConfig: {
-                  ...installOpts.rawNpmConfig,
+                rawConfig: {
+                  ...installOpts.rawConfig,
                   ...localConfig,
                 },
               },

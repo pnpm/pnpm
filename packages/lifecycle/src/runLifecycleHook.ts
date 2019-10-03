@@ -13,7 +13,7 @@ export default async function runLifecycleHook (
     extraBinPaths?: string[],
     optional?: boolean,
     pkgRoot: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     rootNodeModulesDir: string,
     stdio?: string,
     unsafePerm: boolean,
@@ -40,7 +40,7 @@ export default async function runLifecycleHook (
     m.scripts[stage] = `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`
   }
   return lifecycle(m, stage, opts.pkgRoot, {
-    config: opts.rawNpmConfig,
+    config: opts.rawConfig,
     dir: opts.rootNodeModulesDir,
     extraBinPaths: opts.extraBinPaths || [],
     log: {

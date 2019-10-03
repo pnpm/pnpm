@@ -8,7 +8,7 @@ export interface Config {
   extraBinPaths: string[],
   filter: string[],
   localConfig: Record<string, any>, // tslint:disable-line
-  rawNpmConfig: Record<string, any>, // tslint:disable-line
+  rawConfig: Record<string, any>, // tslint:disable-line
   globalPrefix: string,
   globalBin: string,
   dryRun?: boolean, // This option might be not supported ever

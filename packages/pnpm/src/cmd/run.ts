@@ -11,7 +11,7 @@ export default async function run (
     engineStrict?: boolean,
     extraBinPaths: string[],
     localPrefix: string,
-    rawNpmConfig: object,
+    rawConfig: object,
   },
 ) {
   const prefix = opts.localPrefix
@@ -29,7 +29,7 @@ export default async function run (
     depPath: prefix,
     extraBinPaths: opts.extraBinPaths,
     pkgRoot: prefix,
-    rawNpmConfig: opts.rawNpmConfig,
+    rawConfig: opts.rawConfig,
     rootNodeModulesDir: await realNodeModulesDir(prefix),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
@@ -114,7 +114,7 @@ export async function start (
   opts: {
     extraBinPaths: string[],
     localPrefix: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     argv: {
       cooked: string[],
       original: string[],
@@ -130,7 +130,7 @@ export async function stop (
   opts: {
     extraBinPaths: string[],
     localPrefix: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     argv: {
       cooked: string[],
       original: string[],
@@ -146,7 +146,7 @@ export async function test (
   opts: {
     extraBinPaths: string[],
     localPrefix: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     argv: {
       cooked: string[],
       original: string[],
@@ -162,7 +162,7 @@ export async function restart (
   opts: {
     extraBinPaths: string[],
     localPrefix: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     argv: {
       cooked: string[],
       original: string[],

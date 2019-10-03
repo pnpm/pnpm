@@ -8,7 +8,7 @@ export default async function runLifecycleHooksConcurrently (
   childConcurrency: number,
   opts: {
     extraBinPaths?: string[],
-    rawNpmConfig: object,
+    rawConfig: object,
     stdio?: string,
     unsafePerm: boolean,
   },
@@ -30,7 +30,7 @@ export default async function runLifecycleHooksConcurrently (
           depPath: prefix,
           extraBinPaths: opts.extraBinPaths,
           pkgRoot: prefix,
-          rawNpmConfig: opts.rawNpmConfig,
+          rawConfig: opts.rawConfig,
           rootNodeModulesDir: modulesDir,
           stdio: opts.stdio,
           unsafePerm: opts.unsafePerm,

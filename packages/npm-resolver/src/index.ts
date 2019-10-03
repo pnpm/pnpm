@@ -44,7 +44,7 @@ const META_FILENAME = 'index.json'
 const FULL_META_FILENAME = 'index-full.json'
 
 export interface ResolverFactoryOptions {
-  rawNpmConfig: object,
+  rawConfig: object,
   metaCache: PackageMetaCache,
   store: string,
   cert?: string,
@@ -67,11 +67,11 @@ export interface ResolverFactoryOptions {
 export default function createResolver (
   opts: ResolverFactoryOptions,
 ) {
-  if (typeof opts.rawNpmConfig !== 'object') { // tslint:disable-line
-    throw new TypeError('`opts.rawNpmConfig` is required and needs to be an object')
+  if (typeof opts.rawConfig !== 'object') { // tslint:disable-line
+    throw new TypeError('`opts.rawConfig` is required and needs to be an object')
   }
-  if (typeof opts.rawNpmConfig['registry'] !== 'string') { // tslint:disable-line
-    throw new TypeError('`opts.rawNpmConfig.registry` is required and needs to be a string')
+  if (typeof opts.rawConfig['registry'] !== 'string') { // tslint:disable-line
+    throw new TypeError('`opts.rawConfig.registry` is required and needs to be a string')
   }
   if (typeof opts.metaCache !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.metaCache` is required and needs to be an object')
@@ -96,7 +96,7 @@ export default function createResolver (
     userAgent: opts.userAgent,
   }) as (url: string, opts: {auth?: object}) => Promise<object>
   return resolveNpm.bind(null, {
-    getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
+    getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawConfig)),
     pickPackage: pickPackage.bind(null, {
       fetch,
       metaCache: opts.metaCache,

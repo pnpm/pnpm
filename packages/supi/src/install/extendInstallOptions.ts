@@ -29,7 +29,7 @@ export interface StrictInstallOptions {
   depth: number,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
   lockfileDirectory: string,
-  rawNpmConfig: object,
+  rawConfig: object,
   verifyStoreIntegrity: boolean,
   engineStrict: boolean,
   nodeVersion: string,
@@ -109,7 +109,7 @@ const defaults = async (opts: InstallOptions) => {
     preferFrozenLockfile: true,
     pruneLockfileImporters: false,
     pruneStore: false,
-    rawNpmConfig: {},
+    rawConfig: {},
     registries: DEFAULT_REGISTRIES,
     resolutionStrategy: 'fast',
     saveWorkspaceProtocol: true,
@@ -156,6 +156,6 @@ export default async (
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
-  extendedOpts.rawNpmConfig['registry'] = extendedOpts.registries.default // tslint:disable-line:no-string-literal
+  extendedOpts.rawConfig['registry'] = extendedOpts.registries.default // tslint:disable-line:no-string-literal
   return extendedOpts
 }

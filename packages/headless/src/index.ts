@@ -93,7 +93,7 @@ export interface HeadlessOptions {
   sideEffectsCacheWrite: boolean,
   force: boolean,
   store: string,
-  rawNpmConfig: object,
+  rawConfig: object,
   unsafePerm: boolean,
   userAgent: string,
   registries: Registries,
@@ -138,7 +138,7 @@ export default async (opts: HeadlessOptions) => {
 
   const scriptsOpts = {
     optional: false,
-    rawNpmConfig: opts.rawNpmConfig,
+    rawConfig: opts.rawConfig,
     stdio: opts.ownLifecycleHooksStdio || 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
@@ -313,7 +313,7 @@ export default async (opts: HeadlessOptions) => {
       extraBinPaths,
       optional: opts.include.optionalDependencies,
       prefix: opts.lockfileDirectory,
-      rawNpmConfig: opts.rawNpmConfig,
+      rawConfig: opts.rawConfig,
       rootNodeModulesDir: virtualStoreDir,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
       storeController: opts.storeController,

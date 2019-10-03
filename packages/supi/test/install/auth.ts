@@ -25,14 +25,14 @@ test('a package that need authentication', async (t: tape.Test) => {
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  let rawNpmConfig = {
+  let rawConfig = {
     '//localhost:4873/:_authToken': data.token,
     'registry': 'http://localhost:4873/',
   }
   const manifest = await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
-    rawNpmConfig,
+    rawConfig,
   }, {
-    rawNpmConfig,
+    rawConfig,
   }))
 
   const m = project.requireModule('needs-auth')
@@ -44,15 +44,15 @@ test('a package that need authentication', async (t: tape.Test) => {
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
 
-  rawNpmConfig = {
+  rawConfig = {
     '//localhost:4873/:_authToken': data.token,
     'registry': 'https://registry.npmjs.org/',
   }
   await addDependenciesToPackage(manifest, ['needs-auth'], await testDefaults({}, {
-    rawNpmConfig,
+    rawConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawNpmConfig,
+    rawConfig,
   }))
 
   await project.has('needs-auth')
@@ -74,15 +74,15 @@ test('installing a package that need authentication, using password', async (t: 
   }) as {token: string}
 
   const encodedPassword = Buffer.from('bar').toString('base64')
-  let rawNpmConfig = {
+  let rawConfig = {
     '//localhost:4873/:_password': encodedPassword,
     '//localhost:4873/:username': 'foo',
     'registry': 'http://localhost:4873/',
   }
   await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
-    rawNpmConfig,
+    rawConfig,
   }, {
-    rawNpmConfig,
+    rawConfig,
   }))
 
   const m = project.requireModule('needs-auth')
@@ -105,15 +105,15 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
     }, (err: Error, d: object) => err ? reject(err) : resolve(d))
   })
 
-  const rawNpmConfig = {
+  const rawConfig = {
     '_auth': 'Zm9vOmJhcg==', // base64 encoded foo:bar
     'always-auth': true,
     'registry': 'http://localhost:4873',
   }
   await addDependenciesToPackage({}, ['needs-auth'], await testDefaults({}, {
-    rawNpmConfig,
+    rawConfig,
   }, {
-    rawNpmConfig,
+    rawConfig,
   }))
 
   const m = project.requireModule('needs-auth')
@@ -136,16 +136,16 @@ test('a scoped package that need authentication specific to scope', async (t: ta
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  const rawNpmConfig = {
+  const rawConfig = {
     '//localhost:4873/:_authToken': data.token,
     '@private:registry': 'http://localhost:4873/',
     'registry': 'https://registry.npmjs.org/',
   }
   let opts = await testDefaults({}, {
-    rawNpmConfig,
+    rawConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawNpmConfig,
+    rawConfig,
   })
   const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
 
@@ -157,10 +157,10 @@ test('a scoped package that need authentication specific to scope', async (t: ta
 
   // Recreating options to have a new storeController with clean cache
   opts = await testDefaults({}, {
-    rawNpmConfig,
+    rawConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
-    rawNpmConfig,
+    rawConfig,
   })
   await addDependenciesToPackage(manifest, ['@private/foo'], opts)
 
@@ -182,7 +182,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  const rawNpmConfig = {
+  const rawConfig = {
     '//127.0.0.1:4873/:_authToken': data.token,
     '//127.0.0.1:4873/:always-auth': true,
     'registry': 'http://127.0.0.1:4873',
@@ -192,10 +192,10 @@ test('a package that need authentication reuses authorization tokens for tarball
       default: 'http://127.0.0.1:4873',
     },
   }, {
-    rawNpmConfig,
+    rawConfig,
     registry: 'http://127.0.0.1:4873',
   }, {
-    rawNpmConfig,
+    rawConfig,
   }))
 
   const m = project.requireModule('needs-auth')
@@ -218,7 +218,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
-  const rawNpmConfig = {
+  const rawConfig = {
     '//127.0.0.1:4873/:_authToken': data.token,
     '//127.0.0.1:4873/:always-auth': true,
     'registry': 'http://127.0.0.1:4873',
@@ -228,10 +228,10 @@ test('a package that need authentication reuses authorization tokens for tarball
       default: 'http://127.0.0.1:4873',
     },
   }, {
-    rawNpmConfig,
+    rawConfig,
     registry: 'http://127.0.0.1:4873',
   }, {
-    rawNpmConfig,
+    rawConfig,
   })
 
   const manifest = await addDependenciesToPackage({}, ['needs-auth'], opts)
@@ -246,10 +246,10 @@ test('a package that need authentication reuses authorization tokens for tarball
       default: 'http://127.0.0.1:4873',
     },
   }, {
-    rawNpmConfig,
+    rawConfig,
     registry: 'http://127.0.0.1:4873',
   }, {
-    rawNpmConfig,
+    rawConfig,
   })
   await install(manifest, opts)
 

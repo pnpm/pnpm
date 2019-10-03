@@ -6,7 +6,7 @@ process.chdir(__dirname)
 const registry = 'https://registry.npmjs.org/'
 const fetch = createFetcher({
   registry,
-  rawNpmConfig: {
+  rawConfig: {
     registry,
   },
 })

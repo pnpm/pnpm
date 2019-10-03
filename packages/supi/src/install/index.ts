@@ -234,7 +234,7 @@ export async function mutateModules (
           packageManager:  opts.packageManager,
           pendingBuilds: ctx.pendingBuilds,
           pruneStore: opts.pruneStore,
-          rawNpmConfig: opts.rawNpmConfig,
+          rawConfig: opts.rawConfig,
           registries: opts.registries,
           shamefullyHoist: ctx.shamefullyHoist,
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
@@ -255,7 +255,7 @@ export async function mutateModules (
     const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
     const scriptsOpts = {
       extraBinPaths: opts.extraBinPaths,
-      rawNpmConfig: opts.rawNpmConfig,
+      rawConfig: opts.rawConfig,
       stdio: opts.ownLifecycleHooksStdio,
       unsafePerm: opts.unsafePerm || false,
     }
@@ -837,7 +837,7 @@ async function installInContext (
         extraBinPaths: ctx.extraBinPaths,
         optional: opts.include.optionalDependencies,
         prefix: ctx.lockfileDirectory,
-        rawNpmConfig: opts.rawNpmConfig,
+        rawConfig: opts.rawConfig,
         rootNodeModulesDir: ctx.virtualStoreDir,
         sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
         storeController: opts.storeController,

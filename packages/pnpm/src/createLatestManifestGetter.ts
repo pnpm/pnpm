@@ -19,7 +19,7 @@ export default function (
     offline?: boolean,
     prefix: string,
     proxy?: string,
-    rawNpmConfig: object,
+    rawConfig: object,
     registries: Registries,
     store: string,
     strictSsl?: boolean,

@@ -352,7 +352,7 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   // shouldn't care about what the registry in npmrc is
   // the one in lockfile should be used
   await install(manifest, await testDefaults({
-    rawNpmConfig: {
+    rawConfig: {
       registry: 'https://registry.npmjs.org',
     },
     registry: 'https://registry.npmjs.org',

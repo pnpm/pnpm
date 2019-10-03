@@ -16,15 +16,15 @@ const registry = 'https://registry.npmjs.org/'
 const store = '.store'
 
 async function createStoreController () {
-  const rawNpmConfig = { registry }
+  const rawConfig = { registry }
   const resolve = createResolver({
     metaCache: new Map<string, object>() as PackageMetaCache,
-    rawNpmConfig,
+    rawConfig,
     store,
   }) as ResolveFunction
   const fetchers = createFetcher({
     alwaysAuth: true,
-    rawNpmConfig,
+    rawConfig,
     registry,
     strictSsl: true,
   })

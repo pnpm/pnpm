@@ -23,7 +23,7 @@ export interface StrictRebuildOptions {
   development: boolean,
   optional: boolean,
   bin: string,
-  rawNpmConfig: object,
+  rawConfig: object,
   userAgent: string,
   packageManager: {
     name: string,
@@ -58,7 +58,7 @@ const defaults = async (opts: RebuildOptions) => {
     pending: false,
     prefix,
     production: true,
-    rawNpmConfig: {},
+    rawConfig: {},
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
     sideEffectsCacheRead: false,

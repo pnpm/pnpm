@@ -120,7 +120,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -155,7 +155,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -176,7 +176,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   await project.hasNot('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true }, independentLeaves: true }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true }, independentLeaves: true }))
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -279,7 +279,7 @@ test('rebuild links bins', async (t: tape.Test) => {
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2')))
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')

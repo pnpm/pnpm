@@ -23,16 +23,16 @@ const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
 const ncp = promisify(ncpCB as any) // tslint:disable-line:no-any
 
-const rawNpmConfig = { registry }
+const rawConfig = { registry }
 
 const resolve = createResolver({
   metaCache: new Map(),
-  rawNpmConfig,
+  rawConfig,
   store: '.store',
 }) as ResolveFunction
 const fetch = createFetcher({
   alwaysAuth: false,
-  rawNpmConfig,
+  rawConfig,
   registry: 'https://registry.npmjs.org/',
   strictSsl: false,
 })
@@ -506,7 +506,7 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
   const noRetryFetch = createFetcher({
     alwaysAuth: false,
     fetchRetries: 0,
-    rawNpmConfig,
+    rawConfig,
     registry: 'https://registry.npmjs.org/',
     strictSsl: false,
   })

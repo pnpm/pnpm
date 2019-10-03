@@ -35,12 +35,12 @@ export default async function testDefaults<T> (
 > {
   let store = opts && opts.store || path.resolve('.store')
   store = await storePath(opts && opts.prefix || process.cwd(), store)
-  const rawNpmConfig = { registry }
+  const rawConfig = { registry }
   const storeController = await createStore(
     createResolver({
       fullMetadata: false,
       metaCache: new Map(),
-      rawNpmConfig,
+      rawConfig,
       store,
       strictSsl: true,
       ...retryOpts,
@@ -48,7 +48,7 @@ export default async function testDefaults<T> (
     }),
     createFetcher({
       alwaysAuth: true,
-      rawNpmConfig,
+      rawConfig,
       registry,
       ...retryOpts,
       ...fetchOpts,

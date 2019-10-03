@@ -18,7 +18,7 @@ const fetch = createFetcher({
   fetchRetries: 1,
   fetchRetryMaxtimeout: 100,
   fetchRetryMintimeout: 0,
-  rawNpmConfig: {
+  rawConfig: {
     registry,
   },
   registry,
@@ -129,7 +129,7 @@ test('fail when the tarball in the cache does not pass integrity check in offlin
       fetchRetryMaxtimeout: 100,
       fetchRetryMintimeout: 0,
       offline: true,
-      rawNpmConfig: {
+      rawConfig: {
         registry,
       },
       registry,
@@ -410,7 +410,7 @@ test('fail when the cache tarball does not exist in offline mode', async (t) => 
       fetchRetryMaxtimeout: 100,
       fetchRetryMintimeout: 0,
       offline: true,
-      rawNpmConfig: {
+      rawConfig: {
         registry,
       },
       registry,
@@ -518,7 +518,7 @@ test('accessing private packages', async t => {
     fetchRetries: 1,
     fetchRetryMaxtimeout: 100,
     fetchRetryMintimeout: 0,
-    rawNpmConfig: {
+    rawConfig: {
       '//example.com/:_authToken': 'ofjergrg349gj3f2',
       registry,
     },

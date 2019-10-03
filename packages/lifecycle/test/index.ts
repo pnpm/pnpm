@@ -15,7 +15,7 @@ test('runLifecycleHook()', async (t) => {
     depPath: '/simple/1.0.0',
     optional: false,
     pkgRoot,
-    rawNpmConfig: {},
+    rawConfig: {},
     rootNodeModulesDir,
     unsafePerm: true,
   })
@@ -33,7 +33,7 @@ test('runPostinstallHooks()', async (t) => {
     depPath: '/with-many-scripts/1.0.0',
     optional: false,
     pkgRoot,
-    rawNpmConfig: {},
+    rawConfig: {},
     rootNodeModulesDir,
     unsafePerm: true,
   })
@@ -52,7 +52,7 @@ test('runPostinstallHooks() with prepare = true', async (t) => {
     optional: false,
     pkgRoot,
     prepare: true,
-    rawNpmConfig: {},
+    rawConfig: {},
     rootNodeModulesDir,
     unsafePerm: true,
   })

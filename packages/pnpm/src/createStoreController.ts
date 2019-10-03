@@ -15,7 +15,7 @@ import serverConnectionInfoDir from './serverConnectionInfoDir'
 export type CreateStoreControllerOptions = Pick<Config,
   'alwaysAuth' |
   'registry' |
-  'rawNpmConfig' |
+  'rawConfig' |
   'strictSsl' |
   'proxy' |
   'httpsProxy' |

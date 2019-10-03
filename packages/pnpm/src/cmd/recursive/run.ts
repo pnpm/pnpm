@@ -17,7 +17,7 @@ export default async <T> (
     extraBinPaths: string[],
     workspaceConcurrency: number,
     unsafePerm: boolean,
-    rawNpmConfig: object,
+    rawConfig: object,
   },
 ) => {
   const scriptName = args[0]
@@ -49,7 +49,7 @@ export default async <T> (
             depPath: prefix,
             extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
-            rawNpmConfig: opts.rawNpmConfig,
+            rawConfig: opts.rawConfig,
             rootNodeModulesDir: await realNodeModulesDir(prefix),
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
