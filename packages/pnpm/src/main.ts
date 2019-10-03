@@ -90,6 +90,7 @@ type CLI_OPTIONS = 'access'
   | 'offline'
   | 'only'
   | 'optional'
+  | 'otp'
   | 'package-import-method'
   | 'parseable'
   | 'pnpmfile'
@@ -214,6 +215,8 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   'pack': new Set([]),
   'prune': new Set([]),
   'publish': new Set([
+    'access',
+    'otp',
     'tag',
   ]),
   'rebuild': new Set([
@@ -245,6 +248,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   'stop': new Set([]),
   'store': new Set([
     'registry',
+    'store',
   ]),
   'test': new Set([
     'recursive',
