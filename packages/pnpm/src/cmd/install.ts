@@ -58,9 +58,9 @@ export default async function installCmd (
     store: store.path,
     storeController: store.ctrl,
 
-    forceHoistPattern: typeof opts.localConfig['hoist-pattern'] !== 'undefined' || typeof opts.localConfig['hoist'] !== 'undefined',
-    forceIndependentLeaves: typeof opts.localConfig['independent-leaves'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.localConfig['shamefully-hoist'] !== 'undefined',
+    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
+    forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
+    forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
   }
 
   let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix, opts)

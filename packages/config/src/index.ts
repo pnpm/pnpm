@@ -181,13 +181,13 @@ export default async (
         : npmConfig.get(configKey)
       return acc
     }, {} as Config)
-  pnpmConfig.localConfig = Object.assign.apply(Object, [
+  pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== pnpmConfig.localPrefix ? 5 : 4),
     cliArgs,
   ] as any) // tslint:disable-line:no-any
-  pnpmConfig.userAgent = pnpmConfig.localConfig['user-agent']
-    ? pnpmConfig.localConfig['user-agent']
+  pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
+    ? pnpmConfig.rawLocalConfig['user-agent']
     : `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
     { registry: 'https://registry.npmjs.org/' },

@@ -629,7 +629,7 @@ test('do not throw error if --independent-leaves is used with --no-hoist', async
   t.end()
 })
 
-test('localConfig in a workspace', async (t) => {
+test('rawLocalConfig in a workspace', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)
 
@@ -650,7 +650,7 @@ test('localConfig in a workspace', async (t) => {
     },
   })
 
-  t.deepEqual(config.localConfig, {
+  t.deepEqual(config.rawLocalConfig, {
     'hoist-pattern': 'eslint-*',
     'independent-leaves': true,
     'save-exact': true,
@@ -658,7 +658,7 @@ test('localConfig in a workspace', async (t) => {
   t.end()
 })
 
-test('localConfig', async (t) => {
+test('rawLocalConfig', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)
 
@@ -675,7 +675,7 @@ test('localConfig', async (t) => {
     },
   })
 
-  t.deepEqual(config.localConfig, {
+  t.deepEqual(config.rawLocalConfig, {
     'independent-leaves': true,
     'save-exact': true,
   })

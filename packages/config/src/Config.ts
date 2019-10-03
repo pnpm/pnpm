@@ -7,7 +7,7 @@ export interface Config {
   useBetaCli: boolean,
   extraBinPaths: string[],
   filter: string[],
-  localConfig: Record<string, any>, // tslint:disable-line
+  rawLocalConfig: Record<string, any>, // tslint:disable-line
   rawConfig: Record<string, any>, // tslint:disable-line
   globalPrefix: string,
   globalBin: string,

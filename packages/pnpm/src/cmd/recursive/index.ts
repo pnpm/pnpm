@@ -199,9 +199,9 @@ export async function recursive (
     storeController,
     targetDependenciesField: getSaveType(opts),
 
-    forceHoistPattern: typeof opts.localConfig['hoist-pattern'] !== 'undefined' || typeof opts.localConfig['hoist'] !== 'undefined',
-    forceIndependentLeaves: typeof opts.localConfig['independent-leaves'] !== 'undefined',
-    forceShamefullyHoist: typeof opts.localConfig['shamefully-hoist'] !== 'undefined',
+    forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
+    forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
+    forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 
   const result = {
