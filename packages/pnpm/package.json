@@ -33,6 +33,7 @@
     "@pnpm/list": "workspace:3.0.0-3",
     "@pnpm/lockfile-file": "workspace:2.0.0-0",
     "@pnpm/logger": "2.1.1",
+    "@pnpm/matcher": "workspace:0.0.0",
     "@pnpm/outdated": "workspace:5.0.0-0",
     "@pnpm/package-is-installable": "workspace:2.2.1",
     "@pnpm/package-store": "workspace:5.0.0-1",

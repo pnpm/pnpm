@@ -10,11 +10,6 @@ test('matcher()', (t) => {
   {
     const match = matcher('*plugin*')
     t.ok(match('@eslint/plugin-foo'))
-  }
-  {
-    const match = matcher('eslint-*|babel-*')
-    t.ok(match('eslint-plugin-foo'))
-    t.ok(match('babel-plugin-foo'))
     t.notOk(match('express'))
   }
   t.end()

@@ -43,8 +43,7 @@
     "@pnpm/lockfile-file": "workspace:2.0.0-0",
     "@pnpm/lockfile-utils": "workspace:1.0.10",
     "@pnpm/types": "workspace:3.2.0",
-    "dependency-path": "workspace:3.0.8",
-    "micromatch": "4.0.2"
+    "dependency-path": "workspace:3.0.8"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.1",

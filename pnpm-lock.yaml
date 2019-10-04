@@ -859,7 +859,6 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      micromatch: 4.0.2
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
@@ -877,7 +876,6 @@ importers:
       '@pnpm/types': 'workspace:3.2.0'
       '@types/micromatch': 3.1.0
       dependency-path: 'workspace:3.0.8'
-      micromatch: 4.0.2
       npm-run-all: 4.1.5
       tape: 4.11.0
   packages/package-is-installable:
@@ -1088,6 +1086,7 @@ importers:
       '@pnpm/list': 'link:../list'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-store': 'link:../package-store'
@@ -1201,6 +1200,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'workspace:0.0.0'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/outdated': 'workspace:5.0.0-0'
       '@pnpm/package-is-installable': 'workspace:2.2.1'

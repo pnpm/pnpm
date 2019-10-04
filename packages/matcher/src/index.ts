@@ -6,7 +6,7 @@ export default function matcher (pattern: string) {
 }
 
 function makeRegexp (pattern: string) {
-  pattern = escapeStringRegexp(pattern).replace(/\\\*/g, '.*').replace(/\\\|/g, '|')
+  pattern = escapeStringRegexp(pattern).replace(/\\\*/g, '.*')
 
   const regexp = new RegExp(`^${pattern}$`)
   return regexp
