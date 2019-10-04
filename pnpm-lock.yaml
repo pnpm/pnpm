@@ -704,6 +704,18 @@ importers:
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
+  packages/matcher:
+    dependencies:
+      escape-string-regexp: 2.0.0
+    devDependencies:
+      '@pnpm/matcher': 'link:'
+      rimraf: 3.0.0
+      tape: 4.11.0
+    specifiers:
+      '@pnpm/matcher': 'link:'
+      escape-string-regexp: 2.0.0
+      rimraf: 3.0.0
+      tape: 4.11.0
   packages/modules-cleaner:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -4379,6 +4391,12 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
+  /escape-string-regexp/2.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-UpzcLCXolUWcNu5HtVMHYdXJjArjsF9C0aNnquZYY4uW/Vu0miy5YoWvbV345HauVvcAUnpRuhMMcqTcGOY2+w==
   /escodegen/1.12.0:
     dependencies:
       esprima: 3.1.3
