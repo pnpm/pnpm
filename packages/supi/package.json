@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:2.0.0-0",
@@ -79,7 +79,7 @@
     "@pnpm/assert-store": "link:../../privatePackages/assert-store",
     "@pnpm/default-fetcher": "file:../default-fetcher",
     "@pnpm/default-resolver": "file:../default-resolver",
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "@pnpm/package-store": "file:../package-store",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/registry-mock": "1.5.0",

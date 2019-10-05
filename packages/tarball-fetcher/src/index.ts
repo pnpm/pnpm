@@ -4,7 +4,7 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import { storeLogger } from '@pnpm/logger'
+import { globalWarn } from '@pnpm/logger'
 import getCredentialsByURI = require('credentials-by-uri')
 import mem = require('mem')
 import fs = require('mz/fs')
@@ -144,7 +144,7 @@ async function fetchFromRemoteTarball (
             `The cached tarball at "${opts.cachedTarballLocation}" is corrupted. Cannot redownload it as offline mode was requested.`,
           )
         }
-        storeLogger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`)
+        globalWarn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`)
         break
       case 'EINTEGRITY':
         if (ctx.offline) {
@@ -153,7 +153,7 @@ async function fetchFromRemoteTarball (
             `The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Cannot redownload it as offline mode was requested.`,
           )
         }
-        storeLogger.warn(`The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Redownloading.`)
+        globalWarn(`The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Redownloading.`)
         break
       case 'ENOENT':
         if (ctx.offline) {

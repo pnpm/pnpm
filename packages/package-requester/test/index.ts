@@ -694,6 +694,7 @@ test('refetch package to store if it has been modified', async (t) => {
 
   const reporter = sinon.spy()
   streamParser.on('data', reporter)
+  const prefix = tempy.directory()
 
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
@@ -707,7 +708,7 @@ test('refetch package to store if it has been modified', async (t) => {
       fetchRawManifest: false,
       force: false,
       pkgId,
-      prefix: tempy.directory(),
+      prefix,
       resolution,
     })
 
@@ -721,7 +722,8 @@ test('refetch package to store if it has been modified', async (t) => {
   t.ok(reporter.calledWithMatch({
     level: 'warn',
     message: `Refetching ${path.join(storePath, pkgId)} to store. It was either modified or had no integrity checksums`,
-    name: 'pnpm:store',
+    name: 'pnpm:package-requester',
+    prefix,
   }), 'refetch logged')
 
   t.end()
@@ -763,6 +765,7 @@ test('refetch package to store if it has no integrity checksums and verification
 
   const reporter = sinon.spy()
   streamParser.on('data', reporter)
+  const prefix = tempy.directory()
 
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
@@ -776,7 +779,7 @@ test('refetch package to store if it has no integrity checksums and verification
       fetchRawManifest: false,
       force: false,
       pkgId,
-      prefix: tempy.directory(),
+      prefix,
       resolution,
     })
 
@@ -791,7 +794,8 @@ test('refetch package to store if it has no integrity checksums and verification
   t.ok(reporter.calledWithMatch({
     level: 'warn',
     message: `Refetching ${path.join(storePath, pkgId)} to store. It was either modified or had no integrity checksums`,
-    name: 'pnpm:store',
+    name: 'pnpm:package-requester',
+    prefix,
   }), 'refetch logged')
 
   t.end()

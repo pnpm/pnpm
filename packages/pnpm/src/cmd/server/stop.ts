@@ -1,4 +1,4 @@
-import { storeLogger } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { connectStoreController } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import delay from 'delay'
@@ -24,19 +24,19 @@ export default async (
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    storeLogger.info(`Nothing to stop. No server is running for the store at ${store}`)
+    globalInfo(`Nothing to stop. No server is running for the store at ${store}`)
     return
   }
   const storeController = await connectStoreController(serverJson.connectionOptions)
   await storeController.stop()
 
   if (await serverGracefullyStops(serverJson.pid)) {
-    storeLogger.info('Server gracefully stopped')
+    globalInfo('Server gracefully stopped')
     return
   }
-  storeLogger.warn('Graceful shutdown failed')
+  globalWarn('Graceful shutdown failed')
   await kill(serverJson.pid, 'SIGINT')
-  storeLogger.info('Server process terminated')
+  globalInfo('Server process terminated')
 }
 
 async function serverGracefullyStops (pid: number) {

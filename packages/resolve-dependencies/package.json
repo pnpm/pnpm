@@ -18,7 +18,7 @@
     "node": ">=10"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/resolve-dependencies",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolve-dependencies#readme",
@@ -47,7 +47,7 @@
     "semver": "6.3.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "@pnpm/resolve-dependencies": "link:",
     "@types/ramda": "0.26.21",
     "@types/semver": "6",

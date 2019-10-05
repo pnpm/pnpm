@@ -90,7 +90,7 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
 
   t.plan(3)
   function reporter (log: LogBase & {level: string, name: string, message: string}) {
-    if (log.level === 'warn' && log.name === 'pnpm:store' && log.message.startsWith(`The cached tarball at "${cachedTarballLocation}"`)) {
+    if (log.level === 'warn' && log.name === 'pnpm:global' && log.message.startsWith(`The cached tarball at "${cachedTarballLocation}"`)) {
       t.pass('warning logged')
     }
   }

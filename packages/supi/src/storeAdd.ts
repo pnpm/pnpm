@@ -1,8 +1,5 @@
 import PnpmError from '@pnpm/error'
-import {
-  storeLogger,
-  streamParser,
-} from '@pnpm/logger'
+import logger, { globalInfo, streamParser } from '@pnpm/logger'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/utils'
@@ -49,10 +46,10 @@ export default async function (
         registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
       })
       await pkgResponse.files!()
-      storeLogger.info(`+ ${pkgResponse.body.id}`)
+      globalInfo(`+ ${pkgResponse.body.id}`)
     } catch (e) {
       hasFailures = true
-      storeLogger.error(e)
+      logger('store').error(e)
     }
   }))
 

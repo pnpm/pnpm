@@ -18,7 +18,7 @@
     "node": ">=10"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/read-importers-context",
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-importers-context#readme",
@@ -36,7 +36,7 @@
     "@pnpm/utils": "workspace:0.10.6"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "rimraf": "3.0.0"
   }
 }

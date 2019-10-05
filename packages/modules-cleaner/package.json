@@ -13,7 +13,7 @@
     "lib"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "keywords": [],
   "license": "MIT",
@@ -45,7 +45,7 @@
     "ramda": "0.26.1"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "@pnpm/modules-cleaner": "link:",
     "@types/ramda": "0.26.21",
     "rimraf": "3.0.0"

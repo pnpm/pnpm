@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@pnpm/default-fetcher": "link:",
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "rimraf": "3.0.0",
     "tape": "4.11.0"
   }

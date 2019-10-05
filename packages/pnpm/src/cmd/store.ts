@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import logger, { storeLogger } from '@pnpm/logger'
+import logger, { globalInfo } from '@pnpm/logger'
 import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
@@ -122,5 +122,5 @@ function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [pa
   })
 
   const rootTrees = packageUsageNodes.map(node => archy(node))
-  rootTrees.forEach(tree => storeLogger.info(tree))
+  rootTrees.forEach(tree => globalInfo(tree))
 }

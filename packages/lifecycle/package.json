@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/tree/master/packages/lifecycle#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0 || ^2.0.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:3.0.3",
@@ -42,7 +42,7 @@
   },
   "devDependencies": {
     "@pnpm/lifecycle": "link:",
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "@types/rimraf": "2.0.2",
     "json-append": "1.1.1",
     "load-json-file": "6.2.0",

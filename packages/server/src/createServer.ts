@@ -1,4 +1,4 @@
-import { storeLogger } from '@pnpm/logger'
+import { globalInfo } from '@pnpm/logger'
 import {
   RequestPackageOptions,
   Resolution,
@@ -162,10 +162,10 @@ export default function (
             res.end()
             break
           }
-          storeLogger.info('Got request to stop the server')
+          globalInfo('Got request to stop the server')
           await close()
           res.end(JSON.stringify('OK'))
-          storeLogger.info('Server stopped')
+          globalInfo('Server stopped')
           break
         case '/getPackageLocation': {
           const { packageId, packageName, opts } = (await bodyPromise) as any // tslint:disable-line:no-any

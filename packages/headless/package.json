@@ -16,14 +16,14 @@
     "lib/"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/default-fetcher": "file:../default-fetcher",
     "@pnpm/default-resolver": "file:../default-resolver",
     "@pnpm/headless": "link:",
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "@pnpm/package-store": "file:../package-store",
     "@pnpm/read-importers-context": "file:../read-importers-context",
     "@pnpm/registry-mock": "1.5.0",

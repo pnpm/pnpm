@@ -1,4 +1,4 @@
-import pnpmLogger, { storeLogger } from '@pnpm/logger'
+import pnpmLogger, { globalWarn } from '@pnpm/logger'
 import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
@@ -54,7 +54,7 @@ async function tryImportIndexedDir (importFile: ImportFile, existingDir: string,
       }),
   )
   if (!allLinked) {
-    storeLogger.warn(
+    globalWarn(
       `Not all files from "${existingDir}" were linked to "${newDir}". ` +
       'This happens when the store is case sensitive while the target directory is case insensitive.',
     )

@@ -5,7 +5,7 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import { storeLogger } from '@pnpm/logger'
+import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import {
@@ -42,6 +42,7 @@ import symlinkDir = require('symlink-dir')
 import writeJsonFile = require('write-json-file')
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
+const packageRequestLogger = logger('package-requester')
 
 const pickBundledManifest = R.pick([
   'bin',
@@ -392,7 +393,10 @@ function fetchToStore (
           finishing.resolve(undefined)
           return
         }
-        storeLogger.warn(`Refetching ${target} to store. It was either modified or had no integrity checksums`)
+        packageRequestLogger.warn({
+          message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
+          prefix: opts.prefix,
+        })
       }
 
       // We fetch into targetStage directory first and then fs.rename() it to the
@@ -571,7 +575,10 @@ async function fetcher (
   try {
     return await fetch(resolution, target, opts)
   } catch (err) {
-    storeLogger.warn(`Fetching ${packageId} failed!`)
+    packageRequestLogger.warn({
+      message: `Fetching ${packageId} failed!`,
+      prefix: opts.prefix,
+    })
     throw err
   }
 }

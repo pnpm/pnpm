@@ -1,6 +1,6 @@
 import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
-import { storeLogger } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { ResolveFunction } from '@pnpm/resolver-base'
@@ -34,15 +34,15 @@ export default async function (
     verifyStoreIntegrity: boolean,
   },
 ): Promise<StoreController & { closeSync: () => void, saveStateSync: () => void }> {
+  const store = initOpts.store
   const unlock = initOpts.locks
     ? await lock(initOpts.store, {
       locks: initOpts.locks,
       stale: initOpts.lockStaleDuration || 60 * 1000, // 1 minute,
-      whenLocked: () => storeLogger.warn(`waiting for the store at "${initOpts.store}" to be unlocked...`),
+      whenLocked: () => globalWarn(`waiting for the store at "${initOpts.store}" to be unlocked...`),
     })
     : null
 
-  const store = initOpts.store
   const storeIndex = await readStore(initOpts.store) || {}
   const packageRequester = createPackageRequester(resolve, fetchers, {
     networkConcurrency: initOpts.networkConcurrency,
@@ -123,7 +123,7 @@ export default async function (
         if (!storeIndex[pkgId].length) {
           delete storeIndex[pkgId]
           await rimraf(path.join(store, pkgId))
-          storeLogger.info(`- ${pkgId}`)
+          globalInfo(`- ${pkgId}`)
         }
       }
     }

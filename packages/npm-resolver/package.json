@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/npm-resolver#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0 || ^2.0.0"
+    "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
     "@pnpm/error": "workspace:1.0.0",
@@ -49,7 +49,7 @@
     "write-json-file": "4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "2.1.1",
+    "@pnpm/logger": "3.1.0",
     "@pnpm/npm-resolver": "link:",
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "6",
