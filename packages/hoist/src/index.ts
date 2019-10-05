@@ -11,12 +11,11 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import { Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import { matcher } from 'micromatch'
 import path = require('path')
 import R = require('ramda')
 
 export default async function hoistByLockfile (
-  hoistPattern: string,
+  match: (dependencyName: string) => boolean,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     lockfile: Lockfile,
@@ -51,8 +50,8 @@ export default async function hoistByLockfile (
 
   const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.'].specifiers, {
     dryRun: false,
+    match,
     modulesDir: opts.modulesDir,
-    pattern: hoistPattern,
   })
 
   const bin = path.join(opts.modulesDir, '.bin')
@@ -142,14 +141,13 @@ async function hoistGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
+    match: (dependencyName: string) => boolean,
     modulesDir: string,
     dryRun: boolean,
-    pattern: string,
   },
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
   const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
-  const match = opts.pattern === '*' ? () => true : matcher(opts.pattern)
 
   await Promise.all(depNodes
     // sort by depth and then alphabetically
@@ -160,7 +158,7 @@ async function hoistGraph (
     // build the alias map and the id map
     .map((depNode) => {
       for (const childAlias of Object.keys(depNode.children)) {
-        if (!match(childAlias)) continue
+        if (!opts.match(childAlias)) continue
         // if this alias has already been taken, skip it
         if (hoistedAliases.has(childAlias)) {
           continue

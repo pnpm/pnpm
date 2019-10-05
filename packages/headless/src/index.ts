@@ -38,6 +38,7 @@ import logger, {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
+import matcher from '@pnpm/matcher'
 import { prune } from '@pnpm/modules-cleaner'
 import {
   IncludedDependencies,
@@ -237,7 +238,7 @@ export default async (opts: HeadlessOptions) => {
   const rootImporterWithFlatModules = opts.hoistPattern && opts.importers.find((importer) => importer.id === '.')
   let newHoistedAliases!: {[depPath: string]: string[]}
   if (rootImporterWithFlatModules) {
-    newHoistedAliases = await hoist(opts.hoistPattern!, {
+    newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {

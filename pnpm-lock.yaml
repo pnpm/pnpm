@@ -400,6 +400,7 @@ importers:
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -457,6 +458,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'workspace:0.0.0'
       '@pnpm/modules-cleaner': 'workspace:5.0.0-2'
       '@pnpm/modules-yaml': 'workspace:4.0.0-1'
       '@pnpm/package-requester': 'workspace:8.0.0-0'
@@ -1515,6 +1517,7 @@ importers:
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -1614,6 +1617,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'workspace:0.0.0'
       '@pnpm/modules-cleaner': 'workspace:5.0.0-2'
       '@pnpm/modules-yaml': 'workspace:4.0.0-1'
       '@pnpm/package-requester': 'workspace:8.0.0-0'
