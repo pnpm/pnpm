@@ -272,14 +272,14 @@ importers:
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
     devDependencies:
       fetch-from-npm-registry: 'link:'
-      nock: 11.3.5
+      nock: 11.3.6
       rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.1'
       '@pnpm/npm-registry-agent': 'workspace:1.0.3'
       fetch-from-npm-registry: 'link:'
-      nock: 11.3.5
+      nock: 11.3.6
       rimraf: 3.0.0
       tape: 4.11.0
   packages/fetcher-base:
@@ -817,7 +817,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/semver': 6.0.2
       '@types/ssri': 6.0.1
-      nock: 11.3.5
+      nock: 11.3.6
       path-exists: 4.0.0
       rimraf: 3.0.0
       tape: 4.11.0
@@ -836,7 +836,7 @@ importers:
       fetch-from-npm-registry: 'workspace:2.0.7'
       load-json-file: 6.2.0
       mem: 5.1.1
-      nock: 11.3.5
+      nock: 11.3.6
       normalize-path: 3.0.0
       p-limit: 2.2.1
       parse-npm-tarball-url: 3.0.0
@@ -930,7 +930,7 @@ importers:
       '@types/ssri': 6.0.1
       delay: 4.3.0
       ncp: 2.0.0
-      nock: 11.3.5
+      nock: 11.3.6
       normalize-path: 3.0.0
       rimraf: 3.0.0
       sinon: 7.5.0
@@ -961,7 +961,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       ncp: 2.0.0
-      nock: 11.3.5
+      nock: 11.3.6
       normalize-path: 3.0.0
       p-limit: 2.2.1
       p-queue: 6.1.1
@@ -1732,7 +1732,7 @@ importers:
       '@types/rimraf': 2.0.2
       '@types/ssri': 6.0.1
       cp-file: 7.0.0
-      nock: 11.3.5
+      nock: 11.3.6
       tape: 4.11.0
       tempy: 0.3.0
     specifiers:
@@ -1752,7 +1752,7 @@ importers:
       make-dir: 3.0.0
       mem: 5.1.1
       mz: 2.7.0
-      nock: 11.3.5
+      nock: 11.3.6
       path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 3.0.0
@@ -6708,7 +6708,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-/6RhOUlicRCbE9s+94qCUsyE+pKlVJ5AhIv+jEE7ESKwnbXqulKZ1FYU+XAtHHWE9TinYvAxDUJAb912PwPoWA==
-  /nock/11.3.5:
+  /nock/11.3.6:
     dependencies:
       chai: 4.2.0
       debug: 4.1.1
@@ -6720,7 +6720,7 @@ packages:
     engines:
       node: '>= 8.0'
     resolution:
-      integrity: sha512-6WGeZcWc3RExkBcMSYSrUm/5YukDo52m/jhwniQyrnuiCnKRljBwwje9vTwJyEi4J6m2bq0Aj6C1vzuM6iuaeg==
+      integrity: sha512-54MSX4qeRnhwQQ2PSHlHc6pM6zNf7Dq9ni0BTFTurnDbUUssXl2Jy3E95ffaE8rZ/W/FWa9VSfzWDDnbdAsoTg==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:
