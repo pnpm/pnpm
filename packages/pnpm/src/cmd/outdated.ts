@@ -4,9 +4,8 @@ import {
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
-import outdated, {
-  forPackages as outdatedForPackages, OutdatedPackage,
-} from '@pnpm/outdated'
+import matcher from '@pnpm/matcher'
+import outdated, { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { PackageJson, Registries } from '@pnpm/types'
@@ -283,19 +282,18 @@ export async function outdatedDependenciesOfWorkspacePackages (
     store,
   })
   return Promise.all(pkgs.map(async ({ manifest, path }) => {
-    const optsForOutdated = {
-      currentLockfile,
-      getLatestManifest,
-      lockfileDirectory,
-      manifest,
-      prefix: path,
-      wantedLockfile,
-    }
+    let match = args.length && matcher(args) || undefined
     return {
       manifest,
-      outdatedPackages: args.length
-        ? await outdatedForPackages(args, optsForOutdated)
-        : await outdated(optsForOutdated),
+      outdatedPackages: await outdated({
+        currentLockfile,
+        getLatestManifest,
+        lockfileDirectory,
+        manifest,
+        match,
+        prefix: path,
+        wantedLockfile,
+      }),
       prefix: getLockfileImporterId(lockfileDirectory, path),
     }
   }))

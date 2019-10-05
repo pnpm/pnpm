@@ -6,6 +6,7 @@ import cliColumns = require('cli-columns')
 import { stripIndent } from 'common-tags'
 import path = require('path')
 import test = require('tape')
+import './createPackagesSearcher.spec.ts'
 
 const DEV_DEP_ONLY_CLR = chalk.yellow
 const PROD_DEP_CLR = (s: string) => s // just use the default color

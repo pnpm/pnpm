@@ -11,7 +11,6 @@ import {
   PackageManifest,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import { isMatch } from 'micromatch'
 
 export type GetLatestManifestFunction = (packageName: string) => Promise<PackageManifest | null>
 
@@ -24,39 +23,12 @@ export interface OutdatedPackage {
   wanted: string,
 }
 
-export default async function (
+export default async function outdated (
   opts: {
     currentLockfile: Lockfile | null,
+    match?: (dependencyName: string) => boolean,
     manifest: ImporterManifest,
     prefix: string,
-    getLatestManifest: GetLatestManifestFunction,
-    lockfileDirectory: string,
-    wantedLockfile: Lockfile,
-  },
-) {
-  return _outdated([], opts)
-}
-
-export async function forPackages (
-  packages: string[],
-  opts: {
-    currentLockfile: Lockfile | null,
-    manifest: ImporterManifest,
-    prefix: string,
-    getLatestManifest: GetLatestManifestFunction,
-    lockfileDirectory: string,
-    wantedLockfile: Lockfile,
-  },
-) {
-  return _outdated(packages, opts)
-}
-
-async function _outdated (
-  forPkgs: string[],
-  opts: {
-    manifest: ImporterManifest,
-    prefix: string,
-    currentLockfile: Lockfile | null,
     getLatestManifest: GetLatestManifestFunction,
     lockfileDirectory: string,
     wantedLockfile: Lockfile,
@@ -74,8 +46,8 @@ async function _outdated (
 
       let pkgs = Object.keys(opts.wantedLockfile.importers[importerId][depType]!)
 
-      if (forPkgs.length) {
-        pkgs = pkgs.filter((pkgName) => forPkgs.some((forPkg) => isMatch(pkgName, forPkg)))
+      if (opts.match) {
+        pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
       }
 
       await Promise.all(

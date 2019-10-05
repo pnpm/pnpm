@@ -43,7 +43,7 @@ test('linking multiple packages', async (t: tape.Test) => {
   project.has('linked-bar')
 
   const modules = await readYamlFile<object>('../linked-bar/node_modules/.modules.yaml')
-  t.equal(modules['hoistPattern'], '*', 'the linked package used its own configs during installation') // tslint:disable-line:no-string-literal
+  t.deepEqual(modules['hoistPattern'], ['*'], 'the linked package used its own configs during installation') // tslint:disable-line:no-string-literal
 })
 
 test('link global bin', async function (t: tape.Test) {

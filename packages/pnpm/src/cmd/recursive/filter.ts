@@ -1,5 +1,5 @@
+import matcher from '@pnpm/matcher'
 import isSubdir = require('is-subdir')
-import { matcher } from 'micromatch'
 import { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
 import { PackageSelector } from '../../parsePackageSelectors'

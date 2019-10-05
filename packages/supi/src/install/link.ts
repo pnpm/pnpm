@@ -14,6 +14,7 @@ import {
 import hoist from '@pnpm/hoist'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
+import matcher from '@pnpm/matcher'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
@@ -62,7 +63,7 @@ export default async function linkPackages (
     force: boolean,
     hoistedAliases: {[depPath: string]: string[]},
     hoistedModulesDir: string,
-    hoistPattern?: string,
+    hoistPattern?: string[],
     include: IncludedDependencies,
     independentLeaves: boolean,
     lockfileDirectory: string,
@@ -309,7 +310,7 @@ export default async function linkPackages (
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
     const rootImporterWithFlatModules = opts.hoistPattern && importers.find(({ id }) => id === '.')
     if (rootImporterWithFlatModules) {
-      newHoistedAliases = await hoist(opts.hoistPattern!, {
+      newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {

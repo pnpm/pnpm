@@ -31,7 +31,6 @@ export interface StrictRebuildOptions {
   },
   unsafePerm: boolean,
   pending: boolean,
-  hoistPattern: string | undefined,
   shamefullyHoist: boolean,
 }
 
@@ -51,7 +50,6 @@ const defaults = async (opts: RebuildOptions) => {
     development: true,
     force: false,
     forceSharedLockfile: false,
-    hoistPattern: undefined,
     lockfileDirectory,
     optional: true,
     packageManager,

@@ -32,7 +32,7 @@ export const types = Object.assign({
   'global-path': path,
   'global-pnpmfile': String,
   'hoist': Boolean,
-  'hoist-pattern': String,
+  'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
   'ignore-stop-requests': Boolean,
   'ignore-upload-requests': Boolean,
@@ -148,7 +148,7 @@ export default async (
     'fetch-retry-mintimeout': 10000,
     'globalconfig': npmDefaults.globalconfig,
     'hoist': true,
-    'hoist-pattern': '*',
+    'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'latest': false,
     'link-workspace-packages': true,
@@ -247,7 +247,7 @@ export default async (
       }
       pnpmConfig.independentLeaves = false
     }
-    if (pnpmConfig.hoistPattern !== '*') {
+    if (pnpmConfig.hoistPattern && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
       if (opts.cliArgs['hoist-pattern']) {
         throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
           'Configuration conflict. "hoist-pattern" may not be used with "global"')
@@ -326,7 +326,7 @@ export default async (
   }
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting is deprecated. Use "shamefully-hoist", "hoist" or "hoist-pattern" instead. Since v4, hoisting is on by default for all dependencies.')
-    pnpmConfig.hoistPattern = '*'
+    pnpmConfig.hoistPattern = ['*']
     pnpmConfig.shamefullyHoist = true
   }
   if (pnpmConfig['hoist'] === false) {

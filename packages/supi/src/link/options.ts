@@ -21,7 +21,7 @@ interface StrictLinkOptions {
   store: string,
   reporter: ReporterFunction,
 
-  hoistPattern: string | undefined,
+  hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,
 
   shamefullyHoist: boolean,

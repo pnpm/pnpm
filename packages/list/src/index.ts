@@ -1,11 +1,8 @@
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
-import npa = require('@zkochan/npm-package-arg')
-import dh, {
-  forPackages as dhForPackages,
-  PackageSelector,
-} from 'dependencies-hierarchy'
+import dh from 'dependencies-hierarchy'
 import R = require('ramda')
+import createPackagesSearcher from './createPackagesSearcher'
 import renderJson from './renderJson'
 import renderParseable from './renderParseable'
 import renderTree from './renderTree'
@@ -34,26 +31,15 @@ export async function forPackages (
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
-  const searched: PackageSelector[] = packages.map((arg) => {
-    const parsed = npa(arg)
-    if (parsed.raw === parsed.name) {
-      return parsed.name
-    }
-    if (parsed.type !== 'version' && parsed.type !== 'range') {
-      throw new Error(`Invalid argument - ${arg}. List can search only by version or range`)
-    }
-    return {
-      name: parsed.name,
-      range: parsed.fetchSpec,
-    }
-  })
+  const search = createPackagesSearcher(packages)
 
   const pkgs = await Promise.all(
-    R.toPairs(await dhForPackages(searched, projectPaths, {
+    R.toPairs(await dh(projectPaths, {
       depth: opts.depth,
       include: maybeOpts && maybeOpts.include,
       lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
       registries: opts.registries,
+      search,
     }))
     .map(async ([projectPath, dependenciesHierarchy]) => {
       const entryPkg = await readImporterManifestOnly(projectPath)

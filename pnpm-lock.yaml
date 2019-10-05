@@ -208,15 +208,11 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
-      micromatch: 4.0.2
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
-      semver: 6.3.0
     devDependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/logger': 2.1.1
-      '@types/micromatch': 3.1.0
-      '@types/semver': 6.0.2
       dependencies-hierarchy: 'link:'
       tape: 4.11.0
     specifiers:
@@ -228,14 +224,10 @@ importers:
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/types': 'workspace:3.2.0'
       '@pnpm/utils': 'workspace:0.10.6'
-      '@types/micromatch': 3.1.0
-      '@types/semver': '6'
       dependencies-hierarchy: 'link:'
       dependency-path: 'workspace:3.0.8'
-      micromatch: 4.0.2
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
-      semver: 6.3.0
       tape: 4.11.0
   packages/dependency-path:
     dependencies:
@@ -408,6 +400,7 @@ importers:
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -465,6 +458,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'workspace:0.0.0'
       '@pnpm/modules-cleaner': 'workspace:5.0.0-2'
       '@pnpm/modules-yaml': 'workspace:4.0.0-1'
       '@pnpm/package-requester': 'workspace:8.0.0-0'
@@ -510,11 +504,9 @@ importers:
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      micromatch: 4.0.2
       ramda: 0.26.1
     devDependencies:
       '@pnpm/logger': 2.1.1
-      '@types/micromatch': 3.1.0
       '@types/ramda': 0.26.21
       rimraf: 3.0.0
     specifiers:
@@ -526,10 +518,8 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'workspace:2.0.6'
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/micromatch': 3.1.0
       '@types/ramda': 0.26.21
       dependency-path: 'workspace:3.0.8'
-      micromatch: 4.0.2
       ramda: 0.26.1
       rimraf: 3.0.0
   packages/lifecycle:
@@ -564,6 +554,7 @@ importers:
       tape: 4.11.0
   packages/list:
     dependencies:
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/types': 'link:../types'
@@ -574,23 +565,27 @@ importers:
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
       p-limit: 2.2.1
       ramda: 0.26.1
+      semver: 6.3.0
     devDependencies:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.1
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.21
+      '@types/semver': 6.0.2
       common-tags: 1.8.0
       tape: 4.11.0
     specifiers:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'workspace:0.0.0'
       '@pnpm/read-importer-manifest': 'workspace:1.0.9'
       '@pnpm/read-package-json': 'workspace:2.0.3'
       '@pnpm/types': 'workspace:3.2.0'
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.21
+      '@types/semver': '6'
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
       chalk: 2.4.2
@@ -599,6 +594,7 @@ importers:
       dependencies-hierarchy: 'workspace:7.0.0-3'
       p-limit: 2.2.1
       ramda: 0.26.1
+      semver: 6.3.0
       tape: 4.11.0
   packages/local-resolver:
     dependencies:
@@ -704,6 +700,18 @@ importers:
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
+  packages/matcher:
+    dependencies:
+      escape-string-regexp: 2.0.0
+    devDependencies:
+      '@pnpm/matcher': 'link:'
+      rimraf: 3.0.0
+      tape: 4.11.0
+    specifiers:
+      '@pnpm/matcher': 'link:'
+      escape-string-regexp: 2.0.0
+      rimraf: 3.0.0
+      tape: 4.11.0
   packages/modules-cleaner:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -847,12 +855,10 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      micromatch: 4.0.2
     devDependencies:
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.5.0
-      '@types/micromatch': 3.1.0
       npm-run-all: 4.1.5
       tape: 4.11.0
     specifiers:
@@ -863,9 +869,7 @@ importers:
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.5.0
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/micromatch': 3.1.0
       dependency-path: 'workspace:3.0.8'
-      micromatch: 4.0.2
       npm-run-all: 4.1.5
       tape: 4.11.0
   packages/package-is-installable:
@@ -1076,6 +1080,7 @@ importers:
       '@pnpm/list': 'link:../list'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-store': 'link:../package-store'
@@ -1116,7 +1121,6 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
-      micromatch: 4.0.2
       mz: 2.7.0
       nopt: 4.0.1
       p-filter: 2.1.0
@@ -1148,7 +1152,6 @@ importers:
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
-      '@types/micromatch': 3.1.0
       '@types/mkdirp': 0.5.2
       '@types/nopt': 3.0.29
       '@types/ramda': 0.26.21
@@ -1189,6 +1192,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'workspace:0.0.0'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/outdated': 'workspace:5.0.0-0'
       '@pnpm/package-is-installable': 'workspace:2.2.1'
@@ -1208,7 +1212,6 @@ importers:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
       '@types/lru-cache': ^5.1.0
-      '@types/micromatch': 3.1.0
       '@types/mkdirp': 0.5.2
       '@types/mz': ^0.0.32
       '@types/nopt': 3.0.29
@@ -1248,7 +1251,6 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
-      micromatch: 4.0.2
       mz: 2.7.0
       ncp: 2.0.0
       nopt: 4.0.1
@@ -1511,6 +1513,7 @@ importers:
       '@pnpm/link-bins': 4.4.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
@@ -1610,6 +1613,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 2.1.1
+      '@pnpm/matcher': 'workspace:0.0.0'
       '@pnpm/modules-cleaner': 'workspace:5.0.0-2'
       '@pnpm/modules-yaml': 'workspace:4.0.0-1'
       '@pnpm/package-requester': 'workspace:8.0.0-0'
@@ -2340,10 +2344,6 @@ packages:
   /@types/archy/0.0.31:
     resolution:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
-  /@types/braces/3.0.0:
-    dev: true
-    resolution:
-      integrity: sha512-TbH79tcyi9FHwbyboOKeRachRq63mSuWYXOflsNO9ZyE5ClQ/JaozNKl+aWUq87qPNsXasXxi2AbgfwIJ+8GQw==
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 12.7.11
@@ -2397,12 +2397,6 @@ packages:
   /@types/lru-cache/5.1.0:
     resolution:
       integrity: sha512-RaE0B+14ToE4l6UqdarKPnXwVDuigfFv+5j9Dze/Nqr23yyuqdNvzcZi3xB+3Agvi5R4EOgAksfv3lXX4vBt9w==
-  /@types/micromatch/3.1.0:
-    dependencies:
-      '@types/braces': 3.0.0
-    dev: true
-    resolution:
-      integrity: sha512-06uA9V7v68RTOzA3ky1Oi0HmCPa+YJ050vM+sTECwkxnHUQnO17TAcNCGX400QT6bldUiPb7ux5oKy0j8ccEDw==
   /@types/minimatch/3.0.3:
     resolution:
       integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==
@@ -4379,6 +4373,12 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
+  /escape-string-regexp/2.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-UpzcLCXolUWcNu5HtVMHYdXJjArjsF9C0aNnquZYY4uW/Vu0miy5YoWvbV345HauVvcAUnpRuhMMcqTcGOY2+w==
   /escodegen/1.12.0:
     dependencies:
       esprima: 3.1.3

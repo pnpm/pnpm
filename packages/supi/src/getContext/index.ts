@@ -16,6 +16,7 @@ import {
 import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import path = require('path')
+import R = require('ramda')
 import checkCompatibility from './checkCompatibility'
 import readLockfileFile from './readLockfiles'
 
@@ -34,7 +35,7 @@ export interface PnpmContext<T> {
   modulesFile: Modules | null,
   pendingBuilds: string[],
   rootModulesDir: string,
-  hoistPattern: string | undefined,
+  hoistPattern: string[] | undefined,
   hoistedModulesDir: string,
   lockfileDirectory: string,
   virtualStoreDir: string,
@@ -69,7 +70,7 @@ export default async function getContext<T> (
     independentLeaves?: boolean,
     forceIndependentLeaves?: boolean,
 
-    hoistPattern?: string | undefined,
+    hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
     shamefullyHoist?: boolean,
@@ -164,7 +165,7 @@ async function validateNodeModules (
     prefix: string,
   }>,
   opts: {
-    currentHoistPattern?: string,
+    currentHoistPattern?: string[],
     force: boolean,
     include?: IncludedDependencies,
     lockfileDirectory: string,
@@ -173,7 +174,7 @@ async function validateNodeModules (
     independentLeaves?: boolean,
     forceIndependentLeaves?: boolean,
 
-    hoistPattern?: string | undefined,
+    hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
     shamefullyHoist?: boolean | undefined,
@@ -220,7 +221,7 @@ async function validateNodeModules (
   }
   if (opts.forceHoistPattern && rootImporter) {
     try {
-      if (opts.currentHoistPattern !== (opts.hoistPattern || undefined)) {
+      if (!R.equals(opts.currentHoistPattern, (opts.hoistPattern || undefined))) {
         if (opts.currentHoistPattern) {
           throw new PnpmError(
             'HOISTING_WANTED',
@@ -287,7 +288,7 @@ export interface PnpmSingleContext {
   extraBinPaths: string[],
   hoistedAliases: {[depPath: string]: string[]},
   hoistedModulesDir: string,
-  hoistPattern: string | undefined,
+  hoistPattern: string[] | undefined,
   manifest: ImporterManifest,
   modulesDir: string,
   importerId: string,
@@ -322,7 +323,7 @@ export async function getContextForSingleImporter (
     store: string,
     useLockfile: boolean,
 
-    hoistPattern?: string | undefined,
+    hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
     shamefullyHoist?: boolean,

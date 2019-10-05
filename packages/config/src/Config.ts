@@ -86,7 +86,7 @@ export interface Config {
   pnpmfile: string,
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
-  hoistPattern?: string,
+  hoistPattern?: string[],
   useStoreServer?: boolean,
   useRunningStoreServer?: boolean,
   workspaceConcurrency: number,

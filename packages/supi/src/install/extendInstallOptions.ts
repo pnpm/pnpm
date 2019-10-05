@@ -62,7 +62,7 @@ export interface StrictInstallOptions {
   bin: string,
   prefix: string,
 
-  hoistPattern: string | undefined,
+  hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,
 
   shamefullyHoist: boolean,
