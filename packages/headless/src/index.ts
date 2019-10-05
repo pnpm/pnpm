@@ -86,7 +86,7 @@ export interface HeadlessOptions {
     pruneDirectDependencies?: boolean,
   }>,
   hoistedAliases: {[depPath: string]: string[]}
-  hoistPattern?: string,
+  hoistPattern?: string[],
   lockfileDirectory: string,
   shamefullyHoist: boolean,
   storeController: StoreController,

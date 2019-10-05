@@ -16,7 +16,7 @@ export default async function <T>(
   importers: (ImporterOptions & T)[],
   lockfileDirectory: string,
 ): Promise<{
-  currentHoistPattern?: string,
+  currentHoistPattern?: string[],
   hoist?: boolean,
   hoistedAliases: { [depPath: string]: string[] },
   importers: Array<{

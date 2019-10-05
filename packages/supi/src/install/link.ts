@@ -63,7 +63,7 @@ export default async function linkPackages (
     force: boolean,
     hoistedAliases: {[depPath: string]: string[]},
     hoistedModulesDir: string,
-    hoistPattern?: string,
+    hoistPattern?: string[],
     include: IncludedDependencies,
     independentLeaves: boolean,
     lockfileDirectory: string,

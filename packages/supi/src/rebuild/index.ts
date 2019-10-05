@@ -170,7 +170,7 @@ export async function rebuild (
   await writeModulesYaml(ctx.rootModulesDir, {
     ...ctx.modulesFile,
     hoistedAliases: ctx.hoistedAliases,
-    hoistPattern: opts.hoistPattern,
+    hoistPattern: ctx.hoistPattern,
     included: ctx.include,
     independentLeaves: ctx.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
