@@ -13,7 +13,7 @@
 ```ts
 import matcher from '@pnpm/matcher'
 
-const match = matcher('eslint-*')
+const match = matcher(['eslint-*'])
 match('eslint-plugin-foo')
 //> true
 ```

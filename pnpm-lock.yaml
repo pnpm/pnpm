@@ -504,11 +504,9 @@ importers:
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      micromatch: 4.0.2
       ramda: 0.26.1
     devDependencies:
       '@pnpm/logger': 2.1.1
-      '@types/micromatch': 3.1.0
       '@types/ramda': 0.26.21
       rimraf: 3.0.0
     specifiers:
@@ -520,10 +518,8 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'workspace:2.0.6'
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/micromatch': 3.1.0
       '@types/ramda': 0.26.21
       dependency-path: 'workspace:3.0.8'
-      micromatch: 4.0.2
       ramda: 0.26.1
       rimraf: 3.0.0
   packages/lifecycle:
@@ -2348,10 +2344,6 @@ packages:
   /@types/archy/0.0.31:
     resolution:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
-  /@types/braces/3.0.0:
-    dev: true
-    resolution:
-      integrity: sha512-TbH79tcyi9FHwbyboOKeRachRq63mSuWYXOflsNO9ZyE5ClQ/JaozNKl+aWUq87qPNsXasXxi2AbgfwIJ+8GQw==
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 12.7.11
@@ -2405,12 +2397,6 @@ packages:
   /@types/lru-cache/5.1.0:
     resolution:
       integrity: sha512-RaE0B+14ToE4l6UqdarKPnXwVDuigfFv+5j9Dze/Nqr23yyuqdNvzcZi3xB+3Agvi5R4EOgAksfv3lXX4vBt9w==
-  /@types/micromatch/3.1.0:
-    dependencies:
-      '@types/braces': 3.0.0
-    dev: true
-    resolution:
-      integrity: sha512-06uA9V7v68RTOzA3ky1Oi0HmCPa+YJ050vM+sTECwkxnHUQnO17TAcNCGX400QT6bldUiPb7ux5oKy0j8ccEDw==
   /@types/minimatch/3.0.3:
     resolution:
       integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==

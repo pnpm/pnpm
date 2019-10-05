@@ -8,17 +8,15 @@ export default function matcher (patterns: string[] | string) {
 }
 
 function matcherFromPattern (pattern: string) {
-  const regexp = makeRegexp(pattern)
-  return match.bind(match, regexp)
-}
+  if (pattern === '*') {
+    return () => true
+  }
 
-function makeRegexp (pattern: string) {
-  pattern = escapeStringRegexp(pattern).replace(/\\\*/g, '.*')
+  const escapedPattern = escapeStringRegexp(pattern).replace(/\\\*/g, '.*')
+  if (escapedPattern === pattern) {
+    return (input: string) => input === pattern
+  }
 
-  const regexp = new RegExp(`^${pattern}$`)
-  return regexp
-}
-
-function match (regexp: RegExp, input: string) {
-  return regexp.test(input)
+  const regexp = new RegExp(`^${escapedPattern}$`)
+  return (input: string) => regexp.test(input)
 }
