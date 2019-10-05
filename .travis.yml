@@ -1,7 +1,6 @@
 language: node_js
 node_js:
-  - 8.15
-  - 10
+  - 10.0
   - 12
 git:
   depth: 5
@@ -11,6 +10,7 @@ before_install:
   - git fetch --unshallow
   - curl -L https://unpkg.com/@pnpm/self-installer | PNPM_VERSION=1.33.2 node
   # Testing whether pnpm can upgrade itself
+  - npm install --global npm@latest
   - pnpm i -g pnpm@next
   - pnpm -v
 install:

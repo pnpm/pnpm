@@ -23,7 +23,7 @@
   "keywords": [],
   "license": "MIT",
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10"
   },
   "repository": "https://github.com/pnpm/tslint-config/blob/master/packages/supi",
   "scripts": {}

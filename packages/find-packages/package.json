@@ -24,7 +24,7 @@
     "url": "https://www.kochan.io"
   },
   "engines": {
-    "node": ">=8.15"
+    "node": ">=10"
   },
   "license": "MIT",
   "bugs": {
