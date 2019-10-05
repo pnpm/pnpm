@@ -16,11 +16,10 @@ Features:
 
 * **Fast.** As fast as npm and Yarn.
 * **Efficient.** One version of a package is saved only ever once on a disk.
-* **Great for multi-package repositories (a.k.a. monorepos).** See the [recursive](https://pnpm.js.org/en/cli/recursive) commands.
+* **Great for [multi-package repositories](https://pnpm.js.org/en/workspaces) (a.k.a. monorepos).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
 * **Works everywhere.** Works on Windows, Linux and OS X.
-* **Aliases.** Install different versions of the same package or import it using a different name.
 
 Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
 
