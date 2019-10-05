@@ -1,6 +1,13 @@
 import escapeStringRegexp = require('escape-string-regexp')
 
-export default function matcher (pattern: string) {
+export default function matcher (patterns: string[] | string) {
+  if (typeof patterns === 'string') return matcherFromPattern(patterns)
+  if (patterns.length === 0) return matcherFromPattern(patterns[0])
+  const matchArr = patterns.map(matcherFromPattern)
+  return (input: string) => matchArr.some((match) => match(input))
+}
+
+function matcherFromPattern (pattern: string) {
   const regexp = makeRegexp(pattern)
   return match.bind(match, regexp)
 }

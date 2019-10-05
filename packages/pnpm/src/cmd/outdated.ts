@@ -282,11 +282,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
     store,
   })
   return Promise.all(pkgs.map(async ({ manifest, path }) => {
-    let match: ((dependencyName: string) => boolean) | undefined
-    if (args.length) {
-      const matchers = args.map((pattern) => matcher(pattern))
-      match = (dependencyName) => matchers.some((match) => match(dependencyName))
-    }
+    let match = args.length && matcher(args) || undefined
     return {
       manifest,
       outdatedPackages: await outdated({
