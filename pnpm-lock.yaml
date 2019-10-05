@@ -213,7 +213,6 @@ importers:
     devDependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/logger': 2.1.1
-      '@types/micromatch': 3.1.0
       dependencies-hierarchy: 'link:'
       tape: 4.11.0
     specifiers:
@@ -225,7 +224,6 @@ importers:
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/types': 'workspace:3.2.0'
       '@pnpm/utils': 'workspace:0.10.6'
-      '@types/micromatch': 3.1.0
       dependencies-hierarchy: 'link:'
       dependency-path: 'workspace:3.0.8'
       normalize-path: 3.0.0
@@ -863,7 +861,6 @@ importers:
       '@pnpm/logger': 2.1.1
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.5.0
-      '@types/micromatch': 3.1.0
       npm-run-all: 4.1.5
       tape: 4.11.0
     specifiers:
@@ -874,7 +871,6 @@ importers:
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.5.0
       '@pnpm/types': 'workspace:3.2.0'
-      '@types/micromatch': 3.1.0
       dependency-path: 'workspace:3.0.8'
       npm-run-all: 4.1.5
       tape: 4.11.0
@@ -1127,7 +1123,6 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
-      micromatch: 4.0.2
       mz: 2.7.0
       nopt: 4.0.1
       p-filter: 2.1.0
@@ -1159,7 +1154,6 @@ importers:
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
-      '@types/micromatch': 3.1.0
       '@types/mkdirp': 0.5.2
       '@types/nopt': 3.0.29
       '@types/ramda': 0.26.21
@@ -1220,7 +1214,6 @@ importers:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
       '@types/lru-cache': ^5.1.0
-      '@types/micromatch': 3.1.0
       '@types/mkdirp': 0.5.2
       '@types/mz': ^0.0.32
       '@types/nopt': 3.0.29
@@ -1260,7 +1253,6 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 5.1.1
-      micromatch: 4.0.2
       mz: 2.7.0
       ncp: 2.0.0
       nopt: 4.0.1
