@@ -11,7 +11,7 @@
     "sourceMap": false,
     "strict": true,
     "suppressImplicitAnyIndexErrors": true,
-    "target": "es2017"
+    "target": "es2019"
   },
   "atom": {
     "rewriteTsconfig": true
