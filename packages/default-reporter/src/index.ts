@@ -85,7 +85,7 @@ export function toOutput$ (
   const installCheckPushStream = new PushStream()
   const registryPushStream = new PushStream()
   const rootPushStream = new PushStream()
-  const packageJsonPushStream = new PushStream()
+  const packageManifestPushStream = new PushStream()
   const linkPushStream = new PushStream()
   const otherPushStream = new PushStream()
   const hookPushStream = new PushStream()
@@ -124,8 +124,8 @@ export function toOutput$ (
         case 'pnpm:root':
           rootPushStream.next(log)
           break
-        case 'pnpm:package-json':
-          packageJsonPushStream.next(log)
+        case 'pnpm:package-manifest':
+          packageManifestPushStream.next(log)
           break
         case 'pnpm:link':
           linkPushStream.next(log)
@@ -155,7 +155,7 @@ export function toOutput$ (
     lifecycle: most.from<logs.LifecycleLog>(lifecyclePushStream.observable),
     link: most.from<logs.LinkLog>(linkPushStream.observable),
     other: most.from<logs.Log>(otherPushStream.observable),
-    packageJson: most.from<logs.PackageJsonLog>(packageJsonPushStream.observable),
+    packageManifest: most.from<logs.PackageManifestLog>(packageManifestPushStream.observable),
     progress: most.from<logs.ProgressLog>(progressPushStream.observable),
     registry: most.from<logs.RegistryLog>(registryPushStream.observable),
     root: most.from<logs.RootLog>(rootPushStream.observable),

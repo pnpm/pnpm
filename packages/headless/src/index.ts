@@ -5,7 +5,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  packageJsonLogger,
+  packageManifestLogger,
   progressLogger,
   rootLogger,
   stageLogger,
@@ -32,7 +32,7 @@ import {
   packageIdFromSnapshot,
   packageIsIndependent,
   pkgSnapshotToResolution,
-  satisfiesPackageJson,
+  satisfiesPackageManifest,
 } from '@pnpm/lockfile-utils'
 import logger, {
   LogBase,
@@ -130,7 +130,7 @@ export default async (opts: HeadlessOptions) => {
     ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
 
   for (const { id, manifest, prefix } of opts.importers) {
-    if (!satisfiesPackageJson(wantedLockfile, manifest, id)) {
+    if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
       throw new PnpmError('OUTDATED_LOCKFILE',
         `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
         path.relative(opts.lockfileDirectory, path.join(prefix, 'package.json')))
@@ -271,7 +271,7 @@ export default async (opts: HeadlessOptions) => {
 
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
-    packageJsonLogger.debug({
+    packageManifestLogger.debug({
       prefix,
       updated: manifest,
     })

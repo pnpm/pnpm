@@ -1,10 +1,10 @@
 import { Config } from '@pnpm/config'
 import logger from '@pnpm/logger'
-import { PackageJson } from '@pnpm/types'
+import { ImporterManifest } from '@pnpm/types'
 import { render as renderList } from '../list'
 
 export default async (
-  pkgs: Array<{path: string, manifest: PackageJson}>,
+  pkgs: Array<{ path: string, manifest: ImporterManifest }>,
   args: string[],
   cmd: string,
   opts: Config & {

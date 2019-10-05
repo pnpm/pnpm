@@ -1,5 +1,5 @@
 import * as logs from '@pnpm/core-loggers'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import most = require('most')
 import R = require('ramda')
 
@@ -30,7 +30,7 @@ export default function (
     deprecation: most.Stream<logs.DeprecationLog>,
     summary: most.Stream<logs.SummaryLog>,
     root: most.Stream<logs.RootLog>,
-    packageJson: most.Stream<logs.PackageJsonLog>,
+    packageManifest: most.Stream<logs.PackageManifestLog>,
   },
   opts: {
     prefix: string,
@@ -85,9 +85,9 @@ export default function (
     prod: Map<PackageDiff>,
   })
 
-  const packageJson$ = most.fromPromise(
+  const packageManifest$ = most.fromPromise(
     most.merge(
-      log$.packageJson.filter((log) => log.prefix === opts.prefix),
+      log$.packageManifest.filter((log) => log.prefix === opts.prefix),
       log$.summary.filter((log) => log.prefix === opts.prefix).constant({}),
     )
     .take(2)
@@ -95,16 +95,16 @@ export default function (
   )
 
   return most.combine(
-    (pkgsDiff, packageJsons: { initial?: PackageJson, updated?: PackageJson }) => {
-      if (!packageJsons['initial'] || !packageJsons['updated']) return pkgsDiff
+    (pkgsDiff, packageManifests: { initial?: PackageManifest, updated?: PackageManifest }) => {
+      if (!packageManifests['initial'] || !packageManifests['updated']) return pkgsDiff
 
-      const initialPackageJson = removeOptionalFromProdDeps(packageJsons['initial'])
-      const updatedPackageJson = removeOptionalFromProdDeps(packageJsons['updated'])
+      const initialPackageManifest = removeOptionalFromProdDeps(packageManifests['initial'])
+      const updatedPackageManifest = removeOptionalFromProdDeps(packageManifests['updated'])
 
       for (const depType of ['peer', 'prod', 'optional', 'dev']) {
         const prop = propertyByDependencyType[depType]
-        const initialDeps = Object.keys(initialPackageJson[prop] || {})
-        const updatedDeps = Object.keys(updatedPackageJson[prop] || {})
+        const initialDeps = Object.keys(initialPackageManifest[prop] || {})
+        const updatedDeps = Object.keys(updatedPackageManifest[prop] || {})
         const removedDeps = R.difference(initialDeps, updatedDeps)
 
         for (const removedDep of removedDeps) {
@@ -112,7 +112,7 @@ export default function (
             pkgsDiff[depType][`-${removedDep}`] = {
               added: false,
               name: removedDep,
-              version: initialPackageJson[prop][removedDep],
+              version: initialPackageManifest[prop][removedDep],
             }
           }
         }
@@ -124,7 +124,7 @@ export default function (
             pkgsDiff[depType][`+${addedDep}`] = {
               added: true,
               name: addedDep,
-              version: updatedPackageJson[prop][addedDep],
+              version: updatedPackageManifest[prop][addedDep],
             }
           }
         }
@@ -132,11 +132,11 @@ export default function (
       return pkgsDiff
     },
     pkgsDiff$,
-    packageJson$,
+    packageManifest$,
   )
 }
 
-function removeOptionalFromProdDeps (pkg: PackageJson): PackageJson {
+function removeOptionalFromProdDeps (pkg: PackageManifest): PackageManifest {
   if (!pkg.dependencies || !pkg.optionalDependencies) return pkg
   for (const depName of Object.keys(pkg.dependencies)) {
     if (pkg.optionalDependencies[depName]) {

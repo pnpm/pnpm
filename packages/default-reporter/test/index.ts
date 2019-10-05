@@ -3,7 +3,7 @@ import { Config } from '@pnpm/config'
 import {
   deprecationLogger,
   hookLogger,
-  packageJsonLogger,
+  packageManifestLogger,
   rootLogger,
   skippedOptionalDependencyLogger,
   statsLogger,
@@ -47,7 +47,7 @@ test('prints summary (of current package only)', t => {
 
   statsLogger.debug({ added: 5, prefix: `${prefix}/packages/foo` })
   statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     initial: {
       name: 'foo',
       version: '1.0.0',
@@ -157,7 +157,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       dependencies: {
@@ -248,7 +248,7 @@ test('prints summary for global installation', t => {
     },
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       dependencies: {
@@ -288,11 +288,11 @@ test('prints added peer dependency', t => {
     streamParser: createStreamParser(),
   })
 
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     initial: {},
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       devDependencies: {
@@ -334,7 +334,7 @@ test('prints summary correctly when the same package is specified both in option
     streamParser: createStreamParser(),
   })
 
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     initial: {
       name: 'foo',
       version: '1.0.0',
@@ -359,7 +359,7 @@ test('prints summary correctly when the same package is specified both in option
     },
     prefix,
   })
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
     updated: {
       dependencies: {

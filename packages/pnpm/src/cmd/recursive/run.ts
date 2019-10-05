@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import pLimit from 'p-limit'
 import { PackageNode } from 'pkgs-graph'
@@ -38,7 +38,7 @@ export default async <T> (
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = graph[prefix] as {package: {manifest: PackageJson, path: string}}
+        const pkg = graph[prefix] as {package: {manifest: PackageManifest, path: string}}
         if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
           return
         }

@@ -1,6 +1,6 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
-import { DependenciesField, PackageJson, Registries } from '@pnpm/types'
+import { DependenciesField, ImporterManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
@@ -32,14 +32,14 @@ const COMPARATORS = [
 interface OutdatedInWorkspace extends OutdatedPackage {
   belongsTo: DependenciesField,
   current?: string,
-  dependentPkgs: Array<{ location: string, manifest: PackageJson }>,
+  dependentPkgs: Array<{ location: string, manifest: ImporterManifest }>,
   latest?: string,
   packageName: string,
   wanted: string,
 }
 
 export default async (
-  pkgs: Array<{path: string, manifest: PackageJson}>,
+  pkgs: Array<{ path: string, manifest: ImporterManifest }>,
   args: string[],
   cmd: string,
   opts: OutdatedOptions,

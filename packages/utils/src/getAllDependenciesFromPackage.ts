@@ -1,6 +1,8 @@
-import { Dependencies, PackageJson } from '@pnpm/types'
+import { Dependencies, ImporterManifest } from '@pnpm/types'
 
-export default function getAllDependenciesFromPackage (pkg: PackageJson): Dependencies {
+export default function getAllDependenciesFromPackage (
+  pkg: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+): Dependencies {
   return {
     ...pkg.devDependencies,
     ...pkg.dependencies,

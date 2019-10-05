@@ -7,7 +7,7 @@ import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity } from '@pnpm/registry-mock'
-import { PackageJson } from '@pnpm/types'
+import { ImporterManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import path = require('path')
@@ -774,7 +774,7 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
 test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`, async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  let manifest!: PackageJson
+  let manifest!: ImporterManifest
   {
     const reporter = sinon.spy()
 
@@ -979,7 +979,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
       'is-negative': '^2.1.0',
     },
   }
-  let pkg2: PackageJson = {
+  let pkg2: ImporterManifest = {
     name: 'pkg2',
     version: '1.0.0',
 

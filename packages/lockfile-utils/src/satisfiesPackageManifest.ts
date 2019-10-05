@@ -1,11 +1,11 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import {
   DEPENDENCIES_FIELDS,
-  PackageJson,
+  ImporterManifest,
 } from '@pnpm/types'
 import R = require('ramda')
 
-export default (lockfile: Lockfile, pkg: PackageJson, importerId: string) => {
+export default (lockfile: Lockfile, pkg: ImporterManifest, importerId: string) => {
   const importer = lockfile.importers[importerId]
   if (!importer) return false
   if (!R.equals({ ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }, importer.specifiers)) {

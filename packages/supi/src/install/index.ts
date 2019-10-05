@@ -5,7 +5,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import {
-  packageJsonLogger,
+  packageManifestLogger,
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -22,7 +22,7 @@ import {
   writeLockfiles,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
-import { satisfiesPackageJson } from '@pnpm/lockfile-utils'
+import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import logger, {
   streamParser,
 } from '@pnpm/logger'
@@ -57,7 +57,7 @@ import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
 import getContext, { ImportersOptions, PnpmContext } from '../getContext'
-import getSpecFromPackageJson from '../getSpecFromPackageJson'
+import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import lock from '../lock'
 import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
@@ -195,7 +195,7 @@ export async function mutateModules (
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
         await pEvery(ctx.importers, async (importer) =>
           !hasLocalTarballDepsInRoot(ctx.wantedLockfile, importer.id) &&
-          satisfiesPackageJson(ctx.wantedLockfile, importer.manifest, importer.id) &&
+          satisfiesPackageManifest(ctx.wantedLockfile, importer.manifest, importer.id) &&
           linkedPackagesAreUpToDate(importer.manifest, ctx.wantedLockfile.importers[importer.id], importer.prefix, opts.localPackages)
         )
       )
@@ -277,7 +277,7 @@ export async function mutateModules (
             ...importer,
             newPkgRawSpecs: [],
             removePackages: importer.dependencyNames,
-            updatePackageJson: true,
+            updatePackageManifest: true,
             wantedDeps: [],
           })
           break
@@ -366,12 +366,12 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...importer,
         newPkgRawSpecs: [],
-        updatePackageJson: false,
+        updatePackageManifest: false,
         wantedDeps,
       })
     }
 
-    async function installSome (importer: any, updatePackageJson: boolean = true) { // tslint:disable-line:no-any
+    async function installSome (importer: any, updatePackageManifest: boolean = true) { // tslint:disable-line:no-any
       const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.manifest)
       const optionalDependencies = importer.targetDependenciesField ? {} : importer.manifest.optionalDependencies || {}
       const devDependencies = importer.targetDependenciesField ? {} : importer.manifest.devDependencies || {}
@@ -388,7 +388,7 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...importer,
         newPkgRawSpecs: wantedDeps.map(({ raw }) => raw),
-        updatePackageJson,
+        updatePackageManifest,
         wantedDeps,
       })
     }
@@ -589,7 +589,7 @@ type ImporterToUpdate = {
   prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
-  updatePackageJson: boolean,
+  updatePackageManifest: boolean,
   wantedDeps: WantedDependency[],
 } & DependenciesMutation
 
@@ -698,7 +698,7 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: ImporterManifest | undefined = importer.manifest
-    if (importer.updatePackageJson && importer.mutation === 'installSome') {
+    if (importer.updatePackageManifest && importer.mutation === 'installSome') {
       if (!importer.manifest) {
         throw new Error('Cannot save because no package.json found')
       }
@@ -740,7 +740,7 @@ async function installInContext (
         { dryRun: true },
       )
     } else {
-      packageJsonLogger.debug({
+      packageManifestLogger.debug({
         prefix: importer.prefix,
         updated: importer.manifest,
       })
@@ -1009,7 +1009,7 @@ function addDirectDependenciesToLockfile (
   }
 
   linkedPackages.forEach((linkedPkg) => {
-    newLockfileImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newManifest, linkedPkg.alias)
+    newLockfileImporter.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
   })
 
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
@@ -1042,7 +1042,7 @@ function addDirectDependenciesToLockfile (
       } else {
         newLockfileImporter.dependencies[dep.alias] = ref
       }
-      newLockfileImporter.specifiers[dep.alias] = getSpecFromPackageJson(newManifest, dep.alias)
+      newLockfileImporter.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
     } else if (lockfileImporter.specifiers[alias]) {
       newLockfileImporter.specifiers[alias] = lockfileImporter.specifiers[alias]
       if (lockfileImporter.dependencies && lockfileImporter.dependencies[alias]) {

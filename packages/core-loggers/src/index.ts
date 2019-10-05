@@ -8,7 +8,7 @@ import {
   InstallCheckLog,
   LifecycleLog,
   LinkLog,
-  PackageJsonLog,
+  PackageManifestLog,
   ProgressLog,
   RegistryLog,
   RootLog,
@@ -26,7 +26,7 @@ export type Log = DeprecationLog
   | InstallCheckLog
   | LifecycleLog
   | LinkLog
-  | PackageJsonLog
+  | PackageManifestLog
   | ProgressLog
   | RegistryLog
   | RootLog

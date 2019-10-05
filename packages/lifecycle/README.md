@@ -41,7 +41,7 @@ await runPostinstallHooks({
 
 ## API
 
-### `runLifecycleHook(stage, packageJson, opts): Promise<void>`
+### `runLifecycleHook(stage, packageManifest, opts): Promise<void>`
 
 ### `runPostinstallHooks(opts): Promise<void>`
 

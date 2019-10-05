@@ -2,7 +2,7 @@
 import assertProject from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  PackageJsonLog,
+  PackageManifestLog,
   RootLog,
   StageLog,
   StatsLog,
@@ -49,9 +49,9 @@ test('installing a simple project', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: require(path.join(prefix, 'package.json')),
-  } as PackageJsonLog), 'updated package.json logged')
+  } as PackageManifestLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',
@@ -563,9 +563,9 @@ test('independent-leaves: installing a simple project', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: require(path.join(prefix, 'package.json')),
-  } as PackageJsonLog), 'updated package.json logged')
+  } as PackageManifestLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',
@@ -612,9 +612,9 @@ test('installing with hoistPattern=*', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: require(path.join(prefix, 'package.json')),
-  } as PackageJsonLog), 'updated package.json logged')
+  } as PackageManifestLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 17,
     level: 'debug',
@@ -672,9 +672,9 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: require(path.join(prefix, 'package.json')),
-  } as PackageJsonLog), 'updated package.json logged')
+  } as PackageManifestLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 17,
     level: 'debug',

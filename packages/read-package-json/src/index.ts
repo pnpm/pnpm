@@ -1,13 +1,13 @@
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import path = require('path')
-import readPackageJsonCB = require('read-package-json')
+import readPackageManifestCB = require('read-package-json')
 import { promisify } from 'util'
 
-const readPackageJson = promisify(readPackageJsonCB)
+const readPackageManifest = promisify(readPackageManifestCB)
 
-export default async function readPkg (pkgPath: string): Promise<PackageJson> {
+export default async function readPkg (pkgPath: string): Promise<PackageManifest> {
   try {
-    return await readPackageJson(pkgPath)
+    return await readPackageManifest(pkgPath)
   } catch (err) {
     if (err['code']) throw err // tslint:disable-line
     const pnpmError = new Error(`${pkgPath}: ${err.message}`)
@@ -16,6 +16,6 @@ export default async function readPkg (pkgPath: string): Promise<PackageJson> {
   }
 }
 
-export function fromDir (pkgPath: string): Promise<PackageJson> {
+export function fromDir (pkgPath: string): Promise<PackageManifest> {
   return readPkg(path.join(pkgPath, 'package.json'))
 }

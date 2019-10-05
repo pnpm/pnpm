@@ -1,21 +1,21 @@
 import prepare from '@pnpm/prepare'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 
-const basicPackageJson = loadJsonFile.sync<PackageJson>(path.join(__dirname, '../utils/simple-package.json'))
+const basicPackageManifest = loadJsonFile.sync<PackageManifest>(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
 test['only'] = promisifyTape(tape.only)
 
 test('production install (with --production flag)', async (t: tape.Test) => {
-  const project = prepare(t, basicPackageJson)
+  const project = prepare(t, basicPackageManifest)
 
   await execPnpm('install', '--production')
 
-  await project.hasNot(Object.keys(basicPackageJson.devDependencies!)[0])
+  await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })
@@ -23,14 +23,14 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 test('production install (with production NODE_ENV)', async (t: tape.Test) => {
   const originalNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
-  const project = prepare(t, basicPackageJson)
+  const project = prepare(t, basicPackageManifest)
 
   await execPnpm('install')
 
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv
 
-  await project.hasNot(Object.keys(basicPackageJson.devDependencies!)[0])
+  await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })

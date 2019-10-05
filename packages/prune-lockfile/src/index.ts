@@ -5,7 +5,7 @@ import {
   PackageSnapshots,
   ResolvedDependencies,
 } from '@pnpm/lockfile-types'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import { refToRelative } from 'dependency-path'
 import R = require('ramda')
 
@@ -36,7 +36,7 @@ export function pruneSharedLockfile (
 
 export function pruneLockfile (
   lockfile: Lockfile,
-  pkg: PackageJson,
+  pkg: PackageManifest,
   importerId: string,
   opts?: {
     warn?: (msg: string) => void,

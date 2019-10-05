@@ -4,14 +4,14 @@ import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 import packageIdFromSnapshot from './packageIdFromSnapshot'
 import packageIsIndependent from './packageIsIndependent'
 import pkgSnapshotToResolution from './pkgSnapshotToResolution'
-import satisfiesPackageJson from './satisfiesPackageJson'
+import satisfiesPackageManifest from './satisfiesPackageManifest'
 
 export {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
   packageIsIndependent,
   pkgSnapshotToResolution,
-  satisfiesPackageJson,
+  satisfiesPackageManifest,
 }
 
 // for backward compatibility

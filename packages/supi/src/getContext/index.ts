@@ -1,4 +1,4 @@
-import { packageJsonLogger } from '@pnpm/core-loggers'
+import { packageManifestLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import logger from '@pnpm/logger'
@@ -101,7 +101,7 @@ export default async function getContext<T> (
   await makeDir(opts.store)
 
   importers.forEach((importer) => {
-    packageJsonLogger.debug({
+    packageManifestLogger.debug({
       initial: importer.manifest,
       prefix: importer.prefix,
     })
@@ -423,7 +423,7 @@ export async function getContextForSingleImporter (
       useLockfile: opts.useLockfile,
     }),
   }
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     initial: manifest,
     prefix: opts.prefix,
   })

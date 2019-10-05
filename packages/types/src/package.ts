@@ -90,11 +90,6 @@ export type ImporterManifest = BaseManifest & {
   private?: boolean,
 }
 
-// TODO: remove
-export type PackageJson = BaseManifest & {
-  private?: boolean,
-}
-
 export type PackageManifest = DependencyManifest & {
   deprecated?: string,
 }

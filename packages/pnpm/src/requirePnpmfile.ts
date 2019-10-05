@@ -1,6 +1,6 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import chalk from 'chalk'
 import fs = require('fs')
 
@@ -36,7 +36,7 @@ export default (pnpmFilePath: string, prefix: string) => {
     }
     if (pnpmfile && pnpmfile.hooks && pnpmfile.hooks.readPackage) {
       const readPackage = pnpmfile.hooks.readPackage
-      pnpmfile.hooks.readPackage = function (pkg: PackageJson, ...args: any[]) { // tslint:disable-line
+      pnpmfile.hooks.readPackage = function (pkg: PackageManifest, ...args: any[]) { // tslint:disable-line
         pkg.dependencies = pkg.dependencies || {}
         pkg.devDependencies = pkg.devDependencies || {}
         pkg.optionalDependencies = pkg.optionalDependencies || {}

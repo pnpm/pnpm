@@ -1,8 +1,10 @@
-import { Dependencies, PackageJson } from '@pnpm/types'
+import { Dependencies, ImporterManifest } from '@pnpm/types'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import getVerSelType = require('version-selector-type')
 
-export default function getPreferredVersionsFromPackage (pkg: PackageJson): {
+export default function getPreferredVersionsFromPackage (
+  pkg: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+): {
   [packageName: string]: {
     selector: string,
     type: 'version' | 'range' | 'tag',

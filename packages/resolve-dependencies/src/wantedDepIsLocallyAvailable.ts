@@ -1,6 +1,6 @@
 import parsePref, { RegistryPackageSpec } from '@pnpm/npm-resolver/lib/parsePref'
 import { LocalPackages } from '@pnpm/resolver-base'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import { WantedDependency } from '@pnpm/utils'
 import semver = require('semver')
 
@@ -22,7 +22,7 @@ function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
       directory: string;
-      package: PackageJson;
+      package: PackageManifest;
     },
   },
   spec: RegistryPackageSpec,

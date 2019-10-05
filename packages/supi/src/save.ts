@@ -1,4 +1,4 @@
-import { packageJsonLogger } from '@pnpm/core-loggers'
+import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
@@ -14,7 +14,7 @@ export type PackageSpecObject = {
 
 export default async function save (
   prefix: string,
-  packageJson: ImporterManifest,
+  packageManifest: ImporterManifest,
   packageSpecs: Array<PackageSpecObject>,
   opts?: {
     dryRun?: boolean,
@@ -22,32 +22,32 @@ export default async function save (
 ): Promise<ImporterManifest> {
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
-      const spec = packageSpec.pref || findSpec(packageSpec.name, packageJson as ImporterManifest)
+      const spec = packageSpec.pref || findSpec(packageSpec.name, packageManifest as ImporterManifest)
       if (spec) {
-        packageJson[packageSpec.saveType] = packageJson[packageSpec.saveType] || {}
-        packageJson[packageSpec.saveType]![packageSpec.name] = spec
+        packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] || {}
+        packageManifest[packageSpec.saveType]![packageSpec.name] = spec
         DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
-          if (packageJson[deptype]) {
-            delete packageJson[deptype]![packageSpec.name]
+          if (packageManifest[deptype]) {
+            delete packageManifest[deptype]![packageSpec.name]
           }
         })
         if (packageSpec.peer === true) {
-          packageJson.peerDependencies = packageJson.peerDependencies || {}
-          packageJson.peerDependencies[packageSpec.name] = spec
+          packageManifest.peerDependencies = packageManifest.peerDependencies || {}
+          packageManifest.peerDependencies[packageSpec.name] = spec
         }
       }
     } else if (packageSpec.pref) {
-      const usedDepType = guessDependencyType(packageSpec.name, packageJson as ImporterManifest) || 'dependencies'
-      packageJson[usedDepType] = packageJson[usedDepType] || {}
-      packageJson[usedDepType]![packageSpec.name] = packageSpec.pref
+      const usedDepType = guessDependencyType(packageSpec.name, packageManifest as ImporterManifest) || 'dependencies'
+      packageManifest[usedDepType] = packageManifest[usedDepType] || {}
+      packageManifest[usedDepType]![packageSpec.name] = packageSpec.pref
     }
   })
 
-  packageJsonLogger.debug({
+  packageManifestLogger.debug({
     prefix,
-    updated: packageJson,
+    updated: packageManifest,
   })
-  return packageJson as ImporterManifest
+  return packageManifest as ImporterManifest
 }
 
 function findSpec (depName: string, manifest: ImporterManifest): string | undefined {

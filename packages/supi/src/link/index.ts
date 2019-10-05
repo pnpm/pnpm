@@ -27,7 +27,7 @@ import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import { getContextForSingleImporter } from '../getContext'
-import getSpecFromPackageJson from '../getSpecFromPackageJson'
+import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import save, { guessDependencyType } from '../save'
 import getPref from '../utils/getPref'
 import {
@@ -143,7 +143,7 @@ export default async function link (
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     newPkg = await save(opts.prefix, opts.manifest, specsToUpsert)
     for (const { name } of specsToUpsert) {
-      updatedWantedLockfile.importers[importerId].specifiers[name] = getSpecFromPackageJson(newPkg, name)
+      updatedWantedLockfile.importers[importerId].specifiers[name] = getSpecFromPackageManifest(newPkg, name)
     }
   } else {
     newPkg = opts.manifest
@@ -187,7 +187,7 @@ function addLinkToLockfile (
   // package.json might not be available when linking to global
   if (!opts.manifest) return
 
-  const availableSpec = getSpecFromPackageJson(opts.manifest, opts.linkedPkgName)
+  const availableSpec = getSpecFromPackageManifest(opts.manifest, opts.linkedPkgName)
   if (availableSpec) {
     lockfileImporter.specifiers[opts.linkedPkgName] = availableSpec
   } else {

@@ -25,7 +25,7 @@ export default function (
     installCheck: most.Stream<logs.InstallCheckLog>,
     registry: most.Stream<logs.RegistryLog>,
     root: most.Stream<logs.RootLog>,
-    packageJson: most.Stream<logs.PackageJsonLog>,
+    packageManifest: most.Stream<logs.PackageManifestLog>,
     link: most.Stream<logs.LinkLog>,
     other: most.Stream<logs.Log>,
     hook: most.Stream<logs.HookLog>,

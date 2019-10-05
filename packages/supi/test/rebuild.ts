@@ -1,5 +1,5 @@
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
@@ -228,7 +228,7 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
 
       dependencies: {},
     },
-  ] as PackageJson[]
+  ] as PackageManifest[]
   preparePackages(t, pkgs)
 
   const importers = [

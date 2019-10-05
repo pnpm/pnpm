@@ -1,4 +1,4 @@
-import { satisfiesPackageJson } from '@pnpm/lockfile-utils'
+import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import test = require('tape')
 
 const DEFAULT_LOCKFILE_FIELDS = {
@@ -10,8 +10,8 @@ const DEFAULT_PKG_FIELDS = {
   version: '1.0.0',
 }
 
-test('satisfiesPackageJson()', t => {
-  t.ok(satisfiesPackageJson({
+test('satisfiesPackageManifest()', t => {
+  t.ok(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -23,7 +23,7 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0' },
   }, '.'))
-  t.ok(satisfiesPackageJson({
+  t.ok(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -36,7 +36,7 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0' }
   }, '.'))
-  t.ok(satisfiesPackageJson({
+  t.ok(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -48,7 +48,7 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_PKG_FIELDS,
     devDependencies: { foo: '^1.0.0' },
   }, '.'))
-  t.ok(satisfiesPackageJson({
+  t.ok(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -60,7 +60,7 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_PKG_FIELDS,
     optionalDependencies: { foo: '^1.0.0' },
   }, '.'))
-  t.notOk(satisfiesPackageJson({
+  t.notOk(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -72,7 +72,7 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_PKG_FIELDS,
     optionalDependencies: { foo: '^1.0.0' },
   }, '.'), 'dep type differs')
-  t.notOk(satisfiesPackageJson({
+  t.notOk(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -84,7 +84,7 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.1.0' },
   }, '.'), 'spec does not match')
-  t.notOk(satisfiesPackageJson({
+  t.notOk(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -96,7 +96,7 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_PKG_FIELDS,
     dependencies: { foo: '^1.0.0', bar: '2.0.0' },
   }, '.'), 'dep spec missing')
-  t.notOk(satisfiesPackageJson({
+  t.notOk(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -137,7 +137,7 @@ test('satisfiesPackageJson()', t => {
         bar: '2.0.0'
       }
     }
-    t.ok(satisfiesPackageJson(lockfile, pkg, '.'))
+    t.ok(satisfiesPackageManifest(lockfile, pkg, '.'))
   }
 
   {
@@ -162,7 +162,7 @@ test('satisfiesPackageJson()', t => {
         bar: '2.0.0'
       },
     }
-    t.notOk(satisfiesPackageJson(lockfile, pkg, '.'))
+    t.notOk(satisfiesPackageManifest(lockfile, pkg, '.'))
   }
 
   {
@@ -186,10 +186,10 @@ test('satisfiesPackageJson()', t => {
         bar: '2.0.0'
       },
     }
-    t.notOk(satisfiesPackageJson(lockfile, pkg, '.'))
+    t.notOk(satisfiesPackageManifest(lockfile, pkg, '.'))
   }
 
-  t.ok(satisfiesPackageJson({
+  t.ok(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {
@@ -202,7 +202,7 @@ test('satisfiesPackageJson()', t => {
     dependencies: { foo: '^1.0.0' },
   }, '.'), 'linked packages that are not in package.json are ignored')
 
-  t.notOk(satisfiesPackageJson({
+  t.notOk(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       'packages/foo': {
@@ -215,7 +215,7 @@ test('satisfiesPackageJson()', t => {
     dependencies: { foo: '^1.0.0' },
   }, '.'))
 
-  t.ok(satisfiesPackageJson({
+  t.ok(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
     importers: {
       '.': {

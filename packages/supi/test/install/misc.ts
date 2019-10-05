@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  PackageJsonLog,
+  PackageManifestLog,
   ProgressLog,
   RootLog,
   StageLog,
@@ -8,9 +8,9 @@ import {
 } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
+import { ImporterManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
-import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
@@ -92,8 +92,8 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   t.equal(reporter.withArgs(sinon.match({
     initial: { name: 'project', version: '0.0.0' },
     level: 'debug',
-    name: 'pnpm:package-json',
-  } as PackageJsonLog)).callCount, 1, 'initial package.json logged')
+    name: 'pnpm:package-manifest',
+  } as PackageManifestLog)).callCount, 1, 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:stage',
@@ -149,15 +149,15 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   } as RootLog), 'added to root')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: {
       dependencies: {
         lodash: '4.0.0',
       },
       name: 'project',
       version: '0.0.0',
-    },
-  } as PackageJsonLog), 'updated package.json logged')
+    } as ImporterManifest,
+  } as PackageManifestLog), 'updated package.json logged')
 
   const m = project.requireModule('lodash')
   t.ok(typeof m === 'function', '_ is available')
@@ -782,13 +782,13 @@ test('install a dependency with * range', async (t: tape.Test) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: {
       dependencies: {
         'has-beta-only': '*',
       },
-    },
-  } as PackageJsonLog), 'should log package-json updated even when package.json was not changed')
+    } as ImporterManifest,
+  } as PackageManifestLog), 'should log package-json updated even when package.json was not changed')
 })
 
 test('should throw error when trying to install a package without name', async (t: tape.Test) => {

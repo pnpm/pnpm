@@ -8,7 +8,7 @@ import matcher from '@pnpm/matcher'
 import outdated, { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
-import { PackageJson, Registries } from '@pnpm/types'
+import { ImporterManifest, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
@@ -265,7 +265,7 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
-  pkgs: Array<{path: string, manifest: PackageJson}>,
+  pkgs: Array<{path: string, manifest: ImporterManifest}>,
   args: string[],
   opts: OutdatedOptions,
 ) {

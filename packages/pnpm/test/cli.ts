@@ -50,13 +50,13 @@ test('pnpm import does not move modules created by npm', async (t: tape.Test) =>
   await execa('npm', ['install', 'is-positive@1.0.0', '--save'])
   await execa('npm', ['shrinkwrap'])
 
-  const packageJsonInodeBefore = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeBefore = (await fs.stat('node_modules/is-positive/package.json')).ino
 
   await execPnpm('import')
 
-  const packageJsonInodeAfter = (await fs.stat('node_modules/is-positive/package.json')).ino
+  const packageManifestInodeAfter = (await fs.stat('node_modules/is-positive/package.json')).ino
 
-  t.equal(packageJsonInodeBefore, packageJsonInodeAfter)
+  t.equal(packageManifestInodeBefore, packageManifestInodeAfter)
 })
 
 test('installation via the CLI', async function (t) {

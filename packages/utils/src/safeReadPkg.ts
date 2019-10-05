@@ -1,8 +1,8 @@
 import readPkg from '@pnpm/read-package-json'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import path = require('path')
 
-export default async function safeReadPkg (pkgPath: string): Promise<PackageJson | null> {
+export default async function safeReadPkg (pkgPath: string): Promise<PackageManifest | null> {
   try {
     return await readPkg(pkgPath)
   } catch (err) {
@@ -11,6 +11,6 @@ export default async function safeReadPkg (pkgPath: string): Promise<PackageJson
   }
 }
 
-export function fromDir (pkgPath: string): Promise<PackageJson | null> {
+export function fromDir (pkgPath: string): Promise<PackageManifest | null> {
   return safeReadPkg(path.join(pkgPath, 'package.json'))
 }

@@ -1,8 +1,5 @@
 import { DependenciesField } from './misc'
-import {
-  PackageJson,
-  PackageManifest,
-} from './package'
+import { ImporterManifest, PackageManifest } from './package'
 
 export type LogBase = {
   level: 'debug' | 'error';
@@ -18,7 +15,7 @@ export type IncludedDependencies = {
 
 export interface ReadPackageHook {
   (pkg: PackageManifest): PackageManifest
-  (pkg: PackageJson): PackageJson
+  (pkg: ImporterManifest): ImporterManifest
 }
 
 export type StrictPnpmOptions = {

@@ -1,7 +1,7 @@
 import { Config } from '@pnpm/config'
 import {
   DeprecationLog,
-  PackageJsonLog,
+  PackageManifestLog,
   RootLog,
   SummaryLog,
 } from '@pnpm/core-loggers'
@@ -25,7 +25,7 @@ export default (
     deprecation: most.Stream<DeprecationLog>,
     summary: most.Stream<SummaryLog>,
     root: most.Stream<RootLog>,
-    packageJson: most.Stream<PackageJsonLog>,
+    packageManifest: most.Stream<PackageManifestLog>,
   },
   opts: {
     cwd: string,

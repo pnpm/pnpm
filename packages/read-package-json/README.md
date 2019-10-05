@@ -22,13 +22,13 @@ const pkgJson = await readPackageJson('package.json')
 
 ## API
 
-### default: `readPackageJson(path): Promise<PackageJson>`
+### default: `readPackageJson(path): Promise<PackageManifest>`
 
 ### Arguments
 
 - `path` - _String_ - path to the `package.json`
 
-### `fromDir(path): Promise<PackageJson>`
+### `fromDir(path): Promise<PackageManifest>`
 
 ### Arguments
 

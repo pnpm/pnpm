@@ -1,12 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import {
-  PackageJsonLog,
+  PackageManifestLog,
   RootLog,
   StatsLog,
 } from '@pnpm/core-loggers'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { PackageJson } from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
 import path = require('path')
@@ -54,9 +54,9 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
       },
     },
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     prefix: process.cwd(),
-  } as PackageJsonLog), 'initial package.json logged')
+  } as PackageManifestLog), 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:stats',
@@ -74,11 +74,11 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   } as RootLog), 'removing root dependency reported')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    name: 'pnpm:package-json',
+    name: 'pnpm:package-manifest',
     updated: {
       dependencies: {},
     },
-  } as PackageJsonLog), 'updated package.json logged')
+  } as PackageManifestLog), 'updated package.json logged')
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
@@ -215,7 +215,7 @@ test('relative link is uninstalled', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { prefix: string, manifest: PackageJson }))
+  const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { prefix: string, manifest: PackageManifest }))
   await mutateModules([
     {
       dependencyNames: [linkedPkgName],
@@ -252,7 +252,7 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
 })
 
 test('uninstalling a dependency from package that uses shared lockfile', async (t) => {
-  const pkgs: PackageJson[] = [
+  const pkgs: PackageManifest[] = [
     {
       name: 'project-1',
       version: '1.0.0',
