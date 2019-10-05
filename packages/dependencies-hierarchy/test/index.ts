@@ -1,6 +1,6 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import dh, { forPackages as dhForPackages, PackageNode } from 'dependencies-hierarchy'
+import dh, { PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import test = require('tape')
 
@@ -252,18 +252,31 @@ test('only dev depth 0', async t => {
 })
 
 test('hierarchy for no packages', async t => {
-  const tree = await dhForPackages([], [generalFixture], { depth: 100, lockfileDirectory: generalFixture })
+  const tree = await dh([generalFixture], {
+    depth: 100,
+    lockfileDirectory: generalFixture,
+    search: () => false,
+  })
 
-  t.deepEqual(tree, [])
+  t.deepEqual(tree, {
+    [generalFixture]: {
+      dependencies: [],
+      devDependencies: [],
+      optionalDependencies: [],
+    },
+  })
 
   t.end()
 })
 
 test('filter 1 package with depth 0', async t => {
-  const tree = await dhForPackages(
-    [{ name: 'rimraf', range: '*' }],
+  const tree = await dh(
     [generalFixture],
-    { depth: 0, lockfileDirectory: generalFixture },
+    {
+      depth: 0,
+      lockfileDirectory: generalFixture,
+      search: ({ name }) => name === 'rimraf',
+    },
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
@@ -283,214 +296,6 @@ test('filter 1 package with depth 0', async t => {
           version: '2.5.1',
         },
       ],
-      devDependencies: [],
-      optionalDependencies: [],
-    },
-  })
-
-  t.end()
-})
-
-test('filter by pattern', async t => {
-  const modulesDir = path.join(generalFixture, 'node_modules')
-
-  t.deepEqual(
-    await dhForPackages(['rim*'], [generalFixture], { depth: 0, lockfileDirectory: generalFixture }),
-    {
-      [generalFixture]: {
-        dependencies: [
-          {
-            alias: 'rimraf',
-            dev: false,
-            isMissing: false,
-            isPeer: false,
-            isSkipped: false,
-            name: 'rimraf',
-            path: path.join(modulesDir, '.pnpm/registry.npmjs.org/rimraf/2.5.1'),
-            resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-            searched: true,
-            version: '2.5.1',
-          },
-        ],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    },
-    'matched by pattern',
-  )
-
-  t.deepEqual(
-    await dhForPackages(['rim1*'], [generalFixture], { depth: 0, lockfileDirectory: generalFixture }),
-    {
-      [generalFixture]: {
-        dependencies: [],
-        devDependencies: [],
-        optionalDependencies: [],
-      }
-    },
-    'not matched by pattern',
-  )
-
-  t.deepEqual(
-    await dhForPackages([{ name: 'rim*', range: '2' }], [generalFixture], { depth: 0, lockfileDirectory: generalFixture }),
-    {
-      [generalFixture]: {
-        dependencies: [
-          {
-            alias: 'rimraf',
-            dev: false,
-            isMissing: false,
-            isPeer: false,
-            isSkipped: false,
-            name: 'rimraf',
-            path: path.join(modulesDir, '.pnpm/registry.npmjs.org/rimraf/2.5.1'),
-            resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-            searched: true,
-            version: '2.5.1',
-          },
-        ],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    },
-    'matched by pattern and range',
-  )
-
-  t.deepEqual(
-    await dhForPackages([{ name: 'rim*', range: '3' }], [generalFixture], { depth: 0, lockfileDirectory: generalFixture }),
-    {
-      [generalFixture]: {
-        dependencies: [],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    },
-    'not matched by pattern and range',
-  )
-
-  t.end()
-})
-
-test('filter 2 packages with depth 100', async t => {
-  const searched = [
-    'minimatch',
-    { name: 'once', range: '1.4' },
-  ]
-  const tree = await dhForPackages(searched, [generalFixture], { depth: 100, lockfileDirectory: generalFixture })
-  const modulesDir = path.join(generalFixture, 'node_modules')
-
-  t.deepEqual(tree, {
-    [generalFixture]: {
-      dependencies: [
-        {
-          alias: 'minimatch',
-          dev: false,
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'minimatch',
-          path: path.join(modulesDir, '.pnpm/registry.npmjs.org/minimatch/3.0.4'),
-          resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-          searched: true,
-          version: '3.0.4',
-        },
-        {
-          alias: 'rimraf',
-          dev: false,
-          isMissing: false,
-          isPeer: false,
-          isSkipped: false,
-          name: 'rimraf',
-          path: path.join(modulesDir, '.pnpm/registry.npmjs.org/rimraf/2.5.1'),
-          resolved: 'https://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz',
-          version: '2.5.1',
-
-          dependencies: [
-            {
-              alias: 'glob',
-              dev: false,
-              isMissing: false,
-              isPeer: false,
-              isSkipped: false,
-              name: 'glob',
-              path: path.join(modulesDir, '.pnpm/registry.npmjs.org/glob/6.0.4'),
-              resolved: 'https://registry.npmjs.org/glob/-/glob-6.0.4.tgz',
-              version: '6.0.4',
-
-              dependencies: [
-                {
-                  alias: 'inflight',
-                  dev: false,
-                  isMissing: false,
-                  isPeer: false,
-                  isSkipped: false,
-                  name: 'inflight',
-                  path: path.join(modulesDir, '.pnpm/registry.npmjs.org/inflight/1.0.6'),
-                  resolved: 'https://registry.npmjs.org/inflight/-/inflight-1.0.6.tgz',
-                  version: '1.0.6',
-
-                  dependencies: [
-                    {
-                      alias: 'once',
-                      dev: false,
-                      isMissing: false,
-                      isPeer: false,
-                      isSkipped: false,
-                      name: 'once',
-                      path: path.join(modulesDir, '.pnpm/registry.npmjs.org/once/1.4.0'),
-                      resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
-                      searched: true,
-                      version: '1.4.0',
-                    },
-                  ],
-                },
-                {
-                  alias: 'minimatch',
-                  dev: false,
-                  isMissing: false,
-                  isPeer: false,
-                  isSkipped: false,
-                  name: 'minimatch',
-                  path: path.join(modulesDir, '.pnpm/registry.npmjs.org/minimatch/3.0.4'),
-                  resolved: 'https://registry.npmjs.org/minimatch/-/minimatch-3.0.4.tgz',
-                  searched: true,
-                  version: '3.0.4',
-                },
-                {
-                  alias: 'once',
-                  dev: false,
-                  isMissing: false,
-                  isPeer: false,
-                  isSkipped: false,
-                  name: 'once',
-                  path: path.join(modulesDir, '.pnpm/registry.npmjs.org/once/1.4.0'),
-                  resolved: 'https://registry.npmjs.org/once/-/once-1.4.0.tgz',
-                  searched: true,
-                  version: '1.4.0',
-                },
-              ],
-            },
-          ],
-        },
-      ],
-      devDependencies: [],
-      optionalDependencies: [],
-    },
-  })
-
-  t.end()
-})
-
-test('filter 2 packages with ranges that are not satisfied', async t => {
-  const searched = [
-    { name: 'minimatch', range: '100' },
-    { name: 'once', range: '100' },
-  ]
-  const tree = await dhForPackages(searched, [generalFixture], { depth: 100, lockfileDirectory: generalFixture })
-
-  t.deepEqual(tree, {
-    [generalFixture]: {
-      dependencies: [],
       devDependencies: [],
       optionalDependencies: [],
     },
@@ -593,55 +398,6 @@ test('on a package that has only links', async t => {
   t.end()
 })
 
-test('filter on a package that has only links', async t => {
-  t.deepEqual(
-    await dhForPackages(['rimraf'], [withLinksOnlyFixture], { depth: 1000, lockfileDirectory: withLinksOnlyFixture }),
-    {
-      [withLinksOnlyFixture]: {
-        dependencies: [],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    },
-    'not found',
-  )
-  t.deepEqual(
-    await dhForPackages([{ name: 'general', range: '2' }], [withLinksOnlyFixture], { depth: 1000, lockfileDirectory: withLinksOnlyFixture }),
-    {
-      [withLinksOnlyFixture]: {
-        dependencies: [],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    },
-    'not found',
-  )
-  t.deepEqual(
-    await dhForPackages(['general'], [withLinksOnlyFixture], { depth: 1000, lockfileDirectory: withLinksOnlyFixture }),
-    {
-      [withLinksOnlyFixture]: {
-        dependencies: [
-          {
-            alias: 'general',
-            isMissing: false,
-            isPeer: false,
-            isSkipped: false,
-            name: 'general',
-            path: path.join(__dirname, '..', 'fixtureWithLinks', 'general'),
-            searched: true,
-            version: 'link:../general',
-          },
-        ],
-        devDependencies: [],
-        optionalDependencies: [],
-      },
-    },
-    'found',
-  )
-
-  t.end()
-})
-
 test('unsaved dependencies are listed', async t => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
   t.deepEqual(
@@ -692,10 +448,13 @@ test('unsaved dependencies are listed', async t => {
 test('unsaved dependencies are listed and filtered', async t => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
   t.deepEqual(
-    await dhForPackages(
-      [{ name: 'symlink-dir', range: '*' }],
+    await dh(
       [withUnsavedDepsFixture],
-      { depth: 0, lockfileDirectory: withUnsavedDepsFixture },
+      {
+        depth: 0,
+        lockfileDirectory: withUnsavedDepsFixture,
+        search: ({ name }) => name === 'symlink-dir',
+      },
     ),
     {
       [withUnsavedDepsFixture]: {

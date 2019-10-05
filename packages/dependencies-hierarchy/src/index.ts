@@ -19,18 +19,12 @@ import {
   realNodeModulesDir,
   safeReadPackageFromDir,
 } from '@pnpm/utils'
-import assert = require('assert')
 import { refToAbsolute, refToRelative } from 'dependency-path'
-import { isMatch } from 'micromatch'
 import normalizePath = require('normalize-path')
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
-import semver = require('semver')
 
-export type PackageSelector = string | {
-  name: string,
-  range: string,
-}
+export type SearchFunction = (pkg: { name: string, version: string }) => boolean
 
 export interface PackageNode {
   alias: string,
@@ -48,34 +42,6 @@ export interface PackageNode {
   version: string,
 }
 
-export function forPackages (
-  packages: PackageSelector[],
-  projectPaths: string[],
-  opts: {
-    depth: number,
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    registries?: Registries,
-    lockfileDirectory: string,
-  },
-) {
-  assert(packages, 'packages should be defined')
-  if (!packages.length) return {}
-
-  return dependenciesHierarchy(projectPaths, packages, opts)
-}
-
-export default function (
-  projectPaths: string[],
-  opts: {
-    depth: number,
-    include?: { [dependenciesField in DependenciesField]: boolean },
-    registries?: Registries,
-    lockfileDirectory: string,
-  },
-) {
-  return dependenciesHierarchy(projectPaths, [], opts)
-}
-
 export type DependenciesHierarchy = {
   dependencies?: PackageNode[],
   devDependencies?: PackageNode[],
@@ -83,13 +49,13 @@ export type DependenciesHierarchy = {
   unsavedDependencies?: PackageNode[],
 }
 
-async function dependenciesHierarchy (
+export default async function dependenciesHierarchy (
   projectPaths: string[],
-  searched: PackageSelector[],
   maybeOpts: {
     depth: number,
     include?: { [dependenciesField in DependenciesField]: boolean },
     registries?: Registries,
+    search?: SearchFunction,
     lockfileDirectory: string,
   },
 ): Promise<{ [prefix: string]: DependenciesHierarchy }> {
@@ -122,13 +88,14 @@ async function dependenciesHierarchy (
     },
     lockfileDirectory: maybeOpts.lockfileDirectory,
     registries,
+    search: maybeOpts.search,
     skipped: new Set(modules && modules.skipped || []),
   }
   ; (
     await Promise.all(projectPaths.map(async (projectPath) => {
       return [
         projectPath,
-        await dependenciesHierarchyForPackage(projectPath, currentLockfile, searched, opts),
+        await dependenciesHierarchyForPackage(projectPath, currentLockfile, opts),
       ] as [string, DependenciesHierarchy]
     }))
   ).forEach(([projectPath, dependenciesHierarchy]) => {
@@ -140,11 +107,11 @@ async function dependenciesHierarchy (
 async function dependenciesHierarchyForPackage (
   projectPath: string,
   currentLockfile: Lockfile,
-  searched: PackageSelector[],
   opts: {
     depth: number,
     include: { [dependenciesField in DependenciesField]: boolean },
     registries: Registries,
+    search?: SearchFunction,
     skipped: Set<string>,
     lockfileDirectory: string,
   },
@@ -167,7 +134,7 @@ async function dependenciesHierarchyForPackage (
     maxDepth: opts.depth,
     modulesDir,
     registries: opts.registries,
-    searched,
+    search: opts.search,
     skipped: opts.skipped,
     wantedPackages: wantedLockfile.packages || {},
   })
@@ -186,9 +153,9 @@ async function dependenciesHierarchyForPackage (
         wantedPackages: wantedLockfile.packages || {},
       })
       let newEntry: PackageNode | null = null
-      const matchedSearched = searched.length && matches(searched, packageInfo)
+      const matchedSearched = opts.search && opts.search(packageInfo)
       if (packageAbsolutePath === null) {
-        if (searched.length && !matchedSearched) return
+        if (opts.search && !matchedSearched) return
         newEntry = packageInfo
       } else {
         const relativeId = refToRelative(topDeps[alias], alias)
@@ -199,7 +166,7 @@ async function dependenciesHierarchyForPackage (
               ...packageInfo,
               dependencies,
             }
-          } else if (!searched.length || matches(searched, packageInfo)) {
+          } else if (!opts.search || matchedSearched) {
             newEntry = packageInfo
           }
         }
@@ -234,8 +201,8 @@ async function dependenciesHierarchyForPackage (
         path: pkgPath,
         version,
       }
-      const matchedSearched = searched.length && matches(searched, pkg)
-      if (searched.length && !matchedSearched) return
+      const matchedSearched = opts.search && opts.search(pkg)
+      if (opts.search && !matchedSearched) return
       const newEntry: PackageNode = pkg
       if (matchedSearched) {
         newEntry.searched = true
@@ -262,7 +229,7 @@ function getTree (
     maxDepth: number,
     modulesDir: string,
     includeOptionalDependencies: boolean,
-    searched: PackageSelector[],
+    search?: SearchFunction,
     skipped: Set<string>,
     registries: Registries,
     currentPackages: PackageSnapshots,
@@ -301,7 +268,7 @@ function getTree (
       wantedPackages: opts.wantedPackages,
     })
     let circular: boolean
-    const matchedSearched = opts.searched.length && matches(opts.searched, packageInfo)
+    const matchedSearched = opts.search && opts.search(packageInfo)
     let newEntry: PackageNode | null = null
     if (packageAbsolutePath === null) {
       circular = false
@@ -316,7 +283,7 @@ function getTree (
           ...packageInfo,
           dependencies,
         }
-      } else if (!opts.searched.length || matchedSearched) {
+      } else if (!opts.search || matchedSearched) {
         newEntry = packageInfo
       }
     }
@@ -398,18 +365,4 @@ function getPkgInfo (
     packageAbsolutePath,
     packageInfo,
   }
-}
-
-function matches (
-  searched: PackageSelector[],
-  pkg: {name: string, version: string},
-) {
-  return searched.some((searchedPkg) => {
-    if (typeof searchedPkg === 'string') {
-      return isMatch(pkg.name, searchedPkg)
-    }
-    return isMatch(pkg.name, searchedPkg.name) &&
-      !pkg.version.startsWith('link:') &&
-      semver.satisfies(pkg.version, searchedPkg.range)
-  })
 }
