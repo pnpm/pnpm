@@ -29,7 +29,7 @@
     "@pnpm/headless": "workspace:8.0.0-4",
     "@pnpm/hoist": "workspace:1.0.0-1",
     "@pnpm/lifecycle": "workspace:6.2.3",
-    "@pnpm/link-bins": "4.4.0",
+    "@pnpm/link-bins": "5.0.0",
     "@pnpm/lockfile-file": "workspace:2.0.0-0",
     "@pnpm/lockfile-utils": "workspace:1.0.10",
     "@pnpm/matcher": "workspace:0.0.0",
