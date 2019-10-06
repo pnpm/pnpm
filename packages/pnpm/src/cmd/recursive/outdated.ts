@@ -113,7 +113,8 @@ function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWo
       ...TABLE_OPTIONS.columns,
       // Dependents column:
       3: {
-        width: getCellWidth(data, 3, 30)
+        width: getCellWidth(data, 3, 30),
+        wrapWord: true,
       },
     },
   })
