@@ -190,13 +190,13 @@ async function validateNodeModules (
     if (modules.shamefullyHoist) {
       throw new PnpmError(
         'SHAMEFULLY_HOIST_WANTED',
-        'This "node_modules" folder was created using the --shamefully-flatten option.'
+        'This "node_modules" folder was created using the --shamefully-hoist option.'
         + ' You must add that option, or else run "pnpm install --force" to recreate the "node_modules" folder.',
       )
     }
     throw new PnpmError(
       'SHAMEFULLY_HOIST_NOT_WANTED',
-      'This "node_modules" folder was created without the --shamefully-flatten option.'
+      'This "node_modules" folder was created without the --shamefully-hoist option.'
       + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
     )
   }
