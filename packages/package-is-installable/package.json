@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:3.0.3",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/types": "workspace:4.0.0",
     "semver": "6.3.0"
   },
   "devDependencies": {

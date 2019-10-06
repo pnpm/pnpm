@@ -40,7 +40,7 @@
     "@pnpm/lockfile-utils": "workspace:1.0.10",
     "@pnpm/modules-yaml": "workspace:4.0.0-1",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.10.6",
     "dependency-path": "workspace:3.0.8",
     "normalize-path": "3.0.0",

@@ -50,7 +50,7 @@
   "dependencies": {
     "@pnpm/fetch": "workspace:1.0.1",
     "@pnpm/store-controller-types": "workspace:4.0.0-0",
-    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/types": "workspace:4.0.0",
     "p-limit": "2.2.1",
     "promise-share": "1.0.0",
     "uuid": "3.3.3"

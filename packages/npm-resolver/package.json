@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/resolver-base": "workspace:3.1.2",
-    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/types": "workspace:4.0.0",
     "credentials-by-uri": "1.0.0",
     "encode-registry": "2.0.1",
     "fetch-from-npm-registry": "workspace:2.0.7",

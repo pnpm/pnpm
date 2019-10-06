@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/write-importer-manifest",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Write an importer manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/write-importer-manifest#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:^3.0.0",
+    "@pnpm/types": "workspace:^4.0.0",
     "write-json-file": "4.0.0",
     "write-json5-file": "2.1.2",
     "write-yaml-file": "3.0.1"

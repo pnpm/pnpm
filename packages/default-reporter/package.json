@@ -37,7 +37,7 @@
     "@pnpm/config": "workspace:4.0.0-4",
     "@pnpm/core-loggers": "workspace:3.0.3",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/types": "workspace:4.0.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
     "chalk": "2.4.2",

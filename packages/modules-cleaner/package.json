@@ -37,7 +37,7 @@
     "@pnpm/package-bins": "3.1.1",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/store-controller-types": "workspace:4.0.0-0",
-    "@pnpm/types": "workspace:3.2.0",
+    "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.10.6",
     "@zkochan/rimraf": "1.0.0",
     "dependency-path": "workspace:3.0.8",
