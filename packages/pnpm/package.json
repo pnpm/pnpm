@@ -67,7 +67,7 @@
     "graceful-fs": "4.2.1",
     "graph-sequencer": "2.0.0",
     "is-ci": "2.0.0",
-    "is-subdir": "1.0.3",
+    "is-subdir": "1.1.1",
     "is-windows": "1.0.2",
     "load-json-file": "6.2.0",
     "loud-rejection": "2.2.0",

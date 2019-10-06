@@ -147,11 +147,6 @@ declare module 'dint' {
   export = anything;
 }
 
-declare module 'is-subdir' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'encode-registry' {
   const anything: any;
   export = anything;
