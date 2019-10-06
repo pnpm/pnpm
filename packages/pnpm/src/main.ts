@@ -136,12 +136,10 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'frozen-lockfile',
   'force',
   'global-pnpmfile',
-  'global',
   'hoist',
   'hoist-pattern',
   'ignore-pnpmfile',
   'ignore-scripts',
-  'ignore-workspace-root-check',
   'independent-leaves',
   'link-workspace-packages',
   'lock',
@@ -156,12 +154,6 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'recursive',
   'registry',
   'reporter',
-  'save-dev',
-  'save-exact',
-  'save-optional',
-  'save-peer',
-  'save-prod',
-  'save-workspace-protocol',
   'shamefully-hoist',
   'shared-workspace-lockfile',
   'side-effects-cache-readonly',
@@ -178,7 +170,51 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
 ])
 
 const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> = {
-  'add': INSTALL_CLI_OPTIONS,
+  'add': new Set([
+    'child-concurrency',
+    'dev',
+    'engine-strict',
+    'force',
+    'global-pnpmfile',
+    'global',
+    'hoist',
+    'hoist-pattern',
+    'ignore-pnpmfile',
+    'ignore-scripts',
+    'ignore-workspace-root-check',
+    'independent-leaves',
+    'link-workspace-packages',
+    'lock',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'package-import-method',
+    'pnpmfile',
+    'prefer-offline',
+    'production',
+    'recursive',
+    'registry',
+    'reporter',
+    'save-dev',
+    'save-exact',
+    'save-optional',
+    'save-peer',
+    'save-prod',
+    'save-workspace-protocol',
+    'shamefully-hoist',
+    'shared-workspace-lockfile',
+    'side-effects-cache-readonly',
+    'side-effects-cache',
+    'store',
+    'strict-peer-dependencies',
+    'offline',
+    'only',
+    'optional',
+    'use-running-store-server',
+    'use-store-server',
+    'verify-store-integrity',
+    'workspace-prefix',
+  ]),
   'help': new Set([]),
   'import': new Set([]),
   'install': INSTALL_CLI_OPTIONS,
@@ -418,18 +454,6 @@ export default async function run (inputArgv: string[]) {
     subCmd = null
   }
 
-  const allowedOptions = !subCmd
-    ? SUPPORTED_CLI_OPTIONS[cmd]
-    : new Set([...Array.from(SUPPORTED_CLI_OPTIONS[cmd]), ...Array.from(SUPPORTED_CLI_OPTIONS[subCmd])])
-  for (const cliOption of Object.keys(cliConf)) {
-    if (!GLOBAL_OPTIONS.has(cliOption as CLI_OPTIONS) && !allowedOptions.has(cliOption)) {
-      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
-      console.log(`For help, run: pnpm help ${cmd}`)
-      process.exit(1)
-      return
-    }
-  }
-
   let config!: Config & { forceSharedLockfile?: boolean, argv?: { remain: string[], cooked: string[], original: string[] } }
   try {
     config = await getConfig(cliConf, {
@@ -474,7 +498,25 @@ export default async function run (inputArgv: string[]) {
     }
   }
 
-  const selfUpdate = config.global && (cmd === 'install' || cmd === 'update') && argv.remain.includes(packageManager.name)
+  if (cmd === 'install' && cliArgs.length > 0) {
+    cmd = 'add'
+  } else if (subCmd === 'install' && cliArgs.length > 1) {
+    subCmd = 'add'
+  }
+
+  const allowedOptions = !subCmd
+    ? SUPPORTED_CLI_OPTIONS[cmd]
+    : new Set([...Array.from(SUPPORTED_CLI_OPTIONS[cmd]), ...Array.from(SUPPORTED_CLI_OPTIONS[subCmd])])
+  for (const cliOption of Object.keys(cliConf)) {
+    if (!GLOBAL_OPTIONS.has(cliOption as CLI_OPTIONS) && !allowedOptions.has(cliOption)) {
+      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
+      console.log(`For help, run: pnpm help ${cmd}`)
+      process.exit(1)
+      return
+    }
+  }
+
+  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && argv.remain.includes(packageManager.name)
 
   // Don't check for updates
   //   1. on CI environments
