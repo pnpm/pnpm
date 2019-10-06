@@ -56,7 +56,7 @@ function statsForCurrentPackage (
   return most.fromPromise(
     stats$
       .filter((log) => log.prefix === opts.currentPrefix)
-      .take((opts.cmd === 'install' || opts.cmd === 'add' || opts.cmd === 'update') ? 2 : 1)
+      .take((opts.cmd === 'install' || opts.cmd === 'install-test' || opts.cmd === 'add' || opts.cmd === 'update') ? 2 : 1)
       .reduce((acc, log) => {
         if (typeof log['added'] === 'number') {
           acc['added'] = log['added']
