@@ -1,5 +1,9 @@
 import { StoreController } from '@pnpm/store-controller-types'
-import { ImporterManifest, Registries } from '@pnpm/types'
+import {
+  DependenciesField,
+  ImporterManifest,
+  Registries,
+} from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { ReporterFunction } from '../types'
@@ -11,15 +15,13 @@ interface StrictLinkOptions {
   useLockfile: boolean,
   lockfileDirectory: string,
   pinnedVersion: 'major' | 'minor' | 'patch',
-  saveProd: boolean,
-  saveDev: boolean,
-  saveOptional: boolean,
   storeController: StoreController,
   manifest: ImporterManifest,
   prefix: string,
   registries: Registries,
   store: string,
   reporter: ReporterFunction,
+  targetDependenciesField?: DependenciesField,
 
   hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,

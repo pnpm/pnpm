@@ -13,6 +13,7 @@ import {
 import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfig from '../getConfig'
+import getSaveType from '../getSaveType'
 import readImporterManifest, {
   readImporterManifestOnly,
   tryReadImporterManifest,
@@ -42,6 +43,7 @@ export default async (
     localPackages,
     store: store.path,
     storeController: store.ctrl,
+    targetDependenciesField: getSaveType(opts),
   })
 
   // pnpm link
@@ -68,8 +70,8 @@ export default async (
       const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.includes(pkg.manifest.name))
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))
 
-      if (pkgsFoundInWorkspace.length && !linkOpts.saveDev && !linkOpts.saveProd && !linkOpts.saveOptional) {
-        linkOpts.saveProd = true
+      if (pkgsFoundInWorkspace.length && !linkOpts.targetDependenciesField) {
+        linkOpts.targetDependenciesField = 'dependencies'
       }
 
       globalPkgNames = pkgNames.filter((pkgName) => !pkgsFoundInWorkspace.some((pkgFromWorkspace) => pkgFromWorkspace.manifest.name === pkgName))

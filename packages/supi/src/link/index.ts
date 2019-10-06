@@ -19,9 +19,6 @@ import {
   DependencyManifest,
   ImporterManifest,
 } from '@pnpm/types'
-import {
-  getSaveType,
-} from '@pnpm/utils'
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -47,7 +44,6 @@ export default async function link (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContextForSingleImporter(opts.manifest, {
     ...opts,
@@ -58,7 +54,6 @@ export default async function link (
   const currentLockfile = R.clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
-  const saveType = getSaveType(opts)
 
   for (const linkFrom of linkFromPkgs) {
     let linkFromPath: string
@@ -75,7 +70,7 @@ export default async function link (
       pref: getPref(manifest.name, manifest.name, manifest.version, {
         pinnedVersion: opts.pinnedVersion,
       }),
-      saveType: (saveType || ctx.manifest && guessDependencyType(manifest.name, ctx.manifest)) as DependenciesField,
+      saveType: (opts.targetDependenciesField || ctx.manifest && guessDependencyType(manifest.name, ctx.manifest)) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
@@ -128,7 +123,7 @@ export default async function link (
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.name === manifest.name)
     await symlinkDirectRootDependency(path, destModules, alias, {
-      fromDependenciesField: stu && stu.saveType || saveType,
+      fromDependenciesField: stu && stu.saveType || opts.targetDependenciesField,
       linkedPackage: manifest,
       prefix: opts.prefix,
     })
@@ -140,7 +135,7 @@ export default async function link (
   })
 
   let newPkg!: ImporterManifest
-  if (opts.saveDev || opts.saveProd || opts.saveOptional) {
+  if (opts.targetDependenciesField) {
     newPkg = await save(opts.prefix, opts.manifest, specsToUpsert)
     for (const { name } of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[name] = getSpecFromPackageManifest(newPkg, name)

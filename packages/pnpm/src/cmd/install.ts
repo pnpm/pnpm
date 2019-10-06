@@ -1,5 +1,4 @@
 import PnpmError from '@pnpm/error'
-import { getSaveType } from '@pnpm/utils'
 import {
   install,
   mutateModules,
@@ -8,6 +7,7 @@ import {
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
+import getSaveType from '../getSaveType'
 import { readImporterManifestOnly, tryReadImporterManifest } from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'

@@ -1,7 +1,6 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
-import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import isSubdir = require('is-subdir')
@@ -11,7 +10,6 @@ import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
-import R = require('ramda')
 import readIniFile = require('read-ini-file')
 import {
   addDependenciesToPackage,
@@ -26,6 +24,7 @@ import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
 import getPinnedVersion from '../../getPinnedVersion'
+import getSaveType from '../../getSaveType'
 import { scopeLogger } from '../../loggers'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
 import requireHooks from '../../requireHooks'
@@ -197,7 +196,6 @@ export async function recursive (
       && pkgs.length === allPkgs.length,
     store: store.path,
     storeController,
-    targetDependenciesField: getSaveType(opts),
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
     forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
@@ -273,7 +271,7 @@ export async function recursive (
               manifest,
               mutation,
               prefix,
-              targetDependenciesField: getSaveType(installOpts),
+              targetDependenciesField: getSaveType(opts),
             } as MutatedImporter)
             return
           case 'installSome':
@@ -288,7 +286,7 @@ export async function recursive (
                 savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
               prefix,
-              targetDependenciesField: getSaveType(installOpts),
+              targetDependenciesField: getSaveType(opts),
             } as MutatedImporter)
             return
           case 'install':
