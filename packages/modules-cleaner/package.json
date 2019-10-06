@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "5.0.0-2",
+  "version": "5.0.0",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -30,17 +30,17 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:3.0.3",
-    "@pnpm/filter-lockfile": "workspace:1.0.14",
+    "@pnpm/core-loggers": "workspace:4.0.0",
+    "@pnpm/filter-lockfile": "workspace:2.0.0",
     "@pnpm/lockfile-types": "workspace:1.1.0",
-    "@pnpm/lockfile-utils": "workspace:1.0.10",
+    "@pnpm/lockfile-utils": "workspace:2.0.0",
     "@pnpm/package-bins": "4.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/store-controller-types": "workspace:4.0.0-0",
+    "@pnpm/store-controller-types": "workspace:4.0.0",
     "@pnpm/types": "workspace:4.0.0",
-    "@pnpm/utils": "workspace:0.10.6",
+    "@pnpm/utils": "workspace:0.11.0",
     "@zkochan/rimraf": "1.0.0",
-    "dependency-path": "workspace:3.0.8",
+    "dependency-path": "workspace:4.0.0",
     "fs-vacuum": "1.2.10",
     "ramda": "0.26.1"
   },

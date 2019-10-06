@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "2.0.6",
+  "version": "3.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -43,7 +43,7 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "3.0.3",
+    "@pnpm/core-loggers": "workspace:4.0.0",
     "@pnpm/types": "workspace:^4.0.0",
     "make-dir": "3.0.0",
     "mz": "2.7.0",

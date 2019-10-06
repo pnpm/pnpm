@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "5.0.0-1",
+  "version": "5.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -19,13 +19,13 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:3.0.3",
-    "@pnpm/fetcher-base": "workspace:3.0.4",
+    "@pnpm/core-loggers": "workspace:4.0.0",
+    "@pnpm/fetcher-base": "workspace:4.0.0",
     "@pnpm/fs-locker": "3.0.1",
-    "@pnpm/package-requester": "workspace:8.0.0-0",
+    "@pnpm/package-requester": "workspace:8.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/resolver-base": "workspace:3.1.2",
-    "@pnpm/store-controller-types": "workspace:4.0.0-0",
+    "@pnpm/resolver-base": "workspace:4.0.0",
+    "@pnpm/store-controller-types": "workspace:4.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
