@@ -39,6 +39,6 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/types": "3.2.0"
+    "@pnpm/types": "workspace:^4.0.0"
   }
 }

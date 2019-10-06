@@ -89,13 +89,13 @@ importers:
       rimraf: 3.0.0
   packages/core-loggers:
     dependencies:
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'link:../types'
     devDependencies:
       '@pnpm/logger': 3.1.0
       rimraf: 3.0.0
     specifiers:
       '@pnpm/logger': 3.1.0
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:^4.0.0'
       rimraf: 3.0.0
   packages/default-fetcher:
     dependencies:
@@ -1691,7 +1691,7 @@ importers:
   packages/symlink-dependency:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'link:../types'
       make-dir: 3.0.0
       mz: 2.7.0
       symlink-dir: 3.1.1
@@ -1702,7 +1702,7 @@ importers:
     specifiers:
       '@pnpm/core-loggers': 3.0.3
       '@pnpm/logger': 3.1.0
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'workspace:^4.0.0'
       '@types/mz': 0.0.32
       make-dir: 3.0.0
       mz: 2.7.0
@@ -1821,7 +1821,7 @@ importers:
       '@pnpm/constants': 'link:../../packages/constants'
       '@pnpm/lockfile-types': 'link:../../packages/lockfile-types'
       '@pnpm/modules-yaml': 'link:../../packages/modules-yaml'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'link:../../packages/types'
       '@types/mz': 0.0.32
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -1839,7 +1839,7 @@ importers:
       '@pnpm/constants': 'file:../../packages/constants'
       '@pnpm/lockfile-types': 1.1.0
       '@pnpm/modules-yaml': 'file:../../packages/modules-yaml'
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 'file:../../packages/types'
       '@types/mz': 0.0.32
       is-windows: 1.0.2
       isexe: 2.0.0
