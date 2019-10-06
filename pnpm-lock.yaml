@@ -21,7 +21,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -38,7 +38,7 @@ importers:
       '@pnpm/constants': 'workspace:2.0.0-1'
       '@pnpm/core-loggers': 'workspace:3.0.3'
       '@pnpm/lifecycle': 'workspace:6.2.3'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.0'
       '@pnpm/store-controller-types': 'workspace:4.0.0-0'
@@ -397,7 +397,7 @@ importers:
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/hoist': 'link:../hoist'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/matcher': 'link:../matcher'
@@ -454,7 +454,7 @@ importers:
       '@pnpm/headless': 'link:'
       '@pnpm/hoist': 'workspace:1.0.0-1'
       '@pnpm/lifecycle': 'workspace:6.2.3'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 3.1.0
@@ -497,7 +497,7 @@ importers:
   packages/hoist:
     dependencies:
       '@pnpm/constants': 'link:../constants'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/pkgid-to-filename': 2.0.0
@@ -511,7 +511,7 @@ importers:
       rimraf: 3.0.0
     specifiers:
       '@pnpm/constants': 'workspace:2.0.0-1'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 3.1.0
@@ -718,7 +718,7 @@ importers:
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
-      '@pnpm/package-bins': 3.1.1
+      '@pnpm/package-bins': 4.0.0
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -739,7 +739,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-cleaner': 'link:'
-      '@pnpm/package-bins': 3.1.1
+      '@pnpm/package-bins': 4.0.0
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/store-controller-types': 'workspace:4.0.0-0'
       '@pnpm/types': 'workspace:4.0.0'
@@ -1510,7 +1510,7 @@ importers:
       '@pnpm/headless': 'link:../headless'
       '@pnpm/hoist': 'link:../hoist'
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/matcher': 'link:../matcher'
@@ -1609,7 +1609,7 @@ importers:
       '@pnpm/headless': 'workspace:8.0.0-4'
       '@pnpm/hoist': 'workspace:1.0.0-1'
       '@pnpm/lifecycle': 'workspace:6.2.3'
-      '@pnpm/link-bins': 4.4.0
+      '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-file': 'workspace:2.0.0-0'
       '@pnpm/lockfile-utils': 'workspace:1.0.10'
       '@pnpm/logger': 3.1.0
@@ -2180,12 +2180,12 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-o9d47i3E6XtVDIjxPjl9mg+phHnjScYtjhx5KiAZEcgV4nEjXCtnrQ8MjH8yjN8JVeCQH3FiioR1i+iD9DzkRw==
-  /@pnpm/link-bins/4.4.0:
+  /@pnpm/link-bins/5.0.0:
     dependencies:
-      '@pnpm/package-bins': 3.1.1
-      '@pnpm/read-importer-manifest': 1.0.9
-      '@pnpm/read-package-json': 2.0.3
-      '@pnpm/types': 3.2.0
+      '@pnpm/package-bins': 4.0.0
+      '@pnpm/read-importer-manifest': 2.0.0
+      '@pnpm/read-package-json': 3.0.0
+      '@pnpm/types': 4.0.0
       '@zkochan/cmd-shim': 4.2.0
       arr-flatten: 1.1.0
       is-subdir: 1.0.3
@@ -2197,9 +2197,9 @@ packages:
       ramda: 0.26.1
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-XBqDacRNkmvLU03qVLzH2XYSKrb0i7K6LZ28ItqEV6nRVkWQvdC8rcC+a8vuM9IoZoAP+n2yVIso+gSfz58Ryg==
+      integrity: sha512-VwcSDOB2Q/7U4D/hb7uW5Fns1PTm/8I0BYsL82KwJo4seguZ4KP0QLcftZhZ95tuAvPPjQbhJtOsQheq9WVatw==
   /@pnpm/logger/3.1.0:
     dependencies:
       bole: 3.0.2
@@ -2208,16 +2208,16 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-dn+xLuispMqu6DthmWix3DFgky9dk7fs2vsj5paUSR7yhrgM8N71FfWUQA4Ls0Dbn23inO622slugoTlmdu1MQ==
-  /@pnpm/package-bins/3.1.1:
+  /@pnpm/package-bins/4.0.0:
     dependencies:
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 4.0.0
       graceful-fs: 4.2.2
       p-filter: 2.1.0
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-Iy3BEPXFBS1uaEhohjI2nLOXgGoACiyDEBPscY0myizk4fapOxyALCc5ysfLhFXa8lm6n7jMQdadVfahXDwgCw==
+      integrity: sha512-/u2nIuEOZm53lUg3rxnq+S4zA0oXmZ579xs0qFyn5F5lTAUPEQwX5PwAHo817teT+MjSKtxRPv9FUcB2tcmeDQ==
   /@pnpm/pkgid-to-filename/2.0.0:
     dependencies:
       normalize-path: 3.0.0
@@ -2226,34 +2226,34 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/read-importer-manifest/1.0.9:
+  /@pnpm/read-importer-manifest/2.0.0:
     dependencies:
       '@pnpm/error': 1.0.0
-      '@pnpm/types': 3.2.0
-      '@pnpm/write-importer-manifest': 3.0.0
+      '@pnpm/types': 4.0.0
+      '@pnpm/write-importer-manifest': 4.0.0
       detect-indent: 6.0.0
       fast-deep-equal: 2.0.1
       graceful-fs: 4.2.1
       is-windows: 1.0.2
-      json5: 2.1.0
+      json5: 2.1.1
       parse-json: 5.0.0
       read-yaml-file: 1.1.0
       sort-keys: 4.0.0
       strip-bom: 4.0.0
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-aFsuokRpD5l6bmae9dmGCSttZPLj3rDorzMnP5cOpaDPwuhjfFuFA4EIjvY+JiklvoeXGfyf/8LhM9hfAx3+vQ==
-  /@pnpm/read-package-json/2.0.3:
+      integrity: sha512-CGwxGahVhx0upg4OCgQ062SzegtWrXkw6xJoxdiVgMkGtSU+xgxv09v9wWKLWadnnq54rmUVxWTFBcG1YLz4rQ==
+  /@pnpm/read-package-json/3.0.0:
     dependencies:
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 4.0.0
       read-package-json: 2.1.0
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-rPUEWrQ+DZ+FJf6iF/7AA/q71bua1ak77qWiO8eZScD0Aib5rbmmsjIHUArgIOwbTx5q6l2gOsNtvFBnCvq9/g==
+      integrity: sha512-8PqdjPslNqoCcv15vivjG+Mzpwe2tDBnDDjhj7fIbY1CgsNWrM2F1k3f1T5V05CloJOnAsD4A2JTSuSNzkkxvA==
   /@pnpm/registry-mock/1.5.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
@@ -2285,23 +2285,23 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-tvSUW8r+FHVemCtRJRTgaIBnwH/tBa1Bo3P7TgpVKq76Sn9VIaaCwfC7193ufpdWTpL2fazoHgapBve2FOy+Jg==
-  /@pnpm/types/3.2.0:
+  /@pnpm/types/4.0.0:
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-YuP9SY+txLd6oEVdE082EmtDE3XXknIKtMTH5UoWus2YkqArS2VXA89n6aoAQ3n0hq7txBiT4SNVyyJHGnBGGA==
-  /@pnpm/write-importer-manifest/3.0.0:
+      integrity: sha512-xOr12AgYOXq6qT2cpcPKhzIvx0SJGauTLB0rMLtbxH+IrqzcTmSvrDuptrou9gkmOea7KtvkWW2/HElKLIEiJg==
+  /@pnpm/write-importer-manifest/4.0.0:
     dependencies:
-      '@pnpm/types': 3.2.0
+      '@pnpm/types': 4.0.0
       write-json-file: 4.0.0
       write-json5-file: 2.1.2
       write-yaml-file: 3.0.1
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-TS7nEbB9Dksf9EEKtj32sW0NzyH4E9lF+Y6RykhSywHDIGb4CVin8fGKrbZwiulRys/631VsJhj5Pq3vOoIC5g==
+      integrity: sha512-XEpxE2WVsWPtodRBBoaVNFOogYkA9EH/nUmDzcmEafogCKUyw4Uc7xYsxPP2QH7sJcY+BS10LwSu4khaC0o1iA==
   /@sindresorhus/is/0.14.0:
     dev: false
     engines:
@@ -5834,15 +5834,6 @@ packages:
   /json-stringify-safe/5.0.1:
     resolution:
       integrity: sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
-  /json5/2.1.0:
-    dependencies:
-      minimist: 1.2.0
-    dev: false
-    engines:
-      node: '>=6'
-    hasBin: true
-    resolution:
-      integrity: sha512-8Mh9h6xViijj36g7Dxi+Y4S6hNGV96vcJZr/SrlHh1LR/pEn/8j/+qIBbs44YKl69Lrfctp4QD+AdWLTMqEZAQ==
   /json5/2.1.1:
     dependencies:
       minimist: 1.2.0

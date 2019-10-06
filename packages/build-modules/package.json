@@ -32,7 +32,7 @@
     "@pnpm/constants": "workspace:2.0.0-1",
     "@pnpm/core-loggers": "workspace:3.0.3",
     "@pnpm/lifecycle": "workspace:6.2.3",
-    "@pnpm/link-bins": "4.4.0",
+    "@pnpm/link-bins": "5.0.0",
     "@pnpm/read-package-json": "workspace:3.0.0",
     "@pnpm/store-controller-types": "workspace:4.0.0-0",
     "@pnpm/types": "workspace:4.0.0",
