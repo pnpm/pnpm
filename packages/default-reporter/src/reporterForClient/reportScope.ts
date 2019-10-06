@@ -6,7 +6,7 @@ const COMMANDS_THAT_REPORT_SCOPE = new Set([
   'link',
   'prune',
   'rebuild',
-  'uninstall',
+  'remove',
   'unlink',
   'update',
   'run',

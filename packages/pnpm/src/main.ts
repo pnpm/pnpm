@@ -52,7 +52,7 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'stop'
   | 'store'
   | 'test'
-  | 'uninstall'
+  | 'remove'
   | 'unlink'
   | 'update'
   | 'why'
@@ -253,7 +253,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   'test': new Set([
     'recursive',
   ]),
-  'uninstall': new Set([
+  'remove': new Set([
     'force',
     'global-pnpmfile',
     'global',
@@ -308,7 +308,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'add',
   'install',
-  'uninstall',
+  'remove',
   'update',
   'link',
   'pack',

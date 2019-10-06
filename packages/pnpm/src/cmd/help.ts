@@ -303,9 +303,9 @@ function getHelpText (command: string) {
         usages: ['pnpm import'],
       })
 
-    case 'uninstall':
+    case 'remove':
       return renderHelp({
-        aliases: ['remove', 'rm', 'r', 'un'],
+        aliases: ['rm', 'r', 'uninstall', 'un'],
         description: `Removes packages from \`node_modules\` and from the project's \`packages.json\`.`,
         descriptionLists: [
           {
@@ -314,7 +314,7 @@ function getHelpText (command: string) {
             list: [
               {
                 description: oneLine`
-                  Uninstall from every package found in subdirectories
+                  Remove from every package found in subdirectories
                   or from every workspace package, when executed inside a workspace.
                   For options that may be used with \`-r\`, see "pnpm help recursive"
                 `,
@@ -325,7 +325,7 @@ function getHelpText (command: string) {
           },
         ],
         url: docsUrl('remove'),
-        usages: ['pnpm uninstall <pkg>[@<version>]...'],
+        usages: ['pnpm remove <pkg>[@<version>]...'],
       })
 
     case 'link':
@@ -840,7 +840,7 @@ function getHelpText (command: string) {
               },
               {
                 description: 'Uninstall a dependency from each package',
-                name: 'uninstall <pkg>...',
+                name: 'remove <pkg>...',
               },
               {
                 description: 'Removes links to local packages and reinstalls them from the registry.',
@@ -1049,7 +1049,7 @@ function getHelpText (command: string) {
                 name: 'recursive test',
               },
               {
-                name: 'recursive uninstall',
+                name: 'recursive remove',
               },
               {
                 name: 'recursive unlink',

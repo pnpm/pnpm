@@ -802,7 +802,7 @@ test('shared-workspace-lockfile config is ignored if no pnpm-workspace.yaml is f
   await project.has('is-positive')
 })
 
-test('shared-workspace-lockfile: uninstalling a package recursively', async (t: tape.Test) => {
+test('shared-workspace-lockfile: removing a package recursively', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project1',
@@ -832,7 +832,7 @@ test('shared-workspace-lockfile: uninstalling a package recursively', async (t: 
 
   await execPnpm('recursive', 'install')
 
-  await execPnpm('recursive', 'uninstall', 'is-positive')
+  await execPnpm('recursive', 'remove', 'is-positive')
 
   {
     const pkg = await readPackageJsonFromDir('project1')

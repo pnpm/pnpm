@@ -95,7 +95,7 @@ function statsForNotCurrentPackage (
   },
 ) {
   const cookedStats$ = (
-    opts.subCmd !== 'uninstall'
+    opts.subCmd !== 'remove'
       ? stats$
           .loop((stats, log) => {
             // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice

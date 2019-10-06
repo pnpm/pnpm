@@ -9,11 +9,11 @@ import prune from './prune'
 import publish, { pack } from './publish'
 import rebuild from './rebuild'
 import recursive from './recursive'
+import remove from './remove'
 import root from './root'
 import run, { restart, start, stop, test } from './run'
 import server from './server'
 import store from './store'
-import uninstall from './uninstall'
 import unlink from './unlink'
 import update from './update'
 
@@ -31,6 +31,7 @@ export default {
   publish,
   rebuild,
   recursive,
+  remove,
   restart,
   root,
   run,
@@ -39,7 +40,6 @@ export default {
   stop,
   store,
   test,
-  uninstall,
   unlink,
   update,
   why: list,

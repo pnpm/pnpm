@@ -7,19 +7,19 @@ import readImporterManifest from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 
-export default async function uninstallCmd (
+export default async function removeCmd (
   input: string[],
   opts: PnpmOptions,
 ) {
   const store = await createStoreController(opts)
-  const uninstallOpts = Object.assign(opts, {
+  const removeOpts = Object.assign(opts, {
     store: store.path,
     storeController: store.ctrl,
   })
   if (!opts.ignorePnpmfile) {
     opts.hooks = requireHooks(opts.lockfileDirectory || opts.prefix, opts)
   }
-  uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
+  removeOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix, opts))
     : undefined
   const currentManifest = await readImporterManifest(opts.prefix, opts)
@@ -33,7 +33,7 @@ export default async function uninstallCmd (
         prefix: opts.prefix,
       },
     ],
-    uninstallOpts,
+    removeOpts,
   )
   await currentManifest.writeImporterManifest(mutationResult.manifest)
 }

@@ -41,7 +41,7 @@ import run from './run'
 const supportedRecursiveCommands = new Set([
   'add',
   'install',
-  'uninstall',
+  'remove',
   'update',
   'unlink',
   'list',
@@ -236,7 +236,7 @@ export async function recursive (
 
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
-    if (opts.lockfileDirectory && ['add', 'install', 'uninstall', 'update'].includes(cmdFullName)) {
+    if (opts.lockfileDirectory && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
       if (opts.hoistPattern) {
         logger.info({ message: 'Only the root workspace package is going to have hoisted dependencies in node_modules', prefix: opts.lockfileDirectory })
       }
@@ -245,7 +245,7 @@ export async function recursive (
       importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
       if (importers.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDirectory, opts)
-      const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
+      const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
       const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
       const mutatedImporters = [] as MutatedImporter[]
       await Promise.all(importers.map(async ({ buildIndex, prefix }) => {
@@ -341,7 +341,7 @@ export async function recursive (
             case 'unlink':
               action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
               break
-            case 'uninstall':
+            case 'remove':
               action = (manifest: PackageManifest, opts: any) => mutateModules([ // tslint:disable-line:no-any
                 {
                   dependencyNames: currentInput,

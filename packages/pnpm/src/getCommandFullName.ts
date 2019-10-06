@@ -8,7 +8,7 @@ export default function getCommandFullName (cmd: string) {
     case 'rm':
     case 'un':
     case 'uninstall':
-      return 'uninstall'
+      return 'remove'
     case 'link':
     case 'ln':
       return 'link'

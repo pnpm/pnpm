@@ -670,7 +670,7 @@ test('prints at least one add sign when added !== 0', t => {
 
 test('prints just removed during uninstallation', t => {
   const output$ = toOutput$({
-    context: { argv: ['uninstall'] },
+    context: { argv: ['remove'] },
     streamParser: createStreamParser(),
   })
   const prefix = process.cwd()
@@ -860,7 +860,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
 test('recursive uninstall: prints removed packages number', t => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'uninstall'],
+      argv: ['recursive', 'remove'],
       config: { prefix: '/home/jane/repo' } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
