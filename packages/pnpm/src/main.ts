@@ -154,6 +154,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'recursive',
   'registry',
   'reporter',
+  'shamefully-flatten',
   'shamefully-hoist',
   'shared-workspace-lockfile',
   'side-effects-cache-readonly',
@@ -201,6 +202,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'save-peer',
     'save-prod',
     'save-workspace-protocol',
+    'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
@@ -329,6 +331,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'registry',
     'reporter',
     'save-exact',
+    'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
@@ -546,12 +549,6 @@ export default async function run (inputArgv: string[]) {
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
   await new Promise((resolve, reject) => {
     setTimeout(() => {
-      if (cliConf['shamefully-flatten'] === true) {
-        logger.info({
-          message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
-          prefix: config.prefix,
-        })
-      }
       if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
