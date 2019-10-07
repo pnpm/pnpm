@@ -289,13 +289,13 @@ test('do not get confused by filtered dependencies when searching for dependents
 
   process.chdir('project-2')
 
-  await execPnpm('recursive', '--filter=...project-2', 'run', 'test')
+  await execPnpm('--filter=...project-2', 'run', 'test')
 
   const outputs = await import(path.resolve('..', 'output.json')) as string[]
   // project-2 should be executed first, we cannot say anything about the order
   // of the last two packages.
   t.equal(outputs[0], 'project-2')
-
+  t.equal(outputs.length, 3)
 })
 
 test('installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {

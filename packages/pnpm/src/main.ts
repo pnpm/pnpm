@@ -449,7 +449,7 @@ export default async function run (inputArgv: string[]) {
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = argv.remain.slice(1).filter(Boolean)
 
-  if (cmd !== 'recursive' && (inputArgv.includes('--filter') || cliConf['recursive'] === true)) {
+  if (cmd !== 'recursive' && (cliConf['filter'] || cliConf['recursive'] === true)) {
     subCmd = cmd
     cmd = 'recursive'
     cliArgs.unshift(subCmd)
