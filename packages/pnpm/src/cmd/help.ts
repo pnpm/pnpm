@@ -281,6 +281,7 @@ function getHelpText (command: string) {
               OPTIONS.help,
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: [
@@ -323,6 +324,7 @@ function getHelpText (command: string) {
               }
             ],
           },
+          FILTERING,
         ],
         url: docsUrl('remove'),
         usages: ['pnpm remove <pkg>[@<version>]...'],
@@ -397,6 +399,7 @@ function getHelpText (command: string) {
               },
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: ['pnpm update [-g] [<pkg>...]'],
@@ -459,6 +462,7 @@ function getHelpText (command: string) {
               },
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: [
@@ -510,6 +514,7 @@ function getHelpText (command: string) {
               },
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: [
@@ -648,6 +653,7 @@ function getHelpText (command: string) {
               }
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: ['pnpm outdated [<pkg> ...]'],
@@ -675,6 +681,7 @@ function getHelpText (command: string) {
               },
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: ['pnpm rebuild [<pkg> ...]'],
@@ -698,6 +705,7 @@ function getHelpText (command: string) {
               },
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: ['pnpm run <command> [-- <args>...]'],
@@ -722,6 +730,7 @@ function getHelpText (command: string) {
               },
             ],
           },
+          FILTERING,
         ],
         url: docsUrl(command),
         usages: ['pnpm test [-- <args>...]'],
