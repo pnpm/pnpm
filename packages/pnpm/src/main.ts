@@ -383,7 +383,7 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
 export default async function run (inputArgv: string[]) {
   // tslint:disable
   const shortHands = {
-    's': ['--loglevel', 'silent'],
+    's': ['--reporter', 'silent'],
     'd': ['--loglevel', 'info'],
     'dd': ['--loglevel', 'verbose'],
     'ddd': ['--loglevel', 'silly'],
@@ -392,7 +392,7 @@ export default async function run (inputArgv: string[]) {
     'N': ['--no-registry'],
     'r': ['--recursive'],
     'no-reg': ['--no-registry'],
-    'silent': ['--loglevel', 'silent'],
+    'silent': ['--reporter', 'silent'],
     'verbose': ['--loglevel', 'verbose'],
     'quiet': ['--loglevel', 'warn'],
     'q': ['--loglevel', 'warn'],
