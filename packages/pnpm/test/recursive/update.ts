@@ -39,7 +39,6 @@ test('recursive update', async (t: tape.Test) => {
   projects['project-2'].hasNot('is-positive')
 })
 
-// TODO: also cover the case of scoped package update
 test('recursive update --latest foo should only update workspace packages that have foo', async (t: tape.Test) => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
@@ -60,6 +59,7 @@ test('recursive update --latest foo should only update workspace packages that h
       version: '1.0.0',
 
       dependencies: {
+        '@zkochan/async-regex-replace': '0.1.0',
         'bar': '^100.0.0',
       },
     },
@@ -72,11 +72,11 @@ test('recursive update --latest foo should only update workspace packages that h
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
-  await execPnpm('recursive', 'update', '--latest', 'foo', 'qar@100.1.0')
+  await execPnpm('recursive', 'update', '--latest', '@zkochan/async-regex-replace', 'foo', 'qar@100.1.0')
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
 
-  t.deepEqual(Object.keys(lockfile.packages || {}), ['/bar/100.0.0', '/foo/100.1.0', '/qar/100.1.0'])
+  t.deepEqual(Object.keys(lockfile.packages || {}), ['/@zkochan/async-regex-replace/0.2.0', '/bar/100.0.0', '/foo/100.1.0', '/qar/100.1.0'])
 })
 
 test('recursive update --latest foo should only update packages that have foo', async (t: tape.Test) => {

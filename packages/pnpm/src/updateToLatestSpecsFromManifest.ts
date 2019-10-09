@@ -25,7 +25,7 @@ export default function (manifest: ImporterManifest, include: IncludedDependenci
 export function createLatestSpecs (specs: string[], manifest: ImporterManifest) {
   const allDeps = getAllDependenciesFromPackage(manifest)
   return specs
-    .filter((selector) => selector.includes('@')
+    .filter((selector) => selector.includes('@', 1)
       ? allDeps[selector.substr(0, selector.indexOf('@', 1))]
       : allDeps[selector]
     )
