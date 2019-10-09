@@ -37,7 +37,7 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
-      '@pnpm/lifecycle': 'workspace:7.0.0'
+      '@pnpm/lifecycle': 'workspace:7.0.1'
       '@pnpm/link-bins': 5.0.0
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.0'
@@ -444,7 +444,7 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/build-modules': 'workspace:2.0.0'
+      '@pnpm/build-modules': 'workspace:2.0.1'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/default-fetcher': 'file:../default-fetcher'
@@ -453,7 +453,7 @@ importers:
       '@pnpm/filter-lockfile': 'workspace:2.0.0'
       '@pnpm/headless': 'link:'
       '@pnpm/hoist': 'workspace:1.0.0'
-      '@pnpm/lifecycle': 'workspace:7.0.0'
+      '@pnpm/lifecycle': 'workspace:7.0.1'
       '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-file': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
@@ -1187,7 +1187,7 @@ importers:
       '@pnpm/default-resolver': 'workspace:4.0.0'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/lifecycle': 'workspace:7.0.0'
+      '@pnpm/lifecycle': 'workspace:7.0.1'
       '@pnpm/list': 'workspace:3.0.0'
       '@pnpm/lockfile-file': 'workspace:2.0.0'
       '@pnpm/lockfile-types': 1.1.0
@@ -1274,7 +1274,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-ansi: 5.2.0
-      supi: 'workspace:0.35.1'
+      supi: 'workspace:0.35.2'
       symlink-dir: 3.1.1
       table: 5.4.6
       tape: 4.11.0
@@ -1597,7 +1597,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/build-modules': 'workspace:2.0.0'
+      '@pnpm/build-modules': 'workspace:2.0.1'
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1606,9 +1606,9 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'workspace:2.0.0'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 'workspace:8.0.0'
+      '@pnpm/headless': 'workspace:8.0.1'
       '@pnpm/hoist': 'workspace:1.0.0'
-      '@pnpm/lifecycle': 'workspace:7.0.0'
+      '@pnpm/lifecycle': 'workspace:7.0.1'
       '@pnpm/link-bins': 5.0.0
       '@pnpm/lockfile-file': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
