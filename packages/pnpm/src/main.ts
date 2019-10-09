@@ -253,7 +253,9 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'table',
   ]),
   'pack': new Set([]),
-  'prune': new Set([]),
+  'prune': new Set([
+    'production',
+  ]),
   'publish': new Set([
     'access',
     'otp',
