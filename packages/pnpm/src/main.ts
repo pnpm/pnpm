@@ -136,6 +136,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'frozen-lockfile',
   'force',
   'global-pnpmfile',
+  'global',
   'hoist',
   'hoist-pattern',
   'ignore-pnpmfile',
@@ -222,6 +223,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   'install': INSTALL_CLI_OPTIONS,
   'install-test': INSTALL_CLI_OPTIONS,
   'link': new Set([
+    'global',
     'only',
     'package-import-method',
     'production',
@@ -307,6 +309,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'unlink': new Set([
     'recursive',
+    'global',
   ]),
   'update': new Set([
     'depth',
@@ -314,6 +317,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'engine-strict',
     'force',
     'global-pnpmfile',
+    'global',
     'ignore-pnpmfile',
     'ignore-scripts',
     'latest',
@@ -340,6 +344,14 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'use-running-store-server',
   ]),
   'why': new Set([
+    'dev',
+    'global',
+    'json',
+    'long',
+    'only',
+    'optional',
+    'parseable',
+    'production',
     'recursive',
   ]),
 }
