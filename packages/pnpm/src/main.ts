@@ -60,6 +60,7 @@ type CANONICAL_COMMAND_NAMES = 'help'
 type CLI_OPTIONS = 'access'
   | 'background'
   | 'bail'
+  | 'color'
   | 'child-concurrency'
   | 'depth'
   | 'dev'
@@ -127,7 +128,7 @@ type CLI_OPTIONS = 'access'
   | 'workspace-concurrency'
   | 'workspace-prefix'
 
-const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['filter', 'help', 'prefix'])
+const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'prefix'])
 
 const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'child-concurrency',
