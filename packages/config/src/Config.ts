@@ -3,6 +3,7 @@ import { IncludedDependencies, Registries } from '@pnpm/types'
 export interface Config {
   allowNew: boolean,
   bail: boolean,
+  color: 'always' | Boolean,
   cliArgs: Record<string, any>, // tslint:disable-line
   useBetaCli: boolean,
   extraBinPaths: string[],

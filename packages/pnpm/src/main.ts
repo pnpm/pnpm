@@ -493,6 +493,13 @@ export default async function run (inputArgv: string[]) {
     return
   }
 
+  // chalk reads the FORCE_COLOR env variable
+  if (config.color === 'always') {
+    process.env['FORCE_COLOR'] = '1'
+  } else if (config.color === false) {
+    process.env['FORCE_COLOR'] = '0'
+  }
+
   if (
     (cmd === 'add' || cmd === 'install') &&
     typeof config.workspacePrefix === 'string'
