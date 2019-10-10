@@ -160,7 +160,7 @@ export default async function (
 const limitExistsCheck = pLimit(10)
 
 async function getRemovedProject (storeIndex: StoreIndex) {
-  const allProjects = R.uniq(R.unnest<string>(R.values(storeIndex)))
+  const allProjects = R.uniq(R.unnest(Object.values(storeIndex)))
 
   return pFilter(allProjects,
     (projectPath: string) => limitExistsCheck(async () => {

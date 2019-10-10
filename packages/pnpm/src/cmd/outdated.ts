@@ -54,7 +54,7 @@ for (let [key, value] of Object.entries(TABLE_OPTIONS.border)) {
 export const DEFAULT_COMPARATORS = [
   sortBySemverChange,
   (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff) => o1.packageName.localeCompare(o2.packageName),
-] as const
+]
 
 export interface OutdatedOptions {
   alwaysAuth: boolean

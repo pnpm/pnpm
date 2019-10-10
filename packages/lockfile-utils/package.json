@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/lockfile-utils": "link:",
     "@types/js-yaml": "3",
-    "@types/ramda": "0.26.21",
+    "@types/ramda": "0.26.29",
     "rimraf": "3.0.0",
     "tape": "4.11.0",
     "tempy": "0.3.0",

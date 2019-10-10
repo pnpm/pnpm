@@ -30,7 +30,7 @@
     "@pnpm/store-path": "2.1.0",
     "@types/fs-extra": "8.0.0",
     "@types/mz": "0.0.32",
-    "@types/ramda": "0.26.21",
+    "@types/ramda": "0.26.29",
     "@types/rimraf": "2.0.2",
     "@types/sinon": "^7.0.10",
     "@zkochan/rimraf": "1.0.0",
