@@ -340,12 +340,6 @@ function getHelpText (command: string) {
     case 'link':
       return renderHelp({
         aliases: ['ln'],
-        url: docsUrl(command),
-        usages: [
-          'pnpm link (in package dir)',
-          'pnpm link <pkg>',
-          'pnpm link <folder>',
-        ],
         descriptionLists: [
           {
             title: 'Options',
@@ -354,6 +348,12 @@ function getHelpText (command: string) {
               OPTIONS.color,
             ],
           },
+        ],
+        url: docsUrl(command),
+        usages: [
+          'pnpm link (in package dir)',
+          'pnpm link <pkg>',
+          'pnpm link <folder>',
         ],
       })
 
