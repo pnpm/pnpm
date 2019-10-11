@@ -115,7 +115,10 @@ function getHelpText (command: string) {
                 name: '--shamefully-hoist',
               },
               {
-                description: 'Hoist all dependencies matching the pattern to the root of node_modules. Supplying it a * will hoist all dependencies (this is similar to what npm does)',
+                description: oneLine`
+                  Hoist all dependencies matching the pattern to \`node_modules/.pnpm/node_modules\`.
+                  The default pattern is * and matches everything. Hoisted packages can be required
+                  by any dependencies, so it is an emulation of a flat node_modules`,
                 name: '--hoist-pattern <pattern>',
               },
               {
