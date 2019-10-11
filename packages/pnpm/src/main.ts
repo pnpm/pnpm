@@ -496,7 +496,7 @@ export default async function run (inputArgv: string[]) {
   // chalk reads the FORCE_COLOR env variable
   if (config.color === 'always') {
     process.env['FORCE_COLOR'] = '1'
-  } else if (config.color === false) {
+  } else if (config.color === 'never') {
     process.env['FORCE_COLOR'] = '0'
   }
 
