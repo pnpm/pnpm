@@ -56,7 +56,14 @@ export default async function hoistByLockfile (
 
   const bin = path.join(opts.modulesDir, '.bin')
   const warn = (message: string) => logger.warn({ message, prefix: path.join(opts.modulesDir, '../..') })
-  await linkBins(opts.modulesDir, bin, { allowExoticManifests: true, warn })
+  try {
+    await linkBins(opts.modulesDir, bin, { allowExoticManifests: true, warn })
+  } catch (err) {
+    // Some packages generate their commands with lifecycle hooks.
+    // At this stage, such commands are not generated yet.
+    // For now, we don't hoist such generated commands.
+    // Related issue: https://github.com/pnpm/pnpm/issues/2071
+  }
 
   return aliasesByDependencyPath
 }
