@@ -1030,7 +1030,7 @@ function getHelpText (command: string) {
             ],
           },
           {
-            title: 'Manage you monorepo',
+            title: 'Manage your monorepo',
 
             list: [
               {
