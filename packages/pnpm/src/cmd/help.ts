@@ -12,6 +12,10 @@ export default function (input: string[]) {
 const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
 
 const OPTIONS = {
+  color: {
+    description: 'Controls colors in the output. By default, output is always colored when it goes directly to a terminal',
+    name: '--[no-]color',
+  },
   help: {
     description: 'Output usage information',
     name: '--help',
@@ -185,6 +189,7 @@ function getHelpText (command: string) {
                 name: '--resolution-strategy fewer-dependencies',
               },
               OPTIONS.help,
+              OPTIONS.color,
             ],
           },
           {
@@ -282,6 +287,7 @@ function getHelpText (command: string) {
               OPTIONS.offline,
               OPTIONS.preferOffline,
               OPTIONS.help,
+              OPTIONS.color,
             ],
           },
           FILTERING,
@@ -324,7 +330,8 @@ function getHelpText (command: string) {
                 `,
                 name: '--recursive',
                 shortAlias: '-r',
-              }
+              },
+              OPTIONS.color,
             ],
           },
           FILTERING,
@@ -336,6 +343,15 @@ function getHelpText (command: string) {
     case 'link':
       return renderHelp({
         aliases: ['ln'],
+        descriptionLists: [
+          {
+            title: 'Options',
+
+            list: [
+              OPTIONS.color,
+            ],
+          },
+        ],
         url: docsUrl(command),
         usages: [
           'pnpm link (in package dir)',
@@ -361,6 +377,7 @@ function getHelpText (command: string) {
                 name: '--recursive',
                 shortAlias: '-r',
               },
+              OPTIONS.color,
             ],
           },
         ],
@@ -400,6 +417,7 @@ function getHelpText (command: string) {
                 name: '--latest',
                 shortAlias: '-L',
               },
+              OPTIONS.color,
             ],
           },
           FILTERING,
@@ -463,6 +481,7 @@ function getHelpText (command: string) {
                 description: 'Display only the dependency tree for packages in \`devDependencies\`',
                 name: '--dev',
               },
+              OPTIONS.color,
             ],
           },
           FILTERING,
@@ -515,6 +534,7 @@ function getHelpText (command: string) {
                 description: 'Display only the dependency tree for packages in \`devDependencies\`',
                 name: '--dev',
               },
+              OPTIONS.color,
             ],
           },
           FILTERING,
@@ -537,6 +557,7 @@ function getHelpText (command: string) {
                 description: 'Remove the packages specified in \`devDependencies\`',
                 name: '--prod, --production',
               },
+              OPTIONS.color,
             ],
           },
         ],
@@ -653,7 +674,8 @@ function getHelpText (command: string) {
               {
                 description: 'Prints the outdated packages in a list. Good for small consoles',
                 name: '--no-table',
-              }
+              },
+              OPTIONS.color,
             ],
           },
           FILTERING,
@@ -682,6 +704,7 @@ function getHelpText (command: string) {
                 description: 'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
                 name: '--pending',
               },
+              OPTIONS.color,
             ],
           },
           FILTERING,
@@ -824,6 +847,7 @@ function getHelpText (command: string) {
                 description: 'Disallows creating new side effect cache during install',
                 name: '--ignore-upload-requests',
               },
+              OPTIONS.color,
             ],
           },
         ],
