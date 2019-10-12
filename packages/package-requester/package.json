@@ -46,7 +46,7 @@
     "make-dir": "3.0.0",
     "mz": "2.7.0",
     "p-limit": "2.2.1",
-    "p-queue": "6.1.1",
+    "p-queue": "6.2.0",
     "path-exists": "4.0.0",
     "promise-share": "1.0.0",
     "ramda": "0.26.1",
