@@ -1892,12 +1892,12 @@ importers:
       '@commitlint/cli': 8.2.0
       '@commitlint/config-conventional': 8.2.0
       '@commitlint/prompt-cli': 8.2.0
-      husky: 3.0.8
+      husky: 3.0.9
     specifiers:
       '@commitlint/cli': 8.2.0
       '@commitlint/config-conventional': 8.2.0
       '@commitlint/prompt-cli': 8.2.0
-      husky: 3.0.8
+      husky: 3.0.9
   typings:
     specifiers: {}
   utils/tsconfig:
@@ -5302,13 +5302,13 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
-  /husky/3.0.8:
+  /husky/3.0.9:
     dependencies:
       chalk: 2.4.2
+      ci-info: 2.0.0
       cosmiconfig: 5.2.1
       execa: 1.0.0
       get-stdin: 7.0.0
-      is-ci: 2.0.0
       opencollective-postinstall: 2.0.2
       pkg-dir: 4.2.0
       please-upgrade-node: 3.2.0
@@ -5321,7 +5321,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-HFOsgcyrX3qe/rBuqyTt+P4Gxn5P0seJmr215LAZ/vnwK3jWB3r0ck7swbzGRUbufCf9w/lgHPVbF/YXQALgfQ==
+      integrity: sha512-Yolhupm7le2/MqC1VYLk/cNmYxsSsqKkTyBhzQHhPK1jFnC89mmmNVuGtLNabjDI6Aj8UNIr0KpRNuBkiC4+sg==
   /iconv-lite/0.4.24:
     dependencies:
       safer-buffer: 2.1.2
@@ -5495,6 +5495,7 @@ packages:
   /is-ci/2.0.0:
     dependencies:
       ci-info: 2.0.0
+    dev: false
     hasBin: true
     resolution:
       integrity: sha512-YfJT7rkpQB0updsdHLGWrvhBJfcfzNNawYDNIyQXJz0IViGf75O8EBPKSdvw2rF+LGCsX4FZ8tcr3b19LcZq4w==
