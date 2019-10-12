@@ -325,6 +325,13 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
   await Promise.all(opts.importers.map(linkBinsOfImporter))
+  if (opts.hoistPattern && !opts.shamefullyHoist) {
+    await linkBinsOfImporter({
+      bin: path.join(hoistedModulesDir, '.bin'),
+      modulesDir: hoistedModulesDir,
+      prefix: opts.lockfileDirectory,
+    })
+  }
 
   if (currentLockfile && !R.equals(opts.importers.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)

@@ -859,6 +859,14 @@ async function installInContext (
     }
   }
 
+  if (!opts.lockfileOnly && ctx.hoistPattern && !opts.shamefullyHoist) {
+    await linkBinsOfImporter({
+      bin: path.join(ctx.hoistedModulesDir, '.bin'),
+      modulesDir: ctx.hoistedModulesDir,
+      prefix: opts.prefix,
+    })
+  }
+
   // waiting till the skipped packages are downloaded to the store
   await Promise.all(
     R.props<string, ResolvedPackage>(Array.from(ctx.skipped), resolvedPackagesByPackageId)
@@ -966,7 +974,7 @@ async function toResolveImporter (
 
 const limitLinking = pLimit(16)
 
-function linkBinsOfImporter ({ modulesDir, bin, prefix }: ImporterToLink) {
+function linkBinsOfImporter ({ modulesDir, bin, prefix }: Pick<ImporterToLink, 'modulesDir' | 'bin' | 'prefix'>) {
   const warn = (message: string) => logger.warn({ message, prefix })
   return linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
 }
