@@ -38,6 +38,7 @@
   "devDependencies": {
     "@pnpm/filter-lockfile": "link:",
     "@pnpm/logger": "3.1.0",
+    "@types/ramda": "0.26.29",
     "rimraf": "3.0.0",
     "tape": "4.11.0",
     "tempy": "0.3.0",
@@ -51,7 +52,6 @@
     "@pnpm/lockfile-utils": "workspace:2.0.0",
     "@pnpm/package-is-installable": "workspace:3.0.0",
     "@pnpm/types": "workspace:4.0.0",
-    "@types/ramda": "0.26.29",
     "dependency-path": "workspace:4.0.0",
     "ramda": "0.26.1"
   }

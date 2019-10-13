@@ -300,12 +300,12 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/types': 'link:../types'
-      '@types/ramda': 0.26.29
       dependency-path: 'link:../dependency-path'
       ramda: 0.26.1
     devDependencies:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 3.1.0
+      '@types/ramda': 0.26.29
       rimraf: 3.0.0
       tape: 4.11.0
       tempy: 0.3.0
@@ -2455,7 +2455,8 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.29:
     dependencies:
-      ts-toolbelt: 4.8.8
+      ts-toolbelt: 4.8.13
+    dev: true
     resolution:
       integrity: sha512-j0rrDm19024J0X5wHl8ZK0mQas9TVvL7KQPocDEZU0nq/OUtmh0mBBBrfSIKGJZF1VLhtW6MGw+YRojUSY+5kg==
   /@types/retry/0.12.0:
@@ -8905,9 +8906,10 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-5LpRN+mTiCs7lI5EtbXmF/HfMeCjzt7DH9CZwtkr6SywStrNQC723wG+aOWFiLNn7zT3kD/RnFqi3ZUfr4l5Qw==
-  /ts-toolbelt/4.8.8:
+  /ts-toolbelt/4.8.13:
+    dev: true
     resolution:
-      integrity: sha512-5QLdemct/ssqyVgmEIK1KKY7Y39fX05kanAdnp+O529Jk7dFct+4kgasvMGXagBIvLCUviksDCZs2Lo2/fp6BQ==
+      integrity: sha512-FbZ5Jie0f5pSnGJ3AYE5OcH9IZ/qooOQV/ZW2nOFDHTtllV1vKzWDkbCK/S8+H3AmHL7jwNPo+LhtKIvfQce6w==
   /tslib/1.10.0:
     dev: true
     resolution:
