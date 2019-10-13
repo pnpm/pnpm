@@ -109,7 +109,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/default-fetcher': 'link:'
-      '@pnpm/git-fetcher': 'workspace:2.0.5'
+      '@pnpm/git-fetcher': 'workspace:2.0.6'
       '@pnpm/logger': 3.1.0
       '@pnpm/resolver-base': 'workspace:4.0.0'
       '@pnpm/tarball-fetcher': 'workspace:4.0.0'
@@ -191,7 +191,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/default-resolver': 'link:'
-      '@pnpm/git-resolver': 'workspace:3.0.0'
+      '@pnpm/git-resolver': 'workspace:3.0.1'
       '@pnpm/local-resolver': 'workspace:3.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'workspace:4.0.0'
@@ -444,24 +444,24 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/build-modules': 'workspace:2.0.1'
+      '@pnpm/build-modules': 'workspace:2.0.2'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/error': 'workspace:1.0.0'
-      '@pnpm/filter-lockfile': 'workspace:2.0.0'
+      '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/headless': 'link:'
-      '@pnpm/hoist': 'workspace:1.0.0'
+      '@pnpm/hoist': 'workspace:1.0.1'
       '@pnpm/lifecycle': 'workspace:7.0.1'
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-cleaner': 'workspace:5.0.0'
+      '@pnpm/modules-cleaner': 'workspace:5.0.1'
       '@pnpm/modules-yaml': 'workspace:4.0.0'
-      '@pnpm/package-requester': 'workspace:8.0.0'
+      '@pnpm/package-requester': 'workspace:8.0.1'
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
@@ -734,7 +734,7 @@ importers:
       rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.0'
-      '@pnpm/filter-lockfile': 'workspace:2.0.0'
+      '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
@@ -1018,7 +1018,7 @@ importers:
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'file:../npm-resolver'
-      '@pnpm/package-requester': 'workspace:8.0.0'
+      '@pnpm/package-requester': 'workspace:8.0.1'
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 'workspace:4.0.0'
@@ -1182,9 +1182,9 @@ importers:
       '@pnpm/config': 'workspace:4.0.1'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
-      '@pnpm/default-fetcher': 'workspace:4.0.0'
+      '@pnpm/default-fetcher': 'workspace:4.0.1'
       '@pnpm/default-reporter': 'workspace:4.0.1'
-      '@pnpm/default-resolver': 'workspace:4.0.0'
+      '@pnpm/default-resolver': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'workspace:7.0.1'
@@ -1196,7 +1196,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/outdated': 'workspace:5.0.0'
       '@pnpm/package-is-installable': 'workspace:3.0.0'
-      '@pnpm/package-store': 'workspace:5.0.0'
+      '@pnpm/package-store': 'workspace:5.0.1'
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
       '@pnpm/read-package-json': 'link:../read-package-json'
@@ -1274,7 +1274,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-ansi: 5.2.0
-      supi: 'workspace:0.35.2'
+      supi: 'workspace:0.35.3'
       symlink-dir: 3.1.1
       table: 5.4.6
       tape: 4.11.0
@@ -1597,26 +1597,26 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/build-modules': 'workspace:2.0.1'
+      '@pnpm/build-modules': 'workspace:2.0.2'
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/default-fetcher': 'file:../default-fetcher'
       '@pnpm/default-resolver': 'file:../default-resolver'
       '@pnpm/error': 'workspace:1.0.0'
-      '@pnpm/filter-lockfile': 'workspace:2.0.0'
+      '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 'workspace:8.0.1'
-      '@pnpm/hoist': 'workspace:1.0.0'
+      '@pnpm/headless': 'workspace:8.0.2'
+      '@pnpm/hoist': 'workspace:1.0.1'
       '@pnpm/lifecycle': 'workspace:7.0.1'
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-cleaner': 'workspace:5.0.0'
+      '@pnpm/modules-cleaner': 'workspace:5.0.1'
       '@pnpm/modules-yaml': 'workspace:4.0.0'
-      '@pnpm/package-requester': 'workspace:8.0.0'
+      '@pnpm/package-requester': 'workspace:8.0.1'
       '@pnpm/package-store': 'file:../package-store'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
