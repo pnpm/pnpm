@@ -303,7 +303,7 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
   await project.isExecutable('.bin/cmd2')
 })
 
-test('lifecycle scripts run before linking bins of hoisted subdep', async (t: tape.Test) => {
+test('hoisting does not fail on commands that will be created by lifecycle scripts on a later stage', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep'], await testDefaults({ hoistPattern: '*' }))
