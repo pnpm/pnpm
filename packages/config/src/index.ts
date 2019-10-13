@@ -24,7 +24,6 @@ export const types = Object.assign({
   'background': Boolean,
   'bail': Boolean,
   'child-concurrency': Number,
-  'color': ['always', 'auto', 'never'],
   'dev': [null, true],
   'fetching-concurrency': Number,
   'filter': [String, Array],
@@ -142,7 +141,6 @@ export default async (
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
-    'color': 'auto',
     'depth': (command[0] === 'list' || command[1] === 'list') ? 0 : Infinity,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
@@ -336,19 +334,7 @@ export default async (
     throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_AND_HOIST',
       '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
   }
-  if (typeof pnpmConfig['color'] === 'boolean') {
-    switch (pnpmConfig['color']) {
-      case true:
-        pnpmConfig.color = 'always'
-        break
-      case false:
-        pnpmConfig.color = 'never'
-        break
-      default:
-        pnpmConfig.color = 'auto'
-        break
-    }
-  }
+
   return { config: pnpmConfig, warnings }
 }
 

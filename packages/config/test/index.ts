@@ -683,33 +683,3 @@ test('rawLocalConfig', async (t) => {
   })
   t.end()
 })
-
-test('normalize the value of the color flag', async (t) => {
-  {
-    const { config } = await getConfig({
-      cliArgs: {
-        color: true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-
-    t.equal(config.color, 'always')
-  }
-  {
-    const { config } = await getConfig({
-      cliArgs: {
-        color: false,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-
-    t.equal(config.color, 'never')
-  }
-  t.end()
-})
