@@ -303,6 +303,34 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
   await project.isExecutable('.bin/cmd2')
 })
 
+test('hoisting does not fail on commands that will be created by lifecycle scripts on a later stage', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep'], await testDefaults({ hoistPattern: '*' }))
+
+  // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
+  // await project.isExecutable('.pnpm/node_modules/.bin/cmd2')
+
+  // Testing the same with headless installation
+  await rimraf('node_modules')
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        prefix: process.cwd(),
+      }
+    ],
+    await testDefaults({ frozenLockfile: true, hoistPattern: '*' }),
+  )
+
+  // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
+  // await project.isExecutable('.pnpm/node_modules/.bin/cmd2')
+  t.pass('installation did not fail')
+})
+
 test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
