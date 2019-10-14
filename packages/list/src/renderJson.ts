@@ -21,7 +21,7 @@ export default async function (
       version: pkg.version,
     }
     for (const dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
-      if (pkg[dependenciesField] && pkg[dependenciesField].length) {
+      if (pkg[dependenciesField]?.length) {
         jsonObj[dependenciesField] = await toJsonResult(pkg[dependenciesField], { long: opts.long })
       }
     }

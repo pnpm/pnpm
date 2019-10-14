@@ -93,13 +93,13 @@ function toLockfileDependency (
     opts.registry,
   )
   const newResolvedDeps = updateResolvedDeps(
-    opts.prevSnapshot && opts.prevSnapshot.dependencies || {},
+    opts.prevSnapshot?.dependencies ?? {},
     opts.updatedDeps,
     opts.registries,
     opts.depGraph,
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
-    opts.prevSnapshot && opts.prevSnapshot.optionalDependencies || {},
+    opts.prevSnapshot?.optionalDependencies ?? {},
     opts.updatedOptionalDeps,
     opts.registries,
     opts.depGraph,

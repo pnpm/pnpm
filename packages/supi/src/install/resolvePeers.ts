@@ -316,9 +316,7 @@ function resolvePeers (
         }
       } catch (err) {
         if (
-          ctx.node.resolvedPackage.additionalInfo.peerDependenciesMeta &&
-          ctx.node.resolvedPackage.additionalInfo.peerDependenciesMeta[peerName] &&
-          ctx.node.resolvedPackage.additionalInfo.peerDependenciesMeta[peerName].optional === true
+          ctx.node.resolvedPackage.additionalInfo.peerDependenciesMeta?.[peerName]?.optional === true
         ) {
           continue
         }

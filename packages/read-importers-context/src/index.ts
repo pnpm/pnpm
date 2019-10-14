@@ -35,9 +35,9 @@ export default async function <T>(
   const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
   const modules = await readModulesYaml(rootModulesDir)
   return {
-    currentHoistPattern: modules && modules.hoistPattern || undefined,
+    currentHoistPattern: modules?.hoistPattern || undefined,
     hoist: !modules ? undefined : Boolean(modules.hoistPattern),
-    hoistedAliases: modules && modules.hoistedAliases || {},
+    hoistedAliases: modules?.hoistedAliases || {},
     importers: await Promise.all(
       importers.map(async (importer) => {
         const modulesDir = await realNodeModulesDir(importer.prefix)
@@ -50,13 +50,13 @@ export default async function <T>(
           modulesDir,
         }
       })),
-    include: modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
-    independentLeaves: modules && modules.independentLeaves || undefined,
+    include: modules?.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
+    independentLeaves: modules?.independentLeaves || undefined,
     modules,
-    pendingBuilds: modules && modules.pendingBuilds || [],
-    registries: modules && modules.registries && normalizeRegistries(modules.registries),
+    pendingBuilds: modules?.pendingBuilds || [],
+    registries: modules?.registries && normalizeRegistries(modules.registries),
     rootModulesDir,
-    shamefullyHoist: modules && modules.shamefullyHoist || undefined,
-    skipped: new Set(modules && modules.skipped || []),
+    shamefullyHoist: modules?.shamefullyHoist || undefined,
+    skipped: new Set(modules?.skipped || []),
   }
 }

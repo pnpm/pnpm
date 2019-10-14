@@ -51,7 +51,7 @@ async function _read (
     return null
   }
   // tslint:disable:no-string-literal
-  if (lockfile && typeof lockfile['specifiers'] !== 'undefined') {
+  if (typeof lockfile?.['specifiers'] !== 'undefined') {
     lockfile.importers = {
       '.': {
         specifiers: lockfile['specifiers'],

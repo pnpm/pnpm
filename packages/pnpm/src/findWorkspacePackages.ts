@@ -16,7 +16,7 @@ export default async (
       '**/bower_components/**',
     ],
     includeRoot: true,
-    patterns: packagesManifest && packagesManifest.packages || undefined,
+    patterns: packagesManifest?.packages || undefined,
   })
   pkgs.sort((pkg1: {path: string}, pkg2: {path: string}) => pkg1.path.localeCompare(pkg2.path))
   for (const pkg of pkgs) {

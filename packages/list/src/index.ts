@@ -36,8 +36,8 @@ export async function forPackages (
   const pkgs = await Promise.all(
     R.toPairs(await dh(projectPaths, {
       depth: opts.depth,
-      include: maybeOpts && maybeOpts.include,
-      lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
+      include: maybeOpts?.include,
+      lockfileDirectory: maybeOpts?.lockfileDirectory,
       registries: opts.registries,
       search,
     }))

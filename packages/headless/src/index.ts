@@ -279,7 +279,7 @@ export default async (opts: HeadlessOptions) => {
 
   if (opts.ignoreScripts) {
     for (const { id, manifest } of opts.importers) {
-      if (opts.ignoreScripts && manifest && manifest.scripts &&
+      if (opts.ignoreScripts && manifest?.scripts &&
         (manifest.scripts.preinstall || manifest.scripts.prepublish ||
           manifest.scripts.install ||
           manifest.scripts.postinstall ||
@@ -405,8 +405,8 @@ async function linkRootPackages (
     Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
-          const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
-          const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
+          const isDev = lockfileImporter.devDependencies?.[alias]
+          const isOptional = lockfileImporter.optionalDependencies?.[alias]
           const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDirectory, packageDir)
@@ -434,12 +434,12 @@ async function linkRootPackages (
         if ((await symlinkDependency(peripheralLocation, opts.importerModulesDir, alias)).reused) {
           return
         }
-        const isDev = lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]
-        const isOptional = lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]
+        const isDev = lockfileImporter.devDependencies?.[alias]
+        const isOptional = lockfileImporter.optionalDependencies?.[alias]
 
         const relDepPath = dp.refToRelative(allDeps[alias], alias)
         if (relDepPath === null) return
-        const pkgSnapshot = lockfile.packages && lockfile.packages[relDepPath]
+        const pkgSnapshot = lockfile.packages?.[relDepPath]
         if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
         const pkgId = pkgSnapshot.id || depPath || undefined
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
@@ -478,7 +478,7 @@ async function lockfileToDepGraph (
   currentLockfile: Lockfile | null,
   opts: LockfileToDepGraphOptions,
 ) {
-  const currentPackages = currentLockfile && currentLockfile.packages || {}
+  const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
   let directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
   if (lockfile.packages) {

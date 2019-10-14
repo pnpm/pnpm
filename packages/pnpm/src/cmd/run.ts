@@ -21,7 +21,7 @@ export default async function run (
     printProjectCommands(manifest)
     return
   }
-  if (scriptName !== 'start' && (!manifest.scripts || !manifest.scripts[scriptName])) {
+  if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
   const lifecycleOpts = {
@@ -34,11 +34,11 @@ export default async function run (
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
-  if (manifest.scripts && manifest.scripts[`pre${scriptName}`]) {
+  if (manifest.scripts?.[`pre${scriptName}`]) {
     await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
   }
   await runLifecycleHooks(scriptName, manifest, lifecycleOpts)
-  if (manifest.scripts && manifest.scripts[`post${scriptName}`]) {
+  if (manifest.scripts?.[`post${scriptName}`]) {
     await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
   }
 }

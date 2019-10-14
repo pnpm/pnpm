@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import versionSelectorType = require('version-selector-type')
 
 export default function getPref (
@@ -10,7 +11,7 @@ export default function getPref (
   },
 ) {
   const prefix = alias !== name ? `npm:${name}@` : ''
-  if (opts.rawSpec && opts.rawSpec.startsWith(`${alias}@${prefix}`)) {
+  if (opts.rawSpec?.startsWith(`${alias}@${prefix}`)) {
     const selector = versionSelectorType(opts.rawSpec.substr(`${alias}@${prefix}`.length))
     if (selector && (selector.type === 'version' || selector.type === 'range')) {
       return opts.rawSpec.substr(alias.length + 1)
@@ -23,5 +24,7 @@ export default function getPref (
       return `${prefix}~${version}`
     case 'patch':
       return `${prefix}${version}`
+    default:
+      throw new PnpmError('BAD_PINNED_VERSION', `Cannot pin '${opts.pinnedVersion}'`)
   }
 }

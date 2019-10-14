@@ -123,13 +123,13 @@ export default async function link (
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.name === manifest.name)
     await symlinkDirectRootDependency(path, destModules, alias, {
-      fromDependenciesField: stu && stu.saveType || opts.targetDependenciesField,
+      fromDependenciesField: stu?.saveType ?? opts.targetDependenciesField,
       linkedPackage: manifest,
       prefix: opts.prefix,
     })
   }
 
-  const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
+  const linkToBin = maybeOpts?.linkToBin || path.join(destModules, '.bin')
   await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {
     warn: (message: string) => logger.warn({ message, prefix: opts.prefix }),
   })
@@ -170,7 +170,7 @@ function addLinkToLockfile (
   const id = `link:${opts.packagePath}`
   let addedTo: DependenciesField | undefined
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!addedTo && opts.manifest && opts.manifest[depType] && opts.manifest[depType]![opts.linkedPkgName]) {
+    if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName]) {
       addedTo = depType
       lockfileImporter[depType] = lockfileImporter[depType] || {}
       lockfileImporter[depType]![opts.linkedPkgName] = id
@@ -195,7 +195,7 @@ export async function linkFromGlobal (
   linkTo: string,
   maybeOpts: LinkOptions & {globalPrefix: string},
 ) {
-  const reporter = maybeOpts && maybeOpts.reporter
+  const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
@@ -218,7 +218,7 @@ export async function linkToGlobal (
     globalPrefix: string,
   },
 ) {
-  const reporter = maybeOpts && maybeOpts.reporter
+  const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }

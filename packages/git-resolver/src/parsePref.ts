@@ -48,7 +48,7 @@ export default async function parsePref (pref: string): Promise<HostedPackageSpe
       }
     }
 
-    const committish = (urlparse.hash && urlparse.hash.length > 1) ? decodeURIComponent(urlparse.hash.slice(1)) : null
+    const committish = (urlparse.hash?.length > 1) ? decodeURIComponent(urlparse.hash.slice(1)) : null
     return {
       fetchSpec: urlToFetchSpec(urlparse),
       normalizedPref: pref,

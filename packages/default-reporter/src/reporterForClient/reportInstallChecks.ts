@@ -23,7 +23,7 @@ function formatInstallCheck (
     zoomOutCurrent: boolean,
   },
 ) {
-  const zoomOutCurrent = opts && opts.zoomOutCurrent || false
+  const zoomOutCurrent = opts?.zoomOutCurrent ?? false
   switch (logObj.code) {
     case 'EBADPLATFORM':
       return autozoom(

@@ -13,11 +13,11 @@ export default function requireHooks (
   },
 ) {
   const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
-  let globalHooks = globalPnpmfile && globalPnpmfile.hooks
+  let globalHooks = globalPnpmfile?.hooks
 
   const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)
     || requirePnpmfile(path.join(prefix, 'pnpmfile.js'), prefix)
-  let hooks = pnpmFile && pnpmFile.hooks
+  let hooks = pnpmFile?.hooks
 
   if (!globalHooks && !hooks) return {}
   globalHooks = globalHooks || {}

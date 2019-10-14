@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { FetchResult } from '@pnpm/fetcher-base'
+import { FetchResult, FilesIndex } from '@pnpm/fetcher-base'
 import logger from '@pnpm/logger'
 import createFetcher from 'fetch-from-npm-registry'
 import fs = require('graceful-fs')
@@ -187,7 +187,7 @@ export default (
             fs.rename(tempTarballLocation, saveto, () => {
               // ignore errors
             })
-            resolve({ tempLocation, filesIndex })
+            resolve({ tempLocation, filesIndex: filesIndex as FilesIndex })
           })
           .catch((err) => {
             rimraf(tempTarballLocation, () => {

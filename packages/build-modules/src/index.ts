@@ -205,7 +205,7 @@ export async function linkBinsOfDependencies (
         const dep = depGraph[childrenToLink[alias]]
         return {
           location: dep.peripheralLocation,
-          manifest: dep.fetchingBundledManifest && (await dep.fetchingBundledManifest()) || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
+          manifest: await dep.fetchingBundledManifest?.() || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
         }
       }),
   )

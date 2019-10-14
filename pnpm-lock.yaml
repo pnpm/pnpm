@@ -5,9 +5,9 @@ importers:
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': 12.7.12
       '@types/tape': 4.2.33
-      ts-node: 8.4.1_typescript@3.6.4
-      tslint: 5.20.0_typescript@3.6.4
-      typescript: 3.6.4
+      ts-node: 8.4.1_typescript@3.7.0-beta
+      tslint: 5.20.0_typescript@3.7.0-beta
+      typescript: 3.7.0-beta
     specifiers:
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
@@ -15,7 +15,7 @@ importers:
       '@types/tape': ^4.2.31
       ts-node: 8.4.1
       tslint: 5.20.0
-      typescript: 3.6.4
+      typescript: 3.7.0-beta
   packages/build-modules:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -8890,13 +8890,13 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.4.1_typescript@3.6.4:
+  /ts-node/8.4.1_typescript@3.7.0-beta:
     dependencies:
       arg: 4.1.1
       diff: 4.0.1
       make-error: 1.3.5
       source-map-support: 0.5.13
-      typescript: 3.6.4
+      typescript: 3.7.0-beta
       yn: 3.1.1
     dev: true
     engines:
@@ -8932,7 +8932,7 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/5.20.0_typescript@3.6.4:
+  /tslint/5.20.0_typescript@3.7.0-beta:
     dependencies:
       '@babel/code-frame': 7.5.5
       builtin-modules: 1.1.1
@@ -8946,8 +8946,8 @@ packages:
       resolve: 1.12.0
       semver: 5.7.1
       tslib: 1.10.0
-      tsutils: 2.29.0_typescript@3.6.4
-      typescript: 3.6.4
+      tsutils: 2.29.0_typescript@3.7.0-beta
+      typescript: 3.7.0-beta
     dev: true
     engines:
       node: '>=4.8.0'
@@ -8956,10 +8956,10 @@ packages:
       typescript: '>=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
     resolution:
       integrity: sha512-2vqIvkMHbnx8acMogAERQ/IuINOq6DFqgF8/VDvhEkBqQh/x6SP0Y+OHnKth9/ZcHQSroOZwUQSN18v8KKF0/g==
-  /tsutils/2.29.0_typescript@3.6.4:
+  /tsutils/2.29.0_typescript@3.7.0-beta:
     dependencies:
       tslib: 1.10.0
-      typescript: 3.6.4
+      typescript: 3.7.0-beta
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
@@ -9030,13 +9030,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.6.4:
+  /typescript/3.7.0-beta:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-unoCll1+l+YK4i4F8f22TaNVPRHcD9PA3yCuZ8g5e0qGqlVlJ/8FSateOLLSagn+Yg5+ZwuPkL8LFUc0Jcvksg==
+      integrity: sha512-4jyCX+IQamrPJxgkABPq9xf+hUN+GWHVxoj+oey1TadCPa4snQl1RKwUba+1dyzYCamwlCxKvZQ3TjyWLhMGBA==
   /typpy/2.0.0:
     dev: false
     resolution:

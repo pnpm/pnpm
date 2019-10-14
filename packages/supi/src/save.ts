@@ -57,5 +57,5 @@ function findSpec (depName: string, manifest: ImporterManifest): string | undefi
 
 export function guessDependencyType (depName: string, manifest: ImporterManifest): DependenciesField | undefined {
   return DEPENDENCIES_FIELDS
-    .find((depField) => Boolean(manifest[depField] && manifest[depField]![depName]))
+    .find((depField) => Boolean(manifest[depField]?.[depName]))
 }

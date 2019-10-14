@@ -40,10 +40,10 @@ async function renderTreeForPackage (
 ) {
   if (
     !opts.alwaysPrintRootPackage &&
-    (!pkg.dependencies || !pkg.dependencies.length) &&
-    (!pkg.devDependencies || !pkg.devDependencies.length) &&
-    (!pkg.optionalDependencies || !pkg.optionalDependencies.length) &&
-    (!pkg.unsavedDependencies || !pkg.unsavedDependencies.length)
+    !pkg.dependencies?.length &&
+    !pkg.devDependencies?.length &&
+    !pkg.optionalDependencies?.length &&
+    !pkg.unsavedDependencies?.length
   ) return ''
 
   let label = ''
@@ -58,7 +58,7 @@ async function renderTreeForPackage (
   let output = (opts.depth > -1 ? LEGEND : '') + label + '\n'
   const useColumns = opts.depth === 0 && opts.long === false && !opts.search
   for (let dependenciesField of [...DEPENDENCIES_FIELDS.sort(), 'unsavedDependencies']) {
-    if (pkg[dependenciesField] && pkg[dependenciesField]!.length) {
+    if (pkg[dependenciesField]?.length) {
       const depsLabel = chalk.cyanBright(
         dependenciesField !== 'unsavedDependencies'
           ? `${dependenciesField}:`

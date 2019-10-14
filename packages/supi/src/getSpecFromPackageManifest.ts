@@ -4,8 +4,8 @@ export default (
   manifest: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
   depName: string,
 ) => {
-  return manifest.dependencies && manifest.dependencies[depName]
-    || manifest.devDependencies && manifest.devDependencies[depName]
-    || manifest.optionalDependencies && manifest.optionalDependencies[depName]
+  return manifest.dependencies?.[depName]
+    || manifest.devDependencies?.[depName]
+    || manifest.optionalDependencies?.[depName]
     || ''
 }

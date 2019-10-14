@@ -20,7 +20,7 @@ export async function runPostinstallHooks (
   },
 ): Promise<boolean> {
   const pkg = await readPackageJsonFromDir(opts.pkgRoot)
-  const scripts = pkg && pkg.scripts || {}
+  const scripts = pkg?.scripts ?? {}
 
   if (!scripts.install) {
     await checkBindingGyp(opts.pkgRoot, scripts)

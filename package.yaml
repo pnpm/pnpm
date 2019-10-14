@@ -13,6 +13,6 @@ devDependencies:
   '@types/tape': ^4.2.31
   ts-node: 8.4.1
   tslint: 5.20.0
-  typescript: 3.6.4
+  typescript: 3.7.0-beta
 engines:
   pnpm: '>=4'

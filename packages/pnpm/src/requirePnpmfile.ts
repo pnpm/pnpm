@@ -31,10 +31,10 @@ export default (pnpmFilePath: string, prefix: string) => {
       message: `Using hooks from: ${pnpmFilePath}`,
       prefix,
     })
-    if (pnpmfile && pnpmfile.hooks && pnpmfile.hooks.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
+    if (pnpmfile?.hooks?.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
       throw new TypeError('hooks.readPackage should be a function')
     }
-    if (pnpmfile && pnpmfile.hooks && pnpmfile.hooks.readPackage) {
+    if (pnpmfile?.hooks?.readPackage) {
       const readPackage = pnpmfile.hooks.readPackage
       pnpmfile.hooks.readPackage = function (pkg: PackageManifest, ...args: any[]) { // tslint:disable-line
         pkg.dependencies = pkg.dependencies || {}

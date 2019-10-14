@@ -33,9 +33,9 @@ export default function (
     reporterForServer(log$)
     return
   }
-  const outputMaxWidth = opts.reportingOptions && opts.reportingOptions.outputMaxWidth || process.stdout.columns && process.stdout.columns - 2 || 80
+  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth || process.stdout.columns && process.stdout.columns - 2 || 80
   const output$ = toOutput$({ ...opts, reportingOptions: { ...opts.reportingOptions, outputMaxWidth } })
-  if (opts.reportingOptions && opts.reportingOptions.appendOnly) {
+  if (opts.reportingOptions?.appendOnly) {
     output$
       .subscribe({
         complete () {}, // tslint:disable-line:no-empty
@@ -168,17 +168,17 @@ export function toOutput$ (
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(
     log$,
     {
-      appendOnly: opts.reportingOptions && opts.reportingOptions.appendOnly,
+      appendOnly: opts.reportingOptions?.appendOnly,
       cmd: opts.context.argv[0],
       isRecursive: opts.context.argv[0] === 'recursive',
       pnpmConfig: opts.context.config,
       subCmd: opts.context.argv[1],
-      throttleProgress: opts.reportingOptions && opts.reportingOptions.throttleProgress,
-      width: opts.reportingOptions && opts.reportingOptions.outputMaxWidth,
+      throttleProgress: opts.reportingOptions?.throttleProgress,
+      width: opts.reportingOptions?.outputMaxWidth,
     },
   )
 
-  if (opts.reportingOptions && opts.reportingOptions.appendOnly) {
+  if (opts.reportingOptions?.appendOnly) {
     return most.join(
       most.mergeArray(outputs)
       .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg)),

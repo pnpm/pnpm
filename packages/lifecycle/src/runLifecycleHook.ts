@@ -36,7 +36,7 @@ export default async function runLifecycleHook (
   if (stage === 'start' && !m.scripts.start) {
     m.scripts.start = 'node server.js'
   }
-  if (opts.args && opts.args.length && m.scripts && m.scripts[stage]) {
+  if (opts.args?.length && m.scripts?.[stage]) {
     m.scripts[stage] = `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`
   }
   return lifecycle(m, stage, opts.pkgRoot, {

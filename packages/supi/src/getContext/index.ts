@@ -106,7 +106,7 @@ export default async function getContext<T> (
       prefix: importer.prefix,
     })
   })
-  if (opts.hooks && opts.hooks.readPackage) {
+  if (opts.hooks?.readPackage) {
     importers = importers.map((importer) => ({
       ...importer,
       manifest: opts.hooks!.readPackage!(importer.manifest),
@@ -400,7 +400,7 @@ export async function getContextForSingleImporter (
     include: opts.include || include,
     independentLeaves: Boolean(typeof independentLeaves === 'undefined' ? opts.independentLeaves : independentLeaves),
     lockfileDirectory: opts.lockfileDirectory,
-    manifest: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(manifest) : manifest,
+    manifest: opts.hooks?.readPackage?.(manifest) ?? manifest,
     modulesDir,
     modulesFile: modules,
     pendingBuilds,
