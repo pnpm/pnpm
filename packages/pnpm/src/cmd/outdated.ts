@@ -5,12 +5,14 @@ import {
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
 import matcher from '@pnpm/matcher'
+import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import outdated, { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { ImporterManifest, Registries } from '@pnpm/types'
 import chalk from 'chalk'
 import { stripIndent } from 'common-tags'
+import path = require('path')
 import R = require('ramda')
 import stripAnsi from 'strip-ansi'
 import { table } from 'table'
@@ -270,7 +272,9 @@ export async function outdatedDependenciesOfWorkspacePackages (
   opts: OutdatedOptions,
 ) {
   const lockfileDirectory = opts.lockfileDirectory || opts.prefix
-  const currentLockfile = await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const modules = await readModulesManifest(path.join(lockfileDirectory, 'node_modules'))
+  const virtualStoreDir = modules?.virtualStoreDir || path.join(lockfileDirectory, 'node_modules/.pnpm')
+  const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false }) || currentLockfile
   if (!wantedLockfile) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')

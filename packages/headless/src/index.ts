@@ -88,6 +88,7 @@ export interface HeadlessOptions {
   hoistedAliases: {[depPath: string]: string[]}
   hoistPattern?: string[],
   lockfileDirectory: string,
+  virtualStoreDir?: string,
   shamefullyHoist: boolean,
   storeController: StoreController,
   sideEffectsCacheRead: boolean,
@@ -123,9 +124,9 @@ export default async (opts: HeadlessOptions) => {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
-  const currentLockfile = opts.currentLockfile || await readCurrentLockfile(lockfileDirectory, { ignoreIncompatible: false })
   const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
-  const virtualStoreDir = path.join(rootModulesDir, '.pnpm')
+  const virtualStoreDir = opts.virtualStoreDir ?? path.join(rootModulesDir, '.pnpm')
+  const currentLockfile = opts.currentLockfile || await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const hoistedModulesDir = opts.shamefullyHoist
     ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
 
@@ -329,7 +330,7 @@ export default async (opts: HeadlessOptions) => {
   if (currentLockfile && !R.equals(opts.importers.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
-  await writeCurrentLockfile(lockfileDirectory, filteredLockfile)
+  await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
   await writeModulesYaml(rootModulesDir, {
     hoistedAliases: newHoistedAliases,
     hoistPattern: opts.hoistPattern,
@@ -342,6 +343,7 @@ export default async (opts: HeadlessOptions) => {
     shamefullyHoist: opts.shamefullyHoist || false,
     skipped: Array.from(skipped),
     store: opts.store,
+    virtualStoreDir,
   })
 
   // waiting till package requests are finished

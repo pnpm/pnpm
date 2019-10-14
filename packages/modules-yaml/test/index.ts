@@ -21,6 +21,7 @@ test('write() and read()', async (t) => {
     shamefullyHoist: false,
     skipped: [],
     store: '/.pnpm-store',
+    virtualStoreDir: '/src/project/node_modules/.pnpm',
   }
   const tempDir = tempy.directory()
   await write(tempDir, modulesYaml)

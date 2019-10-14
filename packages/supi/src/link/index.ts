@@ -145,9 +145,15 @@ export default async function link (
   }
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.useLockfile) {
-    await writeLockfiles(ctx.lockfileDirectory, updatedWantedLockfile, updatedCurrentLockfile, lockfileOpts)
+    await writeLockfiles({
+      currentLockfile: updatedCurrentLockfile,
+      currentLockfileDir: ctx.virtualStoreDir,
+      wantedLockfile: updatedWantedLockfile,
+      wantedLockfileDir: ctx.lockfileDirectory,
+      ...lockfileOpts,
+    })
   } else {
-    await writeCurrentLockfile(ctx.lockfileDirectory, updatedCurrentLockfile, lockfileOpts)
+    await writeCurrentLockfile(ctx.virtualStoreDir, updatedCurrentLockfile, lockfileOpts)
   }
 
   summaryLogger.debug({ prefix: opts.prefix })

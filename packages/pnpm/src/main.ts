@@ -125,6 +125,7 @@ type CLI_OPTIONS = 'access'
   | 'use-running-store-server'
   | 'use-store-server'
   | 'verify-store-integrity'
+  | 'virtual-store-dir'
   | 'workspace-concurrency'
   | 'workspace-prefix'
 
@@ -169,6 +170,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'use-running-store-server',
   'use-store-server',
   'verify-store-integrity',
+  'virtual-store-dir',
   'workspace-prefix',
 ])
 
@@ -217,6 +219,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'use-running-store-server',
     'use-store-server',
     'verify-store-integrity',
+    'virtual-store-dir',
     'workspace-prefix',
   ]),
   'help': new Set([]),
@@ -285,6 +288,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'reporter',
     'shared-workspace-lockfile',
     'store',
+    'virtual-store-dir',
   ]),
   'restart': new Set([]),
   'root': new Set([

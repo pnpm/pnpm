@@ -42,6 +42,7 @@
     "@pnpm/constants": "workspace:2.0.0",
     "@pnpm/lockfile-file": "workspace:2.0.0",
     "@pnpm/lockfile-utils": "workspace:2.0.0",
+    "@pnpm/modules-yaml": "workspace:4.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "dependency-path": "workspace:4.0.0"
   },

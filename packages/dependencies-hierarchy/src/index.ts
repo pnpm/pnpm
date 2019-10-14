@@ -62,13 +62,13 @@ export default async function dependenciesHierarchy (
   if (!maybeOpts || !maybeOpts.lockfileDirectory) {
     throw new TypeError('opts.lockfileDirectory is required')
   }
-  const virtualStoreDir = await realNodeModulesDir(maybeOpts.lockfileDirectory)
-  const modules = await readModulesYaml(virtualStoreDir)
+  const modulesDir = await realNodeModulesDir(maybeOpts.lockfileDirectory)
+  const modules = await readModulesYaml(modulesDir)
   const registries = normalizeRegistries({
     ...maybeOpts && maybeOpts.registries,
     ...modules && modules.registries,
   })
-  const currentLockfile = await readCurrentLockfile(maybeOpts.lockfileDirectory, { ignoreIncompatible: false })
+  const currentLockfile = modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false }) || null
 
   const result = {} as { [prefix: string]: DependenciesHierarchy }
 

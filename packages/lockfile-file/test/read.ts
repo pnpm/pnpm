@@ -37,7 +37,7 @@ test('readWantedLockfile()', async t => {
 
 test('readCurrentLockfile()', async t => {
   {
-    const lockfile = await readCurrentLockfile(path.join('fixtures', '2'), {
+    const lockfile = await readCurrentLockfile('fixtures/2/node_modules/.pnpm', {
       ignoreIncompatible: false,
     })
     t.equal(lockfile!.lockfileVersion, 3)
@@ -212,7 +212,12 @@ test('writeLockfiles()', async t => {
       },
     },
   }
-  await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
   t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.end()
@@ -231,7 +236,12 @@ test('writeLockfiles() when no specifiers but dependencies present', async t => 
     },
     lockfileVersion: 5.1,
   }
-  await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
   t.deepEqual(await readCurrentLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.deepEqual(await readWantedLockfile(projectPath, { ignoreIncompatible: false }), wantedLockfile)
   t.end()
@@ -285,7 +295,12 @@ test('write does not use yaml anchors/aliases', async t => {
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
     `,
   }
-  await writeLockfiles(projectPath, wantedLockfile, wantedLockfile)
+  await writeLockfiles({
+    currentLockfile: wantedLockfile,
+    currentLockfileDir: projectPath,
+    wantedLockfile,
+    wantedLockfileDir: projectPath,
+  })
 
   const lockfileContent = fs.readFileSync(path.join(projectPath, WANTED_LOCKFILE), 'utf8')
   t.ok(!lockfileContent.includes('&'), 'lockfile contains no anchors')

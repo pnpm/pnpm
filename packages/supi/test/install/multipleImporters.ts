@@ -365,7 +365,7 @@ test('current lockfile contains only installed dependencies when adding a new im
     },
   ], await testDefaults())
 
-  const currentLockfile = await readCurrentLockfile(process.cwd(), { ignoreIncompatible: false })
+  const currentLockfile = await readCurrentLockfile(path.resolve('node_modules/.pnpm'), { ignoreIncompatible: false })
 
   t.deepEqual(Object.keys(currentLockfile && currentLockfile.packages || {}), ['/is-negative/1.0.0'])
 })

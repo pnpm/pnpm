@@ -66,6 +66,7 @@ export default async function getContext<T> (
     registries: Registries,
     store: string,
     useLockfile: boolean,
+    virtualStoreDir?: string,
 
     independentLeaves?: boolean,
     forceIndependentLeaves?: boolean,
@@ -78,6 +79,7 @@ export default async function getContext<T> (
   },
 ): Promise<PnpmContext<T>> {
   const importersContext = await readImportersContext(importers, opts.lockfileDirectory)
+  const virtualStoreDir = opts.virtualStoreDir ?? path.join(importersContext.rootModulesDir, '.pnpm')
 
   if (importersContext.modules) {
     await validateNodeModules(importersContext.modules, importersContext.importers, {
@@ -86,6 +88,7 @@ export default async function getContext<T> (
       include: opts.include,
       lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
+      virtualStoreDir,
 
       forceIndependentLeaves: opts.forceIndependentLeaves,
       independentLeaves: opts.independentLeaves,
@@ -113,7 +116,6 @@ export default async function getContext<T> (
     }))
   }
 
-  const virtualStoreDir = path.join(importersContext.rootModulesDir, '.pnpm')
   const extraBinPaths = [
     ...opts.extraBinPaths || []
   ]
@@ -151,6 +153,7 @@ export default async function getContext<T> (
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
+      virtualStoreDir,
     }),
   }
 
@@ -170,6 +173,7 @@ async function validateNodeModules (
     include?: IncludedDependencies,
     lockfileDirectory: string,
     store: string,
+    virtualStoreDir: string,
 
     independentLeaves?: boolean,
     forceIndependentLeaves?: boolean,
@@ -242,7 +246,11 @@ async function validateNodeModules (
   }
   await Promise.all(importers.map(async (importer) => {
     try {
-      checkCompatibility(modules, { storePath: opts.store, modulesDir: importer.modulesDir })
+      checkCompatibility(modules, {
+        modulesDir: importer.modulesDir,
+        storePath: opts.store,
+        virtualStoreDir: opts.virtualStoreDir,
+      })
       if (opts.lockfileDirectory !== importer.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
@@ -322,6 +330,7 @@ export async function getContextForSingleImporter (
     registries: Registries,
     store: string,
     useLockfile: boolean,
+    virtualStoreDir?: string,
 
     hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
@@ -360,6 +369,7 @@ export async function getContextForSingleImporter (
   const importer = importers[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
+  const virtualStoreDir = opts.virtualStoreDir ?? path.join(rootModulesDir, '.pnpm')
 
   if (modules) {
     await validateNodeModules(modules, importers, {
@@ -368,6 +378,7 @@ export async function getContextForSingleImporter (
       include: opts.include,
       lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
+      virtualStoreDir: virtualStoreDir,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
@@ -381,7 +392,6 @@ export async function getContextForSingleImporter (
   }
 
   await makeDir(storePath)
-  const virtualStoreDir = path.join(rootModulesDir, '.pnpm')
   const extraBinPaths = [
     ...opts.extraBinPaths || []
   ]
@@ -421,6 +431,7 @@ export async function getContextForSingleImporter (
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
+      virtualStoreDir,
     }),
   }
   packageManifestLogger.debug({

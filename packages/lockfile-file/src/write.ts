@@ -1,7 +1,4 @@
-import {
-  CURRENT_LOCKFILE,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
@@ -34,14 +31,14 @@ export function writeWantedLockfile (
 }
 
 export async function writeCurrentLockfile (
-  pkgPath: string,
+  virtualStoreDir: string,
   currentLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
   },
 ) {
-  await makeDir(path.join(pkgPath, 'node_modules/.pnpm'))
-  return writeLockfile(CURRENT_LOCKFILE, pkgPath, currentLockfile, opts)
+  await makeDir(virtualStoreDir)
+  return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
 }
 
 function writeLockfile (
@@ -109,18 +106,19 @@ function normalizeLockfile (lockfile: Lockfile, forceSharedFormat: boolean) {
 }
 
 export default function writeLockfiles (
-  pkgPath: string,
-  wantedLockfile: Lockfile,
-  currentLockfile: Lockfile,
-  opts?: {
+  opts: {
     forceSharedFormat?: boolean,
+    wantedLockfile: Lockfile,
+    wantedLockfileDir: string,
+    currentLockfile: Lockfile,
+    currentLockfileDir: string,
   },
 ) {
-  const wantedLockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
-  const currentLockfilePath = path.join(pkgPath, CURRENT_LOCKFILE)
+  const wantedLockfilePath = path.join(opts.wantedLockfileDir, WANTED_LOCKFILE)
+  const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')
 
   // empty lockfile is not saved
-  if (isEmptyLockfile(wantedLockfile)) {
+  if (isEmptyLockfile(opts.wantedLockfile)) {
     return Promise.all([
       rimraf(wantedLockfilePath),
       rimraf(currentLockfilePath),
@@ -128,12 +126,12 @@ export default function writeLockfiles (
   }
 
   const forceSharedFormat = opts && opts.forceSharedFormat === true || false
-  const yamlDoc = yaml.safeDump(normalizeLockfile(wantedLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(normalizeLockfile(opts.wantedLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
-  if (wantedLockfile === currentLockfile) {
+  if (opts.wantedLockfile === opts.currentLockfile) {
     return Promise.all([
       writeFileAtomic(wantedLockfilePath, yamlDoc),
       (async () => {
@@ -144,11 +142,11 @@ export default function writeLockfiles (
   }
 
   logger.debug({
-    message: `\`${WANTED_LOCKFILE}\` differs from \`${CURRENT_LOCKFILE}\``,
-    prefix: pkgPath,
+    message: `\`${WANTED_LOCKFILE}\` differs from \`${path.relative(opts.wantedLockfileDir, currentLockfilePath)}\``,
+    prefix: opts.wantedLockfileDir,
   })
 
-  const currentYamlDoc = yaml.safeDump(normalizeLockfile(currentLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
+  const currentYamlDoc = yaml.safeDump(normalizeLockfile(opts.currentLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
   return Promise.all([
     writeFileAtomic(wantedLockfilePath, yamlDoc),
