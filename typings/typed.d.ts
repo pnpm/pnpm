@@ -1,3 +1,5 @@
+// This file contains type definitions that aren't just `export = any`
+
 declare module 'tape-promise' {
     import tape = require('tape')
     export = tapePromise;
