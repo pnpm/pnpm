@@ -90,13 +90,5 @@ export default async function runLifecycleHook (
 }
 
 function getId (manifest: ImporterManifest | DependencyManifest) {
-  if (!manifest.name) {
-    // Using an empty string instead of undefined or null
-    // because this gets printed to the console
-    return ''
-  }
-  if (!manifest.version) {
-    return manifest.name
-  }
-  return `${manifest.name}@${manifest.version}`
+  return `${manifest.name || ''}@${manifest.version || ''}`
 }
