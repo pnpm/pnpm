@@ -331,6 +331,7 @@ importers:
   packages/find-packages:
     dependencies:
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
+      '@pnpm/types': 'link:../types'
       fast-glob: 3.1.0
       p-filter: 2.1.0
     devDependencies:
@@ -338,6 +339,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
+      '@pnpm/types': 'workspace:4.0.0'
       fast-glob: ^3.0.0
       find-packages: 'link:'
       p-filter: ^2.0.0

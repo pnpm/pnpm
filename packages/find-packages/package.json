@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@pnpm/read-importer-manifest": "workspace:2.0.0",
+    "@pnpm/types": "workspace:4.0.0",
     "fast-glob": "^3.0.0",
     "p-filter": "^2.0.0"
   }
