@@ -33,6 +33,14 @@ const OPTIONS = {
     description: 'Skip staleness checks for cached data, but request missing data from the server',
     name: '--prefer-offline',
   },
+  store: {
+    description: 'The location where all the packages are saved on the disk',
+    name: '--store <path>',
+  },
+  virtualStoreDir: {
+    description: 'The directory that contains all the dependencies that are linked from the store (default is node_modules/.pnpm)',
+    name: '--virtual-store-dir',
+  }
 }
 const FILTERING = {
   list: [
@@ -125,10 +133,8 @@ function getHelpText (command: string) {
                   by any dependencies, so it is an emulation of a flat node_modules`,
                 name: '--hoist-pattern <pattern>',
               },
-              {
-                description: 'The location where all the packages are saved on the disk',
-                name: '--store <path>',
-              },
+              OPTIONS.store,
+              OPTIONS.virtualStoreDir,
               {
                 description: 'Maximum number of concurrent network requests',
                 name: '--network-concurrency <number>',
@@ -288,6 +294,8 @@ function getHelpText (command: string) {
               OPTIONS.preferOffline,
               OPTIONS.help,
               OPTIONS.color,
+              OPTIONS.store,
+              OPTIONS.virtualStoreDir,
             ],
           },
           FILTERING,
