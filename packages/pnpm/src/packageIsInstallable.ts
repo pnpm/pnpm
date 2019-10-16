@@ -5,8 +5,6 @@ import packageManager from './pnpmPkgJson'
 export default function (
   pkgPath: string,
   pkg: {
-    name: string,
-    version: string,
     engines?: {
       node?: string,
       npm?: string,

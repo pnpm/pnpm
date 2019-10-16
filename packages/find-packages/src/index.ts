@@ -1,4 +1,5 @@
 import { readExactImporterManifest } from '@pnpm/read-importer-manifest'
+import { ImporterManifest } from '@pnpm/types'
 import fastGlob = require('fast-glob')
 import pFilter = require('p-filter')
 import path = require('path')
@@ -16,9 +17,16 @@ declare namespace findPkgs {
     includeRoot?: boolean
     patterns?: string[]
   }
+
+  interface WorkspacePackage {
+    manifest: ImporterManifest
+    path: string
+
+    writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
+  }
 }
 
-async function findPkgs (root: string, opts?: findPkgs.Options) {
+async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.WorkspacePackage[]> {
   opts = opts || {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
@@ -50,10 +58,10 @@ async function findPkgs (root: string, opts?: findPkgs.Options) {
           return {
             path: path.dirname(manifestPath),
             ...await readExactImporterManifest(manifestPath),
-          }
+          } as findPkgs.WorkspacePackage
         } catch (err) {
           if (err.code === 'ENOENT') {
-            return null
+            return null!
           }
           throw err
         }
@@ -62,8 +70,8 @@ async function findPkgs (root: string, opts?: findPkgs.Options) {
   )
 }
 
-function normalizePatterns (patterns: string[]) {
-  const normalizedPatterns = []
+function normalizePatterns (patterns: readonly string[]) {
+  const normalizedPatterns: string[] = []
   for (const pattern of patterns) {
     // We should add separate pattern for each extension
     // for some reason, fast-glob is buggy with /package.{json,yaml,json5} pattern
