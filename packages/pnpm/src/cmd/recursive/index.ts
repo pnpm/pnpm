@@ -73,7 +73,10 @@ export default async (
       `"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
   }
 
-  const workspacePrefix = opts.workspacePrefix || process.cwd()
+  if (!opts.workspacePrefix) {
+    opts.workspacePrefix = process.cwd()
+  }
+  const { workspacePrefix } = opts
   const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix, opts)
 
   if (!allWorkspacePkgs.length) {
@@ -123,6 +126,8 @@ export async function recursive (
     pkgs = allPkgs
   }
 
+  const allPackagesAreSelected = pkgs.length === allPkgs.length
+
   if (pkgs.length === 0) {
     return false
   }
@@ -163,7 +168,7 @@ export async function recursive (
       throwOnFail(await run(chunks, pkgGraphResult.graph, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
       return true
     case 'run':
-      throwOnFail(await run(chunks, pkgGraphResult.graph, input, cmd, opts as any)) // tslint:disable-line:no-any
+      throwOnFail(await run(chunks, pkgGraphResult.graph, input, cmd, { ...opts, allPackagesAreSelected } as any)) // tslint:disable-line:no-any
       return true
     case 'update':
       opts = { ...opts, update: true, allowNew: false } as any // tslint:disable-line:no-any

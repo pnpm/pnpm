@@ -18,6 +18,8 @@ export default async <T> (
     workspaceConcurrency: number,
     unsafePerm: boolean,
     rawConfig: object,
+    workspacePrefix: string,
+    allPackagesAreSelected: boolean,
   },
 ) => {
   const scriptName = args[0]
@@ -85,7 +87,14 @@ export default async <T> (
   }
 
   if (scriptName !== 'test' && !hasCommand) {
-    throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
+    if (opts.allPackagesAreSelected) {
+      throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
+    } else {
+      logger.info({
+        message: `None of the selected packages has a "${scriptName}" script`,
+        prefix: opts.workspacePrefix
+      })
+    }
   }
 
   return result
