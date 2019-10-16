@@ -244,6 +244,7 @@ export async function mutateModules (
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
+          virtualStoreDir: ctx.virtualStoreDir,
           wantedLockfile: ctx.wantedLockfile,
         })
         return importers
