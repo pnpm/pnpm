@@ -102,29 +102,18 @@ test('pnpm recursive run concurrently', async (t: tape.Test) => {
   t.ok(Math.max(outputs1[0], outputs2[0]) < Math.min(outputs1[outputs1.length - 1], outputs2[outputs2.length - 1]))
 })
 
-test('`pnpm recursive run` fails if none of the packaegs has the desired command', async (t: tape.Test) => {
+test('`pnpm recursive run` fails when run without filters and no package has the desired command', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
-
-      dependencies: {
-        'json-append': '1',
-      },
-      scripts: {
-        build: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
-      },
     },
     {
       name: 'project-2',
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1'
-      },
-      scripts: {
-        build: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
       },
     },
     {
@@ -132,18 +121,12 @@ test('`pnpm recursive run` fails if none of the packaegs has the desired command
       version: '1.0.0',
 
       dependencies: {
-        'json-append': '1',
         'project-1': '1'
-      },
-      scripts: {
-        build: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
       },
     },
     {
       name: 'project-0',
       version: '1.0.0',
-
-      dependencies: {},
     },
   ])
 
@@ -154,6 +137,82 @@ test('`pnpm recursive run` fails if none of the packaegs has the desired command
     t.fail('should have failed')
   } catch (err) {
     t.pass('`recursive run` failed because none of the packages has the wanted script')
+  }
+})
+
+test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1'
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1'
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+
+  try {
+    await execPnpm('recursive', 'run', 'this-command-does-not-exist', '--filter', '*')
+    t.fail('should have failed')
+  } catch (err) {
+    t.pass('`recursive run` failed because none of the packages has the wanted script')
+  }
+})
+
+test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1'
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1'
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+
+  try {
+    await execPnpm('recursive', 'run', 'this-command-does-not-exist', '--filter', 'project-1')
+    t.pass('`recursive run` succeeded although none of the selected packages has the wanted script')
+  } catch (err) {
+    t.fail('should have passed')
   }
 })
 
