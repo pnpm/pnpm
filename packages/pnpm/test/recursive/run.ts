@@ -127,8 +127,6 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     {
       name: 'project-0',
       version: '1.0.0',
-
-      dependencies: {},
     },
   ])
 
@@ -167,8 +165,6 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
     {
       name: 'project-0',
       version: '1.0.0',
-
-      dependencies: {},
     },
   ])
 
@@ -207,8 +203,6 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     {
       name: 'project-0',
       version: '1.0.0',
-
-      dependencies: {},
     },
   ])
 
