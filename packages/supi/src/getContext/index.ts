@@ -378,7 +378,7 @@ export async function getContextForSingleImporter (
       include: opts.include,
       lockfileDirectory: opts.lockfileDirectory,
       store: opts.store,
-      virtualStoreDir: virtualStoreDir,
+      virtualStoreDir,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,

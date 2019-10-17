@@ -26,8 +26,8 @@ export default function checkCompatibility (
   }
   if (modules.virtualStoreDir && path.relative(modules.virtualStoreDir, opts.virtualStoreDir) !== '') {
     throw new UnexpectedVirtualStoreDir({
-      actualVirtualStoreDir: opts.virtualStoreDir,
-      expectedVirtualStoreDir: modules.virtualStoreDir,
+      actual: opts.virtualStoreDir,
+      expected: modules.virtualStoreDir,
       modulesDir: opts.modulesDir,
     })
   }

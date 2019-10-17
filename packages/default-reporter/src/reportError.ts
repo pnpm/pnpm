@@ -23,6 +23,8 @@ export default function reportError (logObj: Log) {
     switch (err.code) {
       case 'ERR_PNPM_UNEXPECTED_STORE':
         return reportUnexpectedStore(err, logObj['message'])
+      case 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE':
+        return reportUnexpectedVirtualStoreDir(err, logObj['message'])
       case 'ERR_PNPM_STORE_BREAKING_CHANGE':
         return reportStoreBreakingChange(logObj['message'])
       case 'ERR_PNPM_MODULES_BREAKING_CHANGE':
@@ -88,6 +90,20 @@ function reportUnexpectedStore (err: Error, msg: object) {
 
     You may change the global store location by running "pnpm config set store <location>".
       (This error may happen if the node_modules was installed with a different major version of pnpm)
+    `
+}
+
+function reportUnexpectedVirtualStoreDir (err: Error, msg: object) {
+  return stripIndent`
+    ${formatErrorSummary(err.message)}
+
+    The dependencies at "${msg['modulesDir']}" are currently symlinked from the virtual store directory at "${msg['expected']}".
+
+    pnpm now wants to use the virtual store at "${msg['actual']}" to link dependencies from the store.
+
+    If you want to use the new virtual store location, reinstall your dependencies with "pnpm install --force".
+
+    You may change the virtual store location by changing the value of the virtual-store-dir config.
     `
 }
 
