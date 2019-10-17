@@ -38,7 +38,9 @@ const OPTIONS = {
     name: '--store <path>',
   },
   virtualStoreDir: {
-    description: 'The directory that contains all the dependencies that are linked from the store (default is node_modules/.pnpm)',
+    description: oneLine`
+      The directory with links to the store (default is node_modules/.pnpm).
+      All direct and indirect dependencies of the project are linked into this directory`,
     name: '--virtual-store-dir',
   }
 }
