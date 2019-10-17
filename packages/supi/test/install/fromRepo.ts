@@ -21,9 +21,7 @@ test('from a github repo', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({}, ['kevva/is-negative'], await testDefaults())
 
-  const m = project.requireModule('is-negative')
-
-  t.ok(m, 'isNegative() is available')
+  await project.has('is-negative')
 
   t.deepEqual(manifest.dependencies, { 'is-negative': 'github:kevva/is-negative' }, 'has been added to dependencies in package.json')
 })
@@ -33,7 +31,11 @@ test('from a github repo with different name via named installation', async (t: 
 
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'],
+    await testDefaults({ fastUnpack: false, reporter }),
+  )
 
   const m = project.requireModule('say-hi')
 
@@ -71,7 +73,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
     dependencies: {
       'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
     },
-  }, await testDefaults({ reporter }))
+  }, await testDefaults({ fastUnpack: false, reporter }))
 
   const m = project.requireModule('say-hi')
 
@@ -102,7 +104,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 test('a subdependency is from a github repo with different name', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['has-aliased-git-dependency'], await testDefaults())
+  await addDependenciesToPackage({}, ['has-aliased-git-dependency'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('has-aliased-git-dependency')
 
@@ -129,9 +131,7 @@ test('from a git repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   await addDependenciesToPackage({}, ['git+ssh://git@github.com/kevva/is-negative.git'], await testDefaults())
 
-  const m = project.requireModule('is-negative')
-
-  t.ok(m, 'isNegative() is available')
+  await project.has('is-negative')
 })
 
 // This test is unstable due to dependency on third party registry

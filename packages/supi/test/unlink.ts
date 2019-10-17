@@ -39,7 +39,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
     }),
   ])
 
-  const opts = await testDefaults({ store: path.resolve('.store') })
+  const opts = await testDefaults({ fastUnpack: false, store: path.resolve('.store') })
 
   let manifest = await link(
     ['is-subdir', 'is-positive'],
@@ -149,7 +149,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
 
 test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ fastUnpack: false, prefix: process.cwd() })
   process.chdir('..')
 
   await Promise.all([
@@ -194,7 +194,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
 
 test('unlink all packages', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ fastUnpack: false, prefix: process.cwd() })
   process.chdir('..')
 
   await Promise.all([

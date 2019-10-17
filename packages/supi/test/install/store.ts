@@ -25,6 +25,5 @@ test('repeat install with corrupted `store.json` should work', async (t: tape.Te
 
   await install(manifest, opts)
 
-  const m = project.requireModule('is-negative')
-  t.ok(m)
+  await project.has('is-negative')
 })

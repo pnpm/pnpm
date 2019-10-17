@@ -111,7 +111,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 
 test('package with a broken symlink', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, [pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults())
+  await addDependenciesToPackage({}, [pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('has-broken-symlink')
 
@@ -120,7 +120,7 @@ test('package with a broken symlink', async (t) => {
 
 test('tarball local package', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, [pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, [pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('tar-pkg')
 
@@ -150,7 +150,7 @@ test('tarball local package from project directory', async (t: tape.Test) => {
     dependencies: {
       'tar-pkg': 'file:tar-pkg-1.0.0.tgz',
     },
-  }, await testDefaults())
+  }, await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('tar-pkg')
 

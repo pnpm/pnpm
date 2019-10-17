@@ -46,7 +46,7 @@ test('lockfile has correct format', async (t: tape.Test) => {
       'pkg-with-1-dep',
       '@rstacruz/tap-spec@4.1.1',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
-    ], await testDefaults({ save: true }))
+    ], await testDefaults({ fastUnpack: false, save: true }))
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
@@ -159,7 +159,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   const project = prepareEmpty(t)
 
   // dependends on react-onclickoutside@5.9.0
-  let manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['react-datetime@2.8.8'], await testDefaults({ fastUnpack: false, save: true }))
 
   // dependends on react-onclickoutside@0.3.4
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
@@ -486,8 +486,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
   opts.registries!['@foo'] = 'http://localhost:4873' // tslint:disable-line
   await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], opts)
 
-  const m = project.requireModule('@zkochan/foo')
-  t.ok(m, 'foo is available')
+  await project.has('@zkochan/foo')
 
   const lockfile = await project.readLockfile()
 
@@ -557,8 +556,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 
   await install(manifest, await testDefaults())
 
-  const m = project.requireModule('is-negative')
-  t.ok(m)
+  await project.has('is-negative')
 })
 
 // Skipped because the npm-registry.compass.com server was down
@@ -669,14 +667,14 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
       'pre-and-postinstall-scripts-example': '*',
       'with-postinstall-b': '*',
     },
-  }, await testDefaults({ ignoreScripts: true }))
+  }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
   const modules1 = await project.readModulesManifest()
 
   await install({
     dependencies: {
       'pre-and-postinstall-scripts-example': '*',
     },
-  }, await testDefaults({ ignoreScripts: true }))
+  }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
   const modules2 = await project.readModulesManifest()
 
   t.ok(modules1)
@@ -827,7 +825,7 @@ test("don't remove packages during named install when useLockfile: false", async
 test('save tarball URL when it is non-standard', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults())
+  await addDependenciesToPackage({}, ['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults({ fastUnpack: false }))
 
   const lockfile = await project.readLockfile()
 
@@ -892,7 +890,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     {},
     [
       'pkg-with-1-dep',
-      '@rstacruz/tap-spec@4.1.1',
+      '@zkochan/foo@1.0.0',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ],
     await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }),
@@ -917,7 +915,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.importers.project.specifiers, 'has specifiers field')
     t.ok(lockfile.importers.project.dependencies, 'has dependencies field')
     t.equal(lockfile.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
-    t.ok(lockfile.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+    t.ok(lockfile.importers.project.dependencies!['@zkochan/foo'], 'has scoped dependency resolved')
     t.ok(lockfile.importers.project.dependencies!['is-negative'].includes('/'), 'has not shortened tarball from the non-standard registry')
 
     t.ok(lockfile.packages, 'has packages field')
@@ -953,7 +951,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.importers.project.specifiers, 'has specifiers field')
     t.ok(lockfile.importers.project.dependencies, 'has dependencies field')
     t.equal(lockfile.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
-    t.ok(lockfile.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+    t.ok(lockfile.importers.project.dependencies!['@zkochan/foo'], 'has scoped dependency resolved')
     t.ok(lockfile.importers.project.dependencies!['is-negative'].includes('/'), 'has not shortened tarball from the non-standard registry')
 
     t.ok(lockfile.packages, 'has packages field')

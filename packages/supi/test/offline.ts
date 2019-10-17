@@ -42,6 +42,5 @@ test('successful offline installation', async (t) => {
 
   await install(manifest, await testDefaults({}, { offline: true }, { offline: true }))
 
-  const m = project.requireModule('is-positive')
-  t.ok(typeof m === 'function', 'module is available')
+  await project.has('is-positive')
 })

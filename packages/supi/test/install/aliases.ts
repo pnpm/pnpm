@@ -14,7 +14,7 @@ const testOnly = promisifyTape(tape.only)
 
 test('installing aliased dependency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults())
+  await addDependenciesToPackage({}, ['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('negative')
   t.ok(typeof m === 'function', 'negative() is available')
@@ -69,7 +69,7 @@ test('aliased dependency w/o version spec, with custom tag config', async (t) =>
 test('a dependency has an aliased subdependency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults())
+  await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ fastUnpack: false }))
 
   t.equal(project.requireModule('pkg-with-1-aliased-dep')().name, 'dep-of-pkg-with-1-dep', 'can require aliased subdep')
 
@@ -103,7 +103,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
 
 test('installing the same package via an alias and directly', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, ['negative@npm:is-negative@^1.0.1', 'is-negative@^1.0.1'], await testDefaults({ fastUnpack: false }))
 
   t.deepEqual(manifest.dependencies, { negative: 'npm:is-negative@^1.0.1', 'is-negative': '^1.0.1' })
 

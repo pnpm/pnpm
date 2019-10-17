@@ -19,7 +19,7 @@ const testOnly = promisifyTape(tape.only)
 test('should hoist dependencies', async (t) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], await testDefaults({ hoistPattern: '*' }))
+  await addDependenciesToPackage({}, ['express', '@foo/has-dep-from-same-scope'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   await project.has('express')
   await project.has('.pnpm/node_modules/debug')
@@ -37,7 +37,7 @@ test('should shamefully hoist dependencies', async (t) => {
 
   await addDependenciesToPackage({},
     ['express', '@foo/has-dep-from-same-scope'],
-    await testDefaults({ hoistPattern: '*', shamefullyHoist: true }))
+    await testDefaults({ fastUnpack: false, hoistPattern: '*', shamefullyHoist: true }))
 
   await project.has('express')
   await project.has('debug')
@@ -53,7 +53,7 @@ test('should shamefully hoist dependencies', async (t) => {
 test('should hoist dependencies by pattern', async (t) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: 'mime' }))
+  await addDependenciesToPackage({}, ['express'], await testDefaults({ fastUnpack: false, hoistPattern: 'mime' }))
 
   await project.has('express')
   await project.hasNot('.pnpm/node_modules/debug')
@@ -67,7 +67,7 @@ test('should hoist dependencies by pattern', async (t) => {
 test('should remove hoisted dependencies', async (t) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['express'], await testDefaults({ hoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['express'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
   await mutateModules([
     {
       dependencyNames: ['express'],
@@ -88,7 +88,7 @@ test('should not override root packages with hoisted dependencies', async (t) =>
   // this installs debug@3.1.0
   const manifest = await addDependenciesToPackage({}, ['debug@3.1.0'], await testDefaults({ hoistPattern: '*' }))
   // this installs express@4.16.2, that depends on debug 2.6.9, but we don't want to flatten debug@2.6.9
-  await addDependenciesToPackage(manifest, ['express@4.16.2'], await testDefaults({ hoistPattern: '*' }))
+  await addDependenciesToPackage(manifest, ['express@4.16.2'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug did not get overridden by flattening')
 })
@@ -97,7 +97,7 @@ test('should rehoist when uninstalling a package', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   // this installs debug@3.1.0 and express@4.16.0
-  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], await testDefaults({ hoistPattern: '*' }))
+  const manifest = await addDependenciesToPackage({}, ['debug@3.1.0', 'express@4.16.0'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
   // uninstall debug@3.1.0 to check if debug@2.6.9 gets reflattened
   await mutateModules([
     {
@@ -124,7 +124,7 @@ test('should rehoist after running a general install', async (t) => {
       debug: '3.1.0',
       express: '4.16.0',
     },
-  }, await testDefaults({ hoistPattern: '*' }))
+  }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
@@ -140,7 +140,7 @@ test('should rehoist after running a general install', async (t) => {
     dependencies: {
       express: '4.16.0',
     },
-  }, await testDefaults({ hoistPattern: '*' }))
+  }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
   t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')
@@ -151,7 +151,7 @@ test('should rehoist after running a general install', async (t) => {
 test('should not override aliased dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
-  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ hoistPattern: '*' }))
+  await addDependenciesToPackage({}, ['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '1.0.0', 'alias respected by flattening')
 })
@@ -265,7 +265,7 @@ test('should rehoist after pruning', async (t) => {
       debug: '3.1.0',
       express: '4.16.0',
     },
-  }, await testDefaults({ hoistPattern: '*' }))
+  }, await testDefaults({ fastUnpack: false, hoistPattern: '*' }))
 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug installed correctly')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express installed correctly')
@@ -281,7 +281,7 @@ test('should rehoist after pruning', async (t) => {
       'express': '4.16.0',
       'is-positive': '1.0.0',
     },
-  }, await testDefaults({ hoistPattern: '*', pruneStore: true }))
+  }, await testDefaults({ fastUnpack: false, hoistPattern: '*', pruneStore: true }))
 
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
   t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')

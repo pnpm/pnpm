@@ -18,6 +18,7 @@ const retryOpts = {
 
 export default async function testDefaults<T> (
   opts?: T & {
+    fastUnpack?: boolean,
     store?: string,
     prefix?: string,
   }, // tslint:disable-line
@@ -48,6 +49,7 @@ export default async function testDefaults<T> (
     }),
     createFetcher({
       alwaysAuth: true,
+      ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
       rawConfig,
       registry,
       ...retryOpts,

@@ -376,7 +376,7 @@ test('scoped peer dependency is linked', async (t: tape.Test) => {
 test('peer bins are linked', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await addDependenciesToPackage({}, ['for-testing-peers-having-bins'], await testDefaults())
+  await addDependenciesToPackage({}, ['for-testing-peers-having-bins'], await testDefaults({ fastUnpack: false }))
 
   const pkgVariation = path.join('.pnpm/localhost+4873', 'pkg-with-peer-having-bin', '1.0.0_peer-with-bin@1.0.0/node_modules')
 
@@ -388,7 +388,7 @@ test('peer bins are linked', async (t: tape.Test) => {
 test('run pre/postinstall scripts of each variations of packages with peer dependencies', async (t: tape.Test) => {
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   prepareEmpty(t)
-  await addDependenciesToPackage({}, ['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], await testDefaults())
+  await addDependenciesToPackage({}, ['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], await testDefaults({ fastUnpack: false }))
 
   const pkgVariation1 = path.resolve('node_modules/.pnpm/localhost+4873', 'pkg-with-events-and-peers', '1.0.0_peer-c@1.0.0/node_modules')
   await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
