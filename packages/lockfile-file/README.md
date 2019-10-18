@@ -26,7 +26,7 @@ if the lockfile file format is not compatible with the current library.
 
 ### `readCurrentLockfile(virtualStoreDir, opts) => Promise<Lockfile>`
 
-Reads the lockfile file from `<virtualStoreDir>/.lock.yaml`.
+Reads the lockfile file from `<virtualStoreDir>/lock.yaml`.
 
 ### `existsWantedLockfile(pkgPath) => Promise<Boolean>`
 
