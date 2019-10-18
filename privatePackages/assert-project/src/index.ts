@@ -1,8 +1,5 @@
 import assertStore from '@pnpm/assert-store'
-import {
-  CURRENT_LOCKFILE,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile, LockfileImporter } from '@pnpm/lockfile-types'
 import { Modules, read as readModules } from '@pnpm/modules-yaml'
 import path = require('path')
@@ -65,6 +62,13 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
     }
     return cachedStore
   }
+  async function getVirtualStoreDir () {
+    const modulesYaml = await readModules(modules)
+    if (!modulesYaml) {
+      throw new Error(`No .modules.yaml found at "${modules}"`)
+    }
+    return modulesYaml.virtualStoreDir
+  }
 
   return {
     requireModule (pkgName: string) {
@@ -105,7 +109,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
     },
     async readCurrentLockfile () {
       try {
-        return await readYamlFile(path.join(modules, '..', CURRENT_LOCKFILE)) // tslint:disable-line
+        return await readYamlFile(path.join(await getVirtualStoreDir(), 'lock.yaml')) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null!
         throw err

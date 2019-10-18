@@ -1,7 +1,4 @@
-import {
-  CURRENT_LOCKFILE,
-  WANTED_LOCKFILE,
-} from '@pnpm/constants'
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
@@ -552,7 +549,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 
   const manifest = await addDependenciesToPackage({}, ['is-negative@1.0.0'], await testDefaults())
 
-  await rimraf(CURRENT_LOCKFILE)
+  await rimraf('node_modules/.pnpm/lock.yaml')
 
   await install(manifest, await testDefaults())
 
@@ -1033,7 +1030,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     }),
   )
 
-  const currentLockfile = await readYamlFile<Lockfile>(path.resolve(CURRENT_LOCKFILE))
+  const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
 
   t.deepEqual(R.keys(currentLockfile['importers']), ['pkg2'], 'only pkg2 added to importers of current lockfile')
 
