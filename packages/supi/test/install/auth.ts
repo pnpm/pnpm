@@ -35,9 +35,7 @@ test('a package that need authentication', async (t: tape.Test) => {
     rawConfig,
   }))
 
-  const m = project.requireModule('needs-auth')
-
-  t.ok(typeof m === 'function', 'needs-auth() is available')
+  await project.has('needs-auth')
 
   // should work when a lockfile is available
   // and the registry in .npmrc is not the same as the one in lockfile
@@ -85,9 +83,7 @@ test('installing a package that need authentication, using password', async (t: 
     rawConfig,
   }))
 
-  const m = project.requireModule('needs-auth')
-
-  t.ok(typeof m === 'function', 'needs-auth() is available')
+  await project.has('needs-auth')
 })
 
 test('a package that need authentication, legacy way', async (t: tape.Test) => {
@@ -116,9 +112,7 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
     rawConfig,
   }))
 
-  const m = project.requireModule('needs-auth')
-
-  t.ok(typeof m === 'function', 'needs-auth() is available')
+  await project.has('needs-auth')
 })
 
 test('a scoped package that need authentication specific to scope', async (t: tape.Test) => {
@@ -198,9 +192,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     rawConfig,
   }))
 
-  const m = project.requireModule('needs-auth')
-
-  t.ok(typeof m === 'function', 'needs-auth() is available')
+  await project.has('needs-auth')
 })
 
 test('a package that need authentication reuses authorization tokens for tarball fetching when meta info is cached', async (t: tape.Test) => {
@@ -253,7 +245,5 @@ test('a package that need authentication reuses authorization tokens for tarball
   })
   await install(manifest, opts)
 
-  const m = project.requireModule('needs-auth')
-
-  t.ok(typeof m === 'function', 'needs-auth() is available')
+  await project.has('needs-auth')
 })

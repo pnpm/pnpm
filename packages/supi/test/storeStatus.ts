@@ -32,7 +32,7 @@ test('store status does not fail on not installed optional dependencies', async 
 test('store status returns path to the modified package', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const opts = await testDefaults()
+  const opts = await testDefaults({ fastUnpack: false })
   await addDependenciesToPackage({}, ['is-positive@3.1.0'], opts)
 
   const isPositive = await project.resolve('is-positive', '3.1.0', 'index.js')

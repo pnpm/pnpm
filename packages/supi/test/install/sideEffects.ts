@@ -17,6 +17,7 @@ test('caching side effects of native package', async (t) => {
   prepareEmpty(t)
 
   const opts = await testDefaults({
+    fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
   })
@@ -41,6 +42,7 @@ test('caching side effects of native package when hoisting is used', async (t) =
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({
+    fastUnpack: false,
     hoistPattern: '*',
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -71,6 +73,7 @@ test('using side effects cache', async (t) => {
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
+    fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -90,6 +93,7 @@ test('readonly side effects cache', async (t) => {
   prepareEmpty(t)
 
   const opts1 = await testDefaults({
+    fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -102,6 +106,7 @@ test('readonly side effects cache', async (t) => {
 
   await rimraf('node_modules')
   const opts2 = await testDefaults({
+    fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: false,
     verifyStoreIntegrity: false,
@@ -122,6 +127,7 @@ test('uploading errors do not interrupt installation', async (t) => {
   prepareEmpty(t)
 
   const opts = await testDefaults({
+    fastUnpack: false,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
   })

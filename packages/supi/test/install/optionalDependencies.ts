@@ -23,7 +23,7 @@ test('successfully install optional dependency with subdependencies', async (t) 
 
 test('skip failing optional dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['pkg-with-failing-optional-dependency@1.0.1'], await testDefaults())
+  await addDependenciesToPackage({}, ['pkg-with-failing-optional-dependency@1.0.1'], await testDefaults({ fastUnpack: false }))
 
   const m = project.requireModule('pkg-with-failing-optional-dependency')
   t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
@@ -51,8 +51,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
     reason: 'resolution_failure',
   }), 'warning reported')
 
-  const m = project.requireModule('is-positive')
-  t.ok(m, 'installation succeded')
+  await project.has('is-positive')
 
   const lockfile = await project.readLockfile()
 
@@ -347,7 +346,7 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     optionalDependencies: {
       '@google-cloud/functions-emulator': '1.0.0-beta.5',
     },
-  }, await testDefaults({ preferredVersions }))
+  }, await testDefaults({ fastUnpack: false, preferredVersions }))
 
   t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/duplexify/3.6.0')), 'duplexify is linked into node_modules')
   t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/stream-shift/1.0.0')), 'stream-shift is linked into node_modules')
@@ -365,7 +364,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.
     optionalDependencies: {
       'not-compatible-with-any-os': '1.0.0',
     },
-  }, await testDefaults({ ignoreScripts: true }))
+  }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
 
   const reporter = sinon.spy()
 

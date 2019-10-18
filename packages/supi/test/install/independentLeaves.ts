@@ -12,15 +12,13 @@ const testOnly = promisifyTape(tape.only)
 
 test('install with --independent-leaves', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({ independentLeaves: true }))
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], await testDefaults({ independentLeaves: true }))
 
-  const m = project.requireModule('rimraf')
-  t.ok(typeof m === 'function', 'rimraf() is available')
-  await project.isExecutable('.bin/rimraf')
+  await project.has('pkg-with-1-dep')
 
   await install(manifest, await testDefaults({ independentLeaves: true, preferFrozenLockfile: false }))
 
-  t.ok(isSubdir(path.resolve('node_modules'), await resolveLinkTarget(path.resolve('node_modules/rimraf'))), 'non-independent package is not symlinked directly from store')
+  t.ok(isSubdir(path.resolve('node_modules'), await resolveLinkTarget(path.resolve('node_modules/pkg-with-1-dep'))), 'non-independent package is not symlinked directly from store')
 })
 
 test('--independent-leaves throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
@@ -70,17 +68,17 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
 // Covers https://github.com/pnpm/pnpm/issues/1547
 test('installing with independent-leaves and hoistPattern', async (t) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({
+  await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], await testDefaults({
     hoistPattern: '*',
     independentLeaves: true,
   }))
 
-  await project.has('rimraf')
-  await project.has('.pnpm/node_modules/minimatch')
+  await project.has('pkg-with-1-dep')
+  await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.pnpm/localhost+4873/wrappy/1.0.2')
-  await project.storeHas('wrappy', '1.0.2')
+  await project.hasNot('.pnpm/localhost+4873/dep-of-pkg-with-1-dep/100.0.0')
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await project.has('.pnpm/localhost+4873/rimraf/2.5.1')
+  await project.has('.pnpm/localhost+4873/pkg-with-1-dep/100.0.0')
 })

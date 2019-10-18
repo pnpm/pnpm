@@ -189,7 +189,7 @@ test('uninstall package with dependencies and do not touch other deps', async (t
 
 test('uninstall package with its bin files', async (t) => {
   prepareEmpty(t)
-  let manifest = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ save: true }))
+  let manifest = await addDependenciesToPackage({}, ['sh-hello-world@1.0.1'], await testDefaults({ fastUnpack: false, save: true }))
   manifest = (await mutateModules([
     {
       dependencyNames: ['sh-hello-world'],
@@ -231,7 +231,10 @@ test('relative link is uninstalled', async (t: tape.Test) => {
 test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage({},
+    ['pre-and-postinstall-scripts-example', 'with-postinstall-b'],
+    await testDefaults({ fastUnpack: false, save: true, ignoreScripts: true }),
+  )
 
   const modules1 = await project.readModulesManifest()
   t.ok(modules1)

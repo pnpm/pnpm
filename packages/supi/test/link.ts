@@ -123,7 +123,7 @@ test('relative link is rewritten by named installation to regular dependency', a
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   const reporter = sinon.spy()
-  const opts = await testDefaults()
+  const opts = await testDefaults({ fastUnpack: false })
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
   let manifest = await link(

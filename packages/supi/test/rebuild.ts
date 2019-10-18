@@ -25,7 +25,11 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
-  const manifest = await addDependenciesToPackage({}, pkgs, await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    pkgs,
+    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies', ignoreScripts: true }),
+  )
 
   let modules = await project.readModulesManifest()
   t.deepEqual(modules!.pendingBuilds, [
@@ -88,7 +92,7 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
       'pre-and-postinstall-scripts-example',
       'zkochan/install-scripts-example'
     ],
-    await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }),
+    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies', ignoreScripts: true }),
   )
 
   await rebuildPkgs([{ manifest, prefix: process.cwd() }], ['install-scripts-example-for-pnpm'], await testDefaults())
@@ -105,8 +109,8 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
 
 test('rebuild with pending option', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  let manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
-  manifest = await addDependenciesToPackage(manifest, ['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
+  let manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ fastUnpack: false, ignoreScripts: true }))
+  manifest = await addDependenciesToPackage(manifest, ['zkochan/install-scripts-example'], await testDefaults({ fastUnpack: false, ignoreScripts: true }))
 
   let modules = await project.readModulesManifest()
   t.deepEqual(modules!.pendingBuilds, [
@@ -146,7 +150,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
 test('rebuild dependencies in correct order', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false, ignoreScripts: true }))
 
   let modules = await project.readModulesManifest()
   t.ok(modules)
@@ -167,7 +171,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
 test('rebuild dependencies in correct order when node_modules uses independent-leaves', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ ignoreScripts: true, independentLeaves: true }))
+  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false, ignoreScripts: true, independentLeaves: true }))
 
   let modules = await project.readModulesManifest()
   t.ok(modules)
@@ -255,7 +259,7 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
   ]
   await mutateModules(
     importers.map((importer) => ({ ...importer, mutation: 'install' as 'install' })),
-    await testDefaults({ ignoreScripts: true }),
+    await testDefaults({ fastUnpack: false, ignoreScripts: true }),
   )
 
   await rebuild(importers, await testDefaults())
@@ -270,7 +274,11 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
 test('rebuild links bins', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['has-generated-bins-as-dep', 'generated-bins'], await testDefaults({ ignoreScripts: true }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['has-generated-bins-as-dep', 'generated-bins'],
+    await testDefaults({ fastUnpack: false, ignoreScripts: true }),
+  )
 
   t.notOk(await exists(path.resolve('node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/.bin/cmd2')))

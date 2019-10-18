@@ -14,10 +14,10 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 
   await install({
     dependencies: {
-      rimraf: '2.6.2',
+      'pkg-with-1-dep': '100.0.0',
     },
     devDependencies: {
-      '@rstacruz/tap-spec': '4.1.1',
+      '@zkochan/foo': '1.0.0',
       'once': '^1.4.0', // once is also a transitive dependency of rimraf
     },
   }, await testDefaults({
@@ -28,17 +28,8 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     },
   }))
 
-  const rimraf = project.requireModule('rimraf')
-
-  let tapStatErrCode: number = 0
-  try {
-    fs.statSync(path.resolve('node_modules', '@rstacruz'))
-  } catch (err) {
-    tapStatErrCode = err.code
-  }
-
-  t.ok(rimraf, 'rimraf exists')
-  t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
+  await project.has('pkg-with-1-dep')
+  await project.hasNot('@zkochan/foo')
 })
 
 test('install dev dependencies only', async (t: tape.Test) => {
@@ -60,9 +51,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
     },
   }))
 
-  const inflight = project.requireModule('inflight')
-  t.equal(typeof inflight, 'function', 'dev dependency is available')
-
+  await project.has('inflight')
   await project.hasNot('once')
 
   {
@@ -108,9 +97,7 @@ test('fail if installing different types of dependencies in a project that uses 
     lockfileDirectory,
   }))
 
-  const inflight = project.requireModule('inflight')
-  t.equal(typeof inflight, 'function', 'dev dependency is available')
-
+  await project.has('inflight')
   await project.hasNot('once')
 
   let err!: Error & { code: string }
