@@ -427,7 +427,7 @@ importers:
       '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/registry-mock': 1.5.0
       '@pnpm/store-path': 2.1.0
-      '@types/fs-extra': 8.0.0
+      '@types/fs-extra': 8.0.1
       '@types/mz': 0.0.32
       '@types/ramda': 0.26.29
       '@types/rimraf': 2.0.2
@@ -475,7 +475,7 @@ importers:
       '@pnpm/symlink-dependency': 'workspace:3.0.0'
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/utils': 'workspace:0.11.0'
-      '@types/fs-extra': 8.0.0
+      '@types/fs-extra': ^8.0.1
       '@types/mz': 0.0.32
       '@types/ramda': 0.26.29
       '@types/rimraf': 2.0.2
@@ -1567,7 +1567,7 @@ importers:
       '@pnpm/registry-mock': 1.5.0
       '@pnpm/store-path': 2.1.0
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 8.0.0
+      '@types/fs-extra': 8.0.1
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -1636,7 +1636,7 @@ importers:
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/utils': 'workspace:0.11.0'
       '@types/common-tags': 1.8.0
-      '@types/fs-extra': 8.0.0
+      '@types/fs-extra': ^8.0.1
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -2367,12 +2367,12 @@ packages:
   /@types/events/3.0.0:
     resolution:
       integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
-  /@types/fs-extra/8.0.0:
+  /@types/fs-extra/8.0.1:
     dependencies:
-      '@types/node': 12.7.12
+      '@types/node': 12.11.1
     dev: true
     resolution:
-      integrity: sha512-bCtL5v9zdbQW86yexOlXWTEGvLNqWxMFyi7gQA7Gcthbezr2cPSOb8SkESVKA937QD5cIwOFLDFt0MQoXOEr9Q==
+      integrity: sha512-J00cVDALmi/hJOYsunyT52Hva5TnJeKP5yd1r+mH/ZU0mbYZflR0Z5kw5kITtKTRYMhm1JMClOFYdHnQszEvqw==
   /@types/glob/7.1.1:
     dependencies:
       '@types/events': 3.0.0
