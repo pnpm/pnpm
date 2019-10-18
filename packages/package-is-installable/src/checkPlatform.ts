@@ -1,17 +1,17 @@
 import PnpmError from '@pnpm/error'
 
 export class UnsupportedPlatformError extends PnpmError {
-  public wanted: Platform
+  public wanted: WantedPlatform
   public current: Platform
 
-  constructor (packageId: string, wanted: Platform, current: Platform) {
+  constructor (packageId: string, wanted: WantedPlatform, current: Platform) {
     super('UNSUPPORTED_PLATFORM', `Unsupported platform for ${packageId}: wanted ${JSON.stringify(wanted)} (current: ${JSON.stringify(current)})`)
     this.wanted = wanted
     this.current = current
   }
 }
 
-export default function checkPlatform (packageId: string, wantedPlatform: Platform) {
+export default function checkPlatform (packageId: string, wantedPlatform: WantedPlatform) {
   const platform = process.platform
   const arch = process.arch
   let osOk = true
@@ -32,6 +32,11 @@ export default function checkPlatform (packageId: string, wantedPlatform: Platfo
 export type Platform = {
   cpu: string | string[],
   os: string | string[],
+}
+
+export type WantedPlatform = {
+  cpu?: string | string[],
+  os?: string | string[],
 }
 
 function checkList (value: string, list: string | string[]) {

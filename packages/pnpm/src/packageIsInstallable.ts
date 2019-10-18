@@ -1,14 +1,11 @@
 import logger from '@pnpm/logger'
-import { checkPackage, UnsupportedEngineError } from '@pnpm/package-is-installable'
+import { checkPackage, UnsupportedEngineError, WantedEngine } from '@pnpm/package-is-installable'
 import packageManager from './pnpmPkgJson'
 
-export default function (
+export default function packageIsInstallable (
   pkgPath: string,
   pkg: {
-    engines?: {
-      node?: string,
-      npm?: string,
-    },
+    engines?: WantedEngine,
     cpu?: string[],
     os?: string[],
   },

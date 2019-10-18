@@ -2,12 +2,16 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import checkEngine, { UnsupportedEngineError } from './checkEngine'
+import checkEngine, { UnsupportedEngineError, WantedEngine } from './checkEngine'
 import checkPlatform, { UnsupportedPlatformError } from './checkPlatform'
+
+export { Engine } from './checkEngine'
+export { Platform, WantedPlatform } from './checkPlatform'
 
 export {
   UnsupportedEngineError,
   UnsupportedPlatformError,
+  WantedEngine,
 }
 
 export default function packageIsInstallable (
@@ -15,10 +19,7 @@ export default function packageIsInstallable (
   pkg: {
     name: string,
     version: string,
-    engines?: {
-      node?: string,
-      npm?: string,
-    },
+    engines?: WantedEngine,
     cpu?: string[],
     os?: string[],
   },
@@ -62,10 +63,7 @@ export default function packageIsInstallable (
 export function checkPackage (
   pkgId: string,
   manifest: {
-    engines?: {
-      node?: string,
-      npm?: string,
-    },
+    engines?: WantedEngine,
     cpu?: string[],
     os?: string[],
   },
