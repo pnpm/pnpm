@@ -677,7 +677,7 @@ test('should not throw error if using a different store after all the packages w
 test('should throw error when trying to install using a different virtual store directory then the previous one', async (t) => {
   prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({ virtualStoreDir: 'pkgs' }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ virtualStoreDir: 'pkgs' }))
 
   let err: UnexpectedVirtualStoreDirError | null = null
   try {

@@ -65,7 +65,9 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
   async function getVirtualStoreDir () {
     const modulesYaml = await readModules(modules)
     if (!modulesYaml) {
-      throw new Error(`No .modules.yaml found at "${modules}"`)
+      const error = new Error(`No .modules.yaml found at "${modules}"`)
+      error['code'] = 'ENOENT' // tslint:disable-line
+      throw error
     }
     return modulesYaml.virtualStoreDir
   }
