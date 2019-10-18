@@ -348,7 +348,7 @@ importers:
     dependencies:
       '@zkochan/rimraf': 1.0.0
       dint: 4.0.0
-      execa: 2.1.0
+      execa: 3.2.0
       path-temp: 2.0.0
     devDependencies:
       '@pnpm/git-fetcher': 'link:'
@@ -359,7 +359,7 @@ importers:
       '@pnpm/git-fetcher': 'link:'
       '@zkochan/rimraf': 1.0.0
       dint: 4.0.0
-      execa: 2.1.0
+      execa: 3.2.0
       path-temp: 2.0.0
       rimraf: 3.0.0
       tape: 4.11.0
@@ -1109,7 +1109,7 @@ importers:
       delay: 4.3.0
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
-      execa: 2.1.0
+      execa: 3.2.0
       fast-glob: 3.1.0
       find-packages: 'link:../find-packages'
       get-port: 5.0.0
@@ -1238,7 +1238,7 @@ importers:
       delay: 4.3.0
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
-      execa: 2.1.0
+      execa: 3.2.0
       exists-link: 2.0.0
       fast-glob: 3.1.0
       find-packages: 'workspace:6.0.0'
@@ -1578,7 +1578,7 @@ importers:
       cross-spawn: 7.0.1
       deep-require-cwd: 1.0.0
       dir-is-case-sensitive: 1.0.2
-      execa: 2.1.0
+      execa: 3.2.0
       exists-link: 2.0.0
       fs-extra: 8.1.0
       is-windows: 1.0.2
@@ -1652,7 +1652,7 @@ importers:
       dependency-path: 'workspace:4.0.0'
       dir-is-case-sensitive: 1.0.2
       encode-registry: 2.0.1
-      execa: 2.1.0
+      execa: 3.2.0
       exists-link: 2.0.0
       fs-extra: 8.1.0
       get-npm-tarball-url: 2.0.1
@@ -4498,13 +4498,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-adbxcyWV46qiHyvSp50TKt05tB4tK3HcmF7/nxfAdhnox83seTDbwnaqKO4sXRy7roHAIFqJP/Rw/AuEbX61LA==
-  /execa/2.1.0:
+  /execa/3.2.0:
     dependencies:
       cross-spawn: 7.0.1
       get-stream: 5.1.0
+      human-signals: 1.1.1
       is-stream: 2.0.0
       merge-stream: 2.0.0
-      npm-run-path: 3.1.0
+      npm-run-path: 4.0.0
       onetime: 5.1.0
       p-finally: 2.0.1
       signal-exit: 3.0.2
@@ -4512,7 +4513,7 @@ packages:
     engines:
       node: ^8.12.0 || >=9.7.0
     resolution:
-      integrity: sha512-Y/URAVapfbYy2Xp/gb6A0E7iR8xeqOCXsuuaoMn7A5PzrXUK84E1gyiEfq0wQd/GHA6GsoHWwhNq8anb0mleIw==
+      integrity: sha512-kJJfVbI/lZE1PZYDI5VPxp8zXPO9rtxOkhpZ0jMKha56AI9y2gGVC6bkukStQf0ka5Rh15BA5m7cCCH4jmHqkw==
   /exists-link/2.0.0:
     dev: true
     engines:
@@ -5303,6 +5304,11 @@ packages:
       node: '>= 4.5.0'
     resolution:
       integrity: sha512-HPCTS1LW51bcyMYbxUIOO4HEOlQ1/1qRaFWcyxvwaqUS9TY88aoEuHUY33kuAh1YhVVaDQhLZsnPd+XNARWZlQ==
+  /human-signals/1.1.1:
+    engines:
+      node: '>=8.12.0'
+    resolution:
+      integrity: sha512-SEQu7vl8KjNL2eoGBLF3+wAjpsNfA9XMlXAYj/3EdaNfAlxKthD1xjEQfGOUhllCGGJVNY34bRr6lPINhNjyZw==
   /humanize-ms/1.2.1:
     dependencies:
       ms: 2.1.2
@@ -6865,13 +6871,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-NakjLfo11wZ7TLLd8jV7GHFTbF8=
-  /npm-run-path/3.1.0:
+  /npm-run-path/4.0.0:
     dependencies:
       path-key: 3.1.0
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-Dbl4A/VfiVGLgQv29URL9xshU8XDY1GeLy+fsaZ1AA8JDSfjvr5P5+pzRbWqRSBxk6/DW7MIh8lTM/PaGnP2kg==
+      integrity: sha512-8eyAOAH+bYXFPSnNnKr3J+yoybe8O87Is5rtAQ8qRczJz1ajcsjg8l2oZqP+Ppx15Ii3S1vUTjQN2h4YO2tWWQ==
   /npmlog/3.1.2:
     dependencies:
       are-we-there-yet: 1.1.5
