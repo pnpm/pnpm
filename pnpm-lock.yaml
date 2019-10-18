@@ -3,7 +3,7 @@ importers:
     devDependencies:
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
-      '@types/node': 12.7.12
+      '@types/node': 12.11.1
       '@types/tape': 4.2.33
       ts-node: 8.4.1_typescript@3.7.0-beta
       tslint: 5.20.0_typescript@3.7.0-beta
@@ -1101,7 +1101,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       archy: 1.0.0
       camelcase: 5.3.1
-      camelcase-keys: 6.0.1
+      camelcase-keys: 6.1.0
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
@@ -1229,7 +1229,7 @@ importers:
       archy: 1.0.0
       byline: 5.0.0
       camelcase: 5.3.1
-      camelcase-keys: 6.0.1
+      camelcase-keys: 6.1.0
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
@@ -2432,6 +2432,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-djYYKmdNRSBtL1x4CiE9UJb9yZhwtI1VC+UxZD0psNznrUj80ywsxKlEGAE+QL1qvLjPbfb24VosjkYM6W4RSQ==
+  /@types/node/12.11.1:
+    dev: true
+    resolution:
+      integrity: sha512-TJtwsqZ39pqcljJpajeoofYRfeZ7/I/OMUQ5pR4q5wOKf2ocrUvBAZUMhWsOvKx3dVc/aaV5GluBivt0sWqA5A==
   /@types/node/12.7.12:
     resolution:
       integrity: sha512-KPYGmfD0/b1eXurQ59fXD1GBzhSQfz6/lKBxkaHX9dKTzjXbK68Zt7yGUxUsCS1jeTy/8aL+d9JEr+S54mpkWQ==
@@ -2489,7 +2493,7 @@ packages:
       integrity: sha512-HKtXvBxU8U8evZCSlUi9HbfT/SFW7nSGCoiBEheB06jAhXeW6JbGh8biEAqIFG5rZo9f8xeJVdIn455sddmIcw==
   /@types/tape/4.2.33:
     dependencies:
-      '@types/node': 12.7.12
+      '@types/node': 12.11.1
     dev: true
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
@@ -3358,7 +3362,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-oqpfsa9oh1glnDLBQUJteJI7m3c=
-  /camelcase-keys/6.0.1:
+  /camelcase-keys/6.1.0:
     dependencies:
       camelcase: 5.3.1
       map-obj: 4.1.0
@@ -3367,7 +3371,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-Pet+fVo99HMVy183qJuyTiQECQlb0dCXg89qhixcud88j4BSns+gzhSrjRT0ustEYSWJqKMO42arm1cS1VG5FA==
+      integrity: sha512-43tBGDIs3SBDA5R5mYzkiBP3lt2IKhLDp1wVGS9XTq6SR3+7ZNdi/VwBJsk4NKgySoaziTrKM+N8hhT04NBVUA==
   /camelcase/4.1.0:
     dev: true
     engines:
@@ -3579,10 +3583,10 @@ packages:
     optional: true
     resolution:
       integrity: sha512-7j2y+40w61zy6YC2iRNpUe/NwhNyoXrYpHMrSunaMG64nRnaf96zO/KMQR4OyN/UnE5KLyEBnKHd4aG3rskjpQ==
-  /commander/2.20.1:
+  /commander/2.20.3:
     dev: true
     resolution:
-      integrity: sha512-cCuLsMhJeWQ/ZpsFTbE765kvVfoeSddc4nU3up4fV+fDBcfUXnbITJ+JzhkdjzOqhURjZgujxaioam4RM9yGUg==
+      integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==
   /commander/2.9.0:
     dependencies:
       graceful-readlink: 1.0.1
@@ -8939,7 +8943,7 @@ packages:
       '@babel/code-frame': 7.5.5
       builtin-modules: 1.1.1
       chalk: 2.4.2
-      commander: 2.20.1
+      commander: 2.20.3
       diff: 4.0.1
       glob: 7.1.4
       js-yaml: 3.13.1
