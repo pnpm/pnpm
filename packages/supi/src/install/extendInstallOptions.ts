@@ -61,6 +61,7 @@ export interface StrictInstallOptions {
   pruneStore: boolean,
   bin: string,
   prefix: string,
+  virtualStoreDir?: string,
 
   hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,

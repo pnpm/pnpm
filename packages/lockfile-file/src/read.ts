@@ -1,6 +1,5 @@
 
 import {
-  CURRENT_LOCKFILE,
   LOCKFILE_VERSION,
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
@@ -12,14 +11,14 @@ import { LockfileBreakingChangeError } from './errors'
 import logger from './logger'
 
 export async function readCurrentLockfile (
-  pkgPath: string,
+  virtualStoreDir: string,
   opts: {
     wantedVersion?: number,
     ignoreIncompatible: boolean,
   },
 ): Promise<Lockfile | null> {
-  const lockfilePath = path.join(pkgPath, CURRENT_LOCKFILE)
-  return _read(lockfilePath, pkgPath, opts)
+  const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
+  return _read(lockfilePath, virtualStoreDir, opts)
 }
 
 export async function readWantedLockfile (

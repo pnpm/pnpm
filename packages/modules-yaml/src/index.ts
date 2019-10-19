@@ -23,12 +23,17 @@ export interface Modules {
   shamefullyHoist: boolean,
   skipped: string[],
   store: string,
+  virtualStoreDir: string,
 }
 
-export async function read (virtualStoreDir: string): Promise<Modules | null> {
-  const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
+export async function read (modulesDir: string): Promise<Modules | null> {
+  const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   try {
-    return await readYamlFile<Modules>(modulesYamlPath)
+    const modules = await readYamlFile<Modules>(modulesYamlPath)
+    if (!modules.virtualStoreDir) {
+      modules.virtualStoreDir = path.join(modulesDir, '.pnpm')
+    }
+    return modules
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
@@ -40,10 +45,10 @@ export async function read (virtualStoreDir: string): Promise<Modules | null> {
 const YAML_OPTS = { sortKeys: true }
 
 export function write (
-  virtualStoreDir: string,
+  modulesDir: string,
   modules: Modules & { registries: Registries },
 ) {
-  const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
+  const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   if (modules.skipped) modules.skipped.sort()
 
   if (!modules.hoistPattern) {

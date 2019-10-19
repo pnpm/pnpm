@@ -31,6 +31,7 @@ export default async function (
     lockfileDirectory: string,
     registry: string,
     useLockfile: boolean,
+    virtualStoreDir: string,
   },
 ): Promise<{
   currentLockfile: Lockfile,
@@ -51,7 +52,7 @@ export default async function (
           message: `A ${WANTED_LOCKFILE} file exists. The current configuration prohibits to read or write a lockfile`,
           prefix: opts.lockfileDirectory,
         }),
-    readCurrentLockfile(opts.lockfileDirectory, lockfileOpts),
+    readCurrentLockfile(opts.virtualStoreDir, lockfileOpts),
   ])
   const sopts = { lockfileVersion: LOCKFILE_VERSION }
   const importerIds = opts.importers.map((importer) => importer.id)

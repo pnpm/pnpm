@@ -24,6 +24,7 @@ import {
   install,
   mutateModules,
 } from 'supi'
+import UnexpectedVirtualStoreDirError from 'supi/lib/getContext/checkCompatibility/UnexpectedVirtualStoreDirError'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')
@@ -671,6 +672,23 @@ test('ignores drive case in store path', async (t: tape.Test) => {
 
 test('should not throw error if using a different store after all the packages were uninstalled', async (t) => {
   // TODO: implement
+})
+
+test('should throw error when trying to install using a different virtual store directory then the previous one', async (t) => {
+  prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ virtualStoreDir: 'pkgs' }))
+
+  let err: UnexpectedVirtualStoreDirError | null = null
+  try {
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ virtualStoreDir: 'pnpm' }))
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err!.code, 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE', 'failed with correct error code')
+  t.equal(err!.expected, 'pkgs')
+  t.equal(err!.actual, 'pnpm')
 })
 
 test('lockfile locks npm dependencies', async (t: tape.Test) => {

@@ -4,6 +4,7 @@ import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import readImporterManifest from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
+import rimraf = require('@zkochan/rimraf')
 import crossSpawn = require('cross-spawn')
 import delay = require('delay')
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
@@ -471,4 +472,25 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
 
   t.equal(status, 0)
   t.ok(stdout.toString().includes('Unsupported engine'))
+})
+
+test('using a custom virtual-store-dir location', async (t: tape.Test) => {
+  prepare(t, {
+    dependencies: { 'rimraf': '2.5.1' }
+  })
+
+  await execPnpm('install', '--virtual-store-dir=.pnpm')
+
+  t.ok(await exists('.pnpm/localhost+4873/rimraf/2.5.1/node_modules/rimraf/package.json'))
+  t.ok(await exists('.pnpm/lock.yaml'))
+  t.ok(await exists('.pnpm/node_modules/once/package.json'))
+
+  await rimraf('node_modules')
+  await rimraf('.pnpm')
+
+  await execPnpm('install', '--virtual-store-dir=.pnpm', '--frozen-lockfile')
+
+  t.ok(await exists('.pnpm/localhost+4873/rimraf/2.5.1/node_modules/rimraf/package.json'))
+  t.ok(await exists('.pnpm/lock.yaml'))
+  t.ok(await exists('.pnpm/node_modules/once/package.json'))
 })

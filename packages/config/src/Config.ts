@@ -75,6 +75,7 @@ export interface Config {
 
   // pnpm specific configs
   store?: string,
+  virtualStoreDir?: string,
   verifyStoreIntegrity?: boolean,
   networkConcurrency?: number,
   fetchingConcurrency?: number,

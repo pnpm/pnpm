@@ -37,6 +37,7 @@
     "camelcase": "5.3.1",
     "find-up": "4.1.0",
     "is-subdir": "1.1.1",
+    "path-absolute": "1.0.1",
     "which": "2.0.1"
   },
   "devDependencies": {

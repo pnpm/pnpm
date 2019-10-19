@@ -57,6 +57,7 @@ importers:
       camelcase: 5.3.1
       find-up: 4.1.0
       is-subdir: 1.1.1
+      path-absolute: 1.0.1
       which: 2.0.1
     devDependencies:
       '@pnpm/config': 'link:'
@@ -78,6 +79,7 @@ importers:
       find-up: 4.1.0
       is-subdir: 1.1.1
       mz: 2.7.0
+      path-absolute: 1.0.1
       rimraf: 3.0.0
       tape: 4.11.0
       tempy: 0.3.0
@@ -855,6 +857,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
     devDependencies:
@@ -868,6 +871,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
+      '@pnpm/modules-yaml': 'workspace:4.0.0'
       '@pnpm/outdated': 'link:'
       '@pnpm/registry-mock': 1.5.0
       '@pnpm/types': 'workspace:4.0.0'

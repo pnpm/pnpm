@@ -5,6 +5,7 @@ import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase from 'camelcase'
 import findUp = require('find-up')
 import path = require('path')
+import pathAbsolute = require('path-absolute')
 import whichcb = require('which')
 import { Config, ConfigWithDeprecatedSettings } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
@@ -77,6 +78,7 @@ export const types = Object.assign({
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
+  'virtual-store-dir': path,
   'workspace-concurrency': Number,
   'workspace-prefix': String,
 }, npmTypes.types)
@@ -214,6 +216,9 @@ export default async (
   pnpmConfig.lockfileDirectory = typeof pnpmConfig['lockfileDirectory'] === 'undefined'
     ? pnpmConfig.shrinkwrapDirectory
     : pnpmConfig['lockfileDirectory']
+  if (pnpmConfig.virtualStoreDir) {
+    pnpmConfig.virtualStoreDir = pathAbsolute(pnpmConfig.virtualStoreDir, pnpmConfig.lockfileDirectory)
+  }
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']

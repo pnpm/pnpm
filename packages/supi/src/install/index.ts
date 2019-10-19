@@ -244,6 +244,7 @@ export async function mutateModules (
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
+          virtualStoreDir: ctx.virtualStoreDir,
           wantedLockfile: ctx.wantedLockfile,
         })
         return importers
@@ -877,8 +878,14 @@ async function installInContext (
   } else {
     await Promise.all([
       opts.useLockfile
-        ? writeLockfiles(ctx.lockfileDirectory, result.wantedLockfile, result.currentLockfile, lockfileOpts)
-        : writeCurrentLockfile(ctx.lockfileDirectory, result.currentLockfile, lockfileOpts),
+        ? writeLockfiles({
+          currentLockfile: result.currentLockfile,
+          currentLockfileDir: ctx.virtualStoreDir,
+          wantedLockfile: result.wantedLockfile,
+          wantedLockfileDir: ctx.lockfileDirectory,
+          ...lockfileOpts,
+        })
+        : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile, lockfileOpts),
       (() => {
         if (result.currentLockfile.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
@@ -896,6 +903,7 @@ async function installInContext (
           shamefullyHoist: ctx.shamefullyHoist,
           skipped: Array.from(ctx.skipped),
           store: ctx.storePath,
+          virtualStoreDir: ctx.virtualStoreDir,
         })
       })(),
     ])

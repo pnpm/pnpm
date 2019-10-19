@@ -180,6 +180,7 @@ export async function rebuild (
     shamefullyHoist: ctx.shamefullyHoist,
     skipped: Array.from(ctx.skipped),
     store: ctx.storePath,
+    virtualStoreDir: ctx.virtualStoreDir,
   })
 }
 
