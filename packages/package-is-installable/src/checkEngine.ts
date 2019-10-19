@@ -38,7 +38,4 @@ export type Engine = {
   pnpm: string,
 }
 
-export type WantedEngine = {
-  node?: string,
-  pnpm?: string,
-}
+export type WantedEngine = Partial<Engine>
