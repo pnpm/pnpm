@@ -14,6 +14,7 @@ delete process.env['npm_config_depth']
 process.env['npm_config_independent_leaves'] = 'false'
 process.env['npm_config_hoist'] = 'true'
 delete process.env['npm_config_registry']
+delete process.env['npm_config_virtual_store_dir']
 
 test('getConfig()', async (t) => {
   const { config } = await getConfig({
@@ -763,5 +764,46 @@ test('normalize the value of the color flag', async (t) => {
 
     t.equal(config.color, 'never')
   }
+  t.end()
+})
+
+test('virtual-store-dir is resolved from the root of the workspace', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'virtual-store-dir=virtual-store', 'utf8')
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.mkdir('project')
+  process.chdir('project')
+
+  const { config } = await getConfig({
+    cliArgs: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  t.deepEqual(config.virtualStoreDir, path.resolve('../virtual-store'))
+
+  t.end()
+})
+
+test('virtual-store-dir is resolved from the root of the project', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'virtual-store-dir=virtual-store', 'utf8')
+
+  const { config } = await getConfig({
+    cliArgs: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  t.deepEqual(config.virtualStoreDir, path.resolve('virtual-store'))
+
   t.end()
 })

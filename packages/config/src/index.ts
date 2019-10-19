@@ -78,7 +78,7 @@ export const types = Object.assign({
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
-  'virtual-store-dir': path,
+  'virtual-store-dir': String,
   'workspace-concurrency': Number,
   'workspace-prefix': String,
 }, npmTypes.types)
@@ -216,9 +216,6 @@ export default async (
   pnpmConfig.lockfileDirectory = typeof pnpmConfig['lockfileDirectory'] === 'undefined'
     ? pnpmConfig.shrinkwrapDirectory
     : pnpmConfig['lockfileDirectory']
-  if (pnpmConfig.virtualStoreDir) {
-    pnpmConfig.virtualStoreDir = pathAbsolute(pnpmConfig.virtualStoreDir, pnpmConfig.lockfileDirectory)
-  }
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
@@ -298,6 +295,9 @@ export default async (
   }
   if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDirectory) {
     pnpmConfig.lockfileDirectory = pnpmConfig.workspacePrefix || undefined
+  }
+  if (pnpmConfig.virtualStoreDir) {
+    pnpmConfig.virtualStoreDir = pathAbsolute(pnpmConfig.virtualStoreDir, pnpmConfig.lockfileDirectory ?? workspacePrefix ?? pnpmConfig.prefix)
   }
 
   pnpmConfig.packageManager = packageManager
