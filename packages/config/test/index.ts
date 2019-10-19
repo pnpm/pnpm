@@ -13,6 +13,7 @@ import './findBestGlobalPrefixOnWindows'
 delete process.env['npm_config_depth']
 process.env['npm_config_independent_leaves'] = 'false'
 process.env['npm_config_hoist'] = 'true'
+delete process.env['npm_config_registry']
 
 test('getConfig()', async (t) => {
   const { config } = await getConfig({
@@ -209,6 +210,34 @@ test('registries of scoped packages are read', async (t) => {
   // tslint:disable
   t.deepEqual(config.registries, {
     'default': 'https://default.com/',
+    '@foo': 'https://foo.com/',
+    '@bar': 'https://bar.com/',
+  })
+  // tslint:enable
+
+  t.end()
+})
+
+test('registries in current directory\'s .npmrc have bigger priority then global config settings', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'registry=https://pnpm.js.org/', 'utf8')
+
+  const { config } = await getConfig({
+    cliArgs: {
+      userconfig: path.join(__dirname, 'scoped-registries.ini'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // tslint:disable
+  t.deepEqual(config.registries, {
+    'default': 'https://pnpm.js.org/',
     '@foo': 'https://foo.com/',
     '@bar': 'https://bar.com/',
   })
@@ -636,27 +665,50 @@ test('rawLocalConfig in a workspace', async (t) => {
   t.comment(`temp dir created: ${tmp}`)
 
   process.chdir(tmp)
-  await fs.writeFile('.npmrc', 'independent-leaves=true', 'utf8')
+  await fs.writeFile('.npmrc', 'independent-leaves=true\nhoist-pattern=*', 'utf8')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
   await fs.mkdir('package')
   process.chdir('package')
   await fs.writeFile('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
 
-  const { config } = await getConfig({
-    cliArgs: {
-      'save-exact': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
+  {
+    const { config } = await getConfig({
+      cliArgs: {
+        'save-exact': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
 
-  t.deepEqual(config.rawLocalConfig, {
-    'hoist-pattern': 'eslint-*',
-    'independent-leaves': true,
-    'save-exact': true,
-  })
+    t.deepEqual(config.rawLocalConfig, {
+      'hoist-pattern': 'eslint-*',
+      'independent-leaves': true,
+      'save-exact': true,
+    })
+  }
+
+  // package w/o its own .npmrc
+  await fs.mkdir('package2')
+  process.chdir('package2')
+  {
+    const { config } = await getConfig({
+      cliArgs: {
+        'save-exact': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    t.deepEqual(config.rawLocalConfig, {
+      'hoist-pattern': '*',
+      'independent-leaves': true,
+      'save-exact': true,
+    })
+  }
   t.end()
 })
 
