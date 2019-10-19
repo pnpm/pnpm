@@ -11,7 +11,10 @@ export class UnsupportedPlatformError extends PnpmError {
   }
 }
 
-export default function checkPlatform (packageId: string, wantedPlatform: WantedPlatform) {
+export default function checkPlatform (
+  packageId: string,
+  wantedPlatform: WantedPlatform,
+) {
   const platform = process.platform
   const arch = process.arch
   let osOk = true
@@ -34,10 +37,7 @@ export type Platform = {
   os: string | string[],
 }
 
-export type WantedPlatform = {
-  cpu?: string | string[],
-  os?: string | string[],
-}
+export type WantedPlatform = Partial<Platform>
 
 function checkList (value: string, list: string | string[]) {
   let tmp
