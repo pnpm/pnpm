@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-importers-context",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,8 +30,8 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:2.0.0",
-    "@pnpm/modules-yaml": "workspace:4.0.0",
+    "@pnpm/lockfile-file": "workspace:3.0.0",
+    "@pnpm/modules-yaml": "workspace:5.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.11.0"
   },
