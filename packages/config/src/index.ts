@@ -165,6 +165,7 @@ export default async (
     'save-peer': false,
     'save-workspace-protocol': true,
     'shamefully-hoist': false,
+    'shared-workspace-lockfile': true,
     'shared-workspace-shrinkwrap': true,
     'shrinkwrap': npmDefaults.shrinkwrap,
     'sort': true,
@@ -297,7 +298,9 @@ export default async (
     pnpmConfig.lockfileDirectory = pnpmConfig.workspacePrefix || undefined
   }
   if (pnpmConfig.virtualStoreDir) {
-    pnpmConfig.virtualStoreDir = pathAbsolute(pnpmConfig.virtualStoreDir, pnpmConfig.lockfileDirectory ?? workspacePrefix ?? pnpmConfig.prefix)
+    pnpmConfig.virtualStoreDir = pathAbsolute(pnpmConfig.virtualStoreDir,
+      pnpmConfig.sharedWorkspaceLockfile ? (pnpmConfig.lockfileDirectory ?? workspacePrefix ?? pnpmConfig.prefix) : pnpmConfig.prefix,
+    )
   }
 
   pnpmConfig.packageManager = packageManager

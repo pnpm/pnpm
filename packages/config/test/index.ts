@@ -15,6 +15,7 @@ process.env['npm_config_independent_leaves'] = 'false'
 process.env['npm_config_hoist'] = 'true'
 delete process.env['npm_config_registry']
 delete process.env['npm_config_virtual_store_dir']
+delete process.env['npm_config_shared_workspace_lockfile']
 
 test('getConfig()', async (t) => {
   const { config } = await getConfig({
@@ -785,6 +786,28 @@ test('virtual-store-dir is resolved from the root of the workspace', async (t) =
     },
   })
   t.deepEqual(config.virtualStoreDir, path.resolve('../virtual-store'))
+
+  t.end()
+})
+
+test('virtual-store-dir is resolved from the project when the workspace packages don\'t share the lockfile', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'shared-workspace-lockfile=false\nvirtual-store-dir=virtual-store', 'utf8')
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.mkdir('project')
+  process.chdir('project')
+
+  const { config } = await getConfig({
+    cliArgs: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  t.deepEqual(config.virtualStoreDir, path.resolve('virtual-store'))
 
   t.end()
 })
