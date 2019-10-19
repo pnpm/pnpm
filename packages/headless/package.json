@@ -27,7 +27,7 @@
     "@pnpm/package-store": "file:../package-store",
     "@pnpm/read-importers-context": "file:../read-importers-context",
     "@pnpm/registry-mock": "1.5.0",
-    "@pnpm/store-path": "2.1.0",
+    "@pnpm/store-path": "2.1.1",
     "@types/fs-extra": "^8.0.1",
     "@types/mz": "0.0.32",
     "@types/ramda": "0.26.29",
