@@ -281,6 +281,11 @@ export default async (
       }
       delete pnpmConfig.lockfileDirectory
     }
+    if (opts.cliArgs['virtual-store-dir']) {
+      throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
+        'Configuration conflict. "virtual-store-dir" may not be used with "global"')
+    }
+    delete pnpmConfig.virtualStoreDir
   } else {
     pnpmConfig.prefix = pnpmConfig.localPrefix
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
