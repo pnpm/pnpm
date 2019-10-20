@@ -150,7 +150,7 @@ importers:
       rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
-      '@pnpm/config': 'workspace:4.1.2'
+      '@pnpm/config': 'workspace:4.1.3'
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/default-reporter': 'link:'
       '@pnpm/error': 'workspace:1.0.0'
@@ -1185,11 +1185,11 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 'workspace:4.1.2'
+      '@pnpm/config': 'workspace:4.1.3'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/default-fetcher': 'workspace:4.0.2'
-      '@pnpm/default-reporter': 'workspace:4.1.2'
+      '@pnpm/default-reporter': 'workspace:4.1.3'
       '@pnpm/default-resolver': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
@@ -1280,7 +1280,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-ansi: 5.2.0
-      supi: 'workspace:0.35.4'
+      supi: 'workspace:0.35.5'
       symlink-dir: 3.1.1
       table: 5.4.6
       tape: 4.11.0
@@ -1612,7 +1612,7 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 'workspace:8.1.0'
+      '@pnpm/headless': 'workspace:8.1.1'
       '@pnpm/hoist': 'workspace:1.0.1'
       '@pnpm/lifecycle': 'workspace:7.0.2'
       '@pnpm/link-bins': 5.0.1
@@ -2461,7 +2461,7 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.29:
     dependencies:
-      ts-toolbelt: 4.8.20
+      ts-toolbelt: 4.8.21
     dev: true
     resolution:
       integrity: sha512-j0rrDm19024J0X5wHl8ZK0mQas9TVvL7KQPocDEZU0nq/OUtmh0mBBBrfSIKGJZF1VLhtW6MGw+YRojUSY+5kg==
@@ -8904,10 +8904,10 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-5LpRN+mTiCs7lI5EtbXmF/HfMeCjzt7DH9CZwtkr6SywStrNQC723wG+aOWFiLNn7zT3kD/RnFqi3ZUfr4l5Qw==
-  /ts-toolbelt/4.8.20:
+  /ts-toolbelt/4.8.21:
     dev: true
     resolution:
-      integrity: sha512-Mx83L7RqXS7bG0Knl/rrfsDxP7u/+S2MqumyH+7mP8eGrxaE8VtyWo1l9aw37sHtnuhYZSFLNZvnseOyIecgbQ==
+      integrity: sha512-L69OwS7tp79ZpK+LpKyD1SCmL2Cr2bNAJMnE8Avukmw5XEcc/rxXLa6f34p+HH0VSByvwrteuvXr2lut1AY0uw==
   /tslib/1.10.0:
     dev: true
     resolution:

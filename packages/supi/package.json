@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.35.4",
+  "version": "0.35.5",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -26,7 +26,7 @@
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/filter-lockfile": "workspace:2.0.1",
     "@pnpm/fs-locker": "3.0.1",
-    "@pnpm/headless": "workspace:8.1.0",
+    "@pnpm/headless": "workspace:8.1.1",
     "@pnpm/hoist": "workspace:1.0.1",
     "@pnpm/lifecycle": "workspace:7.0.2",
     "@pnpm/link-bins": "5.0.1",
