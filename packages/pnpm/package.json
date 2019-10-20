@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,11 +21,11 @@
     "lib/"
   ],
   "dependencies": {
-    "@pnpm/config": "workspace:4.1.1",
+    "@pnpm/config": "workspace:4.1.2",
     "@pnpm/constants": "workspace:2.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
     "@pnpm/default-fetcher": "workspace:4.0.2",
-    "@pnpm/default-reporter": "workspace:4.1.1",
+    "@pnpm/default-reporter": "workspace:4.1.2",
     "@pnpm/default-resolver": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/file-reporter": "0.1.0",
