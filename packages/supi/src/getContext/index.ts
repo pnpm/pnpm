@@ -16,6 +16,7 @@ import {
 import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import path = require('path')
+import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import checkCompatibility from './checkCompatibility'
 import readLockfileFile from './readLockfiles'
@@ -79,7 +80,7 @@ export default async function getContext<T> (
   },
 ): Promise<PnpmContext<T>> {
   const importersContext = await readImportersContext(importers, opts.lockfileDirectory)
-  const virtualStoreDir = opts.virtualStoreDir ?? path.join(importersContext.rootModulesDir, '.pnpm')
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDirectory)
 
   if (importersContext.modules) {
     await validateNodeModules(importersContext.modules, importersContext.importers, {
@@ -369,7 +370,7 @@ export async function getContextForSingleImporter (
   const importer = importers[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
-  const virtualStoreDir = opts.virtualStoreDir ?? path.join(rootModulesDir, '.pnpm')
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDirectory)
 
   if (modules) {
     await validateNodeModules(modules, importers, {

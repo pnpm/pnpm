@@ -687,8 +687,8 @@ test('should throw error when trying to install using a different virtual store 
   }
   t.ok(err)
   t.equal(err!.code, 'ERR_PNPM_UNEXPECTED_VIRTUAL_STORE', 'failed with correct error code')
-  t.equal(err!.expected, 'pkgs')
-  t.equal(err!.actual, 'pnpm')
+  t.equal(err!.expected, path.resolve('pkgs'))
+  t.equal(err!.actual, path.resolve('pnpm'))
 })
 
 test('lockfile locks npm dependencies', async (t: tape.Test) => {

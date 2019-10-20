@@ -100,6 +100,7 @@
     "@pnpm/utils": "workspace:0.11.0",
     "dependency-path": "workspace:4.0.0",
     "p-limit": "2.2.1",
+    "path-absolute": "1.0.1",
     "path-exists": "4.0.0",
     "ramda": "0.26.1"
   }

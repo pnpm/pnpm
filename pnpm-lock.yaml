@@ -417,6 +417,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
       p-limit: 2.2.1
+      path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.26.1
     devDependencies:
@@ -490,6 +491,7 @@ importers:
       mz: 2.7.0
       npm-run-all: 4.1.5
       p-limit: 2.2.1
+      path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.26.1
       read-yaml-file: 1.1.0

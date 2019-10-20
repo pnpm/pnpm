@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
+import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import prepare, { preparePackages, tempDir as makeTempDir } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import rimraf = require('@zkochan/rimraf')
@@ -1082,4 +1083,70 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
     const relativePath = path.join('.', path.relative(tempDir, project.path))
     return relativePath === '.' && project.manifest.name === 'project'
   }), 'root project is present even when explicitly ignored')
+})
+
+test('custom virtual store directory in a workspace with not shared lockfile', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=false', 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('install')
+
+  {
+    const modulesManifest = await projects['project-1'].readModulesManifest()
+    t.equal(modulesManifest?.virtualStoreDir, path.resolve('project-1/virtual-store'))
+  }
+
+  await rimraf('project-1/virtual-store')
+  await rimraf('project-1/node_modules')
+
+  await execPnpm('install', '--frozen-lockfile')
+
+  {
+    const modulesManifest = await projects['project-1'].readModulesManifest()
+    t.equal(modulesManifest?.virtualStoreDir, path.resolve('project-1/virtual-store'))
+  }
+})
+
+test('custom virtual store directory in a workspace with shared lockfile', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', 'virtual-store-dir=virtual-store\nshared-workspace-lockfile=true', 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('install')
+
+  {
+    const modulesManifest = await readModulesManifest(path.resolve('node_modules'))
+    t.equal(modulesManifest?.virtualStoreDir, path.resolve('virtual-store'))
+  }
+
+  await rimraf('virtual-store')
+  await rimraf('node_modules')
+
+  await execPnpm('install', '--frozen-lockfile')
+
+  {
+    const modulesManifest = await readModulesManifest(path.resolve('node_modules'))
+    t.equal(modulesManifest?.virtualStoreDir, path.resolve('virtual-store'))
+  }
 })

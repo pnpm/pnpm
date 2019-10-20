@@ -173,6 +173,7 @@ export default async (
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'use-beta-cli': false,
     'userconfig': npmDefaults.userconfig,
+    'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
     'workspace-prefix': workspacePrefix,
   })
@@ -296,11 +297,6 @@ export default async (
   }
   if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDirectory) {
     pnpmConfig.lockfileDirectory = pnpmConfig.workspacePrefix || undefined
-  }
-  if (pnpmConfig.virtualStoreDir) {
-    pnpmConfig.virtualStoreDir = pathAbsolute(pnpmConfig.virtualStoreDir,
-      pnpmConfig.sharedWorkspaceLockfile ? (pnpmConfig.lockfileDirectory ?? workspacePrefix ?? pnpmConfig.prefix) : pnpmConfig.prefix,
-    )
   }
 
   pnpmConfig.packageManager = packageManager

@@ -58,6 +58,7 @@ import dp = require('dependency-path')
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
+import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 
 const brokenNodeModulesLogger = logger('_broken_node_modules')
@@ -125,7 +126,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
-  const virtualStoreDir = opts.virtualStoreDir ?? path.join(rootModulesDir, '.pnpm')
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', lockfileDirectory)
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const hoistedModulesDir = opts.shamefullyHoist
     ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
