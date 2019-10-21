@@ -47,7 +47,6 @@ export default async <T> (
         hasCommand++
         try {
           const lifecycleOpts = {
-            args: passedThruArgs,
             depPath: prefix,
             extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
@@ -59,7 +58,7 @@ export default async <T> (
           if (pkg.package.manifest.scripts[`pre${scriptName}`]) {
             await runLifecycleHooks(`pre${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }
-          await runLifecycleHooks(scriptName, pkg.package.manifest, lifecycleOpts)
+          await runLifecycleHooks(scriptName, pkg.package.manifest, { ...lifecycleOpts, args: passedThruArgs })
           if (pkg.package.manifest.scripts[`post${scriptName}`]) {
             await runLifecycleHooks(`post${scriptName}`, pkg.package.manifest, lifecycleOpts)
           }

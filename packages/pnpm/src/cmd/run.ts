@@ -25,7 +25,6 @@ export default async function run (
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
   const lifecycleOpts = {
-    args: args.slice(1),
     depPath: prefix,
     extraBinPaths: opts.extraBinPaths,
     pkgRoot: prefix,
@@ -37,7 +36,7 @@ export default async function run (
   if (manifest.scripts?.[`pre${scriptName}`]) {
     await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
   }
-  await runLifecycleHooks(scriptName, manifest, lifecycleOpts)
+  await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: args.slice(1) })
   if (manifest.scripts?.[`post${scriptName}`]) {
     await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
   }

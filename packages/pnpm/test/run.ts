@@ -21,29 +21,49 @@ test('pnpm run: returns correct exit code', async (t: tape.Test) => {
   t.equal(execPnpmSync('run', 'exit1').status, 1)
 })
 
+const RECORD_ARGS_FILE = `require('fs').writeFileSync('args.json', JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')`
+
 test('run: pass the args to the command that is specfied in the build script', async (t: tape.Test) => {
   prepare(t, {
     scripts: {
-      foo: 'ts-node test'
+      prefoo: 'node recordArgs',
+      foo: 'node recordArgs',
+      postfoo: 'node recordArgs',
     },
   })
+  await fs.writeFile('args.json', '[]', 'utf8')
+  await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  const result = execPnpmSync('run', 'foo', 'arg', '--', '--flag=true', '--help', '-h')
+  await execPnpm('run', 'foo', 'arg', '--', '--flag=true', '--help', '-h')
 
-  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true" "--help" "-h"/), 'command was successful')
+  const args = await import(path.resolve('args.json'))
+  t.deepEqual(args, [
+    [],
+    ['arg', '--flag=true', '--help', '-h'],
+    [],
+  ])
 })
 
 test('run -r: pass the args to the command that is specfied in the build script', async (t: tape.Test) => {
   preparePackages(t, [{
     name: 'project',
     scripts: {
-      foo: 'ts-node test'
+      prefoo: 'node recordArgs',
+      foo: 'node recordArgs',
+      postfoo: 'node recordArgs',
     },
   }])
+  await fs.writeFile('project/args.json', '[]', 'utf8')
+  await fs.writeFile('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  const result = execPnpmSync('run', '-r', 'foo', 'arg', '--', '--flag=true')
+  await execPnpm('run', '-r', 'foo', 'arg', '--', '--flag=true')
 
-  t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true"/), 'command was successful')
+  const args = await import(path.resolve('project/args.json'))
+  t.deepEqual(args, [
+    [],
+    ['arg', '--flag=true'],
+    [],
+  ])
 })
 
 test('run: pass the args to the command that is specfied in the build script of a package.yaml manifest', async (t: tape.Test) => {
