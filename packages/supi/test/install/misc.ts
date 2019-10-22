@@ -1089,3 +1089,30 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
 
   t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')))
 })
+
+test("store metadata is always saved, even if there's a fatal error", async (t: tape.Test) => {
+  prepareEmpty(t)
+  const opts = await testDefaults()
+  const saveStateSpy = sinon.spy()
+  opts.storeController.saveState = saveStateSpy
+
+  let err!: Error
+  try {
+    await mutateModules([
+      {
+        buildIndex: 0,
+        manifest: {
+          dependencies: {
+            '@pnpm/this-does-not-exist': '1.0.0',
+          },
+        },
+        mutation: 'install',
+        prefix: process.cwd(),
+      },
+    ], opts)
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.ok(saveStateSpy.calledOnce)
+})
