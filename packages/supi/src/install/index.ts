@@ -164,15 +164,19 @@ export async function mutateModules (
   }
 
   let result!: Array<{ prefix: string, manifest: ImporterManifest }>
-  if (opts.lock) {
-    result = await lock(ctx.lockfileDirectory, _install, {
-      locks: opts.locks,
-      prefix: ctx.lockfileDirectory,
-      stale: opts.lockStaleDuration,
-      storeController: opts.storeController,
-    })
-  } else {
-    result = await _install()
+  try {
+    if (opts.lock) {
+      result = await lock(ctx.lockfileDirectory, _install, {
+        locks: opts.locks,
+        prefix: ctx.lockfileDirectory,
+        stale: opts.lockStaleDuration,
+        storeController: opts.storeController,
+      })
+    } else {
+      result = await _install()
+    }
+  } finally {
+    await opts.storeController.saveState()
   }
 
   if (reporter) {

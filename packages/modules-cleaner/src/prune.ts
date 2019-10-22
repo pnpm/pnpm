@@ -165,8 +165,6 @@ export default async function prune (
       prune: opts.pruneStore || false,
       removeDependencies: Array.from(orphanPkgIds),
     })
-
-    await opts.storeController.saveState()
   }
 
   return new Set(orphanDepPaths)
