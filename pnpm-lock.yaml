@@ -464,7 +464,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-cleaner': 'workspace:5.0.1'
+      '@pnpm/modules-cleaner': 'workspace:6.0.0'
       '@pnpm/modules-yaml': 'workspace:5.0.0'
       '@pnpm/package-requester': 'workspace:8.0.1'
       '@pnpm/package-store': 'file:../package-store'
@@ -1280,7 +1280,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-ansi: 5.2.0
-      supi: 'workspace:0.35.5'
+      supi: 'workspace:0.35.6'
       symlink-dir: 3.1.1
       table: 5.4.6
       tape: 4.11.0
@@ -1612,7 +1612,7 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 'workspace:8.1.1'
+      '@pnpm/headless': 'workspace:9.0.0'
       '@pnpm/hoist': 'workspace:1.0.1'
       '@pnpm/lifecycle': 'workspace:7.0.2'
       '@pnpm/link-bins': 5.0.1
@@ -1620,7 +1620,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-cleaner': 'workspace:5.0.1'
+      '@pnpm/modules-cleaner': 'workspace:6.0.0'
       '@pnpm/modules-yaml': 'workspace:5.0.0'
       '@pnpm/package-requester': 'workspace:8.0.1'
       '@pnpm/package-store': 'file:../package-store'
