@@ -5,7 +5,6 @@ import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase from 'camelcase'
 import findUp = require('find-up')
 import path = require('path')
-import pathAbsolute = require('path-absolute')
 import whichcb = require('which')
 import { Config, ConfigWithDeprecatedSettings } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'

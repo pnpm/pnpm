@@ -57,7 +57,6 @@ importers:
       camelcase: 5.3.1
       find-up: 4.1.0
       is-subdir: 1.1.1
-      path-absolute: 1.0.1
       which: 2.0.1
     devDependencies:
       '@pnpm/config': 'link:'
@@ -79,7 +78,6 @@ importers:
       find-up: 4.1.0
       is-subdir: 1.1.1
       mz: 2.7.0
-      path-absolute: 1.0.1
       rimraf: 3.0.0
       tape: 4.11.0
       tempy: 0.3.0
