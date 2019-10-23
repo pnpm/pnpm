@@ -46,7 +46,7 @@ export default async function prune (
     registries: Registries,
     skipped: Set<string>,
     virtualStoreDir: string,
-    lockfileDirectory: string,
+    lockfileDir: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
@@ -112,7 +112,7 @@ export default async function prune (
   const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, currentPkgIdsByDepPaths))
 
   statsLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: opts.lockfileDir,
     removed: orphanPkgIds.size,
   })
 
@@ -151,7 +151,7 @@ export default async function prune (
           logger.warn({
             error: err,
             message: `Failed to remove "${pathToRemove}"`,
-            prefix: opts.lockfileDirectory,
+            prefix: opts.lockfileDir,
           })
         }
       }))

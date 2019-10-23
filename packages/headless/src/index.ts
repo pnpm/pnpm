@@ -118,15 +118,15 @@ export default async (opts: HeadlessOptions) => {
     streamParser.on('data', reporter)
   }
 
-  const lockfileDirectory = opts.lockfileDirectory
-  const wantedLockfile = opts.wantedLockfile || await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false })
+  const lockfileDir = opts.lockfileDirectory
+  const wantedLockfile = opts.wantedLockfile || await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
 
   if (!wantedLockfile) {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
-  const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', lockfileDirectory)
+  const rootModulesDir = await realNodeModulesDir(lockfileDir)
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', lockfileDir)
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const hoistedModulesDir = opts.shamefullyHoist
     ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
@@ -135,7 +135,7 @@ export default async (opts: HeadlessOptions) => {
     if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
       throw new PnpmError('OUTDATED_LOCKFILE',
         `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
-        path.relative(opts.lockfileDirectory, path.join(prefix, 'package.json')))
+        path.relative(lockfileDir, path.join(prefix, 'package.json')))
     }
   }
 
@@ -165,7 +165,7 @@ export default async (opts: HeadlessOptions) => {
         hoistedAliases: opts.hoistedAliases,
         hoistedModulesDir: opts.hoistPattern && hoistedModulesDir || undefined,
         include: opts.include,
-        lockfileDirectory,
+        lockfileDir,
         pruneStore: opts.pruneStore,
         registries: opts.registries,
         skipped,
@@ -176,13 +176,13 @@ export default async (opts: HeadlessOptions) => {
     )
   } else {
     statsLogger.debug({
-      prefix: lockfileDirectory,
+      prefix: lockfileDir,
       removed: 0,
     })
   }
 
   stageLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: lockfileDir,
     stage: 'importing_started',
   })
 
@@ -197,7 +197,7 @@ export default async (opts: HeadlessOptions) => {
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
     includeIncompatiblePackages: opts.force === true,
-    prefix: lockfileDirectory,
+    prefix: lockfileDir,
   })
   const { directDependenciesByImporterId, graph } = await lockfileToDepGraph(
     filteredLockfile,
@@ -205,7 +205,8 @@ export default async (opts: HeadlessOptions) => {
     {
       ...opts,
       importerIds: opts.importers.map(({ id }) => id),
-      prefix: lockfileDirectory,
+      lockfileDir,
+      prefix: lockfileDir,
       skipped,
       virtualStoreDir,
     } as LockfileToDepGraphOptions,
@@ -214,26 +215,26 @@ export default async (opts: HeadlessOptions) => {
 
   statsLogger.debug({
     added: depNodes.length,
-    prefix: lockfileDirectory,
+    prefix: lockfileDir,
   })
 
   await Promise.all([
     linkAllModules(depNodes, {
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir,
       optional: opts.include.optionalDependencies,
     }),
     linkAllPkgs(opts.storeController, depNodes, opts),
   ])
 
   stageLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: lockfileDir,
     stage: 'importing_done',
   })
 
   function warn (message: string) {
     logger.warn({
       message,
-      prefix: lockfileDirectory,
+      prefix: lockfileDir,
     })
   }
 
@@ -244,14 +245,14 @@ export default async (opts: HeadlessOptions) => {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            lockfileDirectory: opts.lockfileDirectory,
+            lockfileDirectory: lockfileDir,
             targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
           })
           return directory
         }
         : undefined,
       lockfile: filteredLockfile,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDirectory: lockfileDir,
       modulesDir: hoistedModulesDir,
       registries: opts.registries,
       virtualStoreDir,
@@ -265,7 +266,7 @@ export default async (opts: HeadlessOptions) => {
       importerId: id,
       importerModulesDir: modulesDir,
       importers: opts.importers,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir,
       prefix,
       registries: opts.registries,
       rootDependencies: directDependenciesByImporterId[id],
@@ -315,7 +316,7 @@ export default async (opts: HeadlessOptions) => {
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
       optional: opts.include.optionalDependencies,
-      prefix: opts.lockfileDirectory,
+      prefix: lockfileDir,
       rawConfig: opts.rawConfig,
       rootNodeModulesDir: virtualStoreDir,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
@@ -350,7 +351,7 @@ export default async (opts: HeadlessOptions) => {
   // waiting till package requests are finished
   await Promise.all(depNodes.map(({ finishing }) => finishing))
 
-  summaryLogger.debug({ prefix: opts.lockfileDirectory })
+  summaryLogger.debug({ prefix: lockfileDir })
 
   await opts.storeController.close()
 
@@ -389,7 +390,7 @@ async function linkRootPackages (
     importerId: string,
     importerModulesDir: string,
     importers: Array<{ id: string, manifest: ImporterManifest }>,
-    lockfileDirectory: string,
+    lockfileDir: string,
     prefix: string,
     rootDependencies: {[alias: string]: string},
   },
@@ -412,7 +413,7 @@ async function linkRootPackages (
           const isOptional = lockfileImporter.optionalDependencies?.[alias]
           const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
-            const importerId = getLockfileImporterId(opts.lockfileDirectory, packageDir)
+            const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
               return importerManifestsByImporterId[importerId]
             }
@@ -466,7 +467,7 @@ interface LockfileToDepGraphOptions {
   include: IncludedDependencies,
   independentLeaves: boolean,
   importerIds: string[],
-  lockfileDirectory: string,
+  lockfileDir: string,
   skipped: Set<string>,
   storeController: StoreController,
   store: string,
@@ -492,10 +493,10 @@ async function lockfileToDepGraph (
         const pkgSnapshot = lockfile.packages![relDepPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
         const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-          lockfileDirectory: opts.lockfileDirectory,
+          lockfileDirectory: opts.lockfileDir,
           targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
         })
 
@@ -518,7 +519,7 @@ async function lockfileToDepGraph (
         const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)
         progressLogger.debug({
           packageId,
-          requester: opts.lockfileDirectory,
+          requester: opts.lockfileDir,
           status: 'resolved',
         })
         let fetchResponse = opts.storeController.fetchPackage({
@@ -532,7 +533,7 @@ async function lockfileToDepGraph (
           .then(({ fromStore }) => {
             progressLogger.debug({
               packageId,
-              requester: opts.lockfileDirectory,
+              requester: opts.lockfileDir,
               status: fromStore
                 ? 'found_in_store' : 'fetched',
             })
@@ -566,7 +567,7 @@ async function lockfileToDepGraph (
       force: opts.force,
       graph,
       independentLeaves: opts.independentLeaves,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       pkgSnapshotsByRelDepPaths: lockfile.packages,
       prefix: opts.prefix,
       registries: opts.registries,
@@ -609,7 +610,7 @@ async function getChildrenPaths (
     skipped: Set<string>,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
     prefix: string,
-    lockfileDirectory: string,
+    lockfileDir: string,
     sideEffectsCacheRead: boolean,
     storeController: StoreController,
   },
@@ -631,13 +632,13 @@ async function getChildrenPaths (
         const pkgId = childPkgSnapshot.id || childDepPath
         const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
         const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-          lockfileDirectory: ctx.lockfileDirectory,
+          lockfileDirectory: ctx.lockfileDir,
           targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
         })
         children[alias] = pkgLocation.directory
       } else {
         const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDirectory), 'node_modules', pkgName)
+        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDir), 'node_modules', pkgName)
       }
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
@@ -747,7 +748,7 @@ async function linkAllModules (
   depNodes: DependenciesGraphNode[],
   opts: {
     optional: boolean,
-    lockfileDirectory: string,
+    lockfileDir: string,
   },
 ) {
   return Promise.all(
@@ -771,7 +772,7 @@ async function linkAllModules (
               if (alias === depNode.name) {
                 logger.warn({
                   message: `Cannot link dependency with name ${alias} to ${depNode.modules}. Dependency's name should differ from the parent's name.`,
-                  prefix: opts.lockfileDirectory,
+                  prefix: opts.lockfileDir,
                 })
                 return
               }

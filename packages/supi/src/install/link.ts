@@ -155,7 +155,7 @@ export default async function linkPackages (
     hoistedAliases: opts.hoistedAliases,
     hoistedModulesDir: opts.hoistPattern && opts.hoistedModulesDir || undefined,
     include: opts.include,
-    lockfileDirectory: opts.lockfileDirectory,
+    lockfileDir: opts.lockfileDirectory,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
     skipped: opts.skipped,

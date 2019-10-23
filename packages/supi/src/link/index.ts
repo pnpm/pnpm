@@ -108,7 +108,7 @@ export default async function link (
       hoistedAliases: ctx.hoistedAliases,
       hoistedModulesDir: opts.hoistPattern && ctx.hoistedModulesDir || undefined,
       include: ctx.include,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDirectory,
       registries: ctx.registries,
       skipped: ctx.skipped,
       storeController: opts.storeController,
