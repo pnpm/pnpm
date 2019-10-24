@@ -27,8 +27,8 @@ test('run: pass the args to the command that is specfied in the build script', a
   prepare(t, {
     scripts: {
       foo: 'node recordArgs',
-      prefoo: 'node recordArgs',
       postfoo: 'node recordArgs',
+      prefoo: 'node recordArgs',
     },
   })
   await fs.writeFile('args.json', '[]', 'utf8')
@@ -49,8 +49,8 @@ test('run -r: pass the args to the command that is specfied in the build script'
     name: 'project',
     scripts: {
       foo: 'node recordArgs',
-      prefoo: 'node recordArgs',
       postfoo: 'node recordArgs',
+      prefoo: 'node recordArgs',
     },
   }])
   await fs.writeFile('project/args.json', '[]', 'utf8')
