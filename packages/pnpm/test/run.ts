@@ -26,8 +26,8 @@ const RECORD_ARGS_FILE = `require('fs').writeFileSync('args.json', JSON.stringif
 test('run: pass the args to the command that is specfied in the build script', async (t: tape.Test) => {
   prepare(t, {
     scripts: {
-      prefoo: 'node recordArgs',
       foo: 'node recordArgs',
+      prefoo: 'node recordArgs',
       postfoo: 'node recordArgs',
     },
   })
@@ -48,8 +48,8 @@ test('run -r: pass the args to the command that is specfied in the build script'
   preparePackages(t, [{
     name: 'project',
     scripts: {
-      prefoo: 'node recordArgs',
       foo: 'node recordArgs',
+      prefoo: 'node recordArgs',
       postfoo: 'node recordArgs',
     },
   }])
