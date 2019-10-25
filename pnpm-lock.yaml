@@ -431,7 +431,7 @@ importers:
       '@types/fs-extra': 8.0.1
       '@types/mz': 0.0.32
       '@types/ramda': 0.26.29
-      '@types/rimraf': 2.0.2
+      '@types/rimraf': 2.0.3
       '@types/sinon': 7.5.0
       '@zkochan/rimraf': 1.0.0
       fs-extra: 8.1.0
@@ -479,7 +479,7 @@ importers:
       '@types/fs-extra': ^8.0.1
       '@types/mz': 0.0.32
       '@types/ramda': 0.26.29
-      '@types/rimraf': 2.0.2
+      '@types/rimraf': ^2.0.3
       '@types/sinon': ^7.0.10
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:4.0.0'
@@ -537,7 +537,7 @@ importers:
     devDependencies:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 3.1.0
-      '@types/rimraf': 2.0.2
+      '@types/rimraf': 2.0.3
       json-append: 1.1.1
       load-json-file: 6.2.0
       rimraf: 3.0.0
@@ -548,7 +548,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.0'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/rimraf': 2.0.2
+      '@types/rimraf': ^2.0.3
       '@zkochan/npm-lifecycle': 3.1.3
       json-append: 1.1.1
       load-json-file: 6.2.0
@@ -1733,7 +1733,7 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/mz': 0.0.32
       '@types/retry': 0.12.0
-      '@types/rimraf': 2.0.2
+      '@types/rimraf': 2.0.3
       '@types/ssri': 6.0.1
       cp-file: 7.0.0
       nock: 11.6.0
@@ -1747,7 +1747,7 @@ importers:
       '@types/graceful-fs': ^4.1.2
       '@types/mz': ^0.0.32
       '@types/retry': ^0.12.0
-      '@types/rimraf': ^2.0.2
+      '@types/rimraf': ^2.0.3
       '@types/ssri': ^6.0.1
       cp-file: 7.0.0
       credentials-by-uri: 1.0.0
@@ -2379,7 +2379,7 @@ packages:
     dependencies:
       '@types/events': 3.0.0
       '@types/minimatch': 3.0.3
-      '@types/node': 12.11.1
+      '@types/node': 12.11.7
     resolution:
       integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==
   /@types/graceful-fs/4.1.3:
@@ -2437,6 +2437,9 @@ packages:
   /@types/node/12.11.1:
     resolution:
       integrity: sha512-TJtwsqZ39pqcljJpajeoofYRfeZ7/I/OMUQ5pR4q5wOKf2ocrUvBAZUMhWsOvKx3dVc/aaV5GluBivt0sWqA5A==
+  /@types/node/12.11.7:
+    resolution:
+      integrity: sha512-JNbGaHFCLwgHn/iCckiGSOZ1XYHsKFwREtzPwSGCVld1SGhOlmZw2D4ZI94HQCrBHbADzW9m4LER/8olJTRGHA==
   /@types/nopt/3.0.29:
     dev: true
     resolution:
@@ -2467,13 +2470,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==
-  /@types/rimraf/2.0.2:
+  /@types/rimraf/2.0.3:
     dependencies:
       '@types/glob': 7.1.1
-      '@types/node': 12.11.1
+      '@types/node': 12.11.7
     dev: true
     resolution:
-      integrity: sha512-Hm/bnWq0TCy7jmjeN5bKYij9vw5GrDFWME4IuxV08278NtU/VdGbzsBohcCUJ7+QMqmUq5hpRKB39HeQWJjztQ==
+      integrity: sha512-dZfyfL/u9l/oi984hEXdmAjX3JHry7TLWw43u1HQ8HhPv6KtfxnrZ3T/bleJ0GEvnk9t5sM7eePkgMqz3yBcGg==
   /@types/semver/6.0.2:
     dev: true
     resolution:
