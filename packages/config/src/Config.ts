@@ -14,8 +14,7 @@ export interface Config {
   globalBin: string,
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
-  prefix: string,
-  localPrefix: string,
+  workingDir: string,
   bin?: string,
   ignoreScripts?: boolean
   include: IncludedDependencies

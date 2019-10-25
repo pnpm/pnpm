@@ -12,15 +12,6 @@ export default function (input: string[]) {
 const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
 
 const OPTIONS = {
-  color: {
-    description: 'Controls colors in the output. By default, output is always colored when it goes directly to a terminal',
-    name: '--[no-]color',
-  },
-  help: {
-    description: 'Output usage information',
-    name: '--help',
-    shortAlias: '-h',
-  },
   ignoreScripts: {
     description: "Don't run lifecycle scripts",
     name: '--ignore-scripts',
@@ -42,8 +33,23 @@ const OPTIONS = {
       The directory with links to the store (default is node_modules/.pnpm).
       All direct and indirect dependencies of the project are linked into this directory`,
     name: '--virtual-store-dir',
-  }
+  },
 }
+const UNIVERSAL_OPTIONS = [
+  {
+    description: 'Controls colors in the output. By default, output is always colored when it goes directly to a terminal',
+    name: '--[no-]color',
+  },
+  {
+    description: 'Output usage information',
+    name: '--help',
+    shortAlias: '-h',
+  },
+  {
+    description: `Working directory to use (default: ${process.cwd()})`,
+    name: '--working-dir',
+  },
+]
 const FILTERING = {
   list: [
     {
@@ -196,8 +202,7 @@ function getHelpText (command: string) {
                 description: 'Already installed dependencies are preferred even if newer versions satisfy a range',
                 name: '--resolution-strategy fewer-dependencies',
               },
-              OPTIONS.help,
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           {
@@ -294,10 +299,9 @@ function getHelpText (command: string) {
               OPTIONS.ignoreScripts,
               OPTIONS.offline,
               OPTIONS.preferOffline,
-              OPTIONS.help,
-              OPTIONS.color,
               OPTIONS.store,
               OPTIONS.virtualStoreDir,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           FILTERING,
@@ -341,7 +345,7 @@ function getHelpText (command: string) {
                 name: '--recursive',
                 shortAlias: '-r',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           FILTERING,
@@ -358,7 +362,7 @@ function getHelpText (command: string) {
             title: 'Options',
 
             list: [
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
         ],
@@ -387,7 +391,7 @@ function getHelpText (command: string) {
                 name: '--recursive',
                 shortAlias: '-r',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
         ],
@@ -427,7 +431,7 @@ function getHelpText (command: string) {
                 name: '--latest',
                 shortAlias: '-L',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           FILTERING,
@@ -491,7 +495,7 @@ function getHelpText (command: string) {
                 description: 'Display only the dependency tree for packages in \`devDependencies\`',
                 name: '--dev',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           FILTERING,
@@ -544,7 +548,7 @@ function getHelpText (command: string) {
                 description: 'Display only the dependency tree for packages in \`devDependencies\`',
                 name: '--dev',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           FILTERING,
@@ -567,7 +571,7 @@ function getHelpText (command: string) {
                 description: 'Remove the packages specified in \`devDependencies\`',
                 name: '--prod, --production',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
         ],
@@ -685,7 +689,7 @@ function getHelpText (command: string) {
                 description: 'Prints the outdated packages in a list. Good for small consoles',
                 name: '--no-table',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           FILTERING,
@@ -714,7 +718,7 @@ function getHelpText (command: string) {
                 description: 'Rebuild packages that were not build during installation. Packages are not build when installing with the --ignore-scripts flag',
                 name: '--pending',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
           FILTERING,
@@ -857,7 +861,7 @@ function getHelpText (command: string) {
                 description: 'Disallows creating new side effect cache during install',
                 name: '--ignore-upload-requests',
               },
-              OPTIONS.color,
+              ...UNIVERSAL_OPTIONS,
             ],
           },
         ],

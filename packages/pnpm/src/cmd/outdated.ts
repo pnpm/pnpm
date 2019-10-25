@@ -75,7 +75,7 @@ export interface OutdatedOptions {
   long?: boolean
   networkConcurrency: number
   offline: boolean
-  prefix: string
+  workingDir: string
   proxy?: string
   rawConfig: object
   registries: Registries
@@ -94,8 +94,8 @@ export default async function (
 ) {
   const packages = [
     {
-      manifest: await readImporterManifestOnly(opts.prefix, opts),
-      path: opts.prefix,
+      manifest: await readImporterManifestOnly(opts.workingDir, opts),
+      path: opts.workingDir,
     },
   ]
   const { outdatedPackages } = (await outdatedDependenciesOfWorkspacePackages(packages, args, opts))[0]
@@ -271,7 +271,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
   args: string[],
   opts: OutdatedOptions,
 ) {
-  const lockfileDirectory = opts.lockfileDirectory || opts.prefix
+  const lockfileDirectory = opts.lockfileDirectory || opts.workingDir
   const modules = await readModulesManifest(path.join(lockfileDirectory, 'node_modules'))
   const virtualStoreDir = modules?.virtualStoreDir || path.join(lockfileDirectory, 'node_modules/.pnpm')
   const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
@@ -279,7 +279,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
   if (!wantedLockfile) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
   }
-  const store = await storePath(opts.prefix, opts.store)
+  const store = await storePath(opts.workingDir, opts.store)
   const getLatestManifest = createLatestManifestGetter({
     ...opts,
     lockfileDirectory,

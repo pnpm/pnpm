@@ -36,12 +36,12 @@ test('pnpm outdated', async (t: tape.Test) => {
       independentLeaves: false,
       networkConcurrency: 16,
       offline: false,
-      prefix: process.cwd(),
       rawConfig: { registry: 'https://localhost:4873' },
       registries: { default: 'https://localhost:4873' },
       strictSsl: false,
       tag: 'latest',
       userAgent: '',
+      workingDir: process.cwd(),
     }, 'outdated'),
     stripIndent`
     ┌─────────────┬──────────────────────┬────────┐

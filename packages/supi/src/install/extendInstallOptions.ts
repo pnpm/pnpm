@@ -60,8 +60,8 @@ export interface StrictInstallOptions {
   localPackages: LocalPackages,
   pruneStore: boolean,
   bin: string,
-  prefix: string,
   virtualStoreDir?: string,
+  workingDir: string,
 
   hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,
@@ -100,7 +100,7 @@ const defaults = async (opts: InstallOptions) => {
     independentLeaves: false,
     localPackages: {},
     lock: true,
-    lockfileDirectory: opts.lockfileDirectory || opts.prefix || process.cwd(),
+    lockfileDirectory: opts.lockfileDirectory || opts.workingDir || process.cwd(),
     lockfileOnly: false,
     locks: path.join(opts.store, '_locks'),
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes

@@ -41,7 +41,7 @@ test('relative link', async (t: tape.Test) => {
         'hello-world-js-bin': '*',
       },
     },
-    prefix: process.cwd(),
+    workingDir: process.cwd(),
   }))
 
   await project.isExecutable('.bin/hello-world-js-bin')
@@ -94,7 +94,7 @@ test('relative link is not rewritten by argumentless install', async (t: tape.Te
     {
       ...opts,
       manifest: {},
-      prefix: process.cwd(),
+      workingDir: process.cwd(),
       reporter,
     }) // tslint:disable-line:no-any
 
@@ -132,7 +132,7 @@ test('relative link is rewritten by named installation to regular dependency', a
     {
       ...opts,
       manifest: {},
-      prefix: process.cwd(),
+      workingDir: process.cwd(),
       reporter,
     },
   )
@@ -214,7 +214,7 @@ test('node_modules is pruned after linking', async (t: tape.Test) => {
 
   t.ok(await exists('node_modules/.pnpm/localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'))
 
-  await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, prefix: process.cwd() }))
+  await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, workingDir: process.cwd() }))
 
   t.notOk(await exists('node_modules/.pnpm/localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'), 'pruned')
 })
@@ -247,7 +247,7 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
   const linkFrom = path.join(app1, `/packages/public/bar`)
   const linkTo = path.join(app2, `/packages/public/foo`, 'node_modules')
 
-  await link([linkFrom], linkTo, await testDefaults({ manifest: {}, prefix: process.cwd() }))
+  await link([linkFrom], linkTo, await testDefaults({ manifest: {}, workingDir: process.cwd() }))
 
   const linkToRelLink = await fs.readlink(path.join(linkTo, 'bar'))
 

@@ -10,12 +10,12 @@ export default async function run (
   opts: {
     engineStrict?: boolean,
     extraBinPaths: string[],
-    localPrefix: string,
+    workingDir: string,
     rawConfig: object,
   },
 ) {
-  const prefix = opts.localPrefix
-  const manifest = await readImporterManifestOnly(prefix, opts)
+  const workingDir = opts.workingDir
+  const manifest = await readImporterManifestOnly(workingDir, opts)
   const scriptName = args[0]
   if (!scriptName) {
     printProjectCommands(manifest)
@@ -25,11 +25,11 @@ export default async function run (
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
   const lifecycleOpts = {
-    depPath: prefix,
+    depPath: workingDir,
     extraBinPaths: opts.extraBinPaths,
-    pkgRoot: prefix,
+    pkgRoot: workingDir,
     rawConfig: opts.rawConfig,
-    rootNodeModulesDir: await realNodeModulesDir(prefix),
+    rootNodeModulesDir: await realNodeModulesDir(workingDir),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }
@@ -112,7 +112,7 @@ export async function start (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    localPrefix: string,
+    workingDir: string,
     rawConfig: object,
     argv: {
       cooked: string[],
@@ -128,7 +128,7 @@ export async function stop (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    localPrefix: string,
+    workingDir: string,
     rawConfig: object,
     argv: {
       cooked: string[],
@@ -144,7 +144,7 @@ export async function test (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    localPrefix: string,
+    workingDir: string,
     rawConfig: object,
     argv: {
       cooked: string[],
@@ -160,7 +160,7 @@ export async function restart (
   args: string[],
   opts: {
     extraBinPaths: string[],
-    localPrefix: string,
+    workingDir: string,
     rawConfig: object,
     argv: {
       cooked: string[],

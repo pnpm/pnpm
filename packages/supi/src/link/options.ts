@@ -17,11 +17,11 @@ interface StrictLinkOptions {
   pinnedVersion: 'major' | 'minor' | 'patch',
   storeController: StoreController,
   manifest: ImporterManifest,
-  prefix: string,
   registries: Registries,
   store: string,
   reporter: ReporterFunction,
   targetDependenciesField?: DependenciesField,
+  workingDir: string,
 
   hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,
@@ -51,19 +51,19 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
 }
 
 async function defaults (opts: LinkOptions) {
-  const prefix = opts.prefix || process.cwd()
+  const workingDir = opts.workingDir || process.cwd()
   return {
-    bin: path.join(prefix, 'node_modules', '.bin'),
+    bin: path.join(workingDir, 'node_modules', '.bin'),
     force: false,
     forceSharedLockfile: false,
     hoistPattern: undefined,
     independentLeaves: false,
-    lockfileDirectory: opts.lockfileDirectory || prefix,
-    prefix,
+    lockfileDirectory: opts.lockfileDirectory || workingDir,
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
     store: opts.store,
     storeController: opts.storeController,
     useLockfile: true,
+    workingDir,
   } as StrictLinkOptions
 }

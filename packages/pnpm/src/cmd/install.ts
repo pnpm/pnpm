@@ -36,7 +36,7 @@ export default async function installCmd (
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
 
-  const prefix = opts.prefix || process.cwd()
+  const workingDir = opts.workingDir || process.cwd()
 
   const localPackages = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(
@@ -45,7 +45,7 @@ export default async function installCmd (
     : undefined
 
   if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(opts.lockfileDirectory || prefix, opts)
+    opts.hooks = requireHooks(opts.lockfileDirectory || workingDir, opts)
   }
   const store = await createStoreController(opts)
   const installOpts = {
@@ -63,7 +63,7 @@ export default async function installCmd (
     forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
   }
 
-  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.prefix, opts)
+  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.workingDir, opts)
   if (manifest === null) {
     if (opts.update) {
       throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
@@ -94,7 +94,7 @@ export default async function installCmd (
         mutation: 'installSome',
         peer: opts.savePeer,
         pinnedVersion: getPinnedVersion(opts),
-        prefix: installOpts.prefix,
+        prefix: installOpts.workingDir,
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
@@ -108,10 +108,10 @@ export default async function installCmd (
     await recursive(allWorkspacePkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
-      ignoredPackages: new Set([prefix]),
+      ignoredPackages: new Set([workingDir]),
       packageSelectors: [
         {
-          pattern: prefix,
+          pattern: workingDir,
           scope: 'dependencies',
           selectBy: 'location',
         },
@@ -124,8 +124,8 @@ export default async function installCmd (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(opts.prefix, opts),
-          prefix: opts.prefix,
+          manifest: await readImporterManifestOnly(opts.workingDir, opts),
+          prefix: opts.workingDir,
         },
       ], {
         ...opts,

@@ -78,6 +78,7 @@ export const types = Object.assign({
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
+  'working-dir': String,
   'workspace-concurrency': Number,
   'workspace-prefix': String,
 }, npmTypes.types)
@@ -136,10 +137,11 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
+  const workingDir = cliArgs['working-dir'] ?? cliArgs['prefix'] ?? process.cwd()
   const workspacePrefix = cliArgs['global'] // tslint:disable-line
     ? null
     : (
-      await findWorkspacePrefix(cliArgs['prefix'] || process.cwd()) || null
+      await findWorkspacePrefix(workingDir) || null
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
@@ -158,7 +160,6 @@ export default async (
     'lock': true,
     'package-lock': npmDefaults['package-lock'],
     'pending': false,
-    'prefix': npmDefaults.prefix,
     'registry': npmDefaults.registry,
     'resolution-strategy': 'fewer-dependencies',
     'save-peer': false,
@@ -186,9 +187,11 @@ export default async (
         : npmConfig.get(configKey)
       return acc
     }, {} as Config)
+  const cwd = (cliArgs['working-dir'] && path.resolve(cliArgs['working-dir'])) ??
+    (cliArgs['prefix'] && path.resolve(cliArgs['prefix'])) ?? npmConfig.localPrefix // tslint:disable-line
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
-    ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== pnpmConfig.localPrefix ? 5 : 4).reverse(),
+    ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== cwd ? 5 : 4).reverse(),
     cliArgs,
   ] as any) // tslint:disable-line:no-any
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
@@ -236,9 +239,8 @@ export default async (
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
 
-  pnpmConfig.localPrefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
-  if (pnpmConfig.global) {
-    pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, LAYOUT_VERSION.toString())
+  if (cliArgs['global']) {
+    pnpmConfig.workingDir = path.join(pnpmConfig.globalPrefix, LAYOUT_VERSION.toString())
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
@@ -286,8 +288,8 @@ export default async (
     }
     delete pnpmConfig.virtualStoreDir
   } else {
-    pnpmConfig.prefix = pnpmConfig.localPrefix
-    pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
+    pnpmConfig.workingDir = cwd
+    pnpmConfig.bin = path.join(pnpmConfig.workingDir, 'node_modules', '.bin')
   }
   if (opts.cliArgs['save-peer']) {
     if (opts.cliArgs['save-prod']) {

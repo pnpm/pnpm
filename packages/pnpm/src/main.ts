@@ -126,10 +126,11 @@ type CLI_OPTIONS = 'access'
   | 'use-store-server'
   | 'verify-store-integrity'
   | 'virtual-store-dir'
+  | 'working-dir'
   | 'workspace-concurrency'
   | 'workspace-prefix'
 
-const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'prefix'])
+const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'prefix', 'working-dir'])
 
 const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'child-concurrency',
@@ -515,7 +516,7 @@ export default async function run (inputArgv: string[]) {
       cmd = 'recursive'
       cliArgs.unshift(subCmd)
     } else if (
-      config.workspacePrefix === config.prefix &&
+      config.workspacePrefix === config.workingDir &&
       !config.ignoreWorkspaceRootCheck
     ) {
       // Reporting is not initialized at this point, so just printing the error
@@ -580,7 +581,7 @@ export default async function run (inputArgv: string[]) {
       if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
-          prefix: config.prefix,
+          prefix: config.workingDir,
         })
       }
 

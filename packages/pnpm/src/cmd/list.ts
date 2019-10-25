@@ -10,13 +10,12 @@ export default async function (
     lockfileDirectory?: string,
     long?: boolean,
     parseable?: boolean,
-    prefix: string,
   },
   command: string,
 ) {
-  const output = await render([opts.prefix], args, {
+  const output = await render([opts.workingDir], args, {
     ...opts,
-    lockfileDirectory: opts.lockfileDirectory || opts.prefix,
+    lockfileDirectory: opts.lockfileDirectory || opts.workingDir,
   }, command)
 
   if (output) console.log(output)

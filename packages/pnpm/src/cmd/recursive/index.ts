@@ -376,12 +376,12 @@ export async function recursive (
                 saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
                 savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
-              prefix,
               rawConfig: {
                 ...installOpts.rawConfig,
                 ...localConfig,
               },
               storeController,
+              workingDir: prefix,
             },
           )
           if (action !== install) {
@@ -456,11 +456,11 @@ export async function recursive (
                 ...localConfig,
                 bin: path.join(prefix, 'node_modules', '.bin'),
                 pending: cmdFullName !== 'rebuild' || opts.pending === true,
-                prefix,
                 rawConfig: {
                   ...installOpts.rawConfig,
                   ...localConfig,
                 },
+                workingDir: prefix,
               },
             )
             result.passes++
@@ -495,7 +495,7 @@ async function unlink (manifest: ImporterManifest, opts: any) { // tslint:disabl
       {
         manifest,
         mutation: 'unlink',
-        prefix: opts.prefix,
+        prefix: opts.workingDir,
       },
     ],
     opts,
@@ -509,7 +509,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
         dependencyNames,
         manifest,
         mutation: 'unlinkSome',
-        prefix: opts.prefix,
+        prefix: opts.workingDir,
       },
     ],
     opts,
