@@ -1144,7 +1144,7 @@ importers:
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
-      wrap-ansi: 6.0.0
+      wrap-ansi: 6.1.0
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1286,7 +1286,7 @@ importers:
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
-      wrap-ansi: 6.0.0
+      wrap-ansi: 6.1.0
       write-json-file: 4.0.0
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
@@ -9410,7 +9410,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-QC1/iN/2/RPVJ5jYK8BGttj5z83LmSKmvbvrXPNCLZSEb32KKVDJDl/MOt2N01qU2H/FkzEa9PKto1BqDjtd7Q==
-  /wrap-ansi/6.0.0:
+  /wrap-ansi/6.1.0:
     dependencies:
       ansi-styles: 4.1.0
       string-width: 4.1.0
@@ -9419,7 +9419,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-8YwLklVkHe4QNpGFrK6Mxm+BaMY7da6C9GlDED3xs3XwThyJHSbVwg9qC4s1N8tBFcnM1S0s8I390RC6SgGe+g==
+      integrity: sha512-y8j9eJaotnWgJkysmwld5GkLH2KE9srRvqQE2bu1tZb0O9Qgk1mLyz4Q4KIWyjZAi2+6NRqkM/A580IsUseDdw==
   /wrappy/1.0.2:
     resolution:
       integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
