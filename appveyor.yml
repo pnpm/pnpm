@@ -17,3 +17,5 @@ test_script:
   - pnpm --version
   - pnpm t
 skip_tags: true
+cache:
+  - storage

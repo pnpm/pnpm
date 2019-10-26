@@ -30,3 +30,6 @@ __package_previews__
 .store
 
 privatePackages/store
+
+## Verdaccio storage
+storage
