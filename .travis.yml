@@ -23,7 +23,8 @@ script:
   - pnpm t
   - set +e
 cache:
-  npm: false
+  directories:
+    - storage
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1

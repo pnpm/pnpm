@@ -102,7 +102,7 @@
     "@pnpm/modules-yaml": "link:../modules-yaml",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/read-package-json": "link:../read-package-json",
-    "@pnpm/registry-mock": "1.5.0",
+    "@pnpm/registry-mock": "1.6.0",
     "@pnpm/write-importer-manifest": "link:../write-importer-manifest",
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.8.0",
