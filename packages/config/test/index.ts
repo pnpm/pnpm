@@ -193,7 +193,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
   t.end()
 })
 
-test('workspace manifest is searched from specified prefix', async (t) => {
+test('workspace manifest is searched from specified working-dir', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)
 
@@ -204,7 +204,7 @@ test('workspace manifest is searched from specified prefix', async (t) => {
 
   const { config } = await getConfig({
     cliArgs: {
-      prefix: 'workspace',
+      'working-dir': 'workspace',
     },
     packageManager: {
       name: 'pnpm',
@@ -219,8 +219,8 @@ test('workspace manifest is searched from specified prefix', async (t) => {
 test('registries of scoped packages are read', async (t) => {
   const { config } = await getConfig({
     cliArgs: {
-      prefix: 'workspace',
-      userconfig: path.join(__dirname, 'scoped-registries.ini'),
+      'userconfig': path.join(__dirname, 'scoped-registries.ini'),
+      'working-dir': 'workspace',
     },
     packageManager: {
       name: 'pnpm',
