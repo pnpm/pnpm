@@ -46,8 +46,9 @@ const UNIVERSAL_OPTIONS = [
     shortAlias: '-h',
   },
   {
-    description: `Working directory to use (default: ${process.cwd()})`,
-    name: '--working-dir',
+    description: `Change to directory <dir> (default: ${process.cwd()})`,
+    name: '--working-dir <dir>',
+    shortAlias: '-C',
   },
 ]
 const FILTERING = {
