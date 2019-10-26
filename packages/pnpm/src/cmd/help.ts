@@ -25,16 +25,17 @@ const OPTIONS = {
     name: '--prefer-offline',
   },
   store: {
-    description: 'The location where all the packages are saved on the disk',
-    name: '--store <path>',
+    description: 'The directory in which all the packages are saved on the disk',
+    name: '--store <dir>',
   },
   virtualStoreDir: {
     description: oneLine`
       The directory with links to the store (default is node_modules/.pnpm).
       All direct and indirect dependencies of the project are linked into this directory`,
-    name: '--virtual-store-dir',
-  },
+    name: '--virtual-store-dir <dir>',
+  }
 }
+
 const UNIVERSAL_OPTIONS = [
   {
     description: 'Controls colors in the output. By default, output is always colored when it goes directly to a terminal',
@@ -67,7 +68,7 @@ const FILTERING = {
     },
     {
       description: 'Includes all packages that are inside a given subdirectory. E.g.: ./components',
-      name: '--filter ./<directory>',
+      name: '--filter ./<dir>',
     },
     {
       description: 'Includes all packages that are under the current working directory',
@@ -125,7 +126,7 @@ function getHelpText (command: string) {
               },
               {
                 description: `The directory in which the ${WANTED_LOCKFILE} of the package will be created. Several projects may share a single lockfile`,
-                name: '--lockfile-directory <path>',
+                name: '--lockfile-directory <dir>',
               },
               {
                 description: 'Dependencies inside node_modules have access only to their listed dependencies',
@@ -317,7 +318,7 @@ function getHelpText (command: string) {
           'pnpm add <git repo url>',
           'pnpm add <tarball file>',
           'pnpm add <tarball url>',
-          'pnpm add <folder>',
+          'pnpm add <dir>',
         ],
       })
 
@@ -371,7 +372,7 @@ function getHelpText (command: string) {
         usages: [
           'pnpm link (in package dir)',
           'pnpm link <pkg>',
-          'pnpm link <folder>',
+          'pnpm link <dir>',
         ],
       })
 
@@ -590,7 +591,7 @@ function getHelpText (command: string) {
       return renderHelp({
         description: 'Publishes a package to the npm registry.',
         url: docsUrl(command),
-        usages: ['pnpm publish [<tarball>|<folder>] [--tag <tag>] [--access <public|restricted>]'],
+        usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>]'],
       })
 
     case 'install-test':
@@ -641,14 +642,14 @@ function getHelpText (command: string) {
 
     case 'root':
       return renderHelp({
-        description: 'Print the effective \`node_modules\` folder.',
+        description: 'Print the effective \`node_modules\` directory.',
         descriptionLists: [
           {
             title: 'Options',
 
             list: [
               {
-                description: 'Print the global \`node_modules\` folder',
+                description: 'Print the global \`node_modules\` directory',
                 name: '--global',
                 shortAlias: '-g',
               },
@@ -839,10 +840,7 @@ function getHelpText (command: string) {
                 description: 'The port number to use, when TCP is used for communication',
                 name: '--port <number>',
               },
-              {
-                description: 'The location where all the packages are saved on the disk',
-                name: '--store',
-              },
+              OPTIONS.store,
               {
                 description: 'Maximum number of concurrent network requests',
                 name: '--network-concurrency <number>',
