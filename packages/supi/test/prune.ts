@@ -23,7 +23,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
   manifest = await addDependenciesToPackage(manifest, ['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
   manifest = await addDependenciesToPackage(manifest, ['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
-  manifest = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, manifest, workingDir: process.cwd() })
+  manifest = await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), { ...opts, manifest, dir: process.cwd() })
 
   await project.has('hello-world-js-bin') // external link added
 

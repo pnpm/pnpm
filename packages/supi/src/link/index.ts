@@ -37,7 +37,7 @@ export default async function link (
   destModules: string,
   maybeOpts: LinkOptions & {
     linkToBin?: string,
-    workingDir: string,
+    dir: string,
   },
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -50,7 +50,7 @@ export default async function link (
     extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
   })
 
-  const importerId = getLockfileImporterId(ctx.lockfileDir, opts.workingDir)
+  const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
   const currentLockfile = R.clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
@@ -73,7 +73,7 @@ export default async function link (
       saveType: (opts.targetDependenciesField || ctx.manifest && guessDependencyType(manifest.name, ctx.manifest)) as DependenciesField,
     })
 
-    const packagePath = normalize(path.relative(opts.workingDir, linkFromPath))
+    const packagePath = normalize(path.relative(opts.dir, linkFromPath))
     const addLinkOpts = {
       linkedPkgName: linkFromAlias || manifest.name,
       manifest: ctx.manifest,
@@ -91,7 +91,7 @@ export default async function link (
 
   const updatedCurrentLockfile = pruneSharedLockfile(ctx.currentLockfile)
 
-  const warn = (message: string) => logger.warn({ message, prefix: opts.workingDir })
+  const warn = (message: string) => logger.warn({ message, prefix: opts.dir })
   const updatedWantedLockfile = pruneSharedLockfile(ctx.wantedLockfile, { warn })
 
   await prune(
@@ -100,7 +100,7 @@ export default async function link (
         bin: opts.bin,
         id: importerId,
         modulesDir: ctx.modulesDir,
-        prefix: opts.workingDir,
+        prefix: opts.dir,
       },
     ],
     {
@@ -125,18 +125,18 @@ export default async function link (
     await symlinkDirectRootDependency(path, destModules, alias, {
       fromDependenciesField: stu?.saveType ?? opts.targetDependenciesField,
       linkedPackage: manifest,
-      prefix: opts.workingDir,
+      prefix: opts.dir,
     })
   }
 
   const linkToBin = maybeOpts?.linkToBin || path.join(destModules, '.bin')
   await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.manifest, location: p.path })), linkToBin, {
-    warn: (message: string) => logger.warn({ message, prefix: opts.workingDir }),
+    warn: (message: string) => logger.warn({ message, prefix: opts.dir }),
   })
 
   let newPkg!: ImporterManifest
   if (opts.targetDependenciesField) {
-    newPkg = await save(opts.workingDir, opts.manifest, specsToUpsert)
+    newPkg = await save(opts.dir, opts.manifest, specsToUpsert)
     for (const { name } of specsToUpsert) {
       updatedWantedLockfile.importers[importerId].specifiers[name] = getSpecFromPackageManifest(newPkg, name)
     }
@@ -156,7 +156,7 @@ export default async function link (
     await writeCurrentLockfile(ctx.virtualStoreDir, updatedCurrentLockfile, lockfileOpts)
   }
 
-  summaryLogger.debug({ prefix: opts.workingDir })
+  summaryLogger.debug({ prefix: opts.dir })
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
@@ -233,8 +233,8 @@ export async function linkToGlobal (
   const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
   const newManifest = await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {
     ...opts,
+    dir: maybeOpts.globalDir,
     linkToBin: maybeOpts.globalBin,
-    workingDir: maybeOpts.globalDir,
   })
 
   if (reporter) {

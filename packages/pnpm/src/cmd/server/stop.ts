@@ -14,10 +14,10 @@ const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 export default async (
   opts: {
     storeDir?: string,
-    workingDir: string,
+    dir: string,
   },
 ) => {
-  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJson = await tryLoadServerJson({
     serverJsonPath: path.join(connectionInfoDir, 'server.json'),

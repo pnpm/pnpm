@@ -14,7 +14,7 @@ export interface Config {
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
   globalDir: string,
-  workingDir: string,
+  dir: string,
   bin?: string,
   ignoreScripts?: boolean
   include: IncludedDependencies

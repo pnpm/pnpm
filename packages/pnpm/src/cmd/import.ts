@@ -14,8 +14,8 @@ export default async function installCmd (
 ) {
   // Removing existing pnpm lockfile
   // it should not influence the new one
-  await rimraf(path.join(opts.workingDir, WANTED_LOCKFILE))
-  const npmPackageLock = await readNpmLockfile(opts.workingDir)
+  await rimraf(path.join(opts.dir, WANTED_LOCKFILE))
+  const npmPackageLock = await readNpmLockfile(opts.dir)
   const versionsByPackageNames = {}
   getAllVersionsByPackageNames(npmPackageLock, versionsByPackageNames)
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
@@ -27,17 +27,17 @@ export default async function installCmd (
     storeController: store.ctrl,
     storeDir: store.dir,
   }
-  await install(await readImporterManifestOnly(opts.workingDir), installOpts)
+  await install(await readImporterManifestOnly(opts.dir), installOpts)
 }
 
-async function readNpmLockfile (workingDir: string) {
+async function readNpmLockfile (dir: string) {
   try {
-    return await loadJsonFile<LockedPackage>(path.join(workingDir, 'package-lock.json'))
+    return await loadJsonFile<LockedPackage>(path.join(dir, 'package-lock.json'))
   } catch (err) {
     if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
   }
   try {
-    return await loadJsonFile<LockedPackage>(path.join(workingDir, 'npm-shrinkwrap.json'))
+    return await loadJsonFile<LockedPackage>(path.join(dir, 'npm-shrinkwrap.json'))
   } catch (err) {
     if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
   }

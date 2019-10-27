@@ -14,17 +14,17 @@ export default async function (input: string[], opts: PnpmOptions) {
     return mutateModules([
       {
         dependencyNames: input,
-        manifest: await readImporterManifestOnly(opts.workingDir, opts),
+        manifest: await readImporterManifestOnly(opts.dir, opts),
         mutation: 'unlinkSome',
-        prefix: opts.workingDir,
+        prefix: opts.dir,
       },
     ], unlinkOpts)
   }
   return mutateModules([
     {
-      manifest: await readImporterManifestOnly(opts.workingDir, opts),
+      manifest: await readImporterManifestOnly(opts.dir, opts),
       mutation: 'unlink',
-      prefix: opts.workingDir,
+      prefix: opts.dir,
     },
   ], unlinkOpts)
 }

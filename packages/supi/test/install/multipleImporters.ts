@@ -112,8 +112,8 @@ test('dependencies of other importers are not pruned when installing for a subse
   ], await testDefaults())
 
   await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
+    dir: path.resolve('project-1'),
     lockfileDir: process.cwd(),
-    workingDir: path.resolve('project-1'),
   }))
 
   await projects['project-1'].has('is-positive')
@@ -175,9 +175,9 @@ test('dependencies of other importers are not pruned when (headless) installing 
   const [{ manifest }] = await mutateModules(importers, await testDefaults())
 
   await addDependenciesToPackage(manifest, ['is-positive@2'], await testDefaults({
+    dir: path.resolve('project-1'),
     lockfileDir: process.cwd(),
     lockfileOnly: true,
-    workingDir: path.resolve('project-1'),
   }))
   await mutateModules(importers.slice(0, 1), await testDefaults({ frozenLockfile: true }))
 

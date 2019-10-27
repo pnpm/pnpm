@@ -10,12 +10,12 @@ test('getLatestManifest()', async (t: tape.Test) => {
   t.plan(4)
 
   const opts = {
+    dir: '',
     lockfileDir: '',
     registries: {
       '@scope': 'https://pnpm.js.org/',
       'default': 'https://registry.npmjs.org/',
     },
-    workingDir: '',
   }
   {
     const resolve: ResolveFunction = async function (wantedPackage, opts) {

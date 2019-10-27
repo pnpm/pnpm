@@ -26,6 +26,7 @@ export const types = Object.assign({
   'child-concurrency': Number,
   'color': ['always', 'auto', 'never'],
   'dev': [null, true],
+  'dir': String,
   'fetching-concurrency': Number,
   'filter': [String, Array],
   'frozen-lockfile': Boolean,
@@ -81,7 +82,6 @@ export const types = Object.assign({
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
-  'working-dir': String,
   'workspace-concurrency': Number,
   'workspace-prefix': String,
 }, npmTypes.types)
@@ -140,11 +140,11 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
-  const workingDir = cliArgs['working-dir'] ?? process.cwd()
+  const dir = cliArgs['dir'] ?? process.cwd()
   const workspacePrefix = cliArgs['global'] // tslint:disable-line
     ? null
     : (
-      await findWorkspacePrefix(workingDir) || null
+      await findWorkspacePrefix(dir) || null
     )
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
@@ -190,7 +190,7 @@ export default async (
         : npmConfig.get(configKey)
       return acc
     }, {} as Config)
-  const cwd = (cliArgs['working-dir'] && path.resolve(cliArgs['working-dir'])) ?? npmConfig.localPrefix // tslint:disable-line
+  const cwd = (cliArgs['dir'] && path.resolve(cliArgs['dir'])) ?? npmConfig.localPrefix // tslint:disable-line
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== cwd ? 5 : 4).reverse(),
@@ -240,7 +240,7 @@ export default async (
     : pnpmConfig['sharedWorkspaceLockfile']
 
   if (cliArgs['global']) {
-    pnpmConfig.workingDir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
+    pnpmConfig.dir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
@@ -288,8 +288,8 @@ export default async (
     }
     delete pnpmConfig.virtualStoreDir
   } else {
-    pnpmConfig.workingDir = cwd
-    pnpmConfig.bin = path.join(pnpmConfig.workingDir, 'node_modules', '.bin')
+    pnpmConfig.dir = cwd
+    pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
   if (opts.cliArgs['save-peer']) {
     if (opts.cliArgs['save-prod']) {
