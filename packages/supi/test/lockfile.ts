@@ -590,7 +590,7 @@ test['skip']('installing from lockfile when using npm enterprise', async (t: tap
     },
   })
 
-  await rimraf(opts.store)
+  await rimraf(opts.storeDir)
   await rimraf('node_modules')
 
   await install(manifest, opts)
@@ -881,7 +881,7 @@ test('packages installed via tarball URL from the default registry are normalize
 test('lockfile file has correct format when lockfile directory does not equal the prefix directory', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const store = path.resolve('..', '.store')
+  const storeDir = path.resolve('..', '.store')
 
   const manifest = await addDependenciesToPackage(
     {},
@@ -890,7 +890,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
       '@zkochan/foo@1.0.0',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ],
-    await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }),
+    await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), storeDir }),
   )
 
   t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
@@ -932,7 +932,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('project-2')
 
-  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), store }))
+  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), storeDir }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))

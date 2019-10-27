@@ -119,6 +119,7 @@ type CLI_OPTIONS = 'access'
   | 'silent'
   | 'sort'
   | 'store'
+  | 'store-dir'
   | 'strict-peer-dependencies'
   | 'table'
   | 'tag'
@@ -165,6 +166,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'side-effects-cache-readonly',
   'side-effects-cache',
   'store',
+  'store-dir',
   'strict-peer-dependencies',
   'offline',
   'only',
@@ -215,6 +217,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store',
+    'store-dir',
     'strict-peer-dependencies',
     'offline',
     'only',
@@ -293,6 +296,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'resolution-strategy',
     'shared-workspace-lockfile',
     'store',
+    'store-dir',
     'virtual-store-dir',
   ]),
   'restart': new Set([]),
@@ -309,12 +313,14 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'port',
     'protocol',
     'store',
+    'store-dir',
   ]),
   'start': new Set([]),
   'stop': new Set([]),
   'store': new Set([
     'registry',
     'store',
+    'store-dir',
   ]),
   'test': new Set([
     'recursive',
@@ -351,6 +357,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store',
+    'store-dir',
     'use-running-store-server',
   ]),
   'why': new Set([

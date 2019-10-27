@@ -53,7 +53,7 @@ test('find usages for single package in store (by version) and in a project', as
 test('find usages for package not in store', async (t: tape.Test) => {
   prepareEmpty(t)
   const opts = await testDefaults()
-  const store = assertStore(t, opts.store)
+  const store = assertStore(t, opts.storeDir)
 
   // Find usages
   await store.storeHasNot('should-not-exist-uhsalzkj')
@@ -104,7 +104,7 @@ test('find usages for package in store but not in any projects', async (t: tape.
   const registries = opts.registries || {
     default: 'null'
   }
-  const store = assertStore(t, opts.store)
+  const store = assertStore(t, opts.storeDir)
 
   // Add dependency directly to store (not to the project)
   await storeAdd(['is-negative'], {
@@ -136,7 +136,7 @@ test('find usages for multiple packages in store but not in any projects', async
   const registries = opts.registries || {
     default: 'null'
   }
-  const store = assertStore(t, opts.store)
+  const store = assertStore(t, opts.storeDir)
 
   // Add dependencies directly to store (not to the project). Note we add different versions of the same package
   await storeAdd(['is-negative'], {

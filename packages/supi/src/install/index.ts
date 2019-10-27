@@ -244,8 +244,8 @@ export async function mutateModules (
           sideEffectsCacheRead: opts.sideEffectsCacheRead,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
           skipped: ctx.skipped,
-          store: opts.store,
           storeController: opts.storeController,
+          storeDir: opts.storeDir,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
           virtualStoreDir: ctx.virtualStoreDir,
@@ -298,7 +298,7 @@ export async function mutateModules (
           const packageDirs = await readModulesDirs(importer.modulesDir)
           const externalPackages = await pFilter(
             packageDirs,
-            (packageDir: string) => isExternalLink(ctx.storePath, importer.modulesDir, packageDir),
+            (packageDir: string) => isExternalLink(ctx.storeDir, importer.modulesDir, packageDir),
           )
           const allDeps = getAllDependenciesFromPackage(importer.manifest)
           const packagesToInstall: string[] = []
@@ -320,7 +320,7 @@ export async function mutateModules (
           const allDeps = getAllDependenciesFromPackage(importer.manifest)
           for (const depName of importer.dependencyNames) {
             try {
-              if (!await isExternalLink(ctx.storePath, importer.modulesDir, depName)) {
+              if (!await isExternalLink(ctx.storeDir, importer.modulesDir, depName)) {
                 logger.warn({
                   message: `${depName} is not an external link`,
                   prefix: importer.prefix,
@@ -428,12 +428,12 @@ export async function mutateModules (
   }
 }
 
-async function isExternalLink (store: string, modules: string, pkgName: string) {
+async function isExternalLink (storeDir: string, modules: string, pkgName: string) {
   const link = await isInnerLink(modules, pkgName)
 
   // checking whether the link is pointing to the store is needed
   // because packages are linked to store when independent-leaves = true
-  return !link.isInner && !isSubdir(store, link.target)
+  return !link.isInner && !isSubdir(storeDir, link.target)
 }
 
 function pkgHasDependencies (manifest: ImporterManifest) {
@@ -451,7 +451,7 @@ async function partitionLinkedPackages (
     localPackages?: LocalPackages,
     lockfileOnly: boolean,
     prefix: string,
-    storePath: string,
+    storeDir: string,
     virtualStoreDir: string,
   },
 ) {
@@ -465,7 +465,7 @@ async function partitionLinkedPackages (
     const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
       prefix: opts.prefix,
-      storePath: opts.storePath,
+      storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
     if (isInnerLink === true) {
@@ -662,7 +662,7 @@ async function installInContext (
     localPackages: opts.localPackages,
     lockfileOnly: opts.lockfileOnly,
     preferredVersions: opts.preferredVersions,
-    storePath: ctx.storePath,
+    storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
   })
   const {
@@ -905,7 +905,7 @@ async function installInContext (
           registries: ctx.registries,
           shamefullyHoist: ctx.shamefullyHoist,
           skipped: Array.from(ctx.skipped),
-          store: ctx.storePath,
+          store: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
         })
       })(),
@@ -924,7 +924,7 @@ async function toResolveImporter (
     defaultUpdateDepth: number,
     localPackages: LocalPackages,
     lockfileOnly: boolean,
-    storePath: string,
+    storeDir: string,
     virtualStoreDir: string,
     preferredVersions?: {
       [packageName: string]: {
@@ -942,7 +942,7 @@ async function toResolveImporter (
     lockfileOnly: opts.lockfileOnly,
     modulesDir: importer.modulesDir,
     prefix: importer.prefix,
-    storePath: opts.storePath,
+    storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
   const depsToUpdate = importer.wantedDeps.map((wantedDep) => ({

@@ -29,8 +29,8 @@ export default async function (input: string[], opts: PnpmOptions) {
     case 'prune':
       store = await createStoreController(opts)
       const storePruneOptions = Object.assign(opts, {
-        store: store.path,
         storeController: store.ctrl,
+        storeDir: store.dir,
       })
       return storePrune(storePruneOptions)
     case 'add':
@@ -61,7 +61,7 @@ export default async function (input: string[], opts: PnpmOptions) {
 
 async function statusCmd (opts: PnpmOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
-    store: await storePath(opts.workingDir, opts.store),
+    storeDir: await storePath(opts.workingDir, opts.storeDir),
   }))
   if (!modifiedPkgs || !modifiedPkgs.length) {
     logger.info({

@@ -279,11 +279,11 @@ export async function outdatedDependenciesOfWorkspacePackages (
   if (!wantedLockfile) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
   }
-  const store = await storePath(opts.workingDir, opts.store)
+  const storeDir = await storePath(opts.workingDir, opts.store)
   const getLatestManifest = createLatestManifestGetter({
     ...opts,
     lockfileDirectory,
-    store,
+    storeDir,
   })
   return Promise.all(pkgs.map(async ({ manifest, path }) => {
     let match = args.length && matcher(args) || undefined

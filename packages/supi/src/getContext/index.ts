@@ -42,7 +42,7 @@ export interface PnpmContext<T> {
   virtualStoreDir: string,
   shamefullyHoist: boolean,
   skipped: Set<string>,
-  storePath: string,
+  storeDir: string,
   wantedLockfile: Lockfile,
   registries: Registries,
 }
@@ -65,7 +65,7 @@ export default async function getContext<T> (
     },
     include?: IncludedDependencies,
     registries: Registries,
-    store: string,
+    storeDir: string,
     useLockfile: boolean,
     virtualStoreDir?: string,
 
@@ -88,7 +88,7 @@ export default async function getContext<T> (
       force: opts.force,
       include: opts.include,
       lockfileDirectory: opts.lockfileDirectory,
-      store: opts.store,
+      storeDir: opts.storeDir,
       virtualStoreDir,
 
       forceIndependentLeaves: opts.forceIndependentLeaves,
@@ -102,7 +102,7 @@ export default async function getContext<T> (
     })
   }
 
-  await makeDir(opts.store)
+  await makeDir(opts.storeDir)
 
   importers.forEach((importer) => {
     packageManifestLogger.debug({
@@ -145,7 +145,7 @@ export default async function getContext<T> (
     rootModulesDir: importersContext.rootModulesDir,
     shamefullyHoist,
     skipped: importersContext.skipped,
-    storePath: opts.store,
+    storeDir: opts.storeDir,
     virtualStoreDir,
     ...await readLockfileFile({
       force: opts.force,
@@ -173,7 +173,7 @@ async function validateNodeModules (
     force: boolean,
     include?: IncludedDependencies,
     lockfileDirectory: string,
-    store: string,
+    storeDir: string,
     virtualStoreDir: string,
 
     independentLeaves?: boolean,
@@ -249,7 +249,7 @@ async function validateNodeModules (
     try {
       checkCompatibility(modules, {
         modulesDir: importer.modulesDir,
-        storePath: opts.store,
+        storeDir: opts.storeDir,
         virtualStoreDir: opts.virtualStoreDir,
       })
       if (opts.lockfileDirectory !== importer.prefix && opts.include && modules.included) {
@@ -312,7 +312,7 @@ export interface PnpmSingleContext {
   virtualStoreDir: string,
   shamefullyHoist: boolean,
   skipped: Set<string>,
-  storePath: string,
+  storeDir: string,
   wantedLockfile: Lockfile,
 }
 
@@ -329,7 +329,7 @@ export async function getContextForSingleImporter (
     include?: IncludedDependencies,
     workingDir: string,
     registries: Registries,
-    store: string,
+    storeDir: string,
     useLockfile: boolean,
     virtualStoreDir?: string,
 
@@ -365,7 +365,7 @@ export async function getContextForSingleImporter (
     opts.lockfileDirectory,
   )
 
-  const storePath = opts.store
+  const storeDir = opts.storeDir
 
   const importer = importers[0]
   const modulesDir = importer.modulesDir
@@ -378,7 +378,7 @@ export async function getContextForSingleImporter (
       force: opts.force,
       include: opts.include,
       lockfileDirectory: opts.lockfileDirectory,
-      store: opts.store,
+      storeDir: opts.storeDir,
       virtualStoreDir,
 
       forceHoistPattern: opts.forceHoistPattern,
@@ -392,7 +392,7 @@ export async function getContextForSingleImporter (
     })
   }
 
-  await makeDir(storePath)
+  await makeDir(storeDir)
   const extraBinPaths = [
     ...opts.extraBinPaths || []
   ]
@@ -423,7 +423,7 @@ export async function getContextForSingleImporter (
     rootModulesDir,
     shamefullyHoist: sHoist,
     skipped,
-    storePath,
+    storeDir,
     virtualStoreDir,
     ...await readLockfileFile({
       force: opts.force,

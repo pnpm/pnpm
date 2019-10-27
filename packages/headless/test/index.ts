@@ -722,7 +722,7 @@ test('using side effects cache', async (t) => {
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
 
-  const cacheBuildDir = path.join(opts.store, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(prefix, 'node_modules'))
@@ -762,7 +762,7 @@ test('using side effects cache and hoistPattern=*', async (t) => {
   const project = assertProject(t, prefix)
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
-  const cacheBuildDir = path.join(opts.store, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(prefix, 'node_modules'))

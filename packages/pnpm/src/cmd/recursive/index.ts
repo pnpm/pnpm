@@ -199,8 +199,8 @@ export async function recursive (
     peer: opts.savePeer,
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
       && pkgs.length === allPkgs.length,
-    store: store.path,
     storeController,
+    storeDir: store.dir,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
     forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',

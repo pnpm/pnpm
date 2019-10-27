@@ -13,18 +13,18 @@ const kill = promisify(killcb) as (pid: number, signal: string) => Promise<void>
 
 export default async (
   opts: {
-    store?: string,
+    storeDir?: string,
     workingDir: string,
   },
 ) => {
-  const store = await storePath(opts.workingDir, opts.store)
-  const connectionInfoDir = serverConnectionInfoDir(store)
+  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJson = await tryLoadServerJson({
     serverJsonPath: path.join(connectionInfoDir, 'server.json'),
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    globalInfo(`Nothing to stop. No server is running for the store at ${store}`)
+    globalInfo(`Nothing to stop. No server is running for the store at ${storeDir}`)
     return
   }
   const storeController = await connectStoreController(serverJson.connectionOptions)

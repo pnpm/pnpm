@@ -10,7 +10,7 @@ export interface StrictRebuildOptions {
   extraBinPaths: string[],
   lockfileDirectory: string,
   sideEffectsCacheRead: boolean,
-  store: string, // TODO: remove this property
+  storeDir: string, // TODO: remove this property
   storeController: StoreController,
   force: boolean,
   forceSharedLockfile: boolean,
@@ -35,7 +35,7 @@ export interface StrictRebuildOptions {
 }
 
 export type RebuildOptions = Partial<StrictRebuildOptions> &
-  Pick<StrictRebuildOptions, 'store' | 'storeController'>
+  Pick<StrictRebuildOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: RebuildOptions) => {
   const packageManager = opts.packageManager || {
@@ -59,7 +59,7 @@ const defaults = async (opts: RebuildOptions) => {
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
     sideEffectsCacheRead: false,
-    store: opts.store,
+    storeDir: opts.storeDir,
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||
       !(process.getuid && process.setuid &&
@@ -82,7 +82,7 @@ export default async (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
+  const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }

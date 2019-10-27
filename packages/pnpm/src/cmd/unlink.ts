@@ -6,8 +6,8 @@ import { PnpmOptions } from '../types'
 export default async function (input: string[], opts: PnpmOptions) {
   const store = await createStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
-    store: store.path,
     storeController: store.ctrl,
+    storeDir: store.dir,
   })
 
   if (!input || !input.length) {

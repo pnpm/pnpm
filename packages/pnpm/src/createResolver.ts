@@ -15,7 +15,7 @@ export default function (
     offline?: boolean,
     proxy?: string,
     rawConfig: object,
-    store: string,
+    storeDir: string,
     strictSsl?: boolean,
     userAgent?: string,
     verifyStoreIntegrity?: boolean,

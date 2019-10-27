@@ -291,7 +291,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   await fs.writeFile('project-2/.npmrc', 'hoist=false', 'utf8')
 
   process.chdir('project-1')
-  await execPnpm('install', '--store', storeDir, '--filter', '.')
+  await execPnpm('install', '--store-dir', storeDir, '--filter', '.')
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
@@ -301,7 +301,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   process.chdir('..')
   process.chdir('project-2')
 
-  await execPnpm('install', '--store', storeDir, '--filter', '.')
+  await execPnpm('install', '--store-dir', storeDir, '--filter', '.')
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
@@ -342,7 +342,7 @@ test('recursive installation using server', async (t: tape.Test) => {
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  await execPnpm('server', 'stop', '--store', storeDir)
+  await execPnpm('server', 'stop', '--store-dir', storeDir)
 })
 
 test('recursive installation of packages with hooks', async t => {

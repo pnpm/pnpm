@@ -18,7 +18,7 @@ interface StrictLinkOptions {
   storeController: StoreController,
   manifest: ImporterManifest,
   registries: Registries,
-  store: string,
+  storeDir: string,
   reporter: ReporterFunction,
   targetDependenciesField?: DependenciesField,
   workingDir: string,
@@ -45,7 +45,7 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
+  const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }
@@ -61,8 +61,8 @@ async function defaults (opts: LinkOptions) {
     lockfileDirectory: opts.lockfileDirectory || workingDir,
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
-    store: opts.store,
     storeController: opts.storeController,
+    storeDir: opts.storeDir,
     useLockfile: true,
     workingDir,
   } as StrictLinkOptions

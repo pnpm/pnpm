@@ -65,8 +65,8 @@ export default function (
   fetchers: {[type: string]: FetchFunction},
   opts: {
     networkConcurrency?: number,
+    storeDir: string,
     storeIndex: StoreIndex,
-    storePath: string,
     verifyStoreIntegrity: boolean,
   },
 ): RequestPackageFunction & {
@@ -87,15 +87,15 @@ export default function (
     fetch,
     fetchingLocker: new Map(),
     requestsQueue,
+    storeDir: opts.storeDir,
     storeIndex: opts.storeIndex,
-    storePath: opts.storePath,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     fetchPackageToStore,
     requestsQueue,
     resolve,
-    storePath: opts.storePath,
+    storeDir: opts.storeDir,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
 
@@ -107,7 +107,7 @@ async function resolveAndFetch (
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     resolve: ResolveFunction,
     fetchPackageToStore: FetchPackageToStoreFunction,
-    storePath: string,
+    storeDir: string,
     verifyStoreIntegrity: boolean,
   },
   wantedDependency: WantedDependency,
@@ -187,9 +187,9 @@ async function resolveAndFetch (
     if (options.skipFetch && pkg) {
       return {
         body: {
-          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
+          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storeDir, id) : new Map(),
           id,
-          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id, options.lockfileDirectory)),
+          inStoreLocation: path.join(ctx.storeDir, pkgIdToFilename(id, options.lockfileDirectory)),
           isLocal: false as const,
           latest,
           manifest: pkg,
@@ -212,7 +212,7 @@ async function resolveAndFetch (
 
     return {
       body: {
-        cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
+        cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storeDir, id) : new Map(),
         id,
         inStoreLocation: fetchResult.inStoreLocation,
         isLocal: false as const,
@@ -248,7 +248,7 @@ function fetchToStore (
     }>,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
-    storePath: string,
+    storeDir: string,
     verifyStoreIntegrity: boolean,
   },
   opts: {
@@ -266,7 +266,7 @@ function fetchToStore (
   inStoreLocation: string,
 } {
   const targetRelative = pkgIdToFilename(opts.pkgId, opts.prefix)
-  const target = path.join(ctx.storePath, targetRelative)
+  const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
     const bundledManifest = differed<BundledManifest>()
@@ -417,7 +417,7 @@ function fetchToStore (
             opts.resolution,
             target,
             {
-              cachedTarballLocation: path.join(ctx.storePath, opts.pkgId, 'packed.tgz'),
+              cachedTarballLocation: path.join(ctx.storeDir, opts.pkgId, 'packed.tgz'),
               onProgress: (downloaded) => {
                 fetchingProgressLogger.debug({
                   downloaded,
@@ -584,10 +584,10 @@ async function fetcher (
 }
 
 // TODO: cover with tests
-export async function getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>> {
+export async function getCacheByEngine (storeDir: string, id: string): Promise<Map<string, string>> {
   const map = new Map<string, string>()
 
-  const cacheRoot = path.join(storePath, id, 'side_effects')
+  const cacheRoot = path.join(storeDir, id, 'side_effects')
   if (!await fs.exists(cacheRoot)) {
     return map
   }

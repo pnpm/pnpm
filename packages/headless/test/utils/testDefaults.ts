@@ -23,7 +23,7 @@ export default async function testDefaults (
   fetchOpts?: any, // tslint:disable-line
   storeOpts?: any, // tslint:disable-line
 ): Promise<HeadlessOptions> {
-  let store = opts && opts.store || tempy.directory()
+  let storeDir = opts && opts.storeDir || tempy.directory()
   const lockfileDirectory = opts && opts.lockfileDirectory || process.cwd()
   const { importers, include, pendingBuilds, registries } = await readImportersContext(
     [
@@ -33,13 +33,13 @@ export default async function testDefaults (
     ],
     lockfileDirectory,
   )
-  store = await storePath(lockfileDirectory, store)
+  storeDir = await storePath(lockfileDirectory, storeDir)
   const rawConfig = { registry }
   const storeController = await createStore(
     createResolver({
       metaCache: new Map(),
       rawConfig,
-      store,
+      storeDir,
       strictSsl: true,
       ...retryOpts,
       ...resolveOpts,
@@ -52,8 +52,8 @@ export default async function testDefaults (
       ...fetchOpts,
     }) as {},
     {
-      locks: path.join(store, '_locks'),
-      store,
+      locks: path.join(storeDir, '_locks'),
+      storeDir,
       ...storeOpts,
     },
   )
@@ -81,8 +81,8 @@ export default async function testDefaults (
     },
     sideEffectsCache: true,
     skipped: new Set<string>(),
-    store,
     storeController,
+    storeDir,
     unsafePerm: true,
     verifyStoreIntegrity: true,
     ...opts,

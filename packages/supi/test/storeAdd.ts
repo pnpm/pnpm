@@ -17,7 +17,7 @@ test('add packages to the store', async (t: tape.Test) => {
   process.chdir('_')
 
   const opts = await testDefaults()
-  const store = assertStore(t, opts.store)
+  const store = assertStore(t, opts.storeDir)
 
   opts['registry'] = opts.registries!.default // tslint:disable-line
   await storeAdd(['express@4.16.3'], opts)
@@ -26,7 +26,7 @@ test('add packages to the store', async (t: tape.Test) => {
   await store.storeHas('express', '4.16.3')
 
   // Assert package in store index
-  const storeIndex = await loadJsonFile(path.join(opts.store, 'store.json'))
+  const storeIndex = await loadJsonFile(path.join(opts.storeDir, 'store.json'))
   t.deepEqual(
     storeIndex,
     {

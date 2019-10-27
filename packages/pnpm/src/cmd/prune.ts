@@ -16,7 +16,7 @@ export default async (input: string[], opts: PnpmOptions) => {
   ], {
     ...opts,
     pruneStore: true,
-    store: store.path,
     storeController: store.ctrl,
+    storeDir: store.dir,
   } as InstallOptions)
 }

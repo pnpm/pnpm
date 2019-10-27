@@ -95,7 +95,7 @@ export interface HeadlessOptions {
   sideEffectsCacheRead: boolean,
   sideEffectsCacheWrite: boolean,
   force: boolean,
-  store: string,
+  storeDir: string,
   rawConfig: object,
   unsafePerm: boolean,
   userAgent: string,
@@ -344,7 +344,7 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     shamefullyHoist: opts.shamefullyHoist || false,
     skipped: Array.from(skipped),
-    store: opts.store,
+    store: opts.storeDir,
     virtualStoreDir,
   })
 
@@ -470,7 +470,7 @@ interface LockfileToDepGraphOptions {
   lockfileDir: string,
   skipped: Set<string>,
   storeController: StoreController,
-  store: string,
+  storeDir: string,
   prefix: string,
   registries: Registries,
   sideEffectsCacheRead: boolean,
@@ -573,8 +573,8 @@ async function lockfileToDepGraph (
       registries: opts.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: opts.skipped,
-      store: opts.store,
       storeController: opts.storeController,
+      storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
     for (const peripheralLocation of R.keys(graph)) {
@@ -606,7 +606,7 @@ async function getChildrenPaths (
     registries: Registries,
     virtualStoreDir: string,
     independentLeaves: boolean,
-    store: string,
+    storeDir: string,
     skipped: Set<string>,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
     prefix: string,

@@ -28,7 +28,7 @@ const rawConfig = { registry }
 const resolve = createResolver({
   metaCache: new Map(),
   rawConfig,
-  store: '.store',
+  storeDir: '.store',
 }) as ResolveFunction
 const fetch = createFetcher({
   alwaysAuth: false,
@@ -41,8 +41,8 @@ test('request package', async t => {
   const storeIndex = {}
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
+    storeDir: '.store',
     storeIndex,
-    storePath: '.store',
     verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
@@ -92,8 +92,8 @@ test('request package', async t => {
 test('request package but skip fetching', async t => {
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
+    storeDir: '.store',
     storeIndex: {},
-    storePath: '.store',
     verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
@@ -136,8 +136,8 @@ test('request package but skip fetching', async t => {
 test('request package but skip fetching, when resolution is already available', async t => {
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
+    storeDir: '.store',
     storeIndex: {},
-    storePath: '.store',
     verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
@@ -195,7 +195,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
   const tarball = `file:${tarballRelativePath}`
   const wantedPackage = { pref: tarball }
-  const storePath = path.join(__dirname, '..', '.store')
+  const storeDir = path.join(__dirname, '..', '.store')
   const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
     currentPackageId: pkgId,
@@ -211,8 +211,8 @@ test('refetch local tarball if its integrity has changed', async t => {
 
   {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -239,8 +239,8 @@ test('refetch local tarball if its integrity has changed', async t => {
 
   {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -261,8 +261,8 @@ test('refetch local tarball if its integrity has changed', async t => {
 
   {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -293,7 +293,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
   const tarball = `file:${tarballPath}`
   const wantedPackage = { pref: tarball }
-  const storePath = path.join(__dirname, '..', '.store')
+  const storeDir = path.join(__dirname, '..', '.store')
   const requestPackageOpts = {
     downloadPriority: 0,
     lockfileDirectory: prefix,
@@ -306,8 +306,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
 
   {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -328,8 +328,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
 
   {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -347,8 +347,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
 
   {
     const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -369,8 +369,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
 test('fetchPackageToStore()', async (t) => {
   const packageRequester = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
+    storeDir: '.store',
     storeIndex: {},
-    storePath: '.store',
     verifyStoreIntegrity: true,
   })
 
@@ -427,8 +427,8 @@ test('fetchPackageToStore()', async (t) => {
 test('fetchPackageToStore() concurrency check', async (t) => {
   const packageRequester = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
+    storeDir: '.store',
     storeIndex: {},
-    storePath: '.store',
     verifyStoreIntegrity: true,
   })
 
@@ -513,8 +513,8 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
 
   const packageRequester = createPackageRequester(resolve, noRetryFetch, {
     networkConcurrency: 1,
+    storeDir: tempy.directory(),
     storeIndex: {},
-    storePath: tempy.directory(),
     verifyStoreIntegrity: true,
   })
 
@@ -563,8 +563,8 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
 test('always return a package manifest in the response', async t => {
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
+    storeDir: '.store',
     storeIndex: {},
-    storePath: '.store',
     verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
@@ -622,8 +622,8 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
 
   const packageRequester = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
+    storeDir: tempy.directory(),
     storeIndex: {},
-    storePath: tempy.directory(),
     verifyStoreIntegrity: true,
   })
 
@@ -655,9 +655,9 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
 
 test('refetch package to store if it has been modified', async (t) => {
   nock.cleanAll()
-  const storePath = tempy.directory()
+  const storeDir = tempy.directory()
   const storeIndex = {}
-  t.comment(`store location: ${storePath}`)
+  t.comment(`store location: ${storeDir}`)
 
   const pkgId = 'registry.npmjs.org/magic-hook/2.0.0'
   const resolution = {
@@ -668,8 +668,8 @@ test('refetch package to store if it has been modified', async (t) => {
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
       networkConcurrency: 1,
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -684,7 +684,7 @@ test('refetch package to store if it has been modified', async (t) => {
     await fetchResult.files()
   }
 
-  const distPathInStore = await path.join(storePath, pkgId, 'node_modules', 'magic-hook', 'dist')
+  const distPathInStore = await path.join(storeDir, pkgId, 'node_modules', 'magic-hook', 'dist')
 
   t.ok(await fs.exists(distPathInStore), `${distPathInStore} exists`)
 
@@ -699,8 +699,8 @@ test('refetch package to store if it has been modified', async (t) => {
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
       networkConcurrency: 1,
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -721,7 +721,7 @@ test('refetch package to store if it has been modified', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'warn',
-    message: `Refetching ${path.join(storePath, pkgId)} to store. It was either modified or had no integrity checksums`,
+    message: `Refetching ${path.join(storeDir, pkgId)} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix,
   }), 'refetch logged')
@@ -731,9 +731,9 @@ test('refetch package to store if it has been modified', async (t) => {
 
 test('refetch package to store if it has no integrity checksums and verification is needed', async (t) => {
   nock.cleanAll()
-  const storePath = tempy.directory()
+  const storeDir = tempy.directory()
   const storeIndex = {}
-  t.comment(`store location: ${storePath}`)
+  t.comment(`store location: ${storeDir}`)
 
   const pkgId = 'registry.npmjs.org/magic-hook/2.0.0'
   const resolution = {
@@ -744,8 +744,8 @@ test('refetch package to store if it has no integrity checksums and verification
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
       networkConcurrency: 1,
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: false,
     })
 
@@ -759,7 +759,7 @@ test('refetch package to store if it has no integrity checksums and verification
 
     await fetchResult.files()
 
-    const integrityJson = await loadJsonFile<object>(path.join(storePath, pkgId, 'integrity.json'))
+    const integrityJson = await loadJsonFile<object>(path.join(storeDir, pkgId, 'integrity.json'))
     t.notOk(integrityJson['package.json'].integrity, 'no integrity hash generated')
   }
 
@@ -770,8 +770,8 @@ test('refetch package to store if it has no integrity checksums and verification
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
       networkConcurrency: 1,
+      storeDir,
       storeIndex,
-      storePath,
       verifyStoreIntegrity: true,
     })
 
@@ -785,7 +785,7 @@ test('refetch package to store if it has no integrity checksums and verification
 
     await fetchResult.files()
 
-    const integrityJson = await loadJsonFile<object>(path.join(storePath, pkgId, 'integrity.json'))
+    const integrityJson = await loadJsonFile<object>(path.join(storeDir, pkgId, 'integrity.json'))
     t.ok(integrityJson['package.json'].integrity, 'integrity hash generated')
   }
 
@@ -793,7 +793,7 @@ test('refetch package to store if it has no integrity checksums and verification
 
   t.ok(reporter.calledWithMatch({
     level: 'warn',
-    message: `Refetching ${path.join(storePath, pkgId)} to store. It was either modified or had no integrity checksums`,
+    message: `Refetching ${path.join(storeDir, pkgId)} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix,
   }), 'refetch logged')

@@ -28,26 +28,26 @@ export default async function (
   initOpts: {
     locks?: string,
     lockStaleDuration?: number,
-    store: string,
+    storeDir: string,
     networkConcurrency?: number,
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
     verifyStoreIntegrity: boolean,
   },
 ): Promise<StoreController & { closeSync: () => void, saveStateSync: () => void }> {
-  const store = initOpts.store
+  const storeDir = initOpts.storeDir
   const unlock = initOpts.locks
-    ? await lock(initOpts.store, {
+    ? await lock(initOpts.storeDir, {
       locks: initOpts.locks,
       stale: initOpts.lockStaleDuration || 60 * 1000, // 1 minute,
-      whenLocked: () => globalWarn(`waiting for the store at "${initOpts.store}" to be unlocked...`),
+      whenLocked: () => globalWarn(`waiting for the store at "${initOpts.storeDir}" to be unlocked...`),
     })
     : null
 
-  const storeIndex = await readStore(initOpts.store) || {}
+  const storeIndex = await readStore(initOpts.storeDir) || {}
   const packageRequester = createPackageRequester(resolve, fetchers, {
     networkConcurrency: initOpts.networkConcurrency,
+    storeDir: initOpts.storeDir,
     storeIndex,
-    storePath: initOpts.store,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
   })
 
@@ -60,8 +60,8 @@ export default async function (
     importPackage: createImportPackage(initOpts.packageImportMethod),
     prune,
     requestPackage: packageRequester.requestPackage,
-    saveState: saveStore.bind(null, initOpts.store, storeIndex),
-    saveStateSync: saveStoreSync.bind(null, initOpts.store, storeIndex),
+    saveState: saveStore.bind(null, initOpts.storeDir, storeIndex),
+    saveStateSync: saveStoreSync.bind(null, initOpts.storeDir, storeIndex),
     updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
       await removeDependencies(prefix, opts.removeDependencies, { prune: opts.prune })
       await addDependencies(prefix, opts.addDependencies)
@@ -78,7 +78,7 @@ export default async function (
     }
   ) {
     if (opts.targetEngine) {
-      const sideEffectsCacheLocation = (await getCacheByEngine(initOpts.store, packageId))[opts.targetEngine]
+      const sideEffectsCacheLocation = (await getCacheByEngine(initOpts.storeDir, packageId))[opts.targetEngine]
       if (sideEffectsCacheLocation) {
         return {
           directory: sideEffectsCacheLocation,
@@ -88,7 +88,7 @@ export default async function (
     }
 
     return {
-      directory: path.join(initOpts.store, pkgIdToFilename(packageId, opts.lockfileDirectory), 'node_modules', packageName),
+      directory: path.join(initOpts.storeDir, pkgIdToFilename(packageId, opts.lockfileDirectory), 'node_modules', packageName),
       isBuilt: false,
     }
   }
@@ -99,7 +99,7 @@ export default async function (
         storeIndex[notDependent].splice(storeIndex[notDependent].indexOf(prefix), 1)
         if (opts.prune && !storeIndex[notDependent].length) {
           delete storeIndex[notDependent]
-          await rimraf(path.join(store, notDependent))
+          await rimraf(path.join(storeDir, notDependent))
         }
       }
     }))
@@ -122,7 +122,7 @@ export default async function (
 
         if (!storeIndex[pkgId].length) {
           delete storeIndex[pkgId]
-          await rimraf(path.join(store, pkgId))
+          await rimraf(path.join(storeDir, pkgId))
           globalInfo(`- ${pkgId}`)
         }
       }
@@ -150,7 +150,7 @@ export default async function (
   }
 
   async function upload (builtPkgLocation: string, opts: {packageId: string, engine: string}) {
-    const cachePath = path.join(store, opts.packageId, 'side_effects', opts.engine, 'package')
+    const cachePath = path.join(storeDir, opts.packageId, 'side_effects', opts.engine, 'package')
     // TODO calculate integrity.json here
     const filenames: string[] = []
     await copyPkg(builtPkgLocation, cachePath, { filesResponse: { fromStore: true, filenames }, force: true })
