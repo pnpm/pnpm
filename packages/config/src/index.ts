@@ -269,14 +269,14 @@ export default async (
       pnpmConfig.linkWorkspacePackages = false
     }
     if (pnpmConfig.sharedWorkspaceLockfile) {
-      if (opts.cliArgs['shared-workspace-lockfile'] || opts.cliArgs['shared-workspace-shrinkwrap']) {
+      if (opts.cliArgs['shared-workspace-lockfile']) {
         throw new PnpmError('CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL',
           'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
       }
       pnpmConfig.sharedWorkspaceLockfile = false
     }
     if (pnpmConfig.lockfileDirectory) {
-      if (opts.cliArgs['lockfile-directory'] || opts.cliArgs['shrinkwrap-directory']) {
+      if (opts.cliArgs['lockfile-directory']) {
         throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL',
           'Configuration conflict. "lockfile-directory" may not be used with "global"')
       }

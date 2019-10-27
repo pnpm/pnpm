@@ -52,12 +52,12 @@ test('throw error if --link-workspace-packages is used with --global', async (t)
   }
 })
 
-test('throw error if --shared-workspace-shrinkwrap is used with --global', async (t) => {
+test('throw error if --shared-workspace-lockfile is used with --global', async (t) => {
   try {
     await getConfig({
       cliArgs: {
         'global': true,
-        'shared-workspace-shrinkwrap': true,
+        'shared-workspace-lockfile': true,
       },
       packageManager: {
         name: 'pnpm',
@@ -71,12 +71,12 @@ test('throw error if --shared-workspace-shrinkwrap is used with --global', async
   }
 })
 
-test('throw error if --shrinkwrap-directory is used with --global', async (t) => {
+test('throw error if --lockfile-directory is used with --global', async (t) => {
   try {
     await getConfig({
       cliArgs: {
         'global': true,
-        'shrinkwrap-directory': '/home/src',
+        'lockfile-directory': '/home/src',
       },
       packageManager: {
         name: 'pnpm',
@@ -147,15 +147,15 @@ test('throw error if --virtual-store-dir is used with --global', async (t) => {
   }
 })
 
-test('when using --global, link-workspace-packages, shared-workspace-shrinwrap and shrinkwrap-directory are false even if it is set to true in a .npmrc file', async (t) => {
+test('when using --global, link-workspace-packages, shared-workspace-shrinwrap and lockfile-directory are false even if it is set to true in a .npmrc file', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)
 
   process.chdir(tmp)
   const npmrc = [
     'link-workspace-packages=true',
-    'shared-workspace-shrinkwrap=true',
-    'shrinkwrap-directory=/home/src',
+    'shared-workspace-lockfile=true',
+    'lockfile-directory=/home/src',
   ].join('\n')
   await fs.writeFile('.npmrc', npmrc, 'utf8')
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
@@ -186,8 +186,8 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
       },
     })
     t.notOk(config.linkWorkspacePackages, 'link-workspace-packages is false')
-    t.notOk(config.sharedWorkspaceLockfile, 'shared-workspace-shrinkwrap is false')
-    t.notOk(config.lockfileDirectory, 'shrinkwrap-directory is null')
+    t.notOk(config.sharedWorkspaceLockfile, 'shared-workspace-lockfile is false')
+    t.notOk(config.lockfileDirectory, 'lockfile-directory is null')
   }
 
   t.end()

@@ -450,11 +450,11 @@ export default async function run (inputArgv: string[]) {
     'B': ['--save-bundle'],
     'C': ['--working-dir'],
     'prefix': ['--working-dir'],
-    'lockfile-directory': ['--shrinkwrap-directory'],
-    'lockfile-only': ['--shrinkwrap-only'],
-    'shared-workspace-lockfile': ['--shared-workspace-shrinkwrap'],
-    'frozen-lockfile': ['--frozen-shrinkwrap'],
-    'prefer-frozen-lockfile': ['--prefer-frozen-shrinkwrap'],
+    'shrinkwrap-directory': ['--lockfile-directory'],
+    'shrinkwrap-only': ['--lockfile-only'],
+    'shared-workspace-shrinkwrap': ['--shared-workspace-lockfile'],
+    'frozen-shrinkwrap': ['--frozen-lockfile'],
+    'prefer-frozen-shrinkwrap': ['--prefer-frozen-lockfile'],
     'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
