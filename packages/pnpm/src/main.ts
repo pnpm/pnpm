@@ -68,6 +68,7 @@ type CLI_OPTIONS = 'access'
   | 'filter'
   | 'force'
   | 'frozen-lockfile'
+  | 'global-dir'
   | 'global-pnpmfile'
   | 'global'
   | 'help'
@@ -140,6 +141,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'engine-strict',
   'frozen-lockfile',
   'force',
+  'global-dir',
   'global-pnpmfile',
   'global',
   'hoist',
@@ -186,6 +188,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'dev',
     'engine-strict',
     'force',
+    'global-dir',
     'global-pnpmfile',
     'global',
     'hoist',
@@ -236,6 +239,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   'install': INSTALL_CLI_OPTIONS,
   'install-test': INSTALL_CLI_OPTIONS,
   'link': new Set([
+    'global-dir',
     'global',
     'only',
     'package-import-method',
@@ -250,6 +254,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   'list': new Set([
     'depth',
     'dev',
+    'global-dir',
     'global',
     'json',
     'long',
@@ -261,6 +266,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'outdated': new Set([
     'depth',
+    'global-dir',
     'global',
     'long',
     'recursive',
@@ -287,6 +293,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'remove': new Set([
     'force',
+    'global-dir',
     'global-pnpmfile',
     'global',
     'lockfile-dir',
@@ -335,6 +342,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'dev',
     'engine-strict',
     'force',
+    'global-dir',
     'global-pnpmfile',
     'global',
     'ignore-pnpmfile',
@@ -367,6 +375,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'why': new Set([
     'dev',
+    'global-dir',
     'global',
     'json',
     'long',

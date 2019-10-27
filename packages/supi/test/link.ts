@@ -175,9 +175,9 @@ test('global link', async (t: tape.Test) => {
   const opts = await testDefaults()
 
   process.chdir(linkedPkgPath)
-  const globalPrefix = path.resolve('..', 'global')
+  const globalDir = path.resolve('..', 'global')
   const globalBin = path.resolve('..', 'global', 'bin')
-  await linkToGlobal(process.cwd(), { ...opts, globalPrefix, globalBin, manifest: {} }) // tslint:disable-line:no-any
+  await linkToGlobal(process.cwd(), { ...opts, globalDir, globalBin, manifest: {} }) // tslint:disable-line:no-any
 
   await isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
 
@@ -187,7 +187,7 @@ test('global link', async (t: tape.Test) => {
 
   process.chdir(projectPath)
 
-  await linkFromGlobal([linkedPkgName], process.cwd(), { ...opts, globalPrefix, manifest: {} }) // tslint:disable-line:no-any
+  await linkFromGlobal([linkedPkgName], process.cwd(), { ...opts, globalDir, manifest: {} }) // tslint:disable-line:no-any
 
   await project.isExecutable('.bin/hello-world-js-bin')
 })
@@ -195,13 +195,13 @@ test('global link', async (t: tape.Test) => {
 test('failed linking should not create empty folder', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const globalPrefix = path.resolve('..', 'global')
+  const globalDir = path.resolve('..', 'global')
 
   try {
-    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({ globalPrefix, manifest: {} }))
+    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({ globalDir, manifest: {} }))
     t.fail('should have failed')
   } catch (err) {
-    t.notOk(await exists(path.join(globalPrefix, 'node_modules', 'does-not-exist')))
+    t.notOk(await exists(path.join(globalDir, 'node_modules', 'does-not-exist')))
   }
 })
 
