@@ -450,6 +450,7 @@ export default async function run (inputArgv: string[]) {
     'B': ['--save-bundle'],
     'C': ['--working-dir'],
     'prefix': ['--working-dir'],
+    'store': ['--store-dir'],
     'shrinkwrap-directory': ['--lockfile-directory'],
     'shrinkwrap-only': ['--lockfile-only'],
     'shared-workspace-shrinkwrap': ['--shared-workspace-lockfile'],
