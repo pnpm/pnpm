@@ -32,7 +32,7 @@ export interface StoreController {
     packageId: string,
     packageName: string,
     opts: {
-      lockfileDirectory: string,
+      lockfileDir: string,
       targetEngine?: string,
     },
   ): Promise<{ directory: string, isBuilt: boolean }>,
@@ -98,7 +98,7 @@ export interface RequestPackageOptions {
   currentResolution?: Resolution,
   defaultTag?: string,
   downloadPriority: number,
-  lockfileDirectory: string,
+  lockfileDir: string,
   localPackages?: LocalPackages,
   prefix: string,
   preferredVersions: {

@@ -40,7 +40,7 @@ export default async function (
     try {
       const pkgResponse = await opts.storeController.requestPackage(dep, {
         downloadPriority: 1,
-        lockfileDirectory: prefix,
+        lockfileDir: prefix,
         preferredVersions: {},
         prefix,
         registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,

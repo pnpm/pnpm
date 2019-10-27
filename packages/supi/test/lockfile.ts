@@ -890,7 +890,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
       '@zkochan/foo@1.0.0',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ],
-    await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), storeDir }),
+    await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir }),
   )
 
   t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
@@ -932,7 +932,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
 
   process.chdir('project-2')
 
-  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ save: true, lockfileDirectory: path.resolve('..'), storeDir }))
+  await addDependenciesToPackage(manifest, ['is-positive'], await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir }))
 
   {
     const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
@@ -1025,7 +1025,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     pkg2,
     ['is-positive'],
     await testDefaults({
-      lockfileDirectory: process.cwd(),
+      lockfileDir: process.cwd(),
       workingDir: path.resolve('pkg2'),
     }),
   )

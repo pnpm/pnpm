@@ -14,7 +14,7 @@ export interface ImporterOptions {
 
 export default async function <T>(
   importers: (ImporterOptions & T)[],
-  lockfileDirectory: string,
+  lockfileDir: string,
 ): Promise<{
   currentHoistPattern?: string[],
   hoist?: boolean,
@@ -32,7 +32,7 @@ export default async function <T>(
   shamefullyHoist?: boolean,
   skipped: Set<string>,
 }> {
-  const rootModulesDir = await realNodeModulesDir(lockfileDirectory)
+  const rootModulesDir = await realNodeModulesDir(lockfileDir)
   const modules = await readModulesYaml(rootModulesDir)
   return {
     currentHoistPattern: modules?.hoistPattern || undefined,
@@ -41,7 +41,7 @@ export default async function <T>(
     importers: await Promise.all(
       importers.map(async (importer) => {
         const modulesDir = await realNodeModulesDir(importer.prefix)
-        const importerId = getLockfileImporterId(lockfileDirectory, importer.prefix)
+        const importerId = getLockfileImporterId(lockfileDir, importer.prefix)
 
         return {
           ...importer,

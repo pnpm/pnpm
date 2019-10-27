@@ -7,7 +7,7 @@ export default async function (
   opts: Config & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    lockfileDirectory?: string,
+    lockfileDir?: string,
     long?: boolean,
     parseable?: boolean,
   },
@@ -15,7 +15,7 @@ export default async function (
 ) {
   const output = await render([opts.workingDir], args, {
     ...opts,
-    lockfileDirectory: opts.lockfileDirectory || opts.workingDir,
+    lockfileDir: opts.lockfileDir || opts.workingDir,
   }, command)
 
   if (output) console.log(output)
@@ -27,7 +27,7 @@ export async function render (
   opts: Config & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    lockfileDirectory: string,
+    lockfileDir: string,
     long?: boolean,
     json?: boolean,
     parseable?: boolean,
@@ -43,7 +43,7 @@ export async function render (
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: isWhy ? Infinity : opts.depth || 0,
     include: opts.include,
-    lockfileDirectory: opts.lockfileDirectory,
+    lockfileDir: opts.lockfileDir,
     long: opts.long,
     // tslint:disable-next-line: no-unnecessary-type-assertion
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),

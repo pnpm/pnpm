@@ -83,7 +83,8 @@ type CLI_OPTIONS = 'access'
   | 'latest'
   | 'link-workspace-packages'
   | 'lock'
-  | 'lockfile-directory'
+  | 'lockfile-dir'
+  | 'lockfile-directory' // TODO: deprecate this flag
   | 'lockfile-only'
   | 'lockfile'
   | 'long'
@@ -148,6 +149,7 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'independent-leaves',
   'link-workspace-packages',
   'lock',
+  'lockfile-dir',
   'lockfile-directory',
   'lockfile-only',
   'lockfile',
@@ -194,6 +196,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'independent-leaves',
     'link-workspace-packages',
     'lock',
+    'lockfile-dir',
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
@@ -286,6 +289,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'force',
     'global-pnpmfile',
     'global',
+    'lockfile-dir',
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
@@ -336,6 +340,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'ignore-pnpmfile',
     'ignore-scripts',
     'latest',
+    'lockfile-dir',
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
@@ -451,7 +456,8 @@ export default async function run (inputArgv: string[]) {
     'C': ['--working-dir'],
     'prefix': ['--working-dir'],
     'store': ['--store-dir'],
-    'shrinkwrap-directory': ['--lockfile-directory'],
+    'lockfile-directory': ['--lockfile-dir'],
+    'shrinkwrap-directory': ['--lockfile-dir'],
     'shrinkwrap-only': ['--lockfile-only'],
     'shared-workspace-shrinkwrap': ['--shared-workspace-lockfile'],
     'frozen-shrinkwrap': ['--frozen-lockfile'],

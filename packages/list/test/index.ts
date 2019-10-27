@@ -31,7 +31,7 @@ const fixtureWithAliasedDep = path.join(__dirname, 'with-aliased-dep')
 
 test('list all deps of a package that has an external lockfile', async (t) => {
   t.equal(await list([fixtureWithExternalLockfile], {
-    lockfileDirectory: path.join(fixtureWithExternalLockfile, '..'),
+    lockfileDir: path.join(fixtureWithExternalLockfile, '..'),
   }), stripIndent`
     ${LEGEND}
 
@@ -45,7 +45,7 @@ test('list all deps of a package that has an external lockfile', async (t) => {
 })
 
 test('list with default parameters', async t => {
-  t.equal(await list([fixture], { lockfileDirectory: fixture }), stripIndent`
+  t.equal(await list([fixture], { lockfileDir: fixture }), stripIndent`
     ${LEGEND}
 
     fixture@1.0.0 ${fixture}
@@ -64,7 +64,7 @@ test('list with default parameters', async t => {
 })
 
 test('list with default parameters in pkg that has no name and version', async t => {
-  t.equal(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDirectory: fixtureWithNoPkgNameAndNoVersion }), stripIndent`
+  t.equal(await list([fixtureWithNoPkgNameAndNoVersion], { lockfileDir: fixtureWithNoPkgNameAndNoVersion }), stripIndent`
     ${LEGEND}
 
     ${fixtureWithNoPkgNameAndNoVersion}
@@ -83,7 +83,7 @@ test('list with default parameters in pkg that has no name and version', async t
 })
 
 test('list with default parameters in pkg that has no version', async t => {
-  t.equal(await list([fixtureWithNoPkgVersion], { lockfileDirectory: fixtureWithNoPkgVersion }), stripIndent`
+  t.equal(await list([fixtureWithNoPkgVersion], { lockfileDir: fixtureWithNoPkgVersion }), stripIndent`
     ${LEGEND}
 
     fixture ${fixtureWithNoPkgVersion}
@@ -105,7 +105,7 @@ test('list dev only', async t => {
   t.equal(
     await list([fixture], {
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
-      lockfileDirectory: fixture,
+      lockfileDir: fixture,
     }),
     stripIndent`
       ${LEGEND}
@@ -124,7 +124,7 @@ test('list prod only', async t => {
   t.equal(
     await list([fixture], {
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
-      lockfileDirectory: fixture,
+      lockfileDir: fixture,
     }),
     stripIndent`
       ${LEGEND}
@@ -144,7 +144,7 @@ test('list prod only with depth 2', async t => {
     await list([fixture], {
       depth: 2,
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
-      lockfileDirectory: fixture,
+      lockfileDir: fixture,
     }),
     stripIndent`
       ${LEGEND}
@@ -171,7 +171,7 @@ test('list prod only with depth 2', async t => {
 })
 
 test('list with depth 1', async t => {
-  t.equal(await list([fixture], { depth: 1, lockfileDirectory: fixture }), stripIndent`
+  t.equal(await list([fixture], { depth: 1, lockfileDir: fixture }), stripIndent`
     ${LEGEND}
 
     fixture@1.0.0 ${fixture}
@@ -196,14 +196,14 @@ test('list with depth 1', async t => {
 })
 
 test('list with depth -1', async t => {
-  t.equal(await list([fixture], { depth: -1, lockfileDirectory: fixture }), `fixture@1.0.0 ${fixture}`)
+  t.equal(await list([fixture], { depth: -1, lockfileDir: fixture }), `fixture@1.0.0 ${fixture}`)
 
   t.end()
 })
 
 test('list with depth 1 and selected packages', async t => {
   t.equal(
-    await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDirectory: fixture }),
+    await listForPackages(['make-dir', 'pify@2', 'sort-keys@2', 'is-negative'], [fixture], { depth: 1, lockfileDir: fixture }),
     stripIndent`
       ${LEGEND}
 
@@ -233,7 +233,7 @@ function compareOutputs (t: test.Test, actual: string, expected: string) {
 }
 
 test('list in long format', async t => {
-  compareOutputs(t, await list([fixture], { long: true, lockfileDirectory: fixture }), stripIndent`
+  compareOutputs(t, await list([fixture], { long: true, lockfileDir: fixture }), stripIndent`
     ${LEGEND}
 
     fixture@1.0.0 ${fixture}
@@ -256,7 +256,7 @@ test('list in long format', async t => {
 })
 
 test('parseable list with depth 1', async t => {
-  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDirectory: fixture }), stripIndent`
+  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture }), stripIndent`
     ${fixture}
     ${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/detect-indent/5.0.0')}
     ${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/graceful-fs/4.2.2')}
@@ -273,7 +273,7 @@ test('parseable list with depth 1', async t => {
 })
 
 test('JSON list with depth 1', async t => {
-  t.equal(await list([fixture], { reportAs: 'json', depth: 1, lockfileDirectory: fixture }), JSON.stringify([{
+  t.equal(await list([fixture], { reportAs: 'json', depth: 1, lockfileDir: fixture }), JSON.stringify([{
     name: 'fixture',
     version: '1.0.0',
 
@@ -346,7 +346,7 @@ test('JSON list with depth 1', async t => {
 
 test('JSON list with aliased dep', async t => {
   t.equal(
-    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDirectory: fixtureWithAliasedDep }),
+    await list([fixtureWithAliasedDep], { reportAs: 'json', lockfileDir: fixtureWithAliasedDep }),
     JSON.stringify([
       {
         name: 'with-aliased-dep',
@@ -364,7 +364,7 @@ test('JSON list with aliased dep', async t => {
     ], null, 2),
   )
   t.equal(
-    await list([fixtureWithAliasedDep], { lockfileDirectory: fixtureWithAliasedDep, long: true, reportAs: 'json' }),
+    await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json' }),
     JSON.stringify([{
       name: 'with-aliased-dep',
       version: '1.0.0',
@@ -392,7 +392,7 @@ test('parseable list with depth 1 and dev only', async t => {
     await list([fixture], {
       depth: 1,
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
-      lockfileDirectory: fixture,
+      lockfileDir: fixture,
       reportAs: 'parseable',
     }),
     stripIndent`
@@ -405,7 +405,7 @@ test('parseable list with depth 1 and dev only', async t => {
 })
 
 test('long parseable list with depth 1', async t => {
-  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDirectory: fixture, long: true }), stripIndent`
+  t.equal(await list([fixture], { reportAs: 'parseable', depth: 1, lockfileDir: fixture, long: true }), stripIndent`
     ${fixture}:fixture@1.0.0
     ${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/graceful-fs/4.2.2')}:graceful-fs@4.2.2
@@ -422,7 +422,7 @@ test('long parseable list with depth 1', async t => {
 })
 
 test('long parseable list with depth 1 when package has no version', async t => {
-  t.equal(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDirectory: fixtureWithNoPkgVersion, long: true }), stripIndent`
+  t.equal(await list([fixtureWithNoPkgVersion], { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgVersion, long: true }), stripIndent`
     ${fixtureWithNoPkgVersion}:fixture
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.pnpm/registry.npmjs.org/graceful-fs/4.2.2')}:graceful-fs@4.2.2
@@ -442,7 +442,7 @@ test('long parseable list with depth 1 when package has no name and no version',
   t.equal(
     await list(
       [fixtureWithNoPkgNameAndNoVersion],
-      { reportAs: 'parseable', depth: 1, lockfileDirectory: fixtureWithNoPkgNameAndNoVersion, long: true },
+      { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true },
     ),
     stripIndent`
       ${fixtureWithNoPkgNameAndNoVersion}
@@ -462,12 +462,12 @@ test('long parseable list with depth 1 when package has no name and no version',
 })
 
 test('print empty', async t => {
-  t.equal(await list([emptyFixture], { lockfileDirectory: emptyFixture }), `${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
+  t.equal(await list([emptyFixture], { lockfileDir: emptyFixture }), `${LEGEND}\n\nempty@1.0.0 ${emptyFixture}`)
   t.end()
 })
 
 test("don't print empty", async t => {
-  t.equal(await list([emptyFixture], { alwaysPrintRootPackage: false, lockfileDirectory: emptyFixture }), '')
+  t.equal(await list([emptyFixture], { alwaysPrintRootPackage: false, lockfileDir: emptyFixture }), '')
   t.end()
 })
 
@@ -711,7 +711,7 @@ test('sort list items', async (t) => {
 
 test('peer dependencies are marked', async (t) => {
   const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
-  const output = await list([fixture], { depth: 1, lockfileDirectory: fixture })
+  const output = await list([fixture], { depth: 1, lockfileDir: fixture })
   compareOutputs(t, output, stripIndent`
     ${LEGEND}
 
@@ -731,7 +731,7 @@ test('peer dependencies are marked', async (t) => {
 
 test('peer dependencies are marked when searching', async (t) => {
   const fixture = path.join(__dirname, '../../dependencies-hierarchy/fixtures/with-peer')
-  const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDirectory: fixture })
+  const output = await listForPackages(['ajv'], [fixture], { depth: 1, lockfileDir: fixture })
   compareOutputs(t, output, stripIndent`
     ${LEGEND}
 

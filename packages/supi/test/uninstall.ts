@@ -324,7 +324,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       prefix: path.resolve('project-1'),
     },
   ], await testDefaults({
-    lockfileDirectory: process.cwd(),
+    lockfileDir: process.cwd(),
     store,
   }))
 

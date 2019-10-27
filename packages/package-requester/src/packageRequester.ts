@@ -133,7 +133,7 @@ async function resolveAndFetch (
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         defaultTag: options.defaultTag,
         localPackages: options.localPackages,
-        lockfileDirectory: options.lockfileDirectory,
+        lockfileDir: options.lockfileDir,
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
@@ -189,7 +189,7 @@ async function resolveAndFetch (
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storeDir, id) : new Map(),
           id,
-          inStoreLocation: path.join(ctx.storeDir, pkgIdToFilename(id, options.lockfileDirectory)),
+          inStoreLocation: path.join(ctx.storeDir, pkgIdToFilename(id, options.lockfileDir)),
           isLocal: false as const,
           latest,
           manifest: pkg,
@@ -206,7 +206,7 @@ async function resolveAndFetch (
       force: forceFetch,
       pkgId: id,
       pkgName: pkg && pkg.name,
-      prefix: options.lockfileDirectory,
+      prefix: options.lockfileDir,
       resolution: resolution,
     })
 

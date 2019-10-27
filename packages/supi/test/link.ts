@@ -271,7 +271,7 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
 //     },
 //   ])
 
-//   const opts = await testDefaults({ lockfileDirectory: path.join('..') })
+//   const opts = await testDefaults({ lockfileDir: path.join('..') })
 //   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
 
 //   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))

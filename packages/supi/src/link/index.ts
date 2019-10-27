@@ -50,7 +50,7 @@ export default async function link (
     extraBinPaths: [], // ctx.extraBinPaths is not needed, so this is fine
   })
 
-  const importerId = getLockfileImporterId(ctx.lockfileDirectory, opts.workingDir)
+  const importerId = getLockfileImporterId(ctx.lockfileDir, opts.workingDir)
   const currentLockfile = R.clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
@@ -108,7 +108,7 @@ export default async function link (
       hoistedAliases: ctx.hoistedAliases,
       hoistedModulesDir: opts.hoistPattern && ctx.hoistedModulesDir || undefined,
       include: ctx.include,
-      lockfileDir: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       registries: ctx.registries,
       skipped: ctx.skipped,
       storeController: opts.storeController,
@@ -149,7 +149,7 @@ export default async function link (
       currentLockfile: updatedCurrentLockfile,
       currentLockfileDir: ctx.virtualStoreDir,
       wantedLockfile: updatedWantedLockfile,
-      wantedLockfileDir: ctx.lockfileDirectory,
+      wantedLockfileDir: ctx.lockfileDir,
       ...lockfileOpts,
     })
   } else {
@@ -228,7 +228,7 @@ export async function linkToGlobal (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  maybeOpts.lockfileDirectory = maybeOpts.lockfileDirectory || maybeOpts.globalPrefix
+  maybeOpts.lockfileDir = maybeOpts.lockfileDir || maybeOpts.globalPrefix
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
   const newManifest = await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {

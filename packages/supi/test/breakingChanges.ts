@@ -48,14 +48,14 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
   const opts = await testDefaults({ force: true })
 
   process.chdir('pkg')
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
   await rimraf('node_modules')
 
   process.chdir('..')
 
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nindependentLeaves: false\nlayoutVersion: 1`)
 
-  await install(manifest, { ...opts, workingDir: path.resolve('pkg'), lockfileDirectory: process.cwd() })
+  await install(manifest, { ...opts, workingDir: path.resolve('pkg'), lockfileDir: process.cwd() })
 
   t.pass('install did not fail')
 })

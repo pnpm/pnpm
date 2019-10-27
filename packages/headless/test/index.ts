@@ -29,7 +29,7 @@ test('installing a simple project', async (t) => {
   const reporter = sinon.spy()
 
   await headless(await testDefaults({
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     reporter,
   }))
 
@@ -90,7 +90,7 @@ test('installing only prod deps', async (t) => {
       devDependencies: false,
       optionalDependencies: false,
     },
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -114,7 +114,7 @@ test('installing only dev deps', async (t) => {
       devDependencies: true,
       optionalDependencies: false,
     },
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -135,7 +135,7 @@ test('installing non-prod deps then all deps', async (t) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -163,7 +163,7 @@ test('installing non-prod deps then all deps', async (t) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     reporter,
   }))
 
@@ -207,7 +207,7 @@ test('installing only optional deps', async (t) => {
       devDependencies: false,
       optionalDependencies: true,
     },
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     optional: true,
     production: false,
   }))
@@ -232,7 +232,7 @@ test('not installing optional deps', async (t) => {
       devDependencies: true,
       optionalDependencies: false,
     },
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -262,7 +262,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
       importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
     independentLeaves: true,
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -287,7 +287,7 @@ test('installing with independent-leaves when an optional subdep is skipped', as
 
   await headless(await testDefaults({
     independentLeaves: true,
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
   }))
 
   const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join(prefix, 'node_modules', '.modules.yaml'))
@@ -311,7 +311,7 @@ test('run pre/postinstall scripts', async (t) => {
   const outputJsonPath = path.join(prefix, 'output.json')
   await rimraf(outputJsonPath)
 
-  await headless(await testDefaults({ lockfileDirectory: prefix }))
+  await headless(await testDefaults({ lockfileDir: prefix }))
 
   const project = assertProject(t, prefix)
   const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -325,7 +325,7 @@ test('run pre/postinstall scripts', async (t) => {
   await rimraf(outputJsonPath)
   await rimraf(path.join(prefix, 'node_modules'))
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, ignoreScripts: true }))
+  await headless(await testDefaults({ lockfileDir: prefix, ignoreScripts: true }))
 
   t.notOk(await exists(outputJsonPath))
 
@@ -353,7 +353,7 @@ test('orphan packages are removed', async (t) => {
   fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({
-    lockfileDirectory: projectDir,
+    lockfileDir: projectDir,
   }))
 
   fse.copySync(path.join(simpleDir, 'package.json'), destPackageJsonPath)
@@ -361,7 +361,7 @@ test('orphan packages are removed', async (t) => {
 
   const reporter = sinon.spy()
   await headless(await testDefaults({
-    lockfileDirectory: projectDir,
+    lockfileDir: projectDir,
     reporter,
   }))
 
@@ -393,13 +393,13 @@ test('available packages are used when node_modules is not clean', async (t) => 
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
-  await headless(await testDefaults({ lockfileDirectory: projectDir }))
+  await headless(await testDefaults({ lockfileDir: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
-  await headless(await testDefaults({ lockfileDirectory: projectDir, reporter }))
+  await headless(await testDefaults({ lockfileDir: projectDir, reporter }))
 
   const project = assertProject(t, projectDir)
   await project.has('rimraf')
@@ -433,13 +433,13 @@ test('available packages are relinked during forced install', async (t) => {
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
-  await headless(await testDefaults({ lockfileDirectory: projectDir }))
+  await headless(await testDefaults({ lockfileDir: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
-  await headless(await testDefaults({ lockfileDirectory: projectDir, reporter, force: true }))
+  await headless(await testDefaults({ lockfileDir: projectDir, reporter, force: true }))
 
   const project = assertProject(t, projectDir)
   await project.has('rimraf')
@@ -472,7 +472,7 @@ test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async (
   fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), path.join(projectDir, WANTED_LOCKFILE))
 
   try {
-    await headless(await testDefaults({ lockfileDirectory: projectDir }))
+    await headless(await testDefaults({ lockfileDir: projectDir }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with package.json`)
@@ -485,7 +485,7 @@ test('installing local dependency', async (t) => {
   const prefix = path.join(fixtures, 'has-local-dep')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, reporter }))
+  await headless(await testDefaults({ lockfileDir: prefix, reporter }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('tar-pkg'), 'prod dep installed')
@@ -497,7 +497,7 @@ test('installing local directory dependency', async (t) => {
   const prefix = path.join(fixtures, 'has-local-dir-dep')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, reporter }))
+  await headless(await testDefaults({ lockfileDir: prefix, reporter }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('example/package.json'), 'prod dep installed')
@@ -516,7 +516,7 @@ test('installing using passed in lockfile files', async (t) => {
   const wantedLockfile = await readWantedLockfile(simplePkgPath, { ignoreIncompatible: false })
 
   await headless(await testDefaults({
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     wantedLockfile,
   }))
 
@@ -533,7 +533,7 @@ test('installing using passed in lockfile files', async (t) => {
 test('installation of a dependency that has a resolved peer in subdeps', async (t) => {
   const prefix = path.join(fixtures, 'resolved-peer-deps-in-subdeps')
 
-  await headless(await testDefaults({ lockfileDirectory: prefix }))
+  await headless(await testDefaults({ lockfileDir: prefix }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('pnpm-default-reporter'), 'prod dep installed')
@@ -546,7 +546,7 @@ test('independent-leaves: installing a simple project', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, independentLeaves: true }))
+  await headless(await testDefaults({ lockfileDir: prefix, reporter, independentLeaves: true }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -592,7 +592,7 @@ test('installing with hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, hoistPattern: '*' }))
+  await headless(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*' }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -652,7 +652,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ lockfileDirectory: prefix, reporter, hoistPattern: '*', shamefullyHoist: true }))
+  await headless(await testDefaults({ lockfileDir: prefix, reporter, hoistPattern: '*', shamefullyHoist: true }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -715,7 +715,7 @@ test('using side effects cache', async (t) => {
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -752,7 +752,7 @@ test('using side effects cache and hoistPattern=*', async (t) => {
     importers: await Promise.all(
       importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -796,7 +796,7 @@ test('installing in a workspace', async (t) => {
 
   await headless(await testDefaults({
     importers,
-    lockfileDirectory: workspaceFixture,
+    lockfileDir: workspaceFixture,
   }))
 
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
@@ -805,7 +805,7 @@ test('installing in a workspace', async (t) => {
 
   await headless(await testDefaults({
     importers: [importers[0]],
-    lockfileDirectory: workspaceFixture,
+    lockfileDir: workspaceFixture,
   }))
 
   const rootNodeModules = assertProject(t, workspaceFixture)
@@ -838,7 +838,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
       importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
     ),
     independentLeaves: true,
-    lockfileDirectory: workspaceFixture,
+    lockfileDir: workspaceFixture,
   }))
 
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))

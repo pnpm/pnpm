@@ -121,7 +121,7 @@ export interface ResolutionContext {
   wantedLockfile: Lockfile,
   updateLockfile: boolean,
   currentLockfile: Lockfile,
-  lockfileDirectory: string,
+  lockfileDir: string,
   sideEffectsCache: boolean,
   storeController: StoreController,
   // the IDs of packages that are not installable
@@ -535,7 +535,7 @@ async function resolveDependency (
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       localPackages: options.localPackages,
-      lockfileDirectory: ctx.lockfileDirectory,
+      lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
       prefix: ctx.prefix,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
@@ -689,7 +689,7 @@ async function resolveDependency (
   if (isNew) {
     progressLogger.debug({
       packageId: pkgResponse.body.id,
-      requester: ctx.lockfileDirectory,
+      requester: ctx.lockfileDir,
       status: 'resolved',
     })
     if (pkgResponse.files) {
@@ -697,7 +697,7 @@ async function resolveDependency (
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
             packageId: pkgResponse.body.id,
-            requester: ctx.lockfileDirectory,
+            requester: ctx.lockfileDir,
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })

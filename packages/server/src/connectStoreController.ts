@@ -38,7 +38,7 @@ export default function (
         packageId: string,
         packageName: string,
         opts: {
-          lockfileDirectory: string,
+          lockfileDir: string,
           targetEngine?: string,
         },
       ): Promise<{ directory: string, isBuilt: boolean }> => {

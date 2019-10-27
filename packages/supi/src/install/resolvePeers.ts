@@ -78,7 +78,7 @@ export default function (
     dependenciesTree: DependenciesTree,
     independentLeaves: boolean,
     virtualStoreDir: string,
-    lockfileDirectory: string,
+    lockfileDir: string,
     strictPeerDependencies: boolean,
   },
 ): {
@@ -115,7 +115,7 @@ export default function (
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       independentLeaves: opts.independentLeaves,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       prefix,
       purePkgs: new Set(),
       strictPeerDependencies: opts.strictPeerDependencies,
@@ -154,7 +154,7 @@ function resolvePeersOfNode (
     virtualStoreDir: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
     prefix: string,
-    lockfileDirectory: string,
+    lockfileDir: string,
     strictPeerDependencies: boolean,
   },
 ): {[alias: string]: string} {
@@ -188,7 +188,7 @@ function resolvePeersOfNode (
 
   let modules: string
   let absolutePath: string
-  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.id, ctx.lockfileDirectory))
+  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.id, ctx.lockfileDir))
   const isPure = R.isEmpty(allResolvedPeers)
   if (isPure) {
     modules = path.join(localLocation, 'node_modules')
@@ -269,7 +269,7 @@ function resolvePeersOfChildren (
     depGraph: DependenciesGraph,
     dependenciesTree: DependenciesTree,
     prefix: string,
-    lockfileDirectory: string,
+    lockfileDir: string,
     strictPeerDependencies: boolean,
   },
 ): {[alias: string]: string} {

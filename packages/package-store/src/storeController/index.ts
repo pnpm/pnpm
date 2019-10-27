@@ -73,7 +73,7 @@ export default async function (
     packageId: string,
     packageName: string,
     opts: {
-      lockfileDirectory: string,
+      lockfileDir: string,
       targetEngine?: string,
     }
   ) {
@@ -88,7 +88,7 @@ export default async function (
     }
 
     return {
-      directory: path.join(initOpts.storeDir, pkgIdToFilename(packageId, opts.lockfileDirectory), 'node_modules', packageName),
+      directory: path.join(initOpts.storeDir, pkgIdToFilename(packageId, opts.lockfileDir), 'node_modules', packageName),
       isBuilt: false,
     }
   }

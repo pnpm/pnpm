@@ -287,11 +287,11 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       const independent = ctx.independentLeaves && packageIsIndependent(pkgSnapshot)
       const pkgRoot = !independent
-        ? path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules', pkgInfo.name)
+        ? path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
         : await (
           async () => {
             const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
-              lockfileDirectory: opts.lockfileDirectory,
+              lockfileDir: opts.lockfileDir,
               targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
             })
             return directory
@@ -299,7 +299,7 @@ async function _rebuild (
         )()
       try {
         if (!independent) {
-          const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
+          const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
           const binPath = path.join(pkgRoot, 'node_modules', '.bin')
           await linkBins(modules, binPath, { warn })
         }
@@ -345,7 +345,7 @@ async function _rebuild (
         const depPath = dp.resolve(opts.registries, relDepPath)
         const pkgSnapshot = pkgSnapshots[relDepPath]
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDirectory), 'node_modules')
+        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
         return linkBins(modules, binPath, { warn })
       })),

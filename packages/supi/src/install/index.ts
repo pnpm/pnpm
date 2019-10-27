@@ -166,9 +166,9 @@ export async function mutateModules (
   let result!: Array<{ prefix: string, manifest: ImporterManifest }>
   try {
     if (opts.lock) {
-      result = await lock(ctx.lockfileDirectory, _install, {
+      result = await lock(ctx.lockfileDir, _install, {
         locks: opts.locks,
-        prefix: ctx.lockfileDirectory,
+        prefix: ctx.lockfileDir,
         stale: opts.lockStaleDuration,
         storeController: opts.storeController,
       })
@@ -209,7 +209,7 @@ export async function mutateModules (
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
       } else {
-        logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDirectory })
+        logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
         await headless({
           currentEngine: {
             nodeVersion: opts.nodeVersion,
@@ -233,7 +233,7 @@ export async function mutateModules (
           }>,
           include: opts.include,
           independentLeaves: opts.independentLeaves,
-          lockfileDirectory: ctx.lockfileDirectory,
+          lockfileDir: ctx.lockfileDir,
           ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
           packageManager:  opts.packageManager,
           pendingBuilds: ctx.pendingBuilds,
@@ -579,7 +579,7 @@ export async function addDependenciesToPackage (
     ],
     {
       ...opts,
-      lockfileDirectory: opts.lockfileDirectory || opts.workingDir,
+      lockfileDir: opts.lockfileDir || opts.workingDir,
     })
   return importers[0].manifest
 }
@@ -615,7 +615,7 @@ async function installInContext (
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
     logger.warn({
       message: '`node_modules` is present. Lockfile only installation will make it out-of-date',
-      prefix: ctx.lockfileDirectory,
+      prefix: ctx.lockfileDir,
     })
   }
 
@@ -646,7 +646,7 @@ async function installInContext (
   )
 
   stageLogger.debug({
-    prefix: ctx.lockfileDirectory,
+    prefix: ctx.lockfileDir,
     stage: 'resolution_started',
   })
 
@@ -680,7 +680,7 @@ async function installInContext (
       force: opts.force,
       hooks: opts.hooks,
       localPackages: opts.localPackages,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       registries: opts.registries,
@@ -695,7 +695,7 @@ async function installInContext (
   )
 
   stageLogger.debug({
-    prefix: ctx.lockfileDirectory,
+    prefix: ctx.lockfileDir,
     stage: 'resolution_done',
   })
 
@@ -800,7 +800,7 @@ async function installInContext (
       hoistPattern: ctx.hoistPattern,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
       outdatedDependencies,
       pruneStore: opts.pruneStore,
@@ -840,7 +840,7 @@ async function installInContext (
         depsToBuild: new Set(result.newDepPaths),
         extraBinPaths: ctx.extraBinPaths,
         optional: opts.include.optionalDependencies,
-        prefix: ctx.lockfileDirectory,
+        prefix: ctx.lockfileDir,
         rawConfig: opts.rawConfig,
         rootNodeModulesDir: ctx.virtualStoreDir,
         sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
@@ -854,7 +854,7 @@ async function installInContext (
       const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
       await linkAllBins(newPkgs, result.depGraph, {
         optional: opts.include.optionalDependencies,
-        warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDirectory }),
+        warn: (message: string) => logger.warn({ message, prefix: opts.lockfileDir }),
       })
     }
 
@@ -877,7 +877,7 @@ async function installInContext (
 
   const lockfileOpts = { forceSharedFormat: opts.forceSharedLockfile }
   if (opts.lockfileOnly) {
-    await writeWantedLockfile(ctx.lockfileDirectory, result.wantedLockfile, lockfileOpts)
+    await writeWantedLockfile(ctx.lockfileDir, result.wantedLockfile, lockfileOpts)
   } else {
     await Promise.all([
       opts.useLockfile
@@ -885,7 +885,7 @@ async function installInContext (
           currentLockfile: result.currentLockfile,
           currentLockfileDir: ctx.virtualStoreDir,
           wantedLockfile: result.wantedLockfile,
-          wantedLockfileDir: ctx.lockfileDirectory,
+          wantedLockfileDir: ctx.lockfileDir,
           ...lockfileOpts,
         })
         : writeCurrentLockfile(ctx.virtualStoreDir, result.currentLockfile, lockfileOpts),
@@ -912,7 +912,7 @@ async function installInContext (
     ])
   }
 
-  summaryLogger.debug({ prefix: opts.lockfileDirectory })
+  summaryLogger.debug({ prefix: opts.lockfileDir })
 
   await opts.storeController.close()
 

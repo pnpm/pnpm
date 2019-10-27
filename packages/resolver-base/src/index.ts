@@ -47,7 +47,7 @@ export interface LocalPackages {
 export interface ResolveOptions {
   defaultTag?: string,
   localPackages?: LocalPackages,
-  lockfileDirectory: string,
+  lockfileDir: string,
   preferredVersions: {
     [packageName: string]: {
       selector: string,

@@ -421,7 +421,7 @@ test('skip optional dependency that does not support the current OS, when doing 
       },
     ],
     await testDefaults({
-      lockfileDirectory: process.cwd(),
+      lockfileDir: process.cwd(),
       lockfileOnly: true,
     }),
   )
@@ -437,7 +437,7 @@ test('skip optional dependency that does not support the current OS, when doing 
     ],
     await testDefaults({
       frozenLockfile: false,
-      lockfileDirectory: process.cwd(),
+      lockfileDir: process.cwd(),
       preferFrozenLockfile: false,
     }),
   )
