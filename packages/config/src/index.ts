@@ -218,7 +218,7 @@ export default async (
   pnpmConfig.globalBin = process.platform === 'win32'
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
-  pnpmConfig.globalDir = path.join(npmGlobalPrefix, 'pnpm-global')
+  pnpmConfig.globalDir = pnpmConfig.globalDir ? npmGlobalPrefix : path.join(npmGlobalPrefix, 'pnpm-global')
   pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
