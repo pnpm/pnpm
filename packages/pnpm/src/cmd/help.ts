@@ -12,6 +12,10 @@ export default function (input: string[]) {
 const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
 
 const OPTIONS = {
+  globalDir: {
+    description: 'Specify a custom directory to store global packages',
+    name: '--global-dir',
+  },
   ignoreScripts: {
     description: "Don't run lifecycle scripts",
     name: '--ignore-scripts',
@@ -100,6 +104,7 @@ function getHelpText (command: string) {
               OPTIONS.ignoreScripts,
               OPTIONS.offline,
               OPTIONS.preferOffline,
+              OPTIONS.globalDir,
               {
                 description: "Packages in \`devDependencies\` won't be installed",
                 name: '--production, --only prod[uction]',
@@ -303,6 +308,7 @@ function getHelpText (command: string) {
               OPTIONS.preferOffline,
               OPTIONS.storeDir,
               OPTIONS.virtualStoreDir,
+              OPTIONS.globalDir,
               ...UNIVERSAL_OPTIONS,
             ],
           },
@@ -347,6 +353,7 @@ function getHelpText (command: string) {
                 name: '--recursive',
                 shortAlias: '-r',
               },
+              OPTIONS.globalDir,
               ...UNIVERSAL_OPTIONS,
             ],
           },
@@ -433,6 +440,7 @@ function getHelpText (command: string) {
                 name: '--latest',
                 shortAlias: '-L',
               },
+              OPTIONS.globalDir,
               ...UNIVERSAL_OPTIONS,
             ],
           },
@@ -497,6 +505,7 @@ function getHelpText (command: string) {
                 description: 'Display only the dependency tree for packages in \`devDependencies\`',
                 name: '--dev',
               },
+              OPTIONS.globalDir,
               ...UNIVERSAL_OPTIONS,
             ],
           },
@@ -550,6 +559,7 @@ function getHelpText (command: string) {
                 description: 'Display only the dependency tree for packages in \`devDependencies\`',
                 name: '--dev',
               },
+              OPTIONS.globalDir,
               ...UNIVERSAL_OPTIONS,
             ],
           },
@@ -691,6 +701,7 @@ function getHelpText (command: string) {
                 description: 'Prints the outdated packages in a list. Good for small consoles',
                 name: '--no-table',
               },
+              OPTIONS.globalDir,
               ...UNIVERSAL_OPTIONS,
             ],
           },

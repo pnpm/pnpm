@@ -30,6 +30,7 @@ export const types = Object.assign({
   'filter': [String, Array],
   'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
+  'global-dir': String,
   'global-path': path,
   'global-pnpmfile': String,
   'hoist': Boolean,
@@ -208,7 +209,7 @@ export default async (
     default: normalizeRegistry(pnpmConfig.rawConfig.registry),
     ...getScopeRegistries(pnpmConfig.rawConfig),
   }
-  const npmGlobalPrefix: string = pnpmConfig.rawConfig['pnpm-prefix'] ||
+  const npmGlobalPrefix: string = pnpmConfig.globalDir ?? pnpmConfig.rawConfig['pnpm-prefix'] ??
     (
       process.platform !== 'win32'
         ? npmConfig.globalPrefix
@@ -217,7 +218,7 @@ export default async (
   pnpmConfig.globalBin = process.platform === 'win32'
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
-  pnpmConfig.globalPrefix = path.join(npmGlobalPrefix, 'pnpm-global')
+  pnpmConfig.globalDir = pnpmConfig.globalDir ? npmGlobalPrefix : path.join(npmGlobalPrefix, 'pnpm-global')
   pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
@@ -239,7 +240,7 @@ export default async (
     : pnpmConfig['sharedWorkspaceLockfile']
 
   if (cliArgs['global']) {
-    pnpmConfig.workingDir = path.join(pnpmConfig.globalPrefix, LAYOUT_VERSION.toString())
+    pnpmConfig.workingDir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true

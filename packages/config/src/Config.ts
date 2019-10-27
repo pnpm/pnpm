@@ -10,10 +10,10 @@ export interface Config {
   filter: string[],
   rawLocalConfig: Record<string, any>, // tslint:disable-line
   rawConfig: Record<string, any>, // tslint:disable-line
-  globalPrefix: string,
   globalBin: string,
   dryRun?: boolean, // This option might be not supported ever
   global?: boolean,
+  globalDir: string,
   workingDir: string,
   bin?: string,
   ignoreScripts?: boolean
@@ -111,6 +111,7 @@ export interface Config {
 
 export interface ConfigWithDeprecatedSettings extends Config {
   frozenShrinkwrap?: boolean,
+  globalPrefix?: string,
   lockfileDirectory?: string,
   shrinkwrapDirectory?: string,
   shrinkwrapOnly?: boolean,

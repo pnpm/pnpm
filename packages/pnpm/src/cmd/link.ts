@@ -48,12 +48,12 @@ export default async (
 
   // pnpm link
   if (!input || !input.length) {
-    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalPrefix, opts)
+    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalDir, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       // A temporary workaround. global bin/prefix are always defined when --global is set
       globalBin: linkOpts.globalBin!,
-      globalPrefix: linkOpts.globalPrefix!,
+      globalDir: linkOpts.globalDir!,
       manifest: manifest || {},
     })
     await writeImporterManifest(newManifest)
@@ -78,7 +78,7 @@ export default async (
     } else {
       globalPkgNames = pkgNames
     }
-    const globalPkgPath = pathAbsolute(opts.globalPrefix)
+    const globalPkgPath = pathAbsolute(opts.globalDir)
     globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
   }
 

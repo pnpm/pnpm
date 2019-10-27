@@ -37,6 +37,15 @@ test('global installation', async (t: tape.Test) => {
   t.ok(typeof isNegative === 'function', 'isNegative() is available')
 })
 
+test('global installation to custom directory with --global-dir', async (t: tape.Test) => {
+  prepare(t)
+
+  await execPnpm('add', '--global', '--global-dir=../global', 'is-positive')
+
+  const isPositive = require(path.resolve('../global/3/node_modules/is-positive'))
+  t.ok(typeof isPositive === 'function', 'isPositive() is available')
+})
+
 test('always install latest when doing global installation without spec', async (t: tape.Test) => {
   prepare(t)
   await addDistTag('peer-c', '2.0.0', 'latest')

@@ -199,14 +199,14 @@ function addLinkToLockfile (
 export async function linkFromGlobal (
   pkgNames: string[],
   linkTo: string,
-  maybeOpts: LinkOptions & {globalPrefix: string},
+  maybeOpts: LinkOptions & {globalDir: string},
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
+  const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
   const linkFromPkgs = pkgNames.map((pkgName) => path.join(globalPkgPath, 'node_modules', pkgName))
   const newManifest = await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
 
@@ -221,20 +221,20 @@ export async function linkToGlobal (
   linkFrom: string,
   maybeOpts: LinkOptions & {
     globalBin: string,
-    globalPrefix: string,
+    globalDir: string,
   },
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  maybeOpts.lockfileDir = maybeOpts.lockfileDir || maybeOpts.globalPrefix
+  maybeOpts.lockfileDir = maybeOpts.lockfileDir || maybeOpts.globalDir
   const opts = await extendOptions(maybeOpts)
-  const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
+  const globalPkgPath = pathAbsolute(maybeOpts.globalDir)
   const newManifest = await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {
     ...opts,
     linkToBin: maybeOpts.globalBin,
-    workingDir: maybeOpts.globalPrefix,
+    workingDir: maybeOpts.globalDir,
   })
 
   if (reporter) {
