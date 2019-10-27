@@ -17,7 +17,7 @@ export default function (
     localAddress?: string,
     lockfileDir: string,
     offline?: boolean,
-    workingDir: string,
+    dir: string,
     proxy?: string,
     rawConfig: object,
     registries: Registries,
@@ -41,7 +41,7 @@ export async function getLatestManifest (
   resolve: ResolveFunction,
   opts: {
     lockfileDir: string,
-    workingDir: string,
+    dir: string,
     registries: Registries,
   },
   packageName: string,
@@ -49,7 +49,7 @@ export async function getLatestManifest (
   const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
-    prefix: opts.workingDir,
+    prefix: opts.dir,
     registry: pickRegistryForPackage(opts.registries, packageName),
   })
   return resolution && resolution.package || null

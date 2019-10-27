@@ -129,11 +129,11 @@ type CLI_OPTIONS = 'access'
   | 'use-store-server'
   | 'verify-store-integrity'
   | 'virtual-store-dir'
-  | 'working-dir'
+  | 'dir'
   | 'workspace-concurrency'
   | 'workspace-prefix'
 
-const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'prefix', 'working-dir'])
+const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'prefix', 'dir'])
 
 const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'child-concurrency',
@@ -462,8 +462,8 @@ export default async function run (inputArgv: string[]) {
     'y': ['--yes'],
     'n': ['--no-yes'],
     'B': ['--save-bundle'],
-    'C': ['--working-dir'],
-    'prefix': ['--working-dir'],
+    'C': ['--dir'],
+    'prefix': ['--dir'],
     'store': ['--store-dir'],
     'lockfile-directory': ['--lockfile-dir'],
     'shrinkwrap-directory': ['--lockfile-dir'],
@@ -540,7 +540,7 @@ export default async function run (inputArgv: string[]) {
       cmd = 'recursive'
       cliArgs.unshift(subCmd)
     } else if (
-      config.workspacePrefix === config.workingDir &&
+      config.workspacePrefix === config.dir &&
       !config.ignoreWorkspaceRootCheck
     ) {
       // Reporting is not initialized at this point, so just printing the error
@@ -605,7 +605,7 @@ export default async function run (inputArgv: string[]) {
       if (config.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',
-          prefix: config.workingDir,
+          prefix: config.dir,
         })
       }
 

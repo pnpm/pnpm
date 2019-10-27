@@ -26,7 +26,7 @@ export default async (
   input: string[],
   opts: PnpmOptions,
 ) => {
-  const cwd = opts && opts.workingDir || process.cwd()
+  const cwd = opts && opts.dir || process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
   let workspacePackages
@@ -83,12 +83,12 @@ export default async (
   }
 
   await Promise.all(
-    pkgPaths.map((workingDir) => installLimit(async () => {
+    pkgPaths.map((dir) => installLimit(async () => {
       const s = await createStoreController(storeControllerCache, opts)
       await install(
-        await readImporterManifestOnly(workingDir, opts), {
+        await readImporterManifestOnly(dir, opts), {
           ...await getConfig(
-            { ...opts.cliArgs, 'working-dir': workingDir },
+            { ...opts.cliArgs, 'dir': dir },
             {
               command: ['link'],
               excludeReporter: true,

@@ -52,7 +52,7 @@ const UNIVERSAL_OPTIONS = [
   },
   {
     description: `Change to directory <dir> (default: ${process.cwd()})`,
-    name: '--working-dir <dir>',
+    name: '--dir <dir>',
     shortAlias: '-C',
   },
 ]

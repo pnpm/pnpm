@@ -66,7 +66,7 @@ export default async (
         if (!outdatedByNameAndType[key]) {
           outdatedByNameAndType[key] = { ...outdatedPkg, dependentPkgs: [] }
         }
-        outdatedByNameAndType[key].dependentPkgs.push({ location: getLockfileImporterId(opts.workingDir, path), manifest })
+        outdatedByNameAndType[key].dependentPkgs.push({ location: getLockfileImporterId(opts.dir, path), manifest })
       })
     }))
   }

@@ -381,7 +381,7 @@ export async function recursive (
                 ...localConfig,
               },
               storeController,
-              workingDir: prefix,
+              dir: prefix,
             },
           )
           if (action !== install) {
@@ -460,7 +460,7 @@ export async function recursive (
                   ...installOpts.rawConfig,
                   ...localConfig,
                 },
-                workingDir: prefix,
+                dir: prefix,
               },
             )
             result.passes++
@@ -495,7 +495,7 @@ async function unlink (manifest: ImporterManifest, opts: any) { // tslint:disabl
       {
         manifest,
         mutation: 'unlink',
-        prefix: opts.workingDir,
+        prefix: opts.dir,
       },
     ],
     opts,
@@ -509,7 +509,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
         dependencyNames,
         manifest,
         mutation: 'unlinkSome',
-        prefix: opts.workingDir,
+        prefix: opts.dir,
       },
     ],
     opts,

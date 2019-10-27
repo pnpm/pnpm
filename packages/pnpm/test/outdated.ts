@@ -41,7 +41,7 @@ test('pnpm outdated', async (t: tape.Test) => {
       strictSsl: false,
       tag: 'latest',
       userAgent: '',
-      workingDir: process.cwd(),
+      dir: process.cwd(),
     }, 'outdated'),
     stripIndent`
     ┌─────────────┬──────────────────────┬────────┐

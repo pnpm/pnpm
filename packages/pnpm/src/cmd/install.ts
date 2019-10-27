@@ -36,7 +36,7 @@ export default async function installCmd (
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
 
-  const workingDir = opts.workingDir || process.cwd()
+  const dir = opts.dir || process.cwd()
 
   const localPackages = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(
@@ -45,7 +45,7 @@ export default async function installCmd (
     : undefined
 
   if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(opts.lockfileDir || workingDir, opts)
+    opts.hooks = requireHooks(opts.lockfileDir || dir, opts)
   }
   const store = await createStoreController(opts)
   const installOpts = {
@@ -63,7 +63,7 @@ export default async function installCmd (
     forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
   }
 
-  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.workingDir, opts)
+  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.dir, opts)
   if (manifest === null) {
     if (opts.update) {
       throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
@@ -94,7 +94,7 @@ export default async function installCmd (
         mutation: 'installSome',
         peer: opts.savePeer,
         pinnedVersion: getPinnedVersion(opts),
-        prefix: installOpts.workingDir,
+        prefix: installOpts.dir,
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
@@ -108,10 +108,10 @@ export default async function installCmd (
     await recursive(allWorkspacePkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
-      ignoredPackages: new Set([workingDir]),
+      ignoredPackages: new Set([dir]),
       packageSelectors: [
         {
-          pattern: workingDir,
+          pattern: dir,
           scope: 'dependencies',
           selectBy: 'location',
         },
@@ -124,8 +124,8 @@ export default async function installCmd (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(opts.workingDir, opts),
-          prefix: opts.workingDir,
+          manifest: await readImporterManifestOnly(opts.dir, opts),
+          prefix: opts.dir,
         },
       ], {
         ...opts,

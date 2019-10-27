@@ -21,7 +21,7 @@ interface StrictLinkOptions {
   storeDir: string,
   reporter: ReporterFunction,
   targetDependenciesField?: DependenciesField,
-  workingDir: string,
+  dir: string,
 
   hoistPattern: string[] | undefined,
   forceHoistPattern: boolean,
@@ -51,19 +51,19 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
 }
 
 async function defaults (opts: LinkOptions) {
-  const workingDir = opts.workingDir || process.cwd()
+  const dir = opts.dir || process.cwd()
   return {
-    bin: path.join(workingDir, 'node_modules', '.bin'),
+    bin: path.join(dir, 'node_modules', '.bin'),
+    dir,
     force: false,
     forceSharedLockfile: false,
     hoistPattern: undefined,
     independentLeaves: false,
-    lockfileDir: opts.lockfileDir || workingDir,
+    lockfileDir: opts.lockfileDir || dir,
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
     storeController: opts.storeController,
     storeDir: opts.storeDir,
     useLockfile: true,
-    workingDir,
   } as StrictLinkOptions
 }

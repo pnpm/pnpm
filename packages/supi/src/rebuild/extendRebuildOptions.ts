@@ -16,7 +16,7 @@ export interface StrictRebuildOptions {
   forceSharedLockfile: boolean,
   useLockfile: boolean,
   registries: Registries,
-  workingDir: string,
+  dir: string,
 
   reporter: ReporterFunction,
   production: boolean,
@@ -42,12 +42,13 @@ const defaults = async (opts: RebuildOptions) => {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
-  const workingDir = opts.workingDir || process.cwd()
-  const lockfileDir = opts.lockfileDir || workingDir
+  const dir = opts.dir || process.cwd()
+  const lockfileDir = opts.lockfileDir || dir
   return {
-    bin: path.join(workingDir, 'node_modules', '.bin'),
+    bin: path.join(dir, 'node_modules', '.bin'),
     childConcurrency: 5,
     development: true,
+    dir,
     force: false,
     forceSharedLockfile: false,
     lockfileDir,
@@ -67,7 +68,6 @@ const defaults = async (opts: RebuildOptions) => {
       process.getuid() !== 0,
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
-    workingDir,
   } as StrictRebuildOptions
 }
 

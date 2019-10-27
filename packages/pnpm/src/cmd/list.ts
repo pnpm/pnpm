@@ -13,9 +13,9 @@ export default async function (
   },
   command: string,
 ) {
-  const output = await render([opts.workingDir], args, {
+  const output = await render([opts.dir], args, {
     ...opts,
-    lockfileDir: opts.lockfileDir || opts.workingDir,
+    lockfileDir: opts.lockfileDir || opts.dir,
   }, command)
 
   if (output) console.log(output)

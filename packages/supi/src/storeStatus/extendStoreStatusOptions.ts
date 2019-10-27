@@ -5,7 +5,7 @@ import { ReporterFunction } from '../types'
 
 export interface StrictStoreStatusOptions {
   lockfileDir: string,
-  workingDir: string,
+  dir: string,
   storeDir: string,
   independentLeaves: boolean,
   force: boolean,
@@ -25,10 +25,11 @@ export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
   Pick<StrictStoreStatusOptions, 'storeDir'>
 
 const defaults = async (opts: StoreStatusOptions) => {
-  const workingDir = opts.workingDir || process.cwd()
-  const lockfileDir = opts.lockfileDir || workingDir
+  const dir = opts.dir || process.cwd()
+  const lockfileDir = opts.lockfileDir || dir
   return {
-    bin: path.join(workingDir, 'node_modules', '.bin'),
+    bin: path.join(dir, 'node_modules', '.bin'),
+    dir,
     force: false,
     forceSharedLockfile: false,
     independentLeaves: false,
@@ -37,7 +38,6 @@ const defaults = async (opts: StoreStatusOptions) => {
     shamefullyHoist: false,
     storeDir: opts.storeDir,
     useLockfile: true,
-    workingDir,
   } as StrictStoreStatusOptions
 }
 

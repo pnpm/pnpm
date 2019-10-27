@@ -55,7 +55,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
 
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nindependentLeaves: false\nlayoutVersion: 1`)
 
-  await install(manifest, { ...opts, workingDir: path.resolve('pkg'), lockfileDir: process.cwd() })
+  await install(manifest, { ...opts, dir: path.resolve('pkg'), lockfileDir: process.cwd() })
 
   t.pass('install did not fail')
 })

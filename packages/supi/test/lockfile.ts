@@ -1026,7 +1026,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     ['is-positive'],
     await testDefaults({
       lockfileDir: process.cwd(),
-      workingDir: path.resolve('pkg2'),
+      dir: path.resolve('pkg2'),
     }),
   )
 

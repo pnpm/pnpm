@@ -33,7 +33,7 @@ export type CreateStoreControllerOptions = Pick<Config,
   'lockStaleDuration' |
   'networkConcurrency' |
   'storeDir' |
-  'workingDir' |
+  'dir' |
   'useRunningStoreServer' |
   'useStoreServer'
 > & {
@@ -44,7 +44,7 @@ export async function cached (
   storeControllerCache: Map<string, Promise<{ctrl: StoreController, dir: string}>>,
   opts: CreateStoreControllerOptions,
 ) {
-  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  const storeDir = await storePath(opts.dir, opts.storeDir)
   if (!storeControllerCache.has(storeDir)) {
     storeControllerCache.set(storeDir, createStoreController(opts))
   }
@@ -57,7 +57,7 @@ export default async function createStoreController (
   ctrl: StoreController,
   dir: string,
 }> {
-  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })
@@ -65,12 +65,12 @@ export default async function createStoreController (
     if (serverJson.pnpmVersion !== packageManager.version) {
       logger.warn({
         message: `The store server runs on pnpm v${serverJson.pnpmVersion}. It is recommended to connect with the same version (current is v${packageManager.version})`,
-        prefix: opts.workingDir,
+        prefix: opts.dir,
       })
     }
     logger.info({
       message: 'A store server is running. All store manipulations are delegated to it.',
-      prefix: opts.workingDir,
+      prefix: opts.dir,
     })
     return {
       ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
@@ -85,7 +85,7 @@ export default async function createStoreController (
     serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: true })
     logger.info({
       message: 'A store server has been started. To stop it, use \`pnpm server stop\`',
-      prefix: opts.workingDir,
+      prefix: opts.dir,
     })
     return {
       ctrl: await connectStoreController(serverJson!.connectionOptions), // tslint:disable-line
