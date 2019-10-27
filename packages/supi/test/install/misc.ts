@@ -646,10 +646,10 @@ test('should install dependency in second project', async (t) => {
 test('should throw error when trying to install using a different store then the previous one', async (t) => {
   prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ store: 'node_modules/.store1' }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ storeDir: 'node_modules/.store1' }))
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ store: 'node_modules/.store2' }))
+    await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ storeDir: 'node_modules/.store2' }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'ERR_PNPM_UNEXPECTED_STORE', 'failed with correct error code')

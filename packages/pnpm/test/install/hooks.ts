@@ -174,11 +174,11 @@ test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test)
 
   const storeDir = path.resolve('store')
 
-  await execPnpm('recursive', 'install', '--store', storeDir)
+  await execPnpm('recursive', 'install', '--store-dir', storeDir)
 
   process.chdir('project-1')
 
-  await execPnpm('install', 'is-negative@1.0.0', '--store', storeDir)
+  await execPnpm('install', 'is-negative@1.0.0', '--store-dir', storeDir)
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('is-positive')

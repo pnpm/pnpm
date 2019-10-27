@@ -11,7 +11,7 @@ export default async function safeIsInnerLink (
   opts: {
     hideAlienModules: boolean,
     prefix: string,
-    storePath: string,
+    storeDir: string,
     virtualStoreDir: string,
   },
 ): Promise<true | string> {
@@ -20,7 +20,7 @@ export default async function safeIsInnerLink (
 
     if (link.isInner) return true
 
-    if (isSubdir(opts.virtualStoreDir, link.target) || isSubdir(opts.storePath, link.target)) return true
+    if (isSubdir(opts.virtualStoreDir, link.target) || isSubdir(opts.storeDir, link.target)) return true
 
     return link.target as string
   } catch (err) {

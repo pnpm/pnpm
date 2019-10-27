@@ -13,8 +13,8 @@ export default async function removeCmd (
 ) {
   const store = await createStoreController(opts)
   const removeOpts = Object.assign(opts, {
-    store: store.path,
     storeController: store.ctrl,
+    storeDir: store.dir,
   })
   if (!opts.ignorePnpmfile) {
     opts.hooks = requireHooks(opts.lockfileDirectory || opts.workingDir, opts)

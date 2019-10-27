@@ -27,7 +27,7 @@ test('self-update stops the store server', async (t: tape.Test) => {
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  await execPnpm('install', '-g', 'pnpm', '--store', path.resolve('..', 'store'))
+  await execPnpm('install', '-g', 'pnpm', '--store-dir', path.resolve('..', 'store'))
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })

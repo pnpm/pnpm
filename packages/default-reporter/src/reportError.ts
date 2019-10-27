@@ -88,7 +88,7 @@ function reportUnexpectedStore (err: Error, msg: object) {
 
     If you want to use the new store location, reinstall your dependencies with "pnpm install --force".
 
-    You may change the global store location by running "pnpm config set store <location>".
+    You may change the global store location by running "pnpm config set store-dir <dir>".
       (This error may happen if the node_modules was installed with a different major version of pnpm)
     `
 }

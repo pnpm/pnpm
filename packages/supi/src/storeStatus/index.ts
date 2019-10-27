@@ -16,7 +16,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
   const opts = await extendOptions(maybeOpts)
   const {
     registries,
-    storePath,
+    storeDir,
     skipped,
     wantedLockfile,
   } = await getContextForSingleImporter({}, {
@@ -31,7 +31,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
       return dp.resolve(registries, id)
     })
     .filter((pkgId) => pkgId && !skipped.has(pkgId)) as string[])
-    .map((pkgPath: string) => path.join(storePath, pkgPath))
+    .map((pkgPath: string) => path.join(storeDir, pkgPath))
 
   const modified = await pFilter(pkgPaths, async (pkgPath: string) => !await checkPackage(path.join(pkgPath, 'package')))
 

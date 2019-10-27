@@ -53,7 +53,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 test('remove packages that are used by project that no longer exist', async (t: tape.Test) => {
   prepareEmpty(t)
   const opts = await testDefaults({ save: true })
-  const store = assertStore(t, opts.store)
+  const store = assertStore(t, opts.storeDir)
 
   await addDependenciesToPackage({}, ['is-negative@2.1.0'], opts)
 

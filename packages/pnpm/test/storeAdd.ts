@@ -15,7 +15,7 @@ test('pnpm store add express@4.16.3', async function (t: tape.Test) {
 
   const storeDir = path.resolve('store')
 
-  await execPnpm('store', 'add', 'express@4.16.3', '--store', storeDir)
+  await execPnpm('store', 'add', 'express@4.16.3', '--store-dir', storeDir)
 
   const pathToCheck = path.join(storeDir, '2', 'localhost+4873', 'express', '4.16.3')
   t.ok(await exists(pathToCheck), `express@4.16.3 is in store (at ${pathToCheck})`)
@@ -36,7 +36,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
 
   const storeDir = path.resolve('store')
 
-  await execPnpm('store', 'add', '@foo/no-deps@1.0.0', '--registry', 'https://registry.npmjs.org/', '--store', storeDir)
+  await execPnpm('store', 'add', '@foo/no-deps@1.0.0', '--registry', 'https://registry.npmjs.org/', '--store-dir', storeDir)
 
   const pathToCheck = path.join(storeDir, '2', 'localhost+4873', '@foo', 'no-deps', '1.0.0')
   t.ok(await exists(pathToCheck), `@foo/no-deps@1.0.0 is in store (at ${pathToCheck})`)

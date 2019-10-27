@@ -36,7 +36,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/ajv-keywords/1.5.0_ajv@4.10.4/node_modules/ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  const storeIndex = await loadJsonFile<object>(path.join(opts.store, 'store.json'))
+  const storeIndex = await loadJsonFile<object>(path.join(opts.storeDir, 'store.json'))
   t.ok(storeIndex['localhost+4873/ajv-keywords/1.5.0'], 'localhost+4873/ajv-keywords/1.5.0 added to store index')
   t.ok(storeIndex['localhost+4873/using-ajv/1.0.0'], 'localhost+4873/using-ajv/1.0.0 added to store index')
 

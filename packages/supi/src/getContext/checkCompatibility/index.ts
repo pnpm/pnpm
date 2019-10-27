@@ -8,7 +8,7 @@ import UnexpectedVirtualStoreDir from './UnexpectedVirtualStoreDirError'
 export default function checkCompatibility (
   modules: Modules,
   opts: {
-    storePath: string,
+    storeDir: string,
     modulesDir: string,
     virtualStoreDir: string,
   },
@@ -17,9 +17,9 @@ export default function checkCompatibility (
   // is the only way to compare paths correctly on Windows
   // as of Node.js 4-9
   // See related issue: https://github.com/pnpm/pnpm/issues/996
-  if (path.relative(modules.store, opts.storePath) !== '') {
+  if (path.relative(modules.store, opts.storeDir) !== '') {
     throw new UnexpectedStoreError({
-      actualStorePath: opts.storePath,
+      actualStorePath: opts.storeDir,
       expectedStorePath: modules.store,
       modulesDir: opts.modulesDir,
     })

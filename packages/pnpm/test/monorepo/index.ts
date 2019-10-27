@@ -434,7 +434,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
     'utf8',
   )
 
-  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store', 'store')
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
@@ -448,7 +448,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   const storeJson = await loadJsonFile<object>(path.resolve('store', '2', 'store.json'))
   t.deepEqual(storeJson['localhost+4873/is-negative/1.0.0'].length, 1, 'new connections saved in store.json')
 
-  await execPnpm('recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store', 'store')
+  await execPnpm('recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store')
 
   {
     const pkg = await readPackageJsonFromDir(path.resolve('is-positive'))
@@ -517,7 +517,7 @@ test('recursive install with shared-workspace-lockfile builds workspace packages
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store', 'store')
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store')
 
   {
     const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -622,12 +622,12 @@ test('recursive installation with shared-workspace-lockfile and a readPackage ho
   await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store')
+  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store')
 
   const lockfile = await readYamlFile<Lockfile>(`./${WANTED_LOCKFILE}`)
   t.ok(lockfile.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 
-  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store', 'store', '--filter', 'project-1')
+  await execPnpm('recursive', 'install', '--shared-workspace-lockfile', '--store-dir', 'store', '--filter', 'project-1')
 
   await projects['project-1'].hasNot('project-1')
 })
@@ -671,7 +671,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', 'project', '!store/**'] })
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
-  await execPnpm('install', '--store', 'store')
+  await execPnpm('install', '--store-dir', 'store')
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
@@ -716,7 +716,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
 
   process.chdir('workspace-1')
 
-  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
@@ -770,7 +770,7 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
     const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
@@ -779,7 +779,7 @@ test('shared-workspace-lockfile: entries of removed projects should be removed f
 
   await rimraf('package-2')
 
-  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages')
 
   {
     const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)

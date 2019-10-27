@@ -46,7 +46,7 @@ const FULL_META_FILENAME = 'index-full.json'
 export interface ResolverFactoryOptions {
   rawConfig: object,
   metaCache: PackageMetaCache,
-  store: string,
+  storeDir: string,
   cert?: string,
   fullMetadata?: boolean,
   key?: string,
@@ -76,8 +76,8 @@ export default function createResolver (
   if (typeof opts.metaCache !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.metaCache` is required and needs to be an object')
   }
-  if (typeof opts.store !== 'string') { // tslint:disable-line
-    throw new TypeError('`opts.store` is required and needs to be a string')
+  if (typeof opts.storeDir !== 'string') { // tslint:disable-line
+    throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
   const fetch = createRegFetcher({
     ca: opts.ca,
@@ -103,7 +103,7 @@ export default function createResolver (
       metaFileName: opts.fullMetadata ? FULL_META_FILENAME : META_FILENAME,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
-      storePath: opts.store,
+      storeDir: opts.storeDir,
     }),
   })
 }

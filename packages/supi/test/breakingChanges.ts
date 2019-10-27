@@ -17,7 +17,7 @@ test('fail on non-compatible node_modules', async (t: tape.Test) => {
   prepareEmpty(t)
   const opts = await testDefaults()
 
-  await saveModulesYaml('0.50.0', opts.store)
+  await saveModulesYaml('0.50.0', opts.storeDir)
 
   try {
     await addDependenciesToPackage({}, ['is-negative'], opts)
@@ -31,7 +31,7 @@ test("don't fail on non-compatible node_modules when forced", async (t: tape.Tes
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
-  await saveModulesYaml('0.50.0', opts.store)
+  await saveModulesYaml('0.50.0', opts.storeDir)
 
   await install({}, opts)
 
@@ -53,7 +53,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
 
   process.chdir('..')
 
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.store}\nindependentLeaves: false\nlayoutVersion: 1`)
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nindependentLeaves: false\nlayoutVersion: 1`)
 
   await install(manifest, { ...opts, workingDir: path.resolve('pkg'), lockfileDirectory: process.cwd() })
 
@@ -64,7 +64,7 @@ test('do not fail on non-compatible node_modules when forced with a named instal
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
-  await saveModulesYaml('0.50.0', opts.store)
+  await saveModulesYaml('0.50.0', opts.storeDir)
 
   await addDependenciesToPackage({}, ['is-negative'], opts)
 })
@@ -73,7 +73,7 @@ test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
-  await saveModulesYaml('0.32.0', opts.store)
+  await saveModulesYaml('0.32.0', opts.storeDir)
 
   await install({}, opts)
 
@@ -84,14 +84,14 @@ test('do not fail on non-compatible store when forced during named installation'
   prepareEmpty(t)
   const opts = await testDefaults({ force: true })
 
-  await saveModulesYaml('0.32.0', opts.store)
+  await saveModulesYaml('0.32.0', opts.storeDir)
 
   await addDependenciesToPackage({}, ['is-negative'], opts)
 })
 
-async function saveModulesYaml (pnpmVersion: string, storePath: string) {
+async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
   await makeDir('node_modules')
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storePath}\nindependentLeaves: false`)
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storeDir}\nindependentLeaves: false`)
 }
 
 test(`fail on non-compatible ${WANTED_LOCKFILE}`, async (t: tape.Test) => {

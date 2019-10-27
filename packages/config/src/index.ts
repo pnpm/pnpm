@@ -70,7 +70,8 @@ export const types = Object.assign({
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
   'sort': Boolean,
-  'store': path,
+  'store': path, // TODO: deprecate
+  'store-dir': String,
   'strict-peer-dependencies': Boolean,
   'table': Boolean,
   'use-beta-cli': Boolean,
@@ -338,6 +339,10 @@ export default async (
   if (pnpmConfig['shamefullyFlatten']) {
     warnings.push('The "shamefully-flatten" setting has been renamed to "shamefully-hoist". Also, in most cases you won\'t need "shamefully-hoist". Since v4, a semistrict node_modules structure is on by default (via hoist-pattern=[*]).')
     pnpmConfig.shamefullyHoist = true
+  }
+  if (!pnpmConfig.storeDir && pnpmConfig['store']) {
+    warnings.push('The "store" setting has been renamed to "store-dir". Please use the new name.')
+    pnpmConfig.storeDir = pnpmConfig['store']
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern

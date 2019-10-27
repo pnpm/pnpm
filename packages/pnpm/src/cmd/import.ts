@@ -24,8 +24,8 @@ export default async function installCmd (
     ...opts,
     lockfileOnly: true,
     preferredVersions,
-    store: store.path,
     storeController: store.ctrl,
+    storeDir: store.dir,
   }
   await install(await readImporterManifestOnly(opts.workingDir), installOpts)
 }

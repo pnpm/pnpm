@@ -55,8 +55,8 @@ export default async function installCmd (
     // so ignoring scripts for now
     ignoreScripts: !!localPackages || opts.ignoreScripts,
     localPackages,
-    store: store.path,
     storeController: store.ctrl,
+    storeDir: store.dir,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
     forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
@@ -130,8 +130,8 @@ export default async function installCmd (
       ], {
         ...opts,
         pending: true,
-        store: store.path,
         storeController: store.ctrl,
+        storeDir: store.dir,
       },
     )
   }

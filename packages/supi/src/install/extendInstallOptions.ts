@@ -22,7 +22,7 @@ export interface StrictInstallOptions {
   preferFrozenLockfile: boolean,
   saveWorkspaceProtocol: boolean,
   storeController: StoreController,
-  store: string,
+  storeDir: string,
   reporter: ReporterFunction,
   force: boolean,
   update: boolean,
@@ -74,7 +74,7 @@ export interface StrictInstallOptions {
 }
 
 export type InstallOptions = Partial<StrictInstallOptions> &
-  Pick<StrictInstallOptions, 'store' | 'storeController'>
+  Pick<StrictInstallOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: InstallOptions) => {
   const packageManager = opts.packageManager || {
@@ -102,7 +102,7 @@ const defaults = async (opts: InstallOptions) => {
     lock: true,
     lockfileDirectory: opts.lockfileDirectory || opts.workingDir || process.cwd(),
     lockfileOnly: false,
-    locks: path.join(opts.store, '_locks'),
+    locks: path.join(opts.storeDir, '_locks'),
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     nodeVersion: process.version,
     ownLifecycleHooksStdio: 'inherit',
@@ -117,8 +117,8 @@ const defaults = async (opts: InstallOptions) => {
     shamefullyHoist: false,
     sideEffectsCacheRead: false,
     sideEffectsCacheWrite: false,
-    store: opts.store,
     storeController: opts.storeController,
+    storeDir: opts.storeDir,
     strictPeerDependencies: false,
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
@@ -147,7 +147,7 @@ export default async (
   const extendedOpts = {
     ...defaultOpts,
     ...opts,
-    store: defaultOpts.store,
+    storeDir: defaultOpts.storeDir,
   }
   if (!extendedOpts.useLockfile && extendedOpts.lockfileOnly) {
     throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE',

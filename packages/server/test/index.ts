@@ -13,14 +13,14 @@ import test = require('tape')
 
 const registry = 'https://registry.npmjs.org/'
 
-const store = '.store'
+const storeDir = '.store'
 
 async function createStoreController () {
   const rawConfig = { registry }
   const resolve = createResolver({
     metaCache: new Map<string, object>() as PackageMetaCache,
     rawConfig,
-    store,
+    storeDir,
   }) as ResolveFunction
   const fetchers = createFetcher({
     alwaysAuth: true,
@@ -32,7 +32,7 @@ async function createStoreController () {
     locks: undefined,
     lockStaleDuration: 100,
     networkConcurrency: 1,
-    store: store,
+    storeDir,
     verifyStoreIntegrity: true,
   })
 }
@@ -119,7 +119,7 @@ test('fetchPackage', async t => {
       lockfileDirectory: process.cwd(),
     }),
     {
-      directory: path.join(store, pkgId, 'node_modules', 'is-positive'),
+      directory: path.join(storeDir, pkgId, 'node_modules', 'is-positive'),
       isBuilt: false,
     },
   )

@@ -73,7 +73,7 @@ export interface Config {
   alwaysAuth?: boolean,
 
   // pnpm specific configs
-  store?: string,
+  storeDir?: string,
   virtualStoreDir?: string,
   verifyStoreIntegrity?: boolean,
   networkConcurrency?: number,

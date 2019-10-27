@@ -28,7 +28,7 @@ export default async (
 ) => {
   const cwd = opts && opts.workingDir || process.cwd()
 
-  const storeControllerCache = new Map<string, Promise<{path: string, ctrl: StoreController}>>()
+  const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
   let workspacePackages
   let localPackages!: LocalPackages
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {
@@ -41,8 +41,8 @@ export default async (
   const store = await createStoreController(storeControllerCache, opts)
   const linkOpts = Object.assign(opts, {
     localPackages,
-    store: store.path,
     storeController: store.ctrl,
+    storeDir: store.dir,
     targetDependenciesField: getSaveType(opts),
   })
 
@@ -95,8 +95,8 @@ export default async (
             },
           ),
           localPackages,
-          store: s.path,
           storeController: s.ctrl,
+          storeDir: s.dir,
         } as InstallOptions,
       )
     })),

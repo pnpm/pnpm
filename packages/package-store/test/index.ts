@@ -14,20 +14,20 @@ test('public API', t => {
 })
 
 test('store.importPackage()', async (t) => {
-  const store = tempy.directory()
+  const storeDir = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
   const rawConfig = { registry }
   const resolver = createResolver({
     metaCache: new Map(),
     rawConfig,
-    store,
+    storeDir,
   }) as ResolveFunction
   const fetcher = createFetcher({
     rawConfig,
     registry,
   })
   const storeController = await createStore(resolver, fetcher, {
-    store,
+    storeDir,
     verifyStoreIntegrity: true,
   })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
@@ -52,13 +52,13 @@ test('store.importPackage()', async (t) => {
 })
 
 test('store.importPackage() by copying', async (t) => {
-  const store = tempy.directory()
+  const storeDir = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
   const rawConfig = { registry }
   const resolver = createResolver({
     metaCache: new Map(),
     rawConfig,
-    store,
+    storeDir,
   }) as ResolveFunction
   const fetcher = createFetcher({
     rawConfig,
@@ -66,7 +66,7 @@ test('store.importPackage() by copying', async (t) => {
   })
   const storeController = await createStore(resolver, fetcher, {
     packageImportMethod: 'copy',
-    store,
+    storeDir,
     verifyStoreIntegrity: true,
   })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'

@@ -56,7 +56,7 @@ export default async (
     fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
     metaFileName: string,
     metaCache: PackageMetaCache,
-    storePath: string,
+    storeDir: string,
     offline?: boolean,
     preferOffline?: boolean,
   },
@@ -74,7 +74,7 @@ export default async (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.storePath, registryName, spec.name)
+  const pkgMirror = path.join(ctx.storeDir, registryName, spec.name)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   let metaCachedInStore: PackageMeta | null | undefined

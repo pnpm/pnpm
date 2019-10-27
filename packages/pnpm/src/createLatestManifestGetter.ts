@@ -21,7 +21,7 @@ export default function (
     proxy?: string,
     rawConfig: object,
     registries: Registries,
-    store: string,
+    storeDir: string,
     strictSsl?: boolean,
     userAgent?: string,
     verifyStoreIntegrity?: boolean,

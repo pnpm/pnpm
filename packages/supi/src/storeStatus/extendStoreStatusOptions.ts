@@ -6,7 +6,7 @@ import { ReporterFunction } from '../types'
 export interface StrictStoreStatusOptions {
   lockfileDirectory: string,
   workingDir: string,
-  store: string,
+  storeDir: string,
   independentLeaves: boolean,
   force: boolean,
   forceSharedLockfile: boolean,
@@ -22,7 +22,7 @@ export interface StrictStoreStatusOptions {
 }
 
 export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
-  Pick<StrictStoreStatusOptions, 'store'>
+  Pick<StrictStoreStatusOptions, 'storeDir'>
 
 const defaults = async (opts: StoreStatusOptions) => {
   const workingDir = opts.workingDir || process.cwd()
@@ -35,7 +35,7 @@ const defaults = async (opts: StoreStatusOptions) => {
     lockfileDirectory,
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
-    store: opts.store,
+    storeDir: opts.storeDir,
     useLockfile: true,
     workingDir,
   } as StrictStoreStatusOptions
@@ -52,7 +52,7 @@ export default async (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
+  const extendedOpts = { ...defaultOpts, ...opts, storeDir: defaultOpts.storeDir }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }

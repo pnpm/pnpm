@@ -19,7 +19,7 @@ const retryOpts = {
 export default async function testDefaults<T> (
   opts?: T & {
     fastUnpack?: boolean,
-    store?: string,
+    storeDir?: string,
     prefix?: string,
   }, // tslint:disable-line
   resolveOpts?: any, // tslint:disable-line
@@ -29,20 +29,20 @@ export default async function testDefaults<T> (
   InstallOptions &
   {
     registries: Registries,
-    store: string,
     storeController: StoreController,
+    storeDir: string,
   } &
   T
 > {
-  let store = opts && opts.store || path.resolve('.store')
-  store = await storePath(opts && opts.prefix || process.cwd(), store)
+  let storeDir = opts && opts.storeDir || path.resolve('.store')
+  storeDir = await storePath(opts && opts.prefix || process.cwd(), storeDir)
   const rawConfig = { registry }
   const storeController = await createStore(
     createResolver({
       fullMetadata: false,
       metaCache: new Map(),
       rawConfig,
-      store,
+      storeDir,
       strictSsl: true,
       ...retryOpts,
       ...resolveOpts,
@@ -56,8 +56,8 @@ export default async function testDefaults<T> (
       ...fetchOpts,
     }) as {},
     {
-      locks: path.join(store, '_locks'),
-      store,
+      locks: path.join(storeDir, '_locks'),
+      storeDir,
       verifyStoreIntegrity: true,
       ...storeOpts,
     },
@@ -66,15 +66,15 @@ export default async function testDefaults<T> (
     registries: {
       default: registry,
     },
-    store,
     storeController,
+    storeDir,
     ...opts,
   } as (
     InstallOptions &
     {
       registries: Registries,
-      store: string,
       storeController: StoreController,
+      storeDir: string,
     } &
     T
   )

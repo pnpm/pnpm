@@ -195,7 +195,7 @@ test('installation using store server started in the background', async (t: tape
 test('store server started in the background should use store location wanted by install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive@1.0.0', '--use-store-server', '--store', '../store2')
+  await execPnpm('install', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2')
 
   const serverJsonPath = path.resolve('..', 'store2', '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
@@ -204,9 +204,9 @@ test('store server started in the background should use store location wanted by
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm('uninstall', 'is-positive', '--store', '../store2')
+  await execPnpm('uninstall', 'is-positive', '--store-dir', '../store2')
 
-  await execPnpm('server', 'stop', '--store', '../store2')
+  await execPnpm('server', 'stop', '--store-dir', '../store2')
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
@@ -346,7 +346,7 @@ test('print server status', async (t: tape.Test) => {
 
   await delay(2000)
 
-  const result = execPnpmSync('server', 'status', '--store', path.resolve('..', 'store'))
+  const result = execPnpmSync('server', 'status', '--store-dir', path.resolve('..', 'store'))
 
   t.equal(result.status, 0)
   const output = result.stdout.toString()
@@ -358,7 +358,7 @@ test('print server status', async (t: tape.Test) => {
 test('fail if no store server is running and --use-running-store-server flag is used', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const result = execPnpmSync('install', 'is-positive', '--use-running-store-server', '--store', path.resolve('..', 'store'))
+  const result = execPnpmSync('install', 'is-positive', '--use-running-store-server', '--store-dir', path.resolve('..', 'store'))
 
   t.equal(result.status, 1)
   const output = result.stdout.toString()

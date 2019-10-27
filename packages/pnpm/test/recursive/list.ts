@@ -89,7 +89,7 @@ test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
-  await execPnpm('recursive', 'install', '--store', 'store')
+  await execPnpm('recursive', 'install', '--store-dir', 'store')
 
   const result = execPnpmSync('recursive', 'list', '--depth', '2')
 

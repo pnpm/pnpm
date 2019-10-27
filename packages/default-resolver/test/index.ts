@@ -8,7 +8,7 @@ test('createResolver()', t => {
     rawConfig: {
       registry: 'https://registry.npmjs.org/',
     },
-    store: '.store',
+    storeDir: '.store',
   })
   t.equal(typeof resolve, 'function')
   t.end()

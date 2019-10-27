@@ -9,18 +9,18 @@ import { PnpmOptions } from '../../types'
 export default async (
   opts: PnpmOptions,
 ) => {
-  const store = await storePath(opts.workingDir, opts.store)
-  const connectionInfoDir = serverConnectionInfoDir(store)
+  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJson = await tryLoadServerJson({
     serverJsonPath: path.join(connectionInfoDir, 'server.json'),
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    globalInfo(`No server is running for the store at ${store}`)
+    globalInfo(`No server is running for the store at ${storeDir}`)
     return
   }
   console.log(stripIndents`
-    store: ${store}
+    store: ${storeDir}
     process id: ${serverJson.pid}
     remote prefix: ${serverJson.connectionOptions.remotePrefix}
   `)

@@ -24,9 +24,9 @@ const OPTIONS = {
     description: 'Skip staleness checks for cached data, but request missing data from the server',
     name: '--prefer-offline',
   },
-  store: {
+  storeDir: {
     description: 'The directory in which all the packages are saved on the disk',
-    name: '--store <dir>',
+    name: '--store-dir <dir>',
   },
   virtualStoreDir: {
     description: oneLine`
@@ -143,7 +143,7 @@ function getHelpText (command: string) {
                   by any dependencies, so it is an emulation of a flat node_modules`,
                 name: '--hoist-pattern <pattern>',
               },
-              OPTIONS.store,
+              OPTIONS.storeDir,
               OPTIONS.virtualStoreDir,
               {
                 description: 'Maximum number of concurrent network requests',
@@ -301,7 +301,7 @@ function getHelpText (command: string) {
               OPTIONS.ignoreScripts,
               OPTIONS.offline,
               OPTIONS.preferOffline,
-              OPTIONS.store,
+              OPTIONS.storeDir,
               OPTIONS.virtualStoreDir,
               ...UNIVERSAL_OPTIONS,
             ],
@@ -840,7 +840,7 @@ function getHelpText (command: string) {
                 description: 'The port number to use, when TCP is used for communication',
                 name: '--port <number>',
               },
-              OPTIONS.store,
+              OPTIONS.storeDir,
               {
                 description: 'Maximum number of concurrent network requests',
                 name: '--network-concurrency <number>',

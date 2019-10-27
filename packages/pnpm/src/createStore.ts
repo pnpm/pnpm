@@ -33,22 +33,22 @@ export default async (
     'verifyStoreIntegrity'
   > & {
     ignoreFile?: (filename: string) => boolean,
-  } & Required<Pick<Config, 'store'>>,
+  } & Required<Pick<Config, 'storeDir'>>,
 ) => {
   // TODO: either print a warning or just log if --no-lock is used
   const sopts = Object.assign(opts, {
-    locks: opts.lock ? path.join(opts.store, '_locks') : undefined,
+    locks: opts.lock ? path.join(opts.storeDir, '_locks') : undefined,
     registry: opts.registry || 'https://registry.npmjs.org/',
   })
   const resolve = createResolver(sopts)
-  await makeDir(sopts.store)
-  const fsIsCaseSensitive = await dirIsCaseSensitive(sopts.store)
+  await makeDir(sopts.storeDir)
+  const fsIsCaseSensitive = await dirIsCaseSensitive(sopts.storeDir)
   logger.debug({
     // An undefined field would cause a crash of the logger
     // so converting it to null
     isCaseSensitive: typeof fsIsCaseSensitive === 'boolean'
       ? fsIsCaseSensitive : null,
-    store: sopts.store,
+    store: sopts.storeDir,
   })
   const fetchers = createFetcher({ ...sopts, fsIsCaseSensitive })
   return {
@@ -57,10 +57,10 @@ export default async (
       lockStaleDuration: sopts.lockStaleDuration,
       networkConcurrency: sopts.networkConcurrency,
       packageImportMethod: sopts.packageImportMethod,
-      store: sopts.store,
+      storeDir: sopts.storeDir,
       verifyStoreIntegrity: typeof sopts.verifyStoreIntegrity === 'boolean' ?
         sopts.verifyStoreIntegrity : true,
     }),
-    path: sopts.store,
+    dir: sopts.storeDir,
   }
 }

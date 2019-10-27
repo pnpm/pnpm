@@ -13,8 +13,8 @@ export default async function (
 ) {
   const store = await createStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
-    store: store.path,
     storeController: store.ctrl,
+    storeDir: store.dir,
   })
 
   if (args.length === 0) {

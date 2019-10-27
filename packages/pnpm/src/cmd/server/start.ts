@@ -31,8 +31,8 @@ export default async (
   if (opts.background && !Diable.isDaemon()) {
     Diable()
   }
-  const pathOfStore = await storePath(opts.workingDir, opts.store)
-  const connectionInfoDir = serverConnectionInfoDir(pathOfStore)
+  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   await makeDir(connectionInfoDir)
 
@@ -71,7 +71,7 @@ export default async (
     }
   })
   const store = await createStore(Object.assign(opts, {
-    store: pathOfStore,
+    storeDir,
   }))
   const protocol = opts.protocol || opts.port && 'tcp' || 'auto'
   const serverOptions = await getServerOptions(connectionInfoDir, { protocol, port: opts.port })

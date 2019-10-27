@@ -324,7 +324,7 @@ testFromNode10('convert specs with workspace protocols to regular version ranges
 
   process.chdir('..')
 
-  await execPnpm('multi', 'install', '--store', 'store')
+  await execPnpm('multi', 'install', '--store-dir', 'store')
 
   process.chdir('workspace-protocol-package')
   await execPnpm('publish')

@@ -32,7 +32,7 @@ export type CreateStoreControllerOptions = Pick<Config,
   'lock' |
   'lockStaleDuration' |
   'networkConcurrency' |
-  'store' |
+  'storeDir' |
   'workingDir' |
   'useRunningStoreServer' |
   'useStoreServer'
@@ -41,24 +41,24 @@ export type CreateStoreControllerOptions = Pick<Config,
 }
 
 export async function cached (
-  storeControllerCache: Map<string, Promise<{ctrl: StoreController, path: string}>>,
+  storeControllerCache: Map<string, Promise<{ctrl: StoreController, dir: string}>>,
   opts: CreateStoreControllerOptions,
 ) {
-  const sp = await storePath(opts.workingDir, opts.store)
-  if (!storeControllerCache.has(sp)) {
-    storeControllerCache.set(sp, createStoreController(opts))
+  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  if (!storeControllerCache.has(storeDir)) {
+    storeControllerCache.set(storeDir, createStoreController(opts))
   }
-  return await storeControllerCache.get(sp) as {ctrl: StoreController, path: string}
+  return await storeControllerCache.get(storeDir) as {ctrl: StoreController, dir: string}
 }
 
 export default async function createStoreController (
   opts: CreateStoreControllerOptions,
 ): Promise<{
   ctrl: StoreController,
-  path: string,
+  dir: string,
 }> {
-  const store = await storePath(opts.workingDir, opts.store)
-  const connectionInfoDir = serverConnectionInfoDir(store)
+  const storeDir = await storePath(opts.workingDir, opts.storeDir)
+  const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })
   if (serverJson !== null) {
@@ -74,14 +74,14 @@ export default async function createStoreController (
     })
     return {
       ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
-      path: store,
+      dir: storeDir,
     }
   }
   if (opts.useRunningStoreServer) {
     throw new PnpmError('NO_STORE_SERVER', 'No store server is running.')
   }
   if (opts.useStoreServer) {
-    runServerInBackground(store)
+    runServerInBackground(storeDir)
     serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: true })
     logger.info({
       message: 'A store server has been started. To stop it, use \`pnpm server stop\`',
@@ -89,11 +89,11 @@ export default async function createStoreController (
     })
     return {
       ctrl: await connectStoreController(serverJson!.connectionOptions), // tslint:disable-line
-      path: store,
+      dir: storeDir,
     }
   }
   return createStore(Object.assign(opts, {
-    store,
+    storeDir,
   }))
 }
 
