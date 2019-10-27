@@ -3,6 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import readImporterManifest from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import writeImporterManifest from '@pnpm/write-importer-manifest'
 import rimraf = require('@zkochan/rimraf')
 import crossSpawn = require('cross-spawn')
@@ -161,7 +162,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
   await project.has('with-same-file-in-different-cases')
 
   const storeDir = await project.getStorePath()
-  const integrityFile = await import(path.join(storeDir, 'localhost+4873', 'with-same-file-in-different-cases', '1.0.0', 'integrity.json'))
+  const integrityFile = await import(path.join(storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'with-same-file-in-different-cases', '1.0.0', 'integrity.json'))
   const packageFiles = Object.keys(integrityFile).sort()
 
   if (await dirIsCaseSensitive(storeDir)) {
@@ -481,7 +482,7 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
 
   await execPnpm('install', '--virtual-store-dir=.pnpm')
 
-  t.ok(await exists('.pnpm/localhost+4873/rimraf/2.5.1/node_modules/rimraf/package.json'))
+  t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1/node_modules/rimraf/package.json`))
   t.ok(await exists('.pnpm/lock.yaml'))
   t.ok(await exists('.pnpm/node_modules/once/package.json'))
 
@@ -490,7 +491,7 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
 
   await execPnpm('install', '--virtual-store-dir=.pnpm', '--frozen-lockfile')
 
-  t.ok(await exists('.pnpm/localhost+4873/rimraf/2.5.1/node_modules/rimraf/package.json'))
+  t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1/node_modules/rimraf/package.json`))
   t.ok(await exists('.pnpm/lock.yaml'))
   t.ok(await exists('.pnpm/node_modules/once/package.json'))
 })

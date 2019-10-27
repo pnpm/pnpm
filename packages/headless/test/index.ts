@@ -12,6 +12,7 @@ import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
 import fse = require('fs-extra')
 import path = require('path')
@@ -40,7 +41,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has('.pnpm/localhost+4873/colors') // colors is not symlinked from the store
+  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -72,7 +73,7 @@ test('installing a simple project', async (t) => {
   } as StageLog), 'importing stage done logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/is-negative/2.1.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
     requester: prefix,
     status: 'resolved',
   }), 'logs that package is being resolved')
@@ -271,10 +272,10 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
   await project.has('.pnpm/node_modules/path-is-absolute')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.pnpm/localhost+4873/wrappy/1.0.2')
+  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/wrappy/1.0.2`)
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has('.pnpm/localhost+4873/rimraf/2.5.1')
+  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1`)
 
   await project.isExecutable('.bin/rimraf')
 
@@ -407,13 +408,13 @@ test('available packages are used when node_modules is not clean', async (t) => 
 
   t.notOk(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/balanced-match/1.0.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`,
     requester: projectDir,
     status: 'resolved',
   }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/rimraf/2.6.2',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.6.2`,
     requester: projectDir,
     status: 'resolved',
   }), 'resolves rimraf')
@@ -447,13 +448,13 @@ test('available packages are relinked during forced install', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/balanced-match/1.0.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`,
     requester: projectDir,
     status: 'resolved',
   }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/rimraf/2.6.2',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/rimraf/2.6.2`,
     requester: projectDir,
     status: 'resolved',
   }), 'resolves rimraf')
@@ -553,8 +554,8 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
-  await project.has('.pnpm/localhost+4873/rimraf') // rimraf is not symlinked from the store
-  await project.hasNot('.pnpm/localhost+4873/colors') // colors is symlinked from the store
+  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf`) // rimraf is not symlinked from the store
+  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -602,7 +603,7 @@ test('installing with hoistPattern=*', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has('.pnpm/localhost+4873/colors') // colors is not symlinked from the store
+  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
@@ -635,14 +636,14 @@ test('installing with hoistPattern=*', async (t) => {
   } as StageLog), 'importing stage done logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/is-negative/2.1.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
     requester: prefix,
     status: 'resolved',
   }), 'logs that package is being resolved')
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases[`localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -662,7 +663,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has('.pnpm/localhost+4873/colors') // colors is not symlinked from the store
+  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.bin/hello-world-js-bin')
@@ -695,14 +696,14 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
   } as StageLog), 'importing stage done logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    packageId: 'localhost+4873/is-negative/2.1.0',
+    packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
     requester: prefix,
     status: 'resolved',
   }), 'logs that package is being resolved')
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases[`localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -722,7 +723,7 @@ test('using side effects cache', async (t) => {
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(prefix, 'node_modules'))
@@ -762,7 +763,7 @@ test('using side effects cache and hoistPattern=*', async (t) => {
   const project = assertProject(t, prefix)
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(prefix, 'node_modules'))
@@ -844,7 +845,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
 
   await projectBar.has('foo')
-  t.ok(await exists(path.join(workspaceFixture, 'node_modules/.pnpm/localhost+4873/express/4.16.4/node_modules/array-flatten')), 'independent package linked')
+  t.ok(await exists(path.join(workspaceFixture, `node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/express/4.16.4/node_modules/array-flatten`)), 'independent package linked')
 
   t.end()
 })

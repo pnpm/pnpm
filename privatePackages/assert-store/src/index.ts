@@ -1,9 +1,10 @@
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
 import exists = require('path-exists')
 import { Test } from 'tape'
 
 export default (t: Test, storePath: string | Promise<string>, encodedRegistryName?: string) => {
-  const ern = encodedRegistryName || 'localhost+4873'
+  const ern = encodedRegistryName || `localhost+${REGISTRY_MOCK_PORT}`
   const store = {
     async storeHas (pkgName: string, version?: string): Promise<void> {
       const pathToCheck = await store.resolve(pkgName, version)

@@ -1,4 +1,5 @@
 import prepare from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import path = require('path')
@@ -16,7 +17,7 @@ test('caching side effects of native package', async function (t) {
 
   await execPnpm('add', '--side-effects-cache', 'diskusage@1.1.3')
   const storePath = await project.getStorePath()
-  const cacheBuildDir = path.join(storePath, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   const stat1 = await fs.stat(cacheBuildDir)
 
   t.ok(await fs.exists(path.join('node_modules/diskusage/build')), 'build folder created')
@@ -41,7 +42,7 @@ test('using side effects cache', async function (t) {
   await execPnpm('add', 'diskusage@1.1.3', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy')
   const storePath = await project.getStorePath()
 
-  const cacheBuildDir = path.join(storePath, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf('node_modules')
@@ -59,7 +60,7 @@ test('readonly side effects cache', async function (t) {
   const storePath = await project.getStorePath()
 
   // Modify the side effects cache to make sure we are using it
-  const cacheBuildDir = path.join(storePath, `localhost+4873/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)
   await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf('node_modules')
@@ -72,7 +73,7 @@ test('readonly side effects cache', async function (t) {
   await execPnpm('add', 'diskusage@1.1.3', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy')
 
   t.ok(await fs.exists('node_modules/diskusage/build'), 'build folder created')
-  t.notOk(await fs.exists(path.join(storePath, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)), 'cache folder not created')
+  t.notOk(await fs.exists(path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)), 'cache folder not created')
 
   t.end()
 })

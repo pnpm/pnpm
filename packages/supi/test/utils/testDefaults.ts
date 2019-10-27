@@ -1,13 +1,14 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
 import createStore from '@pnpm/package-store'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { StoreController } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import path = require('path')
 import { InstallOptions } from 'supi'
 
-const registry = 'http://localhost:4873/'
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 const retryOpts = {
   fetchRetries: 4,

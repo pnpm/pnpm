@@ -1,4 +1,5 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import isSubdir = require('is-subdir')
 import path = require('path')
 import resolveLinkTarget = require('resolve-link-target')
@@ -77,8 +78,8 @@ test('installing with independent-leaves and hoistPattern', async (t) => {
   await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
 
   // wrappy is linked directly from the store
-  await project.hasNot('.pnpm/localhost+4873/dep-of-pkg-with-1-dep/100.0.0')
+  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.0.0`)
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await project.has('.pnpm/localhost+4873/pkg-with-1-dep/100.0.0')
+  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0`)
 })

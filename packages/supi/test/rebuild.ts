@@ -1,4 +1,5 @@
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { PackageManifest } from '@pnpm/types'
 import ncpCB = require('ncp')
 import path = require('path')
@@ -156,7 +157,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   t.ok(modules)
   t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
-  await project.hasNot('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
+  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
   await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
@@ -165,7 +166,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
-  t.ok(+project.requireModule('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
 test('rebuild dependencies in correct order when node_modules uses independent-leaves', async (t: tape.Test) => {
@@ -177,7 +178,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   t.ok(modules)
   t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
-  await project.hasNot('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
+  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
   await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true }, independentLeaves: true }))
@@ -186,7 +187,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
-  t.ok(+project.requireModule('.pnpm/localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
 test('rebuild multiple packages in correct order', async (t: tape.Test) => {

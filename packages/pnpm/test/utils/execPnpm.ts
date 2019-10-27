@@ -1,3 +1,4 @@
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ChildProcess as NodeChildProcess } from 'child_process'
 import crossSpawn = require('cross-spawn')
 import path = require('path')
@@ -69,7 +70,7 @@ function createEnv (opts?: {storeDir?: string}) {
     npm_config_fetch_retries: 4,
     npm_config_hoist: true,
     npm_config_independent_leaves: false,
-    npm_config_registry: 'http://localhost:4873/',
+    npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     npm_config_silent: 'true',
     npm_config_store_dir: opts && opts.storeDir || '../store',
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)

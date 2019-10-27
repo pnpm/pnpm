@@ -2,6 +2,7 @@ import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile, LockfileImporter } from '@pnpm/lockfile-types'
 import { Modules, read as readModules } from '@pnpm/modules-yaml'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
@@ -39,7 +40,7 @@ export interface Project {
 }
 
 export default (t: Test, projectPath: string, encodedRegistryName?: string): Project => {
-  const ern = encodedRegistryName || 'localhost+4873'
+  const ern = encodedRegistryName || `localhost+${REGISTRY_MOCK_PORT}`
   const modules = path.join(projectPath, 'node_modules')
 
   let cachedStore: {

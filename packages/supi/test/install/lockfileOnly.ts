@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('mz/fs')
 import path = require('path')
 import sinon = require('sinon')
@@ -20,8 +21,8 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' })
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
 
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
   await project.hasNot('pkg-with-1-dep')
 
   t.ok(manifest.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
@@ -37,8 +38,8 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   t.comment(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
   await install(manifest, opts)
 
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
   await project.hasNot('pkg-with-1-dep')
 
   t.notOk(await project.readCurrentLockfile(), 'current lockfile not created')

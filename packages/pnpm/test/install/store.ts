@@ -1,4 +1,5 @@
 import prepare from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
 import ncpCB = require('ncp')
@@ -17,11 +18,11 @@ test('corrupted tarball should be redownloaded to the store', async (t: tape.Tes
 
   await execPnpm('store', 'add', 'is-positive@1.0.0', 'is-positive@2.0.0')
 
-  await rimraf(path.resolve('../store/2/localhost+4873/is-positive/2.0.0'))
-  await makeDir(path.resolve('../store/2/localhost+4873/is-positive/2.0.0'))
+  await rimraf(path.resolve(`../store/2/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0`))
+  await makeDir(path.resolve(`../store/2/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0`))
   await ncp(
-    path.resolve('../store/2/localhost+4873/is-positive/1.0.0/packed.tgz'),
-    path.resolve('../store/2/localhost+4873/is-positive/2.0.0/packed.tgz'),
+    path.resolve(`../store/2/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0/packed.tgz`),
+    path.resolve(`../store/2/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0/packed.tgz`),
   )
 
   await execPnpm('add', 'is-positive@2.0.0')

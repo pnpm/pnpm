@@ -3,6 +3,7 @@
 declare module '@pnpm/registry-mock' {
   export function getIntegrity (pkgName: string, pkgVersion: string): string
   export function addDistTag (opts: {package: string, version: string, distTag: string}): Promise<void>
+  export const REGISTRY_MOCK_PORT: string
 }
 
 declare module 'cli-columns' {

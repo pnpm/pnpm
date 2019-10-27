@@ -3,7 +3,7 @@ import { RootLog } from '@pnpm/core-loggers'
 import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { getIntegrity } from '@pnpm/registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ImporterManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
@@ -131,7 +131,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
       '/is-negative/2.1.0': {
         resolution: {
           integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=',
-          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
     },
@@ -162,7 +162,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   t.equal(
-    project.requireModule('.pnpm/localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
+    project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json`).version,
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
 
@@ -191,7 +191,7 @@ test('lockfile removed when no deps in package.json', async (t: tape.Test) => {
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
-          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
     },
@@ -223,7 +223,7 @@ test('lockfile is fixed when it does not match package.json', async (t: tape.Tes
       },
       '/is-negative/2.1.0': {
         resolution: {
-          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       '/is-positive/3.1.0': {
@@ -281,7 +281,7 @@ test(`doing named installation when ${WANTED_LOCKFILE} exists already`, async (t
       },
       '/is-negative/2.1.0': {
         resolution: {
-          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       '/is-positive/3.1.0': {
@@ -336,8 +336,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/foo'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/foo`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/bar`))).version, '100.0.0')
 
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
@@ -362,8 +362,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/foo'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve('node_modules/.pnpm/localhost+4873/foobar/100.0.0/node_modules/bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/foo`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/bar`))).version, '100.0.0')
 })
 
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async (t: tape.Test) => {
@@ -479,8 +479,8 @@ test('scoped module from different registry', async (t: tape.Test) => {
 
   const opts = await testDefaults()
   opts.registries!.default = 'https://registry.npmjs.org/' // tslint:disable-line
-  opts.registries!['@zkochan'] = 'http://localhost:4873' // tslint:disable-line
-  opts.registries!['@foo'] = 'http://localhost:4873' // tslint:disable-line
+  opts.registries!['@zkochan'] = `http://localhost:${REGISTRY_MOCK_PORT}` // tslint:disable-line
+  opts.registries!['@foo'] = `http://localhost:${REGISTRY_MOCK_PORT}` // tslint:disable-line
   await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], opts)
 
   await project.has('@zkochan/foo')
@@ -742,7 +742,7 @@ test('lockfile is ignored when lockfile = false', async (t: tape.Test) => {
       '/is-negative/2.1.0': {
         resolution: {
           integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=', // Invalid integrity
-          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
     },
@@ -833,7 +833,7 @@ test('packages installed via tarball URL from the default registry are normalize
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, [
-    'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
+    `http://localhost:${REGISTRY_MOCK_PORT}/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], await testDefaults())
 
@@ -873,7 +873,7 @@ test('packages installed via tarball URL from the default registry are normalize
     },
     specifiers: {
       'is-positive': 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
-      'pkg-with-tarball-dep-from-registry': 'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
+      'pkg-with-tarball-dep-from-registry': `http://localhost:${REGISTRY_MOCK_PORT}/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz`,
     },
   })
 })
@@ -1010,7 +1010,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
-          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-negative/-/is-negative-2.1.0.tgz`,
         },
       },
       '/is-positive/3.1.0': {

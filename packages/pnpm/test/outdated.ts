@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { tempDir } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import chalk from 'chalk'
 import { stripIndent } from 'common-tags'
 import isCI = require('is-ci')
@@ -36,8 +37,8 @@ test('pnpm outdated', async (t: tape.Test) => {
       independentLeaves: false,
       networkConcurrency: 16,
       offline: false,
-      rawConfig: { registry: 'https://localhost:4873' },
-      registries: { default: 'https://localhost:4873' },
+      rawConfig: { registry: `https://localhost:${REGISTRY_MOCK_PORT}` },
+      registries: { default: `https://localhost:${REGISTRY_MOCK_PORT}` },
       strictSsl: false,
       tag: 'latest',
       userAgent: '',

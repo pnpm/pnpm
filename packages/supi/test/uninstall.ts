@@ -6,6 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { PackageManifest } from '@pnpm/types'
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
@@ -134,7 +135,7 @@ test('uninstall tarball dependency', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const opts = await testDefaults({ save: true })
 
-  let manifest = await addDependenciesToPackage({}, ['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
+  let manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], opts)
   manifest = (await mutateModules([
     {
       dependencyNames: ['is-array'],
