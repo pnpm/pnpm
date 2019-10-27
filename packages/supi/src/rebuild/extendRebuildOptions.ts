@@ -9,7 +9,6 @@ export interface StrictRebuildOptions {
   childConcurrency: number,
   extraBinPaths: string[],
   lockfileDirectory: string,
-  prefix: string,
   sideEffectsCacheRead: boolean,
   store: string, // TODO: remove this property
   storeController: StoreController,
@@ -17,6 +16,7 @@ export interface StrictRebuildOptions {
   forceSharedLockfile: boolean,
   useLockfile: boolean,
   registries: Registries,
+  workingDir: string,
 
   reporter: ReporterFunction,
   production: boolean,
@@ -42,10 +42,10 @@ const defaults = async (opts: RebuildOptions) => {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
-  const prefix = opts.prefix || process.cwd()
-  const lockfileDirectory = opts.lockfileDirectory || prefix
+  const workingDir = opts.workingDir || process.cwd()
+  const lockfileDirectory = opts.lockfileDirectory || workingDir
   return {
-    bin: path.join(prefix, 'node_modules', '.bin'),
+    bin: path.join(workingDir, 'node_modules', '.bin'),
     childConcurrency: 5,
     development: true,
     force: false,
@@ -54,7 +54,6 @@ const defaults = async (opts: RebuildOptions) => {
     optional: true,
     packageManager,
     pending: false,
-    prefix,
     production: true,
     rawConfig: {},
     registries: DEFAULT_REGISTRIES,
@@ -68,6 +67,7 @@ const defaults = async (opts: RebuildOptions) => {
       process.getuid() !== 0,
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
+    workingDir,
   } as StrictRebuildOptions
 }
 

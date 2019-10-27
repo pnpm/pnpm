@@ -123,7 +123,7 @@ export async function install (
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: opts.prefix || process.cwd(),
+        prefix: opts.workingDir || process.cwd(),
       },
     ],
     opts,
@@ -560,7 +560,6 @@ export async function addDependenciesToPackage (
   opts: InstallOptions & {
     allowNew?: boolean,
     peer?: boolean,
-    prefix?: string,
     pinnedVersion?: 'major' | 'minor' | 'patch',
     targetDependenciesField?: DependenciesField,
   },
@@ -574,13 +573,13 @@ export async function addDependenciesToPackage (
         mutation: 'installSome',
         peer: opts.peer,
         pinnedVersion: opts.pinnedVersion,
-        prefix: opts.prefix || process.cwd(),
+        prefix: opts.workingDir || process.cwd(),
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
     {
       ...opts,
-      lockfileDirectory: opts.lockfileDirectory || opts.prefix,
+      lockfileDirectory: opts.lockfileDirectory || opts.workingDir,
     })
   return importers[0].manifest
 }

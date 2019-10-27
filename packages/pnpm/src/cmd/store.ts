@@ -36,7 +36,7 @@ export default async function (input: string[], opts: PnpmOptions) {
     case 'add':
       store = await createStoreController(opts)
       return storeAdd(input.slice(1), {
-        prefix: opts.prefix,
+        prefix: opts.workingDir,
         registries: opts.registries,
         reporter: opts.reporter,
         storeController: store.ctrl,
@@ -61,12 +61,12 @@ export default async function (input: string[], opts: PnpmOptions) {
 
 async function statusCmd (opts: PnpmOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
-    store: await storePath(opts.prefix, opts.store),
+    store: await storePath(opts.workingDir, opts.store),
   }))
   if (!modifiedPkgs || !modifiedPkgs.length) {
     logger.info({
       message: 'Packages in the store are untouched',
-      prefix: opts.prefix,
+      prefix: opts.workingDir,
     })
     return
   }

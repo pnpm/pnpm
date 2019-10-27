@@ -9,7 +9,7 @@ import { PnpmOptions } from '../../types'
 export default async (
   opts: PnpmOptions,
 ) => {
-  const store = await storePath(opts.prefix, opts.store)
+  const store = await storePath(opts.workingDir, opts.store)
   const connectionInfoDir = serverConnectionInfoDir(store)
   const serverJson = await tryLoadServerJson({
     serverJsonPath: path.join(connectionInfoDir, 'server.json'),

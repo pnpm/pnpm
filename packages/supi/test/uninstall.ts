@@ -209,13 +209,13 @@ test('uninstall package with its bin files', async (t) => {
 
 test('relative link is uninstalled', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ manifest: {}, prefix: process.cwd() })
+  const opts = await testDefaults({ manifest: {}, workingDir: process.cwd() })
 
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { prefix: string, manifest: PackageManifest }))
+  const manifest = await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts as (typeof opts & { workingDir: string, manifest: PackageManifest }))
   await mutateModules([
     {
       dependencyNames: [linkedPkgName],

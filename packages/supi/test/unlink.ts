@@ -52,7 +52,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
           'is-subdir': '^1.0.0',
         },
       },
-      prefix: path.resolve('project'),
+      workingDir: path.resolve('project'),
     },
   )
 
@@ -80,7 +80,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ workingDir: process.cwd() })
   let manifest = await addDependenciesToPackage({}, ['foo'], opts)
 
   process.chdir('..')
@@ -112,7 +112,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
 test(`don't update package when unlinking. Initial link is done on a package w/o ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const opts = await testDefaults({ prefix: process.cwd() })
+  const opts = await testDefaults({ workingDir: process.cwd() })
   process.chdir('..')
 
   await writeJsonFile('foo/package.json', {
@@ -149,7 +149,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
 
 test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ fastUnpack: false, prefix: process.cwd() })
+  const opts = await testDefaults({ fastUnpack: false, workingDir: process.cwd() })
   process.chdir('..')
 
   await Promise.all([
@@ -194,7 +194,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
 
 test('unlink all packages', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  const opts = await testDefaults({ fastUnpack: false, prefix: process.cwd() })
+  const opts = await testDefaults({ fastUnpack: false, workingDir: process.cwd() })
   process.chdir('..')
 
   await Promise.all([

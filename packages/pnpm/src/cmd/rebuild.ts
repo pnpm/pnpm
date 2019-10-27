@@ -22,8 +22,8 @@ export default async function (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(rebuildOpts.prefix, opts),
-          prefix: rebuildOpts.prefix,
+          manifest: await readImporterManifestOnly(rebuildOpts.workingDir, opts),
+          prefix: rebuildOpts.workingDir,
         },
       ],
       rebuildOpts,
@@ -32,8 +32,8 @@ export default async function (
   await rebuildPkgs(
     [
       {
-        manifest: await readImporterManifestOnly(rebuildOpts.prefix, opts),
-        prefix: rebuildOpts.prefix,
+        manifest: await readImporterManifestOnly(rebuildOpts.workingDir, opts),
+        prefix: rebuildOpts.workingDir,
       },
     ],
     args,

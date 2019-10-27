@@ -21,14 +21,14 @@ export default async function (
     await runNpm(['publish', ...args])
     return
   }
-  const prefix = args.length && args[0] || process.cwd()
+  const workingDir = args.length && args[0] || process.cwd()
 
   let _status!: number
   await fakeRegularManifest(
     {
       engineStrict: opts.engineStrict,
-      prefix,
-      workspacePrefix: opts.workspacePrefix || prefix,
+      workingDir,
+      workspacePrefix: opts.workspacePrefix || workingDir,
     },
     async () => {
       const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
@@ -48,8 +48,8 @@ export async function pack (
   let _status!: number
   await fakeRegularManifest({
     engineStrict: opts.engineStrict,
-    prefix: opts.prefix,
-    workspacePrefix: opts.workspacePrefix || opts.prefix,
+    workingDir: opts.workingDir,
+    workspacePrefix: opts.workspacePrefix || opts.workingDir,
   }, async () => {
     const { status } = await runNpm(['pack', ...opts.argv.original.slice(1)])
     _status = status
@@ -65,26 +65,26 @@ const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => P
 async function fakeRegularManifest (
   opts: {
     engineStrict?: boolean,
-    prefix: string,
+    workingDir: string,
     workspacePrefix: string,
   },
   fn: () => Promise<void>,
 ) {
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
-  const copiedLicenses: string[] = opts.prefix !== opts.workspacePrefix && (await findLicenses({ cwd: opts.prefix })).length === 0
-    ? await copyLicenses(opts.workspacePrefix, opts.prefix) : []
+  const copiedLicenses: string[] = opts.workingDir !== opts.workspacePrefix && (await findLicenses({ cwd: opts.workingDir })).length === 0
+    ? await copyLicenses(opts.workspacePrefix, opts.workingDir) : []
 
-  const { fileName, manifest, writeImporterManifest } = await readImporterManifest(opts.prefix, opts)
-  const publishManifest = await makePublishManifest(opts.prefix, manifest)
+  const { fileName, manifest, writeImporterManifest } = await readImporterManifest(opts.workingDir, opts)
+  const publishManifest = await makePublishManifest(opts.workingDir, manifest)
   const replaceManifest = fileName !== 'package.json' || !R.equals(manifest, publishManifest)
   if (replaceManifest) {
-    await rimraf(path.join(opts.prefix, fileName))
-    await writeJsonFile(path.join(opts.prefix, 'package.json'), publishManifest)
+    await rimraf(path.join(opts.workingDir, fileName))
+    await writeJsonFile(path.join(opts.workingDir, 'package.json'), publishManifest)
   }
   await fn()
   if (replaceManifest) {
-    await rimraf(path.join(opts.prefix, 'package.json'))
+    await rimraf(path.join(opts.workingDir, 'package.json'))
     await writeImporterManifest(manifest, true)
   }
   await Promise.all(
@@ -92,11 +92,11 @@ async function fakeRegularManifest (
   )
 }
 
-async function makePublishManifest (prefix: string, originalManifest: ImporterManifest) {
+async function makePublishManifest (workingDir: string, originalManifest: ImporterManifest) {
   const publishManifest = {
     ...originalManifest,
-    dependencies: await makePublishDependencies(prefix, originalManifest.dependencies),
-    optionalDependencies: await makePublishDependencies(prefix, originalManifest.optionalDependencies),
+    dependencies: await makePublishDependencies(workingDir, originalManifest.dependencies),
+    optionalDependencies: await makePublishDependencies(workingDir, originalManifest.optionalDependencies),
   }
   if (originalManifest.publishConfig) {
     if (originalManifest.publishConfig.main) {
@@ -115,26 +115,26 @@ async function makePublishManifest (prefix: string, originalManifest: ImporterMa
   return publishManifest
 }
 
-async function makePublishDependencies (prefix: string, dependencies: Dependencies | undefined) {
+async function makePublishDependencies (workingDir: string, dependencies: Dependencies | undefined) {
   if (!dependencies) return dependencies
   const publishDependencies: Dependencies = R.fromPairs(
     await Promise.all(
       R.toPairs(dependencies)
         .map(async ([depName, depSpec]) => [
           depName,
-          await makePublishDependency(depName, depSpec, prefix),
+          await makePublishDependency(depName, depSpec, workingDir),
         ]),
     ) as any, // tslint:disable-line
   )
   return publishDependencies
 }
 
-async function makePublishDependency (depName: string, depSpec: string, prefix: string) {
+async function makePublishDependency (depName: string, depSpec: string, workingDir: string) {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
   if (depSpec === 'workspace:*') {
-    const { manifest } = await tryReadImporterManifest(path.join(prefix, 'node_modules', depName))
+    const { manifest } = await tryReadImporterManifest(path.join(workingDir, 'node_modules', depName))
     if (!manifest || !manifest.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',

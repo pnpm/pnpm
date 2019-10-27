@@ -11,11 +11,11 @@ test('getLatestManifest()', async (t: tape.Test) => {
 
   const opts = {
     lockfileDirectory: '',
-    prefix: '',
     registries: {
       '@scope': 'https://pnpm.js.org/',
       'default': 'https://registry.npmjs.org/',
     },
+    workingDir: '',
   }
   {
     const resolve: ResolveFunction = async function (wantedPackage, opts) {

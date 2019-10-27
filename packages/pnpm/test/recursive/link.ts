@@ -7,6 +7,7 @@ import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('recursive linking/unlinking', async (t: tape.Test) => {
   const projects = preparePackages(t, [

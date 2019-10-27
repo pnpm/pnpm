@@ -327,7 +327,7 @@ export async function getContextForSingleImporter (
       readPackage?: ReadPackageHook,
     },
     include?: IncludedDependencies,
-    prefix: string,
+    workingDir: string,
     registries: Registries,
     store: string,
     useLockfile: boolean,
@@ -359,7 +359,7 @@ export async function getContextForSingleImporter (
   } = await readImportersContext(
     [
       {
-        prefix: opts.prefix,
+        prefix: opts.workingDir,
       },
     ],
     opts.lockfileDirectory,
@@ -415,7 +415,7 @@ export async function getContextForSingleImporter (
     modulesDir,
     modulesFile: modules,
     pendingBuilds,
-    prefix: opts.prefix,
+    prefix: opts.workingDir,
     registries: {
       ...opts.registries,
       ...registries,
@@ -428,7 +428,7 @@ export async function getContextForSingleImporter (
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
-      importers: [{ id: importerId, prefix: opts.prefix }],
+      importers: [{ id: importerId, prefix: opts.workingDir }],
       lockfileDirectory: opts.lockfileDirectory,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
@@ -437,7 +437,7 @@ export async function getContextForSingleImporter (
   }
   packageManifestLogger.debug({
     initial: manifest,
-    prefix: opts.prefix,
+    prefix: opts.workingDir,
   })
 
   return ctx
