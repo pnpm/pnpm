@@ -8,7 +8,7 @@ import { ReporterFunction } from '../types'
 export interface StrictRebuildOptions {
   childConcurrency: number,
   extraBinPaths: string[],
-  lockfileDirectory: string,
+  lockfileDir: string,
   sideEffectsCacheRead: boolean,
   storeDir: string, // TODO: remove this property
   storeController: StoreController,
@@ -43,14 +43,14 @@ const defaults = async (opts: RebuildOptions) => {
     version: pnpmPkgJson.version,
   }
   const workingDir = opts.workingDir || process.cwd()
-  const lockfileDirectory = opts.lockfileDirectory || workingDir
+  const lockfileDir = opts.lockfileDir || workingDir
   return {
     bin: path.join(workingDir, 'node_modules', '.bin'),
     childConcurrency: 5,
     development: true,
     force: false,
     forceSharedLockfile: false,
-    lockfileDirectory,
+    lockfileDir,
     optional: true,
     packageManager,
     pending: false,

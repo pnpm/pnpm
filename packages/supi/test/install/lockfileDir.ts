@@ -19,7 +19,7 @@ const testSkip = promisifyTape(tape.skip)
 testSkip('subsequent installation uses same lockfile directory by default', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
 
   await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults())
 
@@ -31,12 +31,12 @@ testSkip('subsequent installation uses same lockfile directory by default', asyn
 testSkip('subsequent installation fails if a different lockfile directory is specified', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDirectory: path.resolve('..') }))
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults({ lockfileDir: path.resolve('..') }))
 
   let err!: Error & {code: string}
 
   try {
-    await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ lockfileDirectory: process.cwd() }))
+    await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ lockfileDir: process.cwd() }))
   } catch (_) {
     err = _
   }
@@ -50,7 +50,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
 
   await ncp(path.join(pathToLocalPkg('tar-pkg-with-dep-2'), 'tar-pkg-with-dep-1.0.0.tgz'), 'pkg.tgz')
 
-  const lockfileDirectory = path.resolve('..')
+  const lockfileDir = path.resolve('..')
   let [{ manifest }] = await mutateModules(
     [
       {
@@ -61,7 +61,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
         prefix: process.cwd(),
       },
     ],
-    await testDefaults({ lockfileDirectory }),
+    await testDefaults({ lockfileDir }),
   )
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -79,12 +79,12 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
         prefix: process.cwd(),
       }
     ],
-    await testDefaults({ frozenLockfile: true, lockfileDirectory }),
+    await testDefaults({ frozenLockfile: true, lockfileDir }),
   )
 
   await project.has('tar-pkg-with-dep')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ lockfileDirectory }))
+  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ lockfileDir }))
 
   t.pass('rebuild did not fail')
 })

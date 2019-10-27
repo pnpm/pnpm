@@ -88,7 +88,7 @@ export interface HeadlessOptions {
   }>,
   hoistedAliases: {[depPath: string]: string[]}
   hoistPattern?: string[],
-  lockfileDirectory: string,
+  lockfileDir: string,
   virtualStoreDir?: string,
   shamefullyHoist: boolean,
   storeController: StoreController,
@@ -118,7 +118,7 @@ export default async (opts: HeadlessOptions) => {
     streamParser.on('data', reporter)
   }
 
-  const lockfileDir = opts.lockfileDirectory
+  const lockfileDir = opts.lockfileDir
   const wantedLockfile = opts.wantedLockfile || await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
 
   if (!wantedLockfile) {
@@ -245,14 +245,14 @@ export default async (opts: HeadlessOptions) => {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            lockfileDirectory: lockfileDir,
+            lockfileDir,
             targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
           })
           return directory
         }
         : undefined,
       lockfile: filteredLockfile,
-      lockfileDirectory: lockfileDir,
+      lockfileDir,
       modulesDir: hoistedModulesDir,
       registries: opts.registries,
       virtualStoreDir,
@@ -496,7 +496,7 @@ async function lockfileToDepGraph (
         const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
         const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-          lockfileDirectory: opts.lockfileDir,
+          lockfileDir: opts.lockfileDir,
           targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
         })
 
@@ -632,7 +632,7 @@ async function getChildrenPaths (
         const pkgId = childPkgSnapshot.id || childDepPath
         const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
         const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-          lockfileDirectory: ctx.lockfileDir,
+          lockfileDir: ctx.lockfileDir,
           targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
         })
         children[alias] = pkgLocation.directory

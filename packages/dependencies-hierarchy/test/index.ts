@@ -15,7 +15,7 @@ const fixtureMonorepo = path.join(__dirname, '..', 'fixtureMonorepo')
 const withAliasedDepFixture = path.join(fixtures, 'with-aliased-dep')
 
 test('one package depth 0', async t => {
-  const tree = await dh([generalFixture], { depth: 0, lockfileDirectory: generalFixture })
+  const tree = await dh([generalFixture], { depth: 0, lockfileDir: generalFixture })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   t.deepEqual(tree, {
@@ -78,7 +78,7 @@ test('one package depth 0', async t => {
 })
 
 test('one package depth 1', async t => {
-  const tree = await dh([generalFixture], { depth: 1, lockfileDirectory: generalFixture })
+  const tree = await dh([generalFixture], { depth: 1, lockfileDir: generalFixture })
   const modulesDir = path.join(generalFixture, 'node_modules')
 
   t.deepEqual(tree, {
@@ -178,7 +178,7 @@ test('only prod depth 0', async t => {
         devDependencies: false,
         optionalDependencies: false,
       },
-      lockfileDirectory: generalFixture,
+      lockfileDir: generalFixture,
     },
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
@@ -225,7 +225,7 @@ test('only dev depth 0', async t => {
         devDependencies: true,
         optionalDependencies: false,
       },
-      lockfileDirectory: generalFixture,
+      lockfileDir: generalFixture,
     },
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
@@ -254,7 +254,7 @@ test('only dev depth 0', async t => {
 test('hierarchy for no packages', async t => {
   const tree = await dh([generalFixture], {
     depth: 100,
-    lockfileDirectory: generalFixture,
+    lockfileDir: generalFixture,
     search: () => false,
   })
 
@@ -274,7 +274,7 @@ test('filter 1 package with depth 0', async t => {
     [generalFixture],
     {
       depth: 0,
-      lockfileDirectory: generalFixture,
+      lockfileDir: generalFixture,
       search: ({ name }) => name === 'rimraf',
     },
   )
@@ -305,7 +305,7 @@ test('filter 1 package with depth 0', async t => {
 })
 
 test('circular dependency', async t => {
-  const tree = await dh([circularFixture], { depth: 1000, lockfileDirectory: circularFixture })
+  const tree = await dh([circularFixture], { depth: 1000, lockfileDir: circularFixture })
   const modulesDir = path.join(circularFixture, 'node_modules')
 
   t.deepEqual(tree, {
@@ -339,7 +339,7 @@ function resolvePaths (modulesDir: string, node: PackageNode): PackageNode {
 }
 
 test('local package depth 0', async t => {
-  const tree = await dh([withFileDepFixture], { depth: 1, lockfileDirectory: withFileDepFixture })
+  const tree = await dh([withFileDepFixture], { depth: 1, lockfileDir: withFileDepFixture })
   const modulesDir = path.join(withFileDepFixture, 'node_modules')
 
   t.deepEqual(tree, {
@@ -375,7 +375,7 @@ test('local package depth 0', async t => {
 })
 
 test('on a package that has only links', async t => {
-  const tree = await dh([withLinksOnlyFixture], { depth: 1000, lockfileDirectory: withLinksOnlyFixture })
+  const tree = await dh([withLinksOnlyFixture], { depth: 1000, lockfileDir: withLinksOnlyFixture })
 
   t.deepEqual(tree, {
     [withLinksOnlyFixture]: {
@@ -401,7 +401,7 @@ test('on a package that has only links', async t => {
 test('unsaved dependencies are listed', async t => {
   const modulesDir = path.join(withUnsavedDepsFixture, 'node_modules')
   t.deepEqual(
-    await dh([withUnsavedDepsFixture], { depth: 0, lockfileDirectory: withUnsavedDepsFixture }),
+    await dh([withUnsavedDepsFixture], { depth: 0, lockfileDir: withUnsavedDepsFixture }),
     {
       [withUnsavedDepsFixture]: {
         dependencies: [
@@ -452,7 +452,7 @@ test('unsaved dependencies are listed and filtered', async t => {
       [withUnsavedDepsFixture],
       {
         depth: 0,
-        lockfileDirectory: withUnsavedDepsFixture,
+        lockfileDir: withUnsavedDepsFixture,
         search: ({ name }) => name === 'symlink-dir',
       },
     ),
@@ -482,14 +482,14 @@ test('unsaved dependencies are listed and filtered', async t => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1549
 test(`do not fail on importers that are not in current ${WANTED_LOCKFILE}`, async t => {
-  t.deepEqual(await dh([fixtureMonorepo], { depth: 0, lockfileDirectory: fixtureMonorepo }), { [fixtureMonorepo]: {} })
+  t.deepEqual(await dh([fixtureMonorepo], { depth: 0, lockfileDir: fixtureMonorepo }), { [fixtureMonorepo]: {} })
   t.end()
 })
 
 test('dependency with an alias', async t => {
   const modulesDir = path.join(withAliasedDepFixture, 'node_modules')
   t.deepEqual(
-    await dh([withAliasedDepFixture], { depth: 0, lockfileDirectory: withAliasedDepFixture }),
+    await dh([withAliasedDepFixture], { depth: 0, lockfileDir: withAliasedDepFixture }),
     {
       [withAliasedDepFixture]: {
         dependencies: [
@@ -514,7 +514,7 @@ test('dependency with an alias', async t => {
 })
 
 test('peer dependencies', async t => {
-  const hierarchy = await dh([withPeerFixture], { depth: 1, lockfileDirectory: withPeerFixture })
+  const hierarchy = await dh([withPeerFixture], { depth: 1, lockfileDir: withPeerFixture })
   t.equal(hierarchy[withPeerFixture].dependencies![1].dependencies![0].name, 'ajv')
   t.equal(hierarchy[withPeerFixture].dependencies![1].dependencies![0].isPeer, true)
   t.end()

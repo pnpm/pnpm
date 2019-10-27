@@ -126,7 +126,7 @@ function getHelpText (command: string) {
               },
               {
                 description: `The directory in which the ${WANTED_LOCKFILE} of the package will be created. Several projects may share a single lockfile`,
-                name: '--lockfile-directory <dir>',
+                name: '--lockfile-dir <dir>',
               },
               {
                 description: 'Dependencies inside node_modules have access only to their listed dependencies',

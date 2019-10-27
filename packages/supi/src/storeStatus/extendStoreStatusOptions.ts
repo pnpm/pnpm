@@ -4,7 +4,7 @@ import path = require('path')
 import { ReporterFunction } from '../types'
 
 export interface StrictStoreStatusOptions {
-  lockfileDirectory: string,
+  lockfileDir: string,
   workingDir: string,
   storeDir: string,
   independentLeaves: boolean,
@@ -26,13 +26,13 @@ export type StoreStatusOptions = Partial<StrictStoreStatusOptions> &
 
 const defaults = async (opts: StoreStatusOptions) => {
   const workingDir = opts.workingDir || process.cwd()
-  const lockfileDirectory = opts.lockfileDirectory || workingDir
+  const lockfileDir = opts.lockfileDir || workingDir
   return {
     bin: path.join(workingDir, 'node_modules', '.bin'),
     force: false,
     forceSharedLockfile: false,
     independentLeaves: false,
-    lockfileDirectory,
+    lockfileDir,
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,
     storeDir: opts.storeDir,

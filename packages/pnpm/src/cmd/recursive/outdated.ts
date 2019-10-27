@@ -45,7 +45,7 @@ export default async (
   opts: OutdatedOptions,
 ) => {
   const outdatedByNameAndType = {} as Record<string, OutdatedInWorkspace>
-  if (opts.lockfileDirectory) {
+  if (opts.lockfileDir) {
     const outdatedPackagesByProject = await outdatedDependenciesOfWorkspacePackages(pkgs, args, opts)
     for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
       outdatedPackages.forEach((outdatedPkg) => {
@@ -59,7 +59,7 @@ export default async (
   } else {
     await Promise.all(pkgs.map(async ({ manifest, path }) => {
       const { outdatedPackages } = (
-        await outdatedDependenciesOfWorkspacePackages([{ manifest, path }], args, { ...opts, lockfileDirectory: path })
+        await outdatedDependenciesOfWorkspacePackages([{ manifest, path }], args, { ...opts, lockfileDir: path })
       )[0]
       outdatedPackages.forEach((outdatedPkg) => {
         const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])

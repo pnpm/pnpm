@@ -50,7 +50,7 @@ test('request package', async t => {
   const prefix = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     preferredVersions: {},
     prefix,
     registry,
@@ -101,7 +101,7 @@ test('request package but skip fetching', async t => {
   const prefix = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     preferredVersions: {},
     prefix,
     registry,
@@ -151,7 +151,7 @@ test('request package but skip fetching, when resolution is already available', 
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
     downloadPriority: 0,
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     preferredVersions: {},
     prefix,
     registry,
@@ -200,7 +200,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   const requestPackageOpts = {
     currentPackageId: pkgId,
     downloadPriority: 0,
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     preferredVersions: {},
     prefix,
     registry,
@@ -296,7 +296,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const storeDir = path.join(__dirname, '..', '.store')
   const requestPackageOpts = {
     downloadPriority: 0,
-    lockfileDirectory: prefix,
+    lockfileDir: prefix,
     preferredVersions: {},
     prefix,
     registry,
@@ -573,7 +573,7 @@ test('always return a package manifest in the response', async t => {
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       downloadPriority: 0,
-      lockfileDirectory: prefix,
+      lockfileDir: prefix,
       preferredVersions: {},
       prefix,
       registry,
@@ -592,7 +592,7 @@ test('always return a package manifest in the response', async t => {
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
       downloadPriority: 0,
-      lockfileDirectory: prefix,
+      lockfileDir: prefix,
       preferredVersions: {},
       prefix,
       registry,

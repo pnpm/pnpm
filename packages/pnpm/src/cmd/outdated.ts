@@ -79,7 +79,7 @@ export interface OutdatedOptions {
   proxy?: string
   rawConfig: object
   registries: Registries
-  lockfileDirectory?: string
+  lockfileDir?: string
   store?: string
   strictSsl: boolean
   table?: boolean
@@ -271,18 +271,18 @@ export async function outdatedDependenciesOfWorkspacePackages (
   args: string[],
   opts: OutdatedOptions,
 ) {
-  const lockfileDirectory = opts.lockfileDirectory || opts.workingDir
-  const modules = await readModulesManifest(path.join(lockfileDirectory, 'node_modules'))
-  const virtualStoreDir = modules?.virtualStoreDir || path.join(lockfileDirectory, 'node_modules/.pnpm')
+  const lockfileDir = opts.lockfileDir || opts.workingDir
+  const modules = await readModulesManifest(path.join(lockfileDir, 'node_modules'))
+  const virtualStoreDir = modules?.virtualStoreDir || path.join(lockfileDir, 'node_modules/.pnpm')
   const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-  const wantedLockfile = await readWantedLockfile(lockfileDirectory, { ignoreIncompatible: false }) || currentLockfile
+  const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) || currentLockfile
   if (!wantedLockfile) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
   }
   const storeDir = await storePath(opts.workingDir, opts.store)
   const getLatestManifest = createLatestManifestGetter({
     ...opts,
-    lockfileDirectory,
+    lockfileDir,
     storeDir,
   })
   return Promise.all(pkgs.map(async ({ manifest, path }) => {
@@ -292,13 +292,13 @@ export async function outdatedDependenciesOfWorkspacePackages (
       outdatedPackages: await outdated({
         currentLockfile,
         getLatestManifest,
-        lockfileDirectory,
+        lockfileDir,
         manifest,
         match,
         prefix: path,
         wantedLockfile,
       }),
-      prefix: getLockfileImporterId(lockfileDirectory, path),
+      prefix: getLockfileImporterId(lockfileDir, path),
     }
   }))
 }

@@ -71,12 +71,12 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
   }
 })
 
-test('throw error if --lockfile-directory is used with --global', async (t) => {
+test('throw error if --lockfile-dir is used with --global', async (t) => {
   try {
     await getConfig({
       cliArgs: {
         'global': true,
-        'lockfile-directory': '/home/src',
+        'lockfile-dir': '/home/src',
       },
       packageManager: {
         name: 'pnpm',
@@ -84,8 +84,8 @@ test('throw error if --lockfile-directory is used with --global', async (t) => {
       },
     })
   } catch (err) {
-    t.equal(err.message, 'Configuration conflict. "lockfile-directory" may not be used with "global"')
-    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL')
+    t.equal(err.message, 'Configuration conflict. "lockfile-dir" may not be used with "global"')
+    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL')
     t.end()
   }
 })
@@ -172,7 +172,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
     })
     t.ok(config.linkWorkspacePackages)
     t.ok(config.sharedWorkspaceLockfile)
-    t.ok(config.lockfileDirectory)
+    t.ok(config.lockfileDir)
   }
 
   {
@@ -187,7 +187,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
     })
     t.notOk(config.linkWorkspacePackages, 'link-workspace-packages is false')
     t.notOk(config.sharedWorkspaceLockfile, 'shared-workspace-lockfile is false')
-    t.notOk(config.lockfileDirectory, 'lockfile-directory is null')
+    t.notOk(config.lockfileDir, 'lockfile-dir is null')
   }
 
   t.end()

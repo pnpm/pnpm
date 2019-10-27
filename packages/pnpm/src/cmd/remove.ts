@@ -17,7 +17,7 @@ export default async function removeCmd (
     storeDir: store.dir,
   })
   if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(opts.lockfileDirectory || opts.workingDir, opts)
+    opts.hooks = requireHooks(opts.lockfileDir || opts.workingDir, opts)
   }
   removeOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix, opts))

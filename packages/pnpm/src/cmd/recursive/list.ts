@@ -11,14 +11,14 @@ export default async (
     depth?: number,
     long?: boolean,
     parseable?: boolean,
-    lockfileDirectory?: string,
+    lockfileDir?: string,
   },
 ) => {
-  if (opts.lockfileDirectory) {
+  if (opts.lockfileDir) {
     console.log(await renderList(pkgs.map((pkg) => pkg.path), args, {
       ...opts,
       alwaysPrintRootPackage: opts.depth === -1,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
     }, cmd))
     return
   }
@@ -28,7 +28,7 @@ export default async (
       const output = await renderList([path], args, {
         ...opts,
         alwaysPrintRootPackage: opts.depth === -1,
-        lockfileDirectory: opts.lockfileDirectory || path,
+        lockfileDir: opts.lockfileDir || path,
       }, cmd)
       if (!output) continue
       outputs.push(output)

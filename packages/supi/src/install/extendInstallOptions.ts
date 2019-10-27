@@ -28,7 +28,7 @@ export interface StrictInstallOptions {
   update: boolean,
   depth: number,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
-  lockfileDirectory: string,
+  lockfileDir: string,
   rawConfig: object,
   verifyStoreIntegrity: boolean,
   engineStrict: boolean,
@@ -100,7 +100,7 @@ const defaults = async (opts: InstallOptions) => {
     independentLeaves: false,
     localPackages: {},
     lock: true,
-    lockfileDirectory: opts.lockfileDirectory || opts.workingDir || process.cwd(),
+    lockfileDir: opts.lockfileDir || opts.workingDir || process.cwd(),
     lockfileOnly: false,
     locks: path.join(opts.storeDir, '_locks'),
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes

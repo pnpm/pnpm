@@ -44,7 +44,8 @@ export const types = Object.assign({
   'lock': Boolean,
   'lock-stale-duration': Number,
   'lockfile': Boolean,
-  'lockfile-directory': path,
+  'lockfile-dir': String,
+  'lockfile-directory': path, // TODO: deprecate
   'lockfile-only': Boolean,
   'network-concurrency': Number,
   'offline': Boolean,
@@ -217,9 +218,7 @@ export default async (
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
   pnpmConfig.globalPrefix = path.join(npmGlobalPrefix, 'pnpm-global')
-  pnpmConfig.lockfileDirectory = typeof pnpmConfig['lockfileDirectory'] === 'undefined'
-    ? pnpmConfig.shrinkwrapDirectory
-    : pnpmConfig['lockfileDirectory']
+  pnpmConfig.lockfileDir = pnpmConfig.lockfileDir ?? pnpmConfig.lockfileDirectory ?? pnpmConfig.shrinkwrapDirectory
   pnpmConfig.useLockfile = (() => {
     if (typeof pnpmConfig['lockfile'] === 'boolean') return pnpmConfig['lockfile']
     if (typeof pnpmConfig['packageLock'] === 'boolean') return pnpmConfig['packageLock']
@@ -275,12 +274,12 @@ export default async (
       }
       pnpmConfig.sharedWorkspaceLockfile = false
     }
-    if (pnpmConfig.lockfileDirectory) {
-      if (opts.cliArgs['lockfile-directory']) {
-        throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_DIRECTORY_WITH_GLOBAL',
-          'Configuration conflict. "lockfile-directory" may not be used with "global"')
+    if (pnpmConfig.lockfileDir) {
+      if (opts.cliArgs['lockfile-dir']) {
+        throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL',
+          'Configuration conflict. "lockfile-dir" may not be used with "global"')
       }
-      delete pnpmConfig.lockfileDirectory
+      delete pnpmConfig.lockfileDir
     }
     if (opts.cliArgs['virtual-store-dir']) {
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
@@ -301,8 +300,8 @@ export default async (
     }
     pnpmConfig.saveDev = true
   }
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDirectory) {
-    pnpmConfig.lockfileDirectory = pnpmConfig.workspacePrefix || undefined
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir) {
+    pnpmConfig.lockfileDir = pnpmConfig.workspacePrefix || undefined
   }
 
   pnpmConfig.packageManager = packageManager

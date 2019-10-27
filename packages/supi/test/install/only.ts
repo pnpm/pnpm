@@ -78,7 +78,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
 test('fail if installing different types of dependencies in a project that uses an external lockfile', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const lockfileDirectory = path.resolve('..')
+  const lockfileDir = path.resolve('..')
 
   const manifest = await install({
     dependencies: {
@@ -94,7 +94,7 @@ test('fail if installing different types of dependencies in a project that uses 
       devDependencies: true,
       optionalDependencies: false,
     },
-    lockfileDirectory,
+    lockfileDir,
   }))
 
   await project.has('inflight')
@@ -109,7 +109,7 @@ test('fail if installing different types of dependencies in a project that uses 
         devDependencies: true,
         optionalDependencies: true,
       },
-      lockfileDirectory,
+      lockfileDir,
     }))
   } catch (_) {
     err = _

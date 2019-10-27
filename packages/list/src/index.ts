@@ -22,7 +22,7 @@ export async function forPackages (
   maybeOpts: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    lockfileDirectory: string,
+    lockfileDir: string,
     long?: boolean,
     include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
@@ -37,7 +37,7 @@ export async function forPackages (
     R.toPairs(await dh(projectPaths, {
       depth: opts.depth,
       include: maybeOpts?.include,
-      lockfileDirectory: maybeOpts?.lockfileDirectory,
+      lockfileDir: maybeOpts?.lockfileDir,
       registries: opts.registries,
       search,
     }))
@@ -67,7 +67,7 @@ export default async function (
   maybeOpts: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    lockfileDirectory: string,
+    lockfileDir: string,
     long?: boolean,
     include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
@@ -86,7 +86,7 @@ export default async function (
       : await dh(projectPaths, {
         depth: opts.depth,
         include: maybeOpts && maybeOpts.include,
-        lockfileDirectory: maybeOpts && maybeOpts.lockfileDirectory,
+        lockfileDir: maybeOpts && maybeOpts.lockfileDir,
         registries: opts.registries,
       })
     )

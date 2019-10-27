@@ -30,12 +30,12 @@ export default async function outdated (
     manifest: ImporterManifest,
     prefix: string,
     getLatestManifest: GetLatestManifestFunction,
-    lockfileDirectory: string,
+    lockfileDir: string,
     wantedLockfile: Lockfile,
   },
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
-  const importerId = getLockfileImporterId(opts.lockfileDirectory, opts.prefix)
+  const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
   const currentLockfile = opts.currentLockfile || { importers: { [importerId]: {} } }
 
   const outdated: OutdatedPackage[] = []

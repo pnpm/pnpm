@@ -72,7 +72,7 @@ test('outdated()', async (t) => {
       },
     },
     getLatestManifest,
-    lockfileDirectory: 'project',
+    lockfileDir: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',
@@ -203,7 +203,7 @@ test('outdated() should return deprecated package even if its current version is
   const outdatedPkgs = await outdated({
     currentLockfile: lockfile,
     getLatestManifest,
-    lockfileDirectory: 'project',
+    lockfileDir: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',
@@ -273,7 +273,7 @@ test('using a matcher', async (t) => {
       },
     },
     getLatestManifest,
-    lockfileDirectory: 'wanted-shrinkwrap',
+    lockfileDir: 'wanted-shrinkwrap',
     manifest: {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',
@@ -372,7 +372,7 @@ test('outdated() aliased dependency', async (t) => {
       },
     },
     getLatestManifest,
-    lockfileDirectory: 'project',
+    lockfileDir: 'project',
     manifest: {
       name: 'wanted-shrinkwrap',
       version: '1.0.0',

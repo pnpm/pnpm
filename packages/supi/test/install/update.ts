@@ -76,12 +76,12 @@ test('update dependency when external lockfile directory is used', async (t: tap
 
   await addDistTag('foo', '100.0.0', 'latest')
 
-  const lockfileDirectory = path.resolve('..')
-  const manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ lockfileDirectory }))
+  const lockfileDir = path.resolve('..')
+  const manifest = await addDependenciesToPackage({}, ['foo'], await testDefaults({ lockfileDir }))
 
   await addDistTag('foo', '100.1.0', 'latest')
 
-  await install(manifest, await testDefaults({ update: true, depth: 0, lockfileDirectory }))
+  await install(manifest, await testDefaults({ update: true, depth: 0, lockfileDir }))
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 

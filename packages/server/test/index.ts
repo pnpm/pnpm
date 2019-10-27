@@ -52,7 +52,7 @@ test('server', async t => {
     { alias: 'is-positive', pref: '1.0.0' },
     {
       downloadPriority: 0,
-      lockfileDirectory: prefix,
+      lockfileDir: prefix,
       preferredVersions: {},
       prefix,
       registry,
@@ -116,7 +116,7 @@ test('fetchPackage', async t => {
 
   t.deepEqual(
     await storeCtrl.getPackageLocation(pkgId, 'is-positive', {
-      lockfileDirectory: process.cwd(),
+      lockfileDir: process.cwd(),
     }),
     {
       directory: path.join(storeDir, pkgId, 'node_modules', 'is-positive'),
@@ -146,7 +146,7 @@ test('server errors should arrive to the client', async t => {
       { alias: 'not-an-existing-package', pref: '1.0.0' },
       {
         downloadPriority: 0,
-        lockfileDirectory: prefix,
+        lockfileDir: prefix,
         preferredVersions: {},
         prefix,
         registry,
@@ -315,7 +315,7 @@ test('find package usages', async t => {
     dependency,
     {
       downloadPriority: 0,
-      lockfileDirectory: prefix,
+      lockfileDir: prefix,
       preferredVersions: {},
       prefix,
       registry,

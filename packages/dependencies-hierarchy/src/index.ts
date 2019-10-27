@@ -56,13 +56,13 @@ export default async function dependenciesHierarchy (
     include?: { [dependenciesField in DependenciesField]: boolean },
     registries?: Registries,
     search?: SearchFunction,
-    lockfileDirectory: string,
+    lockfileDir: string,
   },
 ): Promise<{ [prefix: string]: DependenciesHierarchy }> {
-  if (!maybeOpts || !maybeOpts.lockfileDirectory) {
-    throw new TypeError('opts.lockfileDirectory is required')
+  if (!maybeOpts || !maybeOpts.lockfileDir) {
+    throw new TypeError('opts.lockfileDir is required')
   }
-  const modulesDir = await realNodeModulesDir(maybeOpts.lockfileDirectory)
+  const modulesDir = await realNodeModulesDir(maybeOpts.lockfileDir)
   const modules = await readModulesYaml(modulesDir)
   const registries = normalizeRegistries({
     ...maybeOpts && maybeOpts.registries,
@@ -86,7 +86,7 @@ export default async function dependenciesHierarchy (
       devDependencies: true,
       optionalDependencies: true,
     },
-    lockfileDirectory: maybeOpts.lockfileDirectory,
+    lockfileDir: maybeOpts.lockfileDir,
     registries,
     search: maybeOpts.search,
     skipped: new Set(modules && modules.skipped || []),
@@ -113,10 +113,10 @@ async function dependenciesHierarchyForPackage (
     registries: Registries,
     search?: SearchFunction,
     skipped: Set<string>,
-    lockfileDirectory: string,
+    lockfileDir: string,
   },
 ) {
-  const importerId = getLockfileImporterId(opts.lockfileDirectory, projectPath)
+  const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
   if (!currentLockfile.importers[importerId]) return {}
 
@@ -125,7 +125,7 @@ async function dependenciesHierarchyForPackage (
   const savedDeps = getAllDirectDependencies(currentLockfile.importers[importerId])
   const allDirectDeps = await readModulesDir(modulesDir) || []
   const unsavedDeps = allDirectDeps.filter((directDep) => !savedDeps[directDep])
-  const wantedLockfile = await readWantedLockfile(opts.lockfileDirectory, { ignoreIncompatible: false }) || { packages: {} }
+  const wantedLockfile = await readWantedLockfile(opts.lockfileDir, { ignoreIncompatible: false }) || { packages: {} }
 
   const getChildrenTree = getTree.bind(null, {
     currentDepth: 1,

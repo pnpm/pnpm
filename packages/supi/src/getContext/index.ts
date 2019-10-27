@@ -38,7 +38,7 @@ export interface PnpmContext<T> {
   rootModulesDir: string,
   hoistPattern: string[] | undefined,
   hoistedModulesDir: string,
-  lockfileDirectory: string,
+  lockfileDir: string,
   virtualStoreDir: string,
   shamefullyHoist: boolean,
   skipped: Set<string>,
@@ -59,7 +59,7 @@ export default async function getContext<T> (
     force: boolean,
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
-    lockfileDirectory: string,
+    lockfileDir: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -79,15 +79,15 @@ export default async function getContext<T> (
     forceShamefullyHoist?: boolean,
   },
 ): Promise<PnpmContext<T>> {
-  const importersContext = await readImportersContext(importers, opts.lockfileDirectory)
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDirectory)
+  const importersContext = await readImportersContext(importers, opts.lockfileDir)
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (importersContext.modules) {
     await validateNodeModules(importersContext.modules, importersContext.importers, {
       currentHoistPattern: importersContext.currentHoistPattern,
       force: opts.force,
       include: opts.include,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       storeDir: opts.storeDir,
       virtualStoreDir,
 
@@ -135,7 +135,7 @@ export default async function getContext<T> (
     importers: importersContext.importers,
     include: opts.include || importersContext.include,
     independentLeaves: Boolean(typeof importersContext.independentLeaves === 'undefined' ? opts.independentLeaves : importersContext.independentLeaves),
-    lockfileDirectory: opts.lockfileDirectory,
+    lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
     registries: {
@@ -151,7 +151,7 @@ export default async function getContext<T> (
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       importers: importersContext.importers,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       virtualStoreDir,
@@ -172,7 +172,7 @@ async function validateNodeModules (
     currentHoistPattern?: string[],
     force: boolean,
     include?: IncludedDependencies,
-    lockfileDirectory: string,
+    lockfileDir: string,
     storeDir: string,
     virtualStoreDir: string,
 
@@ -252,11 +252,11 @@ async function validateNodeModules (
         storeDir: opts.storeDir,
         virtualStoreDir: opts.virtualStoreDir,
       })
-      if (opts.lockfileDirectory !== importer.prefix && opts.include && modules.included) {
+      if (opts.lockfileDir !== importer.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('INCLUDED_DEPS_CONFLICT',
-              `node_modules (at "${opts.lockfileDirectory}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
+              `node_modules (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
               `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
             )
           }
@@ -308,7 +308,7 @@ export interface PnpmSingleContext {
   pendingBuilds: string[],
   registries: Registries,
   rootModulesDir: string,
-  lockfileDirectory: string,
+  lockfileDir: string,
   virtualStoreDir: string,
   shamefullyHoist: boolean,
   skipped: Set<string>,
@@ -322,7 +322,7 @@ export async function getContextForSingleImporter (
     force: boolean,
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
-    lockfileDirectory: string,
+    lockfileDir: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -362,7 +362,7 @@ export async function getContextForSingleImporter (
         prefix: opts.workingDir,
       },
     ],
-    opts.lockfileDirectory,
+    opts.lockfileDir,
   )
 
   const storeDir = opts.storeDir
@@ -370,14 +370,14 @@ export async function getContextForSingleImporter (
   const importer = importers[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDirectory)
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (modules) {
     await validateNodeModules(modules, importers, {
       currentHoistPattern,
       force: opts.force,
       include: opts.include,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       storeDir: opts.storeDir,
       virtualStoreDir,
 
@@ -410,7 +410,7 @@ export async function getContextForSingleImporter (
     importerId,
     include: opts.include || include,
     independentLeaves: Boolean(typeof independentLeaves === 'undefined' ? opts.independentLeaves : independentLeaves),
-    lockfileDirectory: opts.lockfileDirectory,
+    lockfileDir: opts.lockfileDir,
     manifest: opts.hooks?.readPackage?.(manifest) ?? manifest,
     modulesDir,
     modulesFile: modules,
@@ -429,7 +429,7 @@ export async function getContextForSingleImporter (
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
       importers: [{ id: importerId, prefix: opts.workingDir }],
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       virtualStoreDir,

@@ -53,7 +53,7 @@ test('resolve file', async t => {
 test("resolve file when lockfile directory differs from the package's dir", async t => {
   const wantedDependency = { pref: './pnpm-local-resolver-0.1.1.tgz' }
   const resolveResult = await resolveFromLocal(wantedDependency, {
-    lockfileDirectory: path.join(__dirname, '..'),
+    lockfileDir: path.join(__dirname, '..'),
     prefix: __dirname,
   })
 

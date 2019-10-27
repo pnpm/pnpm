@@ -97,7 +97,7 @@ export interface Config {
   sort: boolean,
   strictPeerDependencies: boolean,
   pending: boolean,
-  lockfileDirectory?: string,
+  lockfileDir?: string,
   sharedWorkspaceLockfile?: boolean,
   useLockfile: boolean,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
@@ -111,6 +111,7 @@ export interface Config {
 
 export interface ConfigWithDeprecatedSettings extends Config {
   frozenShrinkwrap?: boolean,
+  lockfileDirectory?: string,
   shrinkwrapDirectory?: string,
   shrinkwrapOnly?: boolean,
   preferFrozenShrinkwrap?: boolean,

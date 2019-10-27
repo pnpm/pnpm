@@ -24,16 +24,16 @@ export default async function testDefaults (
   storeOpts?: any, // tslint:disable-line
 ): Promise<HeadlessOptions> {
   let storeDir = opts && opts.storeDir || tempy.directory()
-  const lockfileDirectory = opts && opts.lockfileDirectory || process.cwd()
+  const lockfileDir = opts && opts.lockfileDir || process.cwd()
   const { importers, include, pendingBuilds, registries } = await readImportersContext(
     [
       {
-        prefix: lockfileDirectory,
+        prefix: lockfileDir,
       },
     ],
-    lockfileDirectory,
+    lockfileDir,
   )
-  storeDir = await storePath(lockfileDirectory, storeDir)
+  storeDir = await storePath(lockfileDir, storeDir)
   const rawConfig = { registry }
   const storeController = await createStore(
     createResolver({
@@ -69,7 +69,7 @@ export default async function testDefaults (
     ),
     include,
     independentLeaves: false,
-    lockfileDirectory,
+    lockfileDir,
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',

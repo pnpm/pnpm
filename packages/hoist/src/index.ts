@@ -19,7 +19,7 @@ export default async function hoistByLockfile (
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     lockfile: Lockfile,
-    lockfileDirectory: string,
+    lockfileDir: string,
     modulesDir: string,
     registries: Registries,
     virtualStoreDir: string,
@@ -43,7 +43,7 @@ export default async function hoistByLockfile (
 
   const deps = await getDependencies(opts.lockfile.packages, Array.from(entryNodes.values()), new Set(), 0, {
     getIndependentPackageLocation: opts.getIndependentPackageLocation,
-    lockfileDirectory: opts.lockfileDirectory,
+    lockfileDir: opts.lockfileDir,
     registries: opts.registries,
     virtualStoreDir: opts.virtualStoreDir,
   })
@@ -76,7 +76,7 @@ async function getDependencies (
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     registries: Registries,
-    lockfileDirectory: string,
+    lockfileDir: string,
     virtualStoreDir: string,
   },
 ): Promise<Dependency[]> {
@@ -100,7 +100,7 @@ async function getDependencies (
 
     const absolutePath = dp.resolve(opts.registries, depRelPath)
     const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(absolutePath, opts.lockfileDirectory), 'node_modules')
+    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(absolutePath, opts.lockfileDir), 'node_modules')
     const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,

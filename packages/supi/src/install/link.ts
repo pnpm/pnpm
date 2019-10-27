@@ -66,7 +66,7 @@ export default async function linkPackages (
     hoistPattern?: string[],
     include: IncludedDependencies,
     independentLeaves: boolean,
-    lockfileDirectory: string,
+    lockfileDir: string,
     makePartialCurrentLockfile: boolean,
     outdatedDependencies: {[pkgId: string]: string},
     pruneStore: boolean,
@@ -97,7 +97,7 @@ export default async function linkPackages (
     dependenciesTree,
     importers,
     independentLeaves: opts.independentLeaves,
-    lockfileDirectory: opts.lockfileDirectory,
+    lockfileDir: opts.lockfileDir,
     strictPeerDependencies: opts.strictPeerDependencies,
     virtualStoreDir: opts.virtualStoreDir,
   })
@@ -155,7 +155,7 @@ export default async function linkPackages (
     hoistedAliases: opts.hoistedAliases,
     hoistedModulesDir: opts.hoistPattern && opts.hoistedModulesDir || undefined,
     include: opts.include,
-    lockfileDir: opts.lockfileDirectory,
+    lockfileDir: opts.lockfileDir,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
     skipped: opts.skipped,
@@ -165,7 +165,7 @@ export default async function linkPackages (
   })
 
   stageLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: opts.lockfileDir,
     stage: 'importing_started',
   })
 
@@ -189,7 +189,7 @@ export default async function linkPackages (
     {
       dryRun: opts.dryRun,
       force: opts.force,
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       registries: opts.registries,
       storeController: opts.storeController,
@@ -198,7 +198,7 @@ export default async function linkPackages (
   )
 
   stageLogger.debug({
-    prefix: opts.lockfileDirectory,
+    prefix: opts.lockfileDir,
     stage: 'importing_done',
   })
 
@@ -314,14 +314,14 @@ export default async function linkPackages (
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-              lockfileDirectory: opts.lockfileDirectory,
+              lockfileDir: opts.lockfileDir,
               targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
             })
             return directory
           }
           : undefined,
         lockfile: currentLockfile,
-        lockfileDirectory: opts.lockfileDirectory,
+        lockfileDir: opts.lockfileDir,
         modulesDir: opts.hoistedModulesDir,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
@@ -371,7 +371,7 @@ async function linkNewPackages (
     force: boolean,
     optional: boolean,
     registries: Registries,
-    lockfileDirectory: string,
+    lockfileDir: string,
     storeController: StoreController,
     virtualStoreDir: string,
   },
@@ -393,7 +393,7 @@ async function linkNewPackages (
 
   statsLogger.debug({
     added: newDepPathsSet.size,
-    prefix: opts.lockfileDirectory,
+    prefix: opts.lockfileDir,
   })
 
   const existingWithUpdatedDeps = []
@@ -425,11 +425,11 @@ async function linkNewPackages (
 
   await Promise.all([
     linkAllModules(newPkgs, depGraph, {
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       optional: opts.optional,
     }),
     linkAllModules(existingWithUpdatedDeps, depGraph, {
-      lockfileDirectory: opts.lockfileDirectory,
+      lockfileDir: opts.lockfileDir,
       optional: opts.optional,
     }),
     linkAllPkgs(opts.storeController, newPkgs, opts),
@@ -496,7 +496,7 @@ async function linkAllModules (
   depNodes: DependenciesGraphNode[],
   depGraph: DependenciesGraph,
   opts: {
-    lockfileDirectory: string,
+    lockfileDir: string,
     optional: boolean,
   },
 ) {
@@ -522,7 +522,7 @@ async function linkAllModules (
               if (childAlias === name) {
                 logger.warn({
                   message: `Cannot link dependency with name ${childAlias} to ${modules}. Dependency's name should differ from the parent's name.`,
-                  prefix: opts.lockfileDirectory,
+                  prefix: opts.lockfileDir,
                 })
                 return
               }
