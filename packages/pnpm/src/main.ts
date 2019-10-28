@@ -287,6 +287,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   'recursive': new Set([
     'bail',
     'link-workspace-packages',
+    'reporter',
     'shared-workspace-lockfile',
     'sort',
     'workspace-concurrency',
