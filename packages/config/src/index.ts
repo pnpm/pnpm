@@ -32,7 +32,7 @@ export const types = Object.assign({
   'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
   'global-dir': String,
-  'global-path': path,
+  'global-path': String,
   'global-pnpmfile': String,
   'hoist': Boolean,
   'hoist-pattern': Array,
@@ -47,7 +47,7 @@ export const types = Object.assign({
   'lock-stale-duration': Number,
   'lockfile': Boolean,
   'lockfile-dir': String,
-  'lockfile-directory': path, // TODO: deprecate
+  'lockfile-directory': String, // TODO: deprecate
   'lockfile-only': Boolean,
   'network-concurrency': Number,
   'offline': Boolean,
@@ -68,12 +68,12 @@ export const types = Object.assign({
   'shamefully-hoist': Boolean,
   'shared-workspace-lockfile': Boolean,
   'shared-workspace-shrinkwrap': Boolean,
-  'shrinkwrap-directory': path,
+  'shrinkwrap-directory': String,
   'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
   'sort': Boolean,
-  'store': path, // TODO: deprecate
+  'store': String, // TODO: deprecate
   'store-dir': String,
   'strict-peer-dependencies': Boolean,
   'table': Boolean,
