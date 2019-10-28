@@ -4,11 +4,12 @@ import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
 import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import storePath from '@pnpm/store-path'
 import path = require('path')
 import tempy = require('tempy')
 
-const registry = 'http://localhost:4873/'
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 const retryOpts = {
   fetchRetries: 2,

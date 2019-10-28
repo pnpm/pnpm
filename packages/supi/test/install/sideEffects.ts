@@ -1,4 +1,5 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import path = require('path')
@@ -22,7 +23,7 @@ test('caching side effects of native package', async (t) => {
     sideEffectsCacheWrite: true,
   })
   let manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   const stat1 = await fs.stat(cacheBuildDir)
 
   t.ok(await exists('node_modules/diskusage/build'), 'build folder created')
@@ -48,7 +49,7 @@ test('caching side effects of native package when hoisting is used', async (t) =
     sideEffectsCacheWrite: true,
   })
   let manifest = await addDependenciesToPackage({}, ['expire-fs@2.2.3'], opts)
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   const stat1 = await fs.stat(cacheBuildDir)
 
   await project.has('.pnpm/node_modules/diskusage/build') // build folder created
@@ -80,7 +81,7 @@ test('using side effects cache', async (t) => {
   }, {}, {}, { packageImportMethod: 'copy' })
   const manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf('node_modules')
@@ -101,7 +102,7 @@ test('readonly side effects cache', async (t) => {
   let manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts1)
 
   // Modify the side effects cache to make sure we are using it
-  const cacheBuildDir = path.join(opts1.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts1.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf('node_modules')
@@ -120,7 +121,7 @@ test('readonly side effects cache', async (t) => {
   await addDependenciesToPackage(manifest, ['diskusage@1.1.2'], opts2)
 
   t.ok(await exists('node_modules/diskusage/build'), 'build folder created')
-  t.notOk(await exists(path.join(opts2.storeDir, `localhost+4873/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)), 'cache folder not created')
+  t.notOk(await exists(path.join(opts2.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)), 'cache folder not created')
 })
 
 test('uploading errors do not interrupt installation', async (t) => {
@@ -138,7 +139,7 @@ test('uploading errors do not interrupt installation', async (t) => {
 
   t.ok(await exists('node_modules/diskusage/build'), 'build folder created')
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+4873/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   t.notOk(await exists(cacheBuildDir), 'side effects cache not created')
 
   t.end()

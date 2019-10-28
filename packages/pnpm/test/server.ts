@@ -1,4 +1,5 @@
 import prepare from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import byline = require('byline')
 import { ChildProcess } from 'child_process'
 import delay from 'delay'
@@ -167,7 +168,7 @@ test('uploading cache can be disabled without breaking install', async (t: tape.
   await project.has('diskusage')
   const storePath = await project.getStorePath()
   const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
-  const cacheDir = path.join(storePath, `localhost+4873/diskusage/1.1.3/side_effects/${engine}/package`)
+  const cacheDir = path.join(storePath, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${engine}/package`)
   t.notOk(await pathExists(cacheDir), 'side effects cache not uploaded')
 
   await execPnpm('server', 'stop')

@@ -1,6 +1,7 @@
 import assertStore from '@pnpm/assert-store'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
 import R = require('ramda')
 import sinon = require('sinon')
@@ -36,7 +37,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: '- localhost+4873/is-negative/2.1.0',
+    message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
   }))
 
   await project.storeHasNot('is-negative', '2.1.0')
@@ -46,7 +47,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
-    message: '- localhost+4873/is-negative/2.1.0',
+    message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
   }))
 })
 
@@ -66,7 +67,7 @@ test('remove packages that are used by project that no longer exist', async (t: 
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: '- localhost+4873/is-negative/2.1.0',
+    message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
   }))
 
   await store.storeHasNot('is-negative', '2.1.0')

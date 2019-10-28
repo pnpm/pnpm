@@ -1,4 +1,5 @@
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('fs')
 import path = require('path')
@@ -113,7 +114,7 @@ test('should rehoist when uninstalling a package', async (t: tape.Test) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases['localhost+4873/debug/2.6.9'], ['debug'], 'new hoisted debug added to .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases[`localhost+${REGISTRY_MOCK_PORT}/debug/2.6.9`], ['debug'], 'new hoisted debug added to .modules.yaml')
 })
 
 test('should rehoist after running a general install', async (t) => {
@@ -210,7 +211,7 @@ test('hoist by alias', async (t: tape.Test) => {
 
   const modules = await project.readModulesManifest()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases, { 'localhost+4873/dep-of-pkg-with-1-dep/100.1.0': [ 'dep' ] }, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.hoistedAliases, { [`localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.1.0`]: [ 'dep' ] }, '.modules.yaml updated correctly')
 })
 
 test('should remove aliased hoisted dependencies', async (t) => {

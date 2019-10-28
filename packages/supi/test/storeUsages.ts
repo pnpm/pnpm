@@ -1,5 +1,6 @@
 import assertStore from '@pnpm/assert-store'
 import { prepareEmpty } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import {
   addDependenciesToPackage,
   storeAdd,
@@ -27,7 +28,7 @@ test('find usages for single package in store and in a project', async (t: tape.
 
   const packageUsages = packageUsagesBySelectors['is-negative'][0]
 
-  t.equal(packageUsages.packageId, 'localhost+4873/is-negative/2.1.0', 'correct packageId found')
+  t.equal(packageUsages.packageId, `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`, 'correct packageId found')
   t.equal(packageUsages.usages.length, 1, 'there should only be 1 usage be found')
 })
 
@@ -46,7 +47,7 @@ test('find usages for single package in store (by version) and in a project', as
 
   const packageUsages = packageUsagesBySelectors['is-negative@2.1.0'][0]
 
-  t.equal(packageUsages.packageId, 'localhost+4873/is-negative/2.1.0', 'correct packageId found')
+  t.equal(packageUsages.packageId, `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`, 'correct packageId found')
   t.equal(packageUsages.usages.length, 1, 'there should only be 1 usage be found')
 })
 
@@ -84,7 +85,7 @@ test('find usages of packages in store (multiple queries)', async (t: tape.Test)
 
     const packageUsages = packageUsagesBySelectors['is-negative'][0]
 
-    t.equal(packageUsages.packageId, 'localhost+4873/is-negative/2.1.0', 'correct packageId found')
+    t.equal(packageUsages.packageId, `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`, 'correct packageId found')
     t.equal(packageUsages.usages.length, 1, 'there should only be 1 usage be found')
   }
 
@@ -93,7 +94,7 @@ test('find usages of packages in store (multiple queries)', async (t: tape.Test)
 
     const packageUsages = packageUsagesBySelectors['is-odd'][0]
 
-    t.equal(packageUsages.packageId, 'localhost+4873/is-odd/3.0.0', 'correct packageId found')
+    t.equal(packageUsages.packageId, `localhost+${REGISTRY_MOCK_PORT}/is-odd/3.0.0`, 'correct packageId found')
     t.equal(packageUsages.usages.length, 1, 'there should only be 1 usage be found')
   }
 })
@@ -122,7 +123,7 @@ test('find usages for package in store but not in any projects', async (t: tape.
     {
       'is-negative': [
         {
-          packageId: 'localhost+4873/is-negative/2.1.0',
+          packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
           usages: [],
         },
       ],
@@ -160,11 +161,11 @@ test('find usages for multiple packages in store but not in any projects', async
     {
       'is-negative': [
         {
-          packageId: 'localhost+4873/is-negative/2.0.0',
+          packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.0.0`,
           usages: [],
         },
         {
-          packageId: 'localhost+4873/is-negative/2.1.0',
+          packageId: `localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
           usages: [],
         },
       ],

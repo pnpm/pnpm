@@ -2,6 +2,7 @@ import assertProject from '@pnpm/assert-project'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
@@ -66,8 +67,8 @@ test('install only the dependencies of the specified importer', async (t) => {
   await projects['project-2'].hasNot('is-negative')
 
   const rootNodeModules = assertProject(t, process.cwd())
-  await rootNodeModules.has('.pnpm/localhost+4873/is-positive/1.0.0')
-  await rootNodeModules.hasNot('.pnpm/localhost+4873/is-negative/1.0.0')
+  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  await rootNodeModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`)
 })
 
 test('dependencies of other importers are not pruned when installing for a subset of importers', async (t) => {
@@ -120,9 +121,9 @@ test('dependencies of other importers are not pruned when installing for a subse
   await projects['project-2'].has('is-negative')
 
   const rootNodeModules = assertProject(t, process.cwd())
-  await rootNodeModules.has('.pnpm/localhost+4873/is-positive/2.0.0')
-  await rootNodeModules.hasNot('.pnpm/localhost+4873/is-positive/1.0.0')
-  await rootNodeModules.has('.pnpm/localhost+4873/is-negative/1.0.0')
+  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0`)
+  await rootNodeModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`)
 
   const lockfile = await rootNodeModules.readCurrentLockfile()
   t.deepEqual(Object.keys(lockfile.importers), ['project-1', 'project-2'])
@@ -185,9 +186,9 @@ test('dependencies of other importers are not pruned when (headless) installing 
   await projects['project-2'].has('is-negative')
 
   const rootNodeModules = assertProject(t, process.cwd())
-  await rootNodeModules.has('.pnpm/localhost+4873/is-positive/2.0.0')
-  await rootNodeModules.hasNot('.pnpm/localhost+4873/is-positive/1.0.0')
-  await rootNodeModules.has('.pnpm/localhost+4873/is-negative/1.0.0')
+  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0`)
+  await rootNodeModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`)
 })
 
 test('adding a new dev dependency to project that uses a shared lockfile', async (t) => {
@@ -458,9 +459,9 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
   ], await testDefaults())
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/is-positive/2.0.0/node_modules/is-positive')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/pkg-with-1-dep')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep')))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0/node_modules/is-positive`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0/node_modules/pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace packages when lockfile is frozen', async (t: tape.Test) => {
@@ -551,9 +552,9 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
   ], await testDefaults({ frozenLockfile: true }))
 
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/is-positive/1.0.0/node_modules/is-positive')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/pkg-with-1-dep')))
-  t.ok(await exists(path.resolve('node_modules/.pnpm/localhost+4873/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep')))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0/node_modules/is-positive`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep/100.0.0/node_modules/pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
 })
 
 test('adding a new dependency with the workspace: protocol', async (t) => {

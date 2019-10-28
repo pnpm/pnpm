@@ -1,4 +1,5 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
@@ -12,9 +13,9 @@ const testOnly = promisifyTape(tape.only)
 
 const testFromNode10 = parseInt(process.version.split('.')[0].substr(1), 10) >= 10 ? test : promisifyTape(test['skip'])
 
-const CREDENTIALS = `//localhost:4873/:username=username
-//localhost:4873/:_password=${Buffer.from('password').toString('base64')}
-//localhost:4873/:email=foo@bar.net`
+const CREDENTIALS = `//localhost:${REGISTRY_MOCK_PORT}/:username=username
+//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}
+//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`
 
 test('publish: package with package.json', async (t: tape.Test) => {
   prepare(t, {

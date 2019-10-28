@@ -3,6 +3,7 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import prepare, { preparePackages, tempDir as makeTempDir } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
@@ -446,7 +447,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   t.deepEqual(outputs, ['is-positive', 'project-1'])
 
   const storeJson = await loadJsonFile<object>(path.resolve('store', '2', 'store.json'))
-  t.deepEqual(storeJson['localhost+4873/is-negative/1.0.0'].length, 1, 'new connections saved in store.json')
+  t.deepEqual(storeJson[`localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`].length, 1, 'new connections saved in store.json')
 
   await execPnpm('recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store')
 

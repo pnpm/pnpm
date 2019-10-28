@@ -1,5 +1,6 @@
 import assertStore from '@pnpm/assert-store'
 import { tempDir } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('fs')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
@@ -30,7 +31,7 @@ test('add packages to the store', async (t: tape.Test) => {
   t.deepEqual(
     storeIndex,
     {
-      'localhost+4873/express/4.16.3': [],
+      [`localhost+${REGISTRY_MOCK_PORT}/express/4.16.3`]: [],
     },
     'package has been added to the store index',
   )

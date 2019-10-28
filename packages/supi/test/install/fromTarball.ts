@@ -1,4 +1,5 @@
 import { prepareEmpty } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -9,12 +10,12 @@ const test = promisifyTape(tape)
 test('tarball from npm registry', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const manifest = await addDependenciesToPackage({}, ['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
+  const manifest = await addDependenciesToPackage({}, [`http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz`], await testDefaults())
 
   await project.has('is-array')
-  await project.storeHas('localhost+4873/is-array/1.0.1')
+  await project.storeHas(`localhost+${REGISTRY_MOCK_PORT}/is-array/1.0.1`)
 
-  t.deepEqual(manifest.dependencies, { 'is-array': 'http://localhost:4873/is-array/-/is-array-1.0.1.tgz' }, 'has been added to dependencies in package.json')
+  t.deepEqual(manifest.dependencies, { 'is-array': `http://localhost:${REGISTRY_MOCK_PORT}/is-array/-/is-array-1.0.1.tgz` }, 'has been added to dependencies in package.json')
 })
 
 test('tarball not from npm registry', async (t) => {
