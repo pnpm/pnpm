@@ -85,7 +85,6 @@ type CLI_OPTIONS = 'access'
   | 'link-workspace-packages'
   | 'lock'
   | 'lockfile-dir'
-  | 'lockfile-directory' // TODO: deprecate this flag
   | 'lockfile-only'
   | 'lockfile'
   | 'long'
@@ -100,7 +99,6 @@ type CLI_OPTIONS = 'access'
   | 'port'
   | 'prefer-frozen-lockfile'
   | 'prefer-offline'
-  | 'prefix'
   | 'production'
   | 'protocol'
   | 'recursive'
@@ -120,7 +118,6 @@ type CLI_OPTIONS = 'access'
   | 'side-effects-cache'
   | 'silent'
   | 'sort'
-  | 'store'
   | 'store-dir'
   | 'strict-peer-dependencies'
   | 'table'
@@ -133,7 +130,7 @@ type CLI_OPTIONS = 'access'
   | 'workspace-concurrency'
   | 'workspace-prefix'
 
-const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'prefix', 'dir'])
+const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'dir'])
 
 const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'child-concurrency',
@@ -152,7 +149,6 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'link-workspace-packages',
   'lock',
   'lockfile-dir',
-  'lockfile-directory',
   'lockfile-only',
   'lockfile',
   'package-import-method',
@@ -169,7 +165,6 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'shared-workspace-lockfile',
   'side-effects-cache-readonly',
   'side-effects-cache',
-  'store',
   'store-dir',
   'strict-peer-dependencies',
   'offline',
@@ -200,7 +195,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'link-workspace-packages',
     'lock',
     'lockfile-dir',
-    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'package-import-method',
@@ -222,7 +216,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
-    'store',
     'store-dir',
     'strict-peer-dependencies',
     'offline',
@@ -298,7 +291,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'global-pnpmfile',
     'global',
     'lockfile-dir',
-    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'package-import-method',
@@ -307,7 +299,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'reporter',
     'resolution-strategy',
     'shared-workspace-lockfile',
-    'store',
     'store-dir',
     'virtual-store-dir',
   ]),
@@ -324,14 +315,12 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'ignore-upload-requests',
     'port',
     'protocol',
-    'store',
     'store-dir',
   ]),
   'start': new Set([]),
   'stop': new Set([]),
   'store': new Set([
     'registry',
-    'store',
     'store-dir',
   ]),
   'test': new Set([
@@ -350,7 +339,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'ignore-scripts',
     'latest',
     'lockfile-dir',
-    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'offline',
@@ -370,7 +358,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
-    'store',
     'store-dir',
     'use-running-store-server',
   ]),
@@ -424,6 +411,13 @@ const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   // 'help-search',
 ])
 
+const RENAMED_OPTIONS = {
+  'lockfile-directory': 'lockfile-dir',
+  'prefix': 'dir',
+  'shrinkwrap-directory': 'lockfile-dir',
+  'store': 'store-dir',
+}
+
 export default async function run (inputArgv: string[]) {
   // tslint:disable
   const shortHands = {
@@ -464,10 +458,6 @@ export default async function run (inputArgv: string[]) {
     'n': ['--no-yes'],
     'B': ['--save-bundle'],
     'C': ['--dir'],
-    'prefix': ['--dir'],
-    'store': ['--store-dir'],
-    'lockfile-directory': ['--lockfile-dir'],
-    'shrinkwrap-directory': ['--lockfile-dir'],
     'shrinkwrap-only': ['--lockfile-only'],
     'shared-workspace-shrinkwrap': ['--shared-workspace-lockfile'],
     'frozen-shrinkwrap': ['--frozen-lockfile'],
@@ -476,6 +466,12 @@ export default async function run (inputArgv: string[]) {
   }
   // tslint:enable
   const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
+  for (const cliOption of Object.keys(cliConf)) {
+    if (RENAMED_OPTIONS[cliOption]) {
+      cliConf[RENAMED_OPTIONS[cliOption]] = cliConf[cliOption]
+      delete cliConf[cliOption]
+    }
+  }
   process.env['npm_config_argv'] = JSON.stringify(argv)
 
   let cmd = getCommandFullName(argv.remain[0]) as CANONICAL_COMMAND_NAMES
