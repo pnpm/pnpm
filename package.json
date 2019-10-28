@@ -2,7 +2,7 @@
   "scripts": {
     "test": "pnpm run build && run-p -r verdaccio test-all",
     "verdaccio": "verdaccio --config ./verdaccio.yaml --listen 7348",
-    "test-all": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm test --workspace-concurrency=1 --filter=./packages --filter=./privatePackages",
+    "test-all": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm test --filter=./packages --filter=./privatePackages",
     "build": "pnpm run -r tsc"
   },
   "devDependencies": {

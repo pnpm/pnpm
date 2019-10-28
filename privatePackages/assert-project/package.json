@@ -37,7 +37,7 @@
     "lint-test": "tslint -c tslint.json --project test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc",
-    "pretest": "cd test/fixture/project && node ../../../../../packages/pnpm/bin/pnpm.js i --force --no-shared-workspace-lockfile && cd ../../..",
+    "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
     "test": "pnpm run lint && pnpm run lint-test && pnpm run tsc && ts-node test"
   },
   "dependencies": {

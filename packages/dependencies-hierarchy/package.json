@@ -10,7 +10,7 @@
   "scripts": {
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "pretest": "cd fixtures && node ../../pnpm recursive install --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages -f && cd ../fixtureWithLinks && node ../../pnpm/bin/pnpm.js recursive install --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile -f && cd ..",
+    "pretest": "pnpm install -rf -C fixtures --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && pnpm install -rf -C fixtureWithLinks --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
