@@ -370,6 +370,7 @@ export async function recursive (
               ...installOpts,
               ...localConfig,
               bin: path.join(prefix, 'node_modules', '.bin'),
+              dir: prefix,
               hooks,
               ignoreScripts: true,
               pinnedVersion: getPinnedVersion({
@@ -381,7 +382,6 @@ export async function recursive (
                 ...localConfig,
               },
               storeController,
-              dir: prefix,
             },
           )
           if (action !== install) {
@@ -455,12 +455,12 @@ export async function recursive (
                 ...installOpts,
                 ...localConfig,
                 bin: path.join(prefix, 'node_modules', '.bin'),
+                dir: prefix,
                 pending: cmdFullName !== 'rebuild' || opts.pending === true,
                 rawConfig: {
                   ...installOpts.rawConfig,
                   ...localConfig,
                 },
-                dir: prefix,
               },
             )
             result.passes++

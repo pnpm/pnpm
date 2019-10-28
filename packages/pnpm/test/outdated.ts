@@ -29,6 +29,7 @@ test('pnpm outdated', async (t: tape.Test) => {
   t.equal(
     await outdated([], {
       alwaysAuth: false,
+      dir: process.cwd(),
       fetchRetries: 4,
       fetchRetryFactor: 1,
       fetchRetryMaxtimeout: 60000,
@@ -42,7 +43,6 @@ test('pnpm outdated', async (t: tape.Test) => {
       strictSsl: false,
       tag: 'latest',
       userAgent: '',
-      dir: process.cwd(),
     }, 'outdated'),
     stripIndent`
     ┌─────────────┬──────────────────────┬────────┐
