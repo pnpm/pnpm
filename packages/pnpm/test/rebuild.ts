@@ -3,6 +3,7 @@ import path = require('path')
 import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import writeYamlFile = require('write-yaml-file')
 import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
@@ -52,8 +53,9 @@ test('rebuilds specific dependencies', async function (t: tape.Test) {
 // Covers https://github.com/pnpm/pnpm/issues/1969
 test('rebuild a package with no deps when independent-leaves is true', async (t: tape.Test) => {
   prepare(t)
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('add', 'independent-and-requires-build@1.0.0', '--no-hoist', '--independent-leaves', '--link-workspace-packages', '--workspace-prefix=.')
+  await execPnpm('add', 'independent-and-requires-build@1.0.0', '-W', '--no-hoist', '--independent-leaves', '--link-workspace-packages')
 
   t.ok(await exists(path.resolve('node_modules/independent-and-requires-build/created-by-postinstall')))
 })

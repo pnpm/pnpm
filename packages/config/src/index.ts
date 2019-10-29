@@ -83,7 +83,6 @@ export const types = Object.assign({
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
   'workspace-concurrency': Number,
-  'workspace-prefix': String,
 }, npmTypes.types)
 
 const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
@@ -141,11 +140,9 @@ export default async (
   } catch (err) {} // tslint:disable-line:no-empty
 
   const dir = cliArgs['dir'] ?? process.cwd()
-  const workspacePrefix = cliArgs['global'] // tslint:disable-line
-    ? null
-    : (
-      await findWorkspacePrefix(dir) || null
-    )
+  const workspaceDir = cliArgs['global'] // tslint:disable-line
+    ? undefined
+    : await findWorkspacePrefix(dir)
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
     'color': 'auto',
@@ -178,7 +175,7 @@ export default async (
     'userconfig': npmDefaults.userconfig,
     'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
-    'workspace-prefix': workspacePrefix,
+    'workspace-prefix': workspaceDir,
   })
 
   process.execPath = originalExecPath
@@ -191,9 +188,10 @@ export default async (
       return acc
     }, {} as Config)
   const cwd = (cliArgs['dir'] && path.resolve(cliArgs['dir'])) ?? npmConfig.localPrefix // tslint:disable-line
+  pnpmConfig.workspaceDir = workspaceDir
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
-    ...npmConfig.list.slice(3, pnpmConfig.workspacePrefix && pnpmConfig.workspacePrefix !== cwd ? 5 : 4).reverse(),
+    ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
     cliArgs,
   ] as any) // tslint:disable-line:no-any
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
@@ -301,8 +299,8 @@ export default async (
     }
     pnpmConfig.saveDev = true
   }
-  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir) {
-    pnpmConfig.lockfileDir = pnpmConfig.workspacePrefix || undefined
+  if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
+    pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
   }
 
   pnpmConfig.packageManager = packageManager
@@ -331,8 +329,8 @@ export default async (
   pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache || pnpmConfig.sideEffectsCacheReadonly
   pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
 
-  if (!pnpmConfig.ignoreScripts && pnpmConfig.workspacePrefix) {
-    pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspacePrefix, 'node_modules', '.bin')]
+  if (!pnpmConfig.ignoreScripts && pnpmConfig.workspaceDir) {
+    pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
   } else {
     pnpmConfig.extraBinPaths = []
   }

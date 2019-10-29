@@ -128,7 +128,6 @@ type CLI_OPTIONS = 'access'
   | 'virtual-store-dir'
   | 'dir'
   | 'workspace-concurrency'
-  | 'workspace-prefix'
 
 const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'dir'])
 
@@ -174,7 +173,6 @@ const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
   'use-store-server',
   'verify-store-integrity',
   'virtual-store-dir',
-  'workspace-prefix',
 ])
 
 const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> = {
@@ -225,7 +223,6 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'use-store-server',
     'verify-store-integrity',
     'virtual-store-dir',
-    'workspace-prefix',
   ]),
   'help': new Set([]),
   'import': new Set([]),
@@ -506,7 +503,7 @@ export default async function run (inputArgv: string[]) {
       command: subCmd ? [cmd, subCmd] : [cmd],
       excludeReporter: false,
     })
-    config.forceSharedLockfile = typeof config.workspacePrefix === 'string' && config.sharedWorkspaceLockfile === true
+    config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     if (config.filter) {
       Array.prototype.push.apply(config.filter, filterArgs)
@@ -530,14 +527,14 @@ export default async function run (inputArgv: string[]) {
 
   if (
     (cmd === 'add' || cmd === 'install') &&
-    typeof config.workspacePrefix === 'string'
+    typeof config.workspaceDir === 'string'
   ) {
     if (cliArgs.length === 0) {
       subCmd = cmd
       cmd = 'recursive'
       cliArgs.unshift(subCmd)
     } else if (
-      config.workspacePrefix === config.dir &&
+      config.workspaceDir === config.dir &&
       !config.ignoreWorkspaceRootCheck
     ) {
       // Reporting is not initialized at this point, so just printing the error
@@ -609,7 +606,7 @@ export default async function run (inputArgv: string[]) {
       if (cmd !== 'recursive') {
         scopeLogger.debug({
           selected: 1,
-          workspacePrefix: config.workspacePrefix,
+          workspacePrefix: config.workspaceDir ?? null,
         })
       }
 

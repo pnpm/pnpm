@@ -31,8 +31,8 @@ export default async (
   const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
   let workspacePackages
   let localPackages!: LocalPackages
-  if (opts.linkWorkspacePackages && opts.workspacePrefix) {
-    workspacePackages = await findWorkspacePackages(opts.workspacePrefix, opts)
+  if (opts.linkWorkspacePackages && opts.workspaceDir) {
+    workspacePackages = await findWorkspacePackages(opts.workspaceDir, opts)
     localPackages = arrayOfLocalPackagesToMap(workspacePackages)
   } else {
     localPackages = {}
@@ -64,8 +64,8 @@ export default async (
 
   if (pkgNames.length) {
     let globalPkgNames!: string[]
-    if (opts.workspacePrefix) {
-      workspacePackages = await findWorkspacePackages(opts.workspacePrefix, opts)
+    if (opts.workspaceDir) {
+      workspacePackages = await findWorkspacePackages(opts.workspaceDir, opts)
 
       const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.includes(pkg.manifest.name))
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))

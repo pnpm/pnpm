@@ -91,7 +91,7 @@ export interface Config {
   useStoreServer?: boolean,
   useRunningStoreServer?: boolean,
   workspaceConcurrency: number,
-  workspacePrefix?: string,
+  workspaceDir?: string,
   reporter?: string,
   linkWorkspacePackages: boolean,
   sort: boolean,

@@ -18,7 +18,7 @@ export default async <T> (
     workspaceConcurrency: number,
     unsafePerm: boolean,
     rawConfig: object,
-    workspacePrefix: string,
+    workspaceDir: string,
     allPackagesAreSelected: boolean,
   },
 ) => {
@@ -91,7 +91,7 @@ export default async <T> (
     } else {
       logger.info({
         message: `None of the selected packages has a "${scriptName}" script`,
-        prefix: opts.workspacePrefix
+        prefix: opts.workspaceDir
       })
     }
   }

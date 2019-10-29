@@ -28,7 +28,7 @@ export default async function (
     {
       dir,
       engineStrict: opts.engineStrict,
-      workspacePrefix: opts.workspacePrefix || dir,
+      workspaceDir: opts.workspaceDir || dir,
     },
     async () => {
       const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
@@ -49,7 +49,7 @@ export async function pack (
   await fakeRegularManifest({
     dir: opts.dir,
     engineStrict: opts.engineStrict,
-    workspacePrefix: opts.workspacePrefix || opts.dir,
+    workspaceDir: opts.workspaceDir || opts.dir,
   }, async () => {
     const { status } = await runNpm(['pack', ...opts.argv.original.slice(1)])
     _status = status
@@ -66,14 +66,14 @@ async function fakeRegularManifest (
   opts: {
     engineStrict?: boolean,
     dir: string,
-    workspacePrefix: string,
+    workspaceDir: string,
   },
   fn: () => Promise<void>,
 ) {
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
-  const copiedLicenses: string[] = opts.dir !== opts.workspacePrefix && (await findLicenses({ cwd: opts.dir })).length === 0
-    ? await copyLicenses(opts.workspacePrefix, opts.dir) : []
+  const copiedLicenses: string[] = opts.dir !== opts.workspaceDir && (await findLicenses({ cwd: opts.dir })).length === 0
+    ? await copyLicenses(opts.workspaceDir, opts.dir) : []
 
   const { fileName, manifest, writeImporterManifest } = await readImporterManifest(opts.dir, opts)
   const publishManifest = await makePublishManifest(opts.dir, manifest)

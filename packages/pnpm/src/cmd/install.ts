@@ -38,9 +38,9 @@ export default async function installCmd (
 
   const dir = opts.dir || process.cwd()
 
-  const localPackages = opts.linkWorkspacePackages && opts.workspacePrefix
+  const localPackages = opts.linkWorkspacePackages && opts.workspaceDir
     ? arrayOfLocalPackagesToMap(
-      await findWorkspacePackages(opts.workspacePrefix, opts),
+      await findWorkspacePackages(opts.workspaceDir, opts),
     )
     : undefined
 
@@ -101,10 +101,10 @@ export default async function installCmd (
     await writeImporterManifest(updatedImporter.manifest)
   }
 
-  if (opts.linkWorkspacePackages && opts.workspacePrefix) {
+  if (opts.linkWorkspacePackages && opts.workspaceDir) {
     // TODO: reuse somehow the previous read of packages
     // this is not optimal
-    const allWorkspacePkgs = await findWorkspacePackages(opts.workspacePrefix, opts)
+    const allWorkspacePkgs = await findWorkspacePackages(opts.workspaceDir, opts)
     await recursive(allWorkspacePkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
@@ -116,6 +116,7 @@ export default async function installCmd (
           selectBy: 'location',
         },
       ],
+      workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined
     }, 'install', 'install')
 
     if (opts.ignoreScripts) return

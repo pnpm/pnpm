@@ -212,7 +212,7 @@ test('workspace manifest is searched from specified dir', async (t) => {
     },
   })
 
-  t.equal(config.workspacePrefix, path.join(tmp, 'workspace'))
+  t.equal(config.workspaceDir, path.join(tmp, 'workspace'))
   t.end()
 })
 
@@ -412,7 +412,7 @@ test('when runnning a global command inside a workspace, the workspace should be
       },
     })
     t.ok(config)
-    t.notOk(config.workspacePrefix)
+    t.notOk(config.workspaceDir)
   }
 
   {
@@ -424,7 +424,7 @@ test('when runnning a global command inside a workspace, the workspace should be
       },
     })
     t.ok(config)
-    t.ok(config.workspacePrefix)
+    t.ok(config.workspaceDir)
   }
 
   t.end()

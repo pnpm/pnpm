@@ -73,14 +73,11 @@ export default async (
       `"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
   }
 
-  if (!opts.workspacePrefix) {
-    opts.workspacePrefix = process.cwd()
-  }
-  const { workspacePrefix } = opts
-  const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix, opts)
+  const workspaceDir = opts.workspaceDir ?? process.cwd()
+  const allWorkspacePkgs = await findWorkspacePackages(workspaceDir, opts)
 
   if (!allWorkspacePkgs.length) {
-    logger.info({ message: `No packages found in "${workspacePrefix}"`, prefix: workspacePrefix })
+    logger.info({ message: `No packages found in "${workspaceDir}"`, prefix: workspaceDir })
     return
   }
 
@@ -91,10 +88,10 @@ export default async (
     opts['packageSelectors'] = opts.filter.map((f) => parsePackageSelector(f, process.cwd())) // tslint:disable-line
   }
 
-  const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, opts, cmdFullName, cmd)
+  const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, { ...opts, workspaceDir }, cmdFullName, cmd)
 
   if (!atLeastOnePackageMatched) {
-    logger.info({ message: `No packages matched the filters in "${workspacePrefix}"`, prefix: workspacePrefix })
+    logger.info({ message: `No packages matched the filters in "${workspaceDir}"`, prefix: workspaceDir })
     return
   }
 }
@@ -108,7 +105,7 @@ export async function recursive (
     ignoredPackages?: Set<string>,
     update?: boolean,
     useBetaCli?: boolean,
-  },
+  } & Required<Pick<PnpmOptions, 'workspaceDir'>>,
   cmdFullName: string,
   cmd: string,
 ): Promise<boolean> {
@@ -139,7 +136,7 @@ export async function recursive (
   scopeLogger.debug({
     selected: pkgs.length,
     total: allPkgs.length,
-    workspacePrefix: opts.workspacePrefix,
+    workspacePrefix: opts.workspaceDir,
   })
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)

@@ -19,8 +19,8 @@ export default async function removeCmd (
   if (!opts.ignorePnpmfile) {
     opts.hooks = requireHooks(opts.lockfileDir || opts.dir, opts)
   }
-  removeOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
-    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix, opts))
+  removeOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspaceDir
+    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined
   const currentManifest = await readImporterManifest(opts.dir, opts)
   const [mutationResult] = await mutateModules(
