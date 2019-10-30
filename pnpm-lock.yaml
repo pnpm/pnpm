@@ -20,7 +20,7 @@ importers:
     dependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/lifecycle': 7.0.3_@pnpm+logger@3.1.0
       '@pnpm/link-bins': 5.0.1
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
@@ -37,7 +37,7 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 7.0.3
       '@pnpm/link-bins': 5.0.1
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.0'
@@ -400,7 +400,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/hoist': 'link:../hoist'
-      '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/lifecycle': 7.0.3_@pnpm+logger@3.1.0
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
@@ -449,7 +449,7 @@ importers:
       tempy: 0.3.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/build-modules': 'workspace:2.0.3'
+      '@pnpm/build-modules': 'workspace:2.0.4'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/default-fetcher': 'file:../default-fetcher'
@@ -458,7 +458,7 @@ importers:
       '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/headless': 'link:'
       '@pnpm/hoist': 'workspace:1.0.1'
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 7.0.3
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'workspace:3.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
@@ -1082,7 +1082,7 @@ importers:
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/lifecycle': 7.0.3_@pnpm+logger@3.1.0
       '@pnpm/list': 'link:../list'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/logger': 3.1.0
@@ -1193,7 +1193,7 @@ importers:
       '@pnpm/default-resolver': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 7.0.3
       '@pnpm/list': 'workspace:3.1.0'
       '@pnpm/lockfile-file': 'workspace:3.0.0'
       '@pnpm/lockfile-types': 1.1.0
@@ -1280,7 +1280,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-ansi: 5.2.0
-      supi: 'workspace:0.35.6'
+      supi: 'workspace:0.35.7'
       symlink-dir: 3.1.1
       table: 5.4.6
       tape: 4.11.0
@@ -1515,7 +1515,7 @@ importers:
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/headless': 'link:../headless'
       '@pnpm/hoist': 'link:../hoist'
-      '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/lifecycle': 7.0.3_@pnpm+logger@3.1.0
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
@@ -1603,7 +1603,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
-      '@pnpm/build-modules': 'workspace:2.0.3'
+      '@pnpm/build-modules': 'workspace:2.0.4'
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1612,9 +1612,9 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 'workspace:9.0.0'
+      '@pnpm/headless': 'workspace:9.0.1'
       '@pnpm/hoist': 'workspace:1.0.1'
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 7.0.3
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'workspace:3.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
@@ -2162,6 +2162,17 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-+m1O/rFyR0h60IrfoOKVuzwsZCYx4vYF5NFTMFzDNJ34D4EH8Y+nT/EIncAHQ6Awavz2I5FlhRbiYvWA2DZFbw==
+  /@pnpm/core-loggers/4.0.0_@pnpm+logger@3.1.0:
+    dependencies:
+      '@pnpm/logger': 3.1.0
+      '@pnpm/types': 4.0.0
+    dev: false
+    engines:
+      node: '>=10'
+    peerDependencies:
+      '@pnpm/logger': ^3.1.0
+    resolution:
+      integrity: sha512-fM9lz/RcLoF0fBZqQOyixrl4mx0RnKzOBosw+afik21aIUVgh4xQ6ekAsuJ2UkzgyESWIjSVSyCFBEncwg3zMQ==
   /@pnpm/error/1.0.0:
     dev: false
     engines:
@@ -2186,6 +2197,22 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-o9d47i3E6XtVDIjxPjl9mg+phHnjScYtjhx5KiAZEcgV4nEjXCtnrQ8MjH8yjN8JVeCQH3FiioR1i+iD9DzkRw==
+  /@pnpm/lifecycle/7.0.3_@pnpm+logger@3.1.0:
+    dependencies:
+      '@pnpm/core-loggers': 4.0.0_@pnpm+logger@3.1.0
+      '@pnpm/logger': 3.1.0
+      '@pnpm/read-package-json': 3.0.0
+      '@pnpm/types': 4.0.0
+      '@zkochan/npm-lifecycle': 3.1.4
+      path-exists: 4.0.0
+      run-groups: 2.0.1
+    dev: false
+    engines:
+      node: '>=10'
+    peerDependencies:
+      '@pnpm/logger': ^3.1.0
+    resolution:
+      integrity: sha512-v6P2L9jOPiSl4vhNrdIT1Fp1WvufLItQ8qgFoa5ewQHBLeEBD6ugSsjvfNuo7ZPXywuAiu/xG358HauBp4XSVw==
   /@pnpm/link-bins/5.0.1:
     dependencies:
       '@pnpm/package-bins': 4.0.0
@@ -2641,6 +2668,21 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-fG0KMOJsMLBqmWzTD5saWAlmj7yFLQZlSqcKOS+wPXkl6KuNRwL7mAGQtM+ftiAsEnazh+nySqUwiFGaYzYvVg==
+  /@zkochan/npm-lifecycle/3.1.4:
+    dependencies:
+      byline: 5.0.0
+      graceful-fs: 4.2.3
+      node-gyp: 6.0.0
+      resolve-from: 5.0.0
+      slide: 1.1.6
+      uid-number: 0.0.6
+      umask: 1.1.0
+      which: 2.0.1
+    dev: false
+    engines:
+      node: '>=8.15'
+    resolution:
+      integrity: sha512-s+Uk93fCpRRNWmiG5RDH7N81TIgQEsokCChy7e/Wcq0fB593eUreIo2U+DkKnMRBqJh8NLJxsJ7HNPw5HMyw2A==
   /@zkochan/npm-package-arg/1.0.2:
     dependencies:
       hosted-git-info: 2.8.5
@@ -5070,6 +5112,10 @@ packages:
   /graceful-fs/4.2.2:
     resolution:
       integrity: sha512-IItsdsea19BoLC7ELy13q1iJFNmd7ofZH5+X/pJr90/nRoPEX0DJo1dHDbgtYWOhJhcCgMDTOw84RZ72q6lB+Q==
+  /graceful-fs/4.2.3:
+    dev: false
+    resolution:
+      integrity: sha512-a30VEBm4PEdx1dRB7MFK7BejejvCvBronbLjht+sHuGYj8PHs7M/5Z+rt5lw551vZ7yfTCj4Vuyy3mSJytDWRQ==
   /graceful-git/2.0.0:
     dependencies:
       execa: 1.0.0
