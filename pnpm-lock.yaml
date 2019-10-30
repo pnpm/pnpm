@@ -45,7 +45,7 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:2.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 'workspace:7.0.3'
       '@pnpm/link-bins': 5.0.1
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.0'
@@ -463,7 +463,7 @@ importers:
       '@pnpm/filter-lockfile': 'workspace:2.0.1'
       '@pnpm/headless': 'link:'
       '@pnpm/hoist': 'workspace:1.0.1'
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 'workspace:7.0.3'
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'workspace:3.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'
@@ -1194,7 +1194,7 @@ importers:
       '@pnpm/default-resolver': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 'workspace:7.0.3'
       '@pnpm/list': 'workspace:3.1.0'
       '@pnpm/lockfile-file': 'workspace:3.0.0'
       '@pnpm/lockfile-types': 1.1.0
@@ -1613,7 +1613,7 @@ importers:
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/headless': 'workspace:9.0.0'
       '@pnpm/hoist': 'workspace:1.0.1'
-      '@pnpm/lifecycle': 'workspace:7.0.2'
+      '@pnpm/lifecycle': 'workspace:7.0.3'
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'workspace:3.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.0'

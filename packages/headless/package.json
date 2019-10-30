@@ -82,7 +82,7 @@
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/filter-lockfile": "workspace:2.0.1",
     "@pnpm/hoist": "workspace:1.0.1",
-    "@pnpm/lifecycle": "workspace:7.0.2",
+    "@pnpm/lifecycle": "workspace:7.0.3",
     "@pnpm/link-bins": "5.0.1",
     "@pnpm/lockfile-file": "workspace:3.0.0",
     "@pnpm/lockfile-utils": "workspace:2.0.0",
