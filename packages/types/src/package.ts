@@ -76,12 +76,7 @@ interface BaseManifest {
   module?: string,
   typings?: string,
   types?: string,
-  publishConfig?: {
-    main?: string,
-    module?: string,
-    typings?: string,
-    types?: string,
-  },
+  publishConfig?: Record<string, unknown>,
 }
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
