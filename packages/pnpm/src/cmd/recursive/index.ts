@@ -97,7 +97,7 @@ export default async (
 }
 
 export async function recursive (
-  allPkgs: Array<{path: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>,
+  allPkgs: Array<{dir: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>,
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
@@ -115,10 +115,10 @@ export async function recursive (
   }
 
   const pkgGraphResult = createPkgGraph(allPkgs)
-  let pkgs: Array<{path: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
+  let pkgs: Array<{dir: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
   if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
-    pkgs = allPkgs.filter(({ path }) => pkgGraphResult.graph[path])
+    pkgs = allPkgs.filter(({ dir }) => pkgGraphResult.graph[dir])
   } else {
     pkgs = allPkgs
   }
@@ -128,9 +128,9 @@ export async function recursive (
   if (pkgs.length === 0) {
     return false
   }
-  const manifestsByPath: { [path: string]: { manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> } } = {}
-  for (const { manifest, path, writeImporterManifest } of pkgs) {
-    manifestsByPath[path] = { manifest, writeImporterManifest }
+  const manifestsByPath: { [dir: string]: { manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> } } = {}
+  for (const { dir, manifest, writeImporterManifest } of pkgs) {
+    manifestsByPath[dir] = { manifest, writeImporterManifest }
   }
 
   scopeLogger.debug({

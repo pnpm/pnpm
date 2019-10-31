@@ -21,8 +21,8 @@ export default function wantedDepIsLocallyAvailable (
 function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
-      directory: string;
-      package: PackageManifest;
+      dir: string;
+      manifest: PackageManifest;
     },
   },
   spec: RegistryPackageSpec,

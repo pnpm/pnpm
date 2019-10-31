@@ -39,7 +39,7 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 }
 
 export default async (
-  pkgs: Array<{ path: string, manifest: ImporterManifest }>,
+  pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
   args: string[],
   cmd: string,
   opts: OutdatedOptions,
@@ -57,16 +57,16 @@ export default async (
       })
     }
   } else {
-    await Promise.all(pkgs.map(async ({ manifest, path }) => {
+    await Promise.all(pkgs.map(async ({ dir, manifest }) => {
       const { outdatedPackages } = (
-        await outdatedDependenciesOfWorkspacePackages([{ manifest, path }], args, { ...opts, lockfileDir: path })
+        await outdatedDependenciesOfWorkspacePackages([{ manifest, dir }], args, { ...opts, lockfileDir: dir })
       )[0]
       outdatedPackages.forEach((outdatedPkg) => {
         const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])
         if (!outdatedByNameAndType[key]) {
           outdatedByNameAndType[key] = { ...outdatedPkg, dependentPkgs: [] }
         }
-        outdatedByNameAndType[key].dependentPkgs.push({ location: getLockfileImporterId(opts.dir, path), manifest })
+        outdatedByNameAndType[key].dependentPkgs.push({ location: getLockfileImporterId(opts.dir, dir), manifest })
       })
     }))
   }

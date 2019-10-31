@@ -302,14 +302,14 @@ test('headless install is used with an up-to-date lockfile when package referenc
   const localPackages = {
     'project-1': {
       '1.0.0': {
-        directory: path.resolve('project-1'),
-        package: pkg1,
+        dir: path.resolve('project-1'),
+        manifest: pkg1,
       },
     },
     'project-2': {
       '1.0.0': {
-        directory: path.resolve('project-2'),
-        package: pkg2,
+        dir: path.resolve('project-2'),
+        manifest: pkg2,
       },
     },
   }
@@ -575,8 +575,8 @@ test('adding a new dependency with the workspace: protocol', async (t) => {
     localPackages: {
       foo: {
         '1.0.0': {
-          directory: '',
-          package: {
+          dir: '',
+          manifest: {
             name: 'foo',
             version: '1.0.0',
           },

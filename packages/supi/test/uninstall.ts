@@ -298,8 +298,8 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       localPackages: {
         'project-2': {
           '1.0.0': {
-            directory: path.resolve('project-2'),
-            package: {
+            dir: path.resolve('project-2'),
+            manifest: {
               name: 'project-2',
               version: '1.0.0',
 

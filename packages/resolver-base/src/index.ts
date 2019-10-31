@@ -38,8 +38,8 @@ export interface ResolveResult {
 export interface LocalPackages {
   [name: string]: {
     [version: string]: {
-      directory: string,
-      package: DependencyManifest,
+      dir: string,
+      manifest: DependencyManifest,
     },
   },
 }

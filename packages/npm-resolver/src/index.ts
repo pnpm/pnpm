@@ -252,8 +252,8 @@ function tryResolveFromLocalPackages (
 function pickMatchingLocalVersionOrNull (
   versions: {
     [version: string]: {
-      directory: string;
-      package: DependencyManifest;
+      dir: string;
+      manifest: DependencyManifest;
     },
   },
   spec: RegistryPackageSpec,
@@ -273,18 +273,18 @@ function pickMatchingLocalVersionOrNull (
 
 function resolveFromLocalPackage (
   localPackage: {
-    directory: string,
-    package: DependencyManifest,
+    dir: string,
+    manifest: DependencyManifest,
   },
   normalizedPref: string | undefined,
   prefix: string,
 ) {
   return {
-    id: `link:${normalize(path.relative(prefix, localPackage.directory))}`,
+    id: `link:${normalize(path.relative(prefix, localPackage.dir))}`,
     normalizedPref,
-    package: localPackage.package,
+    package: localPackage.manifest,
     resolution: {
-      directory: localPackage.directory,
+      directory: localPackage.dir,
       type: 'directory',
     },
     resolvedVia: 'local-filesystem',

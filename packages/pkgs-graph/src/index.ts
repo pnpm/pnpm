@@ -19,7 +19,7 @@ export type Manifest = {
 
 export type Package = {
   manifest: Manifest,
-  path: string,
+  dir: string,
 }
 
 export type PackageNode<T> = {
@@ -58,17 +58,17 @@ export default function<T> (pkgs: Array<Package & T>): {
           if (rawSpec.startsWith('workspace:')) {
             rawSpec = rawSpec.substr(10)
           }
-          spec = npa.resolve(depName, rawSpec, pkg.path)
+          spec = npa.resolve(depName, rawSpec, pkg.dir)
         } catch (err) {
           return ''
         }
 
         if (spec.type === 'directory') {
-          const matchedPkg = R.values(pkgMap).find(pkg => path.relative(pkg.path, spec.fetchSpec) === '')
+          const matchedPkg = R.values(pkgMap).find(pkg => path.relative(pkg.dir, spec.fetchSpec) === '')
           if (!matchedPkg) {
             return ''
           }
-          return matchedPkg!.path
+          return matchedPkg!.dir
         }
 
         if (spec.type !== 'version' && spec.type !== 'range') return ''
@@ -78,7 +78,7 @@ export default function<T> (pkgs: Array<Package & T>): {
         const versions = pkgs.map(pkg => pkg.manifest.version)
         if (versions.indexOf(rawSpec) !== -1) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
-          return matchedPkg!.path
+          return matchedPkg!.dir
         }
         const matched = semver.maxSatisfying(versions, rawSpec)
         if (!matched) {
@@ -86,7 +86,7 @@ export default function<T> (pkgs: Array<Package & T>): {
           return ''
         }
         const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === matched)
-        return matchedPkg!.path
+        return matchedPkg!.dir
       })
       .filter(Boolean)
   }
@@ -97,7 +97,7 @@ function createPkgMap (pkgs: Package[]): {
 } {
   const pkgMap = {}
   for (let pkg of pkgs) {
-    pkgMap[pkg.path] = pkg
+    pkgMap[pkg.dir] = pkg
   }
   return pkgMap
 }

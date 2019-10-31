@@ -94,8 +94,8 @@ export default async function (
 ) {
   const packages = [
     {
+      dir: opts.dir,
       manifest: await readImporterManifestOnly(opts.dir, opts),
-      path: opts.dir,
     },
   ]
   const { outdatedPackages } = (await outdatedDependenciesOfWorkspacePackages(packages, args, opts))[0]
@@ -267,7 +267,7 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
-  pkgs: Array<{path: string, manifest: ImporterManifest}>,
+  pkgs: Array<{dir: string, manifest: ImporterManifest}>,
   args: string[],
   opts: OutdatedOptions,
 ) {
@@ -285,7 +285,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
     lockfileDir,
     storeDir,
   })
-  return Promise.all(pkgs.map(async ({ manifest, path }) => {
+  return Promise.all(pkgs.map(async ({ dir, manifest }) => {
     let match = args.length && matcher(args) || undefined
     return {
       manifest,
@@ -295,10 +295,10 @@ export async function outdatedDependenciesOfWorkspacePackages (
         lockfileDir,
         manifest,
         match,
-        prefix: path,
+        prefix: dir,
         wantedLockfile,
       }),
-      prefix: getLockfileImporterId(lockfileDir, path),
+      prefix: getLockfileImporterId(lockfileDir, dir),
     }
   }))
 }

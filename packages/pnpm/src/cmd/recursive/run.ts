@@ -40,7 +40,7 @@ export default async <T> (
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = graph[prefix] as {package: {manifest: PackageManifest, path: string}}
+        const pkg = graph[prefix] as {package: {dir: string, manifest: PackageManifest}}
         if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
           return
         }

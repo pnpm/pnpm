@@ -68,7 +68,7 @@ export default async (
       workspacePackages = await findWorkspacePackages(opts.workspaceDir, opts)
 
       const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.includes(pkg.manifest.name))
-      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))
+      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
 
       if (pkgsFoundInWorkspace.length && !linkOpts.targetDependenciesField) {
         linkOpts.targetDependenciesField = 'dependencies'

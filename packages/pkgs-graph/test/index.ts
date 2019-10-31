@@ -11,6 +11,7 @@ const FOO2_PATH = pathResolve('/zkochan/src/foo@2')
 test('create package graph', t => {
   const result = createPkgGraph([
     {
+      dir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -20,9 +21,9 @@ test('create package graph', t => {
           'is-positive': '1.0.0',
         }
       },
-      path: BAR1_PATH,
     },
     {
+      dir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -31,9 +32,9 @@ test('create package graph', t => {
           bar: '^10.0.0'
         }
       },
-      path: FOO1_PATH,
     },
     {
+      dir: BAR2_PATH,
       manifest: {
         name: 'bar',
         version: '2.0.0',
@@ -42,14 +43,13 @@ test('create package graph', t => {
           foo: '^2.0.0'
         }
       },
-      path: BAR2_PATH,
     },
     {
+      dir: FOO2_PATH,
       manifest: {
         name: 'foo',
         version: '2.0.0',
       },
-      path: FOO2_PATH,
     },
   ])
   t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }])
@@ -57,6 +57,7 @@ test('create package graph', t => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
+        dir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -66,12 +67,12 @@ test('create package graph', t => {
             'is-positive': '1.0.0',
           }
         },
-        path: BAR1_PATH,
       },
     },
     [FOO1_PATH]: {
       dependencies: [],
       package: {
+        dir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -80,12 +81,12 @@ test('create package graph', t => {
             bar: '^10.0.0'
           }
         },
-        path: FOO1_PATH,
       },
     },
     [BAR2_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
+        dir: BAR2_PATH,
         manifest: {
           name: 'bar',
           version: '2.0.0',
@@ -94,17 +95,16 @@ test('create package graph', t => {
             foo: '^2.0.0',
           },
         },
-        path: BAR2_PATH,
       },
     },
     [FOO2_PATH]: {
       dependencies: [],
       package: {
+        dir: FOO2_PATH,
         manifest: {
           name: 'foo',
           version: '2.0.0',
         },
-        path: FOO2_PATH,
       },
     },
   })
@@ -114,6 +114,7 @@ test('create package graph', t => {
 test('create package graph for local directory dependencies', t => {
   const result = createPkgGraph([
     {
+      dir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -124,9 +125,9 @@ test('create package graph for local directory dependencies', t => {
           'weird-dep': ':aaaaa', // weird deps are skipped
         },
       },
-      path: BAR1_PATH,
     },
     {
+      dir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -135,9 +136,9 @@ test('create package graph for local directory dependencies', t => {
           bar: '^10.0.0',
         },
       },
-      path: FOO1_PATH,
     },
     {
+      dir: BAR2_PATH,
       manifest: {
         name: 'bar',
         version: '2.0.0',
@@ -146,14 +147,13 @@ test('create package graph for local directory dependencies', t => {
           foo: 'file:../foo@2',
         },
       },
-      path: BAR2_PATH,
     },
     {
+      dir: FOO2_PATH,
       manifest: {
         name: 'foo',
         version: '2.0.0',
       },
-      path: FOO2_PATH,
     },
   ])
   t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }])
@@ -161,6 +161,7 @@ test('create package graph for local directory dependencies', t => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
+        dir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -171,12 +172,12 @@ test('create package graph for local directory dependencies', t => {
             'weird-dep': ':aaaaa',
           },
         },
-        path: BAR1_PATH,
       },
     },
     [FOO1_PATH]: {
       dependencies: [],
       package: {
+        dir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -185,12 +186,12 @@ test('create package graph for local directory dependencies', t => {
             bar: '^10.0.0',
           },
         },
-        path: FOO1_PATH,
       },
     },
     [BAR2_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
+        dir: BAR2_PATH,
         manifest: {
           name: 'bar',
           version: '2.0.0',
@@ -199,17 +200,16 @@ test('create package graph for local directory dependencies', t => {
             foo: 'file:../foo@2'
           },
         },
-        path: BAR2_PATH,
       },
     },
     [FOO2_PATH]: {
       dependencies: [],
       package: {
+        dir: FOO2_PATH,
         manifest: {
           name: 'foo',
           version: '2.0.0',
         },
-        path: FOO2_PATH,
       },
     },
   })
@@ -219,6 +219,7 @@ test('create package graph for local directory dependencies', t => {
 test('create package graph ignoring the workspace protocol', t => {
   const result = createPkgGraph([
     {
+      dir: BAR1_PATH,
       manifest: {
         name: 'bar',
         version: '1.0.0',
@@ -228,9 +229,9 @@ test('create package graph ignoring the workspace protocol', t => {
           'is-positive': '1.0.0',
         }
       },
-      path: BAR1_PATH,
     },
     {
+      dir: FOO1_PATH,
       manifest: {
         name: 'foo',
         version: '1.0.0',
@@ -239,9 +240,9 @@ test('create package graph ignoring the workspace protocol', t => {
           bar: '^10.0.0'
         }
       },
-      path: FOO1_PATH,
     },
     {
+      dir: BAR2_PATH,
       manifest: {
         name: 'bar',
         version: '2.0.0',
@@ -250,14 +251,13 @@ test('create package graph ignoring the workspace protocol', t => {
           foo: 'workspace:^2.0.0'
         }
       },
-      path: BAR2_PATH,
     },
     {
+      dir: FOO2_PATH,
       manifest: {
         name: 'foo',
         version: '2.0.0',
       },
-      path: FOO2_PATH,
     },
   ])
   t.deepEqual(result.unmatched, [{ pkgName: 'bar', range: '^10.0.0' }])
@@ -265,6 +265,7 @@ test('create package graph ignoring the workspace protocol', t => {
     [BAR1_PATH]: {
       dependencies: [FOO1_PATH],
       package: {
+        dir: BAR1_PATH,
         manifest: {
           name: 'bar',
           version: '1.0.0',
@@ -274,12 +275,12 @@ test('create package graph ignoring the workspace protocol', t => {
             'is-positive': '1.0.0',
           }
         },
-        path: BAR1_PATH,
       },
     },
     [FOO1_PATH]: {
       dependencies: [],
       package: {
+        dir: FOO1_PATH,
         manifest: {
           name: 'foo',
           version: '1.0.0',
@@ -288,12 +289,12 @@ test('create package graph ignoring the workspace protocol', t => {
             bar: '^10.0.0'
           }
         },
-        path: FOO1_PATH,
       },
     },
     [BAR2_PATH]: {
       dependencies: [FOO2_PATH],
       package: {
+        dir: BAR2_PATH,
         manifest: {
           name: 'bar',
           version: '2.0.0',
@@ -302,17 +303,16 @@ test('create package graph ignoring the workspace protocol', t => {
             foo: 'workspace:^2.0.0',
           },
         },
-        path: BAR2_PATH,
       },
     },
     [FOO2_PATH]: {
       dependencies: [],
       package: {
+        dir: FOO2_PATH,
         manifest: {
           name: 'foo',
           version: '2.0.0',
         },
-        path: FOO2_PATH,
       },
     },
   })

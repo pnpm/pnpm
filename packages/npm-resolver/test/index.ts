@@ -902,8 +902,8 @@ test('resolve from local directory when it matches the latest version of the pac
     localPackages: {
       'is-positive': {
         '1.0.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
@@ -948,8 +948,8 @@ test('use version from the registry if it is newer than the local one', async t 
     localPackages: {
       'is-positive': {
         '3.0.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '3.0.0',
           },
@@ -995,8 +995,8 @@ test('use local version if it is newer than the latest in the registry', async t
     localPackages: {
       'is-positive': {
         '3.2.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '3.2.0',
           },
@@ -1036,22 +1036,22 @@ test('resolve from local directory when package is not found in the registry', a
     localPackages: {
       'is-positive': {
         '1.0.0': {
-          directory: '/home/istvan/src/is-positive-1.0.0',
-          package: {
+          dir: '/home/istvan/src/is-positive-1.0.0',
+          manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
         },
         '1.1.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
         },
         '2.0.0': {
-          directory: '/home/istvan/src/is-positive-2.0.0',
-          package: {
+          dir: '/home/istvan/src/is-positive-2.0.0',
+          manifest: {
             name: 'is-positive',
             version: '2.0.0',
           },
@@ -1091,22 +1091,22 @@ test('resolve from local directory when package is not found in the registry and
     localPackages: {
       'is-positive': {
         '1.0.0': {
-          directory: '/home/istvan/src/is-positive-1.0.0',
-          package: {
+          dir: '/home/istvan/src/is-positive-1.0.0',
+          manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
         },
         '1.1.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
         },
         '2.0.0': {
-          directory: '/home/istvan/src/is-positive-2.0.0',
-          package: {
+          dir: '/home/istvan/src/is-positive-2.0.0',
+          manifest: {
             name: 'is-positive',
             version: '2.0.0',
           },
@@ -1146,22 +1146,22 @@ test('resolve from local directory when package is not found in the registry and
     localPackages: {
       'is-positive': {
         '1.0.0': {
-          directory: '/home/istvan/src/is-positive-1.0.0',
-          package: {
+          dir: '/home/istvan/src/is-positive-1.0.0',
+          manifest: {
             name: 'is-positive',
             version: '1.0.0',
           },
         },
         '1.1.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '1.1.0',
           },
         },
         '2.0.0': {
-          directory: '/home/istvan/src/is-positive-2.0.0',
-          package: {
+          dir: '/home/istvan/src/is-positive-2.0.0',
+          manifest: {
             name: 'is-positive',
             version: '2.0.0',
           },
@@ -1201,8 +1201,8 @@ test('resolve from local directory when the requested version is not found in th
     localPackages: {
       'is-positive': {
         '100.0.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '100.0.0',
           },
@@ -1238,8 +1238,8 @@ test('workspace protocol: resolve from local directory even when it does not mat
     localPackages: {
       'is-positive': {
         '3.0.0': {
-          directory: '/home/istvan/src/is-positive',
-          package: {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
             name: 'is-positive',
             version: '3.0.0',
           },

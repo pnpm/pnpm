@@ -521,7 +521,7 @@ async function linkedPackagesAreUpToDate (
       if (isLinked && (pkgDeps[depName].startsWith('link:') || pkgDeps[depName].startsWith('file:'))) continue
       const dir = isLinked
         ? path.join(prefix, importerDeps[depName].substr(5))
-        : (localPackages && localPackages[depName] && localPackages[depName] && localPackages[depName][importerDeps[depName]] && localPackages[depName][importerDeps[depName]].directory)
+        : localPackages?.[depName]?.[importerDeps[depName]]?.dir
       if (!dir) continue
       const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
       const availableVersion = pkgDeps[depName].startsWith('workspace:') ? pkgDeps[depName].substr(10) : pkgDeps[depName]
@@ -536,7 +536,7 @@ function getLocalPackagesByDirectory (localPackages: LocalPackages) {
   const localPackagesByDirectory = {}
   Object.keys(localPackages || {}).forEach((pkgName) => {
     Object.keys(localPackages[pkgName] || {}).forEach((pkgVersion) => {
-      localPackagesByDirectory[localPackages[pkgName][pkgVersion].directory] = localPackages[pkgName][pkgVersion].package
+      localPackagesByDirectory[localPackages[pkgName][pkgVersion].dir] = localPackages[pkgName][pkgVersion].manifest
     })
   })
   return localPackagesByDirectory

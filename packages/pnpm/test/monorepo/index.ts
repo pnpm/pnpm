@@ -1043,7 +1043,7 @@ test('root package is included when not specified', async (t: tape.Test) => {
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
 
   t.ok(workspacePackages.some(project => {
-    const relativePath = path.join('.', path.relative(tempDir, project.path))
+    const relativePath = path.join('.', path.relative(tempDir, project.dir))
     return relativePath === '.' && project.manifest.name === 'project'
   }), 'root project is present even if not specified')
 })
@@ -1081,7 +1081,7 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
 
   t.ok(workspacePackages.some(project => {
-    const relativePath = path.join('.', path.relative(tempDir, project.path))
+    const relativePath = path.join('.', path.relative(tempDir, project.dir))
     return relativePath === '.' && project.manifest.name === 'project'
   }), 'root project is present even when explicitly ignored')
 })

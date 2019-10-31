@@ -7,9 +7,8 @@ import { LocalPackages } from 'supi'
 import packageIsInstallable from './packageIsInstallable'
 
 interface WorkspaceDependencyPackage {
+  dir: string
   manifest: DependencyManifest
-  path: string
-
   writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
 }
 
@@ -26,9 +25,9 @@ export default async (
     includeRoot: true,
     patterns: packagesManifest?.packages || undefined,
   })
-  pkgs.sort((pkg1: {path: string}, pkg2: {path: string}) => pkg1.path.localeCompare(pkg2.path))
+  pkgs.sort((pkg1: {dir: string}, pkg2: {dir: string}) => pkg1.dir.localeCompare(pkg2.dir))
   for (const pkg of pkgs) {
-    packageIsInstallable(pkg.path, pkg.manifest, opts)
+    packageIsInstallable(pkg.dir, pkg.manifest, opts)
   }
 
   // FIXME: `name` and `version` might be missing from entries in `pkgs`.
@@ -47,16 +46,13 @@ async function requirePackagesManifest (dir: string): Promise<{packages?: string
 }
 
 export function arrayOfLocalPackagesToMap (
-  pkgs: Array<{path: string, manifest: DependencyManifest}>,
+  pkgs: Array<{dir: string, manifest: DependencyManifest}>,
 ) {
   return pkgs.reduce((acc, pkg) => {
     if (!acc[pkg.manifest.name]) {
       acc[pkg.manifest.name] = {}
     }
-    acc[pkg.manifest.name][pkg.manifest.version] = {
-      directory: pkg.path,
-      package: pkg.manifest,
-    }
+    acc[pkg.manifest.name][pkg.manifest.version] = pkg
     return acc
   }, {})
 }

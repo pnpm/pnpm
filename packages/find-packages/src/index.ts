@@ -19,8 +19,8 @@ declare namespace findPkgs {
   }
 
   interface WorkspacePackage {
+    dir: string
     manifest: ImporterManifest
-    path: string
 
     writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
   }
@@ -56,7 +56,7 @@ async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkg
       async manifestPath => {
         try {
           return {
-            path: path.dirname(manifestPath),
+            dir: path.dirname(manifestPath),
             ...await readExactImporterManifest(manifestPath),
           } as findPkgs.WorkspacePackage
         } catch (err) {

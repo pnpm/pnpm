@@ -4,7 +4,7 @@ import { ImporterManifest } from '@pnpm/types'
 import { render as renderList } from '../list'
 
 export default async (
-  pkgs: Array<{ path: string, manifest: ImporterManifest }>,
+  pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
   args: string[],
   cmd: string,
   opts: Config & {
@@ -15,7 +15,7 @@ export default async (
   },
 ) => {
   if (opts.lockfileDir) {
-    console.log(await renderList(pkgs.map((pkg) => pkg.path), args, {
+    console.log(await renderList(pkgs.map((pkg) => pkg.dir), args, {
       ...opts,
       alwaysPrintRootPackage: opts.depth === -1,
       lockfileDir: opts.lockfileDir,
@@ -23,18 +23,18 @@ export default async (
     return
   }
   const outputs = []
-  for (const { path } of pkgs) {
+  for (const { dir } of pkgs) {
     try {
-      const output = await renderList([path], args, {
+      const output = await renderList([dir], args, {
         ...opts,
         alwaysPrintRootPackage: opts.depth === -1,
-        lockfileDir: opts.lockfileDir || path,
+        lockfileDir: opts.lockfileDir || dir,
       }, cmd)
       if (!output) continue
       outputs.push(output)
     } catch (err) {
       logger.info(err)
-      err['prefix'] = path // tslint:disable-line:no-string-literal
+      err['prefix'] = dir // tslint:disable-line:no-string-literal
       throw err
     }
   }
