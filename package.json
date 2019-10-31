@@ -6,7 +6,7 @@
     "build": "pnpm run -r tsc"
   },
   "devDependencies": {
-    "@pnpm/registry-mock": "1.7.2",
+    "@pnpm/registry-mock": "1.8.0",
     "@pnpm/tsconfig": "link:utils/tsconfig",
     "@pnpm/tslint-config": "link:utils/tslint-config",
     "@types/node": "*",

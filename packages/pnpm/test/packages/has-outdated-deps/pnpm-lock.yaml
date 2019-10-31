@@ -1,14 +1,14 @@
 dependencies:
-  flatten: 1.0.2
+  deprecated: 1.0.0
   is-negative: 1.1.0
   is-positive: 3.1.0
 lockfileVersion: 5
 packages:
-  /flatten/1.0.2:
-    deprecated: I wrote this module a very long time ago; you should use something else.
+  /deprecated/1.0.0:
+    deprecated: This package is deprecated
     dev: false
     resolution:
-      integrity: sha1-2uRqnXj74lKSJYzB54CkHZXAN4I=
+      integrity: sha512-IXOehroEnYcbv/C4Kam/SWp7doHhGuRU5PHwxkOsjPjMy+lZSICgMasAK74AkrulthvBxVvZqdDvjK63RfOY+w==
   /is-negative/1.1.0:
     resolution:
       integrity: sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=
@@ -16,6 +16,6 @@ packages:
     resolution:
       integrity: sha1-hX21hKG6XRyymAUn/DtsQ103sP0=
 specifiers:
-  flatten: 1.0.2
+  deprecated: 1.0.0
   is-negative: ^1.1.0
   is-positive: ^3.1.0

@@ -2,7 +2,7 @@
   "name": "wanted-shrinkwrap",
   "version": "1.0.0",
   "dependencies": {
-    "flatten": "1.0.2",
+    "deprecated": "1.0.0",
     "is-negative": "^2.1.0",
     "is-positive": "^3.1.0"
   }

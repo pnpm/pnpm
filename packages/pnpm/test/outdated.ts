@@ -68,17 +68,18 @@ test('pnpm outdated: show details', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-  ┌─────────────┬─────────┬────────────┬──────────────────────────────────────────────────────┐
-  │ Package     │ Current │ Latest     │ Details                                              │
-  ├─────────────┼─────────┼────────────┼──────────────────────────────────────────────────────┤
-  │ flatten     │ 1.0.2   │ Deprecated │ I wrote this module a very long time                 │
-  │             │         │            │ ago; you should use something else.                  │
-  │             │         │            │ https://github.com/jesusabdullah/node-flatten#readme │
-  ├─────────────┼─────────┼────────────┼──────────────────────────────────────────────────────┤
-  │ is-negative │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme          │
-  ├─────────────┼─────────┼────────────┼──────────────────────────────────────────────────────┤
-  │ is-positive │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme          │
-  └─────────────┴─────────┴────────────┴──────────────────────────────────────────────────────┘
+  ┌─────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
+  │ Package     │ Current │ Latest     │ Details                                     │
+  ├─────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+  │ deprecated  │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
+  │             │         │            │ dolor sit amet, consectetur adipiscing      │
+  │             │         │            │ elit.                                       │
+  │             │         │            │ https://foo.bar/qar                         │
+  ├─────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+  │ is-negative │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme │
+  ├─────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+  │ is-positive │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
+  └─────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
   ` + '\n')
 })
 
@@ -95,8 +96,8 @@ test('pnpm outdated: no table', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    flatten
-    1.0.2 => Deprecated
+    deprecated
+    1.0.0 => Deprecated
 
     is-negative
     1.0.0 => 2.1.0
@@ -112,11 +113,12 @@ test('pnpm outdated: no table', async (t: tape.Test) => {
     t.equal(result.status, 0)
 
     t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-    flatten
-    1.0.2 => Deprecated
-    I wrote this module a very long time
-    ago; you should use something else.
-    https://github.com/jesusabdullah/node-flatten#readme
+    deprecated
+    1.0.0 => Deprecated
+    This package is deprecated. Lorem ipsum
+    dolor sit amet, consectetur adipiscing
+    elit.
+    https://foo.bar/qar
 
     is-negative
     1.0.0 => 2.1.0
@@ -144,7 +146,7 @@ test('pnpm outdated: only current lockfile is available', async (t: tape.Test) =
   ┌─────────────┬─────────┬────────────┐
   │ Package     │ Current │ Latest     │
   ├─────────────┼─────────┼────────────┤
-  │ flatten     │ 1.0.2   │ Deprecated │
+  │ deprecated  │ 1.0.0   │ Deprecated │
   ├─────────────┼─────────┼────────────┤
   │ is-negative │ 1.0.0   │ 2.1.0      │
   ├─────────────┼─────────┼────────────┤
@@ -167,7 +169,7 @@ test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) =>
   ┌─────────────┬────────────────────────┬────────────┐
   │ Package     │ Current                │ Latest     │
   ├─────────────┼────────────────────────┼────────────┤
-  │ flatten     │ missing (wanted 1.0.2) │ Deprecated │
+  │ deprecated  │ missing (wanted 1.0.0) │ Deprecated │
   ├─────────────┼────────────────────────┼────────────┤
   │ is-positive │ missing (wanted 3.1.0) │ 3.1.0      │
   ├─────────────┼────────────────────────┼────────────┤
