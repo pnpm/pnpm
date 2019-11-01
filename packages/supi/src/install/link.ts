@@ -313,11 +313,11 @@ export default async function linkPackages (
       newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
-            const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
+            const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
               lockfileDir: opts.lockfileDir,
               targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
             })
-            return directory
+            return dir
           }
           : undefined,
         lockfile: currentLockfile,

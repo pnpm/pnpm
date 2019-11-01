@@ -290,11 +290,11 @@ async function _rebuild (
         ? path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
         : await (
           async () => {
-            const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
+            const { dir } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
               lockfileDir: opts.lockfileDir,
               targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
             })
-            return directory
+            return dir
           }
         )()
       try {

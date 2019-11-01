@@ -41,12 +41,12 @@ export default function (
           lockfileDir: string,
           targetEngine?: string,
         },
-      ): Promise<{ directory: string, isBuilt: boolean }> => {
+      ): Promise<{ dir: string, isBuilt: boolean }> => {
         return await limitedFetch(`${remotePrefix}/getPackageLocation`, {
           opts,
           packageId,
           packageName,
-        }) as { directory: string, isBuilt: boolean }
+        }) as { dir: string, isBuilt: boolean }
       },
       importPackage: async (from: string, to: string, opts: {
         filesResponse: PackageFilesResponse,

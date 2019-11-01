@@ -244,11 +244,11 @@ export default async (opts: HeadlessOptions) => {
     newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
-          const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
+          const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
             lockfileDir,
             targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
           })
-          return directory
+          return dir
         }
         : undefined,
       lockfile: filteredLockfile,
@@ -503,7 +503,7 @@ async function lockfileToDepGraph (
         const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
         const peripheralLocation = !independent
           ? path.join(modules, pkgName)
-          : pkgLocation.directory
+          : pkgLocation.dir
         if (
           currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, lockfile.packages![relDepPath].dependencies) &&
           R.equals(currentPackages[relDepPath].optionalDependencies, lockfile.packages![relDepPath].optionalDependencies)
@@ -542,7 +542,7 @@ async function lockfileToDepGraph (
             // ignore
           })
         graph[peripheralLocation] = {
-          centralLocation: pkgLocation.directory,
+          centralLocation: pkgLocation.dir,
           children: {},
           fetchingFiles: fetchResponse.files,
           finishing: fetchResponse.finishing,
@@ -635,7 +635,7 @@ async function getChildrenPaths (
           lockfileDir: ctx.lockfileDir,
           targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
         })
-        children[alias] = pkgLocation.directory
+        children[alias] = pkgLocation.dir
       } else {
         const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
         children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDir), 'node_modules', pkgName)

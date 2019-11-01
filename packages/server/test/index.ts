@@ -119,7 +119,7 @@ test('fetchPackage', async t => {
       lockfileDir: process.cwd(),
     }),
     {
-      directory: path.join(storeDir, pkgId, 'node_modules', 'is-positive'),
+      dir: path.join(storeDir, pkgId, 'node_modules', 'is-positive'),
       isBuilt: false,
     },
   )

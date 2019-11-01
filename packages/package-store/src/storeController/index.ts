@@ -81,14 +81,14 @@ export default async function (
       const sideEffectsCacheLocation = (await getCacheByEngine(initOpts.storeDir, packageId))[opts.targetEngine]
       if (sideEffectsCacheLocation) {
         return {
-          directory: sideEffectsCacheLocation,
+          dir: sideEffectsCacheLocation,
           isBuilt: true,
         }
       }
     }
 
     return {
-      directory: path.join(initOpts.storeDir, pkgIdToFilename(packageId, opts.lockfileDir), 'node_modules', packageName),
+      dir: path.join(initOpts.storeDir, pkgIdToFilename(packageId, opts.lockfileDir), 'node_modules', packageName),
       isBuilt: false,
     }
   }

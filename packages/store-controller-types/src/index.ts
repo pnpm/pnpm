@@ -35,7 +35,7 @@ export interface StoreController {
       lockfileDir: string,
       targetEngine?: string,
     },
-  ): Promise<{ directory: string, isBuilt: boolean }>,
+  ): Promise<{ dir: string, isBuilt: boolean }>,
   requestPackage: RequestPackageFunction,
   fetchPackage: FetchPackageToStoreFunction,
   importPackage: ImportPackageFunction,
