@@ -129,7 +129,7 @@ async function resolveAndFetch (
     // When we don't fetch, the only way to get the package's manifest is via resolving it.
     //
     // The resolution step is never skipped for local dependencies.
-    if (!skipResolution || options.skipFetch || pkgId && pkgId.startsWith('file:')) {
+    if (!skipResolution || options.skipFetch || pkgId?.startsWith('file:')) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         defaultTag: options.defaultTag,
         localPackages: options.localPackages,
@@ -147,7 +147,7 @@ async function resolveAndFetch (
       // the local tarball should be unpacked, so a fetch to the store should be forced
       forceFetch = Boolean(
         options.currentResolution &&
-        pkgId && pkgId.startsWith('file:') &&
+        pkgId?.startsWith('file:') &&
         options.currentResolution['integrity'] !== resolveResult.resolution['integrity'], // tslint:disable-line:no-string-literal
       )
 
@@ -205,7 +205,7 @@ async function resolveAndFetch (
       fetchRawManifest: updated || !pkg,
       force: forceFetch,
       pkgId: id,
-      pkgName: pkg && pkg.name,
+      pkgName: pkg?.name,
       prefix: options.lockfileDir,
       resolution: resolution,
     })

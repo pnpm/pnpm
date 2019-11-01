@@ -26,7 +26,7 @@ export default async (
   input: string[],
   opts: PnpmOptions,
 ) => {
-  const cwd = opts && opts.dir || process.cwd()
+  const cwd = opts?.dir ?? process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
   let workspacePackages

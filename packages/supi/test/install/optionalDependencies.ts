@@ -106,7 +106,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   {
     const modules = await project.readModulesManifest()
-    t.deepEqual(modules && modules.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
+    t.deepEqual(modules?.skipped, ['/not-compatible-with-any-os/1.0.0'], 'correct list of skipped packages')
   }
 
   await rimraf('node_modules')

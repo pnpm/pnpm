@@ -61,7 +61,7 @@ export default async function prune (
     const wantedPkgs = R.toPairs(mergeDependencies(wantedLockfile.importers[id]))
 
     const allCurrentPackages = new Set(
-      (pruneDirectDependencies || removePackages && removePackages.length)
+      (pruneDirectDependencies || removePackages?.length)
         ? (await readModulesDir(modulesDir) || [])
         : [],
     )
@@ -82,9 +82,9 @@ export default async function prune (
 
     return Promise.all(Array.from(depsToRemove).map((depName) => {
       return removeDirectDependency({
-        dependenciesField: currentImporter.devDependencies && currentImporter.devDependencies[depName] && 'devDependencies' ||
-          currentImporter.optionalDependencies && currentImporter.optionalDependencies[depName] && 'optionalDependencies' ||
-          currentImporter.dependencies && currentImporter.dependencies[depName] && 'dependencies' ||
+        dependenciesField: currentImporter.devDependencies?.[depName] && 'devDependencies' ||
+          currentImporter.optionalDependencies?.[depName] && 'optionalDependencies' ||
+          currentImporter.dependencies?.[depName] && 'dependencies' ||
           undefined,
         name: depName,
       }, {

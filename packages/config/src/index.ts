@@ -98,9 +98,9 @@ export default async (
     },
   },
 ): Promise<{ config: Config, warnings: string[] }> => {
-  const packageManager = opts && opts.packageManager || { name: 'pnpm', version: 'undefined' }
-  const cliArgs = opts && opts.cliArgs || {}
-  const command = opts.command || []
+  const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
+  const cliArgs = opts.cliArgs ?? {}
+  const command = opts.command ?? []
   const warnings = new Array<string>()
 
   switch (command[command.length - 1]) {

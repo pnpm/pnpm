@@ -16,7 +16,7 @@ export default async function (
     tag?: string,
   },
 ) {
-  const reporter = opts && opts.reporter
+  const reporter = opts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }

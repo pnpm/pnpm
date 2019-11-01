@@ -33,7 +33,7 @@ export default function getAgent (
     pxuri
       ? `proxy:${pxuri.protocol}//${pxuri.host}:${pxuri.port}`
       : '>no-proxy<',
-    `local-address:${opts.localAddress || '>no-local-address<'}`,
+    `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `strict-ssl:${isHttps ? !!opts.strictSSL : '>no-strict-ssl<'}`,
     `ca:${(isHttps && opts.ca) || '>no-ca<'}`,
     `cert:${(isHttps && opts.cert) || '>no-cert<'}`,

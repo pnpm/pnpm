@@ -85,8 +85,8 @@ export default async function (
       }, {})
       : await dh(projectPaths, {
         depth: opts.depth,
-        include: maybeOpts && maybeOpts.include,
-        lockfileDir: maybeOpts && maybeOpts.lockfileDir,
+        include: maybeOpts?.include,
+        lockfileDir: maybeOpts?.lockfileDir,
         registries: opts.registries,
       })
     )

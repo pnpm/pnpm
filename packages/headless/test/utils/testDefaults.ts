@@ -24,8 +24,8 @@ export default async function testDefaults (
   fetchOpts?: any, // tslint:disable-line
   storeOpts?: any, // tslint:disable-line
 ): Promise<HeadlessOptions> {
-  let storeDir = opts && opts.storeDir || tempy.directory()
-  const lockfileDir = opts && opts.lockfileDir || process.cwd()
+  let storeDir = opts?.storeDir ?? tempy.directory()
+  const lockfileDir = opts?.lockfileDir ?? process.cwd()
   const { importers, include, pendingBuilds, registries } = await readImportersContext(
     [
       {

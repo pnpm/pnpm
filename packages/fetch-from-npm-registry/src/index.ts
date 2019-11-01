@@ -45,7 +45,7 @@ export default function (
     const headers = {
       'user-agent': USER_AGENT,
       ...getHeaders({
-        auth: opts && opts.auth,
+        auth: opts?.auth,
         fullMetadata: defaultOpts.fullMetadata,
         userAgent: defaultOpts.userAgent,
       }),

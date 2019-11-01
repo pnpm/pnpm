@@ -42,8 +42,8 @@ export default function (
     pnpmConfig?: Config,
   },
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
-  const width = opts.width || process.stdout.columns || 80
-  const cwd = opts.pnpmConfig && opts.pnpmConfig.dir || process.cwd()
+  const width = opts.width ?? process.stdout.columns ?? 80
+  const cwd = opts.pnpmConfig?.dir ?? process.cwd()
 
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = [
     reportProgress(log$, {

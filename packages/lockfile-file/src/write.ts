@@ -56,7 +56,7 @@ function writeLockfile (
     return rimraf(lockfilePath)
   }
 
-  const yamlDoc = yaml.safeDump(normalizeLockfile(wantedLockfile, opts && opts.forceSharedFormat === true || false), LOCKFILE_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(normalizeLockfile(wantedLockfile, opts?.forceSharedFormat === true), LOCKFILE_YAML_FORMAT)
 
   return writeFileAtomic(lockfilePath, yamlDoc)
 }
@@ -125,7 +125,7 @@ export default function writeLockfiles (
     ])
   }
 
-  const forceSharedFormat = opts && opts.forceSharedFormat === true || false
+  const forceSharedFormat = opts?.forceSharedFormat === true
   const yamlDoc = yaml.safeDump(normalizeLockfile(opts.wantedLockfile, forceSharedFormat), LOCKFILE_YAML_FORMAT)
 
   // in most cases the `pnpm-lock.yaml` and `node_modules/.pnpm-lock.yaml` are equal

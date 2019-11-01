@@ -33,7 +33,7 @@ export default function (
     reporterForServer(log$)
     return
   }
-  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth || process.stdout.columns && process.stdout.columns - 2 || 80
+  const outputMaxWidth = opts.reportingOptions?.outputMaxWidth ?? (process.stdout.columns && process.stdout.columns - 2) ?? 80
   const output$ = toOutput$({ ...opts, reportingOptions: { ...opts.reportingOptions, outputMaxWidth } })
   if (opts.reportingOptions?.appendOnly) {
     output$

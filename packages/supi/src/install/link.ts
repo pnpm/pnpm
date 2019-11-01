@@ -113,11 +113,11 @@ export default async function linkPackages (
         registries: opts.registries,
         resolution: depNode.resolution,
       })
-      if (lockfileImporter.dependencies && lockfileImporter.dependencies[alias]) {
+      if (lockfileImporter.dependencies?.[alias]) {
         lockfileImporter.dependencies[alias] = ref
-      } else if (lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]) {
+      } else if (lockfileImporter.devDependencies?.[alias]) {
         lockfileImporter.devDependencies[alias] = ref
-      } else if (lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]) {
+      } else if (lockfileImporter.optionalDependencies?.[alias]) {
         lockfileImporter.optionalDependencies[alias] = ref
       }
     }
@@ -129,7 +129,7 @@ export default async function linkPackages (
 
   let depNodes = R.values(depGraph).filter(({ absolutePath, name, packageId }) => {
     const relDepPath = dp.relative(opts.registries, name, absolutePath)
-    if (newWantedLockfile.packages && newWantedLockfile.packages[relDepPath] && !newWantedLockfile.packages[relDepPath].optional) {
+    if (newWantedLockfile.packages?.[relDepPath] && !newWantedLockfile.packages[relDepPath].optional) {
       opts.skipped.delete(relDepPath)
       return true
     }
@@ -221,8 +221,8 @@ export default async function linkPackages (
             (await symlinkDependency(depGraphNode.peripheralLocation, modulesDir, rootAlias)).reused
           ) return
 
-          const isDev = manifest.devDependencies && manifest.devDependencies[depGraphNode.name]
-          const isOptional = manifest.optionalDependencies && manifest.optionalDependencies[depGraphNode.name]
+          const isDev = manifest.devDependencies?.[depGraphNode.name]
+          const isOptional = manifest.optionalDependencies?.[depGraphNode.name]
           rootLogger.debug({
             added: {
               dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',

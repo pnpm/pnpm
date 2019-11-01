@@ -73,7 +73,7 @@ export default async (
   const store = await createStore(Object.assign(opts, {
     storeDir,
   }))
-  const protocol = opts.protocol || opts.port && 'tcp' || 'auto'
+  const protocol = opts.protocol ?? (opts.port ? 'tcp' : 'auto')
   const serverOptions = await getServerOptions(connectionInfoDir, { protocol, port: opts.port })
   const connectionOptions = {
     remotePrefix: serverOptions.path

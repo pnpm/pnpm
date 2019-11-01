@@ -144,7 +144,7 @@ export async function mutateModules (
     },
   },
 ) {
-  const reporter = maybeOpts && maybeOpts.reporter
+  const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
@@ -348,11 +348,11 @@ export async function mutateModules (
     async function installCase (importer: any) { // tslint:disable-line:no-any
       const wantedDeps = getWantedDependencies(importer.manifest)
 
-      if (ctx.wantedLockfile && ctx.wantedLockfile.importers) {
+      if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDeps)
       }
-      const scripts = !opts.ignoreScripts && importer.manifest && importer.manifest.scripts || {}
-      if (opts.ignoreScripts && importer.manifest && importer.manifest.scripts &&
+      const scripts = opts.ignoreScripts ? {} : (importer.manifest?.scripts ?? {})
+      if (opts.ignoreScripts && importer.manifest?.scripts &&
         (importer.manifest.scripts.preinstall || importer.manifest.scripts.prepublish ||
           importer.manifest.scripts.install ||
           importer.manifest.scripts.postinstall ||
@@ -458,7 +458,7 @@ async function partitionLinkedPackages (
   const nonLinkedDependencies: WantedDependency[] = []
   const linkedAliases = new Set<string>()
   for (const dependency of dependencies) {
-    if (!dependency.alias || opts.localPackages && opts.localPackages[dependency.alias]) {
+    if (!dependency.alias || opts.localPackages?.[dependency.alias]) {
       nonLinkedDependencies.push(dependency)
       continue
     }
@@ -494,7 +494,7 @@ function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDe
   importer.optionalDependencies = importer.optionalDependencies || {}
   for (const { alias, pref } of wantedDeps) {
     if (alias && importer.specifiers[alias] !== pref) {
-      if (importer.dependencies[alias] && !importer.dependencies[alias].startsWith('link:')) {
+      if (importer.dependencies[alias]?.startsWith('link:') === false) {
         delete importer.dependencies[alias]
       }
       delete importer.devDependencies[alias]
@@ -543,7 +543,7 @@ function getLocalPackagesByDirectory (localPackages: LocalPackages) {
 }
 
 function hasLocalTarballDepsInRoot (lockfile: Lockfile, importerId: string) {
-  const importer = lockfile.importers && lockfile.importers[importerId]
+  const importer = lockfile.importers?.[importerId]
   if (!importer) return false
   return R.any(refIsLocalTarball, R.values(importer.dependencies || {}))
     || R.any(refIsLocalTarball, R.values(importer.devDependencies || {}))
@@ -791,7 +791,7 @@ async function installInContext (
     importersToLink,
     dependenciesTree,
     {
-      afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
+      afterAllResolvedHook: opts.hooks?.afterAllResolved,
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       force: opts.force,
@@ -831,7 +831,7 @@ async function installInContext (
 
   if (!opts.lockfileOnly) {
     // postinstall hooks
-    if (!opts.ignoreScripts && result.newDepPaths && result.newDepPaths.length) {
+    if (!opts.ignoreScripts && result.newDepPaths?.length) {
       const depPaths = Object.keys(result.depGraph)
       const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
 
@@ -850,7 +850,7 @@ async function installInContext (
       })
     }
 
-    if (result.newDepPaths && result.newDepPaths.length) {
+    if (result.newDepPaths?.length) {
       const newPkgs = R.props<string, DependenciesGraphNode>(result.newDepPaths, result.depGraph)
       await linkAllBins(newPkgs, result.depGraph, {
         optional: opts.include.optionalDependencies,
@@ -969,7 +969,7 @@ async function toResolveImporter (
   }
   return {
     ...importer,
-    preferredVersions: opts.preferredVersions || importer.manifest && getPreferredVersionsFromPackage(importer.manifest) || {},
+    preferredVersions: opts.preferredVersions ?? (importer.manifest && getPreferredVersionsFromPackage(importer.manifest)) ?? {},
     wantedDependencies: wantedDependencies
       .filter(({ alias, updateDepth }) => updateDepth >= 0 || !linkedAliases.has(alias)),
   }
@@ -1056,11 +1056,11 @@ function addDirectDependenciesToLockfile (
       newLockfileImporter.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
     } else if (lockfileImporter.specifiers[alias]) {
       newLockfileImporter.specifiers[alias] = lockfileImporter.specifiers[alias]
-      if (lockfileImporter.dependencies && lockfileImporter.dependencies[alias]) {
+      if (lockfileImporter.dependencies?.[alias]) {
         newLockfileImporter.dependencies[alias] = lockfileImporter.dependencies[alias]
-      } else if (lockfileImporter.optionalDependencies && lockfileImporter.optionalDependencies[alias]) {
+      } else if (lockfileImporter.optionalDependencies?.[alias]) {
         newLockfileImporter.optionalDependencies[alias] = lockfileImporter.optionalDependencies[alias]
-      } else if (lockfileImporter.devDependencies && lockfileImporter.devDependencies[alias]) {
+      } else if (lockfileImporter.devDependencies?.[alias]) {
         newLockfileImporter.devDependencies[alias] = lockfileImporter.devDependencies[alias]
       }
     }

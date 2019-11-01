@@ -155,7 +155,7 @@ async function resolveNpm (
     pickResult = await ctx.pickPackage(spec, {
       auth,
       dryRun: opts.dryRun === true,
-      preferredVersionSelector: opts.preferredVersions && opts.preferredVersions[spec.name],
+      preferredVersionSelector: opts.preferredVersions?.[spec.name],
       registry: opts.registry,
     })
   } catch (err) {
@@ -175,7 +175,7 @@ async function resolveNpm (
     throw new NoMatchingVersionError({ spec, packageMeta: meta })
   }
 
-  if (opts.localPackages && opts.localPackages[pickedPackage.name]) {
+  if (opts.localPackages?.[pickedPackage.name]) {
     if (opts.localPackages[pickedPackage.name][pickedPackage.version]) {
       return {
         ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.prefix),
@@ -216,7 +216,7 @@ function tryResolveFromWorkspace (
     registry: string,
   }
 ) {
-  if (!wantedDependency.pref || !wantedDependency.pref.startsWith('workspace:')) {
+  if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
   }
   const pref = wantedDependency.pref.substr(10)

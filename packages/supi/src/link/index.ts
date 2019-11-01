@@ -40,7 +40,7 @@ export default async function link (
     dir: string,
   },
 ) {
-  const reporter = maybeOpts && maybeOpts.reporter
+  const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }

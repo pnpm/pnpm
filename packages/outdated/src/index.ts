@@ -64,7 +64,7 @@ export default async function outdated (
           // ignoring linked packages
           if (relativeDepPath === null) return
 
-          const pkgSnapshot = opts.wantedLockfile.packages && opts.wantedLockfile.packages[relativeDepPath]
+          const pkgSnapshot = opts.wantedLockfile.packages?.[relativeDepPath]
 
           if (!pkgSnapshot) {
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)

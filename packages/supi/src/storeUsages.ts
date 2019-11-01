@@ -10,7 +10,7 @@ export default async function (
     storeController: StoreController,
   },
 ): Promise<{ [packageSelector: string]: PackageUsages[] }> {
-  const reporter = opts && opts.reporter
+  const reporter = opts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }

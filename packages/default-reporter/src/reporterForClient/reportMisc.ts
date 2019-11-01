@@ -22,7 +22,7 @@ export default (
         case 'warn':
           return autozoom(opts.cwd, obj.prefix, formatWarn(obj.message), opts)
         case 'error':
-          if (obj['message'] && obj['message']['prefix'] && obj['message']['prefix'] !== opts.cwd) {
+          if (obj['message']?.['prefix'] && obj['message']['prefix'] !== opts.cwd) {
             return `${obj['message']['prefix']}:` + os.EOL + reportError(obj)
           }
           return reportError(obj)

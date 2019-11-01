@@ -9,7 +9,7 @@ import extendOptions, {
 } from './extendStoreStatusOptions'
 
 export default async function (maybeOpts: StoreStatusOptions) {
-  const reporter = maybeOpts && maybeOpts.reporter
+  const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }

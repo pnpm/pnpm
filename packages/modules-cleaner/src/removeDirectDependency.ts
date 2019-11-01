@@ -36,7 +36,7 @@ export default async function removeDirectDependency (
           dependency.dependenciesField === 'dependencies' && 'prod' ||
           undefined,
         name: dependency.name,
-        version: uninstalledPkg && uninstalledPkg.version,
+        version: uninstalledPkg?.version,
       },
     })
   }

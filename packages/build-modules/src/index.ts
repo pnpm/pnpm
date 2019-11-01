@@ -93,7 +93,7 @@ async function buildDependency (
           packageId: depNode.packageId,
         })
       } catch (err) {
-        if (err && err.statusCode === 403) {
+        if (err.statusCode === 403) {
           logger.warn({
             message: `The store server disabled upload requests, could not upload ${depNode.packageId}`,
             prefix: opts.prefix,

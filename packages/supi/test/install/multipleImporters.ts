@@ -368,7 +368,7 @@ test('current lockfile contains only installed dependencies when adding a new im
 
   const currentLockfile = await readCurrentLockfile(path.resolve('node_modules/.pnpm'), { ignoreIncompatible: false })
 
-  t.deepEqual(Object.keys(currentLockfile && currentLockfile.packages || {}), ['/is-negative/1.0.0'])
+  t.deepEqual(Object.keys(currentLockfile?.packages || {}), ['/is-negative/1.0.0'])
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace packages', async (t: tape.Test) => {

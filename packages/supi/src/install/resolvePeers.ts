@@ -355,7 +355,7 @@ function resolvePeers (
       continue
     }
 
-    if (resolved && resolved.nodeId) resolvedPeers[peerName] = resolved.nodeId
+    if (resolved?.nodeId) resolvedPeers[peerName] = resolved.nodeId
   }
   return resolvedPeers
 }

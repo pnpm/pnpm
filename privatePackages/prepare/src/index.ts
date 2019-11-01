@@ -37,8 +37,8 @@ export function preparePackages (
     tempDir?: string,
   }
 ) {
-  const pkgTmpPath = opts && opts.tempDir || path.join(tempDir(t), 'project')
-  const manifestFormat = opts && opts.manifestFormat
+  const pkgTmpPath = opts?.tempDir ?? path.join(tempDir(t), 'project')
+  const manifestFormat = opts?.manifestFormat
 
   const dirname = path.dirname(pkgTmpPath)
   const result: { [name: string]: Project } = {}
@@ -67,10 +67,10 @@ export default function prepare (
     tempDir?: string,
   }
 ) {
-  const dir = opts && opts.tempDir || path.join(tempDir(test), 'project')
+  const dir = opts?.tempDir ?? path.join(tempDir(test), 'project')
 
   makeDir.sync(dir)
-  switch (opts && opts.manifestFormat || 'JSON') {
+  switch (opts?.manifestFormat ?? 'JSON') {
     case 'JSON':
       writePkg.sync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
       break

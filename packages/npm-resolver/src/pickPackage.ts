@@ -105,7 +105,7 @@ export default async (
     metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
-    if (metaCachedInStore && metaCachedInStore.versions && metaCachedInStore.versions[spec.fetchSpec]) {
+    if (metaCachedInStore?.versions?.[spec.fetchSpec]) {
       return {
         meta: metaCachedInStore,
         pickedPackage: metaCachedInStore.versions[spec.fetchSpec],

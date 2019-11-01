@@ -80,7 +80,7 @@ export async function rebuildPkgs (
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
-  const reporter = maybeOpts && maybeOpts.reporter
+  const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
@@ -125,7 +125,7 @@ export async function rebuild (
   importers: Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>,
   maybeOpts: RebuildOptions,
 ) {
-  const reporter = maybeOpts && maybeOpts.reporter
+  const reporter = maybeOpts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
@@ -136,7 +136,7 @@ export async function rebuild (
 
   if (opts.pending) {
     idsToRebuild = ctx.pendingBuilds
-  } else if (ctx.currentLockfile && ctx.currentLockfile.packages) {
+  } else if (ctx.currentLockfile?.packages) {
     idsToRebuild = Object.keys(ctx.currentLockfile.packages)
   }
 
@@ -162,7 +162,7 @@ export async function rebuild (
     scriptsOpts,
   )
   for (const { id, manifest } of ctx.importers) {
-    if (manifest && manifest.scripts && (!opts.pending || ctx.pendingBuilds.includes(id))) {
+    if (manifest?.scripts && (!opts.pending || ctx.pendingBuilds.includes(id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
     }
   }
