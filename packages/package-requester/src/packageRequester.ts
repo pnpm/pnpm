@@ -115,7 +115,7 @@ async function resolveAndFetch (
 ): Promise<PackageResponse> {
   try {
     let latest: string | undefined
-    let pkg: DependencyManifest | undefined
+    let manifest: DependencyManifest | undefined
     let normalizedPref: string | undefined
     let resolution = options.currentResolution as Resolution
     let pkgId = options.currentPackageId
@@ -139,7 +139,7 @@ async function resolveAndFetch (
         registry: options.registry,
       }), { priority: options.downloadPriority })
 
-      pkg = resolveResult.package
+      manifest = resolveResult.manifest
       latest = resolveResult.latest
       resolvedVia = resolveResult.resolvedVia
 
@@ -166,14 +166,14 @@ async function resolveAndFetch (
     const id = pkgId as string
 
     if (resolution.type === 'directory') {
-      if (!pkg) {
+      if (!manifest) {
         throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref}`)
       }
       return {
         body: {
           id,
           isLocal: true,
-          manifest: pkg,
+          manifest,
           normalizedPref,
           resolution: resolution as DirectoryResolution,
           resolvedVia,
@@ -184,7 +184,7 @@ async function resolveAndFetch (
 
     // We can skip fetching the package only if the manifest
     // is present after resolution
-    if (options.skipFetch && pkg) {
+    if (options.skipFetch && manifest) {
       return {
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storeDir, id) : new Map(),
@@ -192,7 +192,7 @@ async function resolveAndFetch (
           inStoreLocation: path.join(ctx.storeDir, pkgIdToFilename(id, options.lockfileDir)),
           isLocal: false as const,
           latest,
-          manifest: pkg,
+          manifest,
           normalizedPref,
           resolution,
           resolvedVia,
@@ -202,10 +202,10 @@ async function resolveAndFetch (
     }
 
     const fetchResult = ctx.fetchPackageToStore({
-      fetchRawManifest: updated || !pkg,
+      fetchRawManifest: updated || !manifest,
       force: forceFetch,
       pkgId: id,
-      pkgName: pkg?.name,
+      pkgName: manifest?.name,
       prefix: options.lockfileDir,
       resolution: resolution,
     })
@@ -217,7 +217,7 @@ async function resolveAndFetch (
         inStoreLocation: fetchResult.inStoreLocation,
         isLocal: false as const,
         latest,
-        manifest: pkg,
+        manifest,
         normalizedPref,
         resolution,
         resolvedVia,

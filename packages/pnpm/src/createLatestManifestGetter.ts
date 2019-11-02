@@ -52,5 +52,5 @@ export async function getLatestManifest (
     prefix: opts.dir,
     registry: pickRegistryForPackage(opts.registries, packageName),
   })
-  return resolution && resolution.package || null
+  return resolution && resolution.manifest || null
 }

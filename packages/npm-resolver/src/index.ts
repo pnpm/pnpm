@@ -200,8 +200,8 @@ async function resolveNpm (
   return {
     id,
     latest: meta['dist-tags'].latest,
+    manifest: pickedPackage,
     normalizedPref: spec.normalizedPref,
-    package: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
   }
@@ -281,8 +281,8 @@ function resolveFromLocalPackage (
 ) {
   return {
     id: `link:${normalize(path.relative(prefix, localPackage.dir))}`,
+    manifest: localPackage.manifest,
     normalizedPref,
-    package: localPackage.manifest,
     resolution: {
       directory: localPackage.dir,
       type: 'directory',

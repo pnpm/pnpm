@@ -28,10 +28,10 @@ export type Resolution =
 
 export interface ResolveResult {
   id: string,
-  resolution: Resolution,
-  package?: DependencyManifest,
   latest?: string,
+  manifest?: DependencyManifest,
   normalizedPref?: string, // is null for npm-hosted dependencies
+  resolution: Resolution,
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string,
 }
 

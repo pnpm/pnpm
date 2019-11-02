@@ -19,16 +19,19 @@ export default async function resolveLocal (
     prefix: string,
     lockfileDir?: string,
   },
-): Promise<(ResolveResult & ({
-  id: string,
-  normalizedPref: string,
-  resolution: TarballResolution,
-} | {
-  id: string,
-  normalizedPref: string,
-  package: DependencyManifest,
-  resolution: DirectoryResolution,
-})) | null> {
+): Promise<
+  (
+    ResolveResult &
+    Required<Pick<ResolveResult, 'normalizedPref'>> &
+    (
+      {
+        resolution: TarballResolution,
+      } | ({
+        resolution: DirectoryResolution,
+      } & Required<Pick<ResolveResult, 'manifest'>>)
+    )
+   ) | null
+> {
   const spec = parsePref(wantedDependency.pref, opts.prefix, opts.lockfileDir || opts.prefix)
   if (!spec) return null
 
@@ -64,8 +67,8 @@ export default async function resolveLocal (
   }
   return {
     id: spec.id,
+    manifest: localDependencyManifest,
     normalizedPref: spec.normalizedPref,
-    package: localDependencyManifest,
     resolution: {
       directory: spec.dependencyPath,
       type: 'directory',

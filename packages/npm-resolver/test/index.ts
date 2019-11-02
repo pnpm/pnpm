@@ -39,9 +39,9 @@ test('resolveFromNpm()', async t => {
     registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '1.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -77,9 +77,9 @@ test('dry run', async t => {
     registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '1.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -790,7 +790,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is alread c
     const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
       registry,
     })
-    t.notOk(resolveResult!.package!['scripts'])
+    t.notOk(resolveResult!.manifest!['scripts'])
   }
 
   {
@@ -803,7 +803,7 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is alread c
     const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
       registry,
     })
-    t.ok(resolveResult!.package!['scripts'])
+    t.ok(resolveResult!.manifest!['scripts'])
   }
 
   t.end()
@@ -832,9 +832,9 @@ test('resolve when tarball URL is requested from the registry', async t => {
     registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '1.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.0.0')
   t.equal(resolveResult!.normalizedPref, `${registry}is-positive/-/is-positive-1.0.0.tgz`, 'URL spec is kept')
 
   // The resolve function does not wait for the package meta cache file to be saved
@@ -871,9 +871,9 @@ test('resolve when tarball URL is requested from the registry and alias is not s
     registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '1.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.0.0')
   t.equal(resolveResult!.normalizedPref, `${registry}is-positive/-/is-positive-1.0.0.tgz`, 'URL spec is kept')
 
   // The resolve function does not wait for the package meta cache file to be saved
@@ -921,9 +921,9 @@ test('resolve from local directory when it matches the latest version of the pac
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '1.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.0.0')
 
   t.end()
 })
@@ -968,9 +968,9 @@ test('use version from the registry if it is newer than the local one', async t 
     registry,
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '3.1.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '3.1.0')
 
   t.end()
 })
@@ -1014,9 +1014,9 @@ test('use local version if it is newer than the latest in the registry', async t
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '3.2.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '3.2.0')
 
   t.end()
 })
@@ -1069,9 +1069,9 @@ test('resolve from local directory when package is not found in the registry', a
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '1.1.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.1.0')
 
   t.end()
 })
@@ -1124,9 +1124,9 @@ test('resolve from local directory when package is not found in the registry and
     directory: '/home/istvan/src/is-positive-2.0.0',
     type: 'directory',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '2.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '2.0.0')
 
   t.end()
 })
@@ -1179,9 +1179,9 @@ test('resolve from local directory when package is not found in the registry and
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '1.1.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.1.0')
 
   t.end()
 })
@@ -1220,9 +1220,9 @@ test('resolve from local directory when the requested version is not found in th
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '100.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '100.0.0')
 
   t.end()
 })
@@ -1257,9 +1257,9 @@ test('workspace protocol: resolve from local directory even when it does not mat
     directory: '/home/istvan/src/is-positive',
     type: 'directory',
   })
-  t.ok(resolveResult!.package)
-  t.equal(resolveResult!.package!.name, 'is-positive')
-  t.equal(resolveResult!.package!.version, '3.0.0')
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '3.0.0')
 
   t.end()
 })

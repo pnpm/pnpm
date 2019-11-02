@@ -23,7 +23,7 @@ test('getLatestManifest()', async (t: tape.Test) => {
       return {
         id: 'foo/1.0.0',
         latest: '1.0.0',
-        package: {
+        manifest: {
           name: 'foo',
           version: '1.0.0',
         },
@@ -44,7 +44,7 @@ test('getLatestManifest()', async (t: tape.Test) => {
       return {
         id: 'foo/2.0.0',
         latest: '2.0.0',
-        package: {
+        manifest: {
           name: 'foo',
           version: '2.0.0',
         },
