@@ -534,10 +534,10 @@ async function resolveDependency (
       currentResolution: options.currentResolution,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
+      importerDir: ctx.prefix,
       localPackages: options.localPackages,
       lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
-      prefix: ctx.prefix,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
       sideEffectsCache: ctx.sideEffectsCache,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json

@@ -206,7 +206,6 @@ export default async (opts: HeadlessOptions) => {
       ...opts,
       importerIds: opts.importers.map(({ id }) => id),
       lockfileDir,
-      prefix: lockfileDir,
       skipped,
       virtualStoreDir,
     } as LockfileToDepGraphOptions,
@@ -263,11 +262,11 @@ export default async (opts: HeadlessOptions) => {
 
   await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
     await linkRootPackages(filteredLockfile, {
+      importerDir: prefix,
       importerId: id,
       importerModulesDir: modulesDir,
       importers: opts.importers,
       lockfileDir,
-      prefix,
       registries: opts.registries,
       rootDependencies: directDependenciesByImporterId[id],
     })
@@ -387,11 +386,11 @@ async function linkRootPackages (
   lockfile: Lockfile,
   opts: {
     registries: Registries,
+    importerDir: string,
     importerId: string,
     importerModulesDir: string,
     importers: Array<{ id: string, manifest: ImporterManifest }>,
     lockfileDir: string,
-    prefix: string,
     rootDependencies: {[alias: string]: string},
   },
 ) {
@@ -411,7 +410,7 @@ async function linkRootPackages (
         if (allDeps[alias].startsWith('link:')) {
           const isDev = lockfileImporter.devDependencies?.[alias]
           const isOptional = lockfileImporter.optionalDependencies?.[alias]
-          const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
+          const packageDir = path.join(opts.importerDir, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
@@ -425,7 +424,7 @@ async function linkRootPackages (
               isOptional && 'optionalDependencies' ||
               'dependencies',
             linkedPackage,
-            prefix: opts.prefix,
+            prefix: opts.importerDir,
           })
           return
         }
@@ -456,7 +455,7 @@ async function linkRootPackages (
             realName: pkgInfo.name,
             version: pkgInfo.version,
           },
-          prefix: opts.prefix,
+          prefix: opts.importerDir,
         })
       }),
   )
@@ -471,7 +470,6 @@ interface LockfileToDepGraphOptions {
   skipped: Set<string>,
   storeController: StoreController,
   storeDir: string,
-  prefix: string,
   registries: Registries,
   sideEffectsCacheRead: boolean,
   virtualStoreDir: string,
@@ -524,8 +522,8 @@ async function lockfileToDepGraph (
         })
         let fetchResponse = opts.storeController.fetchPackage({
           force: false,
+          lockfileDir: opts.lockfileDir,
           pkgId: packageId,
-          prefix: opts.prefix,
           resolution,
         })
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
@@ -569,7 +567,7 @@ async function lockfileToDepGraph (
       independentLeaves: opts.independentLeaves,
       lockfileDir: opts.lockfileDir,
       pkgSnapshotsByRelDepPaths: lockfile.packages,
-      prefix: opts.prefix,
+      prefix: opts.lockfileDir,
       registries: opts.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: opts.skipped,

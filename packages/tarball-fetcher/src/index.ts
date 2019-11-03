@@ -98,7 +98,7 @@ function fetchFromTarball (
   opts: FetchOptions,
 ) {
   if (resolution.tarball.startsWith('file:')) {
-    const tarball = path.join(opts.prefix, resolution.tarball.slice(5))
+    const tarball = path.join(opts.lockfileDir, resolution.tarball.slice(5))
     return fetchFromLocalTarball(tarball, target, {
       ignore: ctx.ignore,
       integrity: resolution.integrity,

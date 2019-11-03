@@ -46,6 +46,7 @@ export interface LocalPackages {
 
 export interface ResolveOptions {
   defaultTag?: string,
+  importerDir: string,
   localPackages?: LocalPackages,
   lockfileDir: string,
   preferredVersions: {
@@ -54,7 +55,6 @@ export interface ResolveOptions {
       type: 'version' | 'range' | 'tag',
     },
   },
-  prefix: string,
   registry: string,
 }
 

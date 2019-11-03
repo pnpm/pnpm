@@ -3,7 +3,7 @@ import { IntegrityMap } from 'ssri'
 
 export interface FetchOptions {
   cachedTarballLocation: string,
-  prefix: string,
+  lockfileDir: string,
   onStart?: (totalSize: number | null, attempt: number) => void,
   onProgress?: (downloaded: number) => void,
 }

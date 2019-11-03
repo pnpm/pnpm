@@ -33,8 +33,8 @@ test('store.importPackage()', async (t) => {
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const fetchResponse = await storeController.fetchPackage({
     force: false,
+    lockfileDir: tempy.directory(),
     pkgId,
-    prefix: tempy.directory(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -72,8 +72,8 @@ test('store.importPackage() by copying', async (t) => {
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const fetchResponse = await storeController.fetchPackage({
     force: false,
+    lockfileDir: tempy.directory(),
     pkgId,
-    prefix: tempy.directory(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',

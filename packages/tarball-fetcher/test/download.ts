@@ -49,7 +49,7 @@ test('fail when tarball size does not match content-length', async t => {
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
     })
     t.fail('should have failed')
   } catch (err) {
@@ -97,7 +97,7 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
   streamParser.on('data', reporter as any) // tslint:disable-line:no-any
   const { tempLocation } = await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
     cachedTarballLocation,
-    prefix: process.cwd(),
+    lockfileDir: process.cwd(),
   })
   streamParser.removeListener('data', reporter as any) // tslint:disable-line:no-any
 
@@ -136,7 +136,7 @@ test('fail when the tarball in the cache does not pass integrity check in offlin
     })
     await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
       cachedTarballLocation,
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
     })
   } catch (_err) {
     err = _err
@@ -169,7 +169,7 @@ test('retry when tarball size does not match content-length', async t => {
 
   const result = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
+    lockfileDir: process.cwd(),
   })
 
   t.equal(typeof result.tempLocation, 'string')
@@ -219,7 +219,7 @@ test('redownload incomplete cached tarballs', async t => {
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
     })
   } catch (err) {
     nock.cleanAll()
@@ -252,7 +252,7 @@ test('fail when integrity check fails two times in a row', async t => {
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
     })
     t.fail('should have failed')
   } catch (err) {
@@ -291,7 +291,7 @@ test('retry when integrity check fails', async t => {
   const params: Array<[number | null, number]> = []
   await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
+    lockfileDir: process.cwd(),
     onStart (size, attempts) {
       params.push([size, attempts])
     },
@@ -321,7 +321,7 @@ test('fail when integrity check of local file fails', async (t) => {
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
     })
   } catch (_err) {
     err = _err
@@ -352,7 +352,7 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
 
   const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
+    lockfileDir: process.cwd(),
   })
 
   t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
@@ -382,7 +382,7 @@ test("don't fail when the cache tarball does not exist", async (t) => {
 
   const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
+    lockfileDir: process.cwd(),
   })
 
   t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
@@ -417,7 +417,7 @@ test('fail when the cache tarball does not exist in offline mode', async (t) => 
     })
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
     })
   } catch (_err) {
     err = _err
@@ -450,7 +450,7 @@ test('retry on server error', async t => {
 
   const index = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
+    lockfileDir: process.cwd(),
   })
 
   t.ok(index)
@@ -479,7 +479,7 @@ test('throw error when accessing private package w/o authorization', async t => 
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
     })
   } catch (_err) {
     err = _err
@@ -535,7 +535,7 @@ test('accessing private packages', async t => {
 
   const index = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
-    prefix: process.cwd(),
+    lockfileDir: process.cwd(),
   })
 
   t.ok(index)

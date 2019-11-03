@@ -119,10 +119,10 @@ export type ResolveFromNpmOptions = {
     },
   },
 } & ({
-  prefix?: string,
+  importerDir?: string,
   localPackages?: undefined,
 } | {
-  prefix: string,
+  importerDir: string,
   localPackages: LocalPackages,
 })
 
@@ -137,8 +137,8 @@ async function resolveNpm (
   const defaultTag = opts.defaultTag || 'latest'
   const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
     defaultTag,
+    importerDir: opts.importerDir,
     localPackages: opts.localPackages,
-    prefix: opts.prefix,
     registry: opts.registry,
   })
   if (resolvedFromWorkspace) {
@@ -160,7 +160,7 @@ async function resolveNpm (
     })
   } catch (err) {
     if (opts.localPackages) {
-      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
+      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.importerDir)
       if (resolvedFromLocal) return resolvedFromLocal
     }
     throw err
@@ -169,7 +169,7 @@ async function resolveNpm (
   const meta = pickResult.meta
   if (!pickedPackage) {
     if (opts.localPackages) {
-      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
+      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.importerDir)
       if (resolvedFromLocal) return resolvedFromLocal
     }
     throw new NoMatchingVersionError({ spec, packageMeta: meta })
@@ -178,14 +178,14 @@ async function resolveNpm (
   if (opts.localPackages?.[pickedPackage.name]) {
     if (opts.localPackages[pickedPackage.name][pickedPackage.version]) {
       return {
-        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.prefix),
+        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.importerDir),
         latest: meta['dist-tags'].latest,
       }
     }
     const localVersion = pickMatchingLocalVersionOrNull(opts.localPackages[pickedPackage.name], spec)
     if (localVersion && semver.gt(localVersion, pickedPackage.version)) {
       return {
-        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.prefix),
+        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.importerDir),
         latest: meta['dist-tags'].latest,
       }
     }
@@ -212,7 +212,7 @@ function tryResolveFromWorkspace (
   opts: {
     defaultTag: string,
     localPackages?: LocalPackages,
-    prefix?: string,
+    importerDir?: string,
     registry: string,
   }
 ) {
@@ -225,10 +225,10 @@ function tryResolveFromWorkspace (
   if (!opts.localPackages) {
     throw new Error('Cannot resolve package from workspace because opts.localPackages is not defined')
   }
-  if (!opts.prefix) {
-    throw new Error('Cannot resolve package from workspace because opts.prefix is not defined')
+  if (!opts.importerDir) {
+    throw new Error('Cannot resolve package from workspace because opts.importerDir is not defined')
   }
-  const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
+  const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.importerDir)
   if (!resolvedFromLocal) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
@@ -241,12 +241,12 @@ function tryResolveFromWorkspace (
 function tryResolveFromLocalPackages (
   localPackages: LocalPackages,
   spec: RegistryPackageSpec,
-  prefix: string,
+  importerDir: string,
 ) {
   if (!localPackages[spec.name]) return null
   const localVersion = pickMatchingLocalVersionOrNull(localPackages[spec.name], spec)
   if (!localVersion) return null
-  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref, prefix)
+  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref, importerDir)
 }
 
 function pickMatchingLocalVersionOrNull (
@@ -277,10 +277,10 @@ function resolveFromLocalPackage (
     manifest: DependencyManifest,
   },
   normalizedPref: string | undefined,
-  prefix: string,
+  importerDir: string,
 ) {
   return {
-    id: `link:${normalize(path.relative(prefix, localPackage.dir))}`,
+    id: `link:${normalize(path.relative(importerDir, localPackage.dir))}`,
     manifest: localPackage.manifest,
     normalizedPref,
     resolution: {

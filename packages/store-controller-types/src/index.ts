@@ -68,9 +68,9 @@ export type FetchPackageToStoreFunction = (
 export interface FetchPackageToStoreOptions {
   fetchRawManifest?: boolean,
   force: boolean,
-  pkgName?: string,
+  lockfileDir: string,
   pkgId: string,
-  prefix: string,
+  pkgName?: string,
   resolution: Resolution,
 }
 
@@ -98,9 +98,9 @@ export interface RequestPackageOptions {
   currentResolution?: Resolution,
   defaultTag?: string,
   downloadPriority: number,
-  lockfileDir: string,
+  importerDir: string,
   localPackages?: LocalPackages,
-  prefix: string,
+  lockfileDir: string,
   preferredVersions: {
     [packageName: string]: {
       selector: string,

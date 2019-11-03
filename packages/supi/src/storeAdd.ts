@@ -42,7 +42,7 @@ export default async function (
         downloadPriority: 1,
         lockfileDir: prefix,
         preferredVersions: {},
-        prefix,
+        importerDir: prefix,
         registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
       })
       await pkgResponse.files!()

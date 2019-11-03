@@ -47,14 +47,14 @@ test('server', async t => {
     port,
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
-  const prefix = process.cwd()
+  const importerDir = process.cwd()
   const response = await storeCtrl.requestPackage(
     { alias: 'is-positive', pref: '1.0.0' },
     {
       downloadPriority: 0,
-      lockfileDir: prefix,
+      importerDir,
+      lockfileDir: importerDir,
       preferredVersions: {},
-      prefix,
       registry,
       sideEffectsCache: false,
     }
@@ -92,8 +92,8 @@ test('fetchPackage', async t => {
   const response = await storeCtrl.fetchPackage({
     fetchRawManifest: true,
     force: false,
+    lockfileDir: process.cwd(),
     pkgId,
-    prefix: process.cwd(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -141,14 +141,14 @@ test('server errors should arrive to the client', async t => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   let caught = false
   try {
-    const prefix = process.cwd()
+    const importerDir = process.cwd()
     await storeCtrl.requestPackage(
       { alias: 'not-an-existing-package', pref: '1.0.0' },
       {
         downloadPriority: 0,
-        lockfileDir: prefix,
+        importerDir,
+        lockfileDir: importerDir,
         preferredVersions: {},
-        prefix,
         registry,
         sideEffectsCache: false,
       }
@@ -309,15 +309,15 @@ test('find package usages', async t => {
 
   const dependency = { alias: 'is-positive', pref: '1.0.0' }
 
-  const prefix = process.cwd()
+  const importerDir = process.cwd()
   // First install a dependency
   const requestResponse = await storeCtrl.requestPackage(
     dependency,
     {
       downloadPriority: 0,
-      lockfileDir: prefix,
+      importerDir,
+      lockfileDir: importerDir,
       preferredVersions: {},
-      prefix,
       registry,
       sideEffectsCache: false,
     }

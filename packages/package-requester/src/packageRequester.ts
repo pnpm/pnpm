@@ -132,10 +132,10 @@ async function resolveAndFetch (
     if (!skipResolution || options.skipFetch || pkgId?.startsWith('file:')) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         defaultTag: options.defaultTag,
+        importerDir: options.importerDir,
         localPackages: options.localPackages,
         lockfileDir: options.lockfileDir,
         preferredVersions: options.preferredVersions,
-        prefix: options.prefix,
         registry: options.registry,
       }), { priority: options.downloadPriority })
 
@@ -204,9 +204,9 @@ async function resolveAndFetch (
     const fetchResult = ctx.fetchPackageToStore({
       fetchRawManifest: updated || !manifest,
       force: forceFetch,
+      lockfileDir: options.lockfileDir,
       pkgId: id,
       pkgName: manifest?.name,
-      prefix: options.lockfileDir,
       resolution: resolution,
     })
 
@@ -256,7 +256,7 @@ function fetchToStore (
     force: boolean,
     pkgName?: string,
     pkgId: string,
-    prefix: string,
+    lockfileDir: string,
     resolution: Resolution,
   },
 ): {
@@ -265,7 +265,7 @@ function fetchToStore (
   finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
-  const targetRelative = pkgIdToFilename(opts.pkgId, opts.prefix)
+  const targetRelative = pkgIdToFilename(opts.pkgId, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
@@ -373,7 +373,7 @@ function fetchToStore (
         !opts.force && targetExists &&
         (
           isLocalTarballDep === false ||
-          await tarballIsUpToDate(opts.resolution as any, target, opts.prefix) // tslint:disable-line
+          await tarballIsUpToDate(opts.resolution as any, target, opts.lockfileDir) // tslint:disable-line
         )
       ) {
         // if target exists and it wasn't modified, then no need to refetch it
@@ -395,7 +395,7 @@ function fetchToStore (
         }
         packageRequestLogger.warn({
           message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
-          prefix: opts.prefix,
+          prefix: opts.lockfileDir,
         })
       }
 
@@ -418,6 +418,7 @@ function fetchToStore (
             target,
             {
               cachedTarballLocation: path.join(ctx.storeDir, opts.pkgId, 'packed.tgz'),
+              lockfileDir: opts.lockfileDir,
               onProgress: (downloaded) => {
                 fetchingProgressLogger.debug({
                   downloaded,
@@ -433,7 +434,6 @@ function fetchToStore (
                   status: 'started',
                 })
               },
-              prefix: opts.prefix,
             },
           ), { priority })
 
@@ -519,7 +519,7 @@ async function tarballIsUpToDate (
     tarball: string,
   },
   pkgInStoreLocation: string,
-  prefix: string,
+  lockfileDir: string,
 ) {
   let currentIntegrity!: string
   try {
@@ -529,7 +529,7 @@ async function tarballIsUpToDate (
   }
   if (resolution.integrity && currentIntegrity !== resolution.integrity) return false
 
-  const tarball = path.join(prefix, resolution.tarball.slice(5))
+  const tarball = path.join(lockfileDir, resolution.tarball.slice(5))
   const tarballStream = fs.createReadStream(tarball)
   try {
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
@@ -577,7 +577,7 @@ async function fetcher (
   } catch (err) {
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,
-      prefix: opts.prefix,
+      prefix: opts.lockfileDir,
     })
     throw err
   }

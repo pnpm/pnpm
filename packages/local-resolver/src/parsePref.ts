@@ -19,11 +19,11 @@ export interface LocalPackageSpec {
 
 export default function parsePref (
   pref: string,
-  importerPrefix: string,
+  importerDir: string,
   lockfileDir: string,
 ): LocalPackageSpec | null {
   if (pref.startsWith('link:')) {
-    return fromLocal(pref, importerPrefix, lockfileDir, 'directory')
+    return fromLocal(pref, importerDir, lockfileDir, 'directory')
   }
   if (pref.endsWith('.tgz')
     || pref.endsWith('.tar.gz')
@@ -33,7 +33,7 @@ export default function parsePref (
     || isFilespec.test(pref)
   ) {
     const type = isFilename.test(pref) ? 'file' : 'directory'
-    return fromLocal(pref, importerPrefix, lockfileDir, type)
+    return fromLocal(pref, importerDir, lockfileDir, type)
   }
   if (pref.startsWith('path:')) {
     const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
@@ -49,12 +49,10 @@ export default function parsePref (
 
 function fromLocal (
   pref: string,
-  importerPrefix: string,
+  importerDir: string,
   lockfileDir: string,
   type: 'file' | 'directory',
 ): LocalPackageSpec {
-  if (!importerPrefix) importerPrefix = process.cwd()
-
   const spec = pref.replace(/\\/g, '/')
     .replace(/^(file|link):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows
     .replace(/^(file|link):(?:[/]*([~./]))?/, '$2')
@@ -67,16 +65,16 @@ function fromLocal (
     fetchSpec = resolvePath(os.homedir(), spec.slice(2))
     normalizedPref = `${protocol}${spec}`
   } else {
-    fetchSpec = resolvePath(importerPrefix, spec)
+    fetchSpec = resolvePath(importerDir, spec)
     if (isAbsolute(spec)) {
       normalizedPref = `${protocol}${spec}`
     } else {
-      normalizedPref = `${protocol}${path.relative(importerPrefix, fetchSpec)}`
+      normalizedPref = `${protocol}${path.relative(importerDir, fetchSpec)}`
     }
   }
 
-  const dependencyPath = normalize(path.relative(importerPrefix, fetchSpec))
-  const id = type === 'directory' || importerPrefix === lockfileDir
+  const dependencyPath = normalize(path.relative(importerDir, fetchSpec))
+  const id = type === 'directory' || importerDir === lockfileDir
     ? `${protocol}${dependencyPath}`
     : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
 

@@ -47,12 +47,12 @@ test('request package', async t => {
   })
   t.equal(typeof requestPackage, 'function')
 
-  const prefix = tempy.directory()
+  const importerDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
-    lockfileDir: prefix,
+    importerDir,
+    lockfileDir: importerDir,
     preferredVersions: {},
-    prefix,
     registry,
   }) as PackageResponse & {
     body: {inStoreLocation: string, latest: string, manifest: {name: string}},
@@ -98,12 +98,12 @@ test('request package but skip fetching', async t => {
   })
   t.equal(typeof requestPackage, 'function')
 
-  const prefix = tempy.directory()
+  const importerDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
-    lockfileDir: prefix,
+    importerDir,
+    lockfileDir: importerDir,
     preferredVersions: {},
-    prefix,
     registry,
     skipFetch: true,
   }) as PackageResponse & {
@@ -142,7 +142,7 @@ test('request package but skip fetching, when resolution is already available', 
   })
   t.equal(typeof requestPackage, 'function')
 
-  const prefix = tempy.directory()
+  const importerDir = tempy.directory()
   const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPackageId: 'registry.npmjs.org/is-positive/1.0.0',
     currentResolution: {
@@ -151,9 +151,9 @@ test('request package but skip fetching, when resolution is already available', 
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
     downloadPriority: 0,
-    lockfileDir: prefix,
+    importerDir,
+    lockfileDir: importerDir,
     preferredVersions: {},
-    prefix,
     registry,
     skipFetch: true,
     update: false,
@@ -189,9 +189,9 @@ test('request package but skip fetching, when resolution is already available', 
 })
 
 test('refetch local tarball if its integrity has changed', async t => {
-  const prefix = tempy.directory()
-  const tarballPath = path.join(prefix, 'tarball.tgz')
-  const tarballRelativePath = path.relative(prefix, tarballPath)
+  const importerDir = tempy.directory()
+  const tarballPath = path.join(importerDir, 'tarball.tgz')
+  const tarballRelativePath = path.relative(importerDir, tarballPath)
   await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
   const tarball = `file:${tarballRelativePath}`
   const wantedPackage = { pref: tarball }
@@ -200,9 +200,9 @@ test('refetch local tarball if its integrity has changed', async t => {
   const requestPackageOpts = {
     currentPackageId: pkgId,
     downloadPriority: 0,
-    lockfileDir: prefix,
+    importerDir,
+    lockfileDir: importerDir,
     preferredVersions: {},
-    prefix,
     registry,
     skipFetch: true,
     update: false,
@@ -288,17 +288,17 @@ test('refetch local tarball if its integrity has changed', async t => {
 })
 
 test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async t => {
-  const prefix = tempy.directory()
-  const tarballPath = path.join(prefix, 'tarball.tgz')
+  const importerDir = tempy.directory()
+  const tarballPath = path.join(importerDir, 'tarball.tgz')
   await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
   const tarball = `file:${tarballPath}`
   const wantedPackage = { pref: tarball }
   const storeDir = path.join(__dirname, '..', '.store')
   const requestPackageOpts = {
     downloadPriority: 0,
-    lockfileDir: prefix,
+    importerDir,
+    lockfileDir: importerDir,
     preferredVersions: {},
-    prefix,
     registry,
     update: false,
   }
@@ -377,8 +377,8 @@ test('fetchPackageToStore()', async (t) => {
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const fetchResult = await packageRequester.fetchPackageToStore({
     force: false,
+    lockfileDir: tempy.directory(),
     pkgId,
-    prefix: tempy.directory(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -399,8 +399,8 @@ test('fetchPackageToStore()', async (t) => {
   const fetchResult2 = await packageRequester.fetchPackageToStore({
     fetchRawManifest: true,
     force: false,
+    lockfileDir: tempy.directory(),
     pkgId,
-    prefix: tempy.directory(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -433,13 +433,13 @@ test('fetchPackageToStore() concurrency check', async (t) => {
   })
 
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
-  const prefix1 = tempy.directory()
-  const prefix2 = tempy.directory()
+  const importerDir1 = tempy.directory()
+  const importerDir2 = tempy.directory()
   const fetchResults = await Promise.all([
     packageRequester.fetchPackageToStore({
       force: false,
+      lockfileDir: importerDir1,
       pkgId,
-      prefix: prefix1,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
         registry: 'https://registry.npmjs.org/',
@@ -448,8 +448,8 @@ test('fetchPackageToStore() concurrency check', async (t) => {
     }),
     packageRequester.fetchPackageToStore({
       force: false,
+      lockfileDir: importerDir2,
       pkgId,
-      prefix: prefix2,
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
         registry: 'https://registry.npmjs.org/',
@@ -523,8 +523,8 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
   try {
     const badRequest = await packageRequester.fetchPackageToStore({
       force: false,
+      lockfileDir: tempy.directory(),
       pkgId,
-      prefix: tempy.directory(),
       resolution: {
         integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
         registry: 'https://registry.npmjs.org/',
@@ -539,8 +539,8 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
 
   const fetchResult = await packageRequester.fetchPackageToStore({
     force: false,
+    lockfileDir: tempy.directory(),
     pkgId,
-    prefix: tempy.directory(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -568,14 +568,14 @@ test('always return a package manifest in the response', async t => {
     verifyStoreIntegrity: true,
   })
   t.equal(typeof requestPackage, 'function')
-  const prefix = tempy.directory()
+  const importerDir = tempy.directory()
 
   {
     const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       downloadPriority: 0,
-      lockfileDir: prefix,
+      importerDir,
+      lockfileDir: importerDir,
       preferredVersions: {},
-      prefix,
       registry,
     }) as PackageResponse & {body: {manifest: {name: string}}}
 
@@ -592,9 +592,9 @@ test('always return a package manifest in the response', async t => {
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
       downloadPriority: 0,
-      lockfileDir: prefix,
+      importerDir,
+      lockfileDir: importerDir,
       preferredVersions: {},
-      prefix,
       registry,
     }) as PackageResponse & {bundledManifest: () => Promise<DependencyManifest>}
 
@@ -636,15 +636,15 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
     packageRequester.fetchPackageToStore({
       fetchRawManifest: false,
       force: false,
+      lockfileDir: tempy.directory(),
       pkgId,
-      prefix: tempy.directory(),
       resolution,
     }),
     packageRequester.fetchPackageToStore({
       fetchRawManifest: true,
       force: false,
+      lockfileDir: tempy.directory(),
       pkgId,
-      prefix: tempy.directory(),
       resolution,
     })
   ])
@@ -676,8 +676,8 @@ test('refetch package to store if it has been modified', async (t) => {
     const fetchResult = await packageRequester.fetchPackageToStore({
       fetchRawManifest: false,
       force: false,
+      lockfileDir: tempy.directory(),
       pkgId,
-      prefix: tempy.directory(),
       resolution,
     })
 
@@ -694,7 +694,7 @@ test('refetch package to store if it has been modified', async (t) => {
 
   const reporter = sinon.spy()
   streamParser.on('data', reporter)
-  const prefix = tempy.directory()
+  const importerDir = tempy.directory()
 
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
@@ -707,8 +707,8 @@ test('refetch package to store if it has been modified', async (t) => {
     const fetchResult = await packageRequester.fetchPackageToStore({
       fetchRawManifest: false,
       force: false,
+      lockfileDir: importerDir,
       pkgId,
-      prefix,
       resolution,
     })
 
@@ -723,7 +723,7 @@ test('refetch package to store if it has been modified', async (t) => {
     level: 'warn',
     message: `Refetching ${path.join(storeDir, pkgId)} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
-    prefix,
+    prefix: importerDir,
   }), 'refetch logged')
 
   t.end()
@@ -752,8 +752,8 @@ test('refetch package to store if it has no integrity checksums and verification
     const fetchResult = await packageRequester.fetchPackageToStore({
       fetchRawManifest: false,
       force: false,
+      lockfileDir: tempy.directory(),
       pkgId,
-      prefix: tempy.directory(),
       resolution,
     })
 
@@ -765,7 +765,7 @@ test('refetch package to store if it has no integrity checksums and verification
 
   const reporter = sinon.spy()
   streamParser.on('data', reporter)
-  const prefix = tempy.directory()
+  const importerDir = tempy.directory()
 
   {
     const packageRequester = createPackageRequester(resolve, fetch, {
@@ -778,8 +778,8 @@ test('refetch package to store if it has no integrity checksums and verification
     const fetchResult = await packageRequester.fetchPackageToStore({
       fetchRawManifest: false,
       force: false,
+      lockfileDir: importerDir,
       pkgId,
-      prefix,
       resolution,
     })
 
@@ -795,7 +795,7 @@ test('refetch package to store if it has no integrity checksums and verification
     level: 'warn',
     message: `Refetching ${path.join(storeDir, pkgId)} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
-    prefix,
+    prefix: importerDir,
   }), 'refetch logged')
 
   t.end()
