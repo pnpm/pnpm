@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "rimraf": "3.0.0",
-    "tslint-config-standard": "8.0.1",
+    "tslint-config-standard": "9.0.0",
     "tslint-eslint-rules": "5.4.0"
   },
   "scripts": {
