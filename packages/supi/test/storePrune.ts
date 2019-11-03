@@ -26,7 +26,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
       dependencyNames: ['is-negative'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true }))
 
@@ -82,7 +82,7 @@ test('keep dependencies used by others', async (t: tape.Test) => {
       dependencyNames: ['camelcase-keys'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true }))
 
@@ -117,7 +117,7 @@ test('keep dependency used by package', async (t: tape.Test) => {
       dependencyNames: ['is-not-positive'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true }))
 

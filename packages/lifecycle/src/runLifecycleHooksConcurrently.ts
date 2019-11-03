@@ -4,7 +4,7 @@ import runLifecycleHook from './runLifecycleHook'
 
 export default async function runLifecycleHooksConcurrently (
   stages: string[],
-  importers: Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string, modulesDir: string }>,
+  importers: Array<{ buildIndex: number, manifest: ImporterManifest, rootDir: string, modulesDir: string }>,
   childConcurrency: number,
   opts: {
     extraBinPaths?: string[],
@@ -13,7 +13,7 @@ export default async function runLifecycleHooksConcurrently (
     unsafePerm: boolean,
   },
 ) {
-  const importersByBuildIndex = new Map<number, Array<{ prefix: string, manifest: ImporterManifest, modulesDir: string }>>()
+  const importersByBuildIndex = new Map<number, Array<{ rootDir: string, manifest: ImporterManifest, modulesDir: string }>>()
   for (const importer of importers) {
     if (!importersByBuildIndex.has(importer.buildIndex)) {
       importersByBuildIndex.set(importer.buildIndex, [importer])
@@ -23,13 +23,13 @@ export default async function runLifecycleHooksConcurrently (
   }
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort()
   const groups = sortedBuildIndexes.map((buildIndex) => {
-    const importers = importersByBuildIndex.get(buildIndex) as Array<{ prefix: string, manifest: ImporterManifest, modulesDir: string }>
-    return importers.map(({ manifest, modulesDir, prefix }) =>
+    const importers = importersByBuildIndex.get(buildIndex) as Array<{ rootDir: string, manifest: ImporterManifest, modulesDir: string }>
+    return importers.map(({ manifest, modulesDir, rootDir }) =>
       async () => {
         const runLifecycleHookOpts = {
-          depPath: prefix,
+          depPath: rootDir,
           extraBinPaths: opts.extraBinPaths,
-          pkgRoot: prefix,
+          pkgRoot: rootDir,
           rawConfig: opts.rawConfig,
           rootNodeModulesDir: modulesDir,
           stdio: opts.stdio,

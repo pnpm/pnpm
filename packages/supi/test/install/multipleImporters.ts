@@ -43,7 +43,7 @@ test('install only the dependencies of the specified importer', async (t) => {
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
@@ -56,7 +56,7 @@ test('install only the dependencies of the specified importer', async (t) => {
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ]
   await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
@@ -95,7 +95,7 @@ test('dependencies of other importers are not pruned when installing for a subse
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
@@ -108,7 +108,7 @@ test('dependencies of other importers are not pruned when installing for a subse
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ], await testDefaults())
 
@@ -157,7 +157,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
@@ -170,7 +170,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ]
   const [{ manifest }] = await mutateModules(importers, await testDefaults())
@@ -206,7 +206,7 @@ test('adding a new dev dependency to project that uses a shared lockfile', async
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
   ], await testDefaults())
   manifest = await addDependenciesToPackage(manifest, ['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
@@ -240,13 +240,13 @@ test('headless install is used when package linked to another package in the wor
       buildIndex: 0,
       manifest: pkg1,
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: pkg2,
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ]
   await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
@@ -290,13 +290,13 @@ test('headless install is used with an up-to-date lockfile when package referenc
       buildIndex: 0,
       manifest: pkg1,
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: pkg2,
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ]
   const localPackages = {
@@ -353,7 +353,7 @@ test('current lockfile contains only installed dependencies when adding a new im
       buildIndex: 0,
       manifest: pkg1,
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
   ], await testDefaults({ lockfileOnly: true }))
 
@@ -362,7 +362,7 @@ test('current lockfile contains only installed dependencies when adding a new im
       buildIndex: 0,
       manifest: pkg2,
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ], await testDefaults())
 
@@ -384,7 +384,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
@@ -394,7 +394,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ], await testDefaults())
 
@@ -455,7 +455,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
   ], await testDefaults())
 
@@ -477,7 +477,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
@@ -487,7 +487,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ], await testDefaults())
 
@@ -548,7 +548,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
   ], await testDefaults({ frozenLockfile: true }))
 
@@ -569,7 +569,7 @@ test('adding a new dependency with the workspace: protocol', async (t) => {
         version: '1.0.0',
       },
       mutation: 'installSome',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
   ], await testDefaults({
     localPackages: {

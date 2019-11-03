@@ -58,7 +58,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
         dependencySelectors: ['file:pkg.tgz'],
         manifest: {},
         mutation: 'installSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ],
     await testDefaults({ lockfileDir }),
@@ -76,7 +76,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     await testDefaults({ frozenLockfile: true, lockfileDir }),
@@ -84,7 +84,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
 
   await project.has('tar-pkg-with-dep')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ lockfileDir }))
+  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ lockfileDir }))
 
   t.pass('rebuild did not fail')
 })

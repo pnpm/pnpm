@@ -28,12 +28,12 @@ const vacuum = promisify(vacuumCB)
 
 export default async function prune (
   importers: Array<{
-    bin: string,
+    binsDir: string,
     id: string,
     modulesDir: string,
-    prefix: string,
     pruneDirectDependencies?: boolean,
     removePackages?: string[],
+    rootDir: string,
   }>,
   opts: {
     dryRun?: boolean,
@@ -55,7 +55,7 @@ export default async function prune (
     registries: opts.registries,
     skipped: opts.skipped,
   })
-  await Promise.all(importers.map(async ({ bin, id, modulesDir, prefix, pruneDirectDependencies, removePackages }) => {
+  await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
     const currentImporter = opts.currentLockfile.importers[id] || {} as LockfileImporter
     const currentPkgs = R.toPairs(mergeDependencies(currentImporter))
     const wantedPkgs = R.toPairs(mergeDependencies(wantedLockfile.importers[id]))
@@ -88,10 +88,10 @@ export default async function prune (
           undefined,
         name: depName,
       }, {
-        bin,
+        binsDir,
         dryRun: opts.dryRun,
         modulesDir,
-        prefix,
+        rootDir,
       })
     }))
   }))
@@ -120,7 +120,7 @@ export default async function prune (
     if (orphanDepPaths.length) {
       if (opts.currentLockfile.packages && opts.hoistedModulesDir) {
         const modulesDir = opts.hoistedModulesDir
-        const bin = path.join(opts.hoistedModulesDir, '.bin')
+        const binsDir = path.join(opts.hoistedModulesDir, '.bin')
         const prefix = path.join(opts.virtualStoreDir, '../..')
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
           if (opts.hoistedAliases[orphanDepPath]) {
@@ -128,10 +128,10 @@ export default async function prune (
               return removeDirectDependency({
                 name: alias,
               }, {
-                bin,
+                binsDir,
                 modulesDir,
                 muteLogs: true,
-                prefix,
+                rootDir: prefix,
               })
             }))
           }

@@ -10,8 +10,8 @@ export default async (input: string[], opts: PnpmOptions) => {
       buildIndex: 0,
       manifest: await readImporterManifestOnly(process.cwd(), opts),
       mutation: 'install',
-      prefix: process.cwd(),
       pruneDirectDependencies: true,
+      rootDir: process.cwd(),
     },
   ], {
     ...opts,

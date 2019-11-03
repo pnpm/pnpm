@@ -18,8 +18,8 @@ export default async (
     childConcurrency?: number,
     depsToBuild?: Set<string>,
     extraBinPaths?: string[],
+    lockfileDir: string,
     optional: boolean,
-    prefix: string,
     rawConfig: object,
     unsafePerm: boolean,
     userAgent: string,
@@ -28,7 +28,7 @@ export default async (
     rootNodeModulesDir: string,
   },
 ) => {
-  const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
+  const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
   const nodesToBuild = new Set<string>()
   getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
@@ -63,8 +63,8 @@ async function buildDependency (
   depGraph: DependenciesGraph,
   opts: {
     extraBinPaths?: string[],
+    lockfileDir: string,
     optional: boolean,
-    prefix: string,
     rawConfig: object,
     rootNodeModulesDir: string,
     sideEffectsCacheWrite: boolean,
@@ -96,13 +96,13 @@ async function buildDependency (
         if (err.statusCode === 403) {
           logger.warn({
             message: `The store server disabled upload requests, could not upload ${depNode.packageId}`,
-            prefix: opts.prefix,
+            prefix: opts.lockfileDir,
           })
         } else {
           logger.warn({
             error: err,
             message: `An error occurred while uploading ${depNode.packageId}`,
-            prefix: opts.prefix,
+            prefix: opts.lockfileDir,
           })
         }
       }
@@ -118,7 +118,7 @@ async function buildDependency (
           name: pkg.name,
           version: pkg.version,
         },
-        prefix: opts.prefix,
+        prefix: opts.lockfileDir,
         reason: 'build_failure',
       })
       return

@@ -44,7 +44,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
       dependencyNames: ['is-negative'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true, reporter })))[0].manifest
 
@@ -99,7 +99,7 @@ test('uninstall a dependency that is not present in node_modules', async (t) => 
       dependencyNames: ['is-negative'],
       manifest: {},
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ reporter }))
 
@@ -120,7 +120,7 @@ test('uninstall scoped package', async (t) => {
       dependencyNames: ['@zkochan/logger'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true })))[0].manifest
 
@@ -141,7 +141,7 @@ test('uninstall tarball dependency', async (t: tape.Test) => {
       dependencyNames: ['is-array'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], opts))[0].manifest
 
@@ -159,7 +159,7 @@ test('uninstall package with dependencies and do not touch other deps', async (t
       dependencyNames: ['camelcase-keys'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true })))[0].manifest
 
@@ -196,7 +196,7 @@ test('uninstall package with its bin files', async (t) => {
       dependencyNames: ['sh-hello-world'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true })))[0].manifest
 
@@ -222,7 +222,7 @@ test('relative link is uninstalled', async (t: tape.Test) => {
       dependencyNames: [linkedPkgName],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], opts)
 
@@ -246,7 +246,7 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
       dependencyNames: ['with-postinstall-b'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ save: true }))
 
@@ -285,13 +285,13 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
         buildIndex: 0,
         manifest: pkgs[0],
         mutation: 'install',
-        prefix: path.resolve('project-1'),
+        rootDir: path.resolve('project-1'),
       },
       {
         buildIndex: 0,
         manifest: pkgs[1],
         mutation: 'install',
-        prefix: path.resolve('project-2'),
+        rootDir: path.resolve('project-2'),
       },
     ],
     await testDefaults({
@@ -322,7 +322,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       dependencyNames: ['is-positive', 'project-2'],
       manifest: pkgs[0],
       mutation: 'uninstallSome',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
   ], await testDefaults({
     lockfileDir: process.cwd(),
@@ -376,7 +376,7 @@ test('uninstall remove modules that is not in package.json', async (t) => {
         dependencyNames: ['foo'],
         manifest: {},
         mutation: 'uninstallSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ],
     await testDefaults(),

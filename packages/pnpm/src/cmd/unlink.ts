@@ -16,7 +16,7 @@ export default async function (input: string[], opts: PnpmOptions) {
         dependencyNames: input,
         manifest: await readImporterManifestOnly(opts.dir, opts),
         mutation: 'unlinkSome',
-        prefix: opts.dir,
+        rootDir: opts.dir,
       },
     ], unlinkOpts)
   }
@@ -24,7 +24,7 @@ export default async function (input: string[], opts: PnpmOptions) {
     {
       manifest: await readImporterManifestOnly(opts.dir, opts),
       mutation: 'unlink',
-      prefix: opts.dir,
+      rootDir: opts.dir,
     },
   ], unlinkOpts)
 }

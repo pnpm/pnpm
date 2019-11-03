@@ -72,7 +72,7 @@ export default function (
       // only the top dependencies that were already installed
       // to avoid warnings about unresolved peer dependencies
       topParents: Array<{name: string, version: string}>,
-      prefix: string, // is only needed for logging
+      rootDir: string, // is only needed for logging
       id: string,
     }>,
     dependenciesTree: DependenciesTree,
@@ -88,7 +88,7 @@ export default function (
   const depGraph: DependenciesGraph = {}
   const absolutePathsByNodeId = {}
 
-  for (const { directNodeIdsByAlias, topParents, prefix } of opts.importers) {
+  for (const { directNodeIdsByAlias, topParents, rootDir } of opts.importers) {
     const pkgsByName = Object.assign(
       R.fromPairs(
         topParents.map(({ name, version }: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
@@ -116,8 +116,8 @@ export default function (
       depGraph,
       independentLeaves: opts.independentLeaves,
       lockfileDir: opts.lockfileDir,
-      prefix,
       purePkgs: new Set(),
+      rootDir,
       strictPeerDependencies: opts.strictPeerDependencies,
       virtualStoreDir: opts.virtualStoreDir,
     })
@@ -153,7 +153,7 @@ function resolvePeersOfNode (
     independentLeaves: boolean,
     virtualStoreDir: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
-    prefix: string,
+    rootDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
   },
@@ -180,7 +180,7 @@ function resolvePeersOfNode (
       node,
       nodeId,
       parentPkgs,
-      prefix: ctx.prefix,
+      rootDir: ctx.rootDir,
       strictPeerDependencies: ctx.strictPeerDependencies,
     })
 
@@ -268,7 +268,7 @@ function resolvePeersOfChildren (
     purePkgs: Set<string>,
     depGraph: DependenciesGraph,
     dependenciesTree: DependenciesTree,
-    prefix: string,
+    rootDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
   },
@@ -295,7 +295,7 @@ function resolvePeers (
     node: DependenciesTreeNode,
     parentPkgs: ParentRefs,
     dependenciesTree: DependenciesTree,
-    prefix: string,
+    rootDir: string,
     strictPeerDependencies: boolean,
   },
 ): {
@@ -309,7 +309,7 @@ function resolvePeers (
 
     if (!resolved || resolved.nodeId && !ctx.dependenciesTree[resolved.nodeId].installable) {
       try {
-        const { version } = importFrom(ctx.prefix, `${peerName}/package.json`)
+        const { version } = importFrom(ctx.rootDir, `${peerName}/package.json`)
         resolved = {
           depth: -1,
           version,
@@ -329,7 +329,7 @@ function resolvePeers (
         }
         logger.warn({
           message,
-          prefix: ctx.prefix,
+          prefix: ctx.rootDir,
         })
         continue
       }
@@ -345,7 +345,7 @@ function resolvePeers (
       }
       logger.warn({
         message,
-        prefix: ctx.prefix,
+        prefix: ctx.rootDir,
       })
     }
 

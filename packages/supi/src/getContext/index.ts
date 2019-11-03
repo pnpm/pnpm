@@ -48,9 +48,9 @@ export interface PnpmContext<T> {
 }
 
 export interface ImportersOptions {
-  bin?: string,
+  binsDir?: string,
   manifest: ImporterManifest,
-  prefix: string,
+  rootDir: string,
 }
 
 export default async function getContext<T> (
@@ -107,7 +107,7 @@ export default async function getContext<T> (
   importers.forEach((importer) => {
     packageManifestLogger.debug({
       initial: importer.manifest,
-      prefix: importer.prefix,
+      prefix: importer.rootDir,
     })
   })
   if (opts.hooks?.readPackage) {
@@ -166,7 +166,7 @@ async function validateNodeModules (
   importers: Array<{
     modulesDir: string,
     id: string,
-    prefix: string,
+    rootDir: string,
   }>,
   opts: {
     currentHoistPattern?: string[],
@@ -252,7 +252,7 @@ async function validateNodeModules (
         storeDir: opts.storeDir,
         virtualStoreDir: opts.virtualStoreDir,
       })
-      if (opts.lockfileDir !== importer.prefix && opts.include && modules.included) {
+      if (opts.lockfileDir !== importer.rootDir && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('INCLUDED_DEPS_CONFLICT',
@@ -272,12 +272,12 @@ async function validateNodeModules (
 async function purgeModulesDirsOfImporter (
   importer: {
     modulesDir: string,
-    prefix: string,
+    rootDir: string,
   }
 ) {
   logger.info({
     message: `Recreating ${importer.modulesDir}`,
-    prefix: importer.prefix,
+    prefix: importer.rootDir,
   })
   try {
     await rimraf(importer.modulesDir)
@@ -359,7 +359,7 @@ export async function getContextForSingleImporter (
   } = await readImportersContext(
     [
       {
-        prefix: opts.dir,
+        rootDir: opts.dir,
       },
     ],
     opts.lockfileDir,
@@ -428,7 +428,7 @@ export async function getContextForSingleImporter (
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
-      importers: [{ id: importerId, prefix: opts.dir }],
+      importers: [{ id: importerId, rootDir: opts.dir }],
       lockfileDir: opts.lockfileDir,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,

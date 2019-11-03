@@ -76,7 +76,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildPkgs (
-  importers: Array<{ manifest: ImporterManifest, prefix: string }>,
+  importers: Array<{ manifest: ImporterManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
@@ -105,10 +105,10 @@ export async function rebuildPkgs (
   })
 
   let pkgs = [] as string[]
-  for (const { prefix } of importers) {
+  for (const { rootDir } of importers) {
     pkgs = [
       ...pkgs,
-      ...findPackages(packages, searched, { prefix }),
+      ...findPackages(packages, searched, { prefix: rootDir }),
     ]
   }
 
@@ -122,7 +122,7 @@ export async function rebuildPkgs (
 }
 
 export async function rebuild (
-  importers: Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>,
+  importers: Array<{ buildIndex: number, manifest: ImporterManifest, rootDir: string }>,
   maybeOpts: RebuildOptions,
 ) {
   const reporter = maybeOpts?.reporter
@@ -235,7 +235,7 @@ async function _rebuild (
     virtualStoreDir: string,
     rootModulesDir: string,
     currentLockfile: Lockfile,
-    importers: Array<{ id: string, prefix: string }>,
+    importers: Array<{ id: string, rootDir: string }>,
     independentLeaves: boolean,
     extraBinPaths: string[],
   },
@@ -350,8 +350,8 @@ async function _rebuild (
         return linkBins(modules, binPath, { warn })
       })),
   )
-  await Promise.all(ctx.importers.map(({ prefix }) => limitLinking(() => {
-    const modules = path.join(prefix, 'node_modules')
+  await Promise.all(ctx.importers.map(({ rootDir }) => limitLinking(() => {
+    const modules = path.join(rootDir, 'node_modules')
     const binPath = path.join(modules, '.bin')
     return linkBins(modules, binPath, {
       allowExoticManifests: true,

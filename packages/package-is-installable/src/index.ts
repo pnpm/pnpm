@@ -28,7 +28,7 @@ export default function packageIsInstallable (
     nodeVersion?: string,
     optional: boolean,
     pnpmVersion: string,
-    prefix: string,
+    lockfileDir: string,
   },
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
@@ -37,7 +37,7 @@ export default function packageIsInstallable (
 
   installCheckLogger.warn({
     message: warn.message,
-    prefix: options.prefix,
+    prefix: options.lockfileDir,
   })
 
   if (options.optional) {
@@ -48,7 +48,7 @@ export default function packageIsInstallable (
         name: pkg.name,
         version: pkg.version,
       },
-      prefix: options.prefix,
+      prefix: options.lockfileDir,
       reason: warn.code === 'ERR_PNPM_UNSUPPORTED_ENGINE' ? 'unsupported_engine' : 'unsupported_platform',
     })
 

@@ -76,7 +76,7 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
       dependencyNames: ['ajv-keywords'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     }
   ], opts)
 
@@ -130,13 +130,13 @@ test('the right peer dependency is used in every workspace package', async (t: t
       buildIndex: 0,
       manifest: manifest1,
       mutation: 'install',
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: manifest2,
       mutation: 'install',
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
   ]
   await mutateModules(importers, await testDefaults({ lockfileOnly: true }))
@@ -526,7 +526,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
         dependencyNames: ['ajv'],
         manifest,
         mutation: 'uninstallSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ],
     await testDefaults({
@@ -654,7 +654,7 @@ test('peer dependency is resolved from parent package', async (t) => {
       dependencySelectors: ['tango@1.0.0'],
       manifest: {},
       mutation: 'installSome',
-      prefix: path.resolve('pkg'),
+      rootDir: path.resolve('pkg'),
     },
   ], await testDefaults())
 
@@ -676,7 +676,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
       dependencySelectors: ['most@1.7.3'],
       manifest: {},
       mutation: 'installSome',
-      prefix: path.resolve('pkg'),
+      rootDir: path.resolve('pkg'),
     },
   ], await testDefaults())
 
@@ -685,7 +685,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
       dependencySelectors: ['is-positive'],
       manifest,
       mutation: 'installSome',
-      prefix: path.resolve('pkg'),
+      rootDir: path.resolve('pkg'),
     },
   ], await testDefaults())
 
@@ -709,7 +709,7 @@ test('peer dependency is resolved from parent package via its alias', async (t) 
       dependencySelectors: ['tango@npm:tango-tango@1.0.0'],
       manifest: {},
       mutation: 'installSome',
-      prefix: path.resolve('pkg'),
+      rootDir: path.resolve('pkg'),
     },
   ], await testDefaults())
 
@@ -745,7 +745,7 @@ test('peer dependency is saved', async (t) => {
       dependencyNames: ['is-positive'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults())
 

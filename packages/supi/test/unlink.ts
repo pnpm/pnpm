@@ -66,7 +66,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
         dependencyNames: ['is-subdir'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     opts,
@@ -100,7 +100,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
         dependencyNames: ['foo'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     opts,
@@ -137,7 +137,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
         dependencyNames: ['foo'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     opts,
@@ -182,7 +182,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
         dependencyNames: ['is-subdir', 'is-positive'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     opts,
@@ -226,7 +226,7 @@ test('unlink all packages', async (t: tape.Test) => {
       {
         manifest,
         mutation: 'unlink',
-        prefix: path.resolve('project'),
+        rootDir: path.resolve('project'),
       }
     ],
     opts,
@@ -247,7 +247,7 @@ test("don't warn about scoped packages when running unlink w/o params", async (t
       {
         manifest,
         mutation: 'unlink',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     await testDefaults({ reporter }),
@@ -272,7 +272,7 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
         dependencyNames: ['is-positive'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     await testDefaults({ reporter }),
@@ -297,7 +297,7 @@ test("don't unlink package that is not a link when independent-leaves = true", a
         dependencyNames: ['is-positive'],
         manifest,
         mutation: 'unlinkSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       }
     ],
     await testDefaults({ independentLeaves: true, reporter }),

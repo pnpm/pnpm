@@ -29,7 +29,7 @@ export default async function testDefaults (
   const { importers, include, pendingBuilds, registries } = await readImportersContext(
     [
       {
-        prefix: lockfileDir,
+        rootDir: lockfileDir,
       },
     ],
     lockfileDir,
@@ -66,7 +66,7 @@ export default async function testDefaults (
     engineStrict: false,
     force: false,
     importers: opts.importers ? opts.importers : await Promise.all(
-      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix) }))
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.rootDir) }))
     ),
     include,
     independentLeaves: false,

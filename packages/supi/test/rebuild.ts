@@ -43,7 +43,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
       {
         buildIndex: 0,
         manifest,
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ],
     await testDefaults(),
@@ -79,7 +79,7 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
 
   const manifest = await addDependenciesToPackage({}, ['link:../local-pkg', 'is-positive'], await testDefaults())
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults())
+  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults())
 
   // see related issue https://github.com/pnpm/pnpm/issues/1155
   t.pass('rebuild did not fail')
@@ -96,7 +96,7 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
     await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies', ignoreScripts: true }),
   )
 
-  await rebuildPkgs([{ manifest, prefix: process.cwd() }], ['install-scripts-example-for-pnpm'], await testDefaults())
+  await rebuildPkgs([{ manifest, rootDir: process.cwd() }], ['install-scripts-example-for-pnpm'], await testDefaults())
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
@@ -125,7 +125,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -160,7 +160,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -181,7 +181,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true }, independentLeaves: true }))
+  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true }, independentLeaves: true }))
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -240,22 +240,22 @@ test('rebuild multiple packages in correct order', async (t: tape.Test) => {
     {
       buildIndex: 1,
       manifest: pkgs[2],
-      prefix: path.resolve('project-3'),
+      rootDir: path.resolve('project-3'),
     },
     {
       buildIndex: 1,
       manifest: pkgs[1],
-      prefix: path.resolve('project-2'),
+      rootDir: path.resolve('project-2'),
     },
     {
       buildIndex: 0,
       manifest: pkgs[0],
-      prefix: path.resolve('project-1'),
+      rootDir: path.resolve('project-1'),
     },
     {
       buildIndex: 0,
       manifest: pkgs[3],
-      prefix: path.resolve('project-0'),
+      rootDir: path.resolve('project-0'),
     },
   ]
   await mutateModules(
@@ -288,7 +288,7 @@ test('rebuild links bins', async (t: tape.Test) => {
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2')))
 
-  await rebuild([{ buildIndex: 0, manifest, prefix: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')

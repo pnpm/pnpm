@@ -10,7 +10,7 @@ export default async function safeIsInnerLink (
   depName: string,
   opts: {
     hideAlienModules: boolean,
-    prefix: string,
+    importerDir: string,
     storeDir: string,
     virtualStoreDir: string,
   },
@@ -29,7 +29,7 @@ export default async function safeIsInnerLink (
     if (opts.hideAlienModules) {
       logger.warn({
         message: `Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`,
-        prefix: opts.prefix,
+        prefix: opts.importerDir,
       })
       const ignoredDir = path.join(importerModulesDir, '.ignored', depName)
       await makeDir(path.dirname(ignoredDir))

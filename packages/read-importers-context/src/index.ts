@@ -8,8 +8,8 @@ import {
 import path = require('path')
 
 export interface ImporterOptions {
-  bin?: string,
-  prefix: string,
+  binsDir?: string,
+  rootDir: string,
 }
 
 export default async function <T>(
@@ -40,12 +40,12 @@ export default async function <T>(
     hoistedAliases: modules?.hoistedAliases || {},
     importers: await Promise.all(
       importers.map(async (importer) => {
-        const modulesDir = await realNodeModulesDir(importer.prefix)
-        const importerId = getLockfileImporterId(lockfileDir, importer.prefix)
+        const modulesDir = await realNodeModulesDir(importer.rootDir)
+        const importerId = getLockfileImporterId(lockfileDir, importer.rootDir)
 
         return {
           ...importer,
-          bin: importer.bin || path.join(importer.prefix, 'node_modules', '.bin'),
+          binsDir: importer.binsDir || path.join(importer.rootDir, 'node_modules', '.bin'),
           id: importerId,
           modulesDir,
         }

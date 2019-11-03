@@ -212,7 +212,7 @@ export async function recursive (
   const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, prefix: string }>
+    const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, rootDir: string }>
     await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
@@ -222,7 +222,7 @@ export async function recursive (
           importers.push({
             buildIndex,
             manifest: manifestsByPath[prefix].manifest,
-            prefix,
+            rootDir: prefix,
           })
         })
       )
@@ -244,15 +244,15 @@ export async function recursive (
       }
       let importers = await getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.lockfileDir)
-      importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
+      importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
       if (importers.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
       const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
       const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
       const mutatedImporters = [] as MutatedImporter[]
-      await Promise.all(importers.map(async ({ buildIndex, prefix }) => {
-        const localConfig = await memReadLocalConfig(prefix)
-        const { manifest, writeImporterManifest } = manifestsByPath[prefix]
+      await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
+        const localConfig = await memReadLocalConfig(rootDir)
+        const { manifest, writeImporterManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -272,7 +272,7 @@ export async function recursive (
               dependencyNames: currentInput,
               manifest,
               mutation,
-              prefix,
+              rootDir,
               targetDependenciesField: getSaveType(opts),
             } as MutatedImporter)
             return
@@ -287,7 +287,7 @@ export async function recursive (
                 saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
                 savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
               }),
-              prefix,
+              rootDir,
               targetDependenciesField: getSaveType(opts),
             } as MutatedImporter)
             return
@@ -296,7 +296,7 @@ export async function recursive (
               buildIndex,
               manifest,
               mutation,
-              prefix,
+              rootDir,
             } as MutatedImporter)
             return
         }
@@ -309,7 +309,7 @@ export async function recursive (
       await Promise.all(
         mutatedPkgs
           .filter((mutatedPkg, index) => mutatedImporters[index].mutation !== 'install')
-          .map(({ manifest, prefix }, index) => writeImporterManifests[index](manifest))
+          .map(({ manifest, rootDir }, index) => writeImporterManifests[index](manifest))
       )
       return true
     }
@@ -319,15 +319,15 @@ export async function recursive (
       : Object.keys(pkgGraphResult.graph).sort()
 
     const limitInstallation = pLimit(opts.workspaceConcurrency)
-    await Promise.all(pkgPaths.map((prefix: string) =>
+    await Promise.all(pkgPaths.map((rootDir: string) =>
       limitInstallation(async () => {
-        const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts)
+        const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
         try {
-          if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
+          if (opts.ignoredPackages && opts.ignoredPackages.has(rootDir)) {
             return
           }
 
-          const { manifest, writeImporterManifest } = manifestsByPath[prefix]
+          const { manifest, writeImporterManifest } = manifestsByPath[rootDir]
           let currentInput = [...input]
           if (updateToLatest) {
             if (!currentInput || !currentInput.length) {
@@ -349,7 +349,7 @@ export async function recursive (
                   dependencyNames: currentInput,
                   manifest,
                   mutation: 'uninstallSome',
-                  prefix,
+                  rootDir,
                 },
               ], opts)
               break
@@ -360,14 +360,14 @@ export async function recursive (
               break
           }
 
-          const localConfig = await memReadLocalConfig(prefix)
+          const localConfig = await memReadLocalConfig(rootDir)
           const newManifest = await action(
             manifest,
             {
               ...installOpts,
               ...localConfig,
-              bin: path.join(prefix, 'node_modules', '.bin'),
-              dir: prefix,
+              bin: path.join(rootDir, 'node_modules', '.bin'),
+              dir: rootDir,
               hooks,
               ignoreScripts: true,
               pinnedVersion: getPinnedVersion({
@@ -392,12 +392,12 @@ export async function recursive (
             result.fails.push({
               error: err,
               message: err.message,
-              prefix,
+              prefix: rootDir,
             })
             return
           }
 
-          err['prefix'] = prefix // tslint:disable-line:no-string-literal
+          err['prefix'] = rootDir // tslint:disable-line:no-string-literal
           throw err
         }
       }),
@@ -433,26 +433,25 @@ export async function recursive (
     }
     const limitRebuild = pLimit(opts.workspaceConcurrency)
     for (const chunk of chunks) {
-      await Promise.all(chunk.map((prefix: string) =>
+      await Promise.all(chunk.map((rootDir: string) =>
         limitRebuild(async () => {
           try {
-            if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
+            if (opts.ignoredPackages && opts.ignoredPackages.has(rootDir)) {
               return
             }
-            const localConfig = await memReadLocalConfig(prefix)
+            const localConfig = await memReadLocalConfig(rootDir)
             await action(
               [
                 {
                   buildIndex: 0,
-                  manifest: manifestsByPath[prefix].manifest,
-                  prefix,
+                  manifest: manifestsByPath[rootDir].manifest,
+                  rootDir,
                 },
               ],
               {
                 ...installOpts,
                 ...localConfig,
-                bin: path.join(prefix, 'node_modules', '.bin'),
-                dir: prefix,
+                dir: rootDir,
                 pending: cmdFullName !== 'rebuild' || opts.pending === true,
                 rawConfig: {
                   ...installOpts.rawConfig,
@@ -468,12 +467,12 @@ export async function recursive (
               result.fails.push({
                 error: err,
                 message: err.message,
-                prefix,
+                prefix: rootDir,
               })
               return
             }
 
-            err['prefix'] = prefix // tslint:disable-line:no-string-literal
+            err['prefix'] = rootDir // tslint:disable-line:no-string-literal
             throw err
           }
         }),
@@ -492,7 +491,7 @@ async function unlink (manifest: ImporterManifest, opts: any) { // tslint:disabl
       {
         manifest,
         mutation: 'unlink',
-        prefix: opts.dir,
+        rootDir: opts.dir,
       },
     ],
     opts,
@@ -506,7 +505,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
         dependencyNames,
         manifest,
         mutation: 'unlinkSome',
-        prefix: opts.dir,
+        rootDir: opts.dir,
       },
     ],
     opts,

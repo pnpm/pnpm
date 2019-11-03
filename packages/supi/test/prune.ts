@@ -38,7 +38,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
         pruneDirectDependencies: true,
       },
     ],

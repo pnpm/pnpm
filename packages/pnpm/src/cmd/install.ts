@@ -88,13 +88,13 @@ export default async function installCmd (
     const [updatedImporter] = await mutateModules([
       {
         allowNew: opts.allowNew,
-        bin: installOpts.bin,
+        binsDir: installOpts.bin,
         dependencySelectors: input,
         manifest,
         mutation: 'installSome',
         peer: opts.savePeer,
         pinnedVersion: getPinnedVersion(opts),
-        prefix: installOpts.dir,
+        rootDir: installOpts.dir,
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
@@ -126,7 +126,7 @@ export default async function installCmd (
         {
           buildIndex: 0,
           manifest: await readImporterManifestOnly(opts.dir, opts),
-          prefix: opts.dir,
+          rootDir: opts.dir,
         },
       ], {
         ...opts,

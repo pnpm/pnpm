@@ -123,7 +123,7 @@ export async function install (
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: opts.dir || process.cwd(),
+        rootDir: opts.dir || process.cwd(),
       },
     ],
     opts,
@@ -157,13 +157,13 @@ export async function mutateModules (
 
   const ctx = await getContext(importers, opts)
 
-  for (const { manifest, prefix } of ctx.importers) {
+  for (const { manifest, rootDir } of ctx.importers) {
     if (!manifest) {
-      throw new Error(`No package.json found in "${prefix}"`)
+      throw new Error(`No package.json found in "${rootDir}"`)
     }
   }
 
-  let result!: Array<{ prefix: string, manifest: ImporterManifest }>
+  let result!: Array<{ rootDir: string, manifest: ImporterManifest }>
   try {
     if (opts.lock) {
       result = await lock(ctx.lockfileDir, _install, {
@@ -185,7 +185,7 @@ export async function mutateModules (
 
   return result
 
-  async function _install (): Promise<Array<{ prefix: string, manifest: ImporterManifest }>> {
+  async function _install (): Promise<Array<{ rootDir: string, manifest: ImporterManifest }>> {
     const installsOnly = importers.every((importer) => importer.mutation === 'install')
     if (
       !opts.lockfileOnly &&
@@ -200,7 +200,7 @@ export async function mutateModules (
         await pEvery(ctx.importers, async (importer) =>
           !hasLocalTarballDepsInRoot(ctx.wantedLockfile, importer.id) &&
           satisfiesPackageManifest(ctx.wantedLockfile, importer.manifest, importer.id) &&
-          linkedPackagesAreUpToDate(importer.manifest, ctx.wantedLockfile.importers[importer.id], importer.prefix, opts.localPackages)
+          linkedPackagesAreUpToDate(importer.manifest, ctx.wantedLockfile.importers[importer.id], importer.rootDir, opts.localPackages)
         )
       )
     ) {
@@ -223,12 +223,12 @@ export async function mutateModules (
           hoistPattern: ctx.hoistPattern,
           ignoreScripts: opts.ignoreScripts,
           importers: ctx.importers as Array<{
-            bin: string,
+            binsDir: string,
             buildIndex: number,
             id: string,
             manifest: ImporterManifest,
             modulesDir: string,
-            prefix: string,
+            rootDir: string,
             pruneDirectDependencies?: boolean,
           }>,
           include: opts.include,
@@ -257,7 +257,7 @@ export async function mutateModules (
 
     const importersToInstall = [] as ImporterToUpdate[]
 
-    const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, prefix: string, manifest: ImporterManifest, modulesDir: string }>
+    const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, rootDir: string, manifest: ImporterManifest, modulesDir: string }>
     const scriptsOpts = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
@@ -323,7 +323,7 @@ export async function mutateModules (
               if (!await isExternalLink(ctx.storeDir, importer.modulesDir, depName)) {
                 logger.warn({
                   message: `${depName} is not an external link`,
-                  prefix: importer.prefix,
+                  prefix: importer.rootDir,
                 })
                 continue
               }
@@ -364,7 +364,7 @@ export async function mutateModules (
       if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
         logger.warn({
           message: '`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.',
-          prefix: importer.prefix,
+          prefix: importer.rootDir,
         })
       }
       importersToInstall.push({
@@ -447,10 +447,10 @@ function pkgHasDependencies (manifest: ImporterManifest) {
 async function partitionLinkedPackages (
   dependencies: WantedDependency[],
   opts: {
-    modulesDir: string,
+    importerDir: string,
     localPackages?: LocalPackages,
     lockfileOnly: boolean,
-    prefix: string,
+    modulesDir: string,
     storeDir: string,
     virtualStoreDir: string,
   },
@@ -464,7 +464,7 @@ async function partitionLinkedPackages (
     }
     const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
-      prefix: opts.prefix,
+      importerDir: opts.importerDir,
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
@@ -475,7 +475,7 @@ async function partitionLinkedPackages (
     // This info-log might be better to be moved to the reporter
     logger.info({
       message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
-      prefix: opts.prefix,
+      prefix: opts.importerDir,
     })
     linkedAliases.add(dependency.alias)
   }
@@ -573,7 +573,7 @@ export async function addDependenciesToPackage (
         mutation: 'installSome',
         peer: opts.peer,
         pinnedVersion: opts.pinnedVersion,
-        prefix: opts.dir || process.cwd(),
+        rootDir: opts.dir || process.cwd(),
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
@@ -585,12 +585,12 @@ export async function addDependenciesToPackage (
 }
 
 type ImporterToUpdate = {
-  bin: string,
+  binsDir: string,
   id: string,
   manifest: ImporterManifest,
   modulesDir: string,
   newPkgRawSpecs: string[],
-  prefix: string,
+  rootDir: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
   updatePackageManifest: boolean,
@@ -639,7 +639,7 @@ async function installInContext (
       .map(async (importer) => {
         if (importer.mutation !== 'uninstallSome') return
         importer.manifest = await removeDeps(importer.manifest, importer.dependencyNames, {
-          prefix: importer.prefix,
+          prefix: importer.rootDir,
           saveType: importer.targetDependenciesField,
         })
       }),
@@ -738,14 +738,14 @@ async function installInContext (
         }
       }
       newPkg = await save(
-        importer.prefix,
+        importer.rootDir,
         importer.manifest,
         specsToUpsert,
         { dryRun: true },
       )
     } else {
       packageManifestLogger.debug({
-        prefix: importer.prefix,
+        prefix: importer.rootDir,
         updated: importer.manifest,
       })
     }
@@ -774,15 +774,15 @@ async function installInContext (
       : []
 
     return {
-      bin: importer.bin,
+      binsDir: importer.binsDir,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       id: importer.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
       manifest: newPkg || importer.manifest,
       modulesDir: importer.modulesDir,
-      prefix: importer.prefix,
       pruneDirectDependencies: importer.pruneDirectDependencies,
       removePackages: importer.removePackages,
+      rootDir: importer.rootDir,
       topParents,
     }
   }))
@@ -839,8 +839,8 @@ async function installInContext (
         childConcurrency: opts.childConcurrency,
         depsToBuild: new Set(result.newDepPaths),
         extraBinPaths: ctx.extraBinPaths,
+        lockfileDir: ctx.lockfileDir,
         optional: opts.include.optionalDependencies,
-        prefix: ctx.lockfileDir,
         rawConfig: opts.rawConfig,
         rootNodeModulesDir: ctx.virtualStoreDir,
         sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
@@ -916,7 +916,7 @@ async function installInContext (
 
   await opts.storeController.close()
 
-  return importersToLink.map(({ manifest, prefix }) => ({ prefix, manifest }))
+  return importersToLink.map(({ manifest, rootDir }) => ({ rootDir, manifest }))
 }
 
 async function toResolveImporter (
@@ -938,10 +938,10 @@ async function toResolveImporter (
 ) {
   const allDeps = getWantedDependencies(importer.manifest)
   const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
+    importerDir: importer.rootDir,
     localPackages: opts.localPackages,
     lockfileOnly: opts.lockfileOnly,
     modulesDir: importer.modulesDir,
-    prefix: importer.prefix,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
@@ -977,9 +977,9 @@ async function toResolveImporter (
 
 const limitLinking = pLimit(16)
 
-function linkBinsOfImporter ({ modulesDir, bin, prefix }: ImporterToLink) {
-  const warn = (message: string) => logger.warn({ message, prefix })
-  return linkBins(modulesDir, bin, { allowExoticManifests: true, warn })
+function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ImporterToLink) {
+  const warn = (message: string) => logger.warn({ message, prefix: rootDir })
+  return linkBins(modulesDir, binsDir, { allowExoticManifests: true, warn })
 }
 
 async function linkAllBins (

@@ -205,7 +205,7 @@ test('do not update deps when installing in a project that has local tarball dep
       buildIndex: 0,
       manifest,
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     }
   ], await testDefaults())
 

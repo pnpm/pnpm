@@ -59,7 +59,6 @@ export interface StrictInstallOptions {
   ownLifecycleHooksStdio: 'inherit' | 'pipe',
   localPackages: LocalPackages,
   pruneStore: boolean,
-  bin: string,
   virtualStoreDir?: string,
   dir: string,
 

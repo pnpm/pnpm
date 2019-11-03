@@ -245,28 +245,28 @@ test('not installing optional deps', async (t) => {
 
 // Covers https://github.com/pnpm/pnpm/issues/1547
 test('installing with independent-leaves and hoistPattern=*', async (t) => {
-  const prefix = path.join(fixtures, 'with-1-dep')
-  await rimraf(path.join(prefix, 'node_modules'))
+  const lockfileDir = path.join(fixtures, 'with-1-dep')
+  await rimraf(path.join(lockfileDir, 'node_modules'))
 
   const { importers } = await readImportersContext(
     [
       {
-        prefix,
+        rootDir: lockfileDir,
       },
     ],
-    prefix
+    lockfileDir
   )
 
   await headless(await testDefaults({
     hoistPattern: '*',
     importers: await Promise.all(
-      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.rootDir), })),
     ),
     independentLeaves: true,
-    lockfileDir: prefix,
+    lockfileDir: lockfileDir,
   }))
 
-  const project = assertProject(t, prefix)
+  const project = assertProject(t, lockfileDir)
   await project.has('rimraf')
   await project.has('.pnpm/node_modules/glob')
   await project.has('.pnpm/node_modules/path-is-absolute')
@@ -735,15 +735,15 @@ test('using side effects cache', async (t) => {
 })
 
 test('using side effects cache and hoistPattern=*', async (t) => {
-  const prefix = path.join(fixtures, 'side-effects-of-subdep')
+  const lockfileDir = path.join(fixtures, 'side-effects-of-subdep')
 
   const { importers } = await readImportersContext(
     [
       {
-        prefix,
+        rootDir: lockfileDir,
       },
     ],
-    prefix,
+    lockfileDir,
   )
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -751,25 +751,25 @@ test('using side effects cache and hoistPattern=*', async (t) => {
   const opts = await testDefaults({
     hoistPattern: '*',
     importers: await Promise.all(
-      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.rootDir), })),
     ),
-    lockfileDir: prefix,
+    lockfileDir,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
 
-  const project = assertProject(t, prefix)
+  const project = assertProject(t, lockfileDir)
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
   const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
-  await rimraf(path.join(prefix, 'node_modules'))
+  await rimraf(path.join(lockfileDir, 'node_modules'))
   await headless(opts)
 
-  t.ok(await exists(path.join(prefix, 'node_modules/.pnpm/node_modules/diskusage/build/new-file.txt')), 'side effects cache correctly used')
+  t.ok(await exists(path.join(lockfileDir, 'node_modules/.pnpm/node_modules/diskusage/build/new-file.txt')), 'side effects cache correctly used')
 
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
@@ -782,17 +782,17 @@ test('installing in a workspace', async (t) => {
   let { importers } = await readImportersContext(
     [
       {
-        prefix: path.join(workspaceFixture, 'foo'),
+        rootDir: path.join(workspaceFixture, 'foo'),
       },
       {
-        prefix: path.join(workspaceFixture, 'bar'),
+        rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
     workspaceFixture,
   )
 
   importers = await Promise.all(
-    importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix) })),
+    importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.rootDir) })),
   )
 
   await headless(await testDefaults({
@@ -825,10 +825,10 @@ test('independent-leaves: installing in a workspace', async (t) => {
   const { importers } = await readImportersContext(
     [
       {
-        prefix: path.join(workspaceFixture, 'foo'),
+        rootDir: path.join(workspaceFixture, 'foo'),
       },
       {
-        prefix: path.join(workspaceFixture, 'bar'),
+        rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
     workspaceFixture,
@@ -836,7 +836,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
 
   await headless(await testDefaults({
     importers: await Promise.all(
-      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.prefix), })),
+      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.rootDir), })),
     ),
     independentLeaves: true,
     lockfileDir: workspaceFixture,

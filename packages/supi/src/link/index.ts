@@ -97,10 +97,10 @@ export default async function link (
   await prune(
     [
       {
-        bin: opts.bin,
+        binsDir: opts.binsDir,
         id: importerId,
         modulesDir: ctx.modulesDir,
-        prefix: opts.dir,
+        rootDir: opts.dir,
       },
     ],
     {

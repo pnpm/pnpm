@@ -27,7 +27,7 @@ export default function filterByImportersAndEngine (
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages?: boolean,
     failOnMissingDependencies: boolean,
-    prefix: string,
+    lockfileDir: string,
     skipped: Set<string>,
   },
 ): Lockfile {
@@ -50,7 +50,7 @@ export default function filterByImportersAndEngine (
       failOnMissingDependencies: opts.failOnMissingDependencies,
       include: opts.include,
       includeIncompatiblePackages: opts.includeIncompatiblePackages === true,
-      prefix: opts.prefix,
+      lockfileDir: opts.lockfileDir,
       registries: opts.registries,
       skipped: opts.skipped,
     }) || {}
@@ -87,7 +87,7 @@ function pickPkgsWithAllDeps (
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages: boolean,
-    prefix: string,
+    lockfileDir: string,
     registries: Registries,
     skipped: Set<string>,
   },
@@ -113,7 +113,7 @@ function pkgAllDeps (
     failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages: boolean,
-    prefix: string,
+    lockfileDir: string,
     registries: Registries,
     skipped: Set<string>,
   },
@@ -145,10 +145,10 @@ function pkgAllDeps (
       // TODO: relDepPath is not the package ID. Should be fixed
       installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id || relDepPath, pkg, {
         engineStrict: opts.engineStrict,
+        lockfileDir: opts.lockfileDir,
         nodeVersion: opts.currentEngine.nodeVersion,
         optional: pkgSnapshot.optional === true,
         pnpmVersion: opts.currentEngine.pnpmVersion,
-        prefix: opts.prefix,
       }) !== false
       if (!installable) {
         if (!ctx.pickedPackages[relDepPath]) {

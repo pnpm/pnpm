@@ -9,7 +9,7 @@ import path = require('path')
 import { ReporterFunction } from '../types'
 
 interface StrictLinkOptions {
-  bin: string,
+  binsDir: string,
   force: boolean,
   forceSharedLockfile: boolean,
   useLockfile: boolean,
@@ -53,7 +53,7 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
 async function defaults (opts: LinkOptions) {
   const dir = opts.dir || process.cwd()
   return {
-    bin: path.join(dir, 'node_modules', '.bin'),
+    binsDir: path.join(dir, 'node_modules', '.bin'),
     dir,
     force: false,
     forceSharedLockfile: false,

@@ -917,7 +917,7 @@ test('do not update deps when lockfile is present', async (t) => {
       buildIndex: 0,
       manifest,
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     }
   ], await testDefaults({ preferFrozenLockfile: false }))
 
@@ -938,7 +938,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults())
 
@@ -995,7 +995,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
@@ -1023,7 +1023,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults())
 
@@ -1083,7 +1083,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
         },
       },
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
@@ -1107,7 +1107,7 @@ test("store metadata is always saved, even if there's a fatal error", async (t: 
           },
         },
         mutation: 'install',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ], opts)
   } catch (_err) {

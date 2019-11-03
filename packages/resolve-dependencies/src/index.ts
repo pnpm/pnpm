@@ -30,7 +30,7 @@ export interface Importer {
       type: 'version' | 'range' | 'tag',
     },
   },
-  prefix: string,
+  rootDir: string,
   wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
 }
 
@@ -95,7 +95,7 @@ export default async function (
       ...ctx,
       linkedDependencies,
       modulesDir: importer.modulesDir,
-      prefix: importer.prefix,
+      prefix: importer.rootDir,
       resolutionStrategy: opts.resolutionStrategy || 'fast',
     }
     const resolveOpts = {

@@ -58,7 +58,7 @@ export default async function dependenciesHierarchy (
     search?: SearchFunction,
     lockfileDir: string,
   },
-): Promise<{ [prefix: string]: DependenciesHierarchy }> {
+): Promise<{ [importerDir: string]: DependenciesHierarchy }> {
   if (!maybeOpts || !maybeOpts.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
@@ -70,7 +70,7 @@ export default async function dependenciesHierarchy (
   })
   const currentLockfile = modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false }) || null
 
-  const result = {} as { [prefix: string]: DependenciesHierarchy }
+  const result = {} as { [importerDir: string]: DependenciesHierarchy }
 
   if (!currentLockfile) {
     for (let projectPath of projectPaths) {

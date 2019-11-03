@@ -78,13 +78,13 @@ export interface HeadlessOptions {
   include: IncludedDependencies,
   independentLeaves: boolean,
   importers: Array<{
-    bin: string,
+    binsDir: string,
     buildIndex: number,
     manifest: ImporterManifest,
     modulesDir: string,
     id: string,
-    prefix: string,
     pruneDirectDependencies?: boolean,
+    rootDir: string,
   }>,
   hoistedAliases: {[depPath: string]: string[]}
   hoistPattern?: string[],
@@ -131,11 +131,11 @@ export default async (opts: HeadlessOptions) => {
   const hoistedModulesDir = opts.shamefullyHoist
     ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
 
-  for (const { id, manifest, prefix } of opts.importers) {
+  for (const { id, manifest, rootDir } of opts.importers) {
     if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
       throw new PnpmError('OUTDATED_LOCKFILE',
         `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
-        path.relative(lockfileDir, path.join(prefix, 'package.json')))
+        path.relative(lockfileDir, path.join(rootDir, 'package.json')))
     }
   }
 
@@ -197,7 +197,7 @@ export default async (opts: HeadlessOptions) => {
     engineStrict: opts.engineStrict,
     failOnMissingDependencies: true,
     includeIncompatiblePackages: opts.force === true,
-    prefix: lockfileDir,
+    lockfileDir,
   })
   const { directDependenciesByImporterId, graph } = await lockfileToDepGraph(
     filteredLockfile,
@@ -260,9 +260,9 @@ export default async (opts: HeadlessOptions) => {
     newHoistedAliases = {}
   }
 
-  await Promise.all(opts.importers.map(async ({ id, manifest, modulesDir, prefix }) => {
+  await Promise.all(opts.importers.map(async ({ rootDir, id, manifest, modulesDir }) => {
     await linkRootPackages(filteredLockfile, {
-      importerDir: prefix,
+      importerDir: rootDir,
       importerId: id,
       importerModulesDir: modulesDir,
       importers: opts.importers,
@@ -274,7 +274,7 @@ export default async (opts: HeadlessOptions) => {
     // Even though headless installation will never update the package.json
     // this needs to be logged because otherwise install summary won't be printed
     packageManifestLogger.debug({
-      prefix,
+      prefix: rootDir,
       updated: manifest,
     })
   }))
@@ -314,8 +314,8 @@ export default async (opts: HeadlessOptions) => {
     await buildModules(graph, Array.from(directNodes), {
       childConcurrency: opts.childConcurrency,
       extraBinPaths,
+      lockfileDir,
       optional: opts.include.optionalDependencies,
-      prefix: lockfileDir,
       rawConfig: opts.rawConfig,
       rootNodeModulesDir: virtualStoreDir,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
@@ -369,14 +369,14 @@ export default async (opts: HeadlessOptions) => {
 }
 
 function linkBinsOfImporter (
-  { modulesDir, bin, prefix }: {
-    bin: string,
+  { modulesDir, binsDir, rootDir }: {
+    binsDir: string,
     modulesDir: string,
-    prefix: string,
+    rootDir: string,
   },
 ) {
-  const warn = (message: string) => logger.warn({ message, prefix })
-  return linkBins(modulesDir, bin, {
+  const warn = (message: string) => logger.warn({ message, prefix: rootDir })
+  return linkBins(modulesDir, binsDir, {
     allowExoticManifests: true,
     warn,
   })
@@ -567,7 +567,6 @@ async function lockfileToDepGraph (
       independentLeaves: opts.independentLeaves,
       lockfileDir: opts.lockfileDir,
       pkgSnapshotsByRelDepPaths: lockfile.packages,
-      prefix: opts.lockfileDir,
       registries: opts.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       skipped: opts.skipped,
@@ -607,7 +606,6 @@ async function getChildrenPaths (
     storeDir: string,
     skipped: Set<string>,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
-    prefix: string,
     lockfileDir: string,
     sideEffectsCacheRead: boolean,
     storeController: StoreController,
@@ -618,7 +616,7 @@ async function getChildrenPaths (
   for (const alias of Object.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registries)
     if (childDepPath === null) {
-      children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
       continue
     }
     const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
@@ -639,7 +637,7 @@ async function getChildrenPaths (
         children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDir), 'node_modules', pkgName)
       }
     } else if (allDeps[alias].indexOf('file:') === 0) {
-      children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
+      children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
     } else if (!ctx.skipped.has(childRelDepPath)) {
       throw new Error(`${childRelDepPath} not found in ${WANTED_LOCKFILE}`)
     }

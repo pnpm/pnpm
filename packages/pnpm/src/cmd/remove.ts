@@ -26,11 +26,11 @@ export default async function removeCmd (
   const [mutationResult] = await mutateModules(
     [
       {
-        bin: opts.bin,
+        binsDir: opts.bin,
         dependencyNames: input,
         manifest: currentManifest.manifest,
         mutation: 'uninstallSome',
-        prefix: opts.dir,
+        rootDir: opts.dir,
       },
     ],
     removeOpts,

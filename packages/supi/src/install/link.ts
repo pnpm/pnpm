@@ -41,15 +41,15 @@ export {
 }
 
 export interface Importer {
-  bin: string,
+  binsDir: string,
   directNodeIdsByAlias: {[alias: string]: string},
   id: string,
   linkedDependencies: LinkedDependency[],
   manifest: ImporterManifest,
   modulesDir: string,
-  prefix: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
+  rootDir: string,
   topParents: Array<{name: string, version: string}>,
 }
 
@@ -209,7 +209,7 @@ export default async function linkPackages (
       return acc
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
 
-  await Promise.all(importers.map(({ id, manifest, modulesDir, prefix }) => {
+  await Promise.all(importers.map(({ id, manifest, modulesDir, rootDir }) => {
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[id]
     return Promise.all(
       Object.keys(directAbsolutePathsByAlias)
@@ -232,7 +232,7 @@ export default async function linkPackages (
               realName: depGraphNode.name,
               version: depGraphNode.version,
             },
-            prefix,
+            prefix: rootDir,
           })
         }),
     )
@@ -333,11 +333,11 @@ export default async function linkPackages (
     await Promise.all(
       importers.map((importer) =>
         Promise.all(importer.linkedDependencies.map((linkedDependency) => {
-          const depLocation = resolvePath(importer.prefix, linkedDependency.resolution.directory)
+          const depLocation = resolvePath(importer.rootDir, linkedDependency.resolution.directory)
           return symlinkDirectRootDependency(depLocation, importer.modulesDir, linkedDependency.alias, {
             fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
             linkedPackage: linkedDependency,
-            prefix: importer.prefix,
+            prefix: importer.rootDir,
           })
         })),
       ),

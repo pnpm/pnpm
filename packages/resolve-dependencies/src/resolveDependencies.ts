@@ -674,10 +674,10 @@ async function resolveDependency (
       ctx.force ||
       packageIsInstallable(pkgResponse.body.id, pkg, {
         engineStrict: ctx.engineStrict,
+        lockfileDir: ctx.lockfileDir,
         nodeVersion: ctx.nodeVersion,
         optional: wantedDependency.optional,
         pnpmVersion: ctx.pnpmVersion,
-        prefix: ctx.prefix,
       })
     )
   if (currentIsInstallable !== true || !parentIsInstallable) {

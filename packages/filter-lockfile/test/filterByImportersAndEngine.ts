@@ -92,7 +92,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         devDependencies: true,
         optionalDependencies: true,
       },
-      prefix: process.cwd(),
+      lockfileDir: process.cwd(),
       registries: {
         default: 'https://registry.npmjs.org/',
       },

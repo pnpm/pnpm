@@ -117,7 +117,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ],
     await testDefaults({ frozenLockfile: true }),
@@ -229,7 +229,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ],
     await testDefaults({ force: true, frozenLockfile: true }),
@@ -262,7 +262,7 @@ test('only that package is skipped which is an optional dependency only and not 
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ],
     await testDefaults({
@@ -372,7 +372,7 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.
   await rebuild([{
     buildIndex: 0,
     manifest,
-    prefix: process.cwd(),
+    rootDir: process.cwd(),
   }], await testDefaults({ pending: true, reporter }))
 
   t.ok(reporter.calledWithMatch({
@@ -405,7 +405,7 @@ test('skip optional dependency that does not support the current OS, when doing 
           },
         },
         mutation: 'install',
-        prefix: path.resolve('project1'),
+        rootDir: path.resolve('project1'),
       },
       {
         buildIndex: 0,
@@ -418,7 +418,7 @@ test('skip optional dependency that does not support the current OS, when doing 
           },
         },
         mutation: 'install',
-        prefix: path.resolve('project2'),
+        rootDir: path.resolve('project2'),
       },
     ],
     await testDefaults({
@@ -433,7 +433,7 @@ test('skip optional dependency that does not support the current OS, when doing 
         buildIndex: 0,
         manifest,
         mutation: 'install',
-        prefix: path.resolve('project1'),
+        rootDir: path.resolve('project1'),
       },
     ],
     await testDefaults({

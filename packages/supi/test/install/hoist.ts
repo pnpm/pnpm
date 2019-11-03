@@ -74,7 +74,7 @@ test('should remove hoisted dependencies', async (t) => {
       dependencyNames: ['express'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
@@ -105,7 +105,7 @@ test('should rehoist when uninstalling a package', async (t: tape.Test) => {
       dependencyNames: ['debug'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
@@ -223,7 +223,7 @@ test('should remove aliased hoisted dependencies', async (t) => {
       dependencyNames: ['pkg-with-1-aliased-dep'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
@@ -305,7 +305,7 @@ test('should uninstall correctly peer dependencies', async (t) => {
       dependencyNames: ['using-ajv'],
       manifest,
       mutation: 'uninstallSome',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
@@ -343,13 +343,13 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
       buildIndex: 0,
       manifest: workspaceRootManifest,
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     },
     {
       buildIndex: 0,
       manifest: workspacePackageManifest,
       mutation: 'install',
-      prefix: path.resolve('package'),
+      rootDir: path.resolve('package'),
     },
   ]
   await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))

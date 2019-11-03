@@ -22,7 +22,6 @@ export interface StrictRebuildOptions {
   production: boolean,
   development: boolean,
   optional: boolean,
-  bin: string,
   rawConfig: object,
   userAgent: string,
   packageManager: {
@@ -45,7 +44,6 @@ const defaults = async (opts: RebuildOptions) => {
   const dir = opts.dir || process.cwd()
   const lockfileDir = opts.lockfileDir || dir
   return {
-    bin: path.join(dir, 'node_modules', '.bin'),
     childConcurrency: 5,
     development: true,
     dir,

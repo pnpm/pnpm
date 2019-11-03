@@ -73,7 +73,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p1'),
+      rootDir: path.resolve('p1'),
     },
     {
       buildIndex: 0,
@@ -85,7 +85,7 @@ test(`frozen-lockfile: fail on a shared ${WANTED_LOCKFILE} that does not satisfy
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p2'),
+      rootDir: path.resolve('p2'),
     },
   ]
   await mutateModules(importers, await testDefaults())
@@ -254,7 +254,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p1'),
+      rootDir: path.resolve('p1'),
     },
     {
       buildIndex: 0,
@@ -266,7 +266,7 @@ test('prefer-frozen-lockfile: should prefer frozen-lockfile when package has lin
         },
       },
       mutation: 'install',
-      prefix: path.resolve('p2'),
+      rootDir: path.resolve('p2'),
     },
   ]
   await mutateModules(importers, await testDefaults())

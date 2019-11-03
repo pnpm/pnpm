@@ -786,7 +786,7 @@ test(`don't update ${WANTED_LOCKFILE} during uninstall when useLockfile: false`,
         dependencyNames: ['is-positive'],
         manifest,
         mutation: 'uninstallSome',
-        prefix: process.cwd(),
+        rootDir: process.cwd(),
       },
     ], await testDefaults({ useLockfile: false, reporter }))
 
@@ -1040,13 +1040,13 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
         buildIndex: 0,
         manifest: pkg1,
         mutation: 'install',
-        prefix: path.resolve('pkg1'),
+        rootDir: path.resolve('pkg1'),
       },
       {
         buildIndex: 0,
         manifest: pkg2,
         mutation: 'install',
-        prefix: path.resolve('pkg2'),
+        rootDir: path.resolve('pkg2'),
       },
     ],
     await testDefaults(),
@@ -1088,7 +1088,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
       buildIndex: 0,
       manifest,
       mutation: 'install',
-      prefix: process.cwd(),
+      rootDir: process.cwd(),
     }
   ], await testDefaults())
 

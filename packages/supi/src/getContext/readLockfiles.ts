@@ -26,7 +26,7 @@ export default async function (
     forceSharedLockfile: boolean,
     importers: Array<{
       id: string,
-      prefix: string,
+      rootDir: string,
     }>,
     lockfileDir: string,
     registry: string,

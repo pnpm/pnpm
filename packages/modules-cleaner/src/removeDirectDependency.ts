@@ -14,11 +14,11 @@ export default async function removeDirectDependency (
     name: string,
   },
   opts: {
-    bin: string,
+    binsDir: string,
     dryRun?: boolean,
     modulesDir: string,
     muteLogs?: boolean,
-    prefix: string,
+    rootDir: string,
   },
 ) {
   const results = await Promise.all([
@@ -29,7 +29,7 @@ export default async function removeDirectDependency (
   const uninstalledPkg = results[0]
   if (!opts.muteLogs) {
     rootLogger.debug({
-      prefix: opts.prefix,
+      prefix: opts.rootDir,
       removed: {
         dependencyType: dependency.dependenciesField === 'devDependencies' && 'dev' ||
           dependency.dependenciesField === 'optionalDependencies' && 'optional' ||
@@ -47,7 +47,7 @@ async function removeBins (
   opts: {
     dryRun?: boolean,
     modulesDir: string,
-    bin: string,
+    binsDir: string,
   },
 ) {
   const uninstalledPkgPath = path.join(opts.modulesDir, uninstalledPkg)
@@ -60,7 +60,7 @@ async function removeBins (
     // TODO: what about the .cmd bin files on Windows?
     await Promise.all(
       cmds
-        .map((cmd) => path.join(opts.bin, cmd.name))
+        .map((cmd) => path.join(opts.binsDir, cmd.name))
         .map(remove),
     )
   }

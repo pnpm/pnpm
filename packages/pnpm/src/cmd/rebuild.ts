@@ -23,7 +23,7 @@ export default async function (
         {
           buildIndex: 0,
           manifest: await readImporterManifestOnly(rebuildOpts.dir, opts),
-          prefix: rebuildOpts.dir,
+          rootDir: rebuildOpts.dir,
         },
       ],
       rebuildOpts,
@@ -33,7 +33,7 @@ export default async function (
     [
       {
         manifest: await readImporterManifestOnly(rebuildOpts.dir, opts),
-        prefix: rebuildOpts.dir,
+        rootDir: rebuildOpts.dir,
       },
     ],
     args,
