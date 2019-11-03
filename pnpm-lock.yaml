@@ -1877,7 +1877,7 @@ importers:
       write-yaml-file: 3.0.1
     devDependencies:
       rimraf: 3.0.0
-      tslint-config-standard: 8.0.1
+      tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
     specifiers:
       '@pnpm/assert-project': 2.0.0
@@ -1886,7 +1886,7 @@ importers:
       make-dir: 3.0.0
       rimraf: 3.0.0
       tape: 4.11.0
-      tslint-config-standard: 8.0.1
+      tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
       write-json5-file: 2.1.2
       write-pkg: 4.0.0
@@ -1908,10 +1908,10 @@ importers:
     specifiers: {}
   utils/tslint-config:
     dependencies:
-      tslint-config-standard: 8.0.1
+      tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
     specifiers:
-      tslint-config-standard: 8.0.1
+      tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
 lockfileVersion: 5.1
 packages:
@@ -8942,11 +8942,11 @@ packages:
   /tslib/1.9.0:
     resolution:
       integrity: sha512-f/qGG2tUkrISBlQZEjEqoZ3B2+npJjIf04H1wuAv9iA8i04Icp+61KRXxFdha22670NJopsZCIjhC3SnjPRKrQ==
-  /tslint-config-standard/8.0.1:
+  /tslint-config-standard/9.0.0:
     dependencies:
       tslint-eslint-rules: 5.4.0
     resolution:
-      integrity: sha512-OWG+NblgjQlVuUS/Dmq3ax2v5QDZwRx4L0kEuDi7qFY9UI6RJhhNfoCV1qI4el8Fw1c5a5BTrjQJP0/jhGXY/Q==
+      integrity: sha512-CAw9J743RnPMemQV/XQ4YyNreC+A1NItACfkm+cBedrOkz6CQfwlnbKn8anUXBfoa4Zo4tjAhblRbsMNcSLfSw==
   /tslint-eslint-rules/5.4.0:
     dependencies:
       doctrine: 0.7.2
