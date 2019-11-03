@@ -3,6 +3,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -195,4 +196,46 @@ test('save to package.json with save prefix ~', async (t: tape.Test) => {
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ pinnedVersion: 'minor' }))
 
   t.deepEqual(manifest.dependencies, { 'pkg-with-1-dep': '~100.0.0' }, 'rimraf have been added to dependencies')
+})
+
+test('an update bumps the versions in the manifest', async (t: tape.Test) => {
+  await addDistTag('peer-a', '1.0.1', 'latest')
+  await addDistTag('foo', '100.1.0', 'latest')
+  await addDistTag('peer-c', '2.0.0', 'latest')
+
+  prepareEmpty(t)
+
+  const [{ manifest }] = await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'peer-a': '~1.0.0',
+        },
+        devDependencies: {
+          'foo': '^100.0.0',
+        },
+        optionalDependencies: {
+          'peer-c': '^1.0.1',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ],
+  await testDefaults({
+    update: true,
+  }))
+
+  t.deepEqual(manifest, {
+    dependencies: {
+      'peer-a': '~1.0.1',
+    },
+    devDependencies: {
+      'foo': '^100.1.0',
+    },
+    optionalDependencies: {
+      'peer-c': '^1.0.1',
+    },
+  })
 })
