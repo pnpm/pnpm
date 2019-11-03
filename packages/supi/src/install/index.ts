@@ -64,7 +64,10 @@ import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import save, { PackageSpecObject } from '../save'
 import removeDeps from '../uninstall/removeDeps'
-import getPref from '../utils/getPref'
+import {
+  getPrefPreferSpecifiedExoticSpec,
+  getPrefPreferSpecifiedSpec,
+} from '../utils/getPref'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -371,7 +374,7 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...importer,
         newPkgRawSpecs: [],
-        updatePackageManifest: false,
+        updatePackageManifest: opts.update === true,
         wantedDeps,
       })
     }
@@ -702,38 +705,54 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: ImporterManifest | undefined = importer.manifest
-    if (importer.updatePackageManifest && importer.mutation === 'installSome') {
+    if (importer.updatePackageManifest) {
       if (!importer.manifest) {
         throw new Error('Cannot save because no package.json found')
       }
       const specsToUpsert: PackageSpecObject[] = resolvedImporter.directDependencies
-        .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
         .map(({ alias, name, normalizedPref, specRaw, version, resolution }) => {
           let pref!: string
+          const isNew = importer.newPkgRawSpecs.includes(specRaw)
           if (normalizedPref) {
             pref = normalizedPref
           } else {
-            pref = getPref(alias, name, version, {
-              pinnedVersion: importer.pinnedVersion,
-              rawSpec: specRaw,
-            })
-            if (resolution.type === 'directory' && opts.saveWorkspaceProtocol) {
+            if (isNew) {
+              pref = getPrefPreferSpecifiedSpec({
+                alias,
+                name,
+                pinnedVersion: importer['pinnedVersion'],
+                rawSpec: specRaw,
+                version,
+              })
+            } else {
+              pref = getPrefPreferSpecifiedExoticSpec({
+                alias,
+                name,
+                rawSpec: specRaw,
+                version,
+              })
+            }
+            if (
+              resolution.type === 'directory' &&
+              opts.saveWorkspaceProtocol &&
+              !pref.startsWith('workspace:')
+            ) {
               pref = `workspace:${pref}`
             }
           }
           return {
             name: alias,
-            peer: importer.peer,
+            peer: importer['peer'],
             pref,
-            saveType: importer.targetDependenciesField,
+            saveType: isNew ? importer['targetDependenciesField'] : undefined,
           }
         })
       for (const pkgToInstall of importer.wantedDeps) {
         if (pkgToInstall.alias && !specsToUpsert.some(({ name }) => name === pkgToInstall.alias)) {
           specsToUpsert.push({
             name: pkgToInstall.alias,
-            peer: importer.peer,
-            saveType: importer.targetDependenciesField,
+            peer: importer['peer'],
+            saveType: importer['targetDependenciesField'],
           })
         }
       }

@@ -83,7 +83,10 @@ export default async function installCmd (
     if (invocation === 'add') {
       throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
     }
-    await install(manifest, installOpts)
+    const updatedManifest = await install(manifest, installOpts)
+    if (opts.update === true) {
+      await writeImporterManifest(updatedManifest)
+    }
   } else {
     const [updatedImporter] = await mutateModules([
       {
