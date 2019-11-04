@@ -21,6 +21,18 @@ import resolveDependencies, {
 
 export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
+export type ResolvedDirectDependency = {
+  alias: string,
+  optional: boolean,
+  dev: boolean,
+  resolution: Resolution,
+  id: string,
+  version: string,
+  name: string,
+  specRaw: string,
+  normalizedPref?: string,
+}
+
 export interface Importer {
   id: string,
   modulesDir: string,
@@ -132,17 +144,7 @@ export default async function (
 
   const resolvedImporters = {} as {
     [id: string]: {
-      directDependencies: Array<{
-        alias: string,
-        optional: boolean,
-        dev: boolean,
-        resolution: Resolution,
-        id: string,
-        version: string,
-        name: string,
-        specRaw: string,
-        normalizedPref?: string,
-      }>,
+      directDependencies: ResolvedDirectDependency[],
       directNodeIdsByAlias: {
         [alias: string]: string,
       },
@@ -162,17 +164,7 @@ export default async function (
             alias,
             normalizedPref,
             specRaw,
-          })) as Array<{
-            alias: string,
-            optional: boolean,
-            dev: boolean,
-            resolution: Resolution,
-            id: string,
-            version: string,
-            name: string,
-            specRaw: string,
-            normalizedPref?: string,
-          }>,
+          })) as ResolvedDirectDependency[],
         ...linkedDependencies,
       ],
       directNodeIdsByAlias: directNonLinkedDeps

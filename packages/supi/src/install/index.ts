@@ -28,7 +28,10 @@ import logger, {
 } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
-import resolveDependencies, { ResolvedPackage } from '@pnpm/resolve-dependencies'
+import resolveDependencies, {
+  ResolvedDirectDependency,
+  ResolvedPackage,
+} from '@pnpm/resolve-dependencies'
 import {
   LocalPackages,
   Resolution,
@@ -706,62 +709,10 @@ async function installInContext (
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: ImporterManifest | undefined = importer.manifest
     if (importer.updatePackageManifest) {
-      if (!importer.manifest) {
-        throw new Error('Cannot save because no package.json found')
-      }
-      const specsToUpsert: PackageSpecObject[] = resolvedImporter.directDependencies
-        .map(({ alias, name, normalizedPref, specRaw, version, resolution }) => {
-          let pref!: string
-          const isNew = importer.newPkgRawSpecs.includes(specRaw)
-          if (normalizedPref) {
-            pref = normalizedPref
-          } else {
-            if (isNew) {
-              pref = getPrefPreferSpecifiedSpec({
-                alias,
-                name,
-                pinnedVersion: importer['pinnedVersion'],
-                rawSpec: specRaw,
-                version,
-              })
-            } else {
-              pref = getPrefPreferSpecifiedExoticSpec({
-                alias,
-                name,
-                rawSpec: specRaw,
-                version,
-              })
-            }
-            if (
-              resolution.type === 'directory' &&
-              opts.saveWorkspaceProtocol &&
-              !pref.startsWith('workspace:')
-            ) {
-              pref = `workspace:${pref}`
-            }
-          }
-          return {
-            name: alias,
-            peer: importer['peer'],
-            pref,
-            saveType: isNew ? importer['targetDependenciesField'] : undefined,
-          }
-        })
-      for (const pkgToInstall of importer.wantedDeps) {
-        if (pkgToInstall.alias && !specsToUpsert.some(({ name }) => name === pkgToInstall.alias)) {
-          specsToUpsert.push({
-            name: pkgToInstall.alias,
-            peer: importer['peer'],
-            saveType: importer['targetDependenciesField'],
-          })
-        }
-      }
-      newPkg = await save(
-        importer.rootDir,
-        importer.manifest,
-        specsToUpsert,
-        { dryRun: true },
-      )
+      newPkg = await updateImporterManifest(importer, {
+        directDependencies: resolvedImporter.directDependencies,
+        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+      })
     } else {
       packageManifestLogger.debug({
         prefix: importer.rootDir,
@@ -1126,4 +1077,69 @@ async function getTopParents (pkgNames: string[], modules: string) {
     .filter(Boolean) as DependencyManifest[]
   )
     .map(({ name, version }: DependencyManifest) => ({ name, version }))
+}
+
+async function updateImporterManifest (
+  importer: ImporterToUpdate,
+  opts: {
+    directDependencies: ResolvedDirectDependency[],
+    saveWorkspaceProtocol: boolean,
+  }
+) {
+  if (!importer.manifest) {
+    throw new Error('Cannot save because no package.json found')
+  }
+  const specsToUpsert: PackageSpecObject[] = opts.directDependencies
+    .map(({ alias, name, normalizedPref, specRaw, version, resolution }) => {
+      let pref!: string
+      const isNew = importer.newPkgRawSpecs.includes(specRaw)
+      if (normalizedPref) {
+        pref = normalizedPref
+      } else {
+        if (isNew) {
+          pref = getPrefPreferSpecifiedSpec({
+            alias,
+            name,
+            pinnedVersion: importer['pinnedVersion'],
+            rawSpec: specRaw,
+            version,
+          })
+        } else {
+          pref = getPrefPreferSpecifiedExoticSpec({
+            alias,
+            name,
+            rawSpec: specRaw,
+            version,
+          })
+        }
+        if (
+          resolution.type === 'directory' &&
+          opts.saveWorkspaceProtocol &&
+          !pref.startsWith('workspace:')
+        ) {
+          pref = `workspace:${pref}`
+        }
+      }
+      return {
+        alias,
+        peer: importer['peer'],
+        pref,
+        saveType: isNew ? importer['targetDependenciesField'] : undefined,
+      }
+    })
+  for (const pkgToInstall of importer.wantedDeps) {
+    if (pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
+      specsToUpsert.push({
+        alias: pkgToInstall.alias,
+        peer: importer['peer'],
+        saveType: importer['targetDependenciesField'],
+      })
+    }
+  }
+  return save(
+    importer.rootDir,
+    importer.manifest,
+    specsToUpsert,
+    { dryRun: true },
+  )
 }

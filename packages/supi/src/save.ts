@@ -6,10 +6,10 @@ import {
 } from '@pnpm/types'
 
 export type PackageSpecObject = {
-  name: string,
+  alias: string,
   peer?: boolean,
   pref?: string,
-  saveType?: DependenciesField | 'peerDependencies',
+  saveType?: DependenciesField,
 }
 
 export default async function save (
@@ -22,24 +22,24 @@ export default async function save (
 ): Promise<ImporterManifest> {
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
-      const spec = packageSpec.pref || findSpec(packageSpec.name, packageManifest as ImporterManifest)
+      const spec = packageSpec.pref || findSpec(packageSpec.alias, packageManifest as ImporterManifest)
       if (spec) {
         packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] || {}
-        packageManifest[packageSpec.saveType]![packageSpec.name] = spec
+        packageManifest[packageSpec.saveType]![packageSpec.alias] = spec
         DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
           if (packageManifest[deptype]) {
-            delete packageManifest[deptype]![packageSpec.name]
+            delete packageManifest[deptype]![packageSpec.alias]
           }
         })
         if (packageSpec.peer === true) {
           packageManifest.peerDependencies = packageManifest.peerDependencies || {}
-          packageManifest.peerDependencies[packageSpec.name] = spec
+          packageManifest.peerDependencies[packageSpec.alias] = spec
         }
       }
     } else if (packageSpec.pref) {
-      const usedDepType = guessDependencyType(packageSpec.name, packageManifest as ImporterManifest) || 'dependencies'
+      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest as ImporterManifest) || 'dependencies'
       packageManifest[usedDepType] = packageManifest[usedDepType] || {}
-      packageManifest[usedDepType]![packageSpec.name] = packageSpec.pref
+      packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
     }
   })
 
@@ -50,12 +50,12 @@ export default async function save (
   return packageManifest as ImporterManifest
 }
 
-function findSpec (depName: string, manifest: ImporterManifest): string | undefined {
-  const foundDepType = guessDependencyType(depName, manifest)
-  return foundDepType && manifest[foundDepType]![depName]
+function findSpec (alias: string, manifest: ImporterManifest): string | undefined {
+  const foundDepType = guessDependencyType(alias, manifest)
+  return foundDepType && manifest[foundDepType]![alias]
 }
 
-export function guessDependencyType (depName: string, manifest: ImporterManifest): DependenciesField | undefined {
+export function guessDependencyType (alias: string, manifest: ImporterManifest): DependenciesField | undefined {
   return DEPENDENCIES_FIELDS
-    .find((depField) => Boolean(manifest[depField]?.[depName]))
+    .find((depField) => Boolean(manifest[depField]?.[alias]))
 }

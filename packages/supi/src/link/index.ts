@@ -25,7 +25,7 @@ import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import { getContextForSingleImporter } from '../getContext'
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
-import save, { guessDependencyType } from '../save'
+import save, { guessDependencyType, PackageSpecObject } from '../save'
 import getPref from '../utils/getPref'
 import {
   extendOptions,
@@ -53,7 +53,7 @@ export default async function link (
   const importerId = getLockfileImporterId(ctx.lockfileDir, opts.dir)
   const currentLockfile = R.clone(ctx.currentLockfile)
   const linkedPkgs: Array<{path: string, manifest: DependencyManifest, alias: string}> = []
-  const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
+  const specsToUpsert = [] as PackageSpecObject[]
 
   for (const linkFrom of linkFromPkgs) {
     let linkFromPath: string
@@ -66,7 +66,7 @@ export default async function link (
     }
     const { manifest } = await readImporterManifest(linkFromPath) as { manifest: DependencyManifest }
     specsToUpsert.push({
-      name: manifest.name,
+      alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {
         pinnedVersion: opts.pinnedVersion,
       }),
@@ -121,7 +121,7 @@ export default async function link (
   // Otherwise would've been removed
   for (const { alias, manifest, path } of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
-    const stu = specsToUpsert.find((s) => s.name === manifest.name)
+    const stu = specsToUpsert.find((s) => s.alias === manifest.name)
     await symlinkDirectRootDependency(path, destModules, alias, {
       fromDependenciesField: stu?.saveType ?? opts.targetDependenciesField,
       linkedPackage: manifest,
@@ -137,8 +137,8 @@ export default async function link (
   let newPkg!: ImporterManifest
   if (opts.targetDependenciesField) {
     newPkg = await save(opts.dir, opts.manifest, specsToUpsert)
-    for (const { name } of specsToUpsert) {
-      updatedWantedLockfile.importers[importerId].specifiers[name] = getSpecFromPackageManifest(newPkg, name)
+    for (const { alias } of specsToUpsert) {
+      updatedWantedLockfile.importers[importerId].specifiers[alias] = getSpecFromPackageManifest(newPkg, name)
     }
   } else {
     newPkg = opts.manifest
