@@ -138,7 +138,7 @@ export default async function link (
   if (opts.targetDependenciesField) {
     newPkg = await save(opts.dir, opts.manifest, specsToUpsert)
     for (const { alias } of specsToUpsert) {
-      updatedWantedLockfile.importers[importerId].specifiers[alias] = getSpecFromPackageManifest(newPkg, name)
+      updatedWantedLockfile.importers[importerId].specifiers[alias] = getSpecFromPackageManifest(newPkg, alias)
     }
   } else {
     newPkg = opts.manifest
