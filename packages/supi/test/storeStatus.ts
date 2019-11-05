@@ -21,7 +21,7 @@ test('store status returns empty array when store was not modified', async (t: t
 test('store status does not fail on not installed optional dependencies', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  const opts = await testDefaults({ targetDependenciesField: 'optionalDependencies' })
+  const opts = await testDefaults({ targetDependenciesField: 'optionalDependencies' as const })
   await addDependenciesToPackage({}, ['not-compatible-with-any-os'], opts)
 
   const mutatedPkgs = await storeStatus(opts)

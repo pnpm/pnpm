@@ -18,7 +18,7 @@ const testOnly = promisifyTape(tape.only)
 test('install with lockfileOnly = true', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' })
+  const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
 
   t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
