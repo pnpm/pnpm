@@ -29,7 +29,6 @@ import logger, {
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
 import resolveDependencies, {
-  ResolvedDirectDependency,
   ResolvedPackage,
 } from '@pnpm/resolve-dependencies'
 import {
@@ -65,12 +64,8 @@ import lock from '../lock'
 import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
-import save, { PackageSpecObject } from '../save'
 import removeDeps from '../uninstall/removeDeps'
-import {
-  getPrefPreferSpecifiedExoticSpec,
-  getPrefPreferSpecifiedSpec,
-} from '../utils/getPref'
+import { updateImporterManifest } from '../utils/getPref'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -590,7 +585,7 @@ export async function addDependenciesToPackage (
   return importers[0].manifest
 }
 
-type ImporterToUpdate = {
+export type ImporterToUpdate = {
   binsDir: string,
   id: string,
   manifest: ImporterManifest,
@@ -1077,69 +1072,4 @@ async function getTopParents (pkgNames: string[], modules: string) {
     .filter(Boolean) as DependencyManifest[]
   )
     .map(({ name, version }: DependencyManifest) => ({ name, version }))
-}
-
-async function updateImporterManifest (
-  importer: ImporterToUpdate,
-  opts: {
-    directDependencies: ResolvedDirectDependency[],
-    saveWorkspaceProtocol: boolean,
-  }
-) {
-  if (!importer.manifest) {
-    throw new Error('Cannot save because no package.json found')
-  }
-  const specsToUpsert: PackageSpecObject[] = opts.directDependencies
-    .map(({ alias, name, normalizedPref, specRaw, version, resolution }) => {
-      let pref!: string
-      const isNew = importer.newPkgRawSpecs.includes(specRaw)
-      if (normalizedPref) {
-        pref = normalizedPref
-      } else {
-        if (isNew) {
-          pref = getPrefPreferSpecifiedSpec({
-            alias,
-            name,
-            pinnedVersion: importer['pinnedVersion'],
-            rawSpec: specRaw,
-            version,
-          })
-        } else {
-          pref = getPrefPreferSpecifiedExoticSpec({
-            alias,
-            name,
-            rawSpec: specRaw,
-            version,
-          })
-        }
-        if (
-          resolution.type === 'directory' &&
-          opts.saveWorkspaceProtocol &&
-          !pref.startsWith('workspace:')
-        ) {
-          pref = `workspace:${pref}`
-        }
-      }
-      return {
-        alias,
-        peer: importer['peer'],
-        pref,
-        saveType: isNew ? importer['targetDependenciesField'] : undefined,
-      }
-    })
-  for (const pkgToInstall of importer.wantedDeps) {
-    if (pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
-      specsToUpsert.push({
-        alias: pkgToInstall.alias,
-        peer: importer['peer'],
-        saveType: importer['targetDependenciesField'],
-      })
-    }
-  }
-  return save(
-    importer.rootDir,
-    importer.manifest,
-    specsToUpsert,
-    { dryRun: true },
-  )
 }
