@@ -135,17 +135,18 @@ function getPrefPreferSpecifiedExoticSpec (
       return opts.specRaw.substr(opts.alias.length + 1)
     }
     if (!opts.pinnedVersion) {
-      switch (selector.type) {
-        case 'version':
-          opts.pinnedVersion = 'patch'
-          break
-        default:
-          opts.pinnedVersion = (specWithoutName.startsWith('~') ? 'minor' : (specWithoutName.startsWith('^') ? 'major' : 'patch'))
-          break
-      }
+      opts.pinnedVersion = selector.type === 'version'
+        ? 'patch'
+        : guessPinnedVersionFromExistingSpec(specWithoutName)
     }
   }
   return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`
+}
+
+function guessPinnedVersionFromExistingSpec (spec: string) {
+  if (spec.startsWith('~')) return 'minor'
+  if (spec.startsWith('^')) return 'major'
+  return 'patch'
 }
 
 function createVersionSpec (version: string, pinnedVersion?: PinnedVersion) {
