@@ -62,6 +62,23 @@ export async function pack (
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
+// property keys that are copied from publishConfig into the manifest
+const PUBLISH_CONFIG_WHITELIST = new Set([
+  // manifest fields that may make sense to overwrite
+  'bin',
+  // https://github.com/stereobooster/package.json#package-bundlers
+  'main',
+  'module',
+  'typings',
+  'types',
+  'exports',
+  'browser',
+  'esnext',
+  'es2015',
+  'unpkg',
+  'umd:main',
+])
+
 async function fakeRegularManifest (
   opts: {
     engineStrict?: boolean,
@@ -98,20 +115,16 @@ async function makePublishManifest (dir: string, originalManifest: ImporterManif
     dependencies: await makePublishDependencies(dir, originalManifest.dependencies),
     optionalDependencies: await makePublishDependencies(dir, originalManifest.optionalDependencies),
   }
-  if (originalManifest.publishConfig) {
-    if (originalManifest.publishConfig.main) {
-      publishManifest.main = originalManifest.publishConfig.main
-    }
-    if (originalManifest.publishConfig.module) {
-      publishManifest.module = originalManifest.publishConfig.module
-    }
-    if (originalManifest.publishConfig.typings) {
-      publishManifest.typings = originalManifest.publishConfig.typings
-    }
-    if (originalManifest.publishConfig.types) {
-      publishManifest.types = originalManifest.publishConfig.types
-    }
+
+  const { publishConfig } = originalManifest
+  if (publishConfig) {
+    Object.keys(publishConfig)
+      .filter(key => PUBLISH_CONFIG_WHITELIST.has(key))
+      .forEach(key => {
+        publishManifest[key] = publishConfig[key]
+      })
   }
+
   return publishManifest
 }
 

@@ -149,22 +149,30 @@ testFromNode10('publish packages with workspace LICENSE if no own LICENSE is pre
   t.ok(await exists('project-200/LICENSE'))
 })
 
-test('publish: package with main, module, typings and types in publishConfig', async (t: tape.Test) => {
+test('publish: package with all possible fields in publishConfig', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'test-publish-config',
       version: '1.0.0',
 
+      bin: './bin.js',
       main: './index.js',
       module: './index.mjs',
       types: `./types.d.ts`,
       typings: `./typings.d.ts`,
 
       publishConfig: {
+        bin: './published-bin.js',
+        browser: './published-browser.js',
+        es2015: './published-es2015.js',
+        esnext: './published-esnext.js',
+        exports: './published-exports.js',
         main: './published.js',
         module: './published.mjs',
         types: `./published-types.d.ts`,
         typings: `./published-typings.d.ts`,
+        'umd:main': './published-umd.js',
+        unpkg: './published-unpkg.js',
       },
     },
     {
@@ -175,6 +183,7 @@ test('publish: package with main, module, typings and types in publishConfig', a
 
   process.chdir('test-publish-config')
   await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
+  await fs.writeFile('published-bin.js', `#!/usr/bin/env node`, 'utf8')
   await execPnpm('publish')
 
   const originalManifests = await import(path.resolve('package.json'))
@@ -182,16 +191,24 @@ test('publish: package with main, module, typings and types in publishConfig', a
     name: 'test-publish-config',
     version: '1.0.0',
 
+    bin: './bin.js',
     main: './index.js',
     module: './index.mjs',
     types: `./types.d.ts`,
     typings: `./typings.d.ts`,
 
     publishConfig: {
+      bin: './published-bin.js',
+      browser: './published-browser.js',
+      es2015: './published-es2015.js',
+      esnext: './published-esnext.js',
+      exports: './published-exports.js',
       main: './published.js',
       module: './published.mjs',
       types: `./published-types.d.ts`,
       typings: `./published-typings.d.ts`,
+      'umd:main': './published-umd.js',
+      unpkg: './published-unpkg.js',
     },
   })
 
@@ -203,17 +220,32 @@ test('publish: package with main, module, typings and types in publishConfig', a
     name: 'test-publish-config',
     version: '1.0.0',
 
+    bin: './published-bin.js',
     main: './published.js',
     module: './published.mjs',
-    types: `./published-types.d.ts`,
-    typings: `./published-typings.d.ts`,
+    types: './published-types.d.ts',
+    typings: './published-typings.d.ts',
 
     publishConfig: {
+      bin: './published-bin.js',
+      browser: './published-browser.js',
+      es2015: './published-es2015.js',
+      esnext: './published-esnext.js',
+      exports: './published-exports.js',
       main: './published.js',
       module: './published.mjs',
-      types: `./published-types.d.ts`,
-      typings: `./published-typings.d.ts`,
+      types: './published-types.d.ts',
+      typings: './published-typings.d.ts',
+      'umd:main': './published-umd.js',
+      unpkg: './published-unpkg.js',
     },
+
+    browser: './published-browser.js',
+    es2015: './published-es2015.js',
+    esnext: './published-esnext.js',
+    exports: './published-exports.js',
+    'umd:main': './published-umd.js',
+    unpkg: './published-unpkg.js',
   })
 })
 
