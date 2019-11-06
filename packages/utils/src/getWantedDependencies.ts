@@ -1,4 +1,4 @@
-import { Dependencies, DependencyManifest, ImporterManifest } from '@pnpm/types'
+import { Dependencies, ImporterManifest } from '@pnpm/types'
 import depsFromPackage from './getAllDependenciesFromPackage'
 
 export interface WantedDependency {
@@ -19,19 +19,6 @@ export function getWantedDependencies (
   })
 }
 
-export function getNonDevWantedDependencies (pkg: DependencyManifest) {
-  const bundledDeps = new Set(pkg.bundleDependencies || pkg.bundledDependencies || [])
-  bundledDeps.add(pkg.name)
-  const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
-  return getWantedDependenciesFromGivenSet(
-    filterDeps({ ...pkg.optionalDependencies, ...pkg.dependencies }),
-    {
-      devDependencies: {},
-      optionalDependencies: pkg.optionalDependencies || {},
-    },
-  )
-}
-
 function getWantedDependenciesFromGivenSet (
   deps: Dependencies,
   opts: {
@@ -47,13 +34,4 @@ function getWantedDependenciesFromGivenSet (
     pref: deps[alias],
     raw: `${alias}@${deps[alias]}`,
   }))
-}
-
-function getNotBundledDeps (bundledDeps: Set<string>, deps: Dependencies) {
-  return Object.keys(deps)
-    .filter((depName) => !bundledDeps.has(depName))
-    .reduce((notBundledDeps, depName) => {
-      notBundledDeps[depName] = deps[depName]
-      return notBundledDeps
-    }, {})
 }

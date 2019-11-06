@@ -281,7 +281,6 @@ export async function mutateModules (
           importersToInstall.push({
             pruneDirectDependencies: false,
             ...importer,
-            newPkgRawSpecs: [],
             removePackages: importer.dependencyNames,
             updatePackageManifest: true,
             wantedDeps: [],
@@ -371,7 +370,6 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        newPkgRawSpecs: [],
         updatePackageManifest: opts.update === true,
         wantedDeps,
       })
@@ -393,9 +391,8 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        newPkgRawSpecs: wantedDeps.map(({ raw }) => raw),
         updatePackageManifest,
-        wantedDeps,
+        wantedDeps: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true })),
       })
     }
 
@@ -590,7 +587,6 @@ export type ImporterToUpdate = {
   id: string,
   manifest: ImporterManifest,
   modulesDir: string,
-  newPkgRawSpecs: string[],
   rootDir: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
@@ -730,8 +726,8 @@ async function installInContext (
       ? await getTopParents(
           R.difference(
             Object.keys(getAllDependenciesFromPackage(importer.manifest)),
-            importer.newPkgRawSpecs && resolvedImporter.directDependencies
-              .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
+            resolvedImporter.directDependencies
+              .filter(({ isNew }) => isNew === true)
               .map(({ alias }) => alias) || [],
           ),
           importer.modulesDir,
@@ -910,16 +906,12 @@ async function toResolveImporter (
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
-  const depsToUpdate = importer.wantedDeps.map((wantedDep) => ({
-    ...wantedDep,
-    isNew: true,
-  }))
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === alias))
-  let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
+  let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!importer.manifest || hoist) {
     wantedDependencies = [
-      ...depsToUpdate,
+      ...importer.wantedDeps,
       ...existingDeps,
     ]
     .map((dep) => ({
@@ -928,7 +920,7 @@ async function toResolveImporter (
     }))
   } else {
     wantedDependencies = [
-      ...depsToUpdate.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+      ...importer.wantedDeps.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
       ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
     ]
   }
@@ -972,7 +964,6 @@ function addDirectDependenciesToLockfile (
     id: string,
     version: string,
     name: string,
-    specRaw: string,
     normalizedPref?: string,
   }>,
   registries: Registries,

@@ -6,7 +6,7 @@ import semver = require('semver')
 
 export default function wantedDepIsLocallyAvailable (
   localPackages: LocalPackages,
-  wantedDependency: WantedDependency,
+  wantedDependency: Omit<WantedDependency, 'raw'>,
   opts: {
     defaultTag: string,
     registry: string,

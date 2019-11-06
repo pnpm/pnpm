@@ -35,6 +35,7 @@ export async function updateImporterManifest (
 function resolvedDirectDepToSpecObject (
   {
     alias,
+    isNew,
     name,
     normalizedPref,
     resolution,
@@ -47,7 +48,6 @@ function resolvedDirectDepToSpecObject (
   }
 ): PackageSpecObject {
   let pref!: string
-  const isNew = importer.newPkgRawSpecs.includes(specRaw)
   if (normalizedPref) {
     pref = normalizedPref
   } else {
