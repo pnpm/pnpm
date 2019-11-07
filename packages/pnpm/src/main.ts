@@ -105,6 +105,7 @@ type CLI_OPTIONS = 'access'
   | 'registry'
   | 'reporter'
   | 'resolution-strategy'
+  | 'save'
   | 'save-dev'
   | 'save-exact'
   | 'save-optional'
@@ -349,6 +350,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'registry',
     'reporter',
     'resolution-strategy',
+    'save',
     'save-exact',
     'shamefully-flatten',
     'shamefully-hoist',

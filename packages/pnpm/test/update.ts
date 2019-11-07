@@ -33,6 +33,46 @@ test('update', async function (t: tape.Test) {
   t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
 })
 
+test('update --no-save', async function (t: tape.Test) {
+  await addDistTag('foo', '100.1.0', 'latest')
+  const project = prepare(t, {
+    dependencies: {
+      foo: '^100.0.0',
+    },
+  })
+
+  await execPnpm('update', '--no-save')
+
+  const lockfile = await project.readLockfile()
+  t.ok(lockfile.packages['/foo/100.1.0'])
+
+  const pkg = await readPackage(process.cwd())
+  t.equal(pkg.dependencies?.['foo'], '^100.0.0')
+})
+
+test('recursive update --no-save', async function (t: tape.Test) {
+  await addDistTag('foo', '100.1.0', 'latest')
+  const projects = preparePackages(t, [
+    {
+      location: 'project',
+      package: {
+        dependencies: {
+          foo: '^100.0.0',
+        },
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await execPnpm('recursive', 'update', '--no-save')
+
+  const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // tslint:disable-line
+  t.ok(lockfile.packages['/foo/100.1.0'])
+
+  const pkg = await readPackage(path.resolve('project'))
+  t.equal(pkg.dependencies?.['foo'], '^100.0.0')
+})
+
 test('update should not install the dependency if it is not present already', async function (t: tape.Test) {
   const project = prepare(t)
 

@@ -8,8 +8,9 @@ import {
 import {
   createNodeId,
   nodeIdContainsSequence,
-  WantedDependency,
 } from '@pnpm/utils'
+import R = require('ramda')
+import { WantedDependency } from './getNonDevWantedDependencies'
 import resolveDependencies, {
   ChildrenByParentId,
   DependenciesTree,
@@ -21,6 +22,19 @@ import resolveDependencies, {
 
 export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 
+export type ResolvedDirectDependency = {
+  alias: string,
+  optional: boolean,
+  dev: boolean,
+  resolution: Resolution,
+  id: string,
+  isNew: boolean,
+  version: string,
+  name: string,
+  specRaw: string,
+  normalizedPref?: string,
+}
+
 export interface Importer {
   id: string,
   modulesDir: string,
@@ -31,7 +45,7 @@ export interface Importer {
     },
   },
   rootDir: string,
-  wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
+  wantedDependencies: Array<WantedDependency & { isNew?: boolean, raw: string, updateDepth: number }>,
 }
 
 export default async function (
@@ -58,8 +72,7 @@ export default async function (
     updateLockfile: boolean,
   },
 ) {
-  const directNonLinkedDepsByImporterId = {} as {[id: string]: PkgAddress[]}
-  const linkedDependenciesByImporterId = {}
+  const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}
 
   const wantedToBeSkippedPackageIds = new Set<string>()
   const ctx = {
@@ -112,12 +125,11 @@ export default async function (
       },
       updateDepth: -1,
     }
-    directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
+    directDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
       importer.wantedDependencies,
       resolveOpts,
     )
-    linkedDependenciesByImporterId[importer.id] = linkedDependencies
   }))
 
   ctx.pendingNodes.forEach((pendingNode) => {
@@ -132,17 +144,7 @@ export default async function (
 
   const resolvedImporters = {} as {
     [id: string]: {
-      directDependencies: Array<{
-        alias: string,
-        optional: boolean,
-        dev: boolean,
-        resolution: Resolution,
-        id: string,
-        version: string,
-        name: string,
-        specRaw: string,
-        normalizedPref?: string,
-      }>,
+      directDependencies: ResolvedDirectDependency[],
       directNodeIdsByAlias: {
         [alias: string]: string,
       },
@@ -150,31 +152,29 @@ export default async function (
     },
   }
 
-  for (const { id } of importers) {
-    const directNonLinkedDeps = directNonLinkedDepsByImporterId[id]
-    const linkedDependencies = linkedDependenciesByImporterId[id]
+  for (const { id, wantedDependencies } of importers) {
+    const directDeps = directDepsByImporterId[id]
+    const [linkedDependencies, directNonLinkedDeps] = R.partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
 
     resolvedImporters[id] = {
-      directDependencies: [
-        ...directNonLinkedDeps
-          .map(({ alias, nodeId, normalizedPref, specRaw }) => ({
-            ...ctx.dependenciesTree[nodeId].resolvedPackage,
-            alias,
-            normalizedPref,
-            specRaw,
-          })) as Array<{
-            alias: string,
-            optional: boolean,
-            dev: boolean,
-            resolution: Resolution,
-            id: string,
-            version: string,
-            name: string,
-            specRaw: string,
-            normalizedPref?: string,
-          }>,
-        ...linkedDependencies,
-      ],
+      directDependencies: directDeps
+        .map((dep, index) => {
+          const { isNew, raw } = wantedDependencies[index]
+          if (dep.isLinkedDependency === true) {
+            return {
+              ...dep,
+              isNew,
+              specRaw: raw,
+            }
+          }
+          return {
+            ...ctx.dependenciesTree[dep.nodeId].resolvedPackage,
+            alias: dep.alias,
+            isNew,
+            normalizedPref: dep.normalizedPref,
+            specRaw: raw,
+          }
+        }) as ResolvedDirectDependency[],
       directNodeIdsByAlias: directNonLinkedDeps
         .reduce((acc, dependency) => {
           acc[dependency.alias] = dependency.nodeId

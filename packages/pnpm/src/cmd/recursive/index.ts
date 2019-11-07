@@ -306,11 +306,13 @@ export async function recursive (
         hooks,
         storeController: store.ctrl,
       })
-      await Promise.all(
-        mutatedPkgs
-          .filter((mutatedPkg, index) => mutatedImporters[index].mutation !== 'install')
-          .map(({ manifest, rootDir }, index) => writeImporterManifests[index](manifest))
-      )
+      if (opts.save !== false) {
+        await Promise.all(
+          mutatedPkgs
+            .filter((mutatedPkg, index) => mutatedImporters[index].mutation !== 'install')
+            .map(({ manifest, rootDir }, index) => writeImporterManifests[index](manifest))
+        )
+      }
       return true
     }
 
@@ -381,7 +383,7 @@ export async function recursive (
               storeController,
             },
           )
-          if (action !== install) {
+          if (action !== install && opts.save !== false) {
             await writeImporterManifest(newManifest)
           }
           result.passes++

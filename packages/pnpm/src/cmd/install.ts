@@ -83,7 +83,10 @@ export default async function installCmd (
     if (invocation === 'add') {
       throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
     }
-    await install(manifest, installOpts)
+    const updatedManifest = await install(manifest, installOpts)
+    if (opts.update === true && opts.save !== false) {
+      await writeImporterManifest(updatedManifest)
+    }
   } else {
     const [updatedImporter] = await mutateModules([
       {
@@ -98,7 +101,9 @@ export default async function installCmd (
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
-    await writeImporterManifest(updatedImporter.manifest)
+    if (opts.save !== false) {
+      await writeImporterManifest(updatedImporter.manifest)
+    }
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {

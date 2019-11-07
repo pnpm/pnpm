@@ -36,11 +36,9 @@ import {
 } from '@pnpm/types'
 import {
   createNodeId,
-  getNonDevWantedDependencies,
   nodeIdContainsSequence,
   pickRegistryForPackage,
   splitNodeId,
-  WantedDependency,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
@@ -48,6 +46,7 @@ import exists = require('path-exists')
 import R = require('ramda')
 import semver = require('semver')
 import encodePkgId from './encodePkgId'
+import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')
@@ -87,13 +86,13 @@ export interface ResolvedPackagesByPackageId {
 }
 
 export interface LinkedDependency {
+  isLinkedDependency: true,
   optional: boolean,
   dev: boolean,
   resolution: DirectoryResolution,
   id: string,
   version: string,
   name: string,
-  specRaw: string,
   normalizedPref?: string,
   alias: string,
 }
@@ -115,7 +114,6 @@ export interface ResolutionContext {
   dryRun: boolean,
   resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
   outdatedDependencies: {[pkgId: string]: string},
-  linkedDependencies: LinkedDependency[],
   childrenByParentId: ChildrenByParentId,
   pendingNodes: PendingNode[],
   wantedLockfile: Lockfile,
@@ -152,6 +150,7 @@ export interface PkgAddress {
   alias: string,
   depIsLinked: boolean,
   isNew: boolean,
+  isLinkedDependency?: false,
   nodeId: string,
   pkgId: string,
   normalizedPref?: string, // is returned only for root dependencies
@@ -159,7 +158,6 @@ export interface PkgAddress {
   pkg: PackageManifest,
   updated: boolean,
   useManifestInfoFromLockfile: boolean,
-  specRaw: string,
 }
 
 export interface ResolvedPackage {
@@ -217,7 +215,7 @@ export default async function resolveDependencies (
     readPackageHook?: ReadPackageHook,
     localPackages?: LocalPackages,
   },
-): Promise<PkgAddress[]> {
+): Promise<Array<PkgAddress | LinkedDependency>> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     parentDependsOnPeers: options.parentDependsOnPeers,
     preferedDependencies: options.preferedDependencies,
@@ -255,7 +253,7 @@ export default async function resolveDependencies (
           const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
           if (!resolveDependencyResult) return null
-          if (!resolveDependencyResult.isNew) return resolveDependencyResult
+          if (resolveDependencyResult.isLinkedDependency || !resolveDependencyResult.isNew) return resolveDependencyResult
 
           const resolveChildren = async function (preferredVersions: PreferredVersions) {
             const resolvedPackage = ctx.resolvedPackagesByPackageId[resolveDependencyResult.pkgId]
@@ -288,7 +286,7 @@ export default async function resolveDependencies (
                 resolvedDependencies,
                 updateDepth,
               },
-            )
+            ) as PkgAddress[]
             ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
               alias: child.alias,
               pkgId: child.pkgId,
@@ -321,6 +319,7 @@ export default async function resolveDependencies (
       ...options.preferredVersions,
     }
     for (const { pkgId } of pkgAddresses) {
+      if (!pkgId) continue // This will happen only with linked dependencies
       const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
       if (newPreferredVersions[resolvedPackage.name] && newPreferredVersions[resolvedPackage.name].type !== 'tag') {
         newPreferredVersions[resolvedPackage.name] = {
@@ -506,7 +505,7 @@ async function resolveDependency (
   wantedDependency: WantedDependency,
   ctx: ResolutionContext,
   options: ResolveDependencyOptions,
-): Promise<PkgAddress | null> {
+): Promise<PkgAddress | LinkedDependency | null> {
   const update = Boolean(
     options.update ||
     options.localPackages &&
@@ -568,7 +567,7 @@ async function resolveDependency (
     wanted: {
       dependentId: options.dependentId,
       name: wantedDependency.alias,
-      rawSpec: wantedDependency.raw,
+      rawSpec: wantedDependency.pref,
     },
   })
 
@@ -589,20 +588,20 @@ async function resolveDependency (
         message: `Ignoring file dependency because it is not a root dependency ${wantedDependency}`,
         prefix: ctx.prefix,
       })
+      return null
     } else {
-      ctx.linkedDependencies.push({
+      return {
         alias: wantedDependency.alias || manifest.name,
         dev: wantedDependency.dev,
         id: pkgResponse.body.id,
+        isLinkedDependency: true,
         name: manifest.name,
         normalizedPref: pkgResponse.body.normalizedPref,
         optional: wantedDependency.optional,
         resolution: pkgResponse.body.resolution,
-        specRaw: wantedDependency.raw,
         version: manifest.version,
-      })
+      }
     }
-    return null
   }
 
   // For the root dependency dependentId will be undefined,
@@ -651,7 +650,7 @@ async function resolveDependency (
     // tslint:enable:no-string-literal
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
-    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.raw}: Missing package name`)
+    throw new PnpmError('MISSING_PACKAGE_NAME', `Can't install ${wantedDependency.pref}: Missing package name`)
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
@@ -737,7 +736,6 @@ async function resolveDependency (
     nodeId,
     normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
     pkgId: pkgResponse.body.id,
-    specRaw: wantedDependency.raw, // we need this for saving to package.json
 
     // Next fields are actually only needed when isNew = true
     installable,

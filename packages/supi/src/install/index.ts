@@ -28,7 +28,9 @@ import logger, {
 } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
-import resolveDependencies, { ResolvedPackage } from '@pnpm/resolve-dependencies'
+import resolveDependencies, {
+  ResolvedPackage,
+} from '@pnpm/resolve-dependencies'
 import {
   LocalPackages,
   Resolution,
@@ -42,9 +44,7 @@ import {
 } from '@pnpm/types'
 import {
   getAllDependenciesFromPackage,
-  getWantedDependencies,
   safeReadPackageFromDir as safeReadPkgFromDir,
-  WantedDependency,
 } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
@@ -62,14 +62,14 @@ import lock from '../lock'
 import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
-import save, { PackageSpecObject } from '../save'
 import removeDeps from '../uninstall/removeDeps'
-import getPref from '../utils/getPref'
+import { updateImporterManifest } from '../utils/getPref'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
+import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -280,7 +280,6 @@ export async function mutateModules (
           importersToInstall.push({
             pruneDirectDependencies: false,
             ...importer,
-            newPkgRawSpecs: [],
             removePackages: importer.dependencyNames,
             updatePackageManifest: true,
             wantedDeps: [],
@@ -370,8 +369,7 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        newPkgRawSpecs: [],
-        updatePackageManifest: false,
+        updatePackageManifest: opts.update === true,
         wantedDeps,
       })
     }
@@ -392,9 +390,8 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        newPkgRawSpecs: wantedDeps.map(({ raw }) => raw),
         updatePackageManifest,
-        wantedDeps,
+        wantedDeps: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true })),
       })
     }
 
@@ -584,12 +581,11 @@ export async function addDependenciesToPackage (
   return importers[0].manifest
 }
 
-type ImporterToUpdate = {
+export type ImporterToUpdate = {
   binsDir: string,
   id: string,
   manifest: ImporterManifest,
   modulesDir: string,
-  newPkgRawSpecs: string[],
   rootDir: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
@@ -702,47 +698,11 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: ImporterManifest | undefined = importer.manifest
-    if (importer.updatePackageManifest && importer.mutation === 'installSome') {
-      if (!importer.manifest) {
-        throw new Error('Cannot save because no package.json found')
-      }
-      const specsToUpsert: PackageSpecObject[] = resolvedImporter.directDependencies
-        .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
-        .map(({ alias, name, normalizedPref, specRaw, version, resolution }) => {
-          let pref!: string
-          if (normalizedPref) {
-            pref = normalizedPref
-          } else {
-            pref = getPref(alias, name, version, {
-              pinnedVersion: importer.pinnedVersion,
-              rawSpec: specRaw,
-            })
-            if (resolution.type === 'directory' && opts.saveWorkspaceProtocol) {
-              pref = `workspace:${pref}`
-            }
-          }
-          return {
-            name: alias,
-            peer: importer.peer,
-            pref,
-            saveType: importer.targetDependenciesField,
-          }
-        })
-      for (const pkgToInstall of importer.wantedDeps) {
-        if (pkgToInstall.alias && !specsToUpsert.some(({ name }) => name === pkgToInstall.alias)) {
-          specsToUpsert.push({
-            name: pkgToInstall.alias,
-            peer: importer.peer,
-            saveType: importer.targetDependenciesField,
-          })
-        }
-      }
-      newPkg = await save(
-        importer.rootDir,
-        importer.manifest,
-        specsToUpsert,
-        { dryRun: true },
-      )
+    if (importer.updatePackageManifest) {
+      newPkg = await updateImporterManifest(importer, {
+        directDependencies: resolvedImporter.directDependencies,
+        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+      })
     } else {
       packageManifestLogger.debug({
         prefix: importer.rootDir,
@@ -765,8 +725,8 @@ async function installInContext (
       ? await getTopParents(
           R.difference(
             Object.keys(getAllDependenciesFromPackage(importer.manifest)),
-            importer.newPkgRawSpecs && resolvedImporter.directDependencies
-              .filter(({ specRaw }) => importer.newPkgRawSpecs.includes(specRaw))
+            resolvedImporter.directDependencies
+              .filter(({ isNew }) => isNew === true)
               .map(({ alias }) => alias) || [],
           ),
           importer.modulesDir,
@@ -945,16 +905,12 @@ async function toResolveImporter (
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
   })
-  const depsToUpdate = importer.wantedDeps.map((wantedDep) => ({
-    ...wantedDep,
-    isNew: true,
-  }))
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === alias))
-  let wantedDependencies!: Array<WantedDependency & { updateDepth: number }>
+  let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!importer.manifest || hoist) {
     wantedDependencies = [
-      ...depsToUpdate,
+      ...importer.wantedDeps,
       ...existingDeps,
     ]
     .map((dep) => ({
@@ -963,7 +919,7 @@ async function toResolveImporter (
     }))
   } else {
     wantedDependencies = [
-      ...depsToUpdate.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+      ...importer.wantedDeps.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
       ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
     ]
   }
@@ -1007,7 +963,6 @@ function addDirectDependenciesToLockfile (
     id: string,
     version: string,
     name: string,
-    specRaw: string,
     normalizedPref?: string,
   }>,
   registries: Registries,
