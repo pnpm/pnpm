@@ -128,7 +128,7 @@ function getPrefPreferSpecifiedExoticSpec (
   },
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
-  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
+  if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`) && opts.specRaw !== `${opts.alias}@workspace:*`) {
     const specWithoutName = opts.specRaw.substr(`${opts.alias}@${prefix}`.length)
     const selector = versionSelectorType(specWithoutName)
     if (!(selector && (selector.type === 'version' || selector.type === 'range'))) {

@@ -11,12 +11,22 @@ export interface WantedDependency {
 
 export default function getWantedDependencies (
   pkg: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+  opts?: {
+    updateWorkspaceDependencies?: boolean,
+  }
 ): WantedDependency[] {
   const depsToInstall = getAllDependenciesFromPackage(pkg)
   return getWantedDependenciesFromGivenSet(depsToInstall, {
     devDependencies: pkg.devDependencies || {},
     optionalDependencies: pkg.optionalDependencies || {},
+    updatePref: opts?.updateWorkspaceDependencies === true
+      ? updateWorkspacePref
+      : (pref) => pref,
   })
+}
+
+function updateWorkspacePref (pref: string) {
+  return pref.startsWith('workspace:') ? 'workspace:*' : pref
 }
 
 function getWantedDependenciesFromGivenSet (
@@ -24,14 +34,18 @@ function getWantedDependenciesFromGivenSet (
   opts: {
     devDependencies: Dependencies,
     optionalDependencies: Dependencies,
+    updatePref: (pref: string) => string,
   },
 ): WantedDependency[] {
   if (!deps) return []
-  return Object.keys(deps).map((alias) => ({
-    alias,
-    dev: !!opts.devDependencies[alias],
-    optional: !!opts.optionalDependencies[alias],
-    pref: deps[alias],
-    raw: `${alias}@${deps[alias]}`,
-  }))
+  return Object.keys(deps).map((alias) => {
+    const pref = opts.updatePref(deps[alias])
+    return {
+      alias,
+      dev: !!opts.devDependencies[alias],
+      optional: !!opts.optionalDependencies[alias],
+      pref,
+      raw: `${alias}@${pref}`,
+    }
+  })
 }

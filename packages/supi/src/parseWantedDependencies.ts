@@ -14,6 +14,7 @@ export default function parseWantedDependencies (
     devDependencies: Dependencies,
     optional: boolean,
     optionalDependencies: Dependencies,
+    updateWorkspaceDependencies?: boolean,
   },
 ): WantedDependency[] {
   return rawWantedDependencies
@@ -21,16 +22,20 @@ export default function parseWantedDependencies (
       const parsed = parseWantedDependency(rawWantedDependency)
       // tslint:disable:no-string-literal
       const alias = parsed['alias'] as (string | undefined)
-      const pref = parsed['pref'] as (string | undefined)
+      let pref = parsed['pref'] as (string | undefined)
       // tslint:enable:no-string-literal
       if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
         return null
+      }
+      if (!pref && alias && opts.currentPrefs[alias]) {
+        pref = (opts.currentPrefs[alias].startsWith('workspace:') && opts.updateWorkspaceDependencies === true)
+          ? 'workspace:*' : opts.currentPrefs[alias]
       }
       return {
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
-        pref: pref || alias && opts.currentPrefs[alias] || opts.defaultTag,
+        pref: pref ?? opts.defaultTag,
         raw: rawWantedDependency,
       }
     })

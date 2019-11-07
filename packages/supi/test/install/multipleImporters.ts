@@ -588,3 +588,52 @@ test('adding a new dependency with the workspace: protocol', async (t) => {
 
   t.deepEqual(manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
 })
+
+test('update workspace range', async (t) => {
+  prepareEmpty(t)
+
+  const updatedImporters = await mutateModules([
+    {
+      dependencySelectors: ['foo'],
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          foo: 'workspace:0.0.0',
+        },
+      },
+      mutation: 'installSome',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          foo: 'workspace:0.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ], await testDefaults({
+    localPackages: {
+      foo: {
+        '1.0.0': {
+          dir: '',
+          manifest: {
+            name: 'foo',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    update: true,
+  }))
+
+  t.deepEqual(updatedImporters[0].manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
+  t.deepEqual(updatedImporters[1].manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
+})

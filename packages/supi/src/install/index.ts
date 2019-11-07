@@ -345,7 +345,7 @@ export async function mutateModules (
     }
 
     async function installCase (importer: any) { // tslint:disable-line:no-any
-      const wantedDeps = getWantedDependencies(importer.manifest)
+      const wantedDeps = getWantedDependencies(importer.manifest, { updateWorkspaceDependencies: opts.update })
 
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDeps)
@@ -386,6 +386,7 @@ export async function mutateModules (
         devDependencies,
         optional: importer.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
+        updateWorkspaceDependencies: opts.update,
       })
       importersToInstall.push({
         pruneDirectDependencies: false,
