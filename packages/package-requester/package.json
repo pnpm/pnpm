@@ -62,7 +62,7 @@
     "@pnpm/package-requester": "link:",
     "@pnpm/tarball-fetcher": "file:../tarball-fetcher",
     "@types/mz": "0.0.32",
-    "@types/ncp": "2.0.2",
+    "@types/ncp": "^2.0.2",
     "@types/ramda": "0.26.29",
     "@types/sinon": "^7.0.10",
     "@types/ssri": "6.0.1",
