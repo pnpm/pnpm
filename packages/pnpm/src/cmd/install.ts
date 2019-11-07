@@ -84,7 +84,7 @@ export default async function installCmd (
       throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
     }
     const updatedManifest = await install(manifest, installOpts)
-    if (opts.update === true) {
+    if (opts.update === true && opts.save !== false) {
       await writeImporterManifest(updatedManifest)
     }
   } else {
@@ -101,7 +101,9 @@ export default async function installCmd (
         targetDependenciesField: getSaveType(installOpts),
       },
     ], installOpts)
-    await writeImporterManifest(updatedImporter.manifest)
+    if (opts.save !== false) {
+      await writeImporterManifest(updatedImporter.manifest)
+    }
   }
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
