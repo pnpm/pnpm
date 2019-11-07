@@ -17,4 +17,3 @@ export {
 }
 
 export * from './nodeIdUtils'
-export * from './getWantedDependencies'

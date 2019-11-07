@@ -1,5 +1,5 @@
 import { Dependencies, ImporterManifest } from '@pnpm/types'
-import depsFromPackage from './getAllDependenciesFromPackage'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 
 export interface WantedDependency {
   alias: string,
@@ -9,10 +9,10 @@ export interface WantedDependency {
   raw: string, // might be not needed
 }
 
-export function getWantedDependencies (
+export default function getWantedDependencies (
   pkg: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
 ): WantedDependency[] {
-  const depsToInstall = depsFromPackage(pkg)
+  const depsToInstall = getAllDependenciesFromPackage(pkg)
   return getWantedDependenciesFromGivenSet(depsToInstall, {
     devDependencies: pkg.devDependencies || {},
     optionalDependencies: pkg.optionalDependencies || {},

@@ -8,9 +8,9 @@ import {
 import {
   createNodeId,
   nodeIdContainsSequence,
-  WantedDependency,
 } from '@pnpm/utils'
 import R = require('ramda')
+import { WantedDependency } from './getNonDevWantedDependencies'
 import resolveDependencies, {
   ChildrenByParentId,
   DependenciesTree,
@@ -45,7 +45,7 @@ export interface Importer {
     },
   },
   rootDir: string,
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>,
+  wantedDependencies: Array<WantedDependency & { isNew?: boolean, raw: string, updateDepth: number }>,
 }
 
 export default async function (

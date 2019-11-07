@@ -1,12 +1,12 @@
 import parsePref, { RegistryPackageSpec } from '@pnpm/npm-resolver/lib/parsePref'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
-import { WantedDependency } from '@pnpm/utils'
 import semver = require('semver')
+import { WantedDependency } from './getNonDevWantedDependencies'
 
 export default function wantedDepIsLocallyAvailable (
   localPackages: LocalPackages,
-  wantedDependency: Omit<WantedDependency, 'raw'>,
+  wantedDependency: WantedDependency,
   opts: {
     defaultTag: string,
     registry: string,

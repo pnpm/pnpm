@@ -44,9 +44,7 @@ import {
 } from '@pnpm/types'
 import {
   getAllDependenciesFromPackage,
-  getWantedDependencies,
   safeReadPackageFromDir as safeReadPkgFromDir,
-  WantedDependency,
 } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
@@ -71,6 +69,7 @@ import extendOptions, {
   StrictInstallOptions,
 } from './extendInstallOptions'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
+import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
