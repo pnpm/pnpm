@@ -1107,7 +1107,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       archy: 1.0.0
       camelcase: 5.3.1
-      camelcase-keys: 6.1.0
+      camelcase-keys: 6.1.1
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
@@ -1233,7 +1233,7 @@ importers:
       archy: 1.0.0
       byline: 5.0.0
       camelcase: 5.3.1
-      camelcase-keys: 6.1.0
+      camelcase-keys: 6.1.1
       chalk: 2.4.2
       common-tags: 1.8.0
       cp-file: 7.0.0
@@ -3360,7 +3360,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-oqpfsa9oh1glnDLBQUJteJI7m3c=
-  /camelcase-keys/6.1.0:
+  /camelcase-keys/6.1.1:
     dependencies:
       camelcase: 5.3.1
       map-obj: 4.1.0
@@ -3369,7 +3369,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-43tBGDIs3SBDA5R5mYzkiBP3lt2IKhLDp1wVGS9XTq6SR3+7ZNdi/VwBJsk4NKgySoaziTrKM+N8hhT04NBVUA==
+      integrity: sha512-kEPCddRFChEzO0d6w61yh0WbBiSv9gBnfZWGfXRYPlGqIdIGef6HMR6pgqVSEWCYkrp8B0AtEpEXNY+Jx0xk1A==
   /camelcase/4.1.0:
     dev: true
     engines:
