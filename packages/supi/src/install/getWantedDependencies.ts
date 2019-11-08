@@ -1,8 +1,8 @@
 import { Dependencies, ImporterManifest } from '@pnpm/types'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
-import { guessPinnedVersionFromExistingSpec } from '../utils/getPref'
+import guessPinnedVersionFromExistingSpec from '../guessPinnedVersionFromExistingSpec'
 
-export type PinnedVersion = 'major' | 'minor' | 'patch'
+export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
 
 export interface WantedDependency {
   alias: string,

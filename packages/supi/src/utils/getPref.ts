@@ -142,15 +142,10 @@ function getPrefPreferSpecifiedExoticSpec (
   return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`
 }
 
-export function guessPinnedVersionFromExistingSpec (spec: string) {
-  if (spec.startsWith('workspace:')) spec = spec.substr('workspace:'.length)
-  if (spec.startsWith('~')) return 'minor'
-  if (spec.startsWith('^')) return 'major'
-  return 'patch'
-}
-
 function createVersionSpec (version: string, pinnedVersion?: PinnedVersion) {
   switch (pinnedVersion || 'major') {
+    case 'none':
+      return '*'
     case 'major':
       return `^${version}`
     case 'minor':

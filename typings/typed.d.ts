@@ -48,3 +48,13 @@ declare module 'tape-promise' {
   function tapePromise(tape: any): (cb: tape.TestCase) => void;
   function tapePromise(tape: any): (opts: tape.TestOptions, cb: tape.TestCase) => void;
 }
+
+declare module 'semver-utils' {
+  export function parseRange (range: string): Array<{
+    semver?: string,
+    operator: string,
+    major?: string,
+    minor?: string,
+    patch?: string,
+  }>
+}

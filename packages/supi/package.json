@@ -71,6 +71,7 @@
     "ramda": "0.26.1",
     "run-groups": "2.0.1",
     "semver": "6.3.0",
+    "semver-utils": "1.1.4",
     "validate-npm-package-name": "3.0.0",
     "version-selector-type": "2.0.1"
   },

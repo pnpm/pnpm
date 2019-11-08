@@ -3,7 +3,7 @@ import {
 } from '@pnpm/types'
 import validateNpmPackageName = require('validate-npm-package-name')
 import { PinnedVersion, WantedDependency } from './install/getWantedDependencies'
-import { guessPinnedVersionFromExistingSpec } from './utils/getPref'
+import guessPinnedVersionFromExistingSpec from './guessPinnedVersionFromExistingSpec'
 
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],
