@@ -1,12 +1,16 @@
 import { Dependencies, ImporterManifest } from '@pnpm/types'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
+import { guessPinnedVersionFromExistingSpec } from '../utils/getPref'
+
+export type PinnedVersion = 'major' | 'minor' | 'patch'
 
 export interface WantedDependency {
   alias: string,
   pref: string, // package reference
   dev: boolean,
   optional: boolean,
-  raw: string, // might be not needed
+  raw: string,
+  pinnedVersion?: PinnedVersion,
 }
 
 export default function getWantedDependencies (
@@ -44,6 +48,7 @@ function getWantedDependenciesFromGivenSet (
       alias,
       dev: !!opts.devDependencies[alias],
       optional: !!opts.optionalDependencies[alias],
+      pinnedVersion: guessPinnedVersionFromExistingSpec(deps[alias]),
       pref,
       raw: `${alias}@${pref}`,
     }

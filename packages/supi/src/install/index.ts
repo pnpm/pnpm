@@ -69,7 +69,10 @@ import extendOptions, {
   StrictInstallOptions,
 } from './extendInstallOptions'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
-import getWantedDependencies, { WantedDependency } from './getWantedDependencies'
+import getWantedDependencies, {
+  PinnedVersion,
+  WantedDependency,
+} from './getWantedDependencies'
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -88,7 +91,7 @@ export type DependenciesMutation = (
     mutation: 'installSome',
     peer?: boolean,
     pruneDirectDependencies?: boolean,
-    pinnedVersion?: 'major' | 'minor' | 'patch',
+    pinnedVersion?: PinnedVersion,
     targetDependenciesField?: DependenciesField,
   } | {
     mutation: 'uninstallSome',
@@ -282,7 +285,7 @@ export async function mutateModules (
             ...importer,
             removePackages: importer.dependencyNames,
             updatePackageManifest: true,
-            wantedDeps: [],
+            wantedDependencies: [],
           })
           break
         case 'install': {
@@ -345,10 +348,10 @@ export async function mutateModules (
     }
 
     async function installCase (importer: any) { // tslint:disable-line:no-any
-      const wantedDeps = getWantedDependencies(importer.manifest, { updateWorkspaceDependencies: opts.update })
+      const wantedDependencies = getWantedDependencies(importer.manifest, { updateWorkspaceDependencies: opts.update })
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDeps)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDependencies)
       }
       const scripts = opts.ignoreScripts ? {} : (importer.manifest?.scripts ?? {})
       if (opts.ignoreScripts && importer.manifest?.scripts &&
@@ -370,7 +373,7 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...importer,
         updatePackageManifest: opts.update === true,
-        wantedDeps,
+        wantedDependencies,
       })
     }
 
@@ -392,7 +395,7 @@ export async function mutateModules (
         pruneDirectDependencies: false,
         ...importer,
         updatePackageManifest,
-        wantedDeps: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true })),
       })
     }
 
@@ -591,7 +594,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean,
   removePackages?: string[],
   updatePackageManifest: boolean,
-  wantedDeps: WantedDependency[],
+  wantedDependencies: WantedDependency[],
 } & DependenciesMutation
 
 async function installInContext (
@@ -662,6 +665,7 @@ async function installInContext (
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
   })
+  const importersToResolve = await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(ctx.hoistPattern && importer.id === '.'))))
   const {
     dependenciesTree,
     outdatedDependencies,
@@ -669,7 +673,7 @@ async function installInContext (
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies(
-    await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(ctx.hoistPattern && importer.id === '.')))),
+    importersToResolve,
     {
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
@@ -696,11 +700,11 @@ async function installInContext (
     stage: 'resolution_done',
   })
 
-  const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
+  const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer, index) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: ImporterManifest | undefined = importer.manifest
     if (importer.updatePackageManifest) {
-      newPkg = await updateImporterManifest(importer, {
+      newPkg = await updateImporterManifest(importersToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
@@ -907,11 +911,11 @@ async function toResolveImporter (
     virtualStoreDir: opts.virtualStoreDir,
   })
   const existingDeps = nonLinkedDependencies
-    .filter(({ alias }) => !importer.wantedDeps.some((wantedDep) => wantedDep.alias === alias))
+    .filter(({ alias }) => !importer.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
   if (!importer.manifest || hoist) {
     wantedDependencies = [
-      ...importer.wantedDeps,
+      ...importer.wantedDependencies,
       ...existingDeps,
     ]
     .map((dep) => ({
@@ -920,7 +924,7 @@ async function toResolveImporter (
     }))
   } else {
     wantedDependencies = [
-      ...importer.wantedDeps.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+      ...importer.wantedDependencies.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
       ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
     ]
   }

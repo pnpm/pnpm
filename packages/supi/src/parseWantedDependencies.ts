@@ -2,7 +2,8 @@ import {
   Dependencies,
 } from '@pnpm/types'
 import validateNpmPackageName = require('validate-npm-package-name')
-import { WantedDependency } from './install/getWantedDependencies'
+import { PinnedVersion, WantedDependency } from './install/getWantedDependencies'
+import { guessPinnedVersionFromExistingSpec } from './utils/getPref'
 
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],
@@ -23,6 +24,7 @@ export default function parseWantedDependencies (
       // tslint:disable:no-string-literal
       const alias = parsed['alias'] as (string | undefined)
       let pref = parsed['pref'] as (string | undefined)
+      let pinnedVersion!: PinnedVersion | undefined
       // tslint:enable:no-string-literal
       if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
         return null
@@ -30,11 +32,13 @@ export default function parseWantedDependencies (
       if (!pref && alias && opts.currentPrefs[alias]) {
         pref = (opts.currentPrefs[alias].startsWith('workspace:') && opts.updateWorkspaceDependencies === true)
           ? 'workspace:*' : opts.currentPrefs[alias]
+        pinnedVersion = guessPinnedVersionFromExistingSpec(opts.currentPrefs[alias])
       }
       return {
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
+        pinnedVersion,
         pref: pref ?? opts.defaultTag,
         raw: rawWantedDependency,
       }

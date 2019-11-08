@@ -613,7 +613,7 @@ test('update workspace range', async (t) => {
         version: '1.0.0',
 
         dependencies: {
-          foo: 'workspace:0.0.0',
+          foo: 'workspace:^0.0.0',
         },
       },
       mutation: 'install',
@@ -634,6 +634,6 @@ test('update workspace range', async (t) => {
     update: true,
   }))
 
-  t.deepEqual(updatedImporters[0].manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
+  t.deepEqual(updatedImporters[0].manifest.dependencies, { 'foo': 'workspace:1.0.0' })
   t.deepEqual(updatedImporters[1].manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
 })

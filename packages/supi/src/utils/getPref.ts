@@ -2,6 +2,7 @@ import PnpmError from '@pnpm/error'
 import { ResolvedDirectDependency } from '@pnpm/resolve-dependencies'
 import versionSelectorType = require('version-selector-type')
 import { ImporterToUpdate } from '../install'
+import { PinnedVersion } from '../install/getWantedDependencies'
 import save, { PackageSpecObject } from '../save'
 
 export async function updateImporterManifest (
@@ -14,8 +15,11 @@ export async function updateImporterManifest (
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
-  const specsToUpsert = opts.directDependencies.map((rdd) => resolvedDirectDepToSpecObject(rdd, importer, opts))
-  for (const pkgToInstall of importer.wantedDeps) {
+  const specsToUpsert = opts.directDependencies.map((rdd, index) => resolvedDirectDepToSpecObject(rdd, importer, {
+    pinnedVersion: importer.wantedDependencies[index]?.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
+    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  }))
+  for (const pkgToInstall of importer.wantedDependencies) {
     if (pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
@@ -44,6 +48,7 @@ function resolvedDirectDepToSpecObject (
   }: ResolvedDirectDependency,
   importer: ImporterToUpdate,
   opts: {
+    pinnedVersion: PinnedVersion,
     saveWorkspaceProtocol: boolean,
   }
 ): PackageSpecObject {
@@ -55,7 +60,7 @@ function resolvedDirectDepToSpecObject (
       pref = getPrefPreferSpecifiedSpec({
         alias,
         name,
-        pinnedVersion: importer['pinnedVersion'],
+        pinnedVersion: opts.pinnedVersion,
         specRaw,
         version,
       })
@@ -63,6 +68,7 @@ function resolvedDirectDepToSpecObject (
       pref = getPrefPreferSpecifiedExoticSpec({
         alias,
         name,
+        pinnedVersion: opts.pinnedVersion,
         specRaw,
         version,
       })
@@ -82,8 +88,6 @@ function resolvedDirectDepToSpecObject (
     saveType: isNew ? importer['targetDependenciesField'] : undefined,
   }
 }
-
-export type PinnedVersion = 'major' | 'minor' | 'patch'
 
 const getPrefix = (alias: string, name: string) => alias !== name ? `npm:${name}@` : ''
 
@@ -124,7 +128,7 @@ function getPrefPreferSpecifiedExoticSpec (
     name: string
     version: string,
     specRaw: string,
-    pinnedVersion?: PinnedVersion,
+    pinnedVersion: PinnedVersion,
   },
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
@@ -134,16 +138,12 @@ function getPrefPreferSpecifiedExoticSpec (
     if (!(selector && (selector.type === 'version' || selector.type === 'range'))) {
       return opts.specRaw.substr(opts.alias.length + 1)
     }
-    if (!opts.pinnedVersion) {
-      opts.pinnedVersion = selector.type === 'version'
-        ? 'patch'
-        : guessPinnedVersionFromExistingSpec(specWithoutName)
-    }
   }
   return `${prefix}${createVersionSpec(opts.version, opts.pinnedVersion)}`
 }
 
-function guessPinnedVersionFromExistingSpec (spec: string) {
+export function guessPinnedVersionFromExistingSpec (spec: string) {
+  if (spec.startsWith('workspace:')) spec = spec.substr('workspace:'.length)
   if (spec.startsWith('~')) return 'minor'
   if (spec.startsWith('^')) return 'major'
   return 'patch'
