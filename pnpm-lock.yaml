@@ -1558,6 +1558,7 @@ importers:
       ramda: 0.26.1
       run-groups: 2.0.1
       semver: 6.3.0
+      semver-utils: 1.1.4
       validate-npm-package-name: 3.0.0
       version-selector-type: 2.0.1
     devDependencies:
@@ -1683,6 +1684,7 @@ importers:
       rimraf: 3.0.0
       run-groups: 2.0.1
       semver: 6.3.0
+      semver-utils: 1.1.4
       sinon: 7.5.0
       supi: 'link:'
       symlink-dir: 3.1.1
@@ -8105,6 +8107,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-S7uEN8jTfksM8aaP1ybsbWRdbTY=
+  /semver-utils/1.1.4:
+    dev: false
+    resolution:
+      integrity: sha512-EjnoLE5OGmDAVV/8YDoN5KiajNadjzIp9BAHOhYeQHt7j0UWxjmgsx4YD48wp4Ue1Qogq38F1GNUJNqF1kKKxA==
   /semver/5.7.1:
     hasBin: true
     resolution:
