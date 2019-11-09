@@ -4,7 +4,7 @@ import chalk from 'chalk'
 import most = require('most')
 import path = require('path')
 import prettyTime = require('pretty-time')
-import stripAnsi from 'strip-ansi'
+import stripAnsi = require('strip-ansi')
 import { EOL } from '../constants'
 import {
   hlValue,

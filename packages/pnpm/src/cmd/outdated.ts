@@ -14,7 +14,7 @@ import chalk from 'chalk'
 import { stripIndent } from 'common-tags'
 import path = require('path')
 import R = require('ramda')
-import stripAnsi from 'strip-ansi'
+import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
 import createLatestManifestGetter from '../createLatestManifestGetter'
