@@ -560,7 +560,7 @@ export default async function run (inputArgv: string[]) {
     ? SUPPORTED_CLI_OPTIONS[cmd]
     : new Set([...Array.from(SUPPORTED_CLI_OPTIONS[cmd]), ...Array.from(SUPPORTED_CLI_OPTIONS[subCmd])])
   for (const cliOption of Object.keys(cliConf)) {
-    if (!GLOBAL_OPTIONS.has(cliOption as CLI_OPTIONS) && !allowedOptions.has(cliOption)) {
+    if (!GLOBAL_OPTIONS.has(cliOption as CLI_OPTIONS) && !allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
       console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
       console.log(`For help, run: pnpm help ${cmd}`)
       process.exit(1)
