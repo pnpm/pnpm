@@ -12,9 +12,11 @@ const testOnly = promisifyTape(tape.only)
 
 const testFromNode10 = parseInt(process.version.split('.')[0].substr(1), 10) >= 10 ? test : promisifyTape(test['skip'])
 
-const CREDENTIALS = `//localhost:4873/:username=username
-//localhost:4873/:_password=${Buffer.from('password').toString('base64')}
-//localhost:4873/:email=foo@bar.net`
+const CREDENTIALS = [
+  `--//localhost:4873/:username=username`,
+  `--//localhost:4873/:_password=${Buffer.from('password').toString('base64')}`,
+  `--//localhost:4873/:email=foo@bar.net`,
+]
 
 test('publish: package with package.json', async (t: tape.Test) => {
   prepare(t, {
@@ -22,9 +24,7 @@ test('publish: package with package.json', async (t: tape.Test) => {
     version: '0.0.0',
   })
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
-
-  await execPnpm('publish')
+  await execPnpm('publish', ...CREDENTIALS)
 })
 
 test('publish: package with package.yaml', async (t: tape.Test) => {
@@ -33,9 +33,7 @@ test('publish: package with package.yaml', async (t: tape.Test) => {
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
-
-  await execPnpm('publish')
+  await execPnpm('publish', ...CREDENTIALS)
 
   t.ok(await exists('package.yaml'))
   t.notOk(await exists('package.json'))
@@ -47,9 +45,7 @@ test('publish: package with package.json5', async (t: tape.Test) => {
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
-
-  await execPnpm('publish')
+  await execPnpm('publish', ...CREDENTIALS)
 
   t.ok(await exists('package.json5'))
   t.notOk(await exists('package.json'))
@@ -61,11 +57,9 @@ testFromNode10('publish: package with package.json5 running publish from differe
     version: '0.0.1',
   }, { manifestFormat: 'JSON5' })
 
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
-
   process.chdir('..')
 
-  await execPnpm('publish', 'project')
+  await execPnpm('publish', ...CREDENTIALS, 'project')
 
   t.ok(await exists('project/package.json5'))
   t.notOk(await exists('project/package.json'))
@@ -128,13 +122,12 @@ testFromNode10('publish packages with workspace LICENSE if no own LICENSE is pre
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('LICENSE', 'workspace license', 'utf8')
   await fs.writeFile('project-200/LICENSE', 'project-200 license', 'utf8')
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
   process.chdir('project-100')
-  await execPnpm('publish')
+  await execPnpm('publish', ...CREDENTIALS)
 
   process.chdir('../project-200')
-  await execPnpm('publish')
+  await execPnpm('publish', ...CREDENTIALS)
 
   process.chdir('../target')
 
@@ -173,8 +166,8 @@ test('publish: package with main, module, typings and types in publishConfig', a
   ])
 
   process.chdir('test-publish-config')
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
-  await execPnpm('publish')
+  await fs.writeFile('published-bin.js', `#!/usr/bin/env node`, 'utf8')
+  await execPnpm('publish', ...CREDENTIALS)
 
   const originalManifests = await import(path.resolve('package.json'))
   t.deepEqual(originalManifests, {
@@ -254,8 +247,7 @@ test['skip']('publish package that calls executable from the workspace .bin fold
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('test-publish-scripts')
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
-  await execPnpm('publish')
+  await execPnpm('publish', ...CREDENTIALS)
 
   t.deepEqual(
     await import(path.resolve('output.json')),
@@ -310,11 +302,10 @@ testFromNode10('convert specs with workspace protocols to regular version ranges
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
   process.chdir('workspace-protocol-package')
 
-  const { status, stdout } = execPnpmSync('publish')
+  const { status, stdout } = execPnpmSync('publish', ...CREDENTIALS)
 
   t.equal(status, 1, 'publish fails if cannot resolve workspace:*')
   t.ok(
@@ -327,7 +318,7 @@ testFromNode10('convert specs with workspace protocols to regular version ranges
   await execPnpm('multi', 'install', '--store', 'store')
 
   process.chdir('workspace-protocol-package')
-  await execPnpm('publish')
+  await execPnpm('publish', ...CREDENTIALS)
 
   process.chdir('../target')
 
