@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-fetcher",
-  "version": "4.0.2",
+  "version": "5.0.0",
   "description": "pnpm's default package fetcher",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,8 +30,8 @@
   "homepage": "https://pnpm.js.org",
   "dependencies": {
     "@pnpm/git-fetcher": "workspace:2.0.7",
-    "@pnpm/resolver-base": "workspace:4.0.0",
-    "@pnpm/tarball-fetcher": "workspace:4.0.0"
+    "@pnpm/resolver-base": "workspace:5.0.0",
+    "@pnpm/tarball-fetcher": "workspace:5.0.0"
   },
   "devDependencies": {
     "@pnpm/default-fetcher": "link:",

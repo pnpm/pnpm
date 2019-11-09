@@ -38,7 +38,7 @@
     "semver": "6.3.0"
   },
   "devDependencies": {
-    "@types/semver": "6",
+    "@types/semver": "^6.2.0",
     "dependency-path": "link:",
     "tape": "4.11.0"
   }

@@ -41,11 +41,11 @@
     "test": "pnpm run lint && pnpm run lint-test && pnpm run tsc && ts-node test"
   },
   "dependencies": {
-    "@pnpm/assert-store": "1.0.0",
-    "@pnpm/constants": "file:../../packages/constants",
-    "@pnpm/lockfile-types": "1.1.0",
-    "@pnpm/modules-yaml": "file:../../packages/modules-yaml",
-    "@pnpm/types": "file:../../packages/types",
+    "@pnpm/assert-store": "workspace:1.0.0",
+    "@pnpm/constants": "link:../../packages/constants",
+    "@pnpm/lockfile-types": "workspace:1.1.0",
+    "@pnpm/modules-yaml": "link:../../packages/modules-yaml",
+    "@pnpm/types": "link:../../packages/types",
     "@types/mz": "0.0.32",
     "is-windows": "1.0.2",
     "isexe": "2.0.0",
