@@ -56,11 +56,11 @@
     "write-json-file": "4.0.0"
   },
   "devDependencies": {
-    "@pnpm/local-resolver": "link:../local-resolver",
+    "@pnpm/local-resolver": "workspace:*",
     "@pnpm/logger": "3.1.0",
-    "@pnpm/npm-resolver": "link:../npm-resolver",
+    "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-requester": "link:",
-    "@pnpm/tarball-fetcher": "link:../tarball-fetcher",
+    "@pnpm/tarball-fetcher": "workspace:*",
     "@types/mz": "0.0.32",
     "@types/ncp": "^2.0.3",
     "@types/ramda": "0.26.29",

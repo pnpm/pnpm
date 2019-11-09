@@ -47,7 +47,7 @@
     "resolve-link-target": "1.0.1"
   },
   "devDependencies": {
-    "@pnpm/constants": "link:../constants",
+    "@pnpm/constants": "workspace:*",
     "@pnpm/logger": "3.1.0",
     "dependencies-hierarchy": "link:",
     "tape": "4.11.0"

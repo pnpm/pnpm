@@ -97,12 +97,12 @@
     "write-json-file": "4.0.0"
   },
   "devDependencies": {
-    "@pnpm/assert-project": "link:../../privatePackages/assert-project",
+    "@pnpm/assert-project": "workspace:*",
     "@pnpm/lockfile-types": "workspace:1.1.0",
-    "@pnpm/modules-yaml": "link:../modules-yaml",
-    "@pnpm/prepare": "workspace:0.0.0",
-    "@pnpm/read-package-json": "link:../read-package-json",
-    "@pnpm/write-importer-manifest": "link:../write-importer-manifest",
+    "@pnpm/modules-yaml": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/read-package-json": "workspace:*",
+    "@pnpm/write-importer-manifest": "workspace:*",
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.8.0",
     "@types/mkdirp": "0.5.2",

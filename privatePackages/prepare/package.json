@@ -5,8 +5,8 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "dependencies": {
-    "@pnpm/assert-project": "workspace:2.0.0",
-    "@pnpm/types": "link:../../packages/types",
+    "@pnpm/assert-project": "workspace:*",
+    "@pnpm/types": "workspace:*",
     "@types/mkdirp": "0.5.2",
     "make-dir": "3.0.0",
     "tape": "4.11.0",

@@ -7,8 +7,8 @@
   },
   "devDependencies": {
     "@pnpm/registry-mock": "1.8.0",
-    "@pnpm/tsconfig": "link:utils/tsconfig",
-    "@pnpm/tslint-config": "link:utils/tslint-config",
+    "@pnpm/tsconfig": "workspace:*",
+    "@pnpm/tslint-config": "workspace:*",
     "@types/node": "*",
     "@types/tape": "^4.2.33",
     "cross-env": "6.0.3",

@@ -19,13 +19,13 @@
     "@pnpm/logger": "^3.1.0"
   },
   "devDependencies": {
-    "@pnpm/assert-project": "link:../../privatePackages/assert-project",
-    "@pnpm/default-fetcher": "link:../default-fetcher",
-    "@pnpm/default-resolver": "link:../default-resolver",
+    "@pnpm/assert-project": "workspace:*",
+    "@pnpm/default-fetcher": "workspace:*",
+    "@pnpm/default-resolver": "workspace:*",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "3.1.0",
-    "@pnpm/package-store": "link:../package-store",
-    "@pnpm/read-importers-context": "link:../read-importers-context",
+    "@pnpm/package-store": "workspace:*",
+    "@pnpm/read-importers-context": "workspace:*",
     "@pnpm/store-path": "2.1.1",
     "@types/fs-extra": "^8.0.1",
     "@types/mz": "0.0.32",
