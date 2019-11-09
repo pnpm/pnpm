@@ -142,7 +142,7 @@ importers:
       semver: 6.3.0
       stacktracey: 1.2.122
       string-length: 3.1.0
-      strip-ansi: 5.2.0
+      strip-ansi: 6.0.0
     devDependencies:
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 3.1.0
@@ -183,7 +183,7 @@ importers:
       semver: 6.3.0
       stacktracey: 1.2.122
       string-length: 3.1.0
-      strip-ansi: 5.2.0
+      strip-ansi: 6.0.0
       tape: 4.11.0
   packages/default-resolver:
     dependencies:
@@ -1142,7 +1142,7 @@ importers:
       read-yaml-file: 1.1.0
       render-help: 0.0.0
       signal-exit: 3.0.2
-      strip-ansi: 5.2.0
+      strip-ansi: 6.0.0
       supi: 'link:../supi'
       table: 5.4.6
       tree-kill: 1.2.1
@@ -1279,7 +1279,7 @@ importers:
       rimraf: 3.0.0
       semver: 6.3.0
       signal-exit: 3.0.2
-      strip-ansi: 5.2.0
+      strip-ansi: 6.0.0
       supi: 'workspace:0.36.0'
       symlink-dir: 3.1.1
       table: 5.4.6
@@ -2857,6 +2857,12 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-1apePfXM1UOSqw0o9IiFAovVz9M5S1Dg+4TrDwfMewQ6p/rmMueb7tWZjQ1rx4Loy1ArBggoqGpfqqdI4rondg==
+  /ansi-regex/5.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-bY6fj56OUQ0hU1KjFNDQuJFezqKdrAyFdIevADiqrWHwSlbmBNMHp5ak2f40Pm8JTFyM2mqxkG6ngkHO11f/lg==
   /ansi-split/1.0.1:
     dependencies:
       ansi-regex: 3.0.0
@@ -8586,6 +8592,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-DuRs1gKbBqsMKIZlrffwlug8MHkcnpjs5VPmL1PAh+mA30U0DTotfDZ0d2UUsXpPmPmMMJ6W773MaA3J+lbiWA==
+  /strip-ansi/6.0.0:
+    dependencies:
+      ansi-regex: 5.0.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-AuvKTrTfQNYNIctbR1K/YGTR1756GycPsg7b9bdV9Duqur4gv6aKqHXah67Z8ImS7WEz5QVcOtlfW2rZEugt6w==
   /strip-bom/3.0.0:
     engines:
       node: '>=4'
