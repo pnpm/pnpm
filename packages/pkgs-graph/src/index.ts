@@ -76,7 +76,7 @@ export default function<T> (pkgs: Array<Package & T>): {
         const pkgs = R.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
         if (!pkgs.length) return ''
         const versions = pkgs.map(pkg => pkg.manifest.version)
-        if (versions.indexOf(rawSpec) !== -1) {
+        if (versions.includes(rawSpec)) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
           return matchedPkg!.dir
         }
