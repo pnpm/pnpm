@@ -51,7 +51,7 @@
     "semver": "6.3.0",
     "stacktracey": "1.2.122",
     "string-length": "3.1.0",
-    "strip-ansi": "5.2.0"
+    "strip-ansi": "6.0.0"
   },
   "devDependencies": {
     "@pnpm/default-reporter": "link:",
