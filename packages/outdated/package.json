@@ -43,11 +43,13 @@
     "@pnpm/lockfile-file": "workspace:3.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.1",
     "@pnpm/types": "workspace:4.0.0",
-    "dependency-path": "workspace:4.0.0"
+    "dependency-path": "workspace:4.0.0",
+    "semver": "6.3.0"
   },
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/outdated": "link:",
+    "@types/semver": "^6.2.0",
     "npm-run-all": "4.1.5",
     "tape": "4.11.0"
   }

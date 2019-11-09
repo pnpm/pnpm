@@ -418,3 +418,81 @@ test('outdated() aliased dependency', async (t) => {
   ])
   t.end()
 })
+
+test('a dependency is not outdated if it is newer than the latest version', async (t) => {
+  const lockfile = {
+    importers: {
+      '.': {
+        dependencies: {
+          'foo': '1.0.0',
+          'foo2': '2.0.0-0',
+          'foo3': '2.0.0',
+        },
+        specifiers: {
+          'foo': '^1.0.0',
+          'foo2': '2.0.0-0',
+          'foo3': '2.0.0',
+        },
+      },
+    },
+    lockfileVersion: 5,
+    packages: {
+      '/foo/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+      '/foo2/2.0.0-0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+      '/foo3/2.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=',
+        },
+      },
+    },
+  }
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    getLatestManifest: async (packageName) => {
+      switch (packageName) {
+        case 'foo':
+          return {
+            name: 'foo',
+            version: '0.1.0',
+          }
+        case 'foo2':
+          return {
+            name: 'foo2',
+            version: '1.0.0',
+          }
+        case 'foo3':
+          return {
+            name: 'foo3',
+            version: '2.0.0',
+          }
+      }
+      return null
+    },
+    lockfileDir: 'project',
+    manifest: {
+      name: 'pkg',
+      version: '1.0.0',
+
+      dependencies: {
+        'foo': '^1.0.0',
+        'foo2': '2.0.0-0',
+        'foo3': '2.0.0',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+  })
+  t.deepEqual(outdatedPkgs, [])
+  t.end()
+})
