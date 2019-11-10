@@ -865,9 +865,11 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
+      semver: 6.3.0
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/outdated': 'link:'
+      '@types/semver': 6.2.0
       npm-run-all: 4.1.5
       tape: 4.11.0
     specifiers:
@@ -877,8 +879,10 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/outdated': 'link:'
       '@pnpm/types': 'workspace:4.0.0'
+      '@types/semver': ^6.2.0
       dependency-path: 'workspace:4.0.0'
       npm-run-all: 4.1.5
+      semver: 6.3.0
       tape: 4.11.0
   packages/package-is-installable:
     dependencies:

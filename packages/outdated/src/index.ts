@@ -11,6 +11,7 @@ import {
   PackageManifest,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import semver = require('semver')
 
 export type GetLatestManifestFunction = (packageName: string) => Promise<PackageManifest | null>
 
@@ -109,7 +110,7 @@ export default async function outdated (
             return
           }
 
-          if (current !== wanted || latestManifest.version !== current || latestManifest.deprecated) {
+          if (current !== wanted || semver.lt(current, latestManifest.version) || latestManifest.deprecated) {
             outdated.push({
               alias,
               belongsTo: depType,
