@@ -9,7 +9,7 @@ import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import { stripIndents } from 'common-tags'
 import delay from 'delay'
 import most = require('most')

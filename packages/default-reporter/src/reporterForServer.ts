@@ -1,5 +1,5 @@
 import { Log } from '@pnpm/core-loggers'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import most = require('most')
 import reportError from './reportError'
 

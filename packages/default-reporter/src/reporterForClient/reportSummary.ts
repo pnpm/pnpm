@@ -5,7 +5,7 @@ import {
   RootLog,
   SummaryLog,
 } from '@pnpm/core-loggers'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import most = require('most')
 import path = require('path')
 import R = require('ramda')

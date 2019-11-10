@@ -10,7 +10,7 @@ import outdated, { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { ImporterManifest, Registries } from '@pnpm/types'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import path = require('path')
 import R = require('ramda')

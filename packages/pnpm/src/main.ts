@@ -5,7 +5,7 @@ process
   .once('SIGTERM', () => process.exit(0))
 
 // Patch the global fs module here at the app level
-import chalk from 'chalk'
+import chalk = require('chalk')
 import fs = require('fs')
 import gfs = require('graceful-fs')
 

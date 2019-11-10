@@ -1,6 +1,6 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import archy = require('archy')
-import chalk from 'chalk'
+import chalk = require('chalk')
 import cliColumns = require('cli-columns')
 import { DependenciesHierarchy, PackageNode } from 'dependencies-hierarchy'
 import path = require('path')

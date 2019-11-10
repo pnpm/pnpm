@@ -1,6 +1,6 @@
 import { Log } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import commonTags = require('common-tags')
 import R = require('ramda')
 import StackTracey = require('stacktracey')

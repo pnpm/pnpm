@@ -1,5 +1,5 @@
 import { HookLog } from '@pnpm/core-loggers'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import most = require('most')
 import { autozoom } from './utils/zooming'
 
