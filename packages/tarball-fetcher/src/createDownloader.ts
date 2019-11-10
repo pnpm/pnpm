@@ -29,6 +29,29 @@ class TarballFetchError extends PnpmError {
   }
 }
 
+class TarballIntegrityError extends PnpmError {
+  public readonly found: string
+  public readonly expected: string
+  public readonly algorithm: string
+  public readonly sri: string
+  public readonly url: string
+
+  constructor (opts: {
+    found: string,
+    expected: string,
+    algorithm: string,
+    sri: string,
+    url: string,
+  }) {
+    super('TARBALL_INTEGRITY', `Got unexpected checksum for "${opts.url}". Wanted "${opts.expected}". Got "${opts.found}".`)
+    this.found = opts.found
+    this.expected = opts.expected
+    this.algorithm = opts.algorithm
+    this.sri = opts.sri
+    this.url = opts.url
+  }
+}
+
 export interface HttpResponse {
   body: string
 }
@@ -173,7 +196,7 @@ export default (
           const tempLocation = pathTemp(opts.unpackTo)
           const ignore = gotOpts.fsIsCaseSensitive ? opts.ignore : createIgnorer(url, opts.ignore)
           Promise.all([
-            opts.integrity && safeCheckStream(res.body, opts.integrity) || true,
+            opts.integrity && safeCheckStream(res.body, opts.integrity, url) || true,
             unpackStream.local(res.body, tempLocation, {
               generateIntegrity: opts.generatePackageIntegrity,
               ignore,
@@ -241,12 +264,18 @@ function createIgnorer (tarballUrl: string, ignore?: (filename: string) => boole
   }
 }
 
-async function safeCheckStream (stream: any, integrity: string): Promise<true | Error> { // tslint:disable-line:no-any
+async function safeCheckStream (stream: any, integrity: string, url: string): Promise<true | Error> { // tslint:disable-line:no-any
   try {
     await ssri.checkStream(stream, integrity)
     return true
   } catch (err) {
-    return err
+    return new TarballIntegrityError({
+      algorithm: err['algorithm'],
+      expected: err['expected'],
+      found: err['found'],
+      sri: err['sri'],
+      url,
+    })
   }
 }
 

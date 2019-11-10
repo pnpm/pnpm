@@ -148,7 +148,7 @@ test('fail when shasum from lockfile does not match with the actual one', async 
     }, await testDefaults({}, {}, { fetchRetries: 0 }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.code, 'EINTEGRITY')
+    t.equal(err.code, 'ERR_PNPM_TARBALL_INTEGRITY')
   }
 })
 
