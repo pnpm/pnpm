@@ -120,7 +120,7 @@ importers:
       '@pnpm/git-fetcher': 'workspace:2.0.7'
       '@pnpm/logger': 3.1.0
       '@pnpm/resolver-base': 'workspace:5.0.0'
-      '@pnpm/tarball-fetcher': 'workspace:5.0.0'
+      '@pnpm/tarball-fetcher': 'workspace:5.1.0'
       rimraf: 3.0.0
       tape: 4.11.0
   packages/default-reporter:
@@ -471,7 +471,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-cleaner': 'workspace:7.0.0'
       '@pnpm/modules-yaml': 'workspace:5.0.0'
-      '@pnpm/package-requester': 'workspace:9.0.0'
+      '@pnpm/package-requester': 'workspace:9.0.1'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
@@ -1030,7 +1030,7 @@ importers:
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'workspace:*'
-      '@pnpm/package-requester': 'workspace:9.0.0'
+      '@pnpm/package-requester': 'workspace:9.0.1'
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 'workspace:5.0.0'
@@ -1193,21 +1193,21 @@ importers:
       '@pnpm/config': 'workspace:5.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
-      '@pnpm/default-fetcher': 'workspace:5.0.0'
-      '@pnpm/default-reporter': 'workspace:5.0.0'
+      '@pnpm/default-fetcher': 'workspace:5.1.0'
+      '@pnpm/default-reporter': 'workspace:5.0.1'
       '@pnpm/default-resolver': 'workspace:5.0.0'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'workspace:8.0.0'
-      '@pnpm/list': 'workspace:4.0.0'
+      '@pnpm/list': 'workspace:4.0.1'
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-yaml': 'workspace:*'
-      '@pnpm/outdated': 'workspace:6.0.0'
+      '@pnpm/outdated': 'workspace:6.0.1'
       '@pnpm/package-is-installable': 'workspace:4.0.0'
-      '@pnpm/package-store': 'workspace:6.0.0'
+      '@pnpm/package-store': 'workspace:6.0.1'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
       '@pnpm/read-package-json': 'workspace:*'
@@ -1284,7 +1284,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-ansi: 6.0.0
-      supi: 'workspace:0.36.0'
+      supi: 'workspace:0.36.1'
       symlink-dir: 3.1.1
       table: 5.4.6
       tape: 4.11.0
@@ -1616,7 +1616,7 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'workspace:3.0.0'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/headless': 'workspace:10.0.0'
+      '@pnpm/headless': 'workspace:10.0.1'
       '@pnpm/hoist': 'workspace:2.0.0'
       '@pnpm/lifecycle': 'workspace:8.0.0'
       '@pnpm/link-bins': 5.0.1
@@ -1626,7 +1626,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-cleaner': 'workspace:7.0.0'
       '@pnpm/modules-yaml': 'workspace:5.0.0'
-      '@pnpm/package-requester': 'workspace:9.0.0'
+      '@pnpm/package-requester': 'workspace:9.0.1'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1635,7 +1635,7 @@ importers:
       '@pnpm/read-importers-context': 'workspace:3.0.0'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.0.0'
-      '@pnpm/resolve-dependencies': 'workspace:11.0.0'
+      '@pnpm/resolve-dependencies': 'workspace:11.1.0'
       '@pnpm/resolver-base': 'workspace:5.0.0'
       '@pnpm/store-controller-types': 'workspace:5.0.0'
       '@pnpm/store-path': 2.1.1
@@ -2467,7 +2467,7 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.29:
     dependencies:
-      ts-toolbelt: 4.10.0
+      ts-toolbelt: 4.10.7
     dev: true
     resolution:
       integrity: sha512-j0rrDm19024J0X5wHl8ZK0mQas9TVvL7KQPocDEZU0nq/OUtmh0mBBBrfSIKGJZF1VLhtW6MGw+YRojUSY+5kg==
@@ -2802,7 +2802,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.3
+      graceful-fs: 4.2.1
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
@@ -4381,7 +4381,7 @@ packages:
       integrity: sha512-7dFHNmqeFSEt2ZBsCriorKnn3Z2pj+fd9kmI6QoWw4//DL+icEBfc0U7qJCisqrTsKTjw4fNFy2pW9OqStD84g==
   /es-abstract/1.16.0:
     dependencies:
-      es-to-primitive: 1.2.0
+      es-to-primitive: 1.2.1
       function-bind: 1.1.1
       has: 1.0.3
       has-symbols: 1.0.0
@@ -4395,7 +4395,7 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha512-xdQnfykZ9JMEiasTAJZJdMWCQ1Vm00NBw79/AWi7ELfZuuPCSOMDZbT9mkOfSctVtfhb+sAAzrm+j//GjjLHLg==
-  /es-to-primitive/1.2.0:
+  /es-to-primitive/1.2.1:
     dependencies:
       is-callable: 1.1.4
       is-date-object: 1.0.1
@@ -4403,7 +4403,7 @@ packages:
     engines:
       node: '>= 0.4'
     resolution:
-      integrity: sha512-qZryBOJjV//LaxLTV6UC//WewneB3LcXOL9NP++ozKVXsIIIpm/2c13UDiD9Jp2eThsecw9m3jPqDwTyobcdbg==
+      integrity: sha512-QCOllgZJtaUo9miYBcLChTUaHNjJF3PYs1VidD7AwiEj1kYxKeQTctLAezAOH5ZKRH0g2IgPn6KwB4IT8iRpvA==
   /es6-promise/4.2.8:
     dev: false
     resolution:
@@ -8966,10 +8966,10 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-5LpRN+mTiCs7lI5EtbXmF/HfMeCjzt7DH9CZwtkr6SywStrNQC723wG+aOWFiLNn7zT3kD/RnFqi3ZUfr4l5Qw==
-  /ts-toolbelt/4.10.0:
+  /ts-toolbelt/4.10.7:
     dev: true
     resolution:
-      integrity: sha512-dxj1fcbjCCjxCMOd+RSn5UrIuPkj7mItNFurYBAL/jJZzWU/bfCXYtdfYTdGZdPPKljA94IKNFypQ0FaHwHCWw==
+      integrity: sha512-4YDe0TWABZ4i8am1Bup0dwGii7c1rffZ7MXE7q4kmG+ixeiKUAnaaO75iBrw04v6vJg/VookQ0yOdDD0DEQhHA==
   /tslib/1.10.0:
     dev: true
     resolution:
