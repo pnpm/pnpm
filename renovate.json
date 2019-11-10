@@ -54,8 +54,10 @@
     "dependency-path",
     "fetch-from-npm-registry",
     "find-packages",
-    "pnpm-file-reporter",
+    "npm",
     "pkgs-graph",
+    "pnpm-file-reporter",
+    "publish-packed",
     "remove-all-except-outer-links",
     "supi",
     "ts-node"

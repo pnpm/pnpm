@@ -2,6 +2,6 @@
 set -e
 set -u
 
-npm run tsc
-pnpx npm@4 cache clear
-pnpx publish-packed@2.1.1 --tag next --prune
+pnpm run tsc
+npm cache clear
+publish-packed --tag next --prune
