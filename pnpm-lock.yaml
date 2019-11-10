@@ -917,7 +917,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       p-limit: 2.2.1
-      p-queue: 6.2.0
+      p-queue: 6.2.1
       path-exists: 4.0.0
       promise-share: 1.0.0
       ramda: 0.26.1
@@ -972,7 +972,7 @@ importers:
       nock: 11.7.0
       normalize-path: 3.0.0
       p-limit: 2.2.1
-      p-queue: 6.2.0
+      p-queue: 6.2.1
       path-exists: 4.0.0
       promise-share: 1.0.0
       ramda: 0.26.1
@@ -5851,6 +5851,9 @@ packages:
       node: '>=8'
     peerDependencies:
       canvas: ^2.5.0
+    peerDependenciesMeta:
+      canvas:
+        optional: true
     resolution:
       integrity: sha512-+hRyEfjRPFwTYMmSQ3/f7U9nP8ZNZmbkmUek760ZpxnCPWJIhaaLRuUSvpJ36fZKCGENxLwxClzwpOpnXNfChQ==
   /json-append/1.1.1:
@@ -7175,7 +7178,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-y3b8Kpd8OAN444hxfBbFfj1FY/RjtTd8tzYwhUqNYXx0fXx2iX4maP4Qr6qhIKbQXI02wTLAda4fYUbDagTUFw==
-  /p-queue/6.2.0:
+  /p-queue/6.2.1:
     dependencies:
       eventemitter3: 4.0.0
       p-timeout: 3.2.0
@@ -7183,7 +7186,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-B2LXNONcyn/G6uz2UBFsGjmSa0e/br3jznlzhEyCXg56c7VhEpiT2pZxGOfv32Q3FSyugAdys9KGpsv3kV+Sbg==
+      integrity: sha512-wV8yC/rkuWpgu9LGKJIb48OynYSrE6lVl2Bx6r8WjbyVKrFAzzQ/QevAvwnDjlD+mLt8xy0LTDOU1freOvMTCg==
   /p-reflect/2.1.0:
     dev: false
     engines:
