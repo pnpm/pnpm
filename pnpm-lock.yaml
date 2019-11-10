@@ -588,6 +588,7 @@ importers:
       '@types/ramda': 0.26.29
       '@types/semver': 6.2.0
       common-tags: 1.8.0
+      rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
       '@pnpm/list': 'link:'
@@ -608,6 +609,7 @@ importers:
       dependencies-hierarchy: 'workspace:8.0.0'
       p-limit: 2.2.1
       ramda: 0.26.1
+      rimraf: 3.0.0
       semver: 6.3.0
       tape: 4.11.0
   packages/local-resolver:
@@ -1193,35 +1195,35 @@ importers:
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
     specifiers:
-      '@pnpm/assert-project': '*'
-      '@pnpm/config': 5.0.0
-      '@pnpm/constants': 3.0.0
-      '@pnpm/core-loggers': 4.0.0
-      '@pnpm/default-fetcher': 5.1.0
-      '@pnpm/default-reporter': 5.0.1
-      '@pnpm/default-resolver': 5.0.0
-      '@pnpm/error': 1.0.0
+      '@pnpm/assert-project': 'workspace:*'
+      '@pnpm/config': 'workspace:5.0.0'
+      '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/core-loggers': 'workspace:4.0.0'
+      '@pnpm/default-fetcher': 'workspace:5.1.0'
+      '@pnpm/default-reporter': 'workspace:5.0.1'
+      '@pnpm/default-resolver': 'workspace:5.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/lifecycle': 8.0.0
-      '@pnpm/list': 4.0.1
-      '@pnpm/lockfile-file': 3.0.1
-      '@pnpm/lockfile-types': 1.1.0
+      '@pnpm/lifecycle': 'workspace:8.0.0'
+      '@pnpm/list': 'workspace:4.0.3'
+      '@pnpm/lockfile-file': 'workspace:3.0.1'
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
-      '@pnpm/matcher': 1.0.0
-      '@pnpm/modules-yaml': '*'
-      '@pnpm/outdated': 6.0.1
-      '@pnpm/package-is-installable': 4.0.0
-      '@pnpm/package-store': 6.0.1
-      '@pnpm/prepare': '*'
-      '@pnpm/read-importer-manifest': 2.0.0
-      '@pnpm/read-package-json': '*'
+      '@pnpm/matcher': 'workspace:1.0.0'
+      '@pnpm/modules-yaml': 'workspace:*'
+      '@pnpm/outdated': 'workspace:6.0.1'
+      '@pnpm/package-is-installable': 'workspace:4.0.0'
+      '@pnpm/package-store': 'workspace:6.0.1'
+      '@pnpm/prepare': 'workspace:*'
+      '@pnpm/read-importer-manifest': 'workspace:2.0.0'
+      '@pnpm/read-package-json': 'workspace:*'
       '@pnpm/semver-diff': 1.0.2
-      '@pnpm/server': 5.0.0
-      '@pnpm/store-controller-types': 5.0.0
+      '@pnpm/server': 'workspace:5.0.0'
+      '@pnpm/store-controller-types': 'workspace:5.0.0'
       '@pnpm/store-path': 2.1.1
-      '@pnpm/types': 4.0.0
-      '@pnpm/utils': 0.12.0
-      '@pnpm/write-importer-manifest': '*'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@pnpm/utils': 'workspace:0.12.0'
+      '@pnpm/write-importer-manifest': 'workspace:*'
       '@types/archy': 0.0.31
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
@@ -1253,7 +1255,7 @@ importers:
       execa: 3.2.0
       exists-link: 2.0.0
       fast-glob: 3.1.0
-      find-packages: 7.0.0
+      find-packages: 'workspace:7.0.0'
       get-port: 5.0.0
       graceful-fs: 4.2.1
       graph-sequencer: 2.0.0
@@ -1276,7 +1278,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       path-name: 1.0.0
-      pkgs-graph: 5.0.0
+      pkgs-graph: 'workspace:5.0.0'
       pnpm: 'link:'
       process-exists: 3.1.0
       ramda: 0.26.1
@@ -1288,7 +1290,7 @@ importers:
       semver: 6.3.0
       signal-exit: 3.0.2
       strip-ansi: 6.0.0
-      supi: 0.36.1
+      supi: 'workspace:0.36.1'
       symlink-dir: 3.1.1
       table: 5.4.6
       tape: 4.11.0

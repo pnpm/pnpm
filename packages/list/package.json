@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "4.0.1",
+  "version": "4.0.3",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -14,7 +14,7 @@
     "prepublishOnly": "pnpm run tsc",
     "pretest": "pnpm run pretest --filter dependencies-hierarchy",
     "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "tsc": "tsc"
+    "tsc": "rimraf lib && tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/list",
   "keywords": [
@@ -57,6 +57,7 @@
     "@types/ramda": "0.26.29",
     "@types/semver": "^6.2.0",
     "common-tags": "1.8.0",
+    "rimraf": "3.0.0",
     "tape": "4.11.0"
   }
 }
