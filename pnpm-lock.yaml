@@ -131,7 +131,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
-      chalk: 2.4.2
+      chalk: 3.0.0
       common-tags: 1.8.0
       most: 1.7.3_most@1.7.3
       normalize-path: 3.0.0
@@ -167,7 +167,7 @@ importers:
       '@types/semver': ^6.2.0
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
-      chalk: 2.4.2
+      chalk: 3.0.0
       common-tags: 1.8.0
       delay: 4.3.0
       ghooks: 2.0.4
@@ -570,7 +570,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
-      chalk: 2.4.2
+      chalk: 3.0.0
       cli-columns: 3.1.2
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
       p-limit: 2.2.1
@@ -598,7 +598,7 @@ importers:
       '@types/semver': ^6.2.0
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
-      chalk: 2.4.2
+      chalk: 3.0.0
       cli-columns: 3.1.2
       common-tags: 1.8.0
       dependencies-hierarchy: 'workspace:8.0.0'
@@ -1108,7 +1108,7 @@ importers:
       archy: 1.0.0
       camelcase: 5.3.1
       camelcase-keys: 6.1.1
-      chalk: 2.4.2
+      chalk: 3.0.0
       common-tags: 1.8.0
       cp-file: 7.0.0
       cross-spawn: 7.0.1
@@ -1234,7 +1234,7 @@ importers:
       byline: 5.0.0
       camelcase: 5.3.1
       camelcase-keys: 6.1.1
-      chalk: 2.4.2
+      chalk: 3.0.0
       common-tags: 1.8.0
       cp-file: 7.0.0
       cross-spawn: 7.0.1
@@ -3433,6 +3433,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-Mti+f9lpJNcwF4tWV8/OrTTtF1gZi+f8FqlyAdouralcFWFQWF2+NgCHShjkCb+IFBLq9buZwE1xckQU4peSuQ==
+  /chalk/3.0.0:
+    dependencies:
+      ansi-styles: 4.1.0
+      supports-color: 7.1.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-4D3B6Wf41KOYRFdszmDqMCGq5VV/uMAB273JILmO+3jAlh8X4qDtdtgCR3fxtbLEMzSx22QdhnDcJvu2u1fVwg==
   /check-error/1.0.2:
     dev: true
     resolution:
@@ -5193,6 +5202,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tdRU3CGZriJWmfNGfloH87lVuv0=
+  /has-flag/4.0.0:
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==
   /has-symbols/1.0.0:
     engines:
       node: '>= 0.4'
@@ -8656,6 +8671,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==
+  /supports-color/7.1.0:
+    dependencies:
+      has-flag: 4.0.0
+    dev: false
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-oRSIpR8pxT1Wr2FquTNnGet79b3BWljqOuoW/h4oBhxJ/HUbX5nX6JSruTkvXDCFMwDPvsaTTbvMLKZWSy0R5g==
   /symbol-observable/1.2.0:
     dev: false
     engines:

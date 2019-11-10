@@ -1,7 +1,7 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
 import { toOutput$ } from '@pnpm/default-reporter'
 import { createStreamParser } from '@pnpm/logger'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import { stripIndents } from 'common-tags'
 import normalizeNewline = require('normalize-newline')
 import path = require('path')

@@ -3,7 +3,7 @@ import PnpmError from '@pnpm/error'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import { stripIndent, stripIndents } from 'common-tags'
 import loadJsonFile = require('load-json-file')
 import normalizeNewline = require('normalize-newline')

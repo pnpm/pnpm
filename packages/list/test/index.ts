@@ -1,7 +1,7 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import renderTree from '@pnpm/list/lib/renderTree'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import cliColumns = require('cli-columns')
 import { stripIndent } from 'common-tags'
 import path = require('path')

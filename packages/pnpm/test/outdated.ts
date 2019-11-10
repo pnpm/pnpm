@@ -1,7 +1,7 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import isCI = require('is-ci')
 import makeDir = require('make-dir')

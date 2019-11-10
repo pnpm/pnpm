@@ -1,7 +1,7 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, ImporterManifest } from '@pnpm/types'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'

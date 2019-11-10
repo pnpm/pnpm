@@ -1,5 +1,5 @@
 import { StatsLog } from '@pnpm/core-loggers'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import most = require('most')
 import R = require('ramda')
 import stringLength from 'string-length'

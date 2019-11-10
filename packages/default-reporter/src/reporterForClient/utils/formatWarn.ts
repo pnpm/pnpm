@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import chalk = require('chalk')
 
 export default function formatWarn (message: string) {
   // The \u2009 is the "thin space" unicode character

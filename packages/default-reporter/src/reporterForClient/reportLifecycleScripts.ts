@@ -1,6 +1,6 @@
 import { LifecycleLog } from '@pnpm/core-loggers'
 import PushStream from '@zkochan/zen-push'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import most = require('most')
 import path = require('path')
 import prettyTime = require('pretty-time')

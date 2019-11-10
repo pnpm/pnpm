@@ -1,5 +1,5 @@
 import { DeprecationLog } from '@pnpm/core-loggers'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import most = require('most')
 import formatWarn from './utils/formatWarn'
 import { zoomOut } from './utils/zooming'

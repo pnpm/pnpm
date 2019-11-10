@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
-import chalk from 'chalk'
+import chalk = require('chalk')
 import fs = require('fs')
 
 class BadReadPackageHookError extends PnpmError {

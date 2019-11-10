@@ -1,4 +1,4 @@
-import chalk from 'chalk'
+import chalk = require('chalk')
 
 export const PREFIX_MAX_LENGTH = 40
 
