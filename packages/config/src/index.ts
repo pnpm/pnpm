@@ -143,6 +143,7 @@ export default async (
   const workspaceDir = cliArgs['global'] // tslint:disable-line
     ? undefined
     : await findWorkspacePrefix(dir)
+  cliArgs['prefix'] = dir // the npm config system still expects `prefix`
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
     'color': 'auto',
@@ -177,6 +178,7 @@ export default async (
     'workspace-concurrency': 4,
     'workspace-prefix': workspaceDir,
   })
+  delete cliArgs['prefix']
 
   process.execPath = originalExecPath
 
