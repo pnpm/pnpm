@@ -72,7 +72,7 @@
     "test": "pnpm run lint && pnpm run tsc && pnpm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc",
-    "runPrepareFixtures": "cd test/fixtures && node ../../../pnpm/lib/bin/pnpm.js m i --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
+    "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js m i -C test/fixtures --no-shared-workspace-lockfile --no-link-workspace-packages --lockfile-only --registry http://localhost:4873/ --ignore-scripts --force",
     "prepareFixtures": "registry-mock prepare && run-p -r registry-mock runPrepareFixtures"
   },
   "dependencies": {
