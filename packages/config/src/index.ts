@@ -139,11 +139,13 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
+  if (cliArgs['dir']) {
+    cliArgs['prefix'] = cliArgs['dir'] // the npm config system still expects `prefix`
+  }
   const dir = cliArgs['dir'] ?? process.cwd()
   const workspaceDir = cliArgs['global'] // tslint:disable-line
     ? undefined
     : await findWorkspacePrefix(dir)
-  cliArgs['prefix'] = dir // the npm config system still expects `prefix`
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
     'color': 'auto',
