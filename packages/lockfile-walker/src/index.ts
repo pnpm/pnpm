@@ -20,9 +20,10 @@ export default function walker (
   importerIds: string[],
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean },
+    skipped?: Set<string>,
   },
 ) {
-  const walked = new Set<string>()
+  const walked = new Set<string>(opts.skipped ? Array.from(opts.skipped) : [])
   const entryNodes = [] as string[]
 
   importerIds.forEach((importerId) => {
@@ -49,6 +50,7 @@ export default function walker (
     }
     for (let relDepPath of nextRelDepPaths) {
       if (walked.has(relDepPath)) continue
+      walked.add(relDepPath)
       const pkgSnapshot = lockfile.packages?.[relDepPath]
       if (!pkgSnapshot) {
         if (relDepPath.startsWith('link:')) {
