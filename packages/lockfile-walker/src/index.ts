@@ -18,20 +18,20 @@ export type LockfileWalkStep = {
 export default function walker (
   lockfile: Lockfile,
   importerIds: string[],
-  opts: {
-    include: { [dependenciesField in DependenciesField]: boolean },
+  opts?: {
+    include?: { [dependenciesField in DependenciesField]: boolean },
     skipped?: Set<string>,
   },
 ) {
-  const walked = new Set<string>(opts.skipped ? Array.from(opts.skipped) : [])
+  const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
   const entryNodes = [] as string[]
 
   importerIds.forEach((importerId) => {
     const lockfileImporter = lockfile.importers[importerId]
     R.toPairs({
-      ...(opts.include.devDependencies && lockfileImporter.devDependencies || {}),
-      ...(opts.include.dependencies && lockfileImporter.dependencies || {}),
-      ...(opts.include.optionalDependencies && lockfileImporter.optionalDependencies || {}),
+      ...(opts?.include?.devDependencies === false ? {} : lockfileImporter.devDependencies),
+      ...(opts?.include?.dependencies === false ? {} : lockfileImporter.dependencies),
+      ...(opts?.include?.optionalDependencies === false ? {} : lockfileImporter.optionalDependencies),
     })
     .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null)
@@ -72,7 +72,7 @@ export default function walker (
   function next (nextPkg: PackageSnapshot) {
     return R.toPairs({
       ...nextPkg.dependencies,
-      ...(opts.include.optionalDependencies && nextPkg.optionalDependencies || {}),
+      ...(opts?.include?.optionalDependencies === false ? {} : nextPkg.optionalDependencies),
     })
     .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]

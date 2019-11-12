@@ -6,6 +6,7 @@ import {
   packageIsIndependent,
   PackageSnapshots,
 } from '@pnpm/lockfile-utils'
+import lockfileWalker, { LockfileWalkStep } from '@pnpm/lockfile-walker'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
@@ -27,26 +28,19 @@ export default async function hoistByLockfile (
 ) {
   if (!opts.lockfile.packages) return {}
 
-  const entryNodes = new Set<string>()
-  for (let importerId of Object.keys(opts.lockfile.importers).sort()) {
-    const lockfileImporter = opts.lockfile.importers[importerId]
-    ; (
-      R.toPairs({
-        ...lockfileImporter.devDependencies,
-        ...lockfileImporter.dependencies,
-        ...lockfileImporter.optionalDependencies,
-      })
-      .map((pair) => dp.refToRelative(pair[1], pair[0]))
-      .filter((nodeId) => nodeId !== null) as string[]
-    ).forEach((relativePath) => { entryNodes.add(relativePath) })
-  }
-
-  const deps = await getDependencies(opts.lockfile.packages, Array.from(entryNodes.values()), new Set(), 0, {
-    getIndependentPackageLocation: opts.getIndependentPackageLocation,
-    lockfileDir: opts.lockfileDir,
-    registries: opts.registries,
-    virtualStoreDir: opts.virtualStoreDir,
-  })
+  const deps = await getDependencies(
+    lockfileWalker(
+      opts.lockfile,
+      Object.keys(opts.lockfile.importers)
+    ),
+    0,
+    {
+      getIndependentPackageLocation: opts.getIndependentPackageLocation,
+      lockfileDir: opts.lockfileDir,
+      registries: opts.registries,
+      virtualStoreDir: opts.virtualStoreDir,
+    },
+  )
 
   const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.'].specifiers, {
     dryRun: false,
@@ -69,9 +63,7 @@ export default async function hoistByLockfile (
 }
 
 async function getDependencies (
-  pkgSnapshots: PackageSnapshots,
-  depRelPaths: string[],
-  walked: Set<string>,
+  step: LockfileWalkStep,
   depth: number,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
@@ -80,26 +72,12 @@ async function getDependencies (
     virtualStoreDir: string,
   },
 ): Promise<Dependency[]> {
-  if (depRelPaths.length === 0) return []
-
   const deps: Dependency[] = []
-  let nextDepRelPaths = [] as string[]
-  for (const depRelPath of depRelPaths) {
-    if (walked.has(depRelPath)) continue
-    walked.add(depRelPath)
+  const nextSteps: LockfileWalkStep[] = []
+  for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
 
-    const pkgSnapshot = pkgSnapshots[depRelPath]
-    if (!pkgSnapshot) {
-      if (depRelPath.startsWith('link:')) continue
-
-      // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
-      // However, the skipped list currently contains package IDs, not dep paths.
-      logger.debug({ message: `No entry for "${depRelPath}" in ${WANTED_LOCKFILE}` })
-      continue
-    }
-
-    const absolutePath = dp.resolve(opts.registries, depRelPath)
-    const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
+    const absolutePath = dp.resolve(opts.registries, relDepPath)
+    const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
     const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(absolutePath, opts.lockfileDir), 'node_modules')
     const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
@@ -119,21 +97,20 @@ async function getDependencies (
       name: pkgName,
     })
 
-    nextDepRelPaths = [
-      ...nextDepRelPaths,
-      ...R.toPairs({
-        ...pkgSnapshot.dependencies,
-        ...pkgSnapshot.optionalDependencies,
-      })
-      .map((pair) => dp.refToRelative(pair[1], pair[0]))
-      .filter((nodeId) => nodeId !== null) as string[],
-    ]
+    nextSteps.push(next())
   }
 
-  return [
-    ...deps,
-    ...await getDependencies(pkgSnapshots, nextDepRelPaths, walked, depth + 1, opts),
-  ]
+  for (const relDepPath of step.missing) {
+    // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
+    // However, the skipped list currently contains package IDs, not dep paths.
+    logger.debug({ message: `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}` })
+  }
+
+  return (
+    await Promise.all(
+      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1, opts)),
+    )
+  ).reduce((acc, deps) => [...acc, ...deps], deps)
 }
 
 export interface Dependency {

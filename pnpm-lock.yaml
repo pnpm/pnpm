@@ -516,6 +516,7 @@ importers:
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
@@ -530,6 +531,7 @@ importers:
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.1'
+      '@pnpm/lockfile-walker': 'workspace:0.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'workspace:3.0.0'
