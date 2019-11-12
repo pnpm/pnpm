@@ -716,6 +716,28 @@ importers:
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
+  packages/lockfile-walker:
+    dependencies:
+      '@pnpm/lockfile-types': 'link:../lockfile-types'
+      '@pnpm/types': 'link:../types'
+      dependency-path: 'link:../dependency-path'
+      ramda: 0.26.1
+    devDependencies:
+      '@pnpm/lockfile-walker': 'link:'
+      '@types/ramda': 0.26.29
+      rimraf: 3.0.0
+      tape: 4.11.0
+      tempy: 0.3.0
+    specifiers:
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
+      '@pnpm/lockfile-walker': 'link:'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@types/ramda': 0.26.29
+      dependency-path: 'workspace:4.0.0'
+      ramda: 0.26.1
+      rimraf: 3.0.0
+      tape: 4.11.0
+      tempy: 0.3.0
   packages/matcher:
     dependencies:
       escape-string-regexp: 2.0.0
@@ -1529,6 +1551,7 @@ importers:
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
@@ -1628,6 +1651,7 @@ importers:
       '@pnpm/link-bins': 5.0.1
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/lockfile-utils': 'workspace:2.0.1'
+      '@pnpm/lockfile-walker': 'workspace:0.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-cleaner': 'workspace:7.0.0'

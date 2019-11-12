@@ -15,6 +15,7 @@ import {
   packageIsIndependent,
   PackageSnapshots,
 } from '@pnpm/lockfile-utils'
+import lockfileWalker, { LockfileWalkStep } from '@pnpm/lockfile-walker'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
@@ -185,44 +186,29 @@ export async function rebuild (
 }
 
 function getSubgraphToBuild (
-  pkgSnapshots: PackageSnapshots,
-  entryNodes: string[],
+  step: LockfileWalkStep,
   nodesToBuildAndTransitive: Set<string>,
-  walked: Set<string>,
   opts: {
-    optional: boolean,
     pkgsToRebuild: Set<string>,
   },
 ) {
   let currentShouldBeBuilt = false
-  for (const depPath of entryNodes) {
-    if (nodesToBuildAndTransitive.has(depPath)) {
+  for (const { relDepPath, next } of step.dependencies) {
+    if (nodesToBuildAndTransitive.has(relDepPath)) {
       currentShouldBeBuilt = true
     }
-    if (walked.has(depPath)) continue
-    walked.add(depPath)
-    const pkgSnapshot = pkgSnapshots[depPath]
-    if (!pkgSnapshot) {
-      if (depPath.startsWith('link:')) continue
 
-      // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
-      // However, the skipped list currently contains package IDs, not dep paths.
-      logger.debug({ message: `No entry for "${depPath}" in ${WANTED_LOCKFILE}` })
-      continue
-    }
-    const nextEntryNodes = R.toPairs({
-      ...pkgSnapshot.dependencies,
-      ...(opts.optional && pkgSnapshot.optionalDependencies || {}),
-    })
-    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
-    .filter((nodeId) => nodeId !== null) as string[]
-
-    const childShouldBeBuilt = getSubgraphToBuild(pkgSnapshots, nextEntryNodes, nodesToBuildAndTransitive, walked, opts)
-      || opts.pkgsToRebuild.has(depPath)
+    const childShouldBeBuilt = getSubgraphToBuild(next(), nodesToBuildAndTransitive, opts)
+      || opts.pkgsToRebuild.has(relDepPath)
     if (childShouldBeBuilt) {
-      nodesToBuildAndTransitive.add(depPath)
+      nodesToBuildAndTransitive.add(relDepPath)
       currentShouldBeBuilt = true
     }
+  }
+  for (const relDepPath of step.missing) {
+    // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
+    // However, the skipped list currently contains package IDs, not dep paths.
+    logger.debug({ message: `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}` })
   }
   return currentShouldBeBuilt
 }
@@ -245,27 +231,22 @@ async function _rebuild (
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = ctx.currentLockfile.packages || {}
 
-  const entryNodes = [] as string[]
-
-  ctx.importers.forEach((importer) => {
-    const lockfileImporter = ctx.currentLockfile.importers[importer.id]
-    R.toPairs({
-      ...(opts.development && lockfileImporter.devDependencies || {}),
-      ...(opts.production && lockfileImporter.dependencies || {}),
-      ...(opts.optional && lockfileImporter.optionalDependencies || {}),
-    })
-    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
-    .filter((nodeId) => nodeId !== null)
-    .forEach((relDepPath) => {
-      entryNodes.push(relDepPath as string)
-    })
-  })
-
   const nodesToBuildAndTransitive = new Set<string>()
-  getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), {
-    optional: opts.optional === true,
-    pkgsToRebuild: ctx.pkgsToRebuild,
-  })
+  getSubgraphToBuild(
+    lockfileWalker(
+      ctx.currentLockfile,
+      ctx.importers.map(({ id }) => id),
+      {
+        include: {
+          dependencies: opts.production,
+          devDependencies: opts.development,
+          optionalDependencies: opts.optional,
+        }
+      }
+    ),
+    nodesToBuildAndTransitive,
+    { pkgsToRebuild: ctx.pkgsToRebuild }
+  )
   const nodesToBuildAndTransitiveArray = Array.from(nodesToBuildAndTransitive)
 
   for (const relDepPath of nodesToBuildAndTransitiveArray) {
