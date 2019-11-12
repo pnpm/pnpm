@@ -24,23 +24,21 @@ export default function walker (
   },
 ) {
   const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
-  const entryNodes = [] as string[]
 
-  importerIds.forEach((importerId) => {
+  return importerIds.map((importerId) => {
     const lockfileImporter = lockfile.importers[importerId]
-    R.toPairs({
+    const entryNodes = R.toPairs({
       ...(opts?.include?.devDependencies === false ? {} : lockfileImporter.devDependencies),
       ...(opts?.include?.dependencies === false ? {} : lockfileImporter.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : lockfileImporter.optionalDependencies),
     })
     .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
-    .filter((nodeId) => nodeId !== null)
-    .forEach((relDepPath) => {
-      entryNodes.push(relDepPath as string)
-    })
+    .filter((nodeId) => nodeId !== null) as string[]
+    return {
+      importerId,
+      step: step(entryNodes),
+    }
   })
-
-  return step(entryNodes)
 
   function step (nextRelDepPaths: string[]) {
     const result: LockfileWalkStep = {
