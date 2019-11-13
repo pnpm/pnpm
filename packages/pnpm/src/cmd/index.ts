@@ -1,3 +1,4 @@
+import audit from './audit'
 import help from './help'
 import importCmd from './import'
 import install from './install'
@@ -19,6 +20,7 @@ import update from './update'
 
 export default {
   add: install,
+  audit,
   help,
   import: importCmd,
   install,

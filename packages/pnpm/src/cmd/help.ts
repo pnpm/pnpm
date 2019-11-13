@@ -84,6 +84,24 @@ const FILTERING = {
 
 function getHelpText (command: string) {
   switch (getCommandFullName(command)) {
+    case 'audit':
+      return renderHelp({
+        description: 'Checks for known security issues with the installed packages.',
+        descriptionLists: [
+          {
+            title: 'Options',
+
+            list: [
+              {
+                description: 'Output audit report in JSON format',
+                name: '--json',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm audit [options]'],
+      })
     case 'install':
       return renderHelp({
         aliases: ['i'],
@@ -1074,6 +1092,9 @@ function getHelpText (command: string) {
               },
               {
                 name: 'root',
+              },
+              {
+                name: 'audit',
               },
             ],
           },

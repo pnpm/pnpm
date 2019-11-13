@@ -21,6 +21,7 @@
     "lib/"
   ],
   "dependencies": {
+    "@pnpm/audit": "workspace:0.0.0",
     "@pnpm/config": "workspace:5.0.1",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
