@@ -4,9 +4,8 @@ import {
   Lockfile,
   nameVerFromPkgSnapshot,
   packageIsIndependent,
-  PackageSnapshots,
 } from '@pnpm/lockfile-utils'
-import lockfileWalker, { LockfileWalkStep } from '@pnpm/lockfile-walker'
+import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import symlinkDependency from '@pnpm/symlink-dependency'
@@ -63,7 +62,7 @@ export default async function hoistByLockfile (
 }
 
 async function getDependencies (
-  step: LockfileWalkStep,
+  step: LockfileWalkerStep,
   depth: number,
   opts: {
     getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
@@ -73,7 +72,7 @@ async function getDependencies (
   },
 ): Promise<Dependency[]> {
   const deps: Dependency[] = []
-  const nextSteps: LockfileWalkStep[] = []
+  const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
     const absolutePath = dp.resolve(opts.registries, relDepPath)
     const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name

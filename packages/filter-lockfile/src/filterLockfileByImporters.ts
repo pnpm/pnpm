@@ -4,10 +4,9 @@ import {
   Lockfile,
   PackageSnapshots,
 } from '@pnpm/lockfile-types'
-import lockfileWalker, { LockfileDependency, LockfileWalkStep } from '@pnpm/lockfile-walker'
+import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import pnpmLogger from '@pnpm/logger'
 import { DependenciesField, Registries } from '@pnpm/types'
-import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
 import filterLockfile from './filterLockfile'
@@ -55,7 +54,7 @@ export default function filterByImporters (
 }
 
 function pkgAllDeps (
-  step: LockfileWalkStep,
+  step: LockfileWalkerStep,
   pickedPackages: PackageSnapshots,
   opts: {
     failOnMissingDependencies: boolean,

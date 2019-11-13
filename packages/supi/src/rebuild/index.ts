@@ -15,7 +15,7 @@ import {
   packageIsIndependent,
   PackageSnapshots,
 } from '@pnpm/lockfile-utils'
-import lockfileWalker, { LockfileWalkStep } from '@pnpm/lockfile-walker'
+import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
@@ -186,7 +186,7 @@ export async function rebuild (
 }
 
 function getSubgraphToBuild (
-  step: LockfileWalkStep,
+  step: LockfileWalkerStep,
   nodesToBuildAndTransitive: Set<string>,
   opts: {
     pkgsToRebuild: Set<string>,

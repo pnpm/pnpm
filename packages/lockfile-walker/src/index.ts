@@ -3,14 +3,14 @@ import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 
-export type LockfileDependency = {
+export type LockedDependency = {
   relDepPath: string,
   pkgSnapshot: PackageSnapshot,
-  next: () => LockfileWalkStep,
+  next: () => LockfileWalkerStep,
 }
 
-export type LockfileWalkStep = {
-  dependencies: LockfileDependency[],
+export type LockfileWalkerStep = {
+  dependencies: LockedDependency[],
   links: string[],
   missing: string[],
 }
@@ -84,7 +84,7 @@ function step (
   },
   nextRelDepPaths: string[],
 ) {
-  const result: LockfileWalkStep = {
+  const result: LockfileWalkerStep = {
     dependencies: [],
     links: [],
     missing: [],
@@ -113,7 +113,7 @@ function step (
 function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot) {
   return R.toPairs({
     ...nextPkg.dependencies,
-    ...(opts.includeOptionalDependencies ? {} : nextPkg.optionalDependencies),
+    ...(opts.includeOptionalDependencies ? nextPkg.optionalDependencies : {}),
   })
   .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
   .filter((nodeId) => nodeId !== null) as string[]
