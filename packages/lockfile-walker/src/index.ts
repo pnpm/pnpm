@@ -15,7 +15,7 @@ export type LockfileWalkStep = {
   missing: string[],
 }
 
-export default function walker (
+export function lockfileWalkerGroupImporterSteps (
   lockfile: Lockfile,
   importerIds: string[],
   opts?: {
@@ -36,43 +36,85 @@ export default function walker (
     .filter((nodeId) => nodeId !== null) as string[]
     return {
       importerId,
-      step: step(entryNodes),
+      step: step({
+        includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
+        lockfile,
+        walked,
+      }, entryNodes),
     }
   })
+}
 
-  function step (nextRelDepPaths: string[]) {
-    const result: LockfileWalkStep = {
-      dependencies: [],
-      links: [],
-      missing: [],
-    }
-    for (let relDepPath of nextRelDepPaths) {
-      if (walked.has(relDepPath)) continue
-      walked.add(relDepPath)
-      const pkgSnapshot = lockfile.packages?.[relDepPath]
-      if (!pkgSnapshot) {
-        if (relDepPath.startsWith('link:')) {
-          result.links.push(relDepPath)
-          continue
-        }
-        result.missing.push(relDepPath)
-        continue
-      }
-      result.dependencies.push({
-        next: () => step(next(pkgSnapshot)),
-        pkgSnapshot,
-        relDepPath,
-      })
-    }
-    return result
-  }
+export default function lockfileWalker (
+  lockfile: Lockfile,
+  importerIds: string[],
+  opts?: {
+    include?: { [dependenciesField in DependenciesField]: boolean },
+    skipped?: Set<string>,
+  },
+) {
+  const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
+  const entryNodes = [] as string[]
 
-  function next (nextPkg: PackageSnapshot) {
-    return R.toPairs({
-      ...nextPkg.dependencies,
-      ...(opts?.include?.optionalDependencies === false ? {} : nextPkg.optionalDependencies),
+  importerIds.forEach((importerId) => {
+    const lockfileImporter = lockfile.importers[importerId]
+    R.toPairs({
+      ...(opts?.include?.devDependencies === false ? {} : lockfileImporter.devDependencies),
+      ...(opts?.include?.dependencies === false ? {} : lockfileImporter.dependencies),
+      ...(opts?.include?.optionalDependencies === false ? {} : lockfileImporter.optionalDependencies),
     })
     .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
-    .filter((nodeId) => nodeId !== null) as string[]
+    .filter((nodeId) => nodeId !== null)
+    .forEach((relDepPath) => {
+      entryNodes.push(relDepPath as string)
+    })
+  })
+  return step({
+    includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
+    lockfile,
+    walked,
+  }, entryNodes)
+}
+
+function step (
+  ctx: {
+    includeOptionalDependencies: boolean,
+    lockfile: Lockfile,
+    walked: Set<string>,
+  },
+  nextRelDepPaths: string[],
+) {
+  const result: LockfileWalkStep = {
+    dependencies: [],
+    links: [],
+    missing: [],
   }
+  for (let relDepPath of nextRelDepPaths) {
+    if (ctx.walked.has(relDepPath)) continue
+    ctx.walked.add(relDepPath)
+    const pkgSnapshot = ctx.lockfile.packages?.[relDepPath]
+    if (!pkgSnapshot) {
+      if (relDepPath.startsWith('link:')) {
+        result.links.push(relDepPath)
+        continue
+      }
+      result.missing.push(relDepPath)
+      continue
+    }
+    result.dependencies.push({
+      next: () => step(ctx, next({ includeOptionalDependencies: ctx.includeOptionalDependencies }, pkgSnapshot)),
+      pkgSnapshot,
+      relDepPath,
+    })
+  }
+  return result
+}
+
+function next (opts: { includeOptionalDependencies: boolean }, nextPkg: PackageSnapshot) {
+  return R.toPairs({
+    ...nextPkg.dependencies,
+    ...(opts.includeOptionalDependencies ? {} : nextPkg.optionalDependencies),
+  })
+  .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
+  .filter((nodeId) => nodeId !== null) as string[]
 }

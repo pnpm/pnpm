@@ -75,7 +75,6 @@ async function getDependencies (
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkStep[] = []
   for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
-
     const absolutePath = dp.resolve(opts.registries, relDepPath)
     const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
     const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(absolutePath, opts.lockfileDir), 'node_modules')
