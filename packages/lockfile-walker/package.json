@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/filter-lockfile",
-  "version": "3.0.0",
-  "description": "Filters a lockfile",
+  "name": "@pnpm/lockfile-walker",
+  "version": "0.0.0",
+  "description": "Walk over all the dependencies in a lockfile",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "engines": {
@@ -12,11 +12,11 @@
   ],
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
+    "test": "pnpm run tsc && pnpm run lint",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/filter-lockfile",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-walker",
   "keywords": [
     "pnpm",
     "shrinkwrap",
@@ -31,27 +31,16 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/filter-lockfile#readme",
-  "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
-  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-walker#readme",
   "devDependencies": {
-    "@pnpm/filter-lockfile": "link:",
-    "@pnpm/logger": "3.1.0",
+    "@pnpm/lockfile-walker": "link:",
     "@types/ramda": "0.26.29",
     "rimraf": "3.0.0",
     "tape": "4.11.0",
-    "tempy": "0.3.0",
-    "write-yaml-file": "3.0.1",
-    "yaml-tag": "1.1.0"
+    "tempy": "0.3.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:3.0.0",
-    "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lockfile-types": "workspace:1.1.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.1",
-    "@pnpm/lockfile-walker": "workspace:0.0.0",
-    "@pnpm/package-is-installable": "workspace:4.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "dependency-path": "workspace:4.0.0",
     "ramda": "0.26.1"
