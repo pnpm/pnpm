@@ -2,6 +2,7 @@ import { IncludedDependencies, Registries } from '@pnpm/types'
 
 export interface Config {
   allowNew: boolean,
+  auditLevel?: 'low' | 'moderate' | 'high' | 'critical',
   bail: boolean,
   color: 'always' | 'auto' | 'never',
   cliArgs: Record<string, any>, // tslint:disable-line

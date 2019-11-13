@@ -2,8 +2,26 @@ import audit from '@pnpm/audit'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
+import chalk = require('chalk')
 import { table } from 'table'
+import { TABLE_OPTIONS } from '../style'
 import { PnpmOptions } from '../types'
+
+// tslint:disable
+const AUDIT_LEVEL_NUMBER = {
+  'low': 0,
+  'moderate': 1,
+  'high': 2,
+  'critical': 3,
+}
+
+const AUDIT_COLOR = {
+  'low': chalk.bold,
+  'moderate': chalk.bold.yellow,
+  'high': chalk.bold.red,
+  'critical': chalk.bold.red,
+}
+// tslint:enable
 
 export default async function (
   args: string[],
@@ -22,13 +40,18 @@ export default async function (
   }
 
   let output = ''
-  for (const advisory of Object.values(auditReport.advisories)) {
+  const auditLevel = AUDIT_LEVEL_NUMBER[opts.auditLevel || 'low']
+  const advisories = Object.values(auditReport.advisories)
+    .filter(({ severity }) => AUDIT_LEVEL_NUMBER[severity] >= auditLevel)
+    .sort((a1, a2) => AUDIT_LEVEL_NUMBER[a2.severity] - AUDIT_LEVEL_NUMBER[a1.severity])
+  for (const advisory of advisories) {
     output += table([
-      [advisory.severity, advisory.title],
+      [AUDIT_COLOR[advisory.severity](advisory.severity), chalk.bold(advisory.title)],
       ['Package', advisory.module_name],
       ['Vulnerable versions', advisory.vulnerable_versions],
       ['Patched versions', advisory.patched_versions],
-    ])
+      ['More info', advisory.url],
+    ], TABLE_OPTIONS)
   }
   return output
 }

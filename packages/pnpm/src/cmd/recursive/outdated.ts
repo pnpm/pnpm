@@ -14,9 +14,9 @@ import {
   renderDetails,
   renderLatest,
   renderPackageName,
-  TABLE_OPTIONS,
   toOutdatedWithVersionDiff,
 } from '../outdated'
+import { TABLE_OPTIONS } from '../../style'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,

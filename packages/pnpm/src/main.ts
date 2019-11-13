@@ -59,6 +59,7 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'why'
 
 type CLI_OPTIONS = 'access'
+  | 'audit-level'
   | 'background'
   | 'bail'
   | 'child-concurrency'
@@ -227,6 +228,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'virtual-store-dir',
   ]),
   'audit': new Set([
+    'audit-level',
     'json',
   ]),
   'help': new Set([]),
