@@ -5,6 +5,7 @@ import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'
+import { TABLE_OPTIONS } from '../../style'
 import {
   DEFAULT_COMPARATORS,
   getCellWidth,
@@ -16,7 +17,6 @@ import {
   renderPackageName,
   toOutdatedWithVersionDiff,
 } from '../outdated'
-import { TABLE_OPTIONS } from '../../style'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,
