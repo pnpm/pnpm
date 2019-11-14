@@ -41,7 +41,7 @@
     "@types/node-fetch": "^2.5.3",
     "@types/uuid": "^3.4.6",
     "@zkochan/rimraf": "1.0.0",
-    "is-port-reachable": "2.0.1",
+    "is-port-reachable": "3.0.0",
     "mz": "2.7.0",
     "node-fetch": "2.6.0",
     "rimraf": "3.0.0",
