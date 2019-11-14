@@ -23,7 +23,8 @@ export type AuditTree = AuditNode & {
 
 export default async function audit (lockfile: Lockfile, opts: { registry: string }) {
   const auditTree = lockfileToAuditTree(lockfile)
-  const res = await fetch(`${opts.registry}/-/npm/v1/security/audits`, {
+  const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
+  const res = await fetch(`${registry}-/npm/v1/security/audits`, {
     body: JSON.stringify(auditTree),
     headers: { 'Content-Type': 'application/json' },
     method: 'post',

@@ -1,7 +1,7 @@
 importers:
   .:
     devDependencies:
-      '@pnpm/registry-mock': 1.9.1
+      '@pnpm/registry-mock': 1.10.0
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': 12.12.7
@@ -15,7 +15,7 @@ importers:
       typescript: 3.7.2
       verdaccio: 4.3.4
     specifiers:
-      '@pnpm/registry-mock': 1.9.1
+      '@pnpm/registry-mock': 1.10.0
       '@pnpm/tsconfig': 'workspace:*'
       '@pnpm/tslint-config': 'workspace:*'
       '@types/node': '*'
@@ -2330,7 +2330,7 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-8PqdjPslNqoCcv15vivjG+Mzpwe2tDBnDDjhj7fIbY1CgsNWrM2F1k3f1T5V05CloJOnAsD4A2JTSuSNzkkxvA==
-  /@pnpm/registry-mock/1.9.1:
+  /@pnpm/registry-mock/1.10.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -2343,7 +2343,7 @@ packages:
       node: '>=8.15'
     hasBin: true
     resolution:
-      integrity: sha512-XxHdLV+H1/0iLwQR/3uFiuF7yKNkemAV0zmaZ7NJXZtedB3QcBXDbJwI1UN0ojTFSAYWWwAJ5YNwm+mQ277FEw==
+      integrity: sha512-e+JyIhviI3xhPp/qgEQbhX4o0RULwjkIvZ2n3jQ9v7k3iK32mOTnzPwag5Rr+XvF0ntzSrxOXh30HT3AmqEPAg==
   /@pnpm/semver-diff/1.0.2:
     dev: false
     engines:

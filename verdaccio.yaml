@@ -1,4 +1,7 @@
 storage: ./storage
+middlewares:
+  audit:
+    enabled: true
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
