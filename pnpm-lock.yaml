@@ -386,7 +386,7 @@ importers:
     dependencies:
       '@zkochan/rimraf': 1.0.0
       dint: 4.0.0
-      execa: 3.2.0
+      execa: 3.3.0
       path-temp: 2.0.0
     devDependencies:
       '@pnpm/git-fetcher': 'link:'
@@ -397,7 +397,7 @@ importers:
       '@pnpm/git-fetcher': 'link:'
       '@zkochan/rimraf': 1.0.0
       dint: 4.0.0
-      execa: 3.2.0
+      execa: 3.3.0
       path-temp: 2.0.0
       rimraf: 3.0.0
       tape: 4.11.0
@@ -1176,7 +1176,7 @@ importers:
       delay: 4.3.0
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
-      execa: 3.2.0
+      execa: 3.3.0
       fast-glob: 3.1.0
       find-packages: 'link:../find-packages'
       get-port: 5.0.0
@@ -1209,7 +1209,7 @@ importers:
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
-      wrap-ansi: 6.1.0
+      wrap-ansi: 6.2.0
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1304,7 +1304,7 @@ importers:
       delay: 4.3.0
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
-      execa: 3.2.0
+      execa: 3.3.0
       exists-link: 2.0.0
       fast-glob: 3.1.0
       find-packages: 'workspace:7.0.0'
@@ -1350,7 +1350,7 @@ importers:
       tree-kill: 1.2.1
       update-notifier: 3.0.1
       version-selector-type: 2.0.1
-      wrap-ansi: 6.1.0
+      wrap-ansi: 6.2.0
       write-json-file: 4.0.0
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
@@ -2880,7 +2880,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.1
+      graceful-fs: 4.2.3
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
@@ -4942,10 +4942,28 @@ packages:
       p-finally: 2.0.1
       signal-exit: 3.0.2
       strip-final-newline: 2.0.0
+    dev: true
     engines:
       node: ^8.12.0 || >=9.7.0
     resolution:
       integrity: sha512-kJJfVbI/lZE1PZYDI5VPxp8zXPO9rtxOkhpZ0jMKha56AI9y2gGVC6bkukStQf0ka5Rh15BA5m7cCCH4jmHqkw==
+  /execa/3.3.0:
+    dependencies:
+      cross-spawn: 7.0.1
+      get-stream: 5.1.0
+      human-signals: 1.1.1
+      is-stream: 2.0.0
+      merge-stream: 2.0.0
+      npm-run-path: 4.0.0
+      onetime: 5.1.0
+      p-finally: 2.0.1
+      signal-exit: 3.0.2
+      strip-final-newline: 2.0.0
+    dev: false
+    engines:
+      node: ^8.12.0 || >=9.7.0
+    resolution:
+      integrity: sha512-j5Vit5WZR/cbHlqU97+qcnw9WHRCIL4V1SVe75VcHcD1JRBdt8fv0zw89b7CQHQdUHTt2VjuhcF5ibAgVOxqpg==
   /exists-link/2.0.0:
     dev: true
     engines:
@@ -10521,16 +10539,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-QC1/iN/2/RPVJ5jYK8BGttj5z83LmSKmvbvrXPNCLZSEb32KKVDJDl/MOt2N01qU2H/FkzEa9PKto1BqDjtd7Q==
-  /wrap-ansi/6.1.0:
+  /wrap-ansi/6.2.0:
     dependencies:
       ansi-styles: 4.2.0
       string-width: 4.2.0
-      strip-ansi: 5.2.0
+      strip-ansi: 6.0.0
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-y8j9eJaotnWgJkysmwld5GkLH2KE9srRvqQE2bu1tZb0O9Qgk1mLyz4Q4KIWyjZAi2+6NRqkM/A580IsUseDdw==
+      integrity: sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==
   /wrappy/1.0.2:
     resolution:
       integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
