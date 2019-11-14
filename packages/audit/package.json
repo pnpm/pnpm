@@ -38,6 +38,7 @@
     "@pnpm/fetch": "workspace:1.0.1",
     "@pnpm/lockfile-types": "workspace:1.1.0",
     "@pnpm/lockfile-utils": "workspace:2.0.1",
-    "@pnpm/lockfile-walker": "workspace:0.0.0"
+    "@pnpm/lockfile-walker": "workspace:0.0.0",
+    "@pnpm/types": "workspace:4.0.0"
   }
 }

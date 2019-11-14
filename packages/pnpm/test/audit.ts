@@ -72,6 +72,28 @@ Severity: 2 low | 3 moderate`)
   t.end()
 })
 
+test('audit --dev', (t) => {
+  process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
+
+  const { status, stdout } = execPnpmSync('audit', '--dev')
+
+  t.equal(status, 0)
+  t.equal(stdout.toString(), `┌─────────────────────┬──────────────────────────────────┐
+│ moderate            │ Denial of Service                │
+├─────────────────────┼──────────────────────────────────┤
+│ Package             │ axios                            │
+├─────────────────────┼──────────────────────────────────┤
+│ Vulnerable versions │ <0.18.1                          │
+├─────────────────────┼──────────────────────────────────┤
+│ Patched versions    │ >=0.18.1                         │
+├─────────────────────┼──────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/880 │
+└─────────────────────┴──────────────────────────────────┘
+1 vulnerabilities found
+Severity: 1 moderate`)
+  t.end()
+})
+
 test('audit --audit-level', (t) => {
   process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
 

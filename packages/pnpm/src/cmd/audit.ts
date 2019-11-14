@@ -34,7 +34,7 @@ export default async function (
   if (!lockfile) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
   }
-  const auditReport = await audit(lockfile, { registry: opts.registries.default })
+  const auditReport = await audit(lockfile, { include: opts.include, registry: opts.registries.default })
   if (opts.json) {
     return JSON.stringify(auditReport, null, 2)
   }

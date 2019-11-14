@@ -229,7 +229,11 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
   ]),
   'audit': new Set([
     'audit-level',
+    'dev',
     'json',
+    'only',
+    'optional',
+    'production',
   ]),
   'help': new Set([]),
   'import': new Set([]),

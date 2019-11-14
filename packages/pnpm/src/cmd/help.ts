@@ -100,6 +100,14 @@ function getHelpText (command: string) {
                 description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
                 name: '--audit-level <severity>',
               },
+              {
+                description: 'Only audit dev dependencies',
+                name: '--dev',
+              },
+              {
+                description: 'Only audit prod dependencies',
+                name: '--prod',
+              },
             ],
           },
         ],

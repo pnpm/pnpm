@@ -34,6 +34,7 @@ importers:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
+      '@pnpm/types': 'link:../types'
     devDependencies:
       '@pnpm/audit': 'link:'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
@@ -47,6 +48,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.1'
       '@pnpm/lockfile-walker': 'workspace:0.0.0'
+      '@pnpm/types': 'workspace:4.0.0'
       '@types/node-fetch': 2.5.3
       rimraf: 3.0.0
       tape: 4.11.0

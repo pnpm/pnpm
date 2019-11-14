@@ -1,6 +1,7 @@
 import { Lockfile } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lockfile-walker'
+import { DependenciesField } from '@pnpm/types'
 
 export type AuditNode = {
   version?: string
@@ -17,8 +18,13 @@ export type AuditTree = AuditNode & {
   metadata: Object
 }
 
-export default function lockfileToAuditTree (lockfile: Lockfile): AuditTree {
-  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers))
+export default function lockfileToAuditTree (
+  lockfile: Lockfile,
+  opts?: {
+    include?: { [dependenciesField in DependenciesField]: boolean },
+  },
+): AuditTree {
+  const importerWalkers = lockfileWalkerGroupImporterSteps(lockfile, Object.keys(lockfile.importers), { include: opts?.include })
   const dependencies = {}
   importerWalkers.forEach((importerWalker) => {
     const importerDeps = lockfileToAuditNode(importerWalker.step)
