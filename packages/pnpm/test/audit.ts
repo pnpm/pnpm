@@ -67,7 +67,8 @@ test('audit', (t) => {
 ├─────────────────────┼──────────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/786     │
 └─────────────────────┴──────────────────────────────────────┘
-`)
+5 vulnerabilities found
+Severity: 2 low | 3 moderate`)
   t.end()
 })
 
@@ -110,7 +111,18 @@ test('audit --audit-level', (t) => {
 ├─────────────────────┼──────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/880 │
 └─────────────────────┴──────────────────────────────────┘
-`)
+5 vulnerabilities found
+Severity: 2 low | 3 moderate`)
+  t.end()
+})
+
+test('audit: no vulnerabilities', (t) => {
+  process.chdir(path.join(__dirname, 'packages/has-outdated-deps'))
+
+  const { status, stdout } = execPnpmSync('audit', '--audit-level=moderate')
+
+  t.equal(status, 0)
+  t.equal(stdout.toString(), 'No known vulnerabilities found')
   t.end()
 })
 

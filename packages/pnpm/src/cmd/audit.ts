@@ -1,4 +1,4 @@
-import audit from '@pnpm/audit'
+import audit, { AuditVulnerabilityCounts } from '@pnpm/audit'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
@@ -53,5 +53,16 @@ export default async function (
       ['More info', advisory.url],
     ], TABLE_OPTIONS)
   }
-  return output
+  return `${output}${reportSummary(auditReport.metadata.vulnerabilities)}`
+}
+
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts) {
+  const totalVulnerabilityCount = Object.values(vulnerabilities).reduce((sum, vulnerabilitiesCount) => sum + vulnerabilitiesCount, 0)
+  if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found'
+  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
+    Object.entries(vulnerabilities)
+      .filter(([auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
+      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel](`${vulnerabilitiesCount} ${auditLevel}`))
+      .join(' | ')
+  }`
 }
