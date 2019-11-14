@@ -90,7 +90,7 @@
     "@types/is-windows": "0.2.0",
     "@types/mkdirp": "0.5.2",
     "@types/mz": "0.0.32",
-    "@types/ramda": "0.26.29",
+    "@types/ramda": "0.26.34",
     "@types/semver": "^6.2.0",
     "@types/sinon": "^7.5.0",
     "anonymous-npm-registry-client": "0.1.2",

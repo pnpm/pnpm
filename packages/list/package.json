@@ -54,7 +54,7 @@
     "@pnpm/logger": "3.1.0",
     "@types/archy": "0.0.31",
     "@types/common-tags": "1.8.0",
-    "@types/ramda": "0.26.29",
+    "@types/ramda": "0.26.34",
     "@types/semver": "^6.2.0",
     "common-tags": "1.8.0",
     "rimraf": "3.0.0",
