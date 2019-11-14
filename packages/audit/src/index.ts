@@ -1,7 +1,7 @@
+import fetch from '@pnpm/fetch'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lockfile-walker'
-import fetch from 'node-fetch'
 import { AuditReport } from './types'
 
 export * from './types'

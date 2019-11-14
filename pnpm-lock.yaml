@@ -30,10 +30,10 @@ importers:
       verdaccio: 4.3.4
   packages/audit:
     dependencies:
+      '@pnpm/fetch': 'link:../fetch'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
-      node-fetch: 2.6.0
     devDependencies:
       '@pnpm/audit': 'link:'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
@@ -42,12 +42,12 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/audit': 'link:'
+      '@pnpm/fetch': 'workspace:1.0.1'
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.1'
       '@pnpm/lockfile-walker': 'workspace:0.0.0'
       '@types/node-fetch': 2.5.3
-      node-fetch: 2.6.0
       rimraf: 3.0.0
       tape: 4.11.0
   packages/build-modules:
