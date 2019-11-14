@@ -21,6 +21,7 @@ function which (cmd: string) {
 }
 
 export const types = Object.assign({
+  'audit-level': ['low', 'moderate', 'high', 'critical'],
   'background': Boolean,
   'bail': Boolean,
   'child-concurrency': Number,

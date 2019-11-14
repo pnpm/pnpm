@@ -5,6 +5,7 @@ import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'
+import { TABLE_OPTIONS } from '../../style'
 import {
   DEFAULT_COMPARATORS,
   getCellWidth,
@@ -14,7 +15,6 @@ import {
   renderDetails,
   renderLatest,
   renderPackageName,
-  TABLE_OPTIONS,
   toOutdatedWithVersionDiff,
 } from '../outdated'
 

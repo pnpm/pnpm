@@ -1,7 +1,7 @@
 importers:
   .:
     devDependencies:
-      '@pnpm/registry-mock': 1.9.1
+      '@pnpm/registry-mock': 1.10.0
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': 12.12.7
@@ -15,7 +15,7 @@ importers:
       typescript: 3.7.2
       verdaccio: 4.3.4
     specifiers:
-      '@pnpm/registry-mock': 1.9.1
+      '@pnpm/registry-mock': 1.10.0
       '@pnpm/tsconfig': 'workspace:*'
       '@pnpm/tslint-config': 'workspace:*'
       '@types/node': '*'
@@ -28,6 +28,30 @@ importers:
       tslint: 5.20.1
       typescript: 3.7.2
       verdaccio: 4.3.4
+  packages/audit:
+    dependencies:
+      '@pnpm/fetch': 'link:../fetch'
+      '@pnpm/lockfile-types': 'link:../lockfile-types'
+      '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/lockfile-walker': 'link:../lockfile-walker'
+      '@pnpm/types': 'link:../types'
+    devDependencies:
+      '@pnpm/audit': 'link:'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@types/node-fetch': 2.5.3
+      rimraf: 3.0.0
+      tape: 4.11.0
+    specifiers:
+      '@pnpm/audit': 'link:'
+      '@pnpm/fetch': 'workspace:1.0.1'
+      '@pnpm/lockfile-file': 'workspace:3.0.1'
+      '@pnpm/lockfile-types': 'workspace:1.1.0'
+      '@pnpm/lockfile-utils': 'workspace:2.0.1'
+      '@pnpm/lockfile-walker': 'workspace:0.0.0'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@types/node-fetch': 2.5.3
+      rimraf: 3.0.0
+      tape: 4.11.0
   packages/build-modules:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1112,6 +1136,7 @@ importers:
       tape: 4.11.0
   packages/pnpm:
     dependencies:
+      '@pnpm/audit': 'link:../audit'
       '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1222,6 +1247,7 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
+      '@pnpm/audit': 'workspace:0.0.0'
       '@pnpm/config': 'workspace:5.0.1'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -2306,7 +2332,7 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-8PqdjPslNqoCcv15vivjG+Mzpwe2tDBnDDjhj7fIbY1CgsNWrM2F1k3f1T5V05CloJOnAsD4A2JTSuSNzkkxvA==
-  /@pnpm/registry-mock/1.9.1:
+  /@pnpm/registry-mock/1.10.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -2319,7 +2345,7 @@ packages:
       node: '>=8.15'
     hasBin: true
     resolution:
-      integrity: sha512-XxHdLV+H1/0iLwQR/3uFiuF7yKNkemAV0zmaZ7NJXZtedB3QcBXDbJwI1UN0ojTFSAYWWwAJ5YNwm+mQ277FEw==
+      integrity: sha512-e+JyIhviI3xhPp/qgEQbhX4o0RULwjkIvZ2n3jQ9v7k3iK32mOTnzPwag5Rr+XvF0ntzSrxOXh30HT3AmqEPAg==
   /@pnpm/semver-diff/1.0.2:
     dev: false
     engines:
@@ -4745,7 +4771,7 @@ packages:
       has-symbols: 1.0.0
       is-callable: 1.1.4
       is-regex: 1.0.4
-      object-inspect: 1.6.0
+      object-inspect: 1.7.0
       object-keys: 1.1.1
       string.prototype.trimleft: 2.1.0
       string.prototype.trimright: 2.1.0
@@ -7623,6 +7649,9 @@ packages:
   /object-inspect/1.6.0:
     resolution:
       integrity: sha512-GJzfBZ6DgDAmnuaM3104jR4s1Myxr3Y3zfIyN4z3UdqN69oSRacNK8UhnobDdC+7J2AHCjGwxQubNJfE70SXXQ==
+  /object-inspect/1.7.0:
+    resolution:
+      integrity: sha512-a7pEHdh1xKIAgTySUGgLMx/xwDZskN1Ud6egYYN3EdRW4ZMPNEDUTF+hwy2LUC+Bl+SyLXANnwz/jyh/qutKUw==
   /object-keys/1.1.1:
     engines:
       node: '>= 0.4'

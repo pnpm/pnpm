@@ -19,36 +19,9 @@ import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
 import createLatestManifestGetter from '../createLatestManifestGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
+import { TABLE_OPTIONS } from '../style'
 
 export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
-
-export const TABLE_OPTIONS = {
-  border: {
-    topBody: '─',
-    topJoin: '┬',
-    topLeft: '┌',
-    topRight: '┐',
-
-    bottomBody: '─',
-    bottomJoin: '┴',
-    bottomLeft: '└',
-    bottomRight: '┘',
-
-    bodyJoin: '│',
-    bodyLeft: '│',
-    bodyRight: '│',
-
-    joinBody: '─',
-    joinJoin: '┼',
-    joinLeft: '├',
-    joinRight: '┤'
-  },
-  columns: {},
-}
-
-for (let [key, value] of Object.entries(TABLE_OPTIONS.border)) {
-  TABLE_OPTIONS.border[key] = chalk.grey(value)
-}
 
 /**
  * Default comparators used as the argument to `ramda.sortWith()`.

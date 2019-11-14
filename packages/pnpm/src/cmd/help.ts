@@ -84,6 +84,36 @@ const FILTERING = {
 
 function getHelpText (command: string) {
   switch (getCommandFullName(command)) {
+    case 'audit':
+      return renderHelp({
+        description: 'Checks for known security issues with the installed packages.',
+        descriptionLists: [
+          {
+            title: 'Options',
+
+            list: [
+              {
+                description: 'Output audit report in JSON format',
+                name: '--json',
+              },
+              {
+                description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
+                name: '--audit-level <severity>',
+              },
+              {
+                description: 'Only audit dev dependencies',
+                name: '--dev',
+              },
+              {
+                description: 'Only audit prod dependencies',
+                name: '--prod',
+              },
+            ],
+          },
+        ],
+        url: docsUrl(command),
+        usages: ['pnpm audit [options]'],
+      })
     case 'install':
       return renderHelp({
         aliases: ['i'],
@@ -1074,6 +1104,9 @@ function getHelpText (command: string) {
               },
               {
                 name: 'root',
+              },
+              {
+                name: 'audit',
               },
             ],
           },

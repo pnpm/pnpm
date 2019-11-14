@@ -32,6 +32,7 @@ import initReporter, { ReporterType } from './reporter'
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
 type CANONICAL_COMMAND_NAMES = 'help'
+  | 'audit'
   | 'add'
   | 'import'
   | 'install-test'
@@ -58,6 +59,7 @@ type CANONICAL_COMMAND_NAMES = 'help'
   | 'why'
 
 type CLI_OPTIONS = 'access'
+  | 'audit-level'
   | 'background'
   | 'bail'
   | 'child-concurrency'
@@ -225,6 +227,14 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
     'verify-store-integrity',
     'virtual-store-dir',
   ]),
+  'audit': new Set([
+    'audit-level',
+    'dev',
+    'json',
+    'only',
+    'optional',
+    'production',
+  ]),
   'help': new Set([]),
   'import': new Set([]),
   'install': INSTALL_CLI_OPTIONS,
@@ -376,6 +386,7 @@ const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> =
 
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'add',
+  'audit',
   'install',
   'remove',
   'update',
