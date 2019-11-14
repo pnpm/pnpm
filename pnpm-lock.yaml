@@ -838,7 +838,7 @@ importers:
     dependencies:
       agentkeepalive: 4.0.0
       http-proxy-agent: 2.1.0
-      https-proxy-agent: 2.2.1
+      https-proxy-agent: 3.0.1
       lru-cache: 5.1.1
       socks-proxy-agent: 4.0.2
     devDependencies:
@@ -854,7 +854,7 @@ importers:
       '@types/proxyquire': 1.3.28
       agentkeepalive: 4.0.0
       http-proxy-agent: 2.1.0
-      https-proxy-agent: 2.2.1
+      https-proxy-agent: 3.0.1
       lru-cache: 5.1.1
       proxyquire: 2.1.3
       rimraf: 3.0.0
@@ -5787,7 +5787,7 @@ packages:
       npm: '>=1.3.7'
     resolution:
       integrity: sha1-muzZJRFHcvPZW2WmCruPfBj7rOE=
-  /https-proxy-agent/2.2.1:
+  /https-proxy-agent/3.0.1:
     dependencies:
       agent-base: 4.3.0
       debug: 3.2.6
@@ -5795,7 +5795,7 @@ packages:
     engines:
       node: '>= 4.5.0'
     resolution:
-      integrity: sha512-HPCTS1LW51bcyMYbxUIOO4HEOlQ1/1qRaFWcyxvwaqUS9TY88aoEuHUY33kuAh1YhVVaDQhLZsnPd+XNARWZlQ==
+      integrity: sha512-+ML2Rbh6DAuee7d07tYGEKOEi2voWPUGan+ExdPbPW6Z3svq+JCqr0v8WmKPOkz1vOVykPCBSuobe7G8GJUtVg==
   /human-signals/1.1.1:
     engines:
       node: '>=8.12.0'

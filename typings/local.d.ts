@@ -118,11 +118,6 @@ declare module 'hosted-git-info' {
   export = anything;
 }
 
-declare module 'https-proxy-agent' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'import-from' {
   const anything: any;
   export = anything;
