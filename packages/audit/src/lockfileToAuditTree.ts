@@ -5,8 +5,8 @@ import { lockfileWalkerGroupImporterSteps, LockfileWalkerStep } from '@pnpm/lock
 export type AuditNode = {
   version?: string
   integrity?: string
-  requires: Object
-  dependencies: { [name: string]: AuditNode }
+  requires?: Record<string, string>
+  dependencies?: { [name: string]: AuditNode }
   dev: boolean
 }
 
@@ -48,13 +48,16 @@ function lockfileToAuditNode (step: LockfileWalkerStep) {
   for (const { relDepPath, pkgSnapshot, next } of step.dependencies) {
     const { name, version } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
     const subdeps = lockfileToAuditNode(next())
-    dependencies[name] = {
-      dependencies: subdeps,
-      dev: pkgSnapshot.dev,
+    const dep: AuditNode = {
+      dev: pkgSnapshot.dev === true,
       integrity: pkgSnapshot.resolution['integrity'],
-      requires: toRequires(subdeps),
       version,
     }
+    if (Object.keys(subdeps).length) {
+      dep.dependencies = subdeps
+      dep.requires = toRequires(subdeps)
+    }
+    dependencies[name] = dep
   }
   return dependencies
 }

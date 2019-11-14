@@ -39,14 +39,12 @@ test('lockfileToAuditTree()', (t) => {
           foo: {
             dependencies: {
               bar: {
-                dependencies: {},
-                dev: undefined,
+                dev: false,
                 integrity: 'bar-integrity',
-                requires: {},
                 version: '1.0.0',
               },
             },
-            dev: undefined,
+            dev: false,
             integrity: 'foo-integrity',
             requires: {
               bar: '1.0.0',
