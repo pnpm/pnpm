@@ -34,7 +34,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependency-path#readme",
   "dependencies": {
     "@pnpm/types": "workspace:4.0.0",
-    "encode-registry": "2.0.1",
+    "encode-registry": "2.0.2",
     "semver": "6.3.0"
   },
   "devDependencies": {

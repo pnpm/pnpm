@@ -38,7 +38,7 @@
     "fetch-from-npm-registry": "workspace:2.0.7",
     "graceful-fs": "4.2.1",
     "make-dir": "3.0.0",
-    "mem": "5.1.1",
+    "mem": "6.0.0",
     "mz": "2.7.0",
     "path-temp": "2.0.0",
     "retry": "0.12.0",
