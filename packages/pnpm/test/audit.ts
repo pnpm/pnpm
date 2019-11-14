@@ -70,3 +70,57 @@ test('audit', (t) => {
 `)
   t.end()
 })
+
+test('audit --audit-level', (t) => {
+  process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
+
+  const { status, stdout } = execPnpmSync('audit', '--audit-level=moderate')
+
+  t.equal(status, 0)
+  t.equal(stdout.toString(), `┌─────────────────────┬──────────────────────────────────┐
+│ moderate            │ Prototype Pollution              │
+├─────────────────────┼──────────────────────────────────┤
+│ Package             │ hoek                             │
+├─────────────────────┼──────────────────────────────────┤
+│ Vulnerable versions │ <= 4.2.0 || >= 5.0.0 < 5.0.3     │
+├─────────────────────┼──────────────────────────────────┤
+│ Patched versions    │ > 4.2.0 < 5.0.0 || >= 5.0.3      │
+├─────────────────────┼──────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/566 │
+└─────────────────────┴──────────────────────────────────┘
+┌─────────────────────┬──────────────────────────────────┐
+│ moderate            │ Memory Exposure                  │
+├─────────────────────┼──────────────────────────────────┤
+│ Package             │ tunnel-agent                     │
+├─────────────────────┼──────────────────────────────────┤
+│ Vulnerable versions │ <0.6.0                           │
+├─────────────────────┼──────────────────────────────────┤
+│ Patched versions    │ >=0.6.0                          │
+├─────────────────────┼──────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/598 │
+└─────────────────────┴──────────────────────────────────┘
+┌─────────────────────┬──────────────────────────────────┐
+│ moderate            │ Denial of Service                │
+├─────────────────────┼──────────────────────────────────┤
+│ Package             │ axios                            │
+├─────────────────────┼──────────────────────────────────┤
+│ Vulnerable versions │ <0.18.1                          │
+├─────────────────────┼──────────────────────────────────┤
+│ Patched versions    │ >=0.18.1                         │
+├─────────────────────┼──────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/880 │
+└─────────────────────┴──────────────────────────────────┘
+`)
+  t.end()
+})
+
+test('audit --json', (t) => {
+  process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
+
+  const { status, stdout } = execPnpmSync('audit', '--json')
+
+  t.equal(status, 0)
+  const json = JSON.parse(stdout.toString())
+  t.ok(json.metadata)
+  t.end()
+})
