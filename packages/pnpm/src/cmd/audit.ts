@@ -3,9 +3,11 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import chalk = require('chalk')
+import renderHelp = require('render-help')
 import { table } from 'table'
 import { TABLE_OPTIONS } from '../style'
 import { PnpmOptions } from '../types'
+import { docsUrl } from './help'
 
 // tslint:disable
 const AUDIT_LEVEL_NUMBER = {
@@ -23,7 +25,41 @@ const AUDIT_COLOR = {
 }
 // tslint:enable
 
-export default async function (
+export const commandNames = ['audit']
+
+export function help () {
+  return renderHelp({
+    description: 'Checks for known security issues with the installed packages.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Output audit report in JSON format',
+            name: '--json',
+          },
+          {
+            description: 'Only print advisories with severity greater than or equal to one of the following: low|moderate|high|critical. Default: low',
+            name: '--audit-level <severity>',
+          },
+          {
+            description: 'Only audit dev dependencies',
+            name: '--dev',
+          },
+          {
+            description: 'Only audit prod dependencies',
+            name: '--prod',
+          },
+        ],
+      },
+    ],
+    url: docsUrl('audit'),
+    usages: ['pnpm audit [options]'],
+  })
+}
+
+export async function handler (
   args: string[],
   opts: PnpmOptions & {
     json?: boolean,

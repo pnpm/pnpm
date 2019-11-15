@@ -20,10 +20,6 @@ if (nonEscapedArgv.some((arg) => helpOptions.has(arg))) {
       const pkg = (await import('../pnpmPkgJson')).default
       console.log(pkg.version)
       break
-    case 'help':
-      const help = (await import('../cmd/help')).default
-      help(argv.filter((arg) => !helpOptions.has(arg)).slice(1))
-      break
     // commands that are passed through to npm:
     case 'access':
     case 'adduser':

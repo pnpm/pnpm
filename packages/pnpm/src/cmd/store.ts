@@ -3,6 +3,8 @@ import logger, { globalInfo } from '@pnpm/logger'
 import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
+import { oneLine } from 'common-tags'
+import renderHelp = require('render-help')
 import {
   storeAdd,
   storePrune,
@@ -11,7 +13,48 @@ import {
 } from 'supi'
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
-import help from './help'
+import { docsUrl } from './help'
+
+export const commandNames = ['store']
+
+export function help () {
+  return renderHelp({
+    description: 'Reads and performs actions on pnpm store that is on the current filesystem.',
+    descriptionLists: [
+      {
+        title: 'Commands',
+
+        list: [
+          {
+            description: oneLine`
+              Checks for modified packages in the store.
+              Returns exit code 0 if the content of the package is the same as it was at the time of unpacking
+            `,
+            name: 'status',
+          },
+          {
+            description: 'Adds new packages to the store. Example: pnpm store add express@4 typescript@2.1.0',
+            name: 'add <pkg>...',
+          },
+          {
+            description: 'Lists all pnpm projects on the current filesystem that depend on the specified packages. Example: pnpm store usages flatmap-stream',
+            name: 'usages <pkg>...',
+          },
+          {
+            description: oneLine`
+              Removes unreferenced (extraneous, orphan) packages from the store.
+              Pruning the store is not harmful, but might slow down future installations.
+              Visit the documentation for more information on unreferenced packages and why they occur
+            `,
+            name: 'prune',
+          },
+        ],
+      },
+    ],
+    url: docsUrl('store'),
+    usages: ['pnpm store <command>'],
+  })
+}
 
 class StoreStatusError extends PnpmError {
   public modified: string[]
@@ -21,7 +64,7 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export default async function (input: string[], opts: PnpmOptions) {
+export async function handler (input: string[], opts: PnpmOptions) {
   let store
   switch (input[0]) {
     case 'status':
@@ -52,7 +95,7 @@ export default async function (input: string[], opts: PnpmOptions) {
       prettyPrintUsages(packageSelectors, packageUsagesBySelectors)
       return
     default:
-      help(['store'])
+      return help()
       if (input[0]) {
         throw new PnpmError('INVALID_STORE_COMMAND', `"store ${input[0]}" is not a pnpm command. See "pnpm help store".`)
       }

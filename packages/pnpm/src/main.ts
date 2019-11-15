@@ -29,8 +29,6 @@ import './logging/fileLogger'
 import packageManager from './pnpmPkgJson'
 import initReporter, { ReporterType } from './reporter'
 
-pnpmCmds['install-test'] = pnpmCmds.installTest
-
 type CANONICAL_COMMAND_NAMES = 'help'
   | 'audit'
   | 'add'

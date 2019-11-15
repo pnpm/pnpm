@@ -1,16 +1,12 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import prepare, { tempDir } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
-import isCI = require('is-ci')
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import outdated from '../src/cmd/outdated'
 import { execPnpm, execPnpmSync } from './utils'
 
 const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')
@@ -18,43 +14,6 @@ const hasOutdatedDepsFixtureAndExternalLockfile = path.join(__dirname, 'packages
 const hasNotOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-not-outdated-deps')
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
-
-test('pnpm outdated', async (t: tape.Test) => {
-  if (isCI) {
-    // This test fails on CI environments for some reason
-    return
-  }
-  process.chdir(hasOutdatedDepsFixture)
-
-  t.equal(
-    await outdated([], {
-      alwaysAuth: false,
-      dir: process.cwd(),
-      fetchRetries: 4,
-      fetchRetryFactor: 1,
-      fetchRetryMaxtimeout: 60000,
-      fetchRetryMintimeout: 10000,
-      global: false,
-      independentLeaves: false,
-      networkConcurrency: 16,
-      offline: false,
-      rawConfig: { registry: `https://localhost:${REGISTRY_MOCK_PORT}` },
-      registries: { default: `https://localhost:${REGISTRY_MOCK_PORT}` },
-      strictSsl: false,
-      tag: 'latest',
-      userAgent: '',
-    }, 'outdated'),
-    stripIndent`
-    ┌─────────────┬──────────────────────┬────────┐
-    │ ${chalk.blueBright.bold('Package')}     │ ${chalk.blueBright.bold('Current')}              │ ${chalk.blueBright.bold('Latest')} │
-    ├─────────────┼──────────────────────┼────────┤
-    │ is-positive │ 1.0.0 (wanted 3.1.0) │ 3.1.0  │
-    ├─────────────┼──────────────────────┼────────┤
-    │ is-negative │ 1.0.0 (wanted 1.1.0) │ ${chalk.redBright.bold('2.1.0')}  │
-    └─────────────┴──────────────────────┴────────┘
-    ` + '\n',
-  )
-})
 
 test('pnpm outdated: show details', async (t: tape.Test) => {
   tempDir(t)

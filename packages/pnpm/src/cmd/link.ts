@@ -3,6 +3,7 @@ import pLimit from 'p-limit'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
+import renderHelp = require('render-help')
 import {
   install,
   InstallOptions,
@@ -19,13 +20,37 @@ import readImporterManifest, {
   tryReadImporterManifest,
 } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
+import { docsUrl, UNIVERSAL_OPTIONS } from './help'
 
 const installLimit = pLimit(4)
 
-export default async (
+export const commandNames = ['link', 'ln']
+
+export function help () {
+  return renderHelp({
+    aliases: ['ln'],
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          ...UNIVERSAL_OPTIONS,
+        ],
+      },
+    ],
+    url: docsUrl('link'),
+    usages: [
+      'pnpm link (in package dir)',
+      'pnpm link <pkg>',
+      'pnpm link <dir>',
+    ],
+  })
+}
+
+export async function handler (
   input: string[],
   opts: PnpmOptions,
-) => {
+) {
   const cwd = opts?.dir ?? process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()

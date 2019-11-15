@@ -1,3 +1,5 @@
+import { oneLine } from 'common-tags'
+import renderHelp = require('render-help')
 import {
   mutateModules,
 } from 'supi'
@@ -6,8 +8,40 @@ import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspa
 import readImporterManifest from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
+import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 
-export default async function removeCmd (
+export function help () {
+  return renderHelp({
+    aliases: ['rm', 'r', 'uninstall', 'un'],
+    description: `Removes packages from \`node_modules\` and from the project's \`packages.json\`.`,
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: oneLine`
+              Remove from every package found in subdirectories
+              or from every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"
+            `,
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          OPTIONS.globalDir,
+          ...UNIVERSAL_OPTIONS,
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('remove'),
+    usages: ['pnpm remove <pkg>[@<version>]...'],
+  })
+}
+
+export const commandNames = ['remove', 'uninstall']
+
+export async function handler (
   input: string[],
   opts: PnpmOptions,
 ) {

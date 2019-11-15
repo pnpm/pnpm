@@ -1,7 +1,52 @@
+import { oneLine } from 'common-tags'
+import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
-import installCmd from './install'
+import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+import { handler as installCmd } from './install'
 
-export default async function (
+export const commandNames = ['update', 'up', 'upgrade']
+
+export function help () {
+  return renderHelp({
+    aliases: ['up', 'upgrade'],
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: oneLine`Update in every package found in subdirectories
+              or every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          {
+            description: 'Update globally installed packages',
+            name: '--global',
+            shortAlias: '-g',
+          },
+          {
+            description: 'How deep should levels of dependencies be inspected. 0 is default, which means top-level dependencies',
+            name: '--depth <number>',
+          },
+          {
+            description: 'Ignore version ranges in package.json',
+            name: '--latest',
+            shortAlias: '-L',
+          },
+          OPTIONS.globalDir,
+          ...UNIVERSAL_OPTIONS,
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('update'),
+    usages: ['pnpm update [-g] [<pkg>...]'],
+  })
+}
+
+export async function handler (
   input: string[],
   opts: PnpmOptions,
 ) {

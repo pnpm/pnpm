@@ -1,8 +1,81 @@
 import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import list, { forPackages as listForPackages } from '@pnpm/list'
+import { oneLine } from 'common-tags'
+import renderHelp = require('render-help')
+import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 
-export default async function (
+export const commandNames = ['list', 'ls', 'la', 'll']
+
+export function help () {
+  return renderHelp({
+    aliases: ['list', 'ls', 'la', 'll'],
+    description: oneLine`When run as ll or la, it shows extended information by default.
+      All dependencies are printed by default. Search by patterns is supported.
+      For example: pnpm ls babel-* eslint-*`,
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: oneLine`Perform command on every package in subdirectories
+              or on every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          {
+            description: 'Show extended information',
+            name: '--long',
+          },
+          {
+            description: 'Show parseable output instead of tree view',
+            name: '--parseable',
+          },
+          {
+            description: 'Show information in JSON format',
+            name: '--json',
+          },
+          {
+            description: 'List packages in the global install prefix instead of in the current project',
+            name: '--global',
+            shortAlias: '-g',
+          },
+          {
+            description: 'Max display depth of the dependency tree',
+            name: '--depth <number>',
+          },
+          {
+            description: 'Display only direct dependencies',
+            name: '--depth 0',
+          },
+          {
+            description: 'Display only projects. Useful in a monorepo. \`pnpm ls -r --depth -1\` lists all projects in a monorepo',
+            name: '--depth -1',
+          },
+          {
+            description: 'Display only the dependency tree for packages in \`dependencies\`',
+            name: '--prod, --production',
+          },
+          {
+            description: 'Display only the dependency tree for packages in \`devDependencies\`',
+            name: '--dev',
+          },
+          OPTIONS.globalDir,
+          ...UNIVERSAL_OPTIONS,
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('list'),
+    usages: [
+      'pnpm ls [<pkg> ...]',
+    ],
+  })
+}
+
+export async function handler (
   args: string[],
   opts: Config & {
     alwaysPrintRootPackage?: boolean,

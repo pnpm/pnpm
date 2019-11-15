@@ -2,10 +2,40 @@ import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { ImporterManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
+import { oneLine } from 'common-tags'
 import R = require('ramda')
+import renderHelp = require('render-help')
 import { readImporterManifestOnly } from '../readImporterManifest'
+import { docsUrl, FILTERING } from './help'
 
-export default async function run (
+export const commandNames = ['run', 'run-script']
+
+export function help () {
+  return renderHelp({
+    aliases: ['run-script'],
+    description: 'Runs a defined package script.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: oneLine`Run the defined package script in every package found in subdirectories
+              or every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('run'),
+    usages: ['pnpm run <command> [-- <args>...]'],
+  })
+}
+
+export async function handler (
   args: string[],
   opts: {
     engineStrict?: boolean,
@@ -106,70 +136,4 @@ function printProjectCommands (manifest: ImporterManifest) {
 
 function renderCommands (commands: string[][]) {
   return commands.map(([scriptName, script]) => `  ${scriptName}\n    ${script}`).join('\n')
-}
-
-export async function start (
-  args: string[],
-  opts: {
-    extraBinPaths: string[],
-    dir: string,
-    rawConfig: object,
-    argv: {
-      cooked: string[],
-      original: string[],
-      remain: string[],
-    },
-  },
-) {
-  return run(['start', ...args], opts)
-}
-
-export async function stop (
-  args: string[],
-  opts: {
-    extraBinPaths: string[],
-    dir: string,
-    rawConfig: object,
-    argv: {
-      cooked: string[],
-      original: string[],
-      remain: string[],
-    },
-  },
-) {
-  return run(['stop', ...args], opts)
-}
-
-export async function test (
-  args: string[],
-  opts: {
-    extraBinPaths: string[],
-    dir: string,
-    rawConfig: object,
-    argv: {
-      cooked: string[],
-      original: string[],
-      remain: string[],
-    },
-  },
-) {
-  return run(['test', ...args], opts)
-}
-
-export async function restart (
-  args: string[],
-  opts: {
-    extraBinPaths: string[],
-    dir: string,
-    rawConfig: object,
-    argv: {
-      cooked: string[],
-      original: string[],
-      remain: string[],
-    },
-  },
-) {
-  await stop(args, opts)
-  await run(['restart', ...args], opts)
-  await start(args, opts)
 }
