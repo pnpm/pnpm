@@ -38,7 +38,6 @@ importers:
     devDependencies:
       '@pnpm/audit': 'link:'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
-      '@types/node-fetch': 2.5.3
       rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
@@ -49,7 +48,6 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.2'
       '@pnpm/lockfile-walker': 'workspace:1.0.0'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/node-fetch': 2.5.3
       rimraf: 3.0.0
       tape: 4.11.0
   packages/build-modules:

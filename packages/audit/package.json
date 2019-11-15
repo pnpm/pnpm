@@ -30,7 +30,6 @@
   "devDependencies": {
     "@pnpm/audit": "link:",
     "@pnpm/lockfile-file": "workspace:3.0.1",
-    "@types/node-fetch": "2.5.3",
     "rimraf": "3.0.0",
     "tape": "4.11.0"
   },
