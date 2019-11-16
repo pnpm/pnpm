@@ -10,72 +10,72 @@ import stop from './stop'
 export const commandNames = ['server']
 
 export function help () {
-    return renderHelp({
-      description: 'Manage a store server',
-      descriptionLists: [
-        {
-          title: 'Commands',
+  return renderHelp({
+    description: 'Manage a store server',
+    descriptionLists: [
+      {
+        title: 'Commands',
 
-          list: [
-            {
-              description: oneLine`
-                Starts a service that does all interactions with the store.
-                Other commands will delegate any store-related tasks to this service`,
-              name: 'start',
-            },
-            {
-              description: 'Stops the store server',
-              name: 'stop',
-            },
-            {
-              description: 'Prints information about the running server',
-              name: 'status',
-            },
-          ],
-        },
-        {
-          title: 'Start options',
+        list: [
+          {
+            description: oneLine`
+              Starts a service that does all interactions with the store.
+              Other commands will delegate any store-related tasks to this service`,
+            name: 'start',
+          },
+          {
+            description: 'Stops the store server',
+            name: 'stop',
+          },
+          {
+            description: 'Prints information about the running server',
+            name: 'status',
+          },
+        ],
+      },
+      {
+        title: 'Start options',
 
-          list: [
-            {
-              description: 'Runs the server in the background',
-              name: '--background',
-            },
-            {
-              description: 'The communication protocol used by the server',
-              name: '--protocol <auto|tcp|ipc>',
-            },
-            {
-              description: 'The port number to use, when TCP is used for communication',
-              name: '--port <number>',
-            },
-            OPTIONS.storeDir,
-            {
-              description: 'Maximum number of concurrent network requests',
-              name: '--network-concurrency <number>',
-            },
-            {
-              description: "If false, doesn't check whether packages in the store were mutated",
-              name: '--[no-]verify-store-integrity',
-            },
-            {
-              name: '--[no-]lock',
-            },
-            {
-              description: 'Disallows stopping the server using \`pnpm server stop\`',
-              name: '--ignore-stop-requests',
-            },
-            {
-              description: 'Disallows creating new side effect cache during install',
-              name: '--ignore-upload-requests',
-            },
-            ...UNIVERSAL_OPTIONS,
-          ],
-        },
-      ],
-      url: docsUrl('server'),
-      usages: ['pnpm server <command>'],
-    })
+        list: [
+          {
+            description: 'Runs the server in the background',
+            name: '--background',
+          },
+          {
+            description: 'The communication protocol used by the server',
+            name: '--protocol <auto|tcp|ipc>',
+          },
+          {
+            description: 'The port number to use, when TCP is used for communication',
+            name: '--port <number>',
+          },
+          OPTIONS.storeDir,
+          {
+            description: 'Maximum number of concurrent network requests',
+            name: '--network-concurrency <number>',
+          },
+          {
+            description: "If false, doesn't check whether packages in the store were mutated",
+            name: '--[no-]verify-store-integrity',
+          },
+          {
+            name: '--[no-]lock',
+          },
+          {
+            description: 'Disallows stopping the server using \`pnpm server stop\`',
+            name: '--ignore-stop-requests',
+          },
+          {
+            description: 'Disallows creating new side effect cache during install',
+            name: '--ignore-upload-requests',
+          },
+          ...UNIVERSAL_OPTIONS,
+        ],
+      },
+    ],
+    url: docsUrl('server'),
+    usages: ['pnpm server <command>'],
+  })
 }
 
 export async function handler (
