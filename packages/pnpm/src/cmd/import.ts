@@ -4,11 +4,23 @@ import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
+import renderHelp = require('render-help')
 import { install } from 'supi'
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
+import { docsUrl } from './help'
 
-export default async function installCmd (
+export function help () {
+  return renderHelp({
+    description: `Generates ${WANTED_LOCKFILE} from an npm package-lock.json (or npm-shrinkwrap.json) file.`,
+    url: docsUrl('import'),
+    usages: ['pnpm import'],
+  })
+}
+
+export const commandNames = ['import']
+
+export async function handler (
   input: string[],
   opts: PnpmOptions,
 ) {

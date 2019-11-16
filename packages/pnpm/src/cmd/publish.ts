@@ -7,12 +7,24 @@ import fg = require('fast-glob')
 import fs = require('mz/fs')
 import path = require('path')
 import R = require('ramda')
+import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
 import readImporterManifest from '../readImporterManifest'
 import { PnpmOptions } from '../types'
+import { docsUrl } from './help'
 import runNpm from './runNpm'
 
-export default async function (
+export const commandNames = ['publish']
+
+export function help () {
+  return renderHelp({
+    description: 'Publishes a package to the npm registry.',
+    url: docsUrl('publish'),
+    usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>]'],
+  })
+}
+
+export async function handler (
   args: string[],
   opts: PnpmOptions,
   command: string,
@@ -40,25 +52,6 @@ export default async function (
   }
 }
 
-export async function pack (
-  args: string[],
-  opts: PnpmOptions,
-  command: string,
-) {
-  let _status!: number
-  await fakeRegularManifest({
-    dir: opts.dir,
-    engineStrict: opts.engineStrict,
-    workspaceDir: opts.workspaceDir || opts.dir,
-  }, async () => {
-    const { status } = await runNpm(['pack', ...opts.argv.original.slice(1)])
-    _status = status
-  })
-  if (_status !== 0) {
-    process.exit(_status)
-  }
-}
-
 const LICENSE_GLOB = 'LICEN{S,C}E{,.*}'
 const findLicenses = fg.bind(fg, [LICENSE_GLOB]) as (opts: { cwd: string }) => Promise<string[]>
 
@@ -79,7 +72,7 @@ const PUBLISH_CONFIG_WHITELIST = new Set([
   'umd:main',
 ])
 
-async function fakeRegularManifest (
+export async function fakeRegularManifest (
   opts: {
     engineStrict?: boolean,
     dir: string,

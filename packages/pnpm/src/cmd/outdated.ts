@@ -11,15 +11,62 @@ import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { ImporterManifest, Registries } from '@pnpm/types'
 import chalk = require('chalk')
-import { stripIndent } from 'common-tags'
+import { oneLine, stripIndent } from 'common-tags'
 import path = require('path')
 import R = require('ramda')
+import renderHelp = require('render-help')
 import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
 import createLatestManifestGetter from '../createLatestManifestGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
 import { TABLE_OPTIONS } from '../style'
+import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+
+export const commandNames = ['outdated']
+
+export function help () {
+  return renderHelp({
+    description: stripIndent`
+      Check for outdated packages. The check can be limited to a subset of the installed packages by providing arguments (patterns are supported).
+
+      Examples:
+      pnpm outdated
+      pnpm outdated --long
+      pnpm outdated gulp-* @babel/core`,
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: oneLine`
+            By default, details about the outdated packages (such as a link to the repo) are not displayed.
+            To display the details, pass this option.`,
+            name: '--long'
+          },
+          {
+            description: oneLine`
+              Check for outdated dependencies in every package found in subdirectories
+              or in every workspace package, when executed inside a workspace.
+              For options that may be used with \`-r\`, see "pnpm help recursive"`,
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          {
+            description: 'Prints the outdated packages in a list. Good for small consoles',
+            name: '--no-table',
+          },
+          OPTIONS.globalDir,
+          ...UNIVERSAL_OPTIONS,
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('outdated'),
+    usages: ['pnpm outdated [<pkg> ...]'],
+  })
+}
 
 export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
 
@@ -60,7 +107,7 @@ export interface OutdatedOptions {
   userAgent: string
 }
 
-export default async function (
+export async function handler (
   args: string[],
   opts: OutdatedOptions,
   command: string,

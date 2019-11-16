@@ -1,7 +1,9 @@
+import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
+import { oneLine } from 'common-tags'
 import graphSequencer = require('graph-sequencer')
 import isSubdir = require('is-subdir')
 import mem = require('mem')
@@ -11,6 +13,7 @@ import pLimit from 'p-limit'
 import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
+import renderHelp = require('render-help')
 import {
   addDependenciesToPackage,
   install,
@@ -30,7 +33,7 @@ import parsePackageSelector, { PackageSelector } from '../../parsePackageSelecto
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
-import help from '../help'
+import { docsUrl, FILTERING } from '../help'
 import exec from './exec'
 import { filterGraph } from './filter'
 import list from './list'
@@ -53,22 +56,128 @@ const supportedRecursiveCommands = new Set([
   'exec',
 ])
 
-export default async (
+export const commandNames = ['recursive', 'multi', 'm']
+
+export function help () {
+  return renderHelp({
+    description: oneLine`
+      Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
+      A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.`,
+    descriptionLists: [
+      {
+        title: 'Commands',
+
+        list: [
+          {
+            name: 'install',
+          },
+          {
+            name: 'add',
+          },
+          {
+            name: 'update',
+          },
+          {
+            description: 'Uninstall a dependency from each package',
+            name: 'remove <pkg>...',
+          },
+          {
+            description: 'Removes links to local packages and reinstalls them from the registry.',
+            name: 'unlink',
+          },
+          {
+            description: 'List dependencies in each package.',
+            name: 'list [<pkg>...]',
+          },
+          {
+            description: 'List packages that depend on <pkg>.',
+            name: 'why <pkg>...',
+          },
+          {
+            description: 'Check for outdated dependencies in every package.',
+            name: 'outdated [<pkg>...]',
+          },
+          {
+            description: oneLine`
+              This runs an arbitrary command from each package's "scripts" object.
+              If a package doesn't have the command, it is skipped.
+              If none of the packages have the command, the command fails.`,
+            name: 'run <command> [-- <args>...]',
+          },
+          {
+            description: `This runs each package's "test" script, if one was provided.`,
+            name: 'test [-- <args>...]',
+          },
+          {
+            description: oneLine`
+              This command runs the "npm build" command on each package.
+              This is useful when you install a new version of node,
+              and must recompile all your C++ addons with the new binary.`,
+            name: 'rebuild [[<@scope>/<name>]...]',
+          },
+          {
+            description: `Run a command in each package.`,
+            name: 'exec -- <command> [args...]',
+          },
+        ],
+      },
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Continues executing other tasks even if a task threw an error.',
+            name: '--no-bail',
+          },
+          {
+            description: 'Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.',
+            name: '--workspace-concurrency <number>',
+          },
+          {
+            description: oneLine`
+              Locally available packages are linked to node_modules instead of being downloaded from the registry.
+              Convenient to use in a multi-package repository.`,
+            name: '--link-workspace-packages',
+          },
+          {
+            description: 'Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.',
+            name: '--sort',
+          },
+          {
+            description: oneLine`
+              Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
+              A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.`,
+            name: '--shared-workspace-lockfile',
+          },
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('recursive'),
+    usages: [
+      'pnpm recursive [command] [flags] [--filter <package selector>]',
+      'pnpm multi [command] [flags] [--filter <package selector>]',
+      'pnpm m [command] [flags] [--filter <package selector>]'
+    ],
+  })
+}
+
+export async function handler (
   input: string[],
   opts: PnpmOptions,
-) => {
+) {
   if (opts.workspaceConcurrency < 1) {
     throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
   }
 
   const cmd = input.shift()
   if (!cmd) {
-    help(['recursive'])
+    help()
     return
   }
   const cmdFullName = getCommandFullName(cmd)
   if (!supportedRecursiveCommands.has(cmdFullName)) {
-    help(['recursive'])
+    help()
     throw new PnpmError('INVALID_RECURSIVE_COMMAND',
       `"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
   }
