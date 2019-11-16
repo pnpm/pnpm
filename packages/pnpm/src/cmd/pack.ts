@@ -3,6 +3,10 @@ import { PnpmOptions } from '../types'
 import { fakeRegularManifest } from './publish'
 import runNpm from './runNpm'
 
+export function types () {
+  return {}
+}
+
 export const commandNames = ['pack']
 
 export function help () {

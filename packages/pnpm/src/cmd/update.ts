@@ -1,8 +1,48 @@
+import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
 import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 import { handler as installCmd } from './install'
+
+export function types () {
+  return R.pick([
+    'depth',
+    'dev',
+    'engine-strict',
+    'force',
+    'global-dir',
+    'global-pnpmfile',
+    'global',
+    'ignore-pnpmfile',
+    'ignore-scripts',
+    'latest',
+    'lockfile-dir',
+    'lockfile-only',
+    'lockfile',
+    'offline',
+    'only',
+    'optional',
+    'package-import-method',
+    'pnpmfile',
+    'prefer-offline',
+    'production',
+    'recursive',
+    'registry',
+    'reporter',
+    'resolution-strategy',
+    'save',
+    'save-exact',
+    'shamefully-flatten',
+    'shamefully-hoist',
+    'shared-workspace-lockfile',
+    'side-effects-cache-readonly',
+    'side-effects-cache',
+    'store-dir',
+    'use-running-store-server',
+  ], allTypes)
+}
 
 export const commandNames = ['update', 'up', 'upgrade']
 

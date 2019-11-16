@@ -5,6 +5,9 @@ import createStoreController from '../createStoreController'
 import { readImporterManifestOnly } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 import { docsUrl, UNIVERSAL_OPTIONS } from './help'
+import { types } from './install'
+
+export { types }
 
 export const commandNames = ['unlink', 'dislink']
 

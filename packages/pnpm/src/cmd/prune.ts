@@ -1,9 +1,17 @@
+import { types as allTypes } from '@pnpm/config'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import { InstallOptions, mutateModules } from 'supi'
 import createStoreController from '../createStoreController'
 import { readImporterManifestOnly } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 import { docsUrl, UNIVERSAL_OPTIONS } from './help'
+
+export function types () {
+  return R.pick([
+    'production',
+  ], allTypes)
+}
 
 export const commandNames = ['prune']
 

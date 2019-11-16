@@ -15,14 +15,14 @@ import loudRejection from 'loud-rejection'
 loudRejection()
 import {
   Config,
-  types,
+  types as allTypes,
 } from '@pnpm/config'
 import logger from '@pnpm/logger'
 import isCI = require('is-ci')
 import nopt = require('nopt')
+import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
-import pnpmCmds from './cmd'
-import getCommandFullName from './getCommandFullName'
+import pnpmCmds, { getCommandFullName, getTypes } from './cmd'
 import getConfig from './getConfig'
 import { scopeLogger } from './loggers'
 import './logging/fileLogger'
@@ -130,257 +130,7 @@ type CLI_OPTIONS = 'access'
   | 'dir'
   | 'workspace-concurrency'
 
-const GLOBAL_OPTIONS = new Set<CLI_OPTIONS>(['color', 'filter', 'help', 'dir'])
-
-const INSTALL_CLI_OPTIONS = new Set<CLI_OPTIONS>([
-  'child-concurrency',
-  'dev',
-  'engine-strict',
-  'frozen-lockfile',
-  'force',
-  'global-dir',
-  'global-pnpmfile',
-  'global',
-  'hoist',
-  'hoist-pattern',
-  'ignore-pnpmfile',
-  'ignore-scripts',
-  'independent-leaves',
-  'link-workspace-packages',
-  'lock',
-  'lockfile-dir',
-  'lockfile-only',
-  'lockfile',
-  'package-import-method',
-  'pnpmfile',
-  'prefer-frozen-lockfile',
-  'prefer-offline',
-  'production',
-  'recursive',
-  'registry',
-  'reporter',
-  'resolution-strategy',
-  'shamefully-flatten',
-  'shamefully-hoist',
-  'shared-workspace-lockfile',
-  'side-effects-cache-readonly',
-  'side-effects-cache',
-  'store-dir',
-  'strict-peer-dependencies',
-  'offline',
-  'only',
-  'optional',
-  'use-running-store-server',
-  'use-store-server',
-  'verify-store-integrity',
-  'virtual-store-dir',
-])
-
-const SUPPORTED_CLI_OPTIONS: Record<CANONICAL_COMMAND_NAMES, Set<CLI_OPTIONS>> = {
-  'add': new Set([
-    'child-concurrency',
-    'dev',
-    'engine-strict',
-    'force',
-    'global-dir',
-    'global-pnpmfile',
-    'global',
-    'hoist',
-    'hoist-pattern',
-    'ignore-pnpmfile',
-    'ignore-scripts',
-    'ignore-workspace-root-check',
-    'independent-leaves',
-    'link-workspace-packages',
-    'lock',
-    'lockfile-dir',
-    'lockfile-only',
-    'lockfile',
-    'package-import-method',
-    'pnpmfile',
-    'prefer-offline',
-    'production',
-    'recursive',
-    'registry',
-    'reporter',
-    'resolution-strategy',
-    'save-dev',
-    'save-exact',
-    'save-optional',
-    'save-peer',
-    'save-prod',
-    'save-workspace-protocol',
-    'shamefully-flatten',
-    'shamefully-hoist',
-    'shared-workspace-lockfile',
-    'side-effects-cache-readonly',
-    'side-effects-cache',
-    'store-dir',
-    'strict-peer-dependencies',
-    'offline',
-    'only',
-    'optional',
-    'use-running-store-server',
-    'use-store-server',
-    'verify-store-integrity',
-    'virtual-store-dir',
-  ]),
-  'audit': new Set([
-    'audit-level',
-    'dev',
-    'json',
-    'only',
-    'optional',
-    'production',
-  ]),
-  'help': new Set([]),
-  'import': new Set([]),
-  'install': INSTALL_CLI_OPTIONS,
-  'install-test': INSTALL_CLI_OPTIONS,
-  'link': new Set([
-    'global-dir',
-    'global',
-    'only',
-    'package-import-method',
-    'production',
-    'registry',
-    'reporter',
-    'resolution-strategy',
-    'save-dev',
-    'save-exact',
-    'save-optional',
-  ]),
-  'list': new Set([
-    'depth',
-    'dev',
-    'global-dir',
-    'global',
-    'json',
-    'long',
-    'only',
-    'optional',
-    'parseable',
-    'production',
-    'recursive',
-  ]),
-  'outdated': new Set([
-    'depth',
-    'global-dir',
-    'global',
-    'long',
-    'recursive',
-    'table',
-  ]),
-  'pack': new Set([]),
-  'prune': new Set([
-    'production',
-  ]),
-  'publish': new Set([
-    'access',
-    'otp',
-    'tag',
-  ]),
-  'rebuild': new Set([
-    'recursive',
-  ]),
-  'recursive': new Set([
-    'bail',
-    'link-workspace-packages',
-    'reporter',
-    'shared-workspace-lockfile',
-    'sort',
-    'workspace-concurrency',
-  ]),
-  'remove': new Set([
-    'force',
-    'global-dir',
-    'global-pnpmfile',
-    'global',
-    'lockfile-dir',
-    'lockfile-only',
-    'lockfile',
-    'package-import-method',
-    'pnpmfile',
-    'recursive',
-    'reporter',
-    'resolution-strategy',
-    'shared-workspace-lockfile',
-    'store-dir',
-    'virtual-store-dir',
-  ]),
-  'restart': new Set([]),
-  'root': new Set([
-    'global',
-  ]),
-  'run': new Set([
-    'recursive',
-  ]),
-  'server': new Set([
-    'background',
-    'ignore-stop-requests',
-    'ignore-upload-requests',
-    'port',
-    'protocol',
-    'store-dir',
-  ]),
-  'start': new Set([]),
-  'stop': new Set([]),
-  'store': new Set([
-    'registry',
-    'store-dir',
-  ]),
-  'test': new Set([
-    'recursive',
-  ]),
-  'unlink': INSTALL_CLI_OPTIONS,
-  'update': new Set([
-    'depth',
-    'dev',
-    'engine-strict',
-    'force',
-    'global-dir',
-    'global-pnpmfile',
-    'global',
-    'ignore-pnpmfile',
-    'ignore-scripts',
-    'latest',
-    'lockfile-dir',
-    'lockfile-only',
-    'lockfile',
-    'offline',
-    'only',
-    'optional',
-    'package-import-method',
-    'pnpmfile',
-    'prefer-offline',
-    'production',
-    'recursive',
-    'registry',
-    'reporter',
-    'resolution-strategy',
-    'save',
-    'save-exact',
-    'shamefully-flatten',
-    'shamefully-hoist',
-    'shared-workspace-lockfile',
-    'side-effects-cache-readonly',
-    'side-effects-cache',
-    'store-dir',
-    'use-running-store-server',
-  ]),
-  'why': new Set([
-    'dev',
-    'global-dir',
-    'global',
-    'json',
-    'long',
-    'only',
-    'optional',
-    'parseable',
-    'production',
-    'recursive',
-  ]),
-}
+const GLOBAL_OPTIONS = R.pick(['color', 'filter', 'help', 'dir', 'prefix'], allTypes)
 
 const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'add',
@@ -473,6 +223,34 @@ export default async function run (inputArgv: string[]) {
     'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
+  const noptExploratoryResults = nopt({ recursive: Boolean, filter: [String] }, { 'r': ['--recursive'] }, inputArgv, 0)
+
+  const types = (() => {
+    if (getCommandFullName(noptExploratoryResults.argv.remain[0]) === 'recursive') {
+      return {
+        ...GLOBAL_OPTIONS,
+        ...getTypes('recursive'),
+        ...getTypes(getCommandName(noptExploratoryResults.argv.remain.slice(1))),
+      }
+    }
+    if (noptExploratoryResults['filter'] || noptExploratoryResults['recursive'] === true) {
+      return {
+        ...GLOBAL_OPTIONS,
+        ...getTypes('recursive'),
+        ...getTypes(getCommandName(noptExploratoryResults.argv.remain)),
+      }
+    }
+    return {
+      ...GLOBAL_OPTIONS,
+      ...getTypes(getCommandName(noptExploratoryResults.argv.remain)),
+    }
+  })() as any
+
+  function getCommandName (cliArgs: string[]) {
+    if (getCommandFullName(cliArgs[0]) !== 'install' || cliArgs.length === 1) return cliArgs[0]
+    return 'add'
+  }
+
   const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
   for (const cliOption of Object.keys(cliConf)) {
     if (RENAMED_OPTIONS[cliOption]) {
@@ -486,11 +264,6 @@ export default async function run (inputArgv: string[]) {
     || 'help'
   if (!supportedCmds.has(cmd)) {
     cmd = 'help'
-  }
-
-  if (cliConf['dry-run']) {
-    console.error(`Error: 'dry-run' is not supported yet, sorry!`)
-    process.exit(1)
   }
 
   let subCmd: string | null = argv.remain[1] && getCommandFullName(argv.remain[1])
@@ -565,11 +338,9 @@ export default async function run (inputArgv: string[]) {
     subCmd = 'add'
   }
 
-  const allowedOptions = !subCmd
-    ? SUPPORTED_CLI_OPTIONS[cmd]
-    : new Set([...Array.from(SUPPORTED_CLI_OPTIONS[cmd]), ...Array.from(SUPPORTED_CLI_OPTIONS[subCmd])])
+  const allowedOptions = new Set(Object.keys(types))
   for (const cliOption of Object.keys(cliConf)) {
-    if (!GLOBAL_OPTIONS.has(cliOption as CLI_OPTIONS) && !allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
+    if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
       console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
       console.log(`For help, run: pnpm help ${cmd}`)
       process.exit(1)

@@ -1,9 +1,11 @@
+import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import logger, { globalInfo } from '@pnpm/logger'
 import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
 import { oneLine } from 'common-tags'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import {
   storeAdd,
@@ -14,6 +16,13 @@ import {
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
 import { docsUrl } from './help'
+
+export function types () {
+  return R.pick([
+    'registry',
+    'store-dir',
+  ], allTypes)
+}
 
 export const commandNames = ['store']
 

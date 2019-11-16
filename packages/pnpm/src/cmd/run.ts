@@ -1,3 +1,4 @@
+import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { ImporterManifest } from '@pnpm/types'
@@ -7,6 +8,12 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import { readImporterManifestOnly } from '../readImporterManifest'
 import { docsUrl, FILTERING } from './help'
+
+export function types () {
+  return R.pick([
+    'recursive',
+  ], allTypes)
+}
 
 export const commandNames = ['run', 'run-script']
 

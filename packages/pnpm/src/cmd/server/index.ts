@@ -1,11 +1,24 @@
+import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { oneLine } from 'common-tags'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../../types'
 import { docsUrl, OPTIONS, UNIVERSAL_OPTIONS } from '../help'
 import start from './start'
 import status from './status'
 import stop from './stop'
+
+export function types () {
+  return R.pick([
+    'background',
+    'ignore-stop-requests',
+    'ignore-upload-requests',
+    'port',
+    'protocol',
+    'store-dir',
+  ], allTypes)
+}
 
 export const commandNames = ['server']
 

@@ -1,5 +1,13 @@
+import { types as allTypes } from '@pnpm/config'
 import path = require('path')
+import R = require('ramda')
 import renderHelp = require('render-help')
+
+export function types () {
+  return R.pick([
+    'global',
+  ], allTypes)
+}
 
 export const commandNames = ['root']
 
