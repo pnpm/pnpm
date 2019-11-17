@@ -106,7 +106,7 @@ export default async function run (inputArgv: string[]) {
       ...GLOBAL_OPTIONS,
       ...getTypes(getCommandName(noptExploratoryResults.argv.remain)),
     }
-  })() as any
+  })() as any // tslint:disable-line:no-any
 
   function getCommandName (cliArgs: string[]) {
     if (getCommandFullName(cliArgs[0]) !== 'install' || cliArgs.length === 1) return cliArgs[0]
