@@ -1,3 +1,4 @@
+import { types as allTypes } from '@pnpm/config'
 import { StoreController } from '@pnpm/package-store'
 import pLimit from 'p-limit'
 import path = require('path')
@@ -23,6 +24,22 @@ import { PnpmOptions } from '../types'
 import { docsUrl, UNIVERSAL_OPTIONS } from './help'
 
 const installLimit = pLimit(4)
+
+export function types () {
+  return R.pick([
+    'global-dir',
+    'global',
+    'only',
+    'package-import-method',
+    'production',
+    'registry',
+    'reporter',
+    'resolution-strategy',
+    'save-dev',
+    'save-exact',
+    'save-optional',
+  ], allTypes)
+}
 
 export const commandNames = ['link', 'ln']
 

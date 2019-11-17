@@ -1,8 +1,62 @@
+import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
 import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 import { handler as install } from './install'
+
+export function types () {
+  return R.pick([
+    'child-concurrency',
+    'engine-strict',
+    'force',
+    'global-dir',
+    'global-pnpmfile',
+    'global',
+    'hoist',
+    'hoist-pattern',
+    'ignore-pnpmfile',
+    'ignore-scripts',
+    'ignore-workspace-root-check',
+    'independent-leaves',
+    'link-workspace-packages',
+    'lock',
+    'lockfile-dir',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'package-import-method',
+    'pnpmfile',
+    'prefer-offline',
+    'production',
+    'recursive',
+    'registry',
+    'reporter',
+    'resolution-strategy',
+    'save-dev',
+    'save-exact',
+    'save-optional',
+    'save-peer',
+    'save-prod',
+    'save-workspace-protocol',
+    'shamefully-flatten',
+    'shamefully-hoist',
+    'shared-workspace-lockfile',
+    'side-effects-cache-readonly',
+    'side-effects-cache',
+    'store',
+    'store-dir',
+    'strict-peer-dependencies',
+    'offline',
+    'only',
+    'optional',
+    'use-running-store-server',
+    'use-store-server',
+    'verify-store-integrity',
+    'virtual-store-dir',
+  ], allTypes)
+}
 
 export const commandNames = ['add']
 

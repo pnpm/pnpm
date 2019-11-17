@@ -1,3 +1,4 @@
+import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import {
   getLockfileImporterId,
@@ -22,6 +23,17 @@ import createLatestManifestGetter from '../createLatestManifestGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
 import { TABLE_OPTIONS } from '../style'
 import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+
+export function types () {
+  return R.pick([
+    'depth',
+    'global-dir',
+    'global',
+    'long',
+    'recursive',
+    'table',
+  ], allTypes)
+}
 
 export const commandNames = ['outdated']
 

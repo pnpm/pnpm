@@ -3,6 +3,10 @@ import renderHelp = require('render-help')
 import { docsUrl } from './help'
 import { handler as run } from './run'
 
+export function types () {
+  return {}
+}
+
 export const commandNames = ['start']
 
 export function help () {

@@ -1,8 +1,10 @@
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
 import { docsUrl } from './help'
-import { handler as install } from './install'
+import { handler as install, types } from './install'
 import { handler as test } from './test'
+
+export { types }
 
 export const commandNames = ['install-test', 'it']
 

@@ -1,8 +1,10 @@
 import audit, { AuditVulnerabilityCounts } from '@pnpm/audit'
+import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import chalk = require('chalk')
+import R = require('ramda')
 import renderHelp = require('render-help')
 import { table } from 'table'
 import { TABLE_OPTIONS } from '../style'
@@ -24,6 +26,17 @@ const AUDIT_COLOR = {
   'critical': chalk.bold.red,
 }
 // tslint:enable
+
+export function types () {
+  return R.pick([
+    'audit-level',
+    'dev',
+    'json',
+    'only',
+    'optional',
+    'production',
+  ], allTypes)
+}
 
 export const commandNames = ['audit']
 

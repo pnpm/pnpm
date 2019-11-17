@@ -1,9 +1,26 @@
-import { Config } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import { oneLine } from 'common-tags'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+
+export function types () {
+  return R.pick([
+    'depth',
+    'dev',
+    'global-dir',
+    'global',
+    'json',
+    'long',
+    'only',
+    'optional',
+    'parseable',
+    'production',
+    'recursive',
+  ], allTypes)
+}
 
 export const commandNames = ['list', 'ls', 'la', 'll']
 

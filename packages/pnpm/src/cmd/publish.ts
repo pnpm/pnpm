@@ -1,3 +1,4 @@
+import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
 import { Dependencies, ImporterManifest } from '@pnpm/types'
@@ -13,6 +14,14 @@ import readImporterManifest from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 import { docsUrl } from './help'
 import runNpm from './runNpm'
+
+export function types () {
+  return R.pick([
+    'access',
+    'otp',
+    'tag',
+  ], allTypes)
+}
 
 export const commandNames = ['publish']
 

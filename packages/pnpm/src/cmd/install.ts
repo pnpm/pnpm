@@ -1,6 +1,8 @@
+import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { oneLine } from 'common-tags'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import {
   install,
@@ -21,6 +23,54 @@ import { recursive } from './recursive'
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
   update: false,
+}
+
+export function types () {
+  return R.pick([
+    'child-concurrency',
+    'dev',
+    'engine-strict',
+    'frozen-lockfile',
+    'force',
+    'global-dir',
+    'global-pnpmfile',
+    'global',
+    'hoist',
+    'hoist-pattern',
+    'ignore-pnpmfile',
+    'ignore-scripts',
+    'independent-leaves',
+    'link-workspace-packages',
+    'lock',
+    'lockfile-dir',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'package-import-method',
+    'pnpmfile',
+    'prefer-frozen-lockfile',
+    'prefer-offline',
+    'production',
+    'recursive',
+    'registry',
+    'reporter',
+    'resolution-strategy',
+    'shamefully-flatten',
+    'shamefully-hoist',
+    'shared-workspace-lockfile',
+    'side-effects-cache-readonly',
+    'side-effects-cache',
+    'store',
+    'store-dir',
+    'strict-peer-dependencies',
+    'offline',
+    'only',
+    'optional',
+    'use-running-store-server',
+    'use-store-server',
+    'verify-store-integrity',
+    'virtual-store-dir',
+  ], allTypes)
 }
 
 export const commandNames = ['install', 'i']

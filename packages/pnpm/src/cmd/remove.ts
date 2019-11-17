@@ -1,4 +1,6 @@
+import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import {
   mutateModules,
@@ -9,6 +11,28 @@ import readImporterManifest from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+
+export function types () {
+  return R.pick([
+    'force',
+    'global-dir',
+    'global-pnpmfile',
+    'global',
+    'lockfile-dir',
+    'lockfile-directory',
+    'lockfile-only',
+    'lockfile',
+    'package-import-method',
+    'pnpmfile',
+    'recursive',
+    'reporter',
+    'resolution-strategy',
+    'shared-workspace-lockfile',
+    'store',
+    'store-dir',
+    'virtual-store-dir',
+  ], allTypes)
+}
 
 export function help () {
   return renderHelp({
@@ -39,7 +63,7 @@ export function help () {
   })
 }
 
-export const commandNames = ['remove', 'uninstall']
+export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
 
 export async function handler (
   input: string[],

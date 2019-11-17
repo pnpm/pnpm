@@ -3,6 +3,10 @@ import { handler as run } from './run'
 import { handler as start } from './start'
 import { handler as stop } from './stop'
 
+export function types () {
+  return {}
+}
+
 export const commandNames = ['restart']
 
 export function help () {

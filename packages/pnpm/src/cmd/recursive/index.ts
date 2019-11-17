@@ -1,3 +1,4 @@
+import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
@@ -12,6 +13,7 @@ import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
+import R = require('ramda')
 import readIniFile = require('read-ini-file')
 import renderHelp = require('render-help')
 import {
@@ -25,7 +27,6 @@ import {
 } from 'supi'
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
-import getCommandFullName from '../../getCommandFullName'
 import getPinnedVersion from '../../getPinnedVersion'
 import getSaveType from '../../getSaveType'
 import { scopeLogger } from '../../loggers'
@@ -34,6 +35,7 @@ import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
 import { docsUrl, FILTERING } from '../help'
+import { getCommandFullName } from '../index'
 import exec from './exec'
 import { filterGraph } from './filter'
 import list from './list'
@@ -55,6 +57,20 @@ const supportedRecursiveCommands = new Set([
   'test',
   'exec',
 ])
+
+export function types () {
+  return {
+    recursive: Boolean,
+    ...R.pick([
+      'bail',
+      'link-workspace-packages',
+      'reporter',
+      'shared-workspace-lockfile',
+      'sort',
+      'workspace-concurrency',
+    ], allTypes),
+  }
+}
 
 export const commandNames = ['recursive', 'multi', 'm']
 
