@@ -19,6 +19,7 @@ export function types () {
     'ignore-scripts',
     'latest',
     'lockfile-dir',
+    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'offline',
@@ -39,6 +40,7 @@ export function types () {
     'shared-workspace-lockfile',
     'side-effects-cache-readonly',
     'side-effects-cache',
+    'store',
     'store-dir',
     'use-running-store-server',
   ], allTypes)

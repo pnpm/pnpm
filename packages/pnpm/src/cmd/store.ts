@@ -20,6 +20,7 @@ import { docsUrl } from './help'
 export function types () {
   return R.pick([
     'registry',
+    'store',
     'store-dir',
   ], allTypes)
 }

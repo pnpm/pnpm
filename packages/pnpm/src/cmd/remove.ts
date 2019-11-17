@@ -19,6 +19,7 @@ export function types () {
     'global-pnpmfile',
     'global',
     'lockfile-dir',
+    'lockfile-directory',
     'lockfile-only',
     'lockfile',
     'package-import-method',
@@ -27,6 +28,7 @@ export function types () {
     'reporter',
     'resolution-strategy',
     'shared-workspace-lockfile',
+    'store',
     'store-dir',
     'virtual-store-dir',
   ], allTypes)

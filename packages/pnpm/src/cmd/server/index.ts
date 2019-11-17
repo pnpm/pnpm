@@ -16,6 +16,7 @@ export function types () {
     'ignore-upload-requests',
     'port',
     'protocol',
+    'store',
     'store-dir',
   ], allTypes)
 }

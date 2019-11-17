@@ -29,145 +29,7 @@ import './logging/fileLogger'
 import packageManager from './pnpmPkgJson'
 import initReporter, { ReporterType } from './reporter'
 
-type CANONICAL_COMMAND_NAMES = 'help'
-  | 'audit'
-  | 'add'
-  | 'import'
-  | 'install-test'
-  | 'install'
-  | 'link'
-  | 'list'
-  | 'outdated'
-  | 'pack'
-  | 'prune'
-  | 'publish'
-  | 'rebuild'
-  | 'recursive'
-  | 'restart'
-  | 'root'
-  | 'run'
-  | 'server'
-  | 'start'
-  | 'stop'
-  | 'store'
-  | 'test'
-  | 'remove'
-  | 'unlink'
-  | 'update'
-  | 'why'
-
-type CLI_OPTIONS = 'access'
-  | 'audit-level'
-  | 'background'
-  | 'bail'
-  | 'child-concurrency'
-  | 'color'
-  | 'depth'
-  | 'dev'
-  | 'engine-strict'
-  | 'filter'
-  | 'force'
-  | 'frozen-lockfile'
-  | 'global-dir'
-  | 'global-pnpmfile'
-  | 'global'
-  | 'help'
-  | 'hoist-pattern'
-  | 'hoist'
-  | 'ignore-pnpmfile'
-  | 'ignore-scripts'
-  | 'ignore-stop-requests'
-  | 'ignore-upload-requests'
-  | 'ignore-workspace-root-check'
-  | 'independent-leaves'
-  | 'json'
-  | 'latest'
-  | 'link-workspace-packages'
-  | 'lock'
-  | 'lockfile-dir'
-  | 'lockfile-only'
-  | 'lockfile'
-  | 'long'
-  | 'network-concurrency'
-  | 'offline'
-  | 'only'
-  | 'optional'
-  | 'otp'
-  | 'package-import-method'
-  | 'parseable'
-  | 'pnpmfile'
-  | 'port'
-  | 'prefer-frozen-lockfile'
-  | 'prefer-offline'
-  | 'production'
-  | 'protocol'
-  | 'recursive'
-  | 'registry'
-  | 'reporter'
-  | 'resolution-strategy'
-  | 'save'
-  | 'save-dev'
-  | 'save-exact'
-  | 'save-optional'
-  | 'save-peer'
-  | 'save-prod'
-  | 'save-workspace-protocol'
-  | 'shamefully-flatten'
-  | 'shamefully-hoist'
-  | 'shared-workspace-lockfile'
-  | 'side-effects-cache-readonly'
-  | 'side-effects-cache'
-  | 'silent'
-  | 'sort'
-  | 'store-dir'
-  | 'strict-peer-dependencies'
-  | 'table'
-  | 'tag'
-  | 'use-running-store-server'
-  | 'use-store-server'
-  | 'verify-store-integrity'
-  | 'virtual-store-dir'
-  | 'dir'
-  | 'workspace-concurrency'
-
 const GLOBAL_OPTIONS = R.pick(['color', 'filter', 'help', 'dir', 'prefix'], allTypes)
-
-const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
-  'add',
-  'audit',
-  'install',
-  'remove',
-  'update',
-  'link',
-  'pack',
-  'prune',
-  'publish',
-  'install-test',
-  'restart',
-  'server',
-  'start',
-  'stop',
-  'store',
-  'list',
-  'unlink',
-  'help',
-  'root',
-  'outdated',
-  'rebuild',
-  'recursive',
-  'import',
-  'test',
-  'run',
-  'why',
-  // These might have to be implemented:
-  // 'cache',
-  // 'completion',
-  // 'explore',
-  // 'dedupe',
-  // 'doctor',
-  // 'shrinkwrap',
-  // 'help-search',
-])
 
 const RENAMED_OPTIONS = {
   'lockfile-directory': 'lockfile-dir',
@@ -260,9 +122,9 @@ export default async function run (inputArgv: string[]) {
   }
   process.env['npm_config_argv'] = JSON.stringify(argv)
 
-  let cmd = getCommandFullName(argv.remain[0]) as CANONICAL_COMMAND_NAMES
+  let cmd = getCommandFullName(argv.remain[0])
     || 'help'
-  if (!supportedCmds.has(cmd)) {
+  if (!pnpmCmds[cmd]) {
     cmd = 'help'
   }
 
@@ -277,7 +139,7 @@ export default async function run (inputArgv: string[]) {
     subCmd = cmd
     cmd = 'recursive'
     cliArgs.unshift(subCmd)
-  } else if (subCmd && !supportedCmds.has(subCmd as CANONICAL_COMMAND_NAMES)) {
+  } else if (subCmd && !pnpmCmds[subCmd]) {
     subCmd = null
   }
 
