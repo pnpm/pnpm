@@ -156,7 +156,7 @@
     "registry-mock": "registry-mock",
     "test:tap": "ts-node test",
     "test:e2e": "run-p -r registry-mock test:tap",
-    "pretest": "rimraf ../../../.tmp/ && registry-mock prepare",
+    "pretest": "registry-mock prepare",
     "test-with-preview": "pnpm run lint && preview && pnpm run test:e2e",
     "test": "pnpm run lint && pnpm run tsc && pnpm run test:e2e",
     "tsc": "rimraf lib && tsc",

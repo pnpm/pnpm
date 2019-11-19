@@ -1936,6 +1936,7 @@ importers:
       '@types/mkdirp': 0.5.2
       make-dir: 3.0.0
       tape: 4.11.0
+      tempy: 0.3.0
       write-json5-file: 2.1.2
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
@@ -1950,6 +1951,7 @@ importers:
       make-dir: 3.0.0
       rimraf: 3.0.0
       tape: 4.11.0
+      tempy: 0.3.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
       write-json5-file: 2.1.2
@@ -9764,7 +9766,6 @@ packages:
     resolution:
       integrity: sha512-G3I7QWUBSNWaekrJcDabydF6dcvy+vZ2PrX04JYq1p914TOLgpN+ryMtheGavs1LYVevTbTmwjQY8aeX8yLsyA==
   /temp-dir/1.0.0:
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -9774,7 +9775,6 @@ packages:
       temp-dir: 1.0.0
       type-fest: 0.3.1
       unique-string: 1.0.0
-    dev: true
     engines:
       node: '>=8'
     resolution:

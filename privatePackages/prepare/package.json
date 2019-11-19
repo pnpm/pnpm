@@ -10,6 +10,7 @@
     "@types/mkdirp": "0.5.2",
     "make-dir": "3.0.0",
     "tape": "4.11.0",
+    "tempy": "0.3.0",
     "write-json5-file": "2.1.2",
     "write-pkg": "4.0.0",
     "write-yaml-file": "3.0.1"

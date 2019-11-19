@@ -3,6 +3,7 @@ import { ImporterManifest } from '@pnpm/types'
 import makeDir = require('make-dir')
 import path = require('path')
 import { Test } from 'tape'
+import tempy = require('tempy')
 import { sync as writeJson5File } from 'write-json5-file'
 import writePkg = require('write-pkg')
 import { sync as writeYamlFile } from 'write-yaml-file'
@@ -11,8 +12,7 @@ export { Modules, Project }
 export type ManifestFormat = 'JSON' | 'JSON5' | 'YAML'
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
-const tmpPath = path.join(__dirname, '..', '..', '..', '..', '.tmp')
-makeDir.sync(tmpPath)
+const tmpPath = tempy.directory()
 
 let dirNumber = 0
 
@@ -22,7 +22,7 @@ export function tempDir (t: Test) {
   const tmpDir = path.join(tmpPath, dirname)
   makeDir.sync(tmpDir)
 
-  t.pass(`create testing dir ${dirname}`)
+  t.pass(`create testing dir ${path.join(tmpDir)}`)
 
   process.chdir(tmpDir)
 
