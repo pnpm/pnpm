@@ -134,12 +134,15 @@ export default async function run (inputArgv: string[]) {
     subCmd = null
   }
 
-  let config!: Config & { forceSharedLockfile?: boolean, argv?: { remain: string[], cooked: string[], original: string[] } }
+  let config: Config & {
+    forceSharedLockfile: boolean,
+    argv: { remain: string[], cooked: string[], original: string[] },
+  }
   try {
     config = await getConfig(cliConf, {
       command: subCmd ? [cmd, subCmd] : [cmd],
       excludeReporter: false,
-    })
+    }) as typeof config
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
     config.argv = argv
     if (config.filter) {
@@ -246,7 +249,13 @@ export default async function run (inputArgv: string[]) {
       }
 
       try {
-        const result = pnpmCmds[cmd](cliArgs, config, argv.remain[0])
+        const result = pnpmCmds[cmd](
+          cliArgs,
+          // TypeScript doesn't currently infer that the type of config
+          // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
+          config as Omit<typeof config, 'reporter'>,
+          argv.remain[0]
+        )
         if (result instanceof Promise) {
           result
             .then((output) => {
