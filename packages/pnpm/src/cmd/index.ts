@@ -1,3 +1,4 @@
+import { PnpmOptions } from '../types'
 import * as add from './add'
 import * as audit from './audit'
 import createHelp from './help'
@@ -25,7 +26,18 @@ import * as unlink from './unlink'
 import * as update from './update'
 import * as why from './why'
 
-const commands: Array<{ commandNames: string[], handler: Function, help: () => string, types: () => Object}> = [
+export type Command = (
+  args: string[],
+  opts: PnpmOptions,
+  invocation?: string
+) => string | void | Promise<string | void>
+
+const commands: Array<{
+  commandNames: string[],
+  handler: Function,
+  help: () => string,
+  types: () => Object,
+}> = [
   add,
   audit,
   importCmd,
@@ -53,15 +65,18 @@ const commands: Array<{ commandNames: string[], handler: Function, help: () => s
   why,
 ]
 
-const handlerByCommandName: Record<string, Function> = {}
+const handlerByCommandName: Record<string, Command> = {}
 const helpByCommandName: Record<string, () => string> = {}
 const typesByCommandName: Record<string, () => Object> = {}
 const aliasToFullName: Map<string, string> = new Map()
 
-for (const { commandNames, handler, help, types } of commands) {
-  if (commandNames.length === 0) throw new Error('One of the commands doesn\'t have command names')
+for (let i = 0; i < commands.length; i++) {
+  const { commandNames, handler, help, types } = commands[i]
+  if (!commandNames || commandNames.length === 0) {
+    throw new Error('The command at index ' + i + " doesn't have command names")
+  }
   for (const commandName of commandNames) {
-    handlerByCommandName[commandName] = handler
+    handlerByCommandName[commandName] = handler as Command
     helpByCommandName[commandName] = help
     typesByCommandName[commandName] = types
   }
