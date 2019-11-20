@@ -31,7 +31,7 @@
     "@types/mz": "0.0.32",
     "@types/ramda": "0.26.34",
     "@types/rimraf": "^2.0.3",
-    "@types/sinon": "^7.5.0",
+    "@types/sinon": "^7.5.1",
     "@zkochan/rimraf": "1.0.0",
     "fs-extra": "8.1.0",
     "is-windows": "1.0.2",
