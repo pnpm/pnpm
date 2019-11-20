@@ -1264,6 +1264,43 @@ test('workspace protocol: resolve from local directory even when it does not mat
   t.end()
 })
 
+test('workspace protocol: resolve from local package that has a pre-release version', async t => {
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '*' }, {
+    importerDir: '/home/istvan/src',
+    localPackages: {
+      'is-positive': {
+        '3.0.0-alpha.1.2.3': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0-alpha.1.2.3',
+          },
+        },
+      },
+    },
+    registry,
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:is-positive')
+  t.notOk(resolveResult!.latest)
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '3.0.0-alpha.1.2.3')
+
+  t.end()
+})
+
 test('workspace protocol: resolution fails if there is no matching local package', async t => {
   const storeDir = tempy.directory()
   const resolve = createResolveFromNpm({
