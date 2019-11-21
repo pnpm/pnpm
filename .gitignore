@@ -33,6 +33,3 @@ privatePackages/store
 
 ## Verdaccio storage
 storage
-
-# @pnpm/registry-mock storage
-.pnpm-registry-mock
