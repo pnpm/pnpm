@@ -7,11 +7,11 @@ import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { execPnpm, execPnpmSync } from './utils'
+import { execPnpm, execPnpmSync, pathToLocalPkg } from './utils'
 
-const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')
-const hasOutdatedDepsFixtureAndExternalLockfile = path.join(__dirname, 'packages', 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
-const hasNotOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-not-outdated-deps')
+const hasOutdatedDepsFixture = pathToLocalPkg('has-outdated-deps')
+const hasOutdatedDepsFixtureAndExternalLockfile = pathToLocalPkg('has-outdated-deps-and-external-shrinkwrap/pkg')
+const hasNotOutdatedDepsFixture = pathToLocalPkg('has-not-outdated-deps')
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 

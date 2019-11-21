@@ -1,7 +1,7 @@
 import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { execPnpmSync } from './utils'
+import { execPnpmSync, pathToLocalPkg } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -139,7 +139,7 @@ Severity: 2 low | 3 moderate`)
 })
 
 test('audit: no vulnerabilities', (t) => {
-  process.chdir(path.join(__dirname, 'packages/has-outdated-deps'))
+  process.chdir(pathToLocalPkg('has-outdated-deps'))
 
   const { status, stdout } = execPnpmSync('audit', '--audit-level=moderate')
 
