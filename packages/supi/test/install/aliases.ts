@@ -67,6 +67,8 @@ test('aliased dependency w/o version spec, with custom tag config', async (t) =>
 })
 
 test('a dependency has an aliased subdependency', async (t: tape.Test) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['pkg-with-1-aliased-dep'], await testDefaults({ fastUnpack: false }))

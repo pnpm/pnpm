@@ -6,7 +6,7 @@
     "build": "pnpm run -r tsc"
   },
   "devDependencies": {
-    "@pnpm/registry-mock": "1.10.0",
+    "@pnpm/registry-mock": "1.11.1",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/tslint-config": "workspace:*",
     "@types/node": "*",
