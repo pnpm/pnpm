@@ -47,7 +47,7 @@
     "@pnpm/utils": "workspace:0.12.0",
     "@types/archy": "0.0.31",
     "@types/lru-cache": "^5.1.0",
-    "@types/mz": "^0.0.32",
+    "@types/mz": "^2.7.0",
     "@types/wrap-ansi": "3.0.0",
     "@zkochan/libnpx": "11.0.2",
     "@zkochan/rimraf": "1.0.0",

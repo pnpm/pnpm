@@ -61,7 +61,7 @@
     "@pnpm/npm-resolver": "workspace:*",
     "@pnpm/package-requester": "link:",
     "@pnpm/tarball-fetcher": "workspace:*",
-    "@types/mz": "0.0.32",
+    "@types/mz": "^2.7.0",
     "@types/ncp": "^2.0.3",
     "@types/ramda": "0.26.34",
     "@types/sinon": "^7.5.1",
