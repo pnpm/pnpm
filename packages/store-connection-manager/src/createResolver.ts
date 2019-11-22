@@ -1,25 +1,28 @@
+import { Config } from '@pnpm/config'
 import createResolver from '@pnpm/default-resolver'
 import LRU = require('lru-cache')
 
+export type CreateResolverOptions = Pick<Config,
+  'ca' |
+  'cert' |
+  'fetchRetries' |
+  'fetchRetryFactor' |
+  'fetchRetryMaxtimeout' |
+  'fetchRetryMintimeout' |
+  'fetchRetryMintimeout' |
+  'httpsProxy' |
+  'key' |
+  'localAddress' |
+  'lockStaleDuration' |
+  'offline' |
+  'proxy' |
+  'rawConfig' |
+  'strictSsl' |
+  'userAgent' |
+  'verifyStoreIntegrity'> & Required<Pick<Config, 'storeDir'>>
+
 export default function (
-  opts: {
-    ca?: string,
-    cert?: string,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMaxtimeout?: number,
-    fetchRetryMintimeout?: number,
-    httpsProxy?: string,
-    key?: string,
-    localAddress?: string,
-    offline?: boolean,
-    proxy?: string,
-    rawConfig: object,
-    storeDir: string,
-    strictSsl?: boolean,
-    userAgent?: string,
-    verifyStoreIntegrity?: boolean,
-  },
+  opts: CreateResolverOptions,
 ) {
   return createResolver(Object.assign(opts, {
     fullMetadata: false,

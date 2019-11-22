@@ -5,35 +5,22 @@ import createStore from '@pnpm/package-store'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import makeDir = require('make-dir')
 import path = require('path')
-import createResolver from './createResolver'
+import createResolver, { CreateResolverOptions } from './createResolver'
 
-export default async (
-  opts: Pick<Config,
+export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
     'alwaysAuth' |
-    'ca' |
-    'cert' |
-    'fetchRetries' |
-    'fetchRetryFactor' |
-    'fetchRetryMaxtimeout' |
-    'fetchRetryMintimeout' |
-    'fetchRetryMintimeout' |
-    'httpsProxy' |
-    'key' |
-    'localAddress' |
     'lock' |
     'lockStaleDuration' |
     'networkConcurrency' |
-    'offline' |
     'packageImportMethod' |
-    'proxy' |
-    'rawConfig' |
     'registry' |
-    'strictSsl' |
-    'userAgent' |
     'verifyStoreIntegrity'
   > & {
     ignoreFile?: (filename: string) => boolean,
-  } & Required<Pick<Config, 'storeDir'>>,
+  }
+
+export default async (
+  opts: CreateNewStoreControllerOptions,
 ) => {
   // TODO: either print a warning or just log if --no-lock is used
   const sopts = Object.assign(opts, {

@@ -2,14 +2,15 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import {
+  createOrConnectStoreController,
+  CreateStoreControllerOptions,
+} from '@pnpm/store-connection-manager'
 import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
-import R = require('ramda')
 import renderHelp = require('render-help')
-import { install } from 'supi'
-import { PnpmOptions } from '../types'
+import { install, InstallOptions } from 'supi'
 
 export function types () {
   return {}
@@ -27,7 +28,7 @@ export const commandNames = ['import']
 
 export async function handler (
   input: string[],
-  opts: PnpmOptions,
+  opts: CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>,
 ) {
   // Removing existing pnpm lockfile
   // it should not influence the new one

@@ -1,11 +1,11 @@
 import { audit } from '@pnpm/plugin-commands-audit'
+import { importCommand } from '@pnpm/plugin-commands-import'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { PnpmOptions } from '../types'
 import * as add from './add'
 import createHelp from './help'
-import * as importCmd from './import'
 import * as install from './install'
 import * as installTest from './installTest'
 import * as link from './link'
@@ -38,7 +38,7 @@ const commands: Array<{
 }> = [
   add,
   audit,
-  importCmd,
+  importCommand,
   install,
   installTest,
   link,
