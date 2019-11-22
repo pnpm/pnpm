@@ -1,15 +1,14 @@
 import audit, { AuditVulnerabilityCounts } from '@pnpm/audit'
-import { types as allTypes } from '@pnpm/config'
+import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
+import { IncludedDependencies, Registries } from '@pnpm/types'
 import chalk = require('chalk')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { table } from 'table'
-import { TABLE_OPTIONS } from '../style'
-import { PnpmOptions } from '../types'
-import { docsUrl } from './help'
 
 // tslint:disable
 const AUDIT_LEVEL_NUMBER = {
@@ -74,8 +73,12 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: PnpmOptions & {
+  opts: Pick<UniversalOptions, 'dir'> & {
+    auditLevel?: 'low' | 'moderate' | 'high' | 'critical',
+    include: IncludedDependencies
     json?: boolean,
+    lockfileDir?: string,
+    registries: Registries,
   },
   command: string,
 ) {

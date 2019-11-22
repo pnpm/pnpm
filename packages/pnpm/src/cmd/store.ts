@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import logger, { globalInfo } from '@pnpm/logger'
@@ -15,7 +16,6 @@ import {
 } from 'supi'
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
-import { docsUrl } from './help'
 
 export function types () {
   return R.pick([

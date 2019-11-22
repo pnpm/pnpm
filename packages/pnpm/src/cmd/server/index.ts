@@ -1,10 +1,11 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../../types'
-import { docsUrl, OPTIONS, UNIVERSAL_OPTIONS } from '../help'
+import { OPTIONS, UNIVERSAL_OPTIONS } from '../help'
 import start from './start'
 import status from './status'
 import stop from './stop'

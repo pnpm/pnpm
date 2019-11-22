@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
@@ -9,7 +10,7 @@ import {
 import createStoreController from '../createStoreController'
 import { readImporterManifestOnly } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
-import { docsUrl, FILTERING, UNIVERSAL_OPTIONS } from './help'
+import { FILTERING, UNIVERSAL_OPTIONS } from './help'
 
 export function types () {
   return R.pick([

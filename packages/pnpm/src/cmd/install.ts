@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
@@ -17,7 +18,7 @@ import { readImporterManifestOnly, tryReadImporterManifest } from '../readImport
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
-import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 import { recursive } from './recursive'
 
 const OVERWRITE_UPDATE_OPTIONS = {

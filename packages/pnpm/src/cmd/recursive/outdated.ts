@@ -1,3 +1,4 @@
+import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
 import { DependenciesField, ImporterManifest } from '@pnpm/types'
@@ -5,7 +6,6 @@ import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'
-import { TABLE_OPTIONS } from '../../style'
 import {
   DEFAULT_COMPARATORS,
   getCellWidth,

@@ -1,9 +1,10 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
-import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 import { handler as install } from './install'
 
 export function types () {

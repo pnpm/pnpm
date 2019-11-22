@@ -6,11 +6,11 @@ import camelcase from 'camelcase'
 import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
-import { Config, ConfigWithDeprecatedSettings } from './Config'
+import { Config, ConfigWithDeprecatedSettings, UniversalOptions } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 
-export { Config }
+export { Config, UniversalOptions }
 
 const npmDefaults = loadNpmConf.defaults
 

@@ -1,6 +1,6 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
-import { docsUrl } from './help'
 import { handler as run } from './run'
 
 export function types () {
