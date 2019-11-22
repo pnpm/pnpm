@@ -1,6 +1,7 @@
 import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -8,7 +9,6 @@ import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
-import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
 
 export function types () {
@@ -54,7 +54,7 @@ export async function handler (
   opts: PnpmOptions,
   command: string,
 ) {
-  const store = await createStoreController(opts)
+  const store = await createOrConnectStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
     storeController: store.ctrl,
     storeDir: store.dir,

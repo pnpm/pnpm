@@ -7,6 +7,7 @@ import {
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { StoreController } from '@pnpm/package-store'
+import { createOrConnectStoreControllerCached } from '@pnpm/store-connection-manager'
 import pLimit from 'p-limit'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -19,7 +20,6 @@ import {
   linkToGlobal,
   LocalPackages,
 } from 'supi'
-import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfig from '../getConfig'
 import getSaveType from '../getSaveType'
@@ -82,7 +82,7 @@ export async function handler (
     localPackages = {}
   }
 
-  const store = await createStoreController(storeControllerCache, opts)
+  const store = await createOrConnectStoreControllerCached(storeControllerCache, opts)
   const linkOpts = Object.assign(opts, {
     localPackages,
     storeController: store.ctrl,
@@ -128,7 +128,7 @@ export async function handler (
 
   await Promise.all(
     pkgPaths.map((dir) => installLimit(async () => {
-      const s = await createStoreController(storeControllerCache, opts)
+      const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
       await install(
         await readImporterManifestOnly(dir, opts), {
           ...await getConfig(

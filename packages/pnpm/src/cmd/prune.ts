@@ -1,10 +1,10 @@
 import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { InstallOptions, mutateModules } from 'supi'
-import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
 
 export function types () {
@@ -37,7 +37,7 @@ export function help () {
 }
 
 export async function handler (input: string[], opts: PnpmOptions) {
-  const store = await createStoreController(opts)
+  const store = await createOrConnectStoreController(opts)
   return mutateModules([
     {
       buildIndex: 0,

@@ -8,9 +8,11 @@ import storePath from '@pnpm/store-path'
 import delay from 'delay'
 import fs = require('mz/fs')
 import path = require('path')
-import createStore from './createStore'
+import createNewStoreController from './createNewStoreController'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
+
+export { createNewStoreController, serverConnectionInfoDir }
 
 export type CreateStoreControllerOptions = Pick<Config,
   'alwaysAuth' |
@@ -40,18 +42,18 @@ export type CreateStoreControllerOptions = Pick<Config,
   ignoreFile?: (filename: string) => boolean,
 }
 
-export async function cached (
+export async function createOrConnectStoreControllerCached (
   storeControllerCache: Map<string, Promise<{ctrl: StoreController, dir: string}>>,
   opts: CreateStoreControllerOptions,
 ) {
   const storeDir = await storePath(opts.dir, opts.storeDir)
   if (!storeControllerCache.has(storeDir)) {
-    storeControllerCache.set(storeDir, createStoreController(opts))
+    storeControllerCache.set(storeDir, createOrConnectStoreController(opts))
   }
   return await storeControllerCache.get(storeDir) as {ctrl: StoreController, dir: string}
 }
 
-export default async function createStoreController (
+export async function createOrConnectStoreController (
   opts: CreateStoreControllerOptions,
 ): Promise<{
   ctrl: StoreController,
@@ -92,7 +94,7 @@ export default async function createStoreController (
       dir: storeDir,
     }
   }
-  return createStore(Object.assign(opts, {
+  return createNewStoreController(Object.assign(opts, {
     storeDir,
   }))
 }

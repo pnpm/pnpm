@@ -1,7 +1,6 @@
 import diable = require('diable')
-import path = require('path')
 
-const pnpm = path.join(__dirname, 'bin', 'pnpm.js')
+const pnpm = require.resolve('pnpm/bin/pnpm.js', { paths: [__dirname] })
 
 export default (storePath: string) => {
   return diable.daemonize(pnpm, ['server', 'start', '--store-dir', storePath], { stdio: 'inherit' })

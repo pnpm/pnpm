@@ -1,13 +1,13 @@
 import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import {
   mutateModules,
 } from 'supi'
-import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
@@ -69,7 +69,7 @@ export async function handler (
   input: string[],
   opts: PnpmOptions,
 ) {
-  const store = await createStoreController(opts)
+  const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
     storeController: store.ctrl,
     storeDir: store.dir,
