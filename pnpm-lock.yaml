@@ -84,16 +84,43 @@ importers:
       run-groups: 2.0.1
   packages/cli-utils:
     dependencies:
+      '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/package-is-installable': 'link:../package-is-installable'
+      '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
+      '@pnpm/utils': 'link:../utils'
       chalk: 3.0.0
+      load-json-file: 6.2.0
+      lru-cache: 5.1.1
+      mem: 6.0.0
     devDependencies:
       '@pnpm/cli-utils': 'link:'
+      '@pnpm/logger': 3.1.0
+      '@pnpm/types': 'link:../types'
+      '@types/lru-cache': 5.1.0
+      pnpm: 'link:../pnpm'
       rimraf: 3.0.0
       tape: 4.11.0
     specifiers:
       '@pnpm/cli-utils': 'link:'
+      '@pnpm/default-resolver': 'workspace:5.0.2'
+      '@pnpm/logger': ^3.1.0
+      '@pnpm/package-is-installable': 'workspace:4.0.0'
+      '@pnpm/read-importer-manifest': 'workspace:2.0.0'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@pnpm/utils': 'workspace:0.12.0'
+      '@types/lru-cache': ^5.1.0
       chalk: 3.0.0
+      load-json-file: 6.2.0
+      lru-cache: 5.1.1
+      mem: 6.0.0
+      pnpm: 'link:../pnpm'
       rimraf: 3.0.0
       tape: 4.11.0
+  packages/common-cli-options-help:
+    devDependencies:
+      rimraf: 3.0.0
+    specifiers:
+      rimraf: 3.0.0
   packages/config:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1202,9 +1229,74 @@ importers:
       strip-ansi: 6.0.0
       table: 5.4.6
       tape: 4.11.0
+  packages/plugin-commands-outdated:
+    dependencies:
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/matcher': 'link:../matcher'
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/outdated': 'link:../outdated'
+      '@pnpm/semver-diff': 1.0.2
+      '@pnpm/store-path': 2.1.1
+      chalk: 3.0.0
+      common-tags: 1.8.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      table: 5.4.6
+      wrap-ansi: 6.2.0
+    devDependencies:
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/plugin-commands-outdated': 'link:'
+      '@pnpm/prepare': 'link:../../privatePackages/prepare'
+      '@pnpm/types': 'link:../types'
+      '@types/common-tags': 1.8.0
+      '@types/mz': 0.0.32
+      '@types/ramda': 0.26.36
+      '@types/table': 4.0.7
+      '@types/wrap-ansi': 3.0.0
+      make-dir: 3.0.0
+      mz: 2.7.0
+      rimraf: 3.0.0
+      strip-ansi: 6.0.0
+      tape: 4.11.0
+    specifiers:
+      '@pnpm/cli-utils': 'workspace:0.0.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.0.0'
+      '@pnpm/config': 'workspace:5.0.2'
+      '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/lockfile-file': 'workspace:3.0.1'
+      '@pnpm/matcher': 'workspace:1.0.0'
+      '@pnpm/modules-yaml': 'workspace:5.0.0'
+      '@pnpm/outdated': 'workspace:6.0.2'
+      '@pnpm/plugin-commands-outdated': 'link:'
+      '@pnpm/prepare': 'workspace:0.0.0'
+      '@pnpm/semver-diff': 1.0.2
+      '@pnpm/store-path': 2.1.1
+      '@pnpm/types': 'workspace:4.0.0'
+      '@types/common-tags': 1.8.0
+      '@types/mz': ^0.0.32
+      '@types/ramda': ^0.26.34
+      '@types/table': ^4.0.7
+      '@types/wrap-ansi': 3.0.0
+      chalk: 3.0.0
+      common-tags: 1.8.0
+      make-dir: 3.0.0
+      mz: 2.7.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      rimraf: 3.0.0
+      strip-ansi: 6.0.0
+      table: 5.4.6
+      tape: 4.11.0
+      wrap-ansi: 6.2.0
   packages/pnpm:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1222,6 +1314,7 @@ importers:
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/plugin-commands-audit': 'link:../plugin-commands-audit'
+      '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/server': 'link:../server'
@@ -1323,6 +1416,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/cli-utils': 'workspace:0.0.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.0.0'
       '@pnpm/config': 'workspace:5.0.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1342,6 +1436,7 @@ importers:
       '@pnpm/package-is-installable': 'workspace:4.0.0'
       '@pnpm/package-store': 'workspace:6.0.1'
       '@pnpm/plugin-commands-audit': 'workspace:0.0.0'
+      '@pnpm/plugin-commands-outdated': 'workspace:0.0.0'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
       '@pnpm/read-package-json': 'workspace:*'
@@ -1638,6 +1733,48 @@ importers:
       rimraf: 3.0.0
       tape: 4.11.0
       uuid: 3.3.3
+  packages/store-connection-manager:
+    dependencies:
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/default-fetcher': 'link:../default-fetcher'
+      '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/package-store': 'link:../package-store'
+      '@pnpm/server': 'link:../server'
+      '@pnpm/store-path': 2.1.1
+      delay: 4.3.0
+      diable: 4.0.2
+      dir-is-case-sensitive: 1.0.2
+      lru-cache: 5.1.1
+      make-dir: 3.0.0
+      mz: 2.7.0
+    devDependencies:
+      '@pnpm/logger': 3.1.0
+      '@pnpm/store-connection-manager': 'link:'
+      '@types/lru-cache': 5.1.0
+      pnpm: 'link:../pnpm'
+      rimraf: 3.0.0
+    specifiers:
+      '@pnpm/cli-utils': 'workspace:0.0.0'
+      '@pnpm/config': 'workspace:5.0.2'
+      '@pnpm/default-fetcher': 'workspace:5.1.1'
+      '@pnpm/default-resolver': 'workspace:5.0.2'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/logger': 3.1.0
+      '@pnpm/package-store': 'workspace:6.0.1'
+      '@pnpm/server': 'workspace:5.0.0'
+      '@pnpm/store-connection-manager': 'link:'
+      '@pnpm/store-path': 2.1.1
+      '@types/lru-cache': 5.1.0
+      delay: 4.3.0
+      diable: 4.0.2
+      dir-is-case-sensitive: 1.0.2
+      lru-cache: 5.1.1
+      make-dir: 3.0.0
+      mz: 2.7.0
+      pnpm: 'link:../pnpm'
+      rimraf: 3.0.0
   packages/store-controller-types:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -2749,7 +2886,6 @@ packages:
     resolution:
       integrity: sha512-8oDqyLC7eD4HM307boe2QWKyuzdzWBj56xI/imSl2cpL+U3tCMaTAkMJ4ee5JBZ/FsOJlvRGeIShiZDAl1qERA==
   /@types/wrap-ansi/3.0.0:
-    dev: false
     resolution:
       integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
   /@types/write-file-atomic/2.1.2:

@@ -1,3 +1,4 @@
+import { packageManager } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { createServer } from '@pnpm/server'
@@ -10,7 +11,6 @@ import fs = require('mz/fs')
 import path = require('path')
 import onExit = require('signal-exit')
 import createStore from '../../createStore'
-import packageManager from '../../pnpmPkgJson'
 import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 import { PnpmOptions } from '../../types'
 

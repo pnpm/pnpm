@@ -22,6 +22,7 @@
   ],
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.0.0",
+    "@pnpm/common-cli-options-help": "workspace:0.0.0",
     "@pnpm/config": "workspace:5.0.2",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
@@ -39,6 +40,7 @@
     "@pnpm/package-is-installable": "workspace:4.0.0",
     "@pnpm/package-store": "workspace:6.0.1",
     "@pnpm/plugin-commands-audit": "workspace:0.0.0",
+    "@pnpm/plugin-commands-outdated": "workspace:0.0.0",
     "@pnpm/read-importer-manifest": "workspace:2.0.0",
     "@pnpm/semver-diff": "1.0.2",
     "@pnpm/server": "workspace:5.0.0",

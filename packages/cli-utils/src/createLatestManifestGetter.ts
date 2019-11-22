@@ -4,7 +4,7 @@ import { pickRegistryForPackage } from '@pnpm/utils'
 import LRU = require('lru-cache')
 import mem = require('mem')
 
-export default function (
+export function createLatestManifestGetter (
   opts: {
     ca?: string,
     cert?: string,

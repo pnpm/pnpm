@@ -1,4 +1,4 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
@@ -11,7 +11,6 @@ import path = require('path')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
-import readImporterManifest from '../readImporterManifest'
 import { PnpmOptions } from '../types'
 import runNpm from './runNpm'
 

@@ -1,4 +1,5 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readImporterManifestOnly, tryReadImporterManifest } from '@pnpm/cli-utils'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
@@ -14,11 +15,9 @@ import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
 import getSaveType from '../getSaveType'
-import { readImporterManifestOnly, tryReadImporterManifest } from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 import { recursive } from './recursive'
 
 const OVERWRITE_UPDATE_OPTIONS = {

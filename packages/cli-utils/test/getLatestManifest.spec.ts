@@ -1,12 +1,8 @@
+import { getLatestManifest } from '@pnpm/cli-utils'
 import { ResolveFunction } from '@pnpm/default-resolver'
-import { getLatestManifest } from 'pnpm/src/createLatestManifestGetter'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
+import test = require('tape')
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('getLatestManifest()', async (t: tape.Test) => {
+test('getLatestManifest()', async (t) => {
   t.plan(4)
 
   const opts = {

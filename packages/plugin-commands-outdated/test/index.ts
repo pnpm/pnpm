@@ -1,32 +1,56 @@
+///<reference path="../../../typings/index.d.ts" />
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
+import { outdated } from '@pnpm/plugin-commands-outdated'
 import prepare, { tempDir } from '@pnpm/prepare'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
+import fs = require('fs')
 import makeDir = require('make-dir')
-import fs = require('mz/fs')
-import normalizeNewline = require('normalize-newline')
 import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import { execPnpm, execPnpmSync, pathToLocalPkg } from './utils'
+import stripAnsi = require('strip-ansi')
+import test = require('tape')
+import { promisify } from 'util'
 
-const hasOutdatedDepsFixture = pathToLocalPkg('has-outdated-deps')
-const hasOutdatedDepsFixtureAndExternalLockfile = pathToLocalPkg('has-outdated-deps-and-external-shrinkwrap/pkg')
-const hasNotOutdatedDepsFixture = pathToLocalPkg('has-not-outdated-deps')
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
+const copyFile = promisify(fs.copyFile)
+const fixtures = path.join(__dirname, '../../../fixtures')
+const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
+const hasOutdatedDepsFixtureAndExternalLockfile = path.join(fixtures, 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
+const hasNotOutdatedDepsFixture = path.join(fixtures, 'has-not-outdated-deps')
 
-test('pnpm outdated: show details', async (t: tape.Test) => {
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+
+const OUTDATED_OPTIONS = {
+  alwaysAuth: false,
+  fetchRetries: 1,
+  fetchRetryFactor: 1,
+  fetchRetryMaxtimeout: 60,
+  fetchRetryMintimeout: 10,
+  global: false,
+  independentLeaves: false,
+  networkConcurrency: 16,
+  offline: false,
+  rawConfig: { registry: REGISTRY_URL },
+  registries: { default: REGISTRY_URL },
+  strictSsl: false,
+  tag: 'latest',
+  userAgent: '',
+}
+
+test('pnpm outdated: show details', async (t) => {
   tempDir(t)
 
   await makeDir(path.resolve('node_modules/.pnpm'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
-  const result = execPnpmSync('outdated', '--long')
+  const output = await outdated.handler([], {
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+    long: true,
+  }, 'outdated')
 
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+  t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
   │ Package     │ Current │ Latest     │ Details                                     │
   ├─────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
@@ -40,21 +64,24 @@ test('pnpm outdated: show details', async (t: tape.Test) => {
   │ is-positive │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
   └─────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
   ` + '\n')
+  t.end()
 })
 
-test('pnpm outdated: no table', async (t: tape.Test) => {
+test('pnpm outdated: no table', async (t) => {
   tempDir(t)
 
   await makeDir(path.resolve('node_modules/.pnpm'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
   {
-    const result = execPnpmSync('outdated', '--no-table')
+    const output = await outdated.handler([], {
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+      table: false,
+    }, 'outdated')
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output), stripIndent`
     deprecated
     1.0.0 => Deprecated
 
@@ -67,11 +94,14 @@ test('pnpm outdated: no table', async (t: tape.Test) => {
   }
 
   {
-    const result = execPnpmSync('outdated', '--no-table', '--long')
+    const output = await outdated.handler([], {
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+      long: true,
+      table: false,
+    }, 'outdated')
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output), stripIndent`
     deprecated
     1.0.0 => Deprecated
     This package is deprecated. Lorem ipsum
@@ -88,20 +118,22 @@ test('pnpm outdated: no table', async (t: tape.Test) => {
     https://github.com/kevva/is-positive#readme
     ` + '\n')
   }
+  t.end()
 })
 
-test('pnpm outdated: only current lockfile is available', async (t: tape.Test) => {
+test('pnpm outdated: only current lockfile is available', async (t) => {
   tempDir(t)
 
   await makeDir(path.resolve('node_modules/.pnpm'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
-  const result = execPnpmSync('outdated')
+  const output = await outdated.handler([], {
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, 'outdated')
 
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+  t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬─────────┬────────────┐
   │ Package     │ Current │ Latest     │
   ├─────────────┼─────────┼────────────┤
@@ -112,19 +144,21 @@ test('pnpm outdated: only current lockfile is available', async (t: tape.Test) =
   │ is-positive │ 1.0.0   │ 3.1.0      │
   └─────────────┴─────────┴────────────┘
   ` + '\n')
+  t.end()
 })
 
-test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) => {
+test('pnpm outdated: only wanted lockfile is available', async (t) => {
   tempDir(t)
 
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
-  await fs.copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'pnpm-lock.yaml'), path.resolve('pnpm-lock.yaml'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
 
-  const result = execPnpmSync('outdated')
+  const output = await outdated.handler([], {
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, 'outdated')
 
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+  t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬────────────────────────┬────────────┐
   │ Package     │ Current                │ Latest     │
   ├─────────────┼────────────────────────┼────────────┤
@@ -135,26 +169,31 @@ test('pnpm outdated: only wanted lockfile is available', async (t: tape.Test) =>
   │ is-negative │ missing (wanted 1.1.0) │ 2.1.0      │
   └─────────────┴────────────────────────┴────────────┘
   ` + '\n')
+  t.end()
 })
 
-test('pnpm outdated does not print anything when all is good', async (t: tape.Test) => {
+test('pnpm outdated does not print anything when all is good', async (t) => {
   process.chdir(hasNotOutdatedDepsFixture)
 
-  const result = execPnpmSync('outdated')
+  const output = await outdated.handler([], {
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  }, 'outdated')
 
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), '')
+  t.equal(output, '')
+  t.end()
 })
 
-test('pnpm outdated with external lockfile', async (t: tape.Test) => {
+test('pnpm outdated with external lockfile', async (t) => {
   process.chdir(hasOutdatedDepsFixtureAndExternalLockfile)
 
-  const result = execPnpmSync('outdated')
+  const output = await outdated.handler([], {
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+    lockfileDir: path.resolve('..'),
+  }, 'outdated')
 
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+  t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬──────────────────────┬────────┐
   │ Package     │ Current              │ Latest │
   ├─────────────┼──────────────────────┼────────┤
@@ -163,37 +202,21 @@ test('pnpm outdated with external lockfile', async (t: tape.Test) => {
   │ is-negative │ 1.0.0 (wanted 1.1.0) │ 2.1.0  │
   └─────────────┴──────────────────────┴────────┘
   ` + '\n')
+  t.end()
 })
 
-test('pnpm outdated on global packages', async (t: tape.Test) => {
-  prepare(t)
-  const global = path.resolve('..', 'global')
-
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
-
-  await execPnpm('install', '-g', 'is-negative@1.0.0', 'is-positive@1.0.0')
-
-  const result = execPnpmSync('outdated', '-g')
-
-  t.equal(result.status, 0)
-
-  t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
-  ┌─────────────┬─────────┬────────┐
-  │ Package     │ Current │ Latest │
-  ├─────────────┼─────────┼────────┤
-  │ is-negative │ 1.0.0   │ 2.1.0  │
-  ├─────────────┼─────────┼────────┤
-  │ is-positive │ 1.0.0   │ 3.1.0  │
-  └─────────────┴─────────┴────────┘
-  ` + '\n')
-})
-
-test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the root of the project`, async (t: tape.Test) => {
+test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the root of the project`, async (t) => {
   prepare(t)
 
-  const result = execPnpmSync('outdated')
-
-  t.equal(result.status, 1)
-  t.ok(result.stdout.toString().includes('No lockfile in this directory. Run `pnpm install` to generate one.'))
+  let err!: PnpmError
+  try {
+    const output = await outdated.handler([], {
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+    }, 'outdated')
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_OUTDATED_NO_LOCKFILE')
+  t.end()
 })

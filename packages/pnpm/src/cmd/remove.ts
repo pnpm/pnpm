@@ -1,4 +1,5 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
@@ -8,10 +9,8 @@ import {
 } from 'supi'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
-import readImporterManifest from '../readImporterManifest'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 
 export function types () {
   return R.pick([

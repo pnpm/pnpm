@@ -1,11 +1,10 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
+import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
 import { mutateModules } from 'supi'
 import createStoreController from '../createStoreController'
-import { readImporterManifestOnly } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
-import { UNIVERSAL_OPTIONS } from './help'
 import { types } from './install'
 
 export { types }
