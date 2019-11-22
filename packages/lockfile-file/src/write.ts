@@ -10,7 +10,7 @@ import writeFileAtomicCB = require('write-file-atomic')
 import logger from './logger'
 
 function writeFileAtomic (filename: string, data: string) {
-  return new Promise((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err: Error) => err ? reject(err) : resolve()))
+  return new Promise((resolve, reject) => writeFileAtomicCB(filename, data, {}, (err?: Error) => err ? reject(err) : resolve()))
 }
 
 const LOCKFILE_YAML_FORMAT = {

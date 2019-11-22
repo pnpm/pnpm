@@ -53,7 +53,7 @@ export async function handler (
     },
     async () => {
       const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
-      _status = status
+      _status = status!
     },
   )
   if (_status !== 0) {

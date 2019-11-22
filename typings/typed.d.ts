@@ -11,27 +11,9 @@ declare module 'cli-columns' {
   export = cliColumns;
 }
 
-// TODO: Has @types declaration
-declare module 'is-ci' {
-  const isCI: boolean;
-  export = isCI;
-}
-
-// TODO: Has @types declaration
-declare module 'is-windows' {
-  function isWindows(): boolean;
-  export = isWindows;
-}
-
 declare module 'normalize-registry-url' {
   function normalizeRegistryUrl (registry: string): string
   export = normalizeRegistryUrl;
-}
-
-// TODO: Has @types declaration
-declare module 'pretty-time' {
-  function prettyTime (time: [number, number]): string;
-  export = prettyTime;
 }
 
 declare module 'read-ini-file' {

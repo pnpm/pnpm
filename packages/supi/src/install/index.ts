@@ -299,7 +299,7 @@ export async function mutateModules (
         case 'unlink': {
           const packageDirs = await readModulesDirs(importer.modulesDir)
           const externalPackages = await pFilter(
-            packageDirs,
+            packageDirs!,
             (packageDir: string) => isExternalLink(ctx.storeDir, importer.modulesDir, packageDir),
           )
           const allDeps = getAllDependenciesFromPackage(importer.manifest)

@@ -281,7 +281,7 @@ async function safeCheckStream (stream: any, integrity: string, url: string): Pr
 
 function waitTillClosed (
   opts: {
-    stream: NodeJS.ReadableStream,
+    stream: NodeJS.EventEmitter,
     size: null | number,
     getDownloaded: () => number,
     url: string,
