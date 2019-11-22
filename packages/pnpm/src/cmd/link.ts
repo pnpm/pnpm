@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import { StoreController } from '@pnpm/package-store'
 import pLimit from 'p-limit'
@@ -21,7 +22,7 @@ import readImporterManifest, {
   tryReadImporterManifest,
 } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
-import { docsUrl, UNIVERSAL_OPTIONS } from './help'
+import { UNIVERSAL_OPTIONS } from './help'
 
 const installLimit = pLimit(4)
 

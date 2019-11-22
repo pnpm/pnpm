@@ -1,4 +1,4 @@
-import { types as allTypes } from '@pnpm/config'
+import { docsUrl } from '@pnpm/cli-utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
@@ -10,7 +10,6 @@ import renderHelp = require('render-help')
 import { install } from 'supi'
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
-import { docsUrl } from './help'
 
 export function types () {
   return {}

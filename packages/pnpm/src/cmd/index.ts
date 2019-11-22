@@ -1,6 +1,6 @@
+import { audit } from '@pnpm/plugin-commands-audit'
 import { PnpmOptions } from '../types'
 import * as add from './add'
-import * as audit from './audit'
 import createHelp from './help'
 import * as importCmd from './import'
 import * as install from './install'

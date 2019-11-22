@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
@@ -7,7 +8,7 @@ import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { readImporterManifestOnly } from '../readImporterManifest'
-import { docsUrl, FILTERING } from './help'
+import { FILTERING } from './help'
 
 export function types () {
   return R.pick([

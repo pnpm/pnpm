@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
@@ -12,7 +13,6 @@ import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
 import readImporterManifest from '../readImporterManifest'
 import { PnpmOptions } from '../types'
-import { docsUrl } from './help'
 import runNpm from './runNpm'
 
 export function types () {

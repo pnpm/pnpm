@@ -1,3 +1,4 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
@@ -34,7 +35,7 @@ import parsePackageSelector, { PackageSelector } from '../../parsePackageSelecto
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
-import { docsUrl, FILTERING } from '../help'
+import { FILTERING } from '../help'
 import { getCommandFullName } from '../index'
 import exec from './exec'
 import { filterGraph } from './filter'

@@ -82,6 +82,18 @@ importers:
       ramda: 0.26.1
       rimraf: 3.0.0
       run-groups: 2.0.1
+  packages/cli-utils:
+    dependencies:
+      chalk: 3.0.0
+    devDependencies:
+      '@pnpm/cli-utils': 'link:'
+      rimraf: 3.0.0
+      tape: 4.11.0
+    specifiers:
+      '@pnpm/cli-utils': 'link:'
+      chalk: 3.0.0
+      rimraf: 3.0.0
+      tape: 4.11.0
   packages/config:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1152,9 +1164,47 @@ importers:
       ramda: ^0.26.1
       semver: 6.3.0
       tape: 4.11.0
-  packages/pnpm:
+  packages/plugin-commands-audit:
     dependencies:
       '@pnpm/audit': 'link:../audit'
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      chalk: 3.0.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      table: 5.4.6
+    devDependencies:
+      '@pnpm/plugin-commands-audit': 'link:'
+      '@pnpm/types': 'link:../types'
+      '@types/ramda': 0.26.36
+      '@types/table': 4.0.7
+      rimraf: 3.0.0
+      strip-ansi: 6.0.0
+      tape: 4.11.0
+    specifiers:
+      '@pnpm/audit': 'workspace:1.0.0'
+      '@pnpm/cli-utils': 'workspace:0.0.0'
+      '@pnpm/config': 'workspace:5.0.2'
+      '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/lockfile-file': 'workspace:3.0.1'
+      '@pnpm/plugin-commands-audit': 'link:'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@types/ramda': ^0.26.34
+      '@types/table': ^4.0.7
+      chalk: 3.0.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      rimraf: 3.0.0
+      strip-ansi: 6.0.0
+      table: 5.4.6
+      tape: 4.11.0
+  packages/pnpm:
+    dependencies:
+      '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1171,6 +1221,7 @@ importers:
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-store': 'link:../package-store'
+      '@pnpm/plugin-commands-audit': 'link:../plugin-commands-audit'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/server': 'link:../server'
@@ -1271,7 +1322,7 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
-      '@pnpm/audit': 'workspace:1.0.0'
+      '@pnpm/cli-utils': 'workspace:0.0.0'
       '@pnpm/config': 'workspace:5.0.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1290,6 +1341,7 @@ importers:
       '@pnpm/outdated': 'workspace:6.0.2'
       '@pnpm/package-is-installable': 'workspace:4.0.0'
       '@pnpm/package-store': 'workspace:6.0.1'
+      '@pnpm/plugin-commands-audit': 'workspace:0.0.0'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
       '@pnpm/read-package-json': 'workspace:*'
@@ -2632,6 +2684,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-5x+oE6PzERYl4IPqjj8DwvlLAz2DiQGv0KMuWM3a1byqQ8k8ebmGWw5TAtpVtDwdQEhs1KVdCtOaLy0iwuqwdQ==
+  /@types/ramda/0.26.36:
+    dependencies:
+      ts-toolbelt: 4.10.21
+    dev: true
+    resolution:
+      integrity: sha512-uo22Nf32Cc3EURp9tYlFttY8MVQZ1zoVum+D+yQ2jm4IqQFxDtwCQlP/WMwbuj4ey5kw1rJ7v6OacDszfWiqLA==
   /@types/resolve-from/4.0.0:
     dev: true
     resolution:
@@ -3243,7 +3301,6 @@ packages:
     resolution:
       integrity: sha512-1apePfXM1UOSqw0o9IiFAovVz9M5S1Dg+4TrDwfMewQ6p/rmMueb7tWZjQ1rx4Loy1ArBggoqGpfqqdI4rondg==
   /ansi-regex/5.0.0:
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -9677,7 +9734,6 @@ packages:
   /strip-ansi/6.0.0:
     dependencies:
       ansi-regex: 5.0.0
-    dev: false
     engines:
       node: '>=8'
     resolution:

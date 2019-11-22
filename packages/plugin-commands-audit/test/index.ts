@@ -1,18 +1,23 @@
+import { audit } from '@pnpm/plugin-commands-audit'
 import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import { execPnpmSync, pathToLocalPkg } from './utils'
+import stripAnsi = require('strip-ansi')
+import test = require('tape')
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('audit', (t) => {
-  process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
-
-  const { status, stdout } = execPnpmSync('audit')
-
-  t.equal(status, 0)
-  t.equal(stdout.toString(), `┌─────────────────────┬──────────────────────────────────┐
+test('audit', async (t) => {
+  const output = await audit.handler([], {
+    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }, 'audit')
+  t.equal(
+    stripAnsi(output),
+    `┌─────────────────────┬──────────────────────────────────┐
 │ moderate            │ Prototype Pollution              │
 ├─────────────────────┼──────────────────────────────────┤
 │ Package             │ hoek                             │
@@ -72,13 +77,22 @@ Severity: 2 low | 3 moderate`)
   t.end()
 })
 
-test('audit --dev', (t) => {
-  process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
+test('audit --dev', async (t) => {
+  const output = await audit.handler([], {
+    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    include: {
+      dependencies: false,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }, 'audit')
 
-  const { status, stdout } = execPnpmSync('audit', '--dev')
-
-  t.equal(status, 0)
-  t.equal(stdout.toString(), `┌─────────────────────┬──────────────────────────────────┐
+  t.equal(
+    stripAnsi(output),
+    `┌─────────────────────┬──────────────────────────────────┐
 │ moderate            │ Denial of Service                │
 ├─────────────────────┼──────────────────────────────────┤
 │ Package             │ axios                            │
@@ -94,13 +108,23 @@ Severity: 1 moderate`)
   t.end()
 })
 
-test('audit --audit-level', (t) => {
-  process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
+test('audit --audit-level', async (t) => {
+  const output = await audit.handler([], {
+    auditLevel: 'moderate',
+    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }, 'audit')
 
-  const { status, stdout } = execPnpmSync('audit', '--audit-level=moderate')
-
-  t.equal(status, 0)
-  t.equal(stdout.toString(), `┌─────────────────────┬──────────────────────────────────┐
+  t.equal(
+    stripAnsi(output),
+    `┌─────────────────────┬──────────────────────────────────┐
 │ moderate            │ Prototype Pollution              │
 ├─────────────────────┼──────────────────────────────────┤
 │ Package             │ hoek                             │
@@ -138,23 +162,38 @@ Severity: 2 low | 3 moderate`)
   t.end()
 })
 
-test('audit: no vulnerabilities', (t) => {
-  process.chdir(pathToLocalPkg('has-outdated-deps'))
+test('audit: no vulnerabilities', async (t) => {
+  const output = await audit.handler([], {
+    dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }, 'audit')
 
-  const { status, stdout } = execPnpmSync('audit', '--audit-level=moderate')
-
-  t.equal(status, 0)
-  t.equal(stdout.toString(), 'No known vulnerabilities found')
+  t.equal(stripAnsi(output), 'No known vulnerabilities found')
   t.end()
 })
 
-test('audit --json', (t) => {
-  process.chdir(path.join(__dirname, 'packages/has-vulnerabilities'))
+test('audit --json', async (t) => {
+  const output = await audit.handler([], {
+    dir: path.join(__dirname, 'packages/has-vulnerabilities'),
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    json: true,
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }, 'audit')
 
-  const { status, stdout } = execPnpmSync('audit', '--json')
-
-  t.equal(status, 0)
-  const json = JSON.parse(stdout.toString())
+  const json = JSON.parse(output)
   t.ok(json.metadata)
   t.end()
 })

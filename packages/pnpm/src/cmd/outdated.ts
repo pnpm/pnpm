@@ -1,3 +1,4 @@
+import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import {
@@ -21,8 +22,7 @@ import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
 import createLatestManifestGetter from '../createLatestManifestGetter'
 import { readImporterManifestOnly } from '../readImporterManifest'
-import { TABLE_OPTIONS } from '../style'
-import { docsUrl, FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 
 export function types () {
   return R.pick([

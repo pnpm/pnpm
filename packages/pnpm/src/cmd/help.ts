@@ -9,8 +9,6 @@ export default function (helpByCommandName: Record<string, () => string>) {
   }
 }
 
-export const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
-
 export const OPTIONS = {
   globalDir: {
     description: 'Specify a custom directory to store global packages',

@@ -1,5 +1,7 @@
 import { IncludedDependencies, Registries } from '@pnpm/types'
 
+export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
+
 export interface Config {
   allowNew: boolean,
   auditLevel?: 'low' | 'moderate' | 'high' | 'critical',

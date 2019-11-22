@@ -1,6 +1,6 @@
+import { docsUrl } from '@pnpm/cli-utils'
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
-import { docsUrl } from './help'
 import { handler as install, types } from './install'
 import { handler as test } from './test'
 
