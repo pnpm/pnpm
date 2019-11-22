@@ -1,8 +1,8 @@
 import { docsUrl } from '@pnpm/cli-utils'
+import { test } from '@pnpm/plugin-commands-script-runners'
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
 import { handler as install, types } from './install'
-import { handler as test } from './test'
 
 export { types }
 
@@ -19,5 +19,5 @@ export function help () {
 
 export async function handler (input: string[], opts: PnpmOptions) {
   await install(input, opts)
-  await test(input, opts)
+  await test.handler(input, opts)
 }
