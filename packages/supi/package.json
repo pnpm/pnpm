@@ -87,7 +87,7 @@
     "@pnpm/store-path": "2.1.1",
     "@types/common-tags": "1.8.0",
     "@types/fs-extra": "^8.0.1",
-    "@types/is-windows": "0.2.0",
+    "@types/is-windows": "1.0.0",
     "@types/mkdirp": "0.5.2",
     "@types/mz": "0.0.32",
     "@types/ramda": "0.26.34",
