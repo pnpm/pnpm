@@ -8,39 +8,18 @@ import storePath from '@pnpm/store-path'
 import delay from 'delay'
 import fs = require('mz/fs')
 import path = require('path')
-import createNewStoreController from './createNewStoreController'
+import createNewStoreController, { CreateNewStoreControllerOptions } from './createNewStoreController'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
 
 export { createNewStoreController, serverConnectionInfoDir }
 
-export type CreateStoreControllerOptions = Pick<Config,
-  'alwaysAuth' |
-  'registry' |
-  'rawConfig' |
-  'strictSsl' |
-  'proxy' |
-  'httpsProxy' |
-  'localAddress' |
-  'cert' |
-  'key' |
-  'ca' |
-  'fetchRetries' |
-  'fetchRetryFactor' |
-  'fetchRetryMintimeout' |
-  'fetchRetryMaxtimeout' |
-  'userAgent' |
-  'offline' |
-  'lock' |
-  'lockStaleDuration' |
-  'networkConcurrency' |
+export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions, 'storeDir'> & Pick<Config,
   'storeDir' |
   'dir' |
   'useRunningStoreServer' |
   'useStoreServer'
-> & {
-  ignoreFile?: (filename: string) => boolean,
-}
+>
 
 export async function createOrConnectStoreControllerCached (
   storeControllerCache: Map<string, Promise<{ctrl: StoreController, dir: string}>>,
