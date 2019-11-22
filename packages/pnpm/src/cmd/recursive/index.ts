@@ -4,6 +4,7 @@ import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import { oneLine } from 'common-tags'
@@ -27,7 +28,6 @@ import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
-import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getPinnedVersion from '../../getPinnedVersion'
 import getSaveType from '../../getSaveType'
@@ -301,7 +301,7 @@ export async function recursive (
       return true
   }
 
-  const store = await createStoreController(opts)
+  const store = await createOrConnectStoreController(opts)
 
   // It is enough to save the store.json file once,
   // once all installations are done.

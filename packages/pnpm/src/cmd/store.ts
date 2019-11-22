@@ -2,6 +2,7 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import logger, { globalInfo } from '@pnpm/logger'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
@@ -14,7 +15,6 @@ import {
   storeStatus,
   storeUsages
 } from 'supi'
-import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
 
 export function types () {
@@ -80,14 +80,14 @@ export async function handler (input: string[], opts: PnpmOptions) {
     case 'status':
       return statusCmd(opts)
     case 'prune':
-      store = await createStoreController(opts)
+      store = await createOrConnectStoreController(opts)
       const storePruneOptions = Object.assign(opts, {
         storeController: store.ctrl,
         storeDir: store.dir,
       })
       return storePrune(storePruneOptions)
     case 'add':
-      store = await createStoreController(opts)
+      store = await createOrConnectStoreController(opts)
       return storeAdd(input.slice(1), {
         prefix: opts.dir,
         registries: opts.registries,
@@ -96,7 +96,7 @@ export async function handler (input: string[], opts: PnpmOptions) {
         tag: opts.tag,
       })
     case 'usages':
-      store = await createStoreController(opts)
+      store = await createOrConnectStoreController(opts)
       const packageSelectors = input.slice(1)
       const packageUsagesBySelectors = await storeUsages(packageSelectors, {
         reporter: opts.reporter,

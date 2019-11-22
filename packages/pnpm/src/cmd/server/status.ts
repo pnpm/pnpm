@@ -1,9 +1,8 @@
 import { globalInfo } from '@pnpm/logger'
+import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
 import { stripIndents } from 'common-tags'
 import path = require('path')
-import { tryLoadServerJson } from '../../createStoreController'
-import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 import { PnpmOptions } from '../../types'
 
 export default async (

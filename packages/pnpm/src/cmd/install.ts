@@ -3,6 +3,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
+import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -11,7 +12,6 @@ import {
   mutateModules,
   rebuild,
 } from 'supi'
-import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getPinnedVersion from '../getPinnedVersion'
 import getSaveType from '../getSaveType'
@@ -270,7 +270,7 @@ export async function handler (
   if (!opts.ignorePnpmfile) {
     opts.hooks = requireHooks(opts.lockfileDir || dir, opts)
   }
-  const store = await createStoreController(opts)
+  const store = await createOrConnectStoreController(opts)
   const installOpts = {
     ...opts,
     // In case installation is done in a multi-package repository
