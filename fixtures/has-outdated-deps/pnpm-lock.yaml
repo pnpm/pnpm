@@ -1,21 +1,28 @@
 dependencies:
-  deprecated: 1.0.0
-  is-negative: 1.1.0
+  deprecated: 0.0.2
+  is-negative: 2.1.0
   is-positive: 3.1.0
-lockfileVersion: 5
+lockfileVersion: 5.1
 packages:
-  /deprecated/1.0.0:
-    deprecated: This package is deprecated
+  /deprecated/0.0.2:
     dev: false
+    engines:
+      node: '>= 0.9'
     resolution:
-      integrity: sha512-IXOehroEnYcbv/C4Kam/SWp7doHhGuRU5PHwxkOsjPjMy+lZSICgMasAK74AkrulthvBxVvZqdDvjK63RfOY+w==
-  /is-negative/1.1.0:
+      integrity: sha1-vJ3Pm86RdPz5CQzxKVExxDnGgv0=
+  /is-negative/2.1.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
     resolution:
       integrity: sha1-8Nhjd6oVpkw0lh84rCqb4rQKEYc=
   /is-positive/3.1.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
     resolution:
       integrity: sha1-hX21hKG6XRyymAUn/DtsQ103sP0=
 specifiers:
-  deprecated: 1.0.0
-  is-negative: ^1.1.0
+  deprecated: 0.0.2
+  is-negative: ^2.1.0
   is-positive: ^3.1.0
