@@ -63,6 +63,7 @@
     "ts-node"
   ],
   "ignorePaths": [
+    "fixtures",
     "test/",
     "packages/dependencies-hierarchy/fixtures",
     "packages/dependencies-hierarchy/fixtureWithLinks",
