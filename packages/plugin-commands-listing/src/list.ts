@@ -93,9 +93,9 @@ export function help () {
   })
 }
 
-export async function handler (
+export function handler (
   args: string[],
-  opts: Config & {
+  opts: Pick<Config, 'dir' | 'include'> & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     lockfileDir?: string,
@@ -104,18 +104,16 @@ export async function handler (
   },
   command: string,
 ) {
-  const output = await render([opts.dir], args, {
+  return render([opts.dir], args, {
     ...opts,
     lockfileDir: opts.lockfileDir || opts.dir,
   }, command)
-
-  if (output) console.log(output)
 }
 
 export async function render (
   prefixes: string[],
   args: string[],
-  opts: Config & {
+  opts: Pick<Config, 'include'> & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     lockfileDir: string,

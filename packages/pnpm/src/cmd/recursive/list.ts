@@ -1,7 +1,7 @@
 import { Config } from '@pnpm/config'
 import logger from '@pnpm/logger'
+import { list } from '@pnpm/plugin-commands-listing'
 import { ImporterManifest } from '@pnpm/types'
-import { render as renderList } from '../list'
 
 export default async (
   pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
@@ -15,7 +15,7 @@ export default async (
   },
 ) => {
   if (opts.lockfileDir) {
-    console.log(await renderList(pkgs.map((pkg) => pkg.dir), args, {
+    console.log(await list.render(pkgs.map((pkg) => pkg.dir), args, {
       ...opts,
       alwaysPrintRootPackage: opts.depth === -1,
       lockfileDir: opts.lockfileDir,
@@ -25,7 +25,7 @@ export default async (
   const outputs = []
   for (const { dir } of pkgs) {
     try {
-      const output = await renderList([dir], args, {
+      const output = await list.render([dir], args, {
         ...opts,
         alwaysPrintRootPackage: opts.depth === -1,
         lockfileDir: opts.lockfileDir || dir,
