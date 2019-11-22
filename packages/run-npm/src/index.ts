@@ -2,7 +2,15 @@ import spawn = require('cross-spawn')
 import path = require('path')
 import PATH = require('path-name')
 
-export function sync (
+export default function runNpm (args: string[]) {
+  return runScriptSync('npm', args, {
+    cwd: process.cwd(),
+    stdio: 'inherit',
+    userAgent: undefined,
+  })
+}
+
+export function runScriptSync (
   command: string,
   args: string[],
   opts: {

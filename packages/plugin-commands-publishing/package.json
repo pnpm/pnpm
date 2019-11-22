@@ -1,0 +1,62 @@
+{
+  "name": "@pnpm/plugin-commands-publishing",
+  "version": "0.0.0",
+  "description": "The pack and publish commands of pnpm",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "tsc": "rimraf lib && tsc",
+    "registry-mock": "registry-mock",
+    "test:tap": "ts-node test --type-check",
+    "pretest:e2e": "registry-mock prepare",
+    "test:e2e": "run-p -r registry-mock test:tap",
+    "test": "pnpm run tsc && pnpm run lint && cross-env PNPM_REGISTRY_MOCK_PORT=7775 pnpm run test:e2e",
+    "prepublishOnly": "pnpm run tsc"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing",
+  "keywords": [
+    "pnpm",
+    "pack",
+    "publish"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://pnpm.js.org",
+  "devDependencies": {
+    "@pnpm/plugin-commands-publishing": "link:",
+    "@pnpm/prepare": "workspace:0.0.0",
+    "@types/cross-spawn": "^6.0.1",
+    "@types/mz": "^2.7.0",
+    "@types/ramda": "^0.26.36",
+    "cross-spawn": "7.0.1",
+    "path-exists": "4.0.0",
+    "rimraf": "3.0.0",
+    "tape": "4.11.0",
+    "write-yaml-file": "3.0.1"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:0.0.0",
+    "@pnpm/config": "workspace:5.0.2",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/read-importer-manifest": "workspace:2.0.0",
+    "@pnpm/run-npm": "workspace:0.0.0",
+    "@pnpm/types": "workspace:4.0.0",
+    "@zkochan/rimraf": "1.0.0",
+    "cp-file": "7.0.0",
+    "fast-glob": "3.1.0",
+    "mz": "2.7.0",
+    "ramda": "0.26.1",
+    "render-help": "0.0.0",
+    "write-json-file": "4.2.1"
+  }
+}

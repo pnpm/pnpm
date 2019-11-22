@@ -41,7 +41,9 @@
     "@pnpm/package-store": "workspace:6.0.1",
     "@pnpm/plugin-commands-audit": "workspace:0.0.0",
     "@pnpm/plugin-commands-outdated": "workspace:0.0.0",
+    "@pnpm/plugin-commands-publishing": "workspace:0.0.0",
     "@pnpm/read-importer-manifest": "workspace:2.0.0",
+    "@pnpm/run-npm": "workspace:0.0.0",
     "@pnpm/semver-diff": "1.0.2",
     "@pnpm/server": "workspace:5.0.0",
     "@pnpm/store-controller-types": "workspace:5.0.0",
@@ -59,13 +61,11 @@
     "camelcase-keys": "6.1.1",
     "chalk": "3.0.0",
     "common-tags": "1.8.0",
-    "cp-file": "7.0.0",
     "cross-spawn": "7.0.1",
     "delay": "4.3.0",
     "diable": "4.0.2",
     "dir-is-case-sensitive": "1.0.2",
     "execa": "3.3.0",
-    "fast-glob": "3.1.0",
     "find-packages": "workspace:7.0.0",
     "get-port": "5.0.0",
     "graceful-fs": "4.2.1",
@@ -97,8 +97,7 @@
     "tree-kill": "1.2.1",
     "update-notifier": "3.0.1",
     "version-selector-type": "2.0.1",
-    "wrap-ansi": "6.2.0",
-    "write-json-file": "4.0.0"
+    "wrap-ansi": "6.2.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",
@@ -138,6 +137,7 @@
     "symlink-dir": "3.1.1",
     "tape": "4.11.0",
     "tape-promise": "4.0.0",
+    "write-json-file": "4.0.0",
     "write-pkg": "4.0.0",
     "write-yaml-file": "3.0.1"
   },
