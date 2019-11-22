@@ -1,10 +1,10 @@
+import { packageManager } from '@pnpm/cli-utils'
 import chalk = require('chalk')
 import { stripIndents } from 'common-tags'
 import updateNotifier = require('update-notifier')
-import pkg from './pnpmPkgJson'
 
 export default function () {
-  const notifier = updateNotifier({ pkg })
+  const notifier = updateNotifier({ pkg: packageManager })
   const update = notifier.update
 
   if (!update) {

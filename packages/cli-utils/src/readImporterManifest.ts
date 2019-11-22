@@ -1,8 +1,8 @@
 import _readImporterManifest, * as utils from '@pnpm/read-importer-manifest'
 import { ImporterManifest } from '@pnpm/types'
-import packageIsInstallable from './packageIsInstallable'
+import { packageIsInstallable } from './packageIsInstallable'
 
-export default async function readImporterManifest (
+export async function readImporterManifest (
   importerDir: string,
   opts: { engineStrict?: boolean },
 ): Promise<{

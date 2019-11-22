@@ -1,5 +1,5 @@
+import { packageManager } from '@pnpm/cli-utils'
 import getConfig from '@pnpm/config'
-import packageManager from './pnpmPkgJson'
 
 export default async function (
   cliArgs: object,

@@ -1,10 +1,9 @@
+import { packageIsInstallable } from '@pnpm/cli-utils'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
 import { DependencyManifest, ImporterManifest } from '@pnpm/types'
 import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
-import { LocalPackages } from 'supi'
-import packageIsInstallable from './packageIsInstallable'
 
 interface WorkspaceDependencyPackage {
   dir: string

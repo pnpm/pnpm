@@ -2,7 +2,7 @@ import logger from '@pnpm/logger'
 import { checkPackage, UnsupportedEngineError, WantedEngine } from '@pnpm/package-is-installable'
 import packageManager from './pnpmPkgJson'
 
-export default function packageIsInstallable (
+export function packageIsInstallable (
   pkgPath: string,
   pkg: {
     engines?: WantedEngine,

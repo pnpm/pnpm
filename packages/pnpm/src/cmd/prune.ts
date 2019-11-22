@@ -1,12 +1,11 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
+import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { InstallOptions, mutateModules } from 'supi'
 import createStoreController from '../createStoreController'
-import { readImporterManifestOnly } from '../readImporterManifest'
 import { PnpmOptions } from '../types'
-import { UNIVERSAL_OPTIONS } from './help'
 
 export function types () {
   return R.pick([

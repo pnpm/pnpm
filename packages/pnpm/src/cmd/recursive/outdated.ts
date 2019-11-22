@@ -1,11 +1,6 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
-import { DependenciesField, ImporterManifest } from '@pnpm/types'
-import chalk = require('chalk')
-import { stripIndent } from 'common-tags'
-import R = require('ramda')
-import { table } from 'table'
 import {
   DEFAULT_COMPARATORS,
   getCellWidth,
@@ -16,7 +11,12 @@ import {
   renderLatest,
   renderPackageName,
   toOutdatedWithVersionDiff,
-} from '../outdated'
+} from '@pnpm/plugin-commands-outdated/lib/outdated'
+import { DependenciesField, ImporterManifest } from '@pnpm/types'
+import chalk = require('chalk')
+import { stripIndent } from 'common-tags'
+import R = require('ramda')
+import { table } from 'table'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,

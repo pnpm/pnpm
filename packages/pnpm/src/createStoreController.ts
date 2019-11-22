@@ -1,3 +1,4 @@
+import { packageManager } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
@@ -8,7 +9,6 @@ import delay from 'delay'
 import fs = require('mz/fs')
 import path = require('path')
 import createStore from './createStore'
-import packageManager from './pnpmPkgJson'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
 

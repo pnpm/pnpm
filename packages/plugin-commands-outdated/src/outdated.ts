@@ -1,4 +1,5 @@
-import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { createLatestManifestGetter, docsUrl, readImporterManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import {
@@ -20,9 +21,6 @@ import renderHelp = require('render-help')
 import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
-import createLatestManifestGetter from '../createLatestManifestGetter'
-import { readImporterManifestOnly } from '../readImporterManifest'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 
 export function types () {
   return R.pick([
@@ -132,7 +130,7 @@ export async function handler (
   ]
   const { outdatedPackages } = (await outdatedDependenciesOfWorkspacePackages(packages, args, opts))[0]
 
-  if (!outdatedPackages.length) return
+  if (!outdatedPackages.length) return ''
 
   if (opts.table !== false) {
     return renderOutdatedTable(outdatedPackages, opts)

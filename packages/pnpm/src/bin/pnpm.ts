@@ -17,7 +17,7 @@ if (nonEscapedArgv.some((arg) => helpOptions.has(arg))) {
   switch (argv[0]) {
     case '-v':
     case '--version':
-      const pkg = (await import('../pnpmPkgJson')).default
+      const pkg = (await import('@pnpm/cli-utils')).packageManager
       console.log(pkg.version)
       break
     // commands that are passed through to npm:

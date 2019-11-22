@@ -13,6 +13,7 @@ gfs.gracefulify(fs)
 
 import loudRejection from 'loud-rejection'
 loudRejection()
+import { packageManager } from '@pnpm/cli-utils'
 import {
   Config,
   types as allTypes,
@@ -26,7 +27,6 @@ import pnpmCmds, { getCommandFullName, getTypes } from './cmd'
 import getConfig from './getConfig'
 import { scopeLogger } from './loggers'
 import './logging/fileLogger'
-import packageManager from './pnpmPkgJson'
 import initReporter, { ReporterType } from './reporter'
 
 const GLOBAL_OPTIONS = R.pick(['color', 'filter', 'help', 'dir', 'prefix'], allTypes)

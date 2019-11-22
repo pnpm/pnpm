@@ -1,4 +1,10 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import {
+  docsUrl,
+  readImporterManifest,
+  readImporterManifestOnly,
+  tryReadImporterManifest,
+} from '@pnpm/cli-utils'
+import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { StoreController } from '@pnpm/package-store'
 import pLimit from 'p-limit'
@@ -17,12 +23,7 @@ import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfig from '../getConfig'
 import getSaveType from '../getSaveType'
-import readImporterManifest, {
-  readImporterManifestOnly,
-  tryReadImporterManifest,
-} from '../readImporterManifest'
 import { PnpmOptions } from '../types'
-import { UNIVERSAL_OPTIONS } from './help'
 
 const installLimit = pLimit(4)
 

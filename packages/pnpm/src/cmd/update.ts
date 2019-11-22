@@ -1,10 +1,10 @@
 import { docsUrl } from '@pnpm/cli-utils'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 import { handler as installCmd } from './install'
 
 export function types () {

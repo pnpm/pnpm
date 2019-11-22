@@ -1,9 +1,9 @@
 import { docsUrl } from '@pnpm/cli-utils'
+import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { oneLine, stripIndent } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from './help'
 import { handler as list } from './list'
 
 export function types () {
