@@ -1,4 +1,5 @@
 import { audit } from '@pnpm/plugin-commands-audit'
+import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { PnpmOptions } from '../types'
@@ -8,7 +9,6 @@ import * as importCmd from './import'
 import * as install from './install'
 import * as installTest from './installTest'
 import * as link from './link'
-import * as list from './list'
 import * as prune from './prune'
 import * as rebuild from './rebuild'
 import * as recursive from './recursive'
@@ -23,7 +23,6 @@ import * as store from './store'
 import * as test from './test'
 import * as unlink from './unlink'
 import * as update from './update'
-import * as why from './why'
 
 export type Command = (
   args: string[],

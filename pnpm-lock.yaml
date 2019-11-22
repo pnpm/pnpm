@@ -1229,6 +1229,50 @@ importers:
       strip-ansi: 6.0.0
       table: 5.4.6
       tape: 4.11.0
+  packages/plugin-commands-listing:
+    dependencies:
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/list': 'link:../list'
+      common-tags: 1.8.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+    devDependencies:
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/plugin-commands-listing': 'link:'
+      '@pnpm/prepare': 'link:../../privatePackages/prepare'
+      '@types/common-tags': 1.8.0
+      '@types/mz': 0.0.32
+      '@types/ramda': 0.26.36
+      execa: 3.3.0
+      mz: 2.7.0
+      rimraf: 3.0.0
+      strip-ansi: 6.0.0
+      tape: 4.11.0
+      write-yaml-file: 3.0.1
+    specifiers:
+      '@pnpm/cli-utils': 'workspace:0.0.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.0.0'
+      '@pnpm/config': 'workspace:5.0.2'
+      '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/list': 'workspace:4.0.4'
+      '@pnpm/plugin-commands-listing': 'link:'
+      '@pnpm/prepare': 'workspace:0.0.0'
+      '@types/common-tags': 1.8.0
+      '@types/mz': 0.0.32
+      '@types/ramda': ^0.26.36
+      common-tags: 1.8.0
+      execa: 3.3.0
+      mz: 2.7.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      rimraf: 3.0.0
+      strip-ansi: 6.0.0
+      tape: 4.11.0
+      write-yaml-file: 3.0.1
   packages/plugin-commands-outdated:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1356,7 +1400,6 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'link:../lifecycle'
-      '@pnpm/list': 'link:../list'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'link:../matcher'
@@ -1364,6 +1407,7 @@ importers:
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/plugin-commands-audit': 'link:../plugin-commands-audit'
+      '@pnpm/plugin-commands-listing': 'link:../plugin-commands-listing'
       '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
@@ -1476,7 +1520,6 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/lifecycle': 'workspace:8.0.0'
-      '@pnpm/list': 'workspace:4.0.4'
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
@@ -1486,6 +1529,7 @@ importers:
       '@pnpm/package-is-installable': 'workspace:4.0.0'
       '@pnpm/package-store': 'workspace:6.0.1'
       '@pnpm/plugin-commands-audit': 'workspace:0.0.0'
+      '@pnpm/plugin-commands-listing': 'workspace:0.0.0'
       '@pnpm/plugin-commands-outdated': 'workspace:0.0.0'
       '@pnpm/plugin-commands-publishing': 'workspace:0.0.0'
       '@pnpm/prepare': 'workspace:*'
