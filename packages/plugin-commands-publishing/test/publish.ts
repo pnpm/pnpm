@@ -1,58 +1,58 @@
+import PnpmError from '@pnpm/error'
+import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import crossSpawn = require('cross-spawn')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
+import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm, execPnpmSync } from './utils'
-
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-const testFromNode10 = parseInt(process.version.split('.')[0].substr(1), 10) >= 10 ? test : promisifyTape(test['skip'])
 
 const CREDENTIALS = [
+  `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
   `--//localhost:${REGISTRY_MOCK_PORT}/:username=username`,
   `--//localhost:${REGISTRY_MOCK_PORT}/:_password=${Buffer.from('password').toString('base64')}`,
   `--//localhost:${REGISTRY_MOCK_PORT}/:email=foo@bar.net`,
 ]
 
-test('publish: package with package.json', async (t: tape.Test) => {
+test('publish: package with package.json', async (t) => {
   prepare(t, {
     name: 'test-publish-package.json',
     version: '0.0.0',
   })
 
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+  t.end()
 })
 
-test('publish: package with package.yaml', async (t: tape.Test) => {
+test('publish: package with package.yaml', async (t) => {
   prepare(t, {
     name: 'test-publish-package.yaml',
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
 
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
 
   t.ok(await exists('package.yaml'))
   t.notOk(await exists('package.json'))
+  t.end()
 })
 
-test('publish: package with package.json5', async (t: tape.Test) => {
+test('publish: package with package.json5', async (t) => {
   prepare(t, {
     name: 'test-publish-package.json5',
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })
 
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
 
   t.ok(await exists('package.json5'))
   t.notOk(await exists('package.json'))
+  t.end()
 })
 
-testFromNode10('publish: package with package.json5 running publish from different folder', async (t: tape.Test) => {
+test('publish: package with package.json5 running publish from different folder', async (t) => {
   prepare(t, {
     name: 'test-publish-package.json5',
     version: '0.0.1',
@@ -60,13 +60,14 @@ testFromNode10('publish: package with package.json5 running publish from differe
 
   process.chdir('..')
 
-  await execPnpm('publish', ...CREDENTIALS, 'project')
+  await publish.handler(['project'], { argv: { original: ['publish', ...CREDENTIALS, 'project'] } }, 'publish')
 
   t.ok(await exists('project/package.json5'))
   t.notOk(await exists('project/package.json'))
+  t.end()
 })
 
-test('pack packages with workspace LICENSE if no own LICENSE is present', async (t: tape.Test) => {
+test('pack packages with workspace LICENSE if no own LICENSE is present', async (t) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -82,19 +83,20 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
     },
   ], { manifestFormat: 'YAML' })
 
+  const workspaceDir = process.cwd()
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('LICENSE', 'workspace license', 'utf8')
   await fs.writeFile('project-2/LICENSE', 'project-2 license', 'utf8')
 
   process.chdir('project-1')
-  await execPnpm('pack')
+  await pack.handler([], { argv: { original: [] }, dir: process.cwd(), workspaceDir }, 'pack')
 
   process.chdir('../project-2')
-  await execPnpm('pack')
+  await pack.handler([], { argv: { original: [] }, dir: process.cwd(), workspaceDir }, 'pack')
 
   process.chdir('../target')
 
-  await execPnpm('add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz')
+  crossSpawn.sync('pnpm', ['add', '../project-1/project-1-1.0.0.tgz', '../project-2/project-2-1.0.0.tgz'])
 
   t.equal(await fs.readFile('node_modules/project-1/LICENSE', 'utf8'), 'workspace license')
   t.equal(await fs.readFile('node_modules/project-2/LICENSE', 'utf8'), 'project-2 license')
@@ -102,9 +104,10 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
   process.chdir('..')
   t.notOk(await exists('project-1/LICENSE'))
   t.ok(await exists('project-2/LICENSE'))
+  t.end()
 })
 
-testFromNode10('publish packages with workspace LICENSE if no own LICENSE is present', async (t: tape.Test) => {
+test('publish packages with workspace LICENSE if no own LICENSE is present', async (t) => {
   preparePackages(t, [
     {
       name: 'project-100',
@@ -120,19 +123,20 @@ testFromNode10('publish packages with workspace LICENSE if no own LICENSE is pre
     },
   ], { manifestFormat: 'YAML' })
 
+  const workspaceDir = process.cwd()
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('LICENSE', 'workspace license', 'utf8')
   await fs.writeFile('project-200/LICENSE', 'project-200 license', 'utf8')
 
   process.chdir('project-100')
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] }, workspaceDir }, 'publish')
 
   process.chdir('../project-200')
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] }, workspaceDir }, 'publish')
 
   process.chdir('../target')
 
-  await execPnpm('add', 'project-100', 'project-200', '--no-link-workspace-packages')
+  crossSpawn.sync('pnpm', ['add', 'project-100', 'project-200', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   t.equal(await fs.readFile('node_modules/project-100/LICENSE', 'utf8'), 'workspace license')
   t.equal(await fs.readFile('node_modules/project-200/LICENSE', 'utf8'), 'project-200 license')
@@ -140,9 +144,10 @@ testFromNode10('publish packages with workspace LICENSE if no own LICENSE is pre
   process.chdir('..')
   t.notOk(await exists('project-100/LICENSE'))
   t.ok(await exists('project-200/LICENSE'))
+  t.end()
 })
 
-test('publish: package with all possible fields in publishConfig', async (t: tape.Test) => {
+test('publish: package with all possible fields in publishConfig', async (t) => {
   preparePackages(t, [
     {
       name: 'test-publish-config',
@@ -176,7 +181,7 @@ test('publish: package with all possible fields in publishConfig', async (t: tap
 
   process.chdir('test-publish-config')
   await fs.writeFile('published-bin.js', `#!/usr/bin/env node`, 'utf8')
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
 
   const originalManifests = await import(path.resolve('package.json'))
   t.deepEqual(originalManifests, {
@@ -205,7 +210,7 @@ test('publish: package with all possible fields in publishConfig', async (t: tap
   })
 
   process.chdir('../test-publish-config-installation')
-  await execPnpm('add', 'test-publish-config')
+  crossSpawn.sync('pnpm', ['add', 'test-publish-config', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const publishedManifest = await import(path.resolve('node_modules/test-publish-config/package.json'))
   t.deepEqual(publishedManifest, {
@@ -239,9 +244,10 @@ test('publish: package with all possible fields in publishConfig', async (t: tap
     'umd:main': './published-umd.js',
     unpkg: './published-unpkg.js',
   })
+  t.end()
 })
 
-test['skip']('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async (t: tape.Test) => {
+test.skip('publish package that calls executable from the workspace .bin folder in prepublishOnly script', async (t) => {
   preparePackages(t, [
     {
       location: '.',
@@ -276,10 +282,11 @@ test['skip']('publish package that calls executable from the workspace .bin fold
     },
   ])
 
+  const workspaceDir = process.cwd()
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('test-publish-scripts')
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] }, workspaceDir }, 'publish')
 
   t.deepEqual(
     await import(path.resolve('output.json')),
@@ -295,7 +302,7 @@ test['skip']('publish package that calls executable from the workspace .bin fold
   )
 })
 
-testFromNode10('convert specs with workspace protocols to regular version ranges', async (t: tape.Test) => {
+test('convert specs with workspace protocols to regular version ranges', async (t) => {
   preparePackages(t, [
     {
       name: 'workspace-protocol-package',
@@ -337,24 +344,28 @@ testFromNode10('convert specs with workspace protocols to regular version ranges
 
   process.chdir('workspace-protocol-package')
 
-  const { status, stdout } = execPnpmSync('publish', ...CREDENTIALS)
-
-  t.equal(status, 1, 'publish fails if cannot resolve workspace:*')
+  let err!: PnpmError
+  try {
+    await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL', 'publish fails if cannot resolve workspace:*')
   t.ok(
-    stdout.toString().includes('Cannot resolve workspace protocol of dependency "is-negative"'),
+    err.message.includes('Cannot resolve workspace protocol of dependency "is-negative"'),
     'publish fails with the correct error message',
   )
 
   process.chdir('..')
 
-  await execPnpm('multi', 'install', '--store-dir', 'store')
+  crossSpawn.sync('pnpm', ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   process.chdir('workspace-protocol-package')
-  await execPnpm('publish', ...CREDENTIALS)
+  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
 
   process.chdir('../target')
 
-  await execPnpm('add', 'workspace-protocol-package', '--no-link-workspace-packages')
+  crossSpawn.sync('pnpm', ['add', '--store-dir=../store', 'workspace-protocol-package', '--no-link-workspace-packages', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   const publishedManifest = await import(path.resolve('node_modules/workspace-protocol-package/package.json'))
   t.deepEqual(publishedManifest.dependencies, {
@@ -366,4 +377,5 @@ testFromNode10('convert specs with workspace protocols to regular version ranges
   t.deepEqual(publishedManifest.optionalDependencies, {
     'lodash.deburr': '^4.1.0',
   })
+  t.end()
 })

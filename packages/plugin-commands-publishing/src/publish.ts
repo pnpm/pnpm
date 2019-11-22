@@ -2,6 +2,7 @@ import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
+import runNpm from '@pnpm/run-npm'
 import { Dependencies, ImporterManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
@@ -11,8 +12,6 @@ import path = require('path')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
-import { PnpmOptions } from '../types'
-import runNpm from './runNpm'
 
 export function types () {
   return R.pick([
@@ -34,7 +33,13 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: PnpmOptions,
+  opts: {
+    argv: {
+      original: string[],
+    },
+    engineStrict?: boolean,
+    workspaceDir?: string,
+  },
   command: string,
 ) {
   if (args.length && args[0].endsWith('.tgz')) {

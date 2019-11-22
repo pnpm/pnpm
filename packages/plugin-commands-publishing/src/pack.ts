@@ -1,7 +1,7 @@
+import { UniversalOptions } from '@pnpm/config'
+import runNpm from '@pnpm/run-npm'
 import renderHelp = require('render-help')
-import { PnpmOptions } from '../types'
 import { fakeRegularManifest } from './publish'
-import runNpm from './runNpm'
 
 export function types () {
   return {}
@@ -18,7 +18,13 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: PnpmOptions,
+  opts: Pick<UniversalOptions, 'dir'> & {
+    argv: {
+      original: string[],
+    },
+    engineStrict?: boolean,
+    workspaceDir?: string,
+  },
   command: string,
 ) {
   let _status!: number

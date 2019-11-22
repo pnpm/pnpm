@@ -75,7 +75,7 @@ async function runPnpm () {
 }
 
 async function passThruToNpm () {
-  const runNpm = (await import('../cmd/runNpm')).default
+  const runNpm = (await import('@pnpm/run-npm')).default
   const { status } = runNpm(argv)
   process.exit(status!)
 }
