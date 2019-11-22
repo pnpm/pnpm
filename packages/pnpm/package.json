@@ -41,6 +41,7 @@
     "@pnpm/plugin-commands-listing": "workspace:0.0.0",
     "@pnpm/plugin-commands-outdated": "workspace:0.0.0",
     "@pnpm/plugin-commands-publishing": "workspace:0.0.0",
+    "@pnpm/plugin-commands-script-runners": "workspace:0.0.0",
     "@pnpm/read-importer-manifest": "workspace:2.0.0",
     "@pnpm/run-npm": "workspace:0.0.0",
     "@pnpm/semver-diff": "1.0.2",

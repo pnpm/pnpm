@@ -55,8 +55,7 @@ export async function handler (
   const manifest = await readImporterManifestOnly(dir, opts)
   const scriptName = args[0]
   if (!scriptName) {
-    printProjectCommands(manifest)
-    return
+    return printProjectCommands(manifest)
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
@@ -77,6 +76,7 @@ export async function handler (
   if (manifest.scripts?.[`post${scriptName}`]) {
     await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
   }
+  return undefined
 }
 
 const ALL_LIFECYCLE_SCRIPTS = new Set([
@@ -126,8 +126,7 @@ function printProjectCommands (manifest: ImporterManifest) {
   }
 
   if (lifecycleScripts.length === 0 && otherScripts.length === 0) {
-    console.log(`There are no scripts specified.`)
-    return
+    return `There are no scripts specified.`
   }
 
   let output = ''
@@ -138,7 +137,7 @@ function printProjectCommands (manifest: ImporterManifest) {
     if (output !== '') output += '\n\n'
     output += `Commands available via "pnpm run":\n${renderCommands(otherScripts)}`
   }
-  console.log(output)
+  return output
 }
 
 function renderCommands (commands: string[][]) {

@@ -22,11 +22,6 @@ export async function handler (
     extraBinPaths: string[],
     dir: string,
     rawConfig: object,
-    argv: {
-      cooked: string[],
-      original: string[],
-      remain: string[],
-    },
   },
 ) {
   return run(['stop', ...args], opts)

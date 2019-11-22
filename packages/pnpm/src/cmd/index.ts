@@ -3,6 +3,13 @@ import { importCommand } from '@pnpm/plugin-commands-import'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import {
+  restart,
+  run,
+  start,
+  stop,
+  test,
+} from '@pnpm/plugin-commands-script-runners'
 import { PnpmOptions } from '../types'
 import * as add from './add'
 import createHelp from './help'
@@ -13,14 +20,9 @@ import * as prune from './prune'
 import * as rebuild from './rebuild'
 import * as recursive from './recursive'
 import * as remove from './remove'
-import * as restart from './restart'
 import * as root from './root'
-import * as run from './run'
 import * as server from './server'
-import * as start from './start'
-import * as stop from './stop'
 import * as store from './store'
-import * as test from './test'
 import * as unlink from './unlink'
 import * as update from './update'
 
