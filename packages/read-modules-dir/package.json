@@ -30,7 +30,7 @@
     "mz": "2.7.0"
   },
   "devDependencies": {
-    "@types/mz": "0.0.32",
+    "@types/mz": "2.7.0",
     "rimraf": "3.0.0"
   }
 }

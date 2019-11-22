@@ -28,7 +28,7 @@
     "@pnpm/read-importers-context": "workspace:*",
     "@pnpm/store-path": "2.1.1",
     "@types/fs-extra": "^8.0.1",
-    "@types/mz": "0.0.32",
+    "@types/mz": "2.7.0",
     "@types/ramda": "0.26.34",
     "@types/rimraf": "^2.0.3",
     "@types/sinon": "^7.5.1",
