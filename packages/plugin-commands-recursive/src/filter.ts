@@ -2,7 +2,7 @@ import matcher from '@pnpm/matcher'
 import isSubdir = require('is-subdir')
 import { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
-import { PackageSelector } from '../../parsePackageSelectors'
+import { PackageSelector } from './parsePackageSelectors'
 
 interface PackageGraph<T> {
   [id: string]: PackageNode<T>,

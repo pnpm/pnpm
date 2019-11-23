@@ -1,10 +1,10 @@
 import { docsUrl } from '@pnpm/cli-utils'
+import { install } from '@pnpm/plugin-commands-installation'
 import { test } from '@pnpm/plugin-commands-script-runners'
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
-import { handler as install, types } from './install'
 
-export { types }
+export const types = install.types
 
 export const commandNames = ['install-test', 'it']
 
@@ -18,6 +18,6 @@ export function help () {
 }
 
 export async function handler (input: string[], opts: PnpmOptions) {
-  await install(input, opts)
+  await install.handler(input, opts)
   await test.handler(input, opts)
 }

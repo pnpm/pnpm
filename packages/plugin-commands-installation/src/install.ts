@@ -1,9 +1,20 @@
-import { docsUrl, readImporterManifestOnly, tryReadImporterManifest } from '@pnpm/cli-utils'
+import {
+  createLatestSpecs,
+  docsUrl,
+  getPinnedVersion,
+  getSaveType,
+  readImporterManifestOnly,
+  tryReadImporterManifest,
+  updateToLatestSpecsFromManifest,
+} from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
+import { recursive } from '@pnpm/plugin-commands-recursive/lib/recursive'
+import { requireHooks } from '@pnpm/pnpmfile'
+import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -12,13 +23,6 @@ import {
   mutateModules,
   rebuild,
 } from 'supi'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
-import getPinnedVersion from '../getPinnedVersion'
-import getSaveType from '../getSaveType'
-import requireHooks from '../requireHooks'
-import { PnpmOptions } from '../types'
-import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../updateToLatestSpecsFromManifest'
-import { recursive } from './recursive'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -247,13 +251,39 @@ export function help () {
   })
 }
 
+export type InstallCommandOptions = Pick<Config,
+  'bail' |
+  'bin' |
+  'engineStrict' |
+  'globalPnpmfile' |
+  'ignorePnpmfile' |
+  'ignoreScripts' |
+  'include' |
+  'latest' |
+  'linkWorkspacePackages' |
+  'lockfileDir' |
+  'pending' |
+  'pnpmfile' |
+  'rawLocalConfig' |
+  'save' |
+  'saveDev' |
+  'saveExact' |
+  'saveOptional' |
+  'savePeer' |
+  'savePrefix' |
+  'saveProd' |
+  'sort' |
+  'workspaceConcurrency' |
+  'workspaceDir'
+> & CreateStoreControllerOptions & {
+  allowNew?: boolean,
+  update?: boolean,
+  useBetaCli?: boolean,
+}
+
 export async function handler (
   input: string[],
-  opts: PnpmOptions & {
-    allowNew?: boolean,
-    update?: boolean,
-    useBetaCli?: boolean,
-  },
+  opts: InstallCommandOptions,
   invocation?: string,
 ) {
   // `pnpm install ""` is going to be just `pnpm install`
@@ -267,9 +297,6 @@ export async function handler (
     )
     : undefined
 
-  if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(opts.lockfileDir || dir, opts)
-  }
   const store = await createOrConnectStoreController(opts)
   const installOpts = {
     ...opts,
@@ -284,6 +311,9 @@ export async function handler (
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
     forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
     forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
+  }
+  if (!opts.ignorePnpmfile) {
+    installOpts['hooks'] = requireHooks(opts.lockfileDir || dir, opts)
   }
 
   let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.dir, opts)

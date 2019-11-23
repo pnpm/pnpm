@@ -1,8 +1,10 @@
 import { audit } from '@pnpm/plugin-commands-audit'
 import { importCommand } from '@pnpm/plugin-commands-import'
+import { add, install, link, remove, unlink, update } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import { recursive } from '@pnpm/plugin-commands-recursive'
 import {
   restart,
   run,
@@ -11,20 +13,13 @@ import {
   test,
 } from '@pnpm/plugin-commands-script-runners'
 import { PnpmOptions } from '../types'
-import * as add from './add'
 import createHelp from './help'
-import * as install from './install'
 import * as installTest from './installTest'
-import * as link from './link'
 import * as prune from './prune'
 import * as rebuild from './rebuild'
-import * as recursive from './recursive'
-import * as remove from './remove'
 import * as root from './root'
 import * as server from './server'
 import * as store from './store'
-import * as unlink from './unlink'
-import * as update from './update'
 
 export type Command = (
   args: string[],

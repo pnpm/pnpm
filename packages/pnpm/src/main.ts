@@ -13,19 +13,18 @@ gfs.gracefulify(fs)
 
 import loudRejection from 'loud-rejection'
 loudRejection()
-import { packageManager } from '@pnpm/cli-utils'
+import { getConfig, packageManager } from '@pnpm/cli-utils'
 import {
   Config,
   types as allTypes,
 } from '@pnpm/config'
+import { scopeLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import isCI = require('is-ci')
 import nopt = require('nopt')
 import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { getCommandFullName, getTypes } from './cmd'
-import getConfig from './getConfig'
-import { scopeLogger } from './loggers'
 import './logging/fileLogger'
 import initReporter, { ReporterType } from './reporter'
 
@@ -242,10 +241,9 @@ export default async function run (inputArgv: string[]) {
       }
 
       if (cmd !== 'recursive') {
-        scopeLogger.debug({
-          selected: 1,
-          workspacePrefix: config.workspaceDir ?? null,
-        })
+        scopeLogger.debug(config.workspaceDir
+          ? { selected: 1, workspacePrefix: config.workspaceDir }
+          : { selected: 1 })
       }
 
       try {

@@ -4,8 +4,7 @@ import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { PnpmOptions } from '../types'
-import { handler as install } from './install'
+import { handler as install, InstallCommandOptions } from './install'
 
 export function types () {
   return R.pick([
@@ -137,7 +136,7 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: PnpmOptions & {
+  opts: InstallCommandOptions & {
     allowNew?: boolean,
     update?: boolean,
     useBetaCli?: boolean,

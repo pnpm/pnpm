@@ -1,16 +1,15 @@
 import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { Config, types as allTypes } from '@pnpm/config'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
+import { requireHooks } from '@pnpm/pnpmfile'
+import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import {
   mutateModules,
 } from 'supi'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
-import requireHooks from '../requireHooks'
-import { PnpmOptions } from '../types'
 
 export function types () {
   return R.pick([
@@ -67,7 +66,7 @@ export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
 
 export async function handler (
   input: string[],
-  opts: PnpmOptions,
+  opts: CreateStoreControllerOptions & Pick<Config, 'ignorePnpmfile' | 'engineStrict' | 'lockfileDir' | 'linkWorkspacePackages' | 'workspaceDir' | 'bin' | 'globalPnpmfile' | 'pnpmfile'>,
 ) {
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
@@ -75,7 +74,7 @@ export async function handler (
     storeDir: store.dir,
   })
   if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(opts.lockfileDir || opts.dir, opts)
+    removeOpts['hooks'] = requireHooks(opts.lockfileDir || opts.dir, opts)
   }
   removeOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspaceDir
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))

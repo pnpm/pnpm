@@ -32,11 +32,13 @@
     "@pnpm/logger": "^3.1.0",
     "@pnpm/types": "workspace:4.0.0",
     "@types/lru-cache": "^5.1.0",
+    "@types/ramda": "^0.26.36",
     "pnpm": "link:../pnpm",
     "rimraf": "3.0.0",
     "tape": "4.11.0"
   },
   "dependencies": {
+    "@pnpm/config": "workspace:5.0.2",
     "@pnpm/default-resolver": "workspace:5.0.2",
     "@pnpm/package-is-installable": "workspace:4.0.0",
     "@pnpm/read-importer-manifest": "workspace:2.0.0",
@@ -44,7 +46,9 @@
     "chalk": "3.0.0",
     "load-json-file": "6.2.0",
     "lru-cache": "5.1.1",
-    "mem": "6.0.0"
+    "mem": "6.0.0",
+    "ramda": "0.26.1",
+    "version-selector-type": "2.0.1"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0",

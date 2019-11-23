@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import prepare, { preparePackages, tempDir as makeTempDir } from '@pnpm/prepare'
@@ -9,7 +10,6 @@ import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import findWorkspacePackages from 'pnpm/src/findWorkspacePackages'
 import readYamlFile from 'read-yaml-file'
 import symlink from 'symlink-dir'
 import tape = require('tape')
