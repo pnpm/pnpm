@@ -10,7 +10,7 @@ importers:
       npm: 4.6.1
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
-      ts-node: 8.5.0_typescript@3.7.2
+      ts-node: 8.5.2_typescript@3.7.2
       tslint: 5.20.1_typescript@3.7.2
       typescript: 3.7.2
       verdaccio: 4.3.5
@@ -24,7 +24,7 @@ importers:
       npm: 4.6.1
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
-      ts-node: 8.5.0
+      ts-node: 8.5.2
       tslint: 5.20.1
       typescript: 3.7.2
       verdaccio: 4.3.5
@@ -65,7 +65,7 @@ importers:
     devDependencies:
       '@pnpm/build-modules': 'link:'
       '@pnpm/logger': 3.1.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       rimraf: 3.0.0
     specifiers:
       '@pnpm/build-modules': 'link:'
@@ -77,7 +77,7 @@ importers:
       '@pnpm/read-package-json': 'workspace:3.0.0'
       '@pnpm/store-controller-types': 'workspace:5.0.0'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       graph-sequencer: 2.0.0
       ramda: 0.26.1
       rimraf: 3.0.0
@@ -214,7 +214,7 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/normalize-path': 3.0.0
       '@types/pretty-time': 1.1.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/semver': 6.2.0
       delay: 4.3.0
       ghooks: 2.0.4
@@ -232,7 +232,7 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/normalize-path': 3.0.0
       '@types/pretty-time': 1.1.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/semver': ^6.2.0
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
@@ -385,7 +385,7 @@ importers:
     devDependencies:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 3.1.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       rimraf: 3.0.0
       tape: 4.11.0
       tempy: 0.3.0
@@ -401,7 +401,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/package-is-installable': 'workspace:4.0.0'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       dependency-path: 'workspace:4.0.1'
       ramda: 0.26.1
       rimraf: 3.0.0
@@ -512,7 +512,7 @@ importers:
       '@pnpm/store-path': 2.1.1
       '@types/fs-extra': 8.0.1
       '@types/mz': 2.7.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/rimraf': 2.0.3
       '@types/sinon': 7.5.1
       '@zkochan/rimraf': 1.0.0
@@ -559,7 +559,7 @@ importers:
       '@pnpm/utils': 'workspace:0.12.0'
       '@types/fs-extra': ^8.0.1
       '@types/mz': ^2.7.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/rimraf': ^2.0.3
       '@types/sinon': ^7.5.1
       '@zkochan/rimraf': 1.0.0
@@ -593,7 +593,7 @@ importers:
       ramda: 0.26.1
     devDependencies:
       '@pnpm/logger': 3.1.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       rimraf: 3.0.0
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
@@ -605,7 +605,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/symlink-dependency': 'workspace:3.0.0'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       dependency-path: 'workspace:4.0.1'
       ramda: 0.26.1
       rimraf: 3.0.0
@@ -658,7 +658,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/semver': 6.2.0
       common-tags: 1.8.0
       rimraf: 3.0.0
@@ -672,7 +672,7 @@ importers:
       '@pnpm/types': 'workspace:4.0.0'
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/semver': ^6.2.0
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
@@ -731,7 +731,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@types/js-yaml': 3.12.1
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/write-file-atomic': 2.1.2
       rimraf: 3.0.0
       tape: 4.11.0
@@ -747,7 +747,7 @@ importers:
       '@pnpm/types': 'workspace:4.0.0'
       '@types/js-yaml': ^3.12.1
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/write-file-atomic': 2.1.2
       '@zkochan/rimraf': 1.0.0
       js-yaml: 3.13.1
@@ -774,7 +774,7 @@ importers:
     devDependencies:
       '@pnpm/lockfile-utils': 'link:'
       '@types/js-yaml': 3.12.1
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       rimraf: 3.0.0
       tape: 4.11.0
       tempy: 0.3.0
@@ -786,7 +786,7 @@ importers:
       '@pnpm/resolver-base': 'workspace:5.0.0'
       '@pnpm/types': 'workspace:4.0.0'
       '@types/js-yaml': ^3.12.1
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       dependency-path: 'workspace:4.0.1'
       get-npm-tarball-url: 2.0.1
       ramda: 0.26.1
@@ -803,7 +803,7 @@ importers:
       ramda: 0.26.1
     devDependencies:
       '@pnpm/lockfile-walker': 'link:'
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       rimraf: 3.0.0
       tape: 4.11.0
       tempy: 0.3.0
@@ -811,7 +811,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/lockfile-walker': 'link:'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       dependency-path: 'workspace:4.0.1'
       ramda: 0.26.1
       rimraf: 3.0.0
@@ -847,7 +847,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-cleaner': 'link:'
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -861,7 +861,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:5.0.0'
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/utils': 'workspace:0.12.0'
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:4.0.1'
       fs-vacuum: 1.2.10
@@ -1046,7 +1046,7 @@ importers:
       '@types/ncp': 2.0.3
       '@types/nock': 10.0.3
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/sinon': 7.5.1
       '@types/ssri': 6.0.1
       delay: 4.3.0
@@ -1075,7 +1075,7 @@ importers:
       '@types/ncp': ^2.0.3
       '@types/nock': ^10.0.3
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/sinon': ^7.5.1
       '@types/ssri': 6.0.1
       '@zkochan/rimraf': 1.0.0
@@ -1129,7 +1129,7 @@ importers:
       '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
       '@types/proxyquire': 1.3.28
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/sinon': 7.5.1
       proxyquire: 2.1.3
       rimraf: 3.0.0
@@ -1152,7 +1152,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
       '@types/proxyquire': 1.3.28
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/sinon': ^7.5.1
       '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
@@ -1177,13 +1177,13 @@ importers:
       ramda: 0.26.1
       semver: 6.3.0
     devDependencies:
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/semver': 6.2.0
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
       tape: 4.11.0
     specifiers:
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/semver': ^6.2.0
       '@zkochan/npm-package-arg': ^1.0.2
       better-path-resolve: 1.0.0
@@ -1220,7 +1220,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/ramda': ^0.26.34
+      '@types/ramda': ^0.26.36
       '@types/table': ^4.0.7
       chalk: 3.0.0
       ramda: 0.26.1
@@ -1282,7 +1282,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/common-tags': 1.8.0
-      '@types/mz': 0.0.32
+      '@types/mz': 2.7.0
       '@types/ramda': 0.26.36
       execa: 3.3.0
       mz: 2.7.0
@@ -1300,7 +1300,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@types/common-tags': 1.8.0
-      '@types/mz': 0.0.32
+      '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.36
       common-tags: 1.8.0
       execa: 3.3.0
@@ -1335,7 +1335,7 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/types': 'link:../types'
       '@types/common-tags': 1.8.0
-      '@types/mz': 0.0.32
+      '@types/mz': 2.7.0
       '@types/ramda': 0.26.36
       '@types/table': 4.0.7
       '@types/wrap-ansi': 3.0.0
@@ -1360,8 +1360,8 @@ importers:
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:4.0.0'
       '@types/common-tags': 1.8.0
-      '@types/mz': ^0.0.32
-      '@types/ramda': ^0.26.34
+      '@types/mz': ^2.7.0
+      '@types/ramda': ^0.26.36
       '@types/table': ^4.0.7
       '@types/wrap-ansi': 3.0.0
       chalk: 3.0.0
@@ -1556,11 +1556,11 @@ importers:
       '@types/cross-spawn': 6.0.1
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
-      '@types/is-windows': 0.2.0
+      '@types/is-windows': 1.0.0
       '@types/mkdirp': 0.5.2
       '@types/ncp': 2.0.3
       '@types/nopt': 3.0.29
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/retry': 0.12.0
       '@types/semver': 6.2.0
       '@types/signal-exit': 3.0.0
@@ -1629,12 +1629,12 @@ importers:
       '@types/cross-spawn': 6.0.1
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
-      '@types/is-windows': 0.2.0
+      '@types/is-windows': ^1.0.0
       '@types/mkdirp': 0.5.2
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
       '@types/nopt': 3.0.29
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/retry': 0.12.0
       '@types/semver': ^6.2.0
       '@types/signal-exit': 3.0.0
@@ -1712,7 +1712,7 @@ importers:
       ramda: 0.26.1
     devDependencies:
       '@pnpm/prune-lockfile': 'link:'
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       rimraf: 3.0.0
       tape: 4.11.0
       yaml-tag: 1.1.0
@@ -1721,7 +1721,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/prune-lockfile': 'link:'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       dependency-path: 'workspace:4.0.1'
       ramda: 0.26.1
       rimraf: 3.0.0
@@ -1827,7 +1827,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/resolve-dependencies': 'link:'
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/semver': 6.2.0
       rimraf: 3.0.0
     specifiers:
@@ -1843,7 +1843,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:5.0.0'
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/utils': 'workspace:0.12.0'
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/semver': ^6.2.0
       dependency-path: 'workspace:4.0.1'
       path-exists: 4.0.0
@@ -2049,7 +2049,7 @@ importers:
       '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': 0.26.36
       '@types/semver': 6.2.0
       '@types/sinon': 7.5.1
       '@types/validate-npm-package-name': 3.0.0
@@ -2123,7 +2123,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
-      '@types/ramda': 0.26.34
+      '@types/ramda': ^0.26.36
       '@types/semver': ^6.2.0
       '@types/sinon': ^7.5.1
       '@types/validate-npm-package-name': 3.0.0
@@ -2319,7 +2319,7 @@ importers:
       write-pkg: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:'
-      '@types/is-windows': 0.2.0
+      '@types/is-windows': 1.0.0
       '@types/isexe': 2.0.0
       rimraf: 3.0.0
     specifiers:
@@ -2329,7 +2329,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/types': 'workspace:*'
-      '@types/is-windows': 0.2.0
+      '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
       '@types/mz': ^2.7.0
       is-windows: 1.0.2
@@ -2916,10 +2916,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-J8ytIdkALbTrqcJ6OZiEv0B9skfyok/zCDj1q06GGCDa1rlHnPobUBT0BYR1vku2oZVwVEgCurtXqCASAfjCiQ==
-  /@types/is-windows/0.2.0:
-    dev: true
-    resolution:
-      integrity: sha1-byTuSHMdMRaOpRBhDW3RXl/Jxv8=
   /@types/is-windows/1.0.0:
     dev: true
     resolution:
@@ -2950,12 +2946,6 @@ packages:
       '@types/node': 12.12.11
     resolution:
       integrity: sha512-U5icWpv7YnZYGsN4/cmh3WD2onMY0aJIiTE6+51TwJCttdHvtCYmkBNOobHlXwrJRL0nkH9jH4kD+1FAdMN4Tg==
-  /@types/mz/0.0.32:
-    dependencies:
-      '@types/node': 12.12.11
-    dev: true
-    resolution:
-      integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/mz/2.7.0:
     dependencies:
       '@types/node': 12.12.11
@@ -3010,12 +3000,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
-  /@types/ramda/0.26.34:
-    dependencies:
-      ts-toolbelt: 4.10.21
-    dev: true
-    resolution:
-      integrity: sha512-5x+oE6PzERYl4IPqjj8DwvlLAz2DiQGv0KMuWM3a1byqQ8k8ebmGWw5TAtpVtDwdQEhs1KVdCtOaLy0iwuqwdQ==
   /@types/ramda/0.26.36:
     dependencies:
       ts-toolbelt: 4.10.21
@@ -10454,7 +10438,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.5.0_typescript@3.7.2:
+  /ts-node/8.5.2_typescript@3.7.2:
     dependencies:
       arg: 4.1.1
       diff: 4.0.1
@@ -10469,7 +10453,7 @@ packages:
     peerDependencies:
       typescript: '>=2.0'
     resolution:
-      integrity: sha512-fbG32iZEupNV2E2Fd2m2yt1TdAwR3GTCrJQBHDevIiEBNy1A8kqnyl1fv7jmRmmbtcapFab2glZXHJvfD1ed0Q==
+      integrity: sha512-W1DK/a6BGoV/D4x/SXXm6TSQx6q3blECUzd5TN+j56YEMX3yPVMpHsICLedUw3DvGF3aTQ8hfdR9AKMaHjIi+A==
   /ts-toolbelt/4.10.21:
     dev: true
     resolution:

@@ -40,7 +40,7 @@
     "@pnpm/logger": "3.1.0",
     "@types/js-yaml": "^3.12.1",
     "@types/normalize-path": "3.0.0",
-    "@types/ramda": "0.26.34",
+    "@types/ramda": "^0.26.36",
     "@types/write-file-atomic": "2.1.2",
     "rimraf": "3.0.0",
     "tape": "4.11.0",
