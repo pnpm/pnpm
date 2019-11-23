@@ -1,10 +1,10 @@
 import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { Config } from '@pnpm/config'
+import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
 import { mutateModules } from 'supi'
-import { PnpmOptions } from '../types'
 import { types } from './install'
 
 export { types }
@@ -40,7 +40,7 @@ export function help () {
   })
 }
 
-export async function handler (input: string[], opts: PnpmOptions) {
+export async function handler (input: string[], opts: CreateStoreControllerOptions & Pick<Config, 'engineStrict'>) {
   const store = await createOrConnectStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
     storeController: store.ctrl,

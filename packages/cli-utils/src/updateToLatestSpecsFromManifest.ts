@@ -3,7 +3,7 @@ import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import R = require('ramda')
 import getVerSelType = require('version-selector-type')
 
-export default function (manifest: ImporterManifest, include: IncludedDependencies) {
+export function updateToLatestSpecsFromManifest (manifest: ImporterManifest, include: IncludedDependencies) {
   const allDeps = {
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),

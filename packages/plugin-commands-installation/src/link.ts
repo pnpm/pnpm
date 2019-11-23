@@ -1,13 +1,16 @@
 import {
   docsUrl,
+  getConfig,
+  getSaveType,
   readImporterManifest,
   readImporterManifestOnly,
   tryReadImporterManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
 import { StoreController } from '@pnpm/package-store'
-import { createOrConnectStoreControllerCached } from '@pnpm/store-connection-manager'
+import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import pLimit from 'p-limit'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -20,10 +23,6 @@ import {
   linkToGlobal,
   LocalPackages,
 } from 'supi'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
-import getConfig from '../getConfig'
-import getSaveType from '../getSaveType'
-import { PnpmOptions } from '../types'
 
 const installLimit = pLimit(4)
 
@@ -68,7 +67,18 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: PnpmOptions,
+  opts: CreateStoreControllerOptions & Pick<Config,
+    'cliArgs' |
+    'engineStrict' |
+    'globalBin' |
+    'globalDir' |
+    'include' |
+    'linkWorkspacePackages' |
+    'saveDev' |
+    'saveOptional' |
+    'saveProd' |
+    'workspaceDir'
+  >,
 ) {
   const cwd = opts?.dir ?? process.cwd()
 

@@ -1,0 +1,40 @@
+{
+  "name": "@pnpm/find-workspace-packages",
+  "version": "0.0.0",
+  "description": "Finds packages inside a workspace",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "tsc": "rimraf lib && tsc",
+    "test": "pnpm run tsc && pnpm run lint",
+    "prepublishOnly": "pnpm run tsc"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/find-workspace-packages",
+  "keywords": [
+    "pnpm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://pnpm.js.org",
+  "devDependencies": {
+    "@pnpm/find-workspace-packages": "link:",
+    "rimraf": "3.0.0"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:0.0.0",
+    "@pnpm/constants": "workspace:3.0.0",
+    "@pnpm/types": "workspace:4.0.0",
+    "find-packages": "workspace:7.0.0",
+    "read-yaml-file": "1.1.0"
+  }
+}

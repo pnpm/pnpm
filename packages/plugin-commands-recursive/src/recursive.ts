@@ -1,10 +1,19 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import {
+  createLatestSpecs,
+  docsUrl,
+  getPinnedVersion,
+  getSaveType,
+  updateToLatestSpecsFromManifest,
+} from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { scopeLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { requireHooks } from '@pnpm/pnpmfile'
+import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import { oneLine } from 'common-tags'
@@ -28,19 +37,11 @@ import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
-import getPinnedVersion from '../../getPinnedVersion'
-import getSaveType from '../../getSaveType'
-import { scopeLogger } from '../../loggers'
-import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
-import requireHooks from '../../requireHooks'
-import { PnpmOptions } from '../../types'
-import updateToLatestSpecsFromManifest, { createLatestSpecs } from '../../updateToLatestSpecsFromManifest'
-import { getCommandFullName } from '../index'
 import exec from './exec'
 import { filterGraph } from './filter'
 import list from './list'
 import outdated from './outdated'
+import parsePackageSelector, { PackageSelector } from './parsePackageSelectors'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
 
@@ -58,6 +59,35 @@ const supportedRecursiveCommands = new Set([
   'test',
   'exec',
 ])
+
+function getCommandFullName (commandName: string) {
+  switch (commandName) {
+    case 'i':
+      return 'install'
+    case 'r':
+    case 'rm':
+    case 'un':
+    case 'uninstall':
+      return 'remove'
+    case 'up':
+    case 'upgrade':
+      return 'update'
+    case 'dislink':
+      return 'unlink'
+    case 'ls':
+    case 'la':
+    case 'll':
+      return 'list'
+    case 'rb':
+      return 'rebuild'
+    case 'run-script':
+      return 'run'
+    case 't':
+    case 'tst':
+      return 'test'
+  }
+  return commandName
+}
 
 export function types () {
   return {
@@ -181,7 +211,7 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: PnpmOptions,
+  opts: RecursiveOptions & Pick<Config, 'filter' | 'engineStrict' | 'workspaceDir'>,
 ) {
   if (opts.workspaceConcurrency < 1) {
     throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
@@ -222,16 +252,41 @@ export async function handler (
   }
 }
 
+type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
+  'bail' |
+  'globalPnpmfile' |
+  'hoistPattern' |
+  'ignorePnpmfile' |
+  'ignoreScripts' |
+  'include' |
+  'latest' |
+  'linkWorkspacePackages' |
+  'lockfileDir' |
+  'lockfileOnly' |
+  'pending' |
+  'pnpmfile' |
+  'rawLocalConfig' |
+  'save' |
+  'saveDev' |
+  'saveExact' |
+  'saveOptional' |
+  'savePeer' |
+  'savePrefix' |
+  'saveProd' |
+  'sort' |
+  'workspaceConcurrency'
+>
+
 export async function recursive (
   allPkgs: Array<{dir: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>,
   input: string[],
-  opts: PnpmOptions & {
+  opts: RecursiveOptions & {
     allowNew?: boolean,
     packageSelectors?: PackageSelector[],
     ignoredPackages?: Set<string>,
     update?: boolean,
     useBetaCli?: boolean,
-  } & Required<Pick<PnpmOptions, 'workspaceDir'>>,
+  } & Required<Pick<Config, 'workspaceDir'>>,
   cmdFullName: string,
   cmd: string,
 ): Promise<boolean> {
