@@ -1,14 +1,10 @@
+import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
-import fs = require('mz/fs')
 import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import { execPnpm } from '../utils'
+import test = require('tape')
+import { DEFAULT_OPTS } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('pnpm recursive test', async (t: tape.Test) => {
+test('pnpm recursive test', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -53,17 +49,24 @@ test('pnpm recursive test', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install')
-  await execPnpm('recursive', 'test')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+  await recursive.handler(['test'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
   const outputs2 = await import(path.resolve('output2.json')) as string[]
 
   t.deepEqual(outputs1, ['project-1', 'project-2'])
   t.deepEqual(outputs2, ['project-1', 'project-3'])
+  t.end()
 })
 
-test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t: tape.Test) => {
+test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -93,14 +96,21 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
-  await execPnpm('recursive', 'test')
+  await recursive.handler(['test'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
   t.pass('command did not fail')
+  t.end()
 })
 
-test('pnpm recursive test with filtering', async (t: tape.Test) => {
+test('pnpm recursive test with filtering', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -127,12 +137,18 @@ test('pnpm recursive test with filtering', async (t: tape.Test) => {
     },
   ])
 
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-
-  await execPnpm('recursive', 'install')
-  await execPnpm('test', '--filter', 'project-1')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+  await recursive.handler(['test'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    filter: ['project-1'],
+  })
 
   const outputs = await import(path.resolve('output.json')) as string[]
 
   t.deepEqual(outputs, ['project-1'])
+  t.end()
 })

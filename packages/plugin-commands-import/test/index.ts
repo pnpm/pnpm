@@ -1,5 +1,6 @@
 ///<reference path="../../../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
+import PnpmError from '@pnpm/error'
 import { importCommand } from '@pnpm/plugin-commands-import'
 import prepare, { tempDir } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -8,7 +9,6 @@ import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
 import { promisify } from 'util'
-import PnpmError from '../../error/lib'
 
 const ncp = promisify(ncpCB)
 

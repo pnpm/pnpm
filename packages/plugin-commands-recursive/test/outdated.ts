@@ -1,18 +1,12 @@
+import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import { stripIndent } from 'common-tags'
-import normalizeNewline = require('normalize-newline')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
+import stripAnsi = require('strip-ansi')
+import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import {
-  execPnpm,
-  execPnpmSync,
-} from '../utils'
+import { DEFAULT_OPTS } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('pnpm recursive outdated', async (t: tape.Test) => {
+test('pnpm recursive outdated', async (t) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -43,14 +37,18 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
   {
-    const result = execPnpmSync('recursive', 'outdated')
+    const output = await recursive.handler(['outdated'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
     ┌───────────────────┬─────────┬────────┬──────────────────────┐
     │ Package           │ Current │ Latest │ Dependents           │
     ├───────────────────┼─────────┼────────┼──────────────────────┤
@@ -64,11 +62,13 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
   }
 
   {
-    const result = execPnpmSync('recursive', 'outdated', '--long')
+    const output = await recursive.handler(['outdated'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      long: true,
+    })
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
     ┌───────────────────┬─────────┬────────┬──────────────────────┬─────────────────────────────────────────────┐
     │ Package           │ Current │ Latest │ Dependents           │ Details                                     │
     ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
@@ -82,11 +82,13 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
   }
 
   {
-    const result = execPnpmSync('recursive', 'outdated', '--no-table')
+    const output = await recursive.handler(['outdated'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      table: false,
+    })
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
     is-negative
     1.0.0 => 2.1.0
     Dependent: project-2
@@ -102,11 +104,14 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
   }
 
   {
-    const result = execPnpmSync('recursive', 'outdated', '--no-table', '--long')
+    const output = await recursive.handler(['outdated'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      long: true,
+      table: false,
+    })
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
     is-negative
     1.0.0 => 2.1.0
     Dependent: project-2
@@ -125,11 +130,12 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
   }
 
   {
-    const result = execPnpmSync('recursive', 'outdated', 'is-positive')
+    const output = await recursive.handler(['outdated', 'is-positive'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
     ┌─────────────┬─────────┬────────┬──────────────────────┐
     │ Package     │ Current │ Latest │ Dependents           │
     ├─────────────┼─────────┼────────┼──────────────────────┤
@@ -137,9 +143,10 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     └─────────────┴─────────┴────────┴──────────────────────┘
     ` + '\n')
   }
+  t.end()
 })
 
-test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape.Test) => {
+test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -172,14 +179,18 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('recursive', 'install')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
   {
-    const result = execPnpmSync('recursive', 'outdated')
+    const output = await recursive.handler(['outdated'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
     ┌───────────────────┬─────────┬────────┬──────────────────────┐
     │ Package           │ Current │ Latest │ Dependents           │
     ├───────────────────┼─────────┼────────┼──────────────────────┤
@@ -193,11 +204,12 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape
   }
 
   {
-    const result = execPnpmSync('recursive', 'outdated', 'is-positive')
+    const output = await recursive.handler(['outdated', 'is-positive'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
 
-    t.equal(result.status, 0)
-
-    t.equal(normalizeNewline(result.stdout.toString()), stripIndent`
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
     ┌─────────────┬─────────┬────────┬──────────────────────┐
     │ Package     │ Current │ Latest │ Dependents           │
     ├─────────────┼─────────┼────────┼──────────────────────┤
@@ -205,4 +217,5 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t: tape
     └─────────────┴─────────┴────────┴──────────────────────┘
     ` + '\n')
   }
+  t.end()
 })

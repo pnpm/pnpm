@@ -211,7 +211,7 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: RecursiveOptions & Pick<Config, 'filter' | 'engineStrict' | 'workspaceDir'>,
+  opts: RecursiveOptions & Pick<Config, 'filter' | 'depth' | 'engineStrict' | 'workspaceDir'> & { long?: boolean, table?: boolean },
 ) {
   if (opts.workspaceConcurrency < 1) {
     throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
@@ -220,7 +220,7 @@ export async function handler (
   const cmd = input.shift()
   if (!cmd) {
     help()
-    return
+    return undefined
   }
   const cmdFullName = getCommandFullName(cmd)
   if (!supportedRecursiveCommands.has(cmdFullName)) {
@@ -234,7 +234,7 @@ export async function handler (
 
   if (!allWorkspacePkgs.length) {
     logger.info({ message: `No packages found in "${workspaceDir}"`, prefix: workspaceDir })
-    return
+    return undefined
   }
 
   if (opts.filter) {
@@ -246,10 +246,14 @@ export async function handler (
 
   const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, { ...opts, workspaceDir }, cmdFullName, cmd)
 
-  if (!atLeastOnePackageMatched) {
-    logger.info({ message: `No packages matched the filters in "${workspaceDir}"`, prefix: workspaceDir })
-    return
+  if (typeof atLeastOnePackageMatched === 'string') {
+    return atLeastOnePackageMatched
   }
+
+  if (atLeastOnePackageMatched === false) {
+    logger.info({ message: `No packages matched the filters in "${workspaceDir}"`, prefix: workspaceDir })
+  }
+  return undefined
 }
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
@@ -289,7 +293,7 @@ export async function recursive (
   } & Required<Pick<Config, 'workspaceDir'>>,
   cmdFullName: string,
   cmd: string,
-): Promise<boolean> {
+): Promise<boolean | string> {
   if (allPkgs.length === 0) {
     // It might make sense to throw an exception in this case
     return false
@@ -325,11 +329,9 @@ export async function recursive (
   switch (cmdFullName) {
     case 'why':
     case 'list':
-      await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
-      return true
+      return list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
     case 'outdated':
-      await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
-      return true
+      return outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
     case 'add':
       if (!input || !input.length) {
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')

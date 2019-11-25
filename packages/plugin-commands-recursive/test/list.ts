@@ -1,20 +1,16 @@
+import PnpmError from '@pnpm/error'
+import { recursive } from '@pnpm/plugin-commands-recursive'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
 import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
+import stripAnsi = require('strip-ansi')
+import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import {
-  execPnpm,
-  execPnpmSync,
-} from '../utils'
+import { DEFAULT_OPTS } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('recursive list', async (t: tape.Test) => {
+test('recursive list', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -38,13 +34,17 @@ test('recursive list', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
-  const result = execPnpmSync('recursive', 'list')
+  const output = await recursive.handler(['list'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
-  t.equal(result.status, 0)
-
-  t.equal(result.stdout.toString(), stripIndent`
+  t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
 
     project-1@1.0.0 ${path.resolve('project-1')}
@@ -58,10 +58,12 @@ test('recursive list', async (t: tape.Test) => {
 
     dependencies:
     is-negative 1.0.0
-  ` + '\n')
+  `)
+
+  t.end()
 })
 
-test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
+test('recursive list with shared-workspace-lockfile', async (t) => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   const projects = preparePackages(t, [
     {
@@ -89,13 +91,18 @@ test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
-  await execPnpm('recursive', 'install', '--store-dir', 'store')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
-  const result = execPnpmSync('recursive', 'list', '--depth', '2')
+  const output = await recursive.handler(['list'], {
+    ...DEFAULT_OPTS,
+    depth: 2,
+    dir: process.cwd(),
+  })
 
-  t.equal(result.status, 0)
-
-  t.equal(result.stdout.toString(), stripIndent`
+  t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
 
     project-1@1.0.0 ${path.resolve('project-1')}
@@ -110,10 +117,11 @@ test('recursive list with shared-workspace-lockfile', async (t: tape.Test) => {
 
     dependencies:
     is-negative 1.0.0
-  ` + '\n')
+  `)
+  t.end()
 })
 
-test('recursive list --filter', async (t: tape.Test) => {
+test('recursive list --filter', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -143,13 +151,18 @@ test('recursive list --filter', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
-  const result = execPnpmSync('recursive', 'list', '--filter', 'project-1...')
+  const output = await recursive.handler(['list'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    filter: ['project-1...'],
+  })
 
-  t.equal(result.status, 0)
-
-  t.equal(result.stdout.toString(), stripIndent`
+  t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
 
     project-1@1.0.0 ${path.resolve('project-1')}
@@ -164,14 +177,24 @@ test('recursive list --filter', async (t: tape.Test) => {
 
     dependencies:
     is-negative 1.0.0
-  ` + '\n')
+  `)
+  t.end()
 })
 
-test('`pnpm recursive why` should fail if no package name was provided', async (t: tape.Test) => {
+test('`pnpm recursive why` should fail if no package name was provided', async (t) => {
   prepare(t)
 
-  const { status, stdout } = execPnpmSync('recursive', 'why')
+  let err!: PnpmError
+  try {
+    const output = await recursive.handler(['why'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
 
-  t.equal(status, 1)
-  t.ok(stdout.toString().includes('`pnpm why` requires the package name'))
+  t.equal(err.code, 'ERR_PNPM_MISSING_PACKAGE_NAME')
+  t.ok(err.message, '`pnpm why` requires the package name')
+  t.end()
 })

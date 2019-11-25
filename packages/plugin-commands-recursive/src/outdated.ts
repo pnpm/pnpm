@@ -72,10 +72,9 @@ export default async (
   }
 
   if (opts.table !== false) {
-    process.stdout.write(renderOutdatedTable(outdatedByNameAndType, opts))
-    return
+    return renderOutdatedTable(outdatedByNameAndType, opts)
   }
-  process.stdout.write(renderOutdatedList(outdatedByNameAndType, opts))
+  return renderOutdatedList(outdatedByNameAndType, opts)
 }
 
 function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
