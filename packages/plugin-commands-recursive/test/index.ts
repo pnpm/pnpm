@@ -1,0 +1,10 @@
+///<reference path="../../../typings/index.d.ts" />
+import './exec'
+import './link'
+import './list'
+import './misc'
+import './outdated'
+import './rebuild'
+import './run'
+import './test'
+import './update'

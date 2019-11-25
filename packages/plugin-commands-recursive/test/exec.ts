@@ -1,14 +1,13 @@
+import PnpmError from '@pnpm/error'
+import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
+import fs = require('mz/fs')
 import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import { execPnpm, execPnpmSync } from '../utils'
+import test = require('tape')
+import { DEFAULT_OPTS } from './utils'
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('pnpm recursive exec', async (t: tape.Test) => {
+test('pnpm recursive exec', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -49,17 +48,25 @@ test('pnpm recursive exec', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install')
-  await execPnpm('recursive', 'exec', 'npm', 'run', 'build')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+  await recursive.handler(['exec', 'npm', 'run', 'build'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
   const outputs2 = await import(path.resolve('output2.json')) as string[]
 
   t.deepEqual(outputs1, ['project-1', 'project-2-prebuild', 'project-2', 'project-2-postbuild'])
   t.deepEqual(outputs2, ['project-1', 'project-3'])
+
+  t.end()
 })
 
-test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t: tape.Test) => {
+test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'foo',
@@ -67,12 +74,16 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t: tape.Test) 
     },
   ])
 
-  const result = execPnpmSync('recursive', 'exec', '--', 'node', '-e', 'process.stdout.write(process.env.PNPM_PACKAGE_NAME)')
+  await recursive.handler(['exec', 'node', '-e', `require('fs').writeFileSync('pkgname', process.env.PNPM_PACKAGE_NAME, 'utf8')`], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
-  t.equal(result.stdout.toString(), 'foo', '$PNPM_PACKAGE_NAME is correct')
+  t.equal(await fs.readFile('foo/pkgname', 'utf8'), 'foo', '$PNPM_PACKAGE_NAME is correct')
+  t.end()
 })
 
-test('testing the bail config with "pnpm recursive exec"', async (t: tape.Test) => {
+test('testing the bail config with "pnpm recursive exec"', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -111,14 +122,23 @@ test('testing the bail config with "pnpm recursive exec"', async (t: tape.Test) 
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
 
   let failed = false
+  let err1!: PnpmError
   try {
-    await execPnpm('recursive', 'exec', 'npm', 'run', 'build', '--no-bail')
-  } catch (err) {
+    await recursive.handler(['exec', 'npm', 'run', 'build', '--no-bail'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+  } catch (_err) {
+    err1 = _err
     failed = true
   }
+  t.equal(err1.code, 'ERR_PNPM_RECURSIVE_FAIL')
   t.ok(failed, 'recursive exec failed with --no-bail')
 
   const outputs = await import(path.resolve('output.json')) as string[]
@@ -127,16 +147,23 @@ test('testing the bail config with "pnpm recursive exec"', async (t: tape.Test) 
   await rimraf('./output.json')
 
   failed = false
+  let err2!: PnpmError
   try {
-    await execPnpm('recursive', 'exec', 'npm', 'run', 'build')
-  } catch (err) {
+    await recursive.handler(['exec', 'npm', 'run', 'build'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+    })
+  } catch (_err) {
+    err2 = _err
     failed = true
   }
 
+  t.equal(err2.code, 'ERR_PNPM_RECURSIVE_FAIL')
   t.ok(failed, 'recursive exec failed with --bail')
+  t.end()
 })
 
-test('pnpm recursive exec --no-sort', async (t: tape.Test) => {
+test('pnpm recursive exec --no-sort', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'a-dependent',
@@ -163,10 +190,20 @@ test('pnpm recursive exec --no-sort', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install', '--link-workspace-packages')
-  await execPnpm('recursive', 'exec', 'npm', 'run', 'build', '--no-sort', '--workspace-concurrency', '1')
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+  })
+  await recursive.handler(['exec', 'npm', 'run', 'build'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    sort: false,
+    workspaceConcurrency: 1,
+  })
 
   const outputs = await import(path.resolve('output.json')) as string[]
 
   t.deepEqual(outputs, ['a-dependent', 'b-dependency'])
+  t.end()
 })

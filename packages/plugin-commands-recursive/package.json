@@ -13,7 +13,11 @@
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
-    "test": "pnpm run tsc && pnpm run lint",
+    "registry-mock": "registry-mock",
+    "test:tap": "ts-node test --type-check",
+    "pretest:e2e": "registry-mock prepare",
+    "test:e2e": "run-p -r registry-mock test:tap",
+    "test": "pnpm run tsc && pnpm run lint && cross-env PNPM_REGISTRY_MOCK_PORT=7777 pnpm run test:e2e",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-recursive",
@@ -27,14 +31,23 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
+    "@pnpm/lockfile-types": "workspace:1.1.0",
     "@pnpm/logger": "3.1.0",
     "@pnpm/plugin-commands-recursive": "link:",
+    "@pnpm/prepare": "workspace:0.0.0",
     "@types/common-tags": "^1.8.0",
     "@types/mz": "^2.7.0",
     "@types/ramda": "^0.26.36",
     "@types/table": "^4.0.7",
+    "@zkochan/rimraf": "1.0.0",
+    "make-dir": "3.0.0",
+    "path-exists": "4.0.0",
+    "read-yaml-file": "1.1.0",
     "rimraf": "3.0.0",
-    "tape": "4.11.0"
+    "strip-ansi": "6.0.0",
+    "tape": "4.11.0",
+    "write-json-file": "4.2.1",
+    "write-yaml-file": "3.0.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.0.0",

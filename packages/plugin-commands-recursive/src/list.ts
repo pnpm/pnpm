@@ -14,20 +14,20 @@ export default async (
     lockfileDir?: string,
   },
 ) => {
+  const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
-    console.log(await list.render(pkgs.map((pkg) => pkg.dir), args, {
+    return list.render(pkgs.map((pkg) => pkg.dir), args, {
       ...opts,
-      alwaysPrintRootPackage: opts.depth === -1,
+      alwaysPrintRootPackage: depth === -1,
       lockfileDir: opts.lockfileDir,
-    }, cmd))
-    return
+    }, cmd)
   }
   const outputs = []
   for (const { dir } of pkgs) {
     try {
       const output = await list.render([dir], args, {
         ...opts,
-        alwaysPrintRootPackage: opts.depth === -1,
+        alwaysPrintRootPackage: depth === -1,
         lockfileDir: opts.lockfileDir || dir,
       }, cmd)
       if (!output) continue
@@ -38,9 +38,8 @@ export default async (
       throw err
     }
   }
-  if (outputs.length === 0) return
+  if (outputs.length === 0) return ''
 
-  const joiner = typeof opts.depth === 'number' && opts.depth > -1 ? '\n\n' : '\n'
-  const allOutput = outputs.join(joiner)
-  console.log(allOutput)
+  const joiner = typeof depth === 'number' && depth > -1 ? '\n\n' : '\n'
+  return outputs.join(joiner)
 }
