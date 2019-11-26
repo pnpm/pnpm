@@ -1356,7 +1356,7 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/mz': 2.7.0
       '@types/ramda': 0.26.36
-      execa: 3.3.0
+      execa: 3.4.0
       mz: 2.7.0
       rimraf: 3.0.0
       strip-ansi: 6.0.0
@@ -1375,7 +1375,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.36
       common-tags: 1.8.0
-      execa: 3.3.0
+      execa: 3.4.0
       mz: 2.7.0
       ramda: 0.26.1
       render-help: 0.0.0
@@ -1619,7 +1619,7 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/mz': 2.7.0
       '@types/ramda': 0.26.36
-      execa: 3.3.0
+      execa: 3.4.0
       mz: 2.7.0
       rimraf: 3.0.0
       tape: 4.11.0
@@ -1637,7 +1637,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.36
       common-tags: 1.8.0
-      execa: 3.3.0
+      execa: 3.4.0
       mz: 2.7.0
       ramda: 0.26.1
       render-help: 0.0.0
@@ -1722,7 +1722,7 @@ importers:
       cross-spawn: 7.0.1
       deep-require-cwd: 1.0.0
       dir-is-case-sensitive: 1.0.2
-      execa: 3.3.0
+      execa: 3.4.0
       exists-link: 2.0.0
       load-json-file: 6.2.0
       ncp: 2.0.0
@@ -1803,7 +1803,7 @@ importers:
       delay: 4.3.0
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
-      execa: 3.3.0
+      execa: 3.4.0
       exists-link: 2.0.0
       get-port: 5.0.0
       graceful-fs: 4.2.1
@@ -2215,7 +2215,7 @@ importers:
       cross-spawn: 7.0.1
       deep-require-cwd: 1.0.0
       dir-is-case-sensitive: 1.0.2
-      execa: 3.3.0
+      execa: 3.4.0
       exists-link: 2.0.0
       fs-extra: 8.1.0
       is-windows: 1.0.2
@@ -2294,7 +2294,7 @@ importers:
       dependency-path: 'workspace:4.0.1'
       dir-is-case-sensitive: 1.0.2
       encode-registry: 2.0.2
-      execa: 3.3.0
+      execa: 3.4.0
       exists-link: 2.0.0
       fs-extra: 8.1.0
       get-npm-tarball-url: 2.0.1
@@ -5565,23 +5565,6 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-adbxcyWV46qiHyvSp50TKt05tB4tK3HcmF7/nxfAdhnox83seTDbwnaqKO4sXRy7roHAIFqJP/Rw/AuEbX61LA==
-  /execa/3.3.0:
-    dependencies:
-      cross-spawn: 7.0.1
-      get-stream: 5.1.0
-      human-signals: 1.1.1
-      is-stream: 2.0.0
-      merge-stream: 2.0.0
-      npm-run-path: 4.0.0
-      onetime: 5.1.0
-      p-finally: 2.0.1
-      signal-exit: 3.0.2
-      strip-final-newline: 2.0.0
-    dev: true
-    engines:
-      node: ^8.12.0 || >=9.7.0
-    resolution:
-      integrity: sha512-j5Vit5WZR/cbHlqU97+qcnw9WHRCIL4V1SVe75VcHcD1JRBdt8fv0zw89b7CQHQdUHTt2VjuhcF5ibAgVOxqpg==
   /execa/3.4.0:
     dependencies:
       cross-spawn: 7.0.1
@@ -5594,7 +5577,6 @@ packages:
       p-finally: 2.0.1
       signal-exit: 3.0.2
       strip-final-newline: 2.0.0
-    dev: false
     engines:
       node: ^8.12.0 || >=9.7.0
     resolution:
