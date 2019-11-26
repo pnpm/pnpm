@@ -70,7 +70,7 @@
     "camelcase-keys": "6.1.1",
     "chalk": "3.0.0",
     "common-tags": "1.8.0",
-    "execa": "3.3.0",
+    "execa": "3.4.0",
     "graph-sequencer": "2.0.0",
     "is-subdir": "1.1.1",
     "mem": "6.0.0",
