@@ -63,7 +63,6 @@
     "@pnpm/tarball-fetcher": "workspace:*",
     "@types/mz": "^2.7.0",
     "@types/ncp": "^2.0.3",
-    "@types/nock": "^10.0.3",
     "@types/normalize-path": "3.0.0",
     "@types/ramda": "^0.26.36",
     "@types/sinon": "^7.5.1",

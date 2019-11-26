@@ -1070,7 +1070,6 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
-      '@types/nock': 10.0.3
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.26.36
       '@types/sinon': 7.5.1
@@ -1099,7 +1098,6 @@ importers:
       '@pnpm/types': 'workspace:4.0.0'
       '@types/mz': ^2.7.0
       '@types/ncp': ^2.0.3
-      '@types/nock': ^10.0.3
       '@types/normalize-path': 3.0.0
       '@types/ramda': ^0.26.36
       '@types/sinon': ^7.5.1
@@ -3115,12 +3113,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-eZatZMWhPHUHY/1hUUqwGrWzBAE9deYR3L0QJMicpVkBUOrQslhWblw5Ye+rKuzvFG/UQ3jDolMcjhC2WKUQ5w==
-  /@types/nock/10.0.3:
-    dependencies:
-      '@types/node': 12.12.14
-    dev: true
-    resolution:
-      integrity: sha512-OthuN+2FuzfZO3yONJ/QVjKmLEuRagS9TV9lEId+WHL9KhftYG+/2z+pxlr0UgVVXSpVD8woie/3fzQn8ft/Ow==
   /@types/node-fetch/2.5.4:
     dependencies:
       '@types/node': 12.12.14
