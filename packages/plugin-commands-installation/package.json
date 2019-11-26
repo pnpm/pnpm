@@ -49,6 +49,6 @@
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
-    "supi": "workspace:0.36.3"
+    "supi": "workspace:0.36.4"
   }
 }

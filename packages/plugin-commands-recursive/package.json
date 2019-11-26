@@ -81,7 +81,7 @@
     "ramda": "0.26.1",
     "read-ini-file": "2.0.0",
     "render-help": "0.0.0",
-    "supi": "workspace:0.36.3",
+    "supi": "workspace:0.36.4",
     "table": "5.4.6"
   },
   "peerDependencies": {
