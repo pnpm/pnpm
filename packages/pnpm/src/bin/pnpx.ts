@@ -1,4 +1,4 @@
-import { findWorkspacePrefix } from '@pnpm/config'
+import { findWorkspaceDir } from '@pnpm/cli-utils'
 import npx = require('@zkochan/libnpx/index')
 import path = require('path')
 
@@ -6,7 +6,7 @@ const PNPM_PATH = path.join(__dirname, 'pnpm.js')
 
 // tslint:disable-next-line: no-floating-promises
 ; (async () => {
-  const workspaceRoot = await findWorkspacePrefix(process.cwd())
+  const workspaceRoot = await findWorkspaceDir(process.cwd())
   if (workspaceRoot) {
     process.env.PATH = `${path.join(workspaceRoot, 'node_modules/.bin')}${path.delimiter}${process.env.PATH}`
   }

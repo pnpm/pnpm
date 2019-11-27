@@ -1,5 +1,6 @@
 import {
   docsUrl,
+  findWorkspaceDir,
   getConfig,
   getSaveType,
   readImporterManifest,
@@ -146,6 +147,7 @@ export async function handler (
             {
               command: ['link'],
               excludeReporter: true,
+              workspaceDir: await findWorkspaceDir(dir),
             },
           ),
           localPackages,

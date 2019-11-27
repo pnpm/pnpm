@@ -13,7 +13,7 @@ gfs.gracefulify(fs)
 
 import loudRejection from 'loud-rejection'
 loudRejection()
-import { getConfig, packageManager } from '@pnpm/cli-utils'
+import { findWorkspaceDir, getConfig, packageManager } from '@pnpm/cli-utils'
 import {
   Config,
   types as allTypes,
@@ -38,7 +38,126 @@ const RENAMED_OPTIONS = {
 }
 
 export default async function run (inputArgv: string[]) {
-  // tslint:disable
+  const { argv, cliArgs, cliConf, cmd, dir, subCmd, workspaceDir } = await parseArgs(inputArgv)
+  process.env['npm_config_argv'] = JSON.stringify(argv)
+
+  let config: Config & {
+    forceSharedLockfile: boolean,
+    argv: { remain: string[], cooked: string[], original: string[] },
+  }
+  try {
+    config = await getConfig(cliConf, {
+      command: subCmd ? [cmd, subCmd] : [cmd],
+      excludeReporter: false,
+      workspaceDir,
+    }) as typeof config
+    config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
+    config.argv = argv
+  } catch (err) {
+    // Reporting is not initialized at this point, so just printing the error
+    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
+    console.log(`For help, run: pnpm help ${cmd}`)
+    process.exit(1)
+    return
+  }
+
+  // chalk reads the FORCE_COLOR env variable
+  if (config.color === 'always') {
+    process.env['FORCE_COLOR'] = '1'
+  } else if (config.color === 'never') {
+    process.env['FORCE_COLOR'] = '0'
+  }
+
+  if (
+    cmd === 'add' &&
+    workspaceDir === dir &&
+    !config.ignoreWorkspaceRootCheck
+  ) {
+    // Reporting is not initialized at this point, so just printing the error
+    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
+      chalk.red('Running this command will add the dependency to the workspace root, ' +
+        'which might not be what you want - if you really meant it, ' +
+        'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).')}`)
+    console.log(`For help, run: pnpm help ${cmd}`)
+    process.exit(1)
+    return
+  }
+
+  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && argv.remain.includes(packageManager.name)
+
+  // Don't check for updates
+  //   1. on CI environments
+  //   2. when in the middle of an actual update
+  if (!isCI && !selfUpdate) {
+    checkForUpdates()
+  }
+
+  const reporterType: ReporterType = (() => {
+    if (config.loglevel === 'silent') return 'silent'
+    if (config.reporter) return config.reporter as ReporterType
+    if (isCI || !process.stdout.isTTY) return 'append-only'
+    return 'default'
+  })()
+
+  initReporter(reporterType, {
+    cmd,
+    config,
+    subCmd,
+  })
+  delete config.reporter // This is a silly workaround because supi expects a function as config.reporter
+
+  if (selfUpdate) {
+    await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
+  }
+
+  // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
+  await new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (config.force === true) {
+        logger.warn({
+          message: 'using --force I sure hope you know what you are doing',
+          prefix: config.dir,
+        })
+      }
+
+      if (cmd !== 'recursive') {
+        scopeLogger.debug(workspaceDir
+          ? { selected: 1, workspacePrefix: workspaceDir }
+          : { selected: 1 })
+      }
+
+      try {
+        const result = pnpmCmds[cmd](
+          cliArgs,
+          // TypeScript doesn't currently infer that the type of config
+          // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
+          config as Omit<typeof config, 'reporter'>,
+          argv.remain[0]
+        )
+        if (result instanceof Promise) {
+          result
+            .then((output) => {
+              if (typeof output === 'string') {
+                process.stdout.write(output)
+              }
+              resolve()
+            })
+            .catch(reject)
+        } else {
+          if (typeof result === 'string') {
+            process.stdout.write(result)
+          }
+          resolve()
+        }
+      } catch (err) {
+        reject(err)
+      }
+    }, 0)
+  })
+}
+
+async function parseArgs (inputArgv: string[]) {
+    // tslint:disable
   const shortHands = {
     's': ['--reporter', 'silent'],
     'd': ['--loglevel', 'info'],
@@ -104,13 +223,13 @@ export default async function run (inputArgv: string[]) {
   }
 
   const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
+
   for (const cliOption of Object.keys(cliConf)) {
     if (RENAMED_OPTIONS[cliOption]) {
       cliConf[RENAMED_OPTIONS[cliOption]] = cliConf[cliOption]
       delete cliConf[cliOption]
     }
   }
-  process.env['npm_config_argv'] = JSON.stringify(argv)
 
   let cmd = getCommandFullName(argv.remain[0])
     || 'help'
@@ -119,8 +238,6 @@ export default async function run (inputArgv: string[]) {
   }
 
   let subCmd: string | null = argv.remain[1] && getCommandFullName(argv.remain[1])
-
-  const filterArgs = [] as string[]
 
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = argv.remain.slice(1).filter(Boolean)
@@ -132,59 +249,19 @@ export default async function run (inputArgv: string[]) {
   } else if (subCmd && !pnpmCmds[subCmd]) {
     subCmd = null
   }
-
-  let config: Config & {
-    forceSharedLockfile: boolean,
-    argv: { remain: string[], cooked: string[], original: string[] },
-  }
-  try {
-    config = await getConfig(cliConf, {
-      command: subCmd ? [cmd, subCmd] : [cmd],
-      excludeReporter: false,
-    }) as typeof config
-    config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true
-    config.argv = argv
-    if (config.filter) {
-      Array.prototype.push.apply(config.filter, filterArgs)
-    } else {
-      config.filter = filterArgs
-    }
-  } catch (err) {
-    // Reporting is not initialized at this point, so just printing the error
-    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
-    console.log(`For help, run: pnpm help ${cmd}`)
-    process.exit(1)
-    return
-  }
-
-  // chalk reads the FORCE_COLOR env variable
-  if (config.color === 'always') {
-    process.env['FORCE_COLOR'] = '1'
-  } else if (config.color === 'never') {
-    process.env['FORCE_COLOR'] = '0'
-  }
+  const dir = cliArgs['dir'] ?? process.cwd()
+  const workspaceDir = cliArgs['global'] // tslint:disable-line
+    ? undefined
+    : await findWorkspaceDir(dir)
 
   if (
     (cmd === 'add' || cmd === 'install') &&
-    typeof config.workspaceDir === 'string'
+    typeof workspaceDir === 'string' &&
+    cliArgs.length === 0
   ) {
-    if (cliArgs.length === 0) {
-      subCmd = cmd
-      cmd = 'recursive'
-      cliArgs.unshift(subCmd)
-    } else if (
-      config.workspaceDir === config.dir &&
-      !config.ignoreWorkspaceRootCheck
-    ) {
-      // Reporting is not initialized at this point, so just printing the error
-      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
-        chalk.red('Running this command will add the dependency to the workspace root, ' +
-          'which might not be what you want - if you really meant it, ' +
-          'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).')}`)
-      console.log(`For help, run: pnpm help ${cmd}`)
-      process.exit(1)
-      return
-    }
+    subCmd = cmd
+    cmd = 'recursive'
+    cliArgs.unshift(subCmd)
   }
 
   if (cmd === 'install' && cliArgs.length > 0) {
@@ -199,79 +276,8 @@ export default async function run (inputArgv: string[]) {
       console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
       console.log(`For help, run: pnpm help ${cmd}`)
       process.exit(1)
-      return
+      // return
     }
   }
-
-  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && argv.remain.includes(packageManager.name)
-
-  // Don't check for updates
-  //   1. on CI environments
-  //   2. when in the middle of an actual update
-  if (!isCI && !selfUpdate) {
-    checkForUpdates()
-  }
-
-  const reporterType: ReporterType = (() => {
-    if (config.loglevel === 'silent') return 'silent'
-    if (config.reporter) return config.reporter as ReporterType
-    if (isCI || !process.stdout.isTTY) return 'append-only'
-    return 'default'
-  })()
-
-  initReporter(reporterType, {
-    cmd,
-    config,
-    subCmd,
-  })
-  delete config.reporter // This is a silly workaround because supi expects a function as config.reporter
-
-  if (selfUpdate) {
-    await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
-  }
-
-  // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-  await new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (config.force === true) {
-        logger.warn({
-          message: 'using --force I sure hope you know what you are doing',
-          prefix: config.dir,
-        })
-      }
-
-      if (cmd !== 'recursive') {
-        scopeLogger.debug(config.workspaceDir
-          ? { selected: 1, workspacePrefix: config.workspaceDir }
-          : { selected: 1 })
-      }
-
-      try {
-        const result = pnpmCmds[cmd](
-          cliArgs,
-          // TypeScript doesn't currently infer that the type of config
-          // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
-          config as Omit<typeof config, 'reporter'>,
-          argv.remain[0]
-        )
-        if (result instanceof Promise) {
-          result
-            .then((output) => {
-              if (typeof output === 'string') {
-                process.stdout.write(output)
-              }
-              resolve()
-            })
-            .catch(reject)
-        } else {
-          if (typeof result === 'string') {
-            process.stdout.write(result)
-          }
-          resolve()
-        }
-      } catch (err) {
-        reject(err)
-      }
-    }, 0)
-  })
+  return { argv, cliArgs, cliConf, cmd, dir, subCmd, workspaceDir }
 }

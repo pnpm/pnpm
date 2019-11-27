@@ -44,6 +44,7 @@
     "@pnpm/read-importer-manifest": "workspace:2.0.0",
     "@pnpm/utils": "workspace:0.12.0",
     "chalk": "3.0.0",
+    "find-up": "4.1.0",
     "load-json-file": "6.2.0",
     "lru-cache": "5.1.1",
     "mem": "6.0.0",

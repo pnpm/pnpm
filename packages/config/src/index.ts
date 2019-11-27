@@ -3,7 +3,6 @@ import PnpmError from '@pnpm/error'
 import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase from 'camelcase'
-import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
 import { Config, ConfigWithDeprecatedSettings, UniversalOptions } from './Config'
@@ -86,8 +85,6 @@ export const types = Object.assign({
   'workspace-concurrency': Number,
 }, npmTypes.types)
 
-const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
-
 export default async (
   opts: {
     cliArgs: Record<string, any>, // tslint:disable-line:no-any
@@ -97,6 +94,7 @@ export default async (
       name: string,
       version: string,
     },
+    workspaceDir?: string | undefined,
   },
 ): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
@@ -143,10 +141,6 @@ export default async (
   if (cliArgs['dir']) {
     cliArgs['prefix'] = cliArgs['dir'] // the npm config system still expects `prefix`
   }
-  const dir = cliArgs['dir'] ?? process.cwd()
-  const workspaceDir = cliArgs['global'] // tslint:disable-line
-    ? undefined
-    : await findWorkspacePrefix(dir)
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
     'color': 'auto',
@@ -179,7 +173,7 @@ export default async (
     'userconfig': npmDefaults.userconfig,
     'virtual-store-dir': 'node_modules/.pnpm',
     'workspace-concurrency': 4,
-    'workspace-prefix': workspaceDir,
+    'workspace-prefix': opts.workspaceDir,
   })
   delete cliArgs['prefix']
 
@@ -193,7 +187,7 @@ export default async (
       return acc
     }, {} as Config)
   const cwd = (cliArgs['dir'] && path.resolve(cliArgs['dir'])) ?? npmConfig.localPrefix // tslint:disable-line
-  pnpmConfig.workspaceDir = workspaceDir
+  pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
@@ -367,9 +361,4 @@ export default async (
     }
   }
   return { config: pnpmConfig, warnings }
-}
-
-export async function findWorkspacePrefix (prefix: string) {
-  const workspaceManifestLocation = await findUp(WORKSPACE_MANIFEST_FILENAME, { cwd: prefix })
-  return workspaceManifestLocation && path.dirname(workspaceManifestLocation)
 }

@@ -35,7 +35,6 @@
     "@pnpm/types": "workspace:4.0.0",
     "@zkochan/npm-conf": "1.2.4",
     "camelcase": "5.3.1",
-    "find-up": "4.1.0",
     "is-subdir": "1.1.1",
     "which": "2.0.2"
   },
