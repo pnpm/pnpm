@@ -1,6 +1,5 @@
 import {
   docsUrl,
-  findWorkspaceDir,
   getConfig,
   getSaveType,
   readImporterManifest,
@@ -9,6 +8,7 @@ import {
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
+import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'

@@ -13,15 +13,15 @@ gfs.gracefulify(fs)
 
 import loudRejection from 'loud-rejection'
 loudRejection()
-import { findWorkspaceDir, getConfig, packageManager } from '@pnpm/cli-utils'
+import { getConfig, packageManager } from '@pnpm/cli-utils'
 import {
   Config,
   types as allTypes,
 } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
+import parseCliArgs from '@pnpm/parse-cli-args'
 import isCI = require('is-ci')
-import nopt = require('nopt')
 import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { getCommandFullName, getTypes } from './cmd'
@@ -38,7 +38,51 @@ const RENAMED_OPTIONS = {
 }
 
 export default async function run (inputArgv: string[]) {
-  const { argv, cliArgs, cliConf, cmd, dir, subCmd, workspaceDir } = await parseArgs(inputArgv)
+  // tslint:disable
+  const shortHands = {
+    's': ['--reporter', 'silent'],
+    'd': ['--loglevel', 'info'],
+    'dd': ['--loglevel', 'verbose'],
+    'ddd': ['--loglevel', 'silly'],
+    'L': ['--latest'],
+    'r': ['--recursive'],
+    'silent': ['--reporter', 'silent'],
+    'verbose': ['--loglevel', 'verbose'],
+    'quiet': ['--loglevel', 'warn'],
+    'q': ['--loglevel', 'warn'],
+    'h': ['--usage'],
+    'H': ['--usage'],
+    '?': ['--usage'],
+    'help': ['--usage'],
+    'v': ['--version'],
+    'f': ['--force'],
+    'local': ['--no-global'],
+    'l': ['--long'],
+    'p': ['--parseable'],
+    'porcelain': ['--parseable'],
+    'prod': ['--production'],
+    'g': ['--global'],
+    'S': ['--save'],
+    'D': ['--save-dev'],
+    'P': ['--save-prod'],
+    'E': ['--save-exact'],
+    'O': ['--save-optional'],
+    'C': ['--dir'],
+    'shrinkwrap-only': ['--lockfile-only'],
+    'shared-workspace-shrinkwrap': ['--shared-workspace-lockfile'],
+    'frozen-shrinkwrap': ['--frozen-lockfile'],
+    'prefer-frozen-shrinkwrap': ['--prefer-frozen-lockfile'],
+    'W': ['--ignore-workspace-root-check'],
+  }
+  // tslint:enable
+  const { argv, cliArgs, cliConf, cmd, dir, subCmd, workspaceDir } = await parseCliArgs({
+    getCommandLongName: getCommandFullName,
+    getTypesByCommandName: getTypes,
+    globalOptionsTypes: GLOBAL_OPTIONS,
+    isKnownCommand: (commandName) => typeof pnpmCmds[commandName] !== 'undefined',
+    renamedOptions: RENAMED_OPTIONS,
+    shortHands,
+  }, inputArgv)
   process.env['npm_config_argv'] = JSON.stringify(argv)
 
   let config: Config & {
@@ -154,130 +198,4 @@ export default async function run (inputArgv: string[]) {
       }
     }, 0)
   })
-}
-
-async function parseArgs (inputArgv: string[]) {
-    // tslint:disable
-  const shortHands = {
-    's': ['--reporter', 'silent'],
-    'd': ['--loglevel', 'info'],
-    'dd': ['--loglevel', 'verbose'],
-    'ddd': ['--loglevel', 'silly'],
-    'L': ['--latest'],
-    'r': ['--recursive'],
-    'silent': ['--reporter', 'silent'],
-    'verbose': ['--loglevel', 'verbose'],
-    'quiet': ['--loglevel', 'warn'],
-    'q': ['--loglevel', 'warn'],
-    'h': ['--usage'],
-    'H': ['--usage'],
-    '?': ['--usage'],
-    'help': ['--usage'],
-    'v': ['--version'],
-    'f': ['--force'],
-    'local': ['--no-global'],
-    'l': ['--long'],
-    'p': ['--parseable'],
-    'porcelain': ['--parseable'],
-    'prod': ['--production'],
-    'g': ['--global'],
-    'S': ['--save'],
-    'D': ['--save-dev'],
-    'P': ['--save-prod'],
-    'E': ['--save-exact'],
-    'O': ['--save-optional'],
-    'C': ['--dir'],
-    'shrinkwrap-only': ['--lockfile-only'],
-    'shared-workspace-shrinkwrap': ['--shared-workspace-lockfile'],
-    'frozen-shrinkwrap': ['--frozen-lockfile'],
-    'prefer-frozen-shrinkwrap': ['--prefer-frozen-lockfile'],
-    'W': ['--ignore-workspace-root-check'],
-  }
-  // tslint:enable
-  const noptExploratoryResults = nopt({ recursive: Boolean, filter: [String] }, { 'r': ['--recursive'] }, inputArgv, 0)
-
-  const types = (() => {
-    if (getCommandFullName(noptExploratoryResults.argv.remain[0]) === 'recursive') {
-      return {
-        ...GLOBAL_OPTIONS,
-        ...getTypes('recursive'),
-        ...getTypes(getCommandName(noptExploratoryResults.argv.remain.slice(1))),
-      }
-    }
-    if (noptExploratoryResults['filter'] || noptExploratoryResults['recursive'] === true) {
-      return {
-        ...GLOBAL_OPTIONS,
-        ...getTypes('recursive'),
-        ...getTypes(getCommandName(noptExploratoryResults.argv.remain)),
-      }
-    }
-    return {
-      ...GLOBAL_OPTIONS,
-      ...getTypes(getCommandName(noptExploratoryResults.argv.remain)),
-    }
-  })() as any // tslint:disable-line:no-any
-
-  function getCommandName (cliArgs: string[]) {
-    if (getCommandFullName(cliArgs[0]) !== 'install' || cliArgs.length === 1) return cliArgs[0]
-    return 'add'
-  }
-
-  const { argv, ...cliConf } = nopt(types, shortHands, inputArgv, 0)
-
-  for (const cliOption of Object.keys(cliConf)) {
-    if (RENAMED_OPTIONS[cliOption]) {
-      cliConf[RENAMED_OPTIONS[cliOption]] = cliConf[cliOption]
-      delete cliConf[cliOption]
-    }
-  }
-
-  let cmd = getCommandFullName(argv.remain[0])
-    || 'help'
-  if (!pnpmCmds[cmd]) {
-    cmd = 'help'
-  }
-
-  let subCmd: string | null = argv.remain[1] && getCommandFullName(argv.remain[1])
-
-  // `pnpm install ""` is going to be just `pnpm install`
-  const cliArgs = argv.remain.slice(1).filter(Boolean)
-
-  if (cmd !== 'recursive' && (cliConf['filter'] || cliConf['recursive'] === true)) {
-    subCmd = cmd
-    cmd = 'recursive'
-    cliArgs.unshift(subCmd)
-  } else if (subCmd && !pnpmCmds[subCmd]) {
-    subCmd = null
-  }
-  const dir = cliArgs['dir'] ?? process.cwd()
-  const workspaceDir = cliArgs['global'] // tslint:disable-line
-    ? undefined
-    : await findWorkspaceDir(dir)
-
-  if (
-    (cmd === 'add' || cmd === 'install') &&
-    typeof workspaceDir === 'string' &&
-    cliArgs.length === 0
-  ) {
-    subCmd = cmd
-    cmd = 'recursive'
-    cliArgs.unshift(subCmd)
-  }
-
-  if (cmd === 'install' && cliArgs.length > 0) {
-    cmd = 'add'
-  } else if (subCmd === 'install' && cliArgs.length > 1) {
-    subCmd = 'add'
-  }
-
-  const allowedOptions = new Set(Object.keys(types))
-  for (const cliOption of Object.keys(cliConf)) {
-    if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
-      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
-      console.log(`For help, run: pnpm help ${cmd}`)
-      process.exit(1)
-      // return
-    }
-  }
-  return { argv, cliArgs, cliConf, cmd, dir, subCmd, workspaceDir }
 }

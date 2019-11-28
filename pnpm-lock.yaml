@@ -90,7 +90,6 @@ importers:
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/utils': 'link:../utils'
       chalk: 3.0.0
-      find-up: 4.1.0
       load-json-file: 6.2.0
       lru-cache: 5.1.1
       mem: 6.0.0
@@ -117,7 +116,6 @@ importers:
       '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.26.36
       chalk: 3.0.0
-      find-up: 4.1.0
       load-json-file: 6.2.0
       lru-cache: 5.1.1
       mem: 6.0.0
@@ -433,6 +431,14 @@ importers:
       find-packages: 'link:'
       p-filter: ^2.1.0
       tape: 4.11.0
+  packages/find-workspace-dir:
+    dependencies:
+      find-up: 4.1.0
+    devDependencies:
+      rimraf: 3.0.0
+    specifiers:
+      find-up: 4.1.0
+      rimraf: 3.0.0
   packages/find-workspace-packages:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1195,6 +1201,20 @@ importers:
       tape: 4.11.0
       tempy: 0.3.0
       write-json-file: 4.0.0
+  packages/parse-cli-args:
+    dependencies:
+      '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
+      chalk: 3.0.0
+      nopt: 4.0.1
+    devDependencies:
+      '@types/nopt': 3.0.29
+      rimraf: 3.0.0
+    specifiers:
+      '@pnpm/find-workspace-dir': 'workspace:0.0.0'
+      '@types/nopt': 3.0.29
+      chalk: 3.0.0
+      nopt: 4.0.1
+      rimraf: 3.0.0
   packages/pkgs-graph:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
@@ -1298,6 +1318,7 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/error': 'link:../error'
+      '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
@@ -1321,6 +1342,7 @@ importers:
       '@pnpm/config': 'workspace:5.0.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/find-workspace-dir': 'workspace:0.0.0'
       '@pnpm/find-workspace-packages': 'workspace:0.0.0'
       '@pnpm/package-store': 'workspace:6.0.1'
       '@pnpm/plugin-commands-installation': 'link:'
@@ -1650,7 +1672,9 @@ importers:
       '@pnpm/default-reporter': 'link:../default-reporter'
       '@pnpm/error': 'link:../error'
       '@pnpm/file-reporter': 0.1.0
+      '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/logger': 3.1.0
+      '@pnpm/parse-cli-args': 'link:../parse-cli-args'
       '@pnpm/plugin-commands-audit': 'link:../plugin-commands-audit'
       '@pnpm/plugin-commands-import': 'link:../plugin-commands-import'
       '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
@@ -1749,10 +1773,12 @@ importers:
       '@pnpm/default-reporter': 'workspace:5.0.3'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/file-reporter': 0.1.0
+      '@pnpm/find-workspace-dir': 'workspace:0.0.0'
       '@pnpm/find-workspace-packages': 'workspace:0.0.0'
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:*'
+      '@pnpm/parse-cli-args': 'workspace:0.0.0'
       '@pnpm/plugin-commands-audit': 'workspace:0.0.0'
       '@pnpm/plugin-commands-import': 'workspace:0.0.0'
       '@pnpm/plugin-commands-installation': 'workspace:0.0.0'

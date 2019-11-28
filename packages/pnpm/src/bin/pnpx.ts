@@ -1,4 +1,4 @@
-import { findWorkspaceDir } from '@pnpm/cli-utils'
+import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import npx = require('@zkochan/libnpx/index')
 import path = require('path')
 

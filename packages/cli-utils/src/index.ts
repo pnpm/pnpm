@@ -1,9 +1,8 @@
-import findWorkspaceDir from './findWorkspaceDir'
 import getConfig from './getConfig'
 import getSaveType from './getSaveType'
 import packageManager from './pnpmPkgJson'
 
-export { findWorkspaceDir, getConfig, getSaveType, packageManager }
+export { getConfig, getSaveType, packageManager }
 
 export * from './createLatestManifestGetter'
 export * from './getPinnedVersion'
