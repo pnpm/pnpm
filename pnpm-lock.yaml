@@ -10,7 +10,7 @@ importers:
       npm: 4.6.1
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
-      ts-node: 8.5.2_typescript@3.7.2
+      ts-node: 8.5.4_typescript@3.7.2
       tslint: 5.20.1_typescript@3.7.2
       typescript: 3.7.2
       verdaccio: 4.3.5
@@ -24,7 +24,7 @@ importers:
       npm: 4.6.1
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
-      ts-node: 8.5.2
+      ts-node: 8.5.4
       tslint: 5.20.1
       typescript: 3.7.2
       verdaccio: 4.3.5
@@ -3421,7 +3421,7 @@ packages:
       integrity: sha512-Il80Qs2WjYlJIBNzNkK6KYqlVMTbZLXgHx2oT0pU/fjRHyEp+PEfEPY0R3WCwAGVOtauxh1hOxNgIf5bv7dQpA==
   /acorn-globals/4.3.4:
     dependencies:
-      acorn: 6.3.0
+      acorn: 6.4.0
       acorn-walk: 6.2.0
     dev: true
     resolution:
@@ -3432,13 +3432,13 @@ packages:
       node: '>=0.4.0'
     resolution:
       integrity: sha512-7evsyfH1cLOCdAzZAd43Cic04yKydNx0cF+7tiA19p1XnLLPU4dpCQOqpjqwokFe//vS0QqfqqjCS2JkiIs0cA==
-  /acorn/6.3.0:
+  /acorn/6.4.0:
     dev: true
     engines:
       node: '>=0.4.0'
     hasBin: true
     resolution:
-      integrity: sha512-/czfa8BwS88b9gWQVhc8eknunSA2DoJpJyTQkhheIf5E48u1N0R4q/YxxsAeqRrmK9TQ/uYfgLDfZo91UlANIA==
+      integrity: sha512-gac8OEcQ2Li1dxIEWGZzsp2BitJxwkwcOm0zHAJLcPJaVvm58FRnk6RkuLRpU1EujipU2ZFODv2P9DLMfnV8mw==
   /acorn/7.1.0:
     dev: true
     engines:
@@ -4029,9 +4029,9 @@ packages:
   /aws-sign2/0.7.0:
     resolution:
       integrity: sha1-tG6JCTSpWR8tL2+G1+ap8bP+dqg=
-  /aws4/1.8.0:
+  /aws4/1.9.0:
     resolution:
-      integrity: sha512-ReZxvNHIOv88FlT7rxcXIIC0fPt4KZqZbOlivyWtXLt8ESx84zd3kMC6iK5jVeS2qt+g7ftS7ye4fi06X5rtRQ==
+      integrity: sha512-Uvq6hVe90D0B2WEnUqtdgY1bATGz3mw33nH9Y+dmA+w5DHvUmBgkr5rM/KCHpCsiFNRUfokW/szpPPgMK2hm4A==
   /babel-polyfill/6.26.0:
     dependencies:
       babel-runtime: 6.26.0
@@ -8077,7 +8077,7 @@ packages:
   /normalize-package-data/2.5.0:
     dependencies:
       hosted-git-info: 2.8.5
-      resolve: 1.13.0
+      resolve: 1.13.1
       semver: 5.7.1
       validate-npm-package-license: 3.0.4
     resolution:
@@ -8999,7 +8999,7 @@ packages:
     dependencies:
       fill-keys: 1.0.2
       module-not-found-error: 1.0.1
-      resolve: 1.13.0
+      resolve: 1.13.1
     dev: true
     resolution:
       integrity: sha512-BQWfCqYM+QINd+yawJz23tbBM40VIGXOdDw3X344KcclI/gtBbdWF6SlQ4nK/bYhF9d27KYug9WzljHC6B9Ysg==
@@ -9425,7 +9425,7 @@ packages:
   /request/2.87.0:
     dependencies:
       aws-sign2: 0.7.0
-      aws4: 1.8.0
+      aws4: 1.9.0
       caseless: 0.12.0
       combined-stream: 1.0.8
       extend: 3.0.2
@@ -9452,7 +9452,7 @@ packages:
   /request/2.88.0:
     dependencies:
       aws-sign2: 0.7.0
-      aws4: 1.8.0
+      aws4: 1.9.0
       caseless: 0.12.0
       combined-stream: 1.0.8
       extend: 3.0.2
@@ -9524,11 +9524,11 @@ packages:
       path-parse: 1.0.6
     resolution:
       integrity: sha512-vIpgF6wfuJOZI7KKKSP+HmiKggadPQAdsp5HiC1mvqnfp0gF1vdwgBWZIdrVft9pgqoMFQN+R7BSWZiBxx+BBw==
-  /resolve/1.13.0:
+  /resolve/1.13.1:
     dependencies:
       path-parse: 1.0.6
     resolution:
-      integrity: sha512-HHZ3hmOrk5SvybTb18xq4Ek2uLqLO5/goFCYUyvn26nWox4hdlKlfC/+dChIZ6qc4ZeYcN9ekTz0yyHsFgumMw==
+      integrity: sha512-CxqObCX8K8YtAhOBRg+lrcdn+LK+WYOS8tSjqSFbjtrI5PnS63QPhZl4+yKfrU9tdsbMu9Anr/amegT87M9Z6w==
   /responselike/1.0.2:
     dependencies:
       lowercase-keys: 1.0.1
@@ -10591,7 +10591,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.5.2_typescript@3.7.2:
+  /ts-node/8.5.4_typescript@3.7.2:
     dependencies:
       arg: 4.1.2
       diff: 4.0.1
@@ -10606,7 +10606,7 @@ packages:
     peerDependencies:
       typescript: '>=2.0'
     resolution:
-      integrity: sha512-W1DK/a6BGoV/D4x/SXXm6TSQx6q3blECUzd5TN+j56YEMX3yPVMpHsICLedUw3DvGF3aTQ8hfdR9AKMaHjIi+A==
+      integrity: sha512-izbVCRV68EasEPQ8MSIGBNK9dc/4sYJJKYA+IarMQct1RtEot6Xp0bXuClsbUSnKpg50ho+aOAx8en5c+y4OFw==
   /ts-toolbelt/4.10.21:
     dev: true
     resolution:
@@ -10644,7 +10644,7 @@ packages:
       js-yaml: 3.13.1
       minimatch: 3.0.4
       mkdirp: 0.5.1
-      resolve: 1.13.0
+      resolve: 1.13.1
       semver: 5.7.1
       tslib: 1.10.0
       tsutils: 2.29.0_typescript@3.7.2
