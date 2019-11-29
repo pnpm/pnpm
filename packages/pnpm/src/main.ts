@@ -75,7 +75,7 @@ export default async function run (inputArgv: string[]) {
     'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
-  const { argv, cliArgs, cliConf, cmd, dir, subCmd, workspaceDir } = await parseCliArgs({
+  const { argv, cliArgs, cliConf, cmd, dir, subCmd, unknownOptions, workspaceDir } = await parseCliArgs({
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getTypes,
     globalOptionsTypes: GLOBAL_OPTIONS,
@@ -83,6 +83,17 @@ export default async function run (inputArgv: string[]) {
     renamedOptions: RENAMED_OPTIONS,
     shortHands,
   }, inputArgv)
+  if (unknownOptions.length > 0) {
+    let errorMsg = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
+    if (unknownOptions.length === 1) {
+      errorMsg += ` ${chalk.red(`Unknown option '${unknownOptions[0]}'`)}`
+    } else {
+      errorMsg += ` ${chalk.red(`Unknown options ${unknownOptions.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+    }
+    console.error(errorMsg)
+    console.log(`For help, run: pnpm help ${cmd}`)
+    process.exit(1)
+  }
   process.env['npm_config_argv'] = JSON.stringify(argv)
 
   let config: Config & {

@@ -1,5 +1,4 @@
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
-import chalk = require('chalk')
 import nopt = require('nopt')
 
 export default async function parseCliArgs (
@@ -8,7 +7,7 @@ export default async function parseCliArgs (
     getTypesByCommandName: (commandName: string) => object,
     globalOptionsTypes: Record<string, unknown>,
     isKnownCommand: (commandName: string) => boolean,
-    renamedOptions: Record<string, string>,
+    renamedOptions?: Record<string, string>,
     shortHands: Record<string, string[]>,
   },
   inputArgv: string[],
@@ -43,10 +42,12 @@ export default async function parseCliArgs (
 
   const { argv, ...cliConf } = nopt(types, opts.shortHands, inputArgv, 0)
 
-  for (const cliOption of Object.keys(cliConf)) {
-    if (opts.renamedOptions[cliOption]) {
-      cliConf[opts.renamedOptions[cliOption]] = cliConf[cliOption]
-      delete cliConf[cliOption]
+  if (opts.renamedOptions) {
+    for (const cliOption of Object.keys(cliConf)) {
+      if (opts.renamedOptions[cliOption]) {
+        cliConf[opts.renamedOptions[cliOption]] = cliConf[cliOption]
+        delete cliConf[cliOption]
+      }
     }
   }
 
@@ -90,13 +91,20 @@ export default async function parseCliArgs (
   }
 
   const allowedOptions = new Set(Object.keys(types))
+  const unknownOptions = [] as string[]
   for (const cliOption of Object.keys(cliConf)) {
     if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
-      console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown option '${cliOption}'`)}`)
-      console.log(`For help, run: pnpm help ${cmd}`)
-      process.exit(1)
-      // return
+      unknownOptions.push(cliOption)
     }
   }
-  return { argv, cliArgs, cliConf, cmd, dir, subCmd, workspaceDir }
+  return {
+    argv,
+    cliArgs,
+    cliConf,
+    cmd,
+    dir,
+    subCmd,
+    unknownOptions,
+    workspaceDir,
+  }
 }

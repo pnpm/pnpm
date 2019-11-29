@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
-    "test": "pnpm run tsc && pnpm run lint",
+    "test": "pnpm run tsc && pnpm run lint && ts-node test",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/parse-cli-args",
@@ -27,12 +27,13 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
+    "@pnpm/parse-cli-args": "link:",
     "@types/nopt": "3.0.29",
-    "rimraf": "3.0.0"
+    "rimraf": "3.0.0",
+    "tape": "4.11.0"
   },
   "dependencies": {
     "@pnpm/find-workspace-dir": "workspace:0.0.0",
-    "chalk": "3.0.0",
     "nopt": "4.0.1"
   }
 }

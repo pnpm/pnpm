@@ -1204,17 +1204,19 @@ importers:
   packages/parse-cli-args:
     dependencies:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
-      chalk: 3.0.0
       nopt: 4.0.1
     devDependencies:
+      '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
       rimraf: 3.0.0
+      tape: 4.11.0
     specifiers:
       '@pnpm/find-workspace-dir': 'workspace:0.0.0'
+      '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
-      chalk: 3.0.0
       nopt: 4.0.1
       rimraf: 3.0.0
+      tape: 4.11.0
   packages/pkgs-graph:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
