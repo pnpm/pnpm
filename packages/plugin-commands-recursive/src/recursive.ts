@@ -263,7 +263,6 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'ignorePnpmfile' |
   'ignoreScripts' |
   'include' |
-  'latest' |
   'linkWorkspacePackages' |
   'lockfileDir' |
   'lockfileOnly' |
@@ -279,7 +278,9 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'saveProd' |
   'sort' |
   'workspaceConcurrency'
->
+> & {
+  latest?: boolean,
+}
 
 export async function recursive (
   allPkgs: Array<{dir: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>,
