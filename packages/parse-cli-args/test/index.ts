@@ -64,6 +64,15 @@ test('the install command is recursive when executed in the root of a workspace'
   t.end()
 })
 
+test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
+  const { workspaceDir } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    globalOptionsTypes: { global: Boolean },
+  }, ['--global', 'add', 'foo'])
+  t.notOk(workspaceDir)
+  t.end()
+})
+
 test('help is returned when an unknown command is used', async (t) => {
   const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
@@ -79,6 +88,17 @@ test('the install command is converted to add when called with args', async (t) 
     ...DEFAULT_OPTS,
     isKnownCommand: (commandName) => commandName === 'install',
   }, ['install', 'rimraf@1'])
+  t.equal(cmd, 'add')
+  t.deepEqual(cliArgs, ['rimraf@1'])
+  t.end()
+})
+
+test('the "i" command is converted to add when called with args', async (t) => {
+  const { cliArgs, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getCommandLongName: (commandName) => commandName === 'i' ? 'install' : commandName,
+    isKnownCommand: (commandName) => commandName === 'install',
+  }, ['i', 'rimraf@1'])
   t.equal(cmd, 'add')
   t.deepEqual(cliArgs, ['rimraf@1'])
   t.end()

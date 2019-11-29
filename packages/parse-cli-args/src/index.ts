@@ -69,8 +69,8 @@ export default async function parseCliArgs (
   } else if (subCmd && !opts.isKnownCommand(subCmd)) {
     subCmd = null
   }
-  const dir = cliArgs['dir'] ?? process.cwd()
-  const workspaceDir = cliArgs['global'] // tslint:disable-line
+  const dir = cliConf['dir'] ?? process.cwd()
+  const workspaceDir = cliConf['global'] // tslint:disable-line
     ? undefined
     : await findWorkspaceDir(dir)
 
