@@ -6,12 +6,14 @@ export default async function (
   opts: {
     excludeReporter: boolean,
     command: string[],
+    workspaceDir: string | undefined,
   },
 ) {
   const { config, warnings } = await getConfig({
     cliArgs,
     command: opts.command,
     packageManager,
+    workspaceDir: opts.workspaceDir,
   })
   config.cliArgs = cliArgs
 

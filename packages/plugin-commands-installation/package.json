@@ -39,6 +39,7 @@
     "@pnpm/config": "workspace:5.0.2",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/find-workspace-dir": "workspace:0.0.0",
     "@pnpm/find-workspace-packages": "workspace:0.0.0",
     "@pnpm/package-store": "workspace:6.0.1",
     "@pnpm/plugin-commands-recursive": "workspace:0.0.0",

@@ -193,29 +193,6 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
   t.end()
 })
 
-test('workspace manifest is searched from specified dir', async (t) => {
-  const tmp = tempy.directory()
-  t.comment(`temp dir created: ${tmp}`)
-
-  process.chdir(tmp)
-
-  await fs.mkdir('workspace')
-  await fs.writeFile('workspace/pnpm-workspace.yaml', '', 'utf8')
-
-  const { config } = await getConfig({
-    cliArgs: {
-      'dir': 'workspace',
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-
-  t.equal(config.workspaceDir, path.join(tmp, 'workspace'))
-  t.end()
-})
-
 test('registries of scoped packages are read', async (t) => {
   const { config } = await getConfig({
     cliArgs: {
@@ -400,36 +377,6 @@ test('depth is 0 by default for list commands', async (t) => {
   t.end()
 })
 
-test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
-  {
-    const { config } = await getConfig({
-      cliArgs: {
-        'global': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.ok(config)
-    t.notOk(config.workspaceDir)
-  }
-
-  {
-    const { config } = await getConfig({
-      cliArgs: {},
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.ok(config)
-    t.ok(config.workspaceDir)
-  }
-
-  t.end()
-})
-
 test('throw error if --save-prod is used with --save-peer', async (t) => {
   try {
     await getConfig({
@@ -485,8 +432,6 @@ test('extraBinPaths', async (t) => {
     t.deepEqual(config.extraBinPaths, [], 'extraBinPaths is empty outside of a workspace')
   }
 
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
-
   {
     const { config } = await getConfig({
       cliArgs: {},
@@ -494,6 +439,7 @@ test('extraBinPaths', async (t) => {
         name: 'pnpm',
         version: '1.0.0',
       },
+      workspaceDir: process.cwd(),
     })
     t.deepEqual(config.extraBinPaths, [path.resolve('node_modules/.bin')], 'extraBinPaths has the node_modules/.bin folder from the root of the workspace')
   }
@@ -686,8 +632,8 @@ test('rawLocalConfig in a workspace', async (t) => {
   t.comment(`temp dir created: ${tmp}`)
 
   process.chdir(tmp)
+  const workspaceDir = process.cwd()
   await fs.writeFile('.npmrc', 'independent-leaves=true\nhoist-pattern=*', 'utf8')
-  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
   await fs.mkdir('package')
   process.chdir('package')
   await fs.writeFile('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
@@ -701,6 +647,7 @@ test('rawLocalConfig in a workspace', async (t) => {
         name: 'pnpm',
         version: '1.0.0',
       },
+      workspaceDir,
     })
 
     t.deepEqual(config.rawLocalConfig, {
@@ -722,6 +669,7 @@ test('rawLocalConfig in a workspace', async (t) => {
         name: 'pnpm',
         version: '1.0.0',
       },
+      workspaceDir,
     })
 
     t.deepEqual(config.rawLocalConfig, {
