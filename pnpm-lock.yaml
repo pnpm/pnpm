@@ -768,7 +768,7 @@ importers:
       '@types/js-yaml': 3.12.1
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.26.36
-      '@types/write-file-atomic': 2.1.2
+      '@types/write-file-atomic': 3.0.0
       rimraf: 3.0.0
       tape: 4.11.0
       tempy: 0.3.0
@@ -784,7 +784,7 @@ importers:
       '@types/js-yaml': ^3.12.1
       '@types/normalize-path': 3.0.0
       '@types/ramda': ^0.26.36
-      '@types/write-file-atomic': 2.1.2
+      '@types/write-file-atomic': 3.0.0
       '@zkochan/rimraf': 1.0.0
       js-yaml: 3.13.1
       make-dir: 3.0.0
@@ -3255,12 +3255,12 @@ packages:
   /@types/wrap-ansi/3.0.0:
     resolution:
       integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
-  /@types/write-file-atomic/2.1.2:
+  /@types/write-file-atomic/3.0.0:
     dependencies:
       '@types/node': 12.12.14
     dev: true
     resolution:
-      integrity: sha512-/P4wq72qka9+JNqDgHe7Kr2Gpu1kmhA0H8tLlKi9G0eXmePiuT9k0izZAdkXXNA6Nb27xnzdgjRv2jZWO3+2oQ==
+      integrity: sha512-XrvNv7CBEveBoWkGU4ZxuyeL7iaYVr609VjlNAe+VaS8N9stTvGwp5IZgFP+QDbiRQV/R7MmipPsgAhlf5LZzQ==
   /@types/zen-observable/0.8.0:
     dev: false
     resolution:
