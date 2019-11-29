@@ -41,7 +41,7 @@
     "@types/js-yaml": "^3.12.1",
     "@types/normalize-path": "3.0.0",
     "@types/ramda": "^0.26.36",
-    "@types/write-file-atomic": "2.1.2",
+    "@types/write-file-atomic": "3.0.0",
     "rimraf": "3.0.0",
     "tape": "4.11.0",
     "tempy": "0.3.0",
