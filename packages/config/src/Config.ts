@@ -105,7 +105,6 @@ export interface Config {
   useLockfile: boolean,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
   globalPnpmfile?: string,
-  latest?: boolean,
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,

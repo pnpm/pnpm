@@ -259,7 +259,6 @@ export type InstallCommandOptions = Pick<Config,
   'ignorePnpmfile' |
   'ignoreScripts' |
   'include' |
-  'latest' |
   'linkWorkspacePackages' |
   'lockfileDir' |
   'pending' |
@@ -277,6 +276,7 @@ export type InstallCommandOptions = Pick<Config,
   'workspaceDir'
 > & CreateStoreControllerOptions & {
   allowNew?: boolean,
+  latest?: boolean,
   update?: boolean,
   useBetaCli?: boolean,
 }
