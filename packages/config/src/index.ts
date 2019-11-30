@@ -4,6 +4,7 @@ import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase from 'camelcase'
 import path = require('path')
+import R = require('ramda')
 import whichcb = require('which')
 import { Config, ConfigWithDeprecatedSettings, UniversalOptions } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
@@ -84,9 +85,11 @@ export const types = Object.assign({
   'workspace-concurrency': Number,
 }, npmTypes.types)
 
+export type CliOptions = Record<string, unknown> & { dir?: string }
+
 export default async (
   opts: {
-    cliArgs: Record<string, any>, // tslint:disable-line:no-any
+    cliOptions: CliOptions,
     // The canonical names of commands. "pnpm i -r"=>"pnpm recursive install"
     command?: string[],
     packageManager: {
@@ -97,29 +100,29 @@ export default async (
   },
 ): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
-  const cliArgs = opts.cliArgs ?? {}
+  const cliOptions = opts.cliOptions ?? {}
   const command = opts.command ?? []
   const warnings = new Array<string>()
 
   switch (command[command.length - 1]) {
     case 'update':
-      if (typeof cliArgs['frozen-lockfile'] !== 'undefined') {
+      if (typeof cliOptions['frozen-lockfile'] !== 'undefined') {
         throw new PnpmError('CONFIG_BAD_OPTION', 'The "frozen-lockfile" option cannot be used with the "update" command')
       }
-      if (typeof cliArgs['prefer-frozen-lockfile'] !== 'undefined') {
+      if (typeof cliOptions['prefer-frozen-lockfile'] !== 'undefined') {
         throw new PnpmError('CONFIG_BAD_OPTION', 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
       }
       break
   }
 
-  if (cliArgs['hoist'] === false) {
-    if (cliArgs['shamefully-hoist'] === true) {
+  if (cliOptions['hoist'] === false) {
+    if (cliOptions['shamefully-hoist'] === true) {
       throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-hoist cannot be used with --no-hoist')
     }
-    if (cliArgs['shamefully-flatten'] === true) {
+    if (cliOptions['shamefully-flatten'] === true) {
       throw new PnpmError('CONFIG_CONFLICT_HOIST', '--shamefully-flatten cannot be used with --no-hoist')
     }
-    if (cliArgs['hoist-pattern']) {
+    if (cliOptions['hoist-pattern']) {
       throw new PnpmError('CONFIG_CONFLICT_HOIST', '--hoist-pattern cannot be used with --no-hoist')
     }
   }
@@ -137,10 +140,10 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
-  if (cliArgs['dir']) {
-    cliArgs['prefix'] = cliArgs['dir'] // the npm config system still expects `prefix`
+  if (cliOptions.dir) {
+    cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
-  const npmConfig = loadNpmConf(cliArgs, types, {
+  const npmConfig = loadNpmConf(cliOptions, types, {
     'bail': true,
     'color': 'auto',
     'depth': (command[0] === 'list' || command[1] === 'list') ? 0 : Infinity,
@@ -173,23 +176,20 @@ export default async (
     'workspace-concurrency': 4,
     'workspace-prefix': opts.workspaceDir,
   })
-  delete cliArgs['prefix']
+  delete cliOptions['prefix']
 
   process.execPath = originalExecPath
 
-  const pnpmConfig: ConfigWithDeprecatedSettings = Object.keys(types) // tslint:disable-line
-    .reduce((acc, configKey) => {
-      acc[camelcase(configKey)] = typeof cliArgs[configKey] !== 'undefined'
-        ? cliArgs[configKey]
-        : npmConfig.get(configKey)
-      return acc
-    }, {} as Config)
-  const cwd = (cliArgs['dir'] && path.resolve(cliArgs['dir'])) ?? npmConfig.localPrefix // tslint:disable-line
+  const pnpmConfig: ConfigWithDeprecatedSettings = R.fromPairs([
+    ...Object.keys(types).map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // tslint:disable-line
+    ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
+  ]) as unknown as ConfigWithDeprecatedSettings
+  const cwd = (cliOptions['dir'] && path.resolve(cliOptions['dir'])) ?? npmConfig.localPrefix // tslint:disable-line
   pnpmConfig.workspaceDir = opts.workspaceDir
   pnpmConfig.rawLocalConfig = Object.assign.apply(Object, [
     {},
     ...npmConfig.list.slice(3, pnpmConfig.workspaceDir && pnpmConfig.workspaceDir !== cwd ? 5 : 4).reverse(),
-    cliArgs,
+    cliOptions,
   ] as any) // tslint:disable-line:no-any
   pnpmConfig.userAgent = pnpmConfig.rawLocalConfig['user-agent']
     ? pnpmConfig.rawLocalConfig['user-agent']
@@ -197,7 +197,7 @@ export default async (
   pnpmConfig.rawConfig = Object.assign.apply(Object, [
     { registry: 'https://registry.npmjs.org/' },
     ...[...npmConfig.list].reverse(),
-    cliArgs,
+    cliOptions,
     { 'user-agent': pnpmConfig.userAgent },
   ] as any) // tslint:disable-line:no-any
   pnpmConfig.registries = {
@@ -234,7 +234,7 @@ export default async (
     ? pnpmConfig.sharedWorkspaceShrinkwrap
     : pnpmConfig['sharedWorkspaceLockfile']
 
-  if (cliArgs['global']) {
+  if (cliOptions['global']) {
     pnpmConfig.dir = path.join(pnpmConfig.globalDir, LAYOUT_VERSION.toString())
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true
@@ -243,41 +243,41 @@ export default async (
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
     if (pnpmConfig.independentLeaves) {
-      if (opts.cliArgs['independent-leaves']) {
+      if (opts.cliOptions['independent-leaves']) {
         throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_WITH_GLOBAL',
           'Configuration conflict. "independent-leaves" may not be used with "global"')
       }
       pnpmConfig.independentLeaves = false
     }
     if (pnpmConfig.hoistPattern && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
-      if (opts.cliArgs['hoist-pattern']) {
+      if (opts.cliOptions['hoist-pattern']) {
         throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
           'Configuration conflict. "hoist-pattern" may not be used with "global"')
       }
       pnpmConfig.independentLeaves = false
     }
     if (pnpmConfig.linkWorkspacePackages) {
-      if (opts.cliArgs['link-workspace-packages']) {
+      if (opts.cliOptions['link-workspace-packages']) {
         throw new PnpmError('CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL',
           'Configuration conflict. "link-workspace-packages" may not be used with "global"')
       }
       pnpmConfig.linkWorkspacePackages = false
     }
     if (pnpmConfig.sharedWorkspaceLockfile) {
-      if (opts.cliArgs['shared-workspace-lockfile']) {
+      if (opts.cliOptions['shared-workspace-lockfile']) {
         throw new PnpmError('CONFIG_CONFLICT_SHARED_WORKSPACE_LOCKFILE_WITH_GLOBAL',
           'Configuration conflict. "shared-workspace-lockfile" may not be used with "global"')
       }
       pnpmConfig.sharedWorkspaceLockfile = false
     }
     if (pnpmConfig.lockfileDir) {
-      if (opts.cliArgs['lockfile-dir']) {
+      if (opts.cliOptions['lockfile-dir']) {
         throw new PnpmError('CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL',
           'Configuration conflict. "lockfile-dir" may not be used with "global"')
       }
       delete pnpmConfig.lockfileDir
     }
-    if (opts.cliArgs['virtual-store-dir']) {
+    if (opts.cliOptions['virtual-store-dir']) {
       throw new PnpmError('CONFIG_CONFLICT_VIRTUAL_STORE_DIR_WITH_GLOBAL',
         'Configuration conflict. "virtual-store-dir" may not be used with "global"')
     }
@@ -286,11 +286,11 @@ export default async (
     pnpmConfig.dir = cwd
     pnpmConfig.bin = path.join(pnpmConfig.dir, 'node_modules', '.bin')
   }
-  if (opts.cliArgs['save-peer']) {
-    if (opts.cliArgs['save-prod']) {
+  if (opts.cliOptions['save-peer']) {
+    if (opts.cliOptions['save-prod']) {
       throw new PnpmError('CONFIG_CONFLICT_PEER_CANNOT_BE_PROD_DEP', 'A package cannot be a peer dependency and a prod dependency at the same time')
     }
-    if (opts.cliArgs['save-optional']) {
+    if (opts.cliOptions['save-optional']) {
       throw new PnpmError('CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP',
         'A package cannot be a peer dependency and an optional dependency at the same time')
     }

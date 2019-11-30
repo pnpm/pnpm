@@ -19,7 +19,7 @@ delete process.env['npm_config_shared_workspace_lockfile']
 
 test('getConfig()', async (t) => {
   const { config } = await getConfig({
-    cliArgs: {},
+    cliOptions: {},
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
@@ -36,7 +36,7 @@ test('getConfig()', async (t) => {
 test('throw error if --link-workspace-packages is used with --global', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': true,
         'link-workspace-packages': true,
       },
@@ -55,7 +55,7 @@ test('throw error if --link-workspace-packages is used with --global', async (t)
 test('throw error if --shared-workspace-lockfile is used with --global', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': true,
         'shared-workspace-lockfile': true,
       },
@@ -74,7 +74,7 @@ test('throw error if --shared-workspace-lockfile is used with --global', async (
 test('throw error if --lockfile-dir is used with --global', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': true,
         'lockfile-dir': '/home/src',
       },
@@ -93,7 +93,7 @@ test('throw error if --lockfile-dir is used with --global', async (t) => {
 test('throw error if --independent-leaves is used with --global', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': true,
         'independent-leaves': true,
       },
@@ -112,7 +112,7 @@ test('throw error if --independent-leaves is used with --global', async (t) => {
 test('throw error if --hoist-pattern is used with --global', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': true,
         'hoist-pattern': 'eslint',
       },
@@ -131,7 +131,7 @@ test('throw error if --hoist-pattern is used with --global', async (t) => {
 test('throw error if --virtual-store-dir is used with --global', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': true,
         'virtual-store-dir': 'pkgs',
       },
@@ -162,7 +162,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
 
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': false,
       },
       packageManager: {
@@ -177,7 +177,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
 
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         'global': true,
       },
       packageManager: {
@@ -195,7 +195,7 @@ test('when using --global, link-workspace-packages, shared-workspace-shrinwrap a
 
 test('registries of scoped packages are read', async (t) => {
   const { config } = await getConfig({
-    cliArgs: {
+    cliOptions: {
       'dir': 'workspace',
       'userconfig': path.join(__dirname, 'scoped-registries.ini'),
     },
@@ -224,7 +224,7 @@ test('registries in current directory\'s .npmrc have bigger priority then global
   await fs.writeFile('.npmrc', 'registry=https://pnpm.js.org/', 'utf8')
 
   const { config } = await getConfig({
-    cliArgs: {
+    cliOptions: {
       userconfig: path.join(__dirname, 'scoped-registries.ini'),
     },
     packageManager: {
@@ -253,7 +253,7 @@ test('filter is read from .npmrc as an array', async (t) => {
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   const { config } = await getConfig({
-    cliArgs: {
+    cliOptions: {
       'global': false,
     },
     packageManager: {
@@ -269,7 +269,7 @@ test('filter is read from .npmrc as an array', async (t) => {
 test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         'side-effects-cache': true,
       },
       packageManager: {
@@ -285,7 +285,7 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         'side-effects-cache-readonly': true,
       },
       packageManager: {
@@ -305,7 +305,7 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
 test('depth is 0 by default for list commands', async (t) => {
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       command: ['list'],
       packageManager: {
         name: 'pnpm',
@@ -317,7 +317,7 @@ test('depth is 0 by default for list commands', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       command: ['list', 'bole'],
       packageManager: {
         name: 'pnpm',
@@ -329,7 +329,7 @@ test('depth is 0 by default for list commands', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       command: ['recursive', 'list'],
       packageManager: {
         name: 'pnpm',
@@ -341,7 +341,7 @@ test('depth is 0 by default for list commands', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       command: ['recursive', 'list', 'bole'],
       packageManager: {
         name: 'pnpm',
@@ -353,7 +353,7 @@ test('depth is 0 by default for list commands', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       command: ['recursive', 'list'],
       packageManager: {
         name: 'pnpm',
@@ -365,7 +365,7 @@ test('depth is 0 by default for list commands', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -380,7 +380,7 @@ test('depth is 0 by default for list commands', async (t) => {
 test('throw error if --save-prod is used with --save-peer', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'save-peer': true,
         'save-prod': true,
       },
@@ -399,7 +399,7 @@ test('throw error if --save-prod is used with --save-peer', async (t) => {
 test('throw error if --save-optional is used with --save-peer', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'save-optional': true,
         'save-peer': true,
       },
@@ -423,7 +423,7 @@ test('extraBinPaths', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -434,7 +434,7 @@ test('extraBinPaths', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {},
+      cliOptions: {},
       packageManager: {
         name: 'pnpm',
         version: '1.0.0',
@@ -446,7 +446,7 @@ test('extraBinPaths', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         'ignore-scripts': true,
       },
       packageManager: {
@@ -463,7 +463,7 @@ test('extraBinPaths', async (t) => {
 test('throw error on "update --frozen-lockfile"', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'frozen-lockfile': true,
       },
       command: ['update'],
@@ -482,7 +482,7 @@ test('throw error on "update --frozen-lockfile"', async (t) => {
 test('throw error on "update --prefer-frozen-lockfile"', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'prefer-frozen-lockfile': true,
       },
       command: ['update'],
@@ -500,7 +500,7 @@ test('throw error on "update --prefer-frozen-lockfile"', async (t) => {
 
 test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
   const { config, warnings } = await getConfig({
-    cliArgs: {
+    cliOptions: {
       'shamefully-flatten': true,
     },
     command: ['install'],
@@ -522,7 +522,7 @@ test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
 
 test('hoist-pattern is undefined if --no-hoist used', async (t) => {
   const { config } = await getConfig({
-    cliArgs: {
+    cliOptions: {
       'hoist': false,
     },
     command: ['install'],
@@ -539,7 +539,7 @@ test('hoist-pattern is undefined if --no-hoist used', async (t) => {
 test('throw error if --no-hoist is used with --shamefully-hoist', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'hoist': false,
         'shamefully-hoist': true
       },
@@ -558,7 +558,7 @@ test('throw error if --no-hoist is used with --shamefully-hoist', async (t) => {
 test('throw error if --no-hoist is used with --shamefully-flatten', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'hoist': false,
         'shamefully-flatten': true
       },
@@ -577,7 +577,7 @@ test('throw error if --no-hoist is used with --shamefully-flatten', async (t) =>
 test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'hoist': false,
         'hoist-pattern': 'eslint-*'
       },
@@ -596,7 +596,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
 test('throw error if --independent-leaves is used without --no-hoist', async (t) => {
   try {
     await getConfig({
-      cliArgs: {
+      cliOptions: {
         'independent-leaves': true,
       },
       packageManager: {
@@ -613,7 +613,7 @@ test('throw error if --independent-leaves is used without --no-hoist', async (t)
 
 test('do not throw error if --independent-leaves is used with --no-hoist', async (t) => {
   const { config } = await getConfig({
-    cliArgs: {
+    cliOptions: {
       'hoist': false,
       'independent-leaves': true,
     },
@@ -640,7 +640,7 @@ test('rawLocalConfig in a workspace', async (t) => {
 
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         'save-exact': true,
       },
       packageManager: {
@@ -662,7 +662,7 @@ test('rawLocalConfig in a workspace', async (t) => {
   process.chdir('package2')
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         'save-exact': true,
       },
       packageManager: {
@@ -689,7 +689,7 @@ test('rawLocalConfig', async (t) => {
   await fs.writeFile('.npmrc', 'independent-leaves=true', 'utf8')
 
   const { config } = await getConfig({
-    cliArgs: {
+    cliOptions: {
       'save-exact': true,
     },
     packageManager: {
@@ -708,7 +708,7 @@ test('rawLocalConfig', async (t) => {
 test('normalize the value of the color flag', async (t) => {
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         color: true,
       },
       packageManager: {
@@ -721,7 +721,7 @@ test('normalize the value of the color flag', async (t) => {
   }
   {
     const { config } = await getConfig({
-      cliArgs: {
+      cliOptions: {
         color: false,
       },
       packageManager: {
@@ -732,5 +732,42 @@ test('normalize the value of the color flag', async (t) => {
 
     t.equal(config.color, 'never')
   }
+  t.end()
+})
+
+test('read only supported settings from config', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'store-dir=__store__\nfoo=bar', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(config.storeDir, '__store__')
+  t.equal(typeof config['foo'], 'undefined')
+  t.equal(config.rawConfig['foo'], 'bar')
+
+  t.end()
+})
+
+test('all CLI options are added to the config', async (t) => {
+  const { config } = await getConfig({
+    cliOptions: {
+      'foo-bar': 'qar',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(config['fooBar'], 'qar')
   t.end()
 })

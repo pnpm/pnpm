@@ -10,7 +10,7 @@ export type PnpmOptions = Omit<Config, 'reporter'> & {
     original: string[],
     remain: string[],
   },
-  cliArgs: object,
+  cliOptions: object,
   reporter?: (logObj: LogBase) => void,
   packageManager?: {
     name: string,
