@@ -22,7 +22,9 @@ import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'depth',
     'global-dir',

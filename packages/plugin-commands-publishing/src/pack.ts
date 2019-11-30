@@ -3,7 +3,9 @@ import runNpm from '@pnpm/run-npm'
 import renderHelp = require('render-help')
 import { fakeRegularManifest } from './publish'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return {}
 }
 

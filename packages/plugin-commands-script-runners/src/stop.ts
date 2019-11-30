@@ -2,7 +2,9 @@ import { docsUrl } from '@pnpm/cli-utils'
 import renderHelp = require('render-help')
 import { handler as run } from './run'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return {}
 }
 

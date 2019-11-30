@@ -24,7 +24,7 @@ import parseCliArgs from '@pnpm/parse-cli-args'
 import isCI = require('is-ci')
 import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
-import pnpmCmds, { getCommandFullName, getTypes } from './cmd'
+import pnpmCmds, { getCommandFullName, getCliOptionsTypes, getRCOptionsTypes } from './cmd'
 import './logging/fileLogger'
 import initReporter, { ReporterType } from './reporter'
 
@@ -77,7 +77,7 @@ export default async function run (inputArgv: string[]) {
   // tslint:enable
   const { argv, cliArgs, cliConf, cmd, dir, subCmd, unknownOptions, workspaceDir } = await parseCliArgs({
     getCommandLongName: getCommandFullName,
-    getTypesByCommandName: getTypes,
+    getTypesByCommandName: getCliOptionsTypes,
     globalOptionsTypes: GLOBAL_OPTIONS,
     isKnownCommand: (commandName) => typeof pnpmCmds[commandName] !== 'undefined',
     renamedOptions: RENAMED_OPTIONS,
@@ -104,6 +104,7 @@ export default async function run (inputArgv: string[]) {
     config = await getConfig(cliConf, {
       command: subCmd ? [cmd, subCmd] : [cmd],
       excludeReporter: false,
+      rcOptionsTypes: getRCOptionsTypes(cmd),
       workspaceDir,
     }) as typeof config
     config.forceSharedLockfile = typeof config.workspaceDir === 'string' && config.sharedWorkspaceLockfile === true

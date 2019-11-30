@@ -29,7 +29,9 @@ const OVERWRITE_UPDATE_OPTIONS = {
   update: false,
 }
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'child-concurrency',
     'dev',

@@ -31,7 +31,8 @@ const commands: Array<{
   commandNames: string[],
   handler: Function,
   help: () => string,
-  types: () => Object,
+  cliOptionsTypes: () => Object,
+  rcOptionsTypes: () => Record<string, unknown>,
 }> = [
   add,
   audit,
@@ -62,18 +63,26 @@ const commands: Array<{
 
 const handlerByCommandName: Record<string, Command> = {}
 const helpByCommandName: Record<string, () => string> = {}
-const typesByCommandName: Record<string, () => Object> = {}
+const cliOptionsTypesByCommandName: Record<string, () => Object> = {}
+const rcOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
 const aliasToFullName: Map<string, string> = new Map()
 
 for (let i = 0; i < commands.length; i++) {
-  const { commandNames, handler, help, types } = commands[i]
+  const {
+    cliOptionsTypes,
+    commandNames,
+    handler,
+    help,
+    rcOptionsTypes,
+  } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error('The command at index ' + i + " doesn't have command names")
   }
   for (const commandName of commandNames) {
     handlerByCommandName[commandName] = handler as Command
     helpByCommandName[commandName] = help
-    typesByCommandName[commandName] = types
+    cliOptionsTypesByCommandName[commandName] = cliOptionsTypes
+    rcOptionsTypesByCommandName[commandName] = rcOptionsTypes
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -87,8 +96,12 @@ handlerByCommandName.help = createHelp(helpByCommandName)
 
 export default handlerByCommandName
 
-export function getTypes (commandName: string) {
-  return typesByCommandName[commandName]?.() || {}
+export function getCliOptionsTypes (commandName: string) {
+  return cliOptionsTypesByCommandName[commandName]?.() || {}
+}
+
+export function getRCOptionsTypes (commandName: string) {
+  return rcOptionsTypesByCommandName[commandName]?.() || {}
 }
 
 export function getCommandFullName (commandName: string) {

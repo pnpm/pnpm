@@ -6,7 +6,9 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import { handler as install, InstallCommandOptions } from './install'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return {
     ...R.pick([
       'depth',

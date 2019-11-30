@@ -5,9 +5,9 @@ import { createOrConnectStoreController, CreateStoreControllerOptions } from '@p
 import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
 import { mutateModules } from 'supi'
-import { types } from './install'
+import { cliOptionsTypes, rcOptionsTypes } from './install'
 
-export { types }
+export { cliOptionsTypes, rcOptionsTypes }
 
 export const commandNames = ['unlink', 'dislink']
 

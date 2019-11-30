@@ -6,6 +6,7 @@ export default async function (
   opts: {
     excludeReporter: boolean,
     command: string[],
+    rcOptionsTypes: Record<string, unknown>,
     workspaceDir: string | undefined,
   },
 ) {
@@ -13,6 +14,7 @@ export default async function (
     cliOptions,
     command: opts.command,
     packageManager,
+    rcOptionsTypes: opts.rcOptionsTypes,
     workspaceDir: opts.workspaceDir,
   })
   config.cliOptions = cliOptions

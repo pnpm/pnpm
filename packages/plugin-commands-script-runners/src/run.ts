@@ -9,7 +9,9 @@ import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'recursive',
   ], allTypes)

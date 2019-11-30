@@ -24,10 +24,13 @@ import {
   linkToGlobal,
   LocalPackages,
 } from 'supi'
+import * as installCommand from './install'
 
 const installLimit = pLimit(4)
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'global-dir',
     'global',
@@ -147,6 +150,7 @@ export async function handler (
             {
               command: ['link'],
               excludeReporter: true,
+              rcOptionsTypes: installCommand.rcOptionsTypes(),
               workspaceDir: await findWorkspaceDir(dir),
             },
           ),

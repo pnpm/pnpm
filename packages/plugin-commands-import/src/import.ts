@@ -12,7 +12,9 @@ import path = require('path')
 import renderHelp = require('render-help')
 import { install, InstallOptions } from 'supi'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return {}
 }
 

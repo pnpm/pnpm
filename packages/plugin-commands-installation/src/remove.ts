@@ -11,7 +11,9 @@ import {
   mutateModules,
 } from 'supi'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'force',
     'global-dir',

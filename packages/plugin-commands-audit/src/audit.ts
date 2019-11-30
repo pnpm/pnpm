@@ -26,7 +26,9 @@ const AUDIT_COLOR = {
 }
 // tslint:enable
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'audit-level',
     'dev',

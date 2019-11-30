@@ -7,7 +7,9 @@ import renderHelp = require('render-help')
 import { InstallOptions, mutateModules } from 'supi'
 import { PnpmOptions } from '../types'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'production',
   ], allTypes)

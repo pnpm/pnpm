@@ -11,7 +11,9 @@ import {
 } from 'supi'
 import { PnpmOptions } from '../types'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'recursive',
   ], allTypes)

@@ -4,7 +4,9 @@ import { test } from '@pnpm/plugin-commands-script-runners'
 import renderHelp = require('render-help')
 import { PnpmOptions } from '../types'
 
-export const types = install.types
+export const cliOptionsTypes = install.cliOptionsTypes
+
+export const rcOptionsTypes = install.rcOptionsTypes
 
 export const commandNames = ['install-test', 'it']
 

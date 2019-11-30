@@ -96,6 +96,7 @@ export default async (
       name: string,
       version: string,
     },
+    rcOptionsTypes?: Record<string, unknown>,
     workspaceDir?: string | undefined,
   },
 ): Promise<{ config: Config, warnings: string[] }> => {
@@ -143,7 +144,8 @@ export default async (
   if (cliOptions.dir) {
     cliOptions['prefix'] = cliOptions.dir // the npm config system still expects `prefix`
   }
-  const npmConfig = loadNpmConf(cliOptions, types, {
+  const rcOptionsTypes = { ...types, ...opts.rcOptionsTypes }
+  const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
     'bail': true,
     'color': 'auto',
     'depth': (command[0] === 'list' || command[1] === 'list') ? 0 : Infinity,
@@ -181,7 +183,7 @@ export default async (
   process.execPath = originalExecPath
 
   const pnpmConfig: ConfigWithDeprecatedSettings = R.fromPairs([
-    ...Object.keys(types).map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // tslint:disable-line
+    ...Object.keys(rcOptionsTypes).map((configKey) => [camelcase(configKey), npmConfig.get(configKey)]) as any, // tslint:disable-line
     ...Object.entries(cliOptions).filter(([name, value]) => typeof value !== 'undefined').map(([name, value]) => [camelcase(name), value]),
   ]) as unknown as ConfigWithDeprecatedSettings
   const cwd = (cliOptions['dir'] && path.resolve(cliOptions['dir'])) ?? npmConfig.localPrefix // tslint:disable-line

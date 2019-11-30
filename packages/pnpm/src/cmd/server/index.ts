@@ -10,7 +10,9 @@ import start from './start'
 import status from './status'
 import stop from './stop'
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'background',
     'ignore-stop-requests',

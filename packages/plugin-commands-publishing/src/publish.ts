@@ -13,7 +13,9 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return R.pick([
     'access',
     'otp',

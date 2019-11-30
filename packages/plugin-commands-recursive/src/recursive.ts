@@ -89,7 +89,9 @@ function getCommandFullName (commandName: string) {
   return commandName
 }
 
-export function types () {
+export const rcOptionsTypes = cliOptionsTypes
+
+export function cliOptionsTypes () {
   return {
     recursive: Boolean,
     ...R.pick([
