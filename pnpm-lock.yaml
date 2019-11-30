@@ -1921,7 +1921,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/write-importer-manifest': 'link:../write-importer-manifest'
       detect-indent: 6.0.0
-      fast-deep-equal: 2.0.1
+      fast-deep-equal: 3.0.1
       graceful-fs: 4.2.1
       is-windows: 1.0.2
       json5: 2.1.1
@@ -1947,7 +1947,7 @@ importers:
       '@types/json5': 0.0.30
       '@types/parse-json': 4.0.0
       detect-indent: 6.0.0
-      fast-deep-equal: 2.0.1
+      fast-deep-equal: 3.0.1
       graceful-fs: 4.2.1
       is-windows: 1.0.2
       json5: 2.1.1
@@ -5715,6 +5715,10 @@ packages:
   /fast-deep-equal/2.0.1:
     resolution:
       integrity: sha1-ewUhjd+WZ79/Nwv3/bLLFf3Qqkk=
+  /fast-deep-equal/3.0.1:
+    dev: false
+    resolution:
+      integrity: sha512-eV4KJB1HpEcckLU+u/i+FFZnvbeu34rQ514kL8m4uw7FyGWa7ltvz45vfDVFPZD+Z+h8WQL86+co5P3OWZrScw==
   /fast-glob/2.2.7:
     dependencies:
       '@mrmlnc/readdir-enhanced': 2.2.1
