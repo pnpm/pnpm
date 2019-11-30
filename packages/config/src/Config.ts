@@ -7,7 +7,7 @@ export interface Config {
   auditLevel?: 'low' | 'moderate' | 'high' | 'critical',
   bail: boolean,
   color: 'always' | 'auto' | 'never',
-  cliArgs: Record<string, any>, // tslint:disable-line
+  cliOptions: Record<string, any>, // tslint:disable-line
   useBetaCli: boolean,
   extraBinPaths: string[],
   filter: string[],

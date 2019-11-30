@@ -69,7 +69,7 @@ export function help () {
 export async function handler (
   input: string[],
   opts: CreateStoreControllerOptions & Pick<Config,
-    'cliArgs' |
+    'cliOptions' |
     'engineStrict' |
     'globalBin' |
     'globalDir' |
@@ -143,7 +143,7 @@ export async function handler (
       await install(
         await readImporterManifestOnly(dir, opts), {
           ...await getConfig(
-            { ...opts.cliArgs, 'dir': dir },
+            { ...opts.cliOptions, 'dir': dir },
             {
               command: ['link'],
               excludeReporter: true,
