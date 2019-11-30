@@ -94,6 +94,7 @@ export const rcOptionsTypes = cliOptionsTypes
 export function cliOptionsTypes () {
   return {
     recursive: Boolean,
+    table: Boolean,
     ...R.pick([
       'bail',
       'link-workspace-packages',
@@ -268,7 +269,6 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'linkWorkspacePackages' |
   'lockfileDir' |
   'lockfileOnly' |
-  'pending' |
   'pnpmfile' |
   'rawLocalConfig' |
   'save' |
@@ -282,6 +282,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'workspaceConcurrency'
 > & {
   latest?: boolean,
+  pending?: boolean,
 }
 
 export async function recursive (

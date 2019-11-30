@@ -25,14 +25,16 @@ import wrapAnsi = require('wrap-ansi')
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return R.pick([
-    'depth',
-    'global-dir',
-    'global',
-    'long',
-    'recursive',
-    'table',
-  ], allTypes)
+  return {
+    ...R.pick([
+      'depth',
+      'global-dir',
+      'global',
+      'long',
+      'recursive',
+    ], allTypes),
+    'table': Boolean,
+  }
 }
 
 export const commandNames = ['outdated']

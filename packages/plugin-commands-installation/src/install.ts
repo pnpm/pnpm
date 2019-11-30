@@ -263,7 +263,6 @@ export type InstallCommandOptions = Pick<Config,
   'include' |
   'linkWorkspacePackages' |
   'lockfileDir' |
-  'pending' |
   'pnpmfile' |
   'rawLocalConfig' |
   'save' |

@@ -29,14 +29,16 @@ const AUDIT_COLOR = {
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return R.pick([
-    'audit-level',
-    'dev',
-    'json',
-    'only',
-    'optional',
-    'production',
-  ], allTypes)
+  return {
+    ...R.pick([
+      'dev',
+      'json',
+      'only',
+      'optional',
+      'production',
+    ], allTypes),
+    'audit-level': ['low', 'moderate', 'high', 'critical'],
+  }
 }
 
 export const commandNames = ['audit']

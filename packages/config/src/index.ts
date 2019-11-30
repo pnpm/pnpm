@@ -21,8 +21,6 @@ function which (cmd: string) {
 }
 
 export const types = Object.assign({
-  'audit-level': ['low', 'moderate', 'high', 'critical'],
-  'background': Boolean,
   'bail': Boolean,
   'child-concurrency': Number,
   'color': ['always', 'auto', 'never'],
@@ -38,8 +36,6 @@ export const types = Object.assign({
   'hoist': Boolean,
   'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
-  'ignore-stop-requests': Boolean,
-  'ignore-upload-requests': Boolean,
   'ignore-workspace-root-check': Boolean,
   'independent-leaves': Boolean,
   'link-workspace-packages': Boolean,
@@ -52,14 +48,11 @@ export const types = Object.assign({
   'network-concurrency': Number,
   'offline': Boolean,
   'package-import-method': ['auto', 'hardlink', 'clone', 'copy'],
-  'pending': Boolean,
   'pnpmfile': String,
-  'port': Number,
   'prefer-frozen-lockfile': Boolean,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
   'production': [null, true],
-  'protocol': ['auto', 'tcp', 'ipc'],
   'reporter': String,
   'resolution-strategy': ['fast', 'fewer-dependencies'],
   'save-peer': Boolean,
@@ -76,7 +69,6 @@ export const types = Object.assign({
   'store': String, // TODO: deprecate
   'store-dir': String,
   'strict-peer-dependencies': Boolean,
-  'table': Boolean,
   'use-beta-cli': Boolean,
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,

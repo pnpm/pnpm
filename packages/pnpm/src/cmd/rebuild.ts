@@ -11,12 +11,17 @@ import {
 } from 'supi'
 import { PnpmOptions } from '../types'
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return {}
+}
 
 export function cliOptionsTypes () {
-  return R.pick([
-    'recursive',
-  ], allTypes)
+  return {
+    ...R.pick([
+      'recursive',
+    ], allTypes),
+    'pending': Boolean,
+  }
 }
 
 export const commandNames = ['rebuild', 'rb']
@@ -53,7 +58,7 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: PnpmOptions,
+  opts: PnpmOptions & { pending: boolean },
   command: string,
 ) {
   const store = await createOrConnectStoreController(opts)

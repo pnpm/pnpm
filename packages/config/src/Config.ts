@@ -4,7 +4,6 @@ export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'raw
 
 export interface Config {
   allowNew: boolean,
-  auditLevel?: 'low' | 'moderate' | 'high' | 'critical',
   bail: boolean,
   color: 'always' | 'auto' | 'never',
   cliOptions: Record<string, any>, // tslint:disable-line
@@ -99,7 +98,6 @@ export interface Config {
   linkWorkspacePackages: boolean,
   sort: boolean,
   strictPeerDependencies: boolean,
-  pending: boolean,
   lockfileDir?: string,
   sharedWorkspaceLockfile?: boolean,
   useLockfile: boolean,
@@ -108,7 +106,6 @@ export interface Config {
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,
-  table: boolean,
 }
 
 export interface ConfigWithDeprecatedSettings extends Config {

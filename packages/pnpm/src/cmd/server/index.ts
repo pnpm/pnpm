@@ -13,15 +13,17 @@ import stop from './stop'
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
-  return R.pick([
-    'background',
-    'ignore-stop-requests',
-    'ignore-upload-requests',
-    'port',
-    'protocol',
-    'store',
-    'store-dir',
-  ], allTypes)
+  return {
+    ...R.pick([
+      'store',
+      'store-dir',
+    ], allTypes),
+    'background': Boolean,
+    'ignore-stop-requests': Boolean,
+    'ignore-upload-requests': Boolean,
+    'port': Number,
+    'protocol': ['auto', 'tcp', 'ipc'],
+  }
 }
 
 export const commandNames = ['server']
