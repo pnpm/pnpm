@@ -73,7 +73,6 @@
     "run-groups": "2.0.1",
     "semver": "6.3.0",
     "semver-utils": "1.1.4",
-    "validate-npm-package-name": "3.0.0",
     "version-selector-type": "2.0.1"
   },
   "devDependencies": {
@@ -97,7 +96,6 @@
     "@types/ramda": "^0.26.36",
     "@types/semver": "^6.2.0",
     "@types/sinon": "^7.5.1",
-    "@types/validate-npm-package-name": "3.0.0",
     "anonymous-npm-registry-client": "0.1.2",
     "cross-spawn": "7.0.1",
     "deep-require-cwd": "1.0.0",

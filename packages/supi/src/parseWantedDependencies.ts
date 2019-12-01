@@ -1,7 +1,7 @@
 import {
   Dependencies,
 } from '@pnpm/types'
-import validateNpmPackageName = require('validate-npm-package-name')
+import { parseWantedDependency } from '@pnpm/utils'
 import { PinnedVersion, WantedDependency } from './install/getWantedDependencies'
 import guessPinnedVersionFromExistingSpec from './guessPinnedVersionFromExistingSpec'
 
@@ -44,30 +44,4 @@ export default function parseWantedDependencies (
       }
     })
     .filter((wd) => wd !== null) as WantedDependency[]
-}
-
-export function parseWantedDependency (
-  rawWantedDependency: string,
-): {alias: string} | {pref: string} | {alias: string, pref: string} {
-  const versionDelimiter = rawWantedDependency.indexOf('@', 1) // starting from 1 to skip the @ that marks scope
-  if (versionDelimiter !== -1) {
-    const alias = rawWantedDependency.substr(0, versionDelimiter)
-    if (validateNpmPackageName(alias).validForOldPackages) {
-      return {
-        alias,
-        pref: rawWantedDependency.substr(versionDelimiter + 1),
-      }
-    }
-    return {
-      pref: rawWantedDependency,
-    }
-  }
-  if (validateNpmPackageName(rawWantedDependency).validForOldPackages) {
-    return {
-      alias: rawWantedDependency,
-    }
-  }
-  return {
-    pref: rawWantedDependency,
-  }
 }

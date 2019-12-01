@@ -1,6 +1,6 @@
 import { streamParser } from '@pnpm/logger'
 import { PackageUsages, StoreController } from '@pnpm/store-controller-types'
-import { parseWantedDependency } from './parseWantedDependencies'
+import { parseWantedDependency } from '@pnpm/utils'
 import { ReporterFunction } from './types'
 
 export default async function (
