@@ -49,6 +49,7 @@ export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
     latest: Boolean,
+    workspace: Boolean,
   }
 }
 

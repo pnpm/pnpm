@@ -13,6 +13,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive/lib/recursive'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from '@pnpm/plugin-commands-recursive/lib/updateWorkspaceDependencies'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
@@ -281,6 +282,7 @@ export type InstallCommandOptions = Pick<Config,
   latest?: boolean,
   update?: boolean,
   useBetaCli?: boolean,
+  workspace?: boolean,
 }
 
 export async function handler (
@@ -288,6 +290,17 @@ export async function handler (
   opts: InstallCommandOptions,
   invocation?: string,
 ) {
+  if (opts.workspace) {
+    if (opts.latest) {
+      throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
+    }
+    if (!opts.workspaceDir) {
+      throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
+    }
+    if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
+      throw new PnpmError('BAD_OPTIONS', 'Installing from workspace via the --workspace option is impossible if both link-workspace-packages and save-workspace-protocol are false')
+    }
+  }
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
 
@@ -333,6 +346,13 @@ export async function handler (
       input = createLatestSpecs(input, manifest)
     }
     delete installOpts.include
+  }
+  if (opts.workspace) {
+    if (!input || !input.length) {
+      input = updateToWorkspacePackagesFromManifest(manifest, opts.include, localPackages!)
+    } else {
+      input = createWorkspaceSpecs(input, localPackages!)
+    }
   }
   if (!input || !input.length) {
     if (invocation === 'add') {
