@@ -423,7 +423,7 @@ importers:
     dependencies:
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
       '@pnpm/types': 'link:../types'
-      fast-glob: 3.1.0
+      fast-glob: 3.1.1
       p-filter: 2.1.0
     devDependencies:
       find-packages: 'link:'
@@ -431,7 +431,7 @@ importers:
     specifiers:
       '@pnpm/read-importer-manifest': 'workspace:2.0.0'
       '@pnpm/types': 'workspace:4.0.0'
-      fast-glob: ^3.1.0
+      fast-glob: ^3.1.1
       find-packages: 'link:'
       p-filter: ^2.1.0
       tape: 4.11.0
@@ -1483,7 +1483,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       cp-file: 7.0.0
-      fast-glob: 3.1.0
+      fast-glob: 3.1.1
       mz: 2.7.0
       ramda: 0.26.1
       render-help: 0.0.0
@@ -1514,7 +1514,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       cp-file: 7.0.0
       cross-spawn: 7.0.1
-      fast-glob: 3.1.0
+      fast-glob: 3.1.1
       mz: 2.7.0
       path-exists: 4.0.0
       ramda: 0.26.1
@@ -3184,7 +3184,7 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.36:
     dependencies:
-      ts-toolbelt: 4.12.0
+      ts-toolbelt: 4.12.5
     dev: true
     resolution:
       integrity: sha512-uo22Nf32Cc3EURp9tYlFttY8MVQZ1zoVum+D+yQ2jm4IqQFxDtwCQlP/WMwbuj4ey5kw1rJ7v6OacDszfWiqLA==
@@ -5732,7 +5732,7 @@ packages:
       node: '>=4.0.0'
     resolution:
       integrity: sha512-g1KuQwHOZAmOZMuBtHdxDtju+T2RT8jgCC9aANsbpdiDDTSnjgfuVsIBNKbUeJI3oKMRExcfNDtJl4OhbffMsw==
-  /fast-glob/3.1.0:
+  /fast-glob/3.1.1:
     dependencies:
       '@nodelib/fs.stat': 2.0.3
       '@nodelib/fs.walk': 1.2.4
@@ -5743,7 +5743,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-TrUz3THiq2Vy3bjfQUB2wNyPdGBeGmdjbzzBLhfHN4YFurYptCKwGq/TfiRavbGywFRzY6U2CdmQ1zmsY5yYaw==
+      integrity: sha512-nTCREpBY8w8r+boyFYAx21iL6faSsQynliPHM4Uf56SbkyohCNxpVPEH9xrF5TXKy+IsjkPUHDKiUkzBVRXn9g==
   /fast-json-stable-stringify/2.0.0:
     resolution:
       integrity: sha1-1RQsDK7msRifh9OnYREGT4bIu/I=
@@ -6275,7 +6275,7 @@ packages:
       node: '>=0.4.7'
     hasBin: true
     optionalDependencies:
-      uglify-js: 3.7.0
+      uglify-js: 3.7.1
     resolution:
       integrity: sha512-3yPecJoJHK/4c6aZhSvxOyG4vJKDshV36VHp0iVCDVh7o9w2vwi3NSnL2MMPj3YdduqaBcu7cGbggJQM0br9xA==
   /har-schema/2.0.0:
@@ -9056,9 +9056,9 @@ packages:
     dev: false
     resolution:
       integrity: sha1-8FKijacOYYkX7wqKw0wa5aaChrM=
-  /psl/1.4.0:
+  /psl/1.5.0:
     resolution:
-      integrity: sha512-HZzqCGPecFLyoRj5HLfuDSKYTJkAfB5thKBIkRHtGjWwY7p1dAyveIbXIq4tO0KYfDF2tHqPUgY9SDnGm00uFw==
+      integrity: sha512-4vqUjKi2huMu1OJiLhi3jN6jeeKvMZdI1tYgi/njW5zV52jNLgSAZSdN16m9bJFe61/cT8ulmw4qFitV9QRsEA==
   /publish-packed/2.1.1:
     dependencies:
       '@types/fs-extra': 5.1.0
@@ -10573,7 +10573,7 @@ packages:
       integrity: sha512-TZ6TTfI5NtZnuyy/Kecv+CnoROnyXn2DN97LontgQpCwsX2XyLYCC0ENhYkehSOwAp8rTQKc/NUIF7BkQ5rKLA==
   /tough-cookie/2.4.3:
     dependencies:
-      psl: 1.4.0
+      psl: 1.5.0
       punycode: 1.4.1
     engines:
       node: '>=0.8'
@@ -10581,7 +10581,7 @@ packages:
       integrity: sha512-Q5srk/4vDM54WJsJio3XNn6K2sCG+CQ8G5Wz6bZhRZoAe/+TxjWB/GlFAnYEbkYVlON9FMk/fE3h2RLpPXo4lQ==
   /tough-cookie/2.5.0:
     dependencies:
-      psl: 1.4.0
+      psl: 1.5.0
       punycode: 2.1.1
     dev: true
     engines:
@@ -10591,7 +10591,7 @@ packages:
   /tough-cookie/3.0.1:
     dependencies:
       ip-regex: 2.1.0
-      psl: 1.4.0
+      psl: 1.5.0
       punycode: 2.1.1
     dev: true
     engines:
@@ -10643,10 +10643,10 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-izbVCRV68EasEPQ8MSIGBNK9dc/4sYJJKYA+IarMQct1RtEot6Xp0bXuClsbUSnKpg50ho+aOAx8en5c+y4OFw==
-  /ts-toolbelt/4.12.0:
+  /ts-toolbelt/4.12.5:
     dev: true
     resolution:
-      integrity: sha512-4MeCUgCsRjiIDm7DXh9TJOGvqdYQfkAxhJrdvW13uchmTylmYjwwhRk9sq4m5h+9CA/djI01QrA11ZsWgVYkPA==
+      integrity: sha512-LxyONMKpDNPYtO3s63lQ7YNw93Xpsf6Krrvx/5XHT2I9YqgSZ0C+fERQKVklRgXOK+QhdDYplRvgdWPt43Eo0A==
   /tslib/1.10.0:
     dev: true
     resolution:
@@ -10783,7 +10783,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
-  /uglify-js/3.7.0:
+  /uglify-js/3.7.1:
     dependencies:
       commander: 2.20.3
       source-map: 0.6.1
@@ -10793,7 +10793,7 @@ packages:
     hasBin: true
     optional: true
     resolution:
-      integrity: sha512-PC/ee458NEMITe1OufAjal65i6lB58R1HWMRcxwvdz1UopW0DYqlRL3xdu3IcTvTXsB02CRHykidkTRL+A3hQA==
+      integrity: sha512-pnOF7jY82wdIhATVn87uUY/FHU+MDUdPLkmGFvGoclQmeu229eTkbG5gjGGBi3R7UuYYSEeYXY/TTY5j2aym2g==
   /uid-number/0.0.6:
     dev: false
     resolution:

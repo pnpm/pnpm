@@ -53,7 +53,7 @@
     "@pnpm/types": "workspace:4.0.0",
     "@zkochan/rimraf": "1.0.0",
     "cp-file": "7.0.0",
-    "fast-glob": "3.1.0",
+    "fast-glob": "3.1.1",
     "mz": "2.7.0",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
