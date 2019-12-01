@@ -24,7 +24,11 @@ import parseCliArgs from '@pnpm/parse-cli-args'
 import isCI = require('is-ci')
 import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
-import pnpmCmds, { getCommandFullName, getCliOptionsTypes, getRCOptionsTypes } from './cmd'
+import pnpmCmds, {
+  getCliOptionsTypes,
+  getCommandFullName,
+  getRCOptionsTypes,
+} from './cmd'
 import './logging/fileLogger'
 import initReporter, { ReporterType } from './reporter'
 
