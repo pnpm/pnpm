@@ -272,6 +272,7 @@ export type InstallCommandOptions = Pick<Config,
   'savePeer' |
   'savePrefix' |
   'saveProd' |
+  'saveWorkspaceProtocol' |
   'sort' |
   'workspaceConcurrency' |
   'workspaceDir'
