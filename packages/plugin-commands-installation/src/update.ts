@@ -84,6 +84,13 @@ export function help () {
             name: '--latest',
             shortAlias: '-L',
           },
+          {
+            description:  oneLine`Tries to link all packages from the workspace.
+              Versions are updated to match the versions of packages inside the workspace.
+              If specific packages are updated, the command will fail if any of the updated
+              dependencies is not found inside the workspace`,
+            name: '--workspace',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],

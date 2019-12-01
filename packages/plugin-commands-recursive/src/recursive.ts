@@ -44,6 +44,7 @@ import outdated from './outdated'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelectors'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const supportedRecursiveCommands = new Set([
   'add',
@@ -278,11 +279,13 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'savePeer' |
   'savePrefix' |
   'saveProd' |
+  'saveWorkspaceProtocol' |
   'sort' |
   'workspaceConcurrency'
 > & {
   latest?: boolean,
   pending?: boolean,
+  workspace?: boolean,
 }
 
 export async function recursive (
@@ -422,6 +425,17 @@ export async function recursive (
   if (updateToLatest) {
     delete opts.include
   }
+  if (opts.workspace && (cmdFullName === 'install' || cmdFullName === 'add')) {
+    if (opts.latest) {
+      throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
+    }
+    if (!opts.workspaceDir) {
+      throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
+    }
+    if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
+      throw new PnpmError('BAD_OPTIONS', 'Installing from workspace via the --workspace option is impossible if both link-workspace-packages and save-workspace-protocol are false')
+    }
+  }
 
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
@@ -450,6 +464,13 @@ export async function recursive (
               installOpts.pruneLockfileImporters = false
               return
             }
+          }
+        }
+        if (opts.workspace) {
+          if (!currentInput || !currentInput.length) {
+            currentInput = updateToWorkspacePackagesFromManifest(manifest, opts.include, localPackages!)
+          } else {
+            currentInput = createWorkspaceSpecs(currentInput, localPackages!)
           }
         }
         writeImporterManifests.push(writeImporterManifest)
