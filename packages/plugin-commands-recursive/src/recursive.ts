@@ -262,6 +262,7 @@ export async function handler (
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'bail' |
+  'cliOptions' |
   'globalPnpmfile' |
   'hoistPattern' |
   'ignorePnpmfile' |
@@ -433,7 +434,14 @@ export async function recursive (
       throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
     }
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
-      throw new PnpmError('BAD_OPTIONS', 'Installing from workspace via the --workspace option is impossible if both link-workspace-packages and save-workspace-protocol are false')
+      if (!opts.cliOptions['save-workspace-protocol']) {
+        throw new PnpmError('BAD_OPTIONS', oneLine`This workspace has link-workspace-packages turned off,
+          so dependencies are linked from the workspace only when the workspace protocol is used.
+          Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option
+          when running add/update with the --workspace option`)
+      } else {
+        opts.saveWorkspaceProtocol = true
+      }
     }
   }
 
