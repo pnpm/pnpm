@@ -314,7 +314,7 @@ export async function handler (
 
   const dir = opts.dir || process.cwd()
 
-  const localPackages = opts.linkWorkspacePackages && opts.workspaceDir
+  const localPackages = opts.workspaceDir
     ? arrayOfLocalPackagesToMap(
       await findWorkspacePackages(opts.workspaceDir, opts),
     )

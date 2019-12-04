@@ -75,7 +75,7 @@ function resolvedDirectDepToSpecObject (
     }
     if (
       resolution.type === 'directory' &&
-      opts.saveWorkspaceProtocol &&
+      (opts.saveWorkspaceProtocol || specRaw.includes('@workspace:')) &&
       !pref.startsWith('workspace:')
     ) {
       pref = `workspace:${pref}`

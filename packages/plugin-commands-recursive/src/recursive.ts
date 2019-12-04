@@ -378,7 +378,7 @@ export async function recursive (
     saveState: async () => undefined,
   }
 
-  const localPackages = opts.linkWorkspacePackages && cmdFullName !== 'unlink'
+  const localPackages = cmdFullName !== 'unlink'
     ? arrayOfLocalPackagesToMap(allPkgs)
     : {}
   const installOpts = Object.assign(opts, {

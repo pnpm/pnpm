@@ -675,6 +675,7 @@ async function installInContext (
   } = await resolveDependencies(
     importersToResolve,
     {
+      alwaysTryWorkspacePackages: opts.linkWorkspacePackages,
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,

@@ -78,7 +78,7 @@ export async function handler (
   if (!opts.ignorePnpmfile) {
     removeOpts['hooks'] = requireHooks(opts.lockfileDir || opts.dir, opts)
   }
-  removeOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspaceDir
+  removeOpts['localPackages'] = opts.workspaceDir
     ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined
   const currentManifest = await readImporterManifest(opts.dir, opts)

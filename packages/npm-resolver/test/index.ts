@@ -928,6 +928,86 @@ test('resolve from local directory when it matches the latest version of the pac
   t.end()
 })
 
+test('do not resolve from local directory when alwaysTryWorkspacePackages is false', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
+    alwaysTryWorkspacePackages: false,
+    importerDir: '/home/istvan/src',
+    localPackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    registry,
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'npm-registry')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
+    registry,
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+  })
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.0.0')
+
+  t.end()
+})
+
+test('resolve from local directory when alwaysTryWorkspacePackages is false but workspace: is used', async t => {
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: 'workspace:*' }, {
+    alwaysTryWorkspacePackages: false,
+    importerDir: '/home/istvan/src',
+    localPackages: {
+      'is-positive': {
+        '1.0.0': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+    registry,
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:is-positive')
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '1.0.0')
+
+  t.end()
+})
+
 test('use version from the registry if it is newer than the local one', async t => {
   nock(registry)
     .get('/is-positive')

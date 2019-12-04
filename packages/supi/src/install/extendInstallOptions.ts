@@ -14,6 +14,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
+  linkWorkspacePackages?: boolean,
   forceSharedLockfile: boolean,
   frozenLockfile: boolean,
   extraBinPaths: string[],

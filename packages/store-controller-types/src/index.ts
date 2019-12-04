@@ -94,6 +94,7 @@ export type RequestPackageFunction = (
 ) => Promise<PackageResponse>
 
 export interface RequestPackageOptions {
+  alwaysTryWorkspacePackages?: boolean,
   currentPackageId?: string,
   currentResolution?: Resolution,
   defaultTag?: string,

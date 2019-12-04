@@ -1338,6 +1338,8 @@ importers:
       supi: 'link:../supi'
     devDependencies:
       '@pnpm/plugin-commands-installation': 'link:'
+      '@pnpm/prepare': 'link:../../privatePackages/prepare'
+      '@pnpm/registry-mock': 1.11.1
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.36
       rimraf: 3.0.0
@@ -1354,6 +1356,8 @@ importers:
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/plugin-commands-recursive': 'workspace:0.0.0'
       '@pnpm/pnpmfile': 'workspace:0.0.0'
+      '@pnpm/prepare': 'workspace:0.0.0'
+      '@pnpm/registry-mock': 1.11.1
       '@pnpm/store-connection-manager': 'workspace:0.0.0'
       '@types/common-tags': ^1.8.0
       '@types/ramda': ^0.26.36
@@ -3539,7 +3543,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.1
+      graceful-fs: 4.2.3
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
