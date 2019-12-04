@@ -434,7 +434,7 @@ export async function recursive (
       throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
     }
     if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
-      if (!opts.cliOptions['save-workspace-protocol']) {
+      if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
         throw new PnpmError('BAD_OPTIONS', oneLine`This workspace has link-workspace-packages turned off,
           so dependencies are linked from the workspace only when the workspace protocol is used.
           Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option
@@ -443,6 +443,7 @@ export async function recursive (
         opts.saveWorkspaceProtocol = true
       }
     }
+    opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
 
   if (cmdFullName !== 'rebuild') {

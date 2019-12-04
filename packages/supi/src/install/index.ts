@@ -707,6 +707,7 @@ async function installInContext (
     if (importer.updatePackageManifest) {
       newPkg = await updateImporterManifest(importersToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
+        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
     } else {
