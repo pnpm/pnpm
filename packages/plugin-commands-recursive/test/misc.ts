@@ -3,6 +3,7 @@ import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
+import path = require('path')
 import test = require('tape')
 import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
@@ -683,5 +684,46 @@ test('recursive install --no-bail', async (t) => {
   t.equal(err.code, 'ERR_PNPM_RECURSIVE_FAIL')
 
   t.ok(projects['project-2'].requireModule('is-negative'))
+  t.end()
+})
+
+test('installing with "workspace=true" should work even if link-workspace-packages is off and save-workspace-protocol is false', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-2': '0.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '2.0.0',
+    },
+  ])
+
+  await recursive.handler(['update', 'project-2'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    saveWorkspaceProtocol: false,
+    sharedWorkspaceLockfile: true,
+    workspace: true,
+    workspaceDir: process.cwd(),
+  })
+
+  {
+    const pkg = await import(path.resolve('project-1/package.json'))
+    t.deepEqual(pkg && pkg.dependencies, { 'project-2': 'workspace:^2.0.0' })
+  }
+  {
+    const pkg = await import(path.resolve('project-2/package.json'))
+    t.notOk(pkg.dependencies)
+  }
+
+  await projects['project-1'].has('project-2')
+
   t.end()
 })

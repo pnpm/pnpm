@@ -281,6 +281,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'savePrefix' |
   'saveProd' |
   'saveWorkspaceProtocol' |
+  'sharedWorkspaceLockfile' |
   'sort' |
   'workspaceConcurrency'
 > & {
