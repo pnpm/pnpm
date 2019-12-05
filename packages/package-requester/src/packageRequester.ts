@@ -131,6 +131,7 @@ async function resolveAndFetch (
     // The resolution step is never skipped for local dependencies.
     if (!skipResolution || options.skipFetch || pkgId?.startsWith('file:')) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
+        alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
         defaultTag: options.defaultTag,
         importerDir: options.importerDir,
         localPackages: options.localPackages,

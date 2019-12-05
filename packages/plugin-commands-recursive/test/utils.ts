@@ -7,6 +7,7 @@ export const DEFAULT_OPTS = {
   bail: false,
   ca: undefined,
   cert: undefined,
+  cliOptions: {},
   fetchRetries: 2,
   fetchRetryFactor: 90,
   fetchRetryMaxtimeout: 90,

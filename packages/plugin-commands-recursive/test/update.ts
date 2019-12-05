@@ -2,8 +2,6 @@ import { Lockfile } from '@pnpm/lockfile-types'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
-import fs = require('mz/fs')
-import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import test = require('tape')
 import { DEFAULT_OPTS } from './utils'

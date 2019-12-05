@@ -44,6 +44,7 @@ import outdated from './outdated'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelectors'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const supportedRecursiveCommands = new Set([
   'add',
@@ -261,6 +262,7 @@ export async function handler (
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'bail' |
+  'cliOptions' |
   'globalPnpmfile' |
   'hoistPattern' |
   'ignorePnpmfile' |
@@ -278,11 +280,14 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'savePeer' |
   'savePrefix' |
   'saveProd' |
+  'saveWorkspaceProtocol' |
+  'sharedWorkspaceLockfile' |
   'sort' |
   'workspaceConcurrency'
 > & {
   latest?: boolean,
   pending?: boolean,
+  workspace?: boolean,
 }
 
 export async function recursive (
@@ -374,7 +379,7 @@ export async function recursive (
     saveState: async () => undefined,
   }
 
-  const localPackages = opts.linkWorkspacePackages && cmdFullName !== 'unlink'
+  const localPackages = cmdFullName !== 'unlink'
     ? arrayOfLocalPackagesToMap(allPkgs)
     : {}
   const installOpts = Object.assign(opts, {
@@ -422,6 +427,25 @@ export async function recursive (
   if (updateToLatest) {
     delete opts.include
   }
+  if (opts.workspace && (cmdFullName === 'install' || cmdFullName === 'add')) {
+    if (opts.latest) {
+      throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
+    }
+    if (!opts.workspaceDir) {
+      throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
+    }
+    if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
+      if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
+        throw new PnpmError('BAD_OPTIONS', oneLine`This workspace has link-workspace-packages turned off,
+          so dependencies are linked from the workspace only when the workspace protocol is used.
+          Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option
+          when running add/update with the --workspace option`)
+      } else {
+        opts.saveWorkspaceProtocol = true
+      }
+    }
+    opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
+  }
 
   if (cmdFullName !== 'rebuild') {
     // For a workspace with shared lockfile
@@ -450,6 +474,13 @@ export async function recursive (
               installOpts.pruneLockfileImporters = false
               return
             }
+          }
+        }
+        if (opts.workspace) {
+          if (!currentInput || !currentInput.length) {
+            currentInput = updateToWorkspacePackagesFromManifest(manifest, opts.include, localPackages!)
+          } else {
+            currentInput = createWorkspaceSpecs(currentInput, localPackages!)
           }
         }
         writeImporterManifests.push(writeImporterManifest)

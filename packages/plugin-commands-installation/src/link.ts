@@ -89,7 +89,7 @@ export async function handler (
   const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
   let workspacePackages
   let localPackages!: LocalPackages
-  if (opts.linkWorkspacePackages && opts.workspaceDir) {
+  if (opts.workspaceDir) {
     workspacePackages = await findWorkspacePackages(opts.workspaceDir, opts)
     localPackages = arrayOfLocalPackagesToMap(workspacePackages)
   } else {

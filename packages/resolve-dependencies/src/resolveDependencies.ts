@@ -199,6 +199,7 @@ export default async function resolveDependencies (
   ctx: ResolutionContext,
   wantedDependencies: Array<WantedDependency & { updateDepth?: number }>,
   options: {
+    alwaysTryWorkspacePackages?: boolean,
     dependentId?: string,
     parentDependsOnPeers: boolean,
     parentNodeId: string,
@@ -226,6 +227,7 @@ export default async function resolveDependencies (
     updateLockfile: ctx.updateLockfile,
   })
   const resolveDepOpts = {
+    alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
     currentDepth: options.currentDepth,
     dependentId: options.dependentId,
     localPackages: options.localPackages,
@@ -269,6 +271,7 @@ export default async function resolveDependencies (
                 useManifestInfoFromLockfile: resolveDependencyResult.useManifestInfoFromLockfile,
               }),
               {
+                alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
                 currentDepth: options.currentDepth + 1,
                 dependentId: resolveDependencyResult.pkgId,
                 parentDependsOnPeers: Boolean(
@@ -484,6 +487,7 @@ function getInfoFromLockfile (
 }
 
 type ResolveDependencyOptions = {
+  alwaysTryWorkspacePackages?: boolean,
   pkgId?: string,
   dependentId?: string,
   depPath?: string,
@@ -529,6 +533,7 @@ async function resolveDependency (
   let pkgResponse!: PackageResponse
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
+      alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
       currentPackageId: options.pkgId,
       currentResolution: options.currentResolution,
       defaultTag: ctx.defaultTag,

@@ -64,6 +64,7 @@
     "@pnpm/plugin-commands-listing": "workspace:0.0.0",
     "@pnpm/plugin-commands-outdated": "workspace:0.0.0",
     "@pnpm/pnpmfile": "workspace:0.0.0",
+    "@pnpm/resolver-base": "workspace:5.0.0",
     "@pnpm/store-connection-manager": "workspace:0.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.12.0",

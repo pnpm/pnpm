@@ -109,6 +109,7 @@ export default function createResolver (
 }
 
 export type ResolveFromNpmOptions = {
+  alwaysTryWorkspacePackages?: boolean,
   defaultTag?: string,
   dryRun?: boolean,
   registry: string,
@@ -144,6 +145,7 @@ async function resolveNpm (
   if (resolvedFromWorkspace) {
     return resolvedFromWorkspace
   }
+  const localPackages = opts.alwaysTryWorkspacePackages !== false ? opts.localPackages : undefined
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
@@ -159,8 +161,8 @@ async function resolveNpm (
       registry: opts.registry,
     })
   } catch (err) {
-    if (opts.localPackages) {
-      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.importerDir)
+    if (localPackages && opts.importerDir) {
+      const resolvedFromLocal = tryResolveFromLocalPackages(localPackages, spec, opts.importerDir)
       if (resolvedFromLocal) return resolvedFromLocal
     }
     throw err
@@ -168,24 +170,24 @@ async function resolveNpm (
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
   if (!pickedPackage) {
-    if (opts.localPackages) {
-      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.importerDir)
+    if (localPackages && opts.importerDir) {
+      const resolvedFromLocal = tryResolveFromLocalPackages(localPackages, spec, opts.importerDir)
       if (resolvedFromLocal) return resolvedFromLocal
     }
     throw new NoMatchingVersionError({ spec, packageMeta: meta })
   }
 
-  if (opts.localPackages?.[pickedPackage.name]) {
-    if (opts.localPackages[pickedPackage.name][pickedPackage.version]) {
+  if (localPackages?.[pickedPackage.name] && opts.importerDir) {
+    if (localPackages[pickedPackage.name][pickedPackage.version]) {
       return {
-        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.importerDir),
+        ...resolveFromLocalPackage(localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.importerDir),
         latest: meta['dist-tags'].latest,
       }
     }
-    const localVersion = pickMatchingLocalVersionOrNull(opts.localPackages[pickedPackage.name], spec)
+    const localVersion = pickMatchingLocalVersionOrNull(localPackages[pickedPackage.name], spec)
     if (localVersion && semver.gt(localVersion, pickedPackage.version)) {
       return {
-        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.importerDir),
+        ...resolveFromLocalPackage(localPackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.importerDir),
         latest: meta['dist-tags'].latest,
       }
     }

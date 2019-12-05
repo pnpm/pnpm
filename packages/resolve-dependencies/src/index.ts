@@ -51,6 +51,7 @@ export interface Importer {
 export default async function (
   importers: Importer[],
   opts: {
+    alwaysTryWorkspacePackages?: boolean,
     currentLockfile: Lockfile,
     dryRun: boolean,
     engineStrict: boolean,
@@ -112,6 +113,7 @@ export default async function (
       resolutionStrategy: opts.resolutionStrategy || 'fast',
     }
     const resolveOpts = {
+      alwaysTryWorkspacePackages: opts.alwaysTryWorkspacePackages,
       currentDepth: 0,
       localPackages: opts.localPackages,
       parentDependsOnPeers: true,

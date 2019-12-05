@@ -13,6 +13,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive/lib/recursive'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from '@pnpm/plugin-commands-recursive/lib/updateWorkspaceDependencies'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
@@ -256,6 +257,7 @@ export function help () {
 export type InstallCommandOptions = Pick<Config,
   'bail' |
   'bin' |
+  'cliOptions' |
   'engineStrict' |
   'globalPnpmfile' |
   'ignorePnpmfile' |
@@ -281,6 +283,7 @@ export type InstallCommandOptions = Pick<Config,
   latest?: boolean,
   update?: boolean,
   useBetaCli?: boolean,
+  workspace?: boolean,
 }
 
 export async function handler (
@@ -288,12 +291,31 @@ export async function handler (
   opts: InstallCommandOptions,
   invocation?: string,
 ) {
+  if (opts.workspace) {
+    if (opts.latest) {
+      throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
+    }
+    if (!opts.workspaceDir) {
+      throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
+    }
+    if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
+      if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
+        throw new PnpmError('BAD_OPTIONS', oneLine`This workspace has link-workspace-packages turned off,
+          so dependencies are linked from the workspace only when the workspace protocol is used.
+          Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option
+          when running add/update with the --workspace option`)
+      } else {
+        opts.saveWorkspaceProtocol = true
+      }
+    }
+    opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
+  }
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
 
   const dir = opts.dir || process.cwd()
 
-  const localPackages = opts.linkWorkspacePackages && opts.workspaceDir
+  const localPackages = opts.workspaceDir
     ? arrayOfLocalPackagesToMap(
       await findWorkspacePackages(opts.workspaceDir, opts),
     )
@@ -333,6 +355,13 @@ export async function handler (
       input = createLatestSpecs(input, manifest)
     }
     delete installOpts.include
+  }
+  if (opts.workspace) {
+    if (!input || !input.length) {
+      input = updateToWorkspacePackagesFromManifest(manifest, opts.include, localPackages!)
+    } else {
+      input = createWorkspaceSpecs(input, localPackages!)
+    }
   }
   if (!input || !input.length) {
     if (invocation === 'add') {

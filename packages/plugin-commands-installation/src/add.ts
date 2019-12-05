@@ -6,9 +6,7 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import { handler as install, InstallCommandOptions } from './install'
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes () {
+export function rcOptionsTypes () {
   return R.pick([
     'child-concurrency',
     'engine-strict',
@@ -60,6 +58,13 @@ export function cliOptionsTypes () {
   ], allTypes)
 }
 
+export function cliOptionsTypes () {
+  return {
+    ...rcOptionsTypes(),
+    workspace: Boolean,
+  }
+}
+
 export const commandNames = ['add']
 
 export function help () {
@@ -109,6 +114,10 @@ export function help () {
               For options that may be used with \`-r\`, see "pnpm help recursive"`,
             name: '--recursive',
             shortAlias: '-r',
+          },
+          {
+            description: 'Only adds the new dependency if it is found in the workspace',
+            name: '--workspace',
           },
           OPTIONS.ignoreScripts,
           OPTIONS.offline,

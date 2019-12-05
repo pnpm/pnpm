@@ -675,6 +675,7 @@ async function installInContext (
   } = await resolveDependencies(
     importersToResolve,
     {
+      alwaysTryWorkspacePackages: opts.linkWorkspacePackages,
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
@@ -706,6 +707,7 @@ async function installInContext (
     if (importer.updatePackageManifest) {
       newPkg = await updateImporterManifest(importersToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
+        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
     } else {

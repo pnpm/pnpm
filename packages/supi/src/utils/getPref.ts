@@ -9,6 +9,7 @@ export async function updateImporterManifest (
   importer: ImporterToUpdate,
   opts: {
     directDependencies: ResolvedDirectDependency[],
+    preserveWorkspaceProtocol: boolean,
     saveWorkspaceProtocol: boolean,
   },
 ) {
@@ -17,6 +18,7 @@ export async function updateImporterManifest (
   }
   const specsToUpsert = opts.directDependencies.map((rdd, index) => resolvedDirectDepToSpecObject(rdd, importer, {
     pinnedVersion: importer.wantedDependencies[index]?.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
+    preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
     saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
   }))
   for (const pkgToInstall of importer.wantedDependencies) {
@@ -49,6 +51,7 @@ function resolvedDirectDepToSpecObject (
   importer: ImporterToUpdate,
   opts: {
     pinnedVersion: PinnedVersion,
+    preserveWorkspaceProtocol: boolean,
     saveWorkspaceProtocol: boolean,
   }
 ): PackageSpecObject {
@@ -75,7 +78,7 @@ function resolvedDirectDepToSpecObject (
     }
     if (
       resolution.type === 'directory' &&
-      opts.saveWorkspaceProtocol &&
+      (opts.saveWorkspaceProtocol || opts.preserveWorkspaceProtocol !== false && specRaw.includes('@workspace:')) &&
       !pref.startsWith('workspace:')
     ) {
       pref = `workspace:${pref}`

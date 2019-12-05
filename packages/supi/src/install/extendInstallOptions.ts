@@ -14,6 +14,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
+  linkWorkspacePackages?: boolean,
   forceSharedLockfile: boolean,
   frozenLockfile: boolean,
   extraBinPaths: string[],
@@ -21,6 +22,7 @@ export interface StrictInstallOptions {
   lockfileOnly: boolean,
   preferFrozenLockfile: boolean,
   saveWorkspaceProtocol: boolean,
+  preserveWorkspaceProtocol: boolean,
   storeController: StoreController,
   storeDir: string,
   reporter: ReporterFunction,
@@ -107,6 +109,7 @@ const defaults = async (opts: InstallOptions) => {
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenLockfile: true,
+    preserveWorkspaceProtocol: true,
     pruneLockfileImporters: false,
     pruneStore: false,
     rawConfig: {},

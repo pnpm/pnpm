@@ -45,6 +45,7 @@ export interface LocalPackages {
 }
 
 export interface ResolveOptions {
+  alwaysTryWorkspacePackages?: boolean,
   defaultTag?: string,
   importerDir: string,
   localPackages?: LocalPackages,
