@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,27 +31,27 @@
     "@pnpm/prepare": "workspace:0.0.0",
     "@pnpm/registry-mock": "1.11.1",
     "@types/common-tags": "^1.8.0",
-    "@types/ramda": "^0.26.36",
+    "@types/ramda": "^0.26.37",
     "rimraf": "3.0.0",
     "tape": "4.11.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.0.0",
-    "@pnpm/common-cli-options-help": "workspace:0.0.0",
-    "@pnpm/config": "workspace:5.0.2",
+    "@pnpm/cli-utils": "workspace:0.1.0",
+    "@pnpm/common-cli-options-help": "workspace:0.1.0",
+    "@pnpm/config": "workspace:6.0.0",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/find-workspace-dir": "workspace:0.0.0",
-    "@pnpm/find-workspace-packages": "workspace:0.0.0",
-    "@pnpm/package-store": "workspace:6.0.1",
-    "@pnpm/plugin-commands-recursive": "workspace:0.0.0",
-    "@pnpm/pnpmfile": "workspace:0.0.0",
-    "@pnpm/store-connection-manager": "workspace:0.0.0",
+    "@pnpm/find-workspace-dir": "workspace:1.0.0",
+    "@pnpm/find-workspace-packages": "workspace:1.0.0",
+    "@pnpm/package-store": "workspace:6.1.0",
+    "@pnpm/plugin-commands-recursive": "workspace:0.1.0",
+    "@pnpm/pnpmfile": "workspace:0.1.0",
+    "@pnpm/store-connection-manager": "workspace:0.1.0",
     "common-tags": "1.8.0",
     "p-limit": "2.2.1",
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
-    "supi": "workspace:0.36.4"
+    "supi": "workspace:0.36.5"
   }
 }

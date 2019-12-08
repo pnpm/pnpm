@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Reading a pnpmfile.js",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@pnpm/logger": "^3.1.0",
     "@pnpm/pnpmfile": "link:",
-    "@types/ramda": "^0.26.36",
+    "@types/ramda": "^0.26.37",
     "rimraf": "3.0.0"
   },
   "dependencies": {
