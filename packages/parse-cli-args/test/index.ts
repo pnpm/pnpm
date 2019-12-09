@@ -121,3 +121,21 @@ test('detect unknown options', async (t) => {
   t.deepEqual(unknownOptions, ['save-dev', 'qar'])
   t.end()
 })
+
+test('merge option types of recursive and subcommand', async (t) => {
+  const { unknownOptions } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      switch (commandName) {
+        case 'install': return { recursive: Boolean, registry: String }
+        case 'recursive': return { sort: Boolean }
+        default: return {}
+      }
+    },
+    globalOptionsTypes: { filter: [String, Array] },
+    isKnownCommand: (commandName) => commandName === 'install',
+    shortHands: { 'r': ['--recursive'] },
+  }, ['-r', 'install', '--registry=https://example.com', '--sort'])
+  t.deepEqual(unknownOptions, [])
+  t.end()
+})
