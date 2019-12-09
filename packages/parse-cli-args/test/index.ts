@@ -1,4 +1,5 @@
 import parseCliArgs from '@pnpm/parse-cli-args'
+import os = require('os')
 import path = require('path')
 import test = require('tape')
 
@@ -7,6 +8,7 @@ const DEFAULT_OPTS = {
   getTypesByCommandName: (commandName: string) => ({}),
   globalOptionsTypes: {},
   isKnownCommand: (commandName: string) => true,
+  renamedOptions: { 'prefix': 'dir' },
   shortHands: {},
 }
 
@@ -137,5 +139,27 @@ test('merge option types of recursive and subcommand', async (t) => {
     shortHands: { 'r': ['--recursive'] },
   }, ['-r', 'install', '--registry=https://example.com', '--sort'])
   t.deepEqual(unknownOptions, [])
+  t.end()
+})
+
+test('do not incorrectly change "install" command to "add"', async (t) => {
+  const { cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      switch (commandName) {
+        case 'install': return { 'network-concurrency': Number }
+        default: return {}
+      }
+    },
+    globalOptionsTypes: {
+      prefix: String,
+    },
+    isKnownCommand: (commandName) => commandName === 'install',
+    shortHands: {
+      'C': ['--prefix'],
+      'r': ['--recursive'],
+    },
+  }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
+  t.equal(cmd, 'install')
   t.end()
 })

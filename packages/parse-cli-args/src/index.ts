@@ -12,7 +12,21 @@ export default async function parseCliArgs (
   },
   inputArgv: string[],
 ) {
-  const noptExploratoryResults = nopt({ recursive: Boolean, filter: [String] }, { 'r': ['--recursive'] }, inputArgv, 0)
+  const noptExploratoryResults = nopt(
+    {
+      filter: [String],
+      recursive: Boolean,
+      ...opts.globalOptionsTypes,
+      ...opts.getTypesByCommandName('add'),
+      ...opts.getTypesByCommandName('install'),
+    },
+    {
+      'r': ['--recursive'],
+      ...opts.shortHands,
+    },
+    inputArgv,
+    0,
+  )
 
   const types = (() => {
     if (opts.getCommandLongName(noptExploratoryResults.argv.remain[0]) === 'recursive') {
