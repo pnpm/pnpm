@@ -1745,7 +1745,7 @@ importers:
       '@types/mkdirp': 0.5.2
       '@types/ncp': 2.0.3
       '@types/nopt': 3.0.29
-      '@types/ramda': 0.26.37
+      '@types/ramda': 0.26.38
       '@types/retry': 0.12.0
       '@types/semver': 6.2.0
       '@types/signal-exit': 3.0.0
@@ -1790,7 +1790,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:*'
-      '@pnpm/parse-cli-args': 'workspace:0.1.0'
+      '@pnpm/parse-cli-args': 'workspace:0.1.1'
       '@pnpm/plugin-commands-audit': 'workspace:0.1.0'
       '@pnpm/plugin-commands-import': 'workspace:0.1.0'
       '@pnpm/plugin-commands-installation': 'workspace:0.1.0'
@@ -1820,7 +1820,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
       '@types/nopt': 3.0.29
-      '@types/ramda': ^0.26.37
+      '@types/ramda': ^0.26.38
       '@types/retry': 0.12.0
       '@types/semver': ^6.2.0
       '@types/signal-exit': 3.0.0
@@ -3203,6 +3203,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-d7Sbem1NrImtk8VguPjC3CCmj8HRWFf8QwHWSSdqr/sTETuD+CFCf66JqJ6YMKxK+NRcPBnaGIcbakIrW6i+Qw==
+  /@types/ramda/0.26.38:
+    dependencies:
+      ts-toolbelt: 4.12.13
+    dev: true
+    resolution:
+      integrity: sha512-legQx15y72vedr5fkVTb5xZaI/OXMzJgZYbMxVL5r269sOg7fZIeitEOumcevMPOMZdqH4cMoL35VuU13TLvVA==
   /@types/resolve-from/4.0.0:
     dev: true
     resolution:
