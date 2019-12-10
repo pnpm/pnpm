@@ -122,6 +122,7 @@ async function makePublishManifest (dir: string, originalManifest: ImporterManif
     ...originalManifest,
     dependencies: await makePublishDependencies(dir, originalManifest.dependencies),
     optionalDependencies: await makePublishDependencies(dir, originalManifest.optionalDependencies),
+    devDependencies: await makePublishDependencies(dir, originalManifest.devDependencies),
   }
 
   const { publishConfig } = originalManifest

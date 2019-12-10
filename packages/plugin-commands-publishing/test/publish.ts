@@ -316,6 +316,9 @@ test('convert specs with workspace protocols to regular version ranges', async (
       },
       optionalDependencies: {
         'lodash.deburr': 'workspace:^4.1.0',
+      },
+      devDependencies: {
+        'random-package': 'workspace:^1.2.3'
       }
     },
     {
@@ -376,6 +379,9 @@ test('convert specs with workspace protocols to regular version ranges', async (
   })
   t.deepEqual(publishedManifest.optionalDependencies, {
     'lodash.deburr': '^4.1.0',
+  })
+  t.deepEqual(publishedManifest.devDependencies, {
+    'random-package': '^1.2.3',
   })
   t.end()
 })
