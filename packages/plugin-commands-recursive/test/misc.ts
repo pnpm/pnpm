@@ -374,6 +374,58 @@ test('recursive filter package with dependencies', async (t) => {
   t.end()
 })
 
+test('recursive filter only package dependencies', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': '1.0.0',
+        'project-4': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        minimatch: '*',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    filter: ['project-1^...'],
+  })
+
+  projects['project-1'].hasNot('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['project-3'].hasNot('minimatch')
+  projects['project-4'].has('is-positive')
+
+  t.end()
+})
+
 test('recursive filter package with dependents', async (t) => {
   const projects = preparePackages(t, [
     {
@@ -421,6 +473,57 @@ test('recursive filter package with dependents', async (t) => {
   projects['project-0'].has('is-positive')
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
+  projects['project-3'].hasNot('minimatch')
+  t.end()
+})
+
+test('recursive filter only package dependents', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-0',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-1': '1.0.0',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        minimatch: '*',
+      },
+    },
+  ])
+
+  await recursive.handler(['install'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    filter: ['...^project-2'],
+  })
+
+  projects['project-0'].has('is-positive')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
   projects['project-3'].hasNot('minimatch')
   t.end()
 })

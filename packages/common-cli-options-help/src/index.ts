@@ -52,8 +52,16 @@ export const FILTERING = {
       name: '--filter <pattern>...',
     },
     {
+      description: 'Includes only the direct and indirect dependencies of the matched packages without including the matched packages themselves. ^ must be doubled at the Windows Command Prompt. E.g.: foo^... (foo^^... in Command Prompt)',
+      name: '--filter <pattern>^...',
+    },
+    {
       description: 'Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*',
       name: '--filter ...<pattern>',
+    },
+    {
+      description: 'Includes only the direct and indirect dependents of the matched packages without including the matched packages themselves. ^ must be doubled at the Windows Command Prompt. E.g.: ...^foo (...^^foo in Command Prompt)',
+      name: '--filter ...^<pattern>',
     },
     {
       description: 'Includes all packages that are inside a given subdirectory. E.g.: ./components',
