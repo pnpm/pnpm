@@ -338,6 +338,10 @@ test('convert specs with workspace protocols to regular version ranges', async (
       version: '4.1.0',
     },
     {
+      name: 'random-package',
+      version: '1.2.3',
+    },
+    {
       name: 'target',
       version: '1.0.0',
     }
