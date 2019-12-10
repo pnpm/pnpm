@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-outdated",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "The outdated command of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.1.1",
-    "@pnpm/common-cli-options-help": "workspace:0.1.0",
+    "@pnpm/common-cli-options-help": "workspace:0.1.1",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lockfile-file": "workspace:3.0.1",

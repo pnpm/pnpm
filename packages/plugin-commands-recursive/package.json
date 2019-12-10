@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-recursive",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Recursive commands",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.1.1",
-    "@pnpm/common-cli-options-help": "workspace:0.1.0",
+    "@pnpm/common-cli-options-help": "workspace:0.1.1",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
@@ -61,8 +61,8 @@
     "@pnpm/lockfile-file": "workspace:3.0.1",
     "@pnpm/matcher": "workspace:1.0.0",
     "@pnpm/outdated": "workspace:6.0.3",
-    "@pnpm/plugin-commands-listing": "workspace:0.1.1",
-    "@pnpm/plugin-commands-outdated": "workspace:0.1.1",
+    "@pnpm/plugin-commands-listing": "workspace:0.1.2",
+    "@pnpm/plugin-commands-outdated": "workspace:0.1.2",
     "@pnpm/pnpmfile": "workspace:0.1.0",
     "@pnpm/resolver-base": "workspace:5.1.0",
     "@pnpm/store-connection-manager": "workspace:0.1.1",

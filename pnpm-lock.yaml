@@ -1346,7 +1346,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.1.1'
-      '@pnpm/common-cli-options-help': 'workspace:0.1.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.1'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.0.0'
@@ -1354,7 +1354,7 @@ importers:
       '@pnpm/find-workspace-packages': 'workspace:1.0.1'
       '@pnpm/package-store': 'workspace:6.1.0'
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-recursive': 'workspace:0.1.1'
+      '@pnpm/plugin-commands-recursive': 'workspace:0.1.2'
       '@pnpm/pnpmfile': 'workspace:0.1.0'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1
@@ -1394,7 +1394,7 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.1.1'
-      '@pnpm/common-cli-options-help': 'workspace:0.1.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.1'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.0.0'
@@ -1448,7 +1448,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.1.1'
-      '@pnpm/common-cli-options-help': 'workspace:0.1.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.1'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.0.0'
@@ -1583,7 +1583,7 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.1.1'
-      '@pnpm/common-cli-options-help': 'workspace:0.1.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.1'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1595,8 +1595,8 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/outdated': 'workspace:6.0.3'
-      '@pnpm/plugin-commands-listing': 'workspace:0.1.1'
-      '@pnpm/plugin-commands-outdated': 'workspace:0.1.1'
+      '@pnpm/plugin-commands-listing': 'workspace:0.1.2'
+      '@pnpm/plugin-commands-outdated': 'workspace:0.1.2'
       '@pnpm/plugin-commands-recursive': 'link:'
       '@pnpm/pnpmfile': 'workspace:0.1.0'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1657,7 +1657,7 @@ importers:
       tape: 4.11.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.1.1'
-      '@pnpm/common-cli-options-help': 'workspace:0.1.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.1'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/lifecycle': 'workspace:8.0.0'
@@ -1778,7 +1778,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/cli-utils': 'workspace:0.1.1'
-      '@pnpm/common-cli-options-help': 'workspace:0.1.0'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.1'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1793,12 +1793,12 @@ importers:
       '@pnpm/parse-cli-args': 'workspace:0.1.2'
       '@pnpm/plugin-commands-audit': 'workspace:0.1.1'
       '@pnpm/plugin-commands-import': 'workspace:0.1.1'
-      '@pnpm/plugin-commands-installation': 'workspace:0.1.1'
-      '@pnpm/plugin-commands-listing': 'workspace:0.1.1'
-      '@pnpm/plugin-commands-outdated': 'workspace:0.1.1'
+      '@pnpm/plugin-commands-installation': 'workspace:0.1.2'
+      '@pnpm/plugin-commands-listing': 'workspace:0.1.2'
+      '@pnpm/plugin-commands-outdated': 'workspace:0.1.2'
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.1'
-      '@pnpm/plugin-commands-recursive': 'workspace:0.1.1'
-      '@pnpm/plugin-commands-script-runners': 'workspace:0.1.1'
+      '@pnpm/plugin-commands-recursive': 'workspace:0.1.2'
+      '@pnpm/plugin-commands-script-runners': 'workspace:0.1.2'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:*'
