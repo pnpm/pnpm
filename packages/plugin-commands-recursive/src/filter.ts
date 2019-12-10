@@ -21,20 +21,20 @@ export function filterGraph<T> (
   const walkedDependents = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
   let reversedGraph: Graph | undefined
-  for (const { pattern, scope, selectBy } of packageSelectors) {
+  for (const { excludeSelf, pattern, scope, selectBy } of packageSelectors) {
     const entryPackages = selectBy === 'name'
       ? matchPackages(pkgGraph, pattern)
       : matchPackagesByPath(pkgGraph, pattern)
 
     switch (scope) {
       case 'dependencies':
-        pickSubgraph(graph, entryPackages, walkedDependencies)
+        pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !excludeSelf })
         continue
       case 'dependents':
         if (!reversedGraph) {
           reversedGraph = reverseGraph(graph)
         }
-        pickSubgraph(reversedGraph, entryPackages, walkedDependents)
+        pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !excludeSelf })
         continue
       case 'exact':
         Array.prototype.push.apply(cherryPickedPackages, entryPackages)
@@ -87,11 +87,17 @@ function pickSubgraph (
   graph: Graph,
   nextNodeIds: string[],
   walked: Set<string>,
+  opts: {
+    includeRoot: boolean
+  },
 ) {
   for (const nextNodeId of nextNodeIds) {
     if (!walked.has(nextNodeId)) {
-      walked.add(nextNodeId)
-      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked)
+      if (opts.includeRoot) {
+        walked.add(nextNodeId)
+      }
+
+      if (graph[nextNodeId]) pickSubgraph(graph, graph[nextNodeId], walked, { includeRoot: true })
     }
   }
 }
