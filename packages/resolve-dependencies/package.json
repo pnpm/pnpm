@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "11.2.0",
+  "version": "11.2.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -39,7 +39,7 @@
     "@pnpm/resolver-base": "workspace:5.1.0",
     "@pnpm/store-controller-types": "workspace:5.1.0",
     "@pnpm/types": "workspace:4.0.0",
-    "@pnpm/utils": "workspace:0.12.0",
+    "@pnpm/utils": "workspace:0.12.1",
     "dependency-path": "workspace:4.0.1",
     "path-exists": "4.0.0",
     "ramda": "0.26.1",
@@ -49,7 +49,7 @@
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/resolve-dependencies": "link:",
-    "@types/ramda": "^0.26.37",
+    "@types/ramda": "^0.26.38",
     "@types/semver": "^6.2.0",
     "rimraf": "3.0.0"
   }
