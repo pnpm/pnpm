@@ -1790,7 +1790,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:*'
-      '@pnpm/parse-cli-args': 'workspace:0.1.2'
+      '@pnpm/parse-cli-args': 'workspace:0.1.3'
       '@pnpm/plugin-commands-audit': 'workspace:0.1.1'
       '@pnpm/plugin-commands-import': 'workspace:0.1.1'
       '@pnpm/plugin-commands-installation': 'workspace:0.1.2'
@@ -3190,13 +3190,13 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.36:
     dependencies:
-      ts-toolbelt: 4.12.13
+      ts-toolbelt: 4.13.2
     dev: true
     resolution:
       integrity: sha512-uo22Nf32Cc3EURp9tYlFttY8MVQZ1zoVum+D+yQ2jm4IqQFxDtwCQlP/WMwbuj4ey5kw1rJ7v6OacDszfWiqLA==
   /@types/ramda/0.26.38:
     dependencies:
-      ts-toolbelt: 4.12.13
+      ts-toolbelt: 4.13.2
     dev: true
     resolution:
       integrity: sha512-legQx15y72vedr5fkVTb5xZaI/OXMzJgZYbMxVL5r269sOg7fZIeitEOumcevMPOMZdqH4cMoL35VuU13TLvVA==
@@ -10665,10 +10665,10 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-izbVCRV68EasEPQ8MSIGBNK9dc/4sYJJKYA+IarMQct1RtEot6Xp0bXuClsbUSnKpg50ho+aOAx8en5c+y4OFw==
-  /ts-toolbelt/4.12.13:
+  /ts-toolbelt/4.13.2:
     dev: true
     resolution:
-      integrity: sha512-tnMgohN582PAv9u5xX8tsbdTzawRwyhvrg2r1qOgiAUOXB8ABGwYQeOh0qfE43wKF0ygvbBrM/CTZMED6ow5ZQ==
+      integrity: sha512-4XADP6qbzIAzsqOr9/ebzEv9ItYJ2fSSoZq1C6KsE9+aJ5mFSGO+JqDoi1YkjjZ/FabaMcEsL5g5L92We/lyqw==
   /tslib/1.10.0:
     dev: true
     resolution:
