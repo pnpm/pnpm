@@ -15,6 +15,7 @@ export default async function parseCliArgs (
   const noptExploratoryResults = nopt(
     {
       filter: [String],
+      help: Boolean,
       recursive: Boolean,
       ...opts.globalOptionsTypes,
       ...opts.getTypesByCommandName('add'),
@@ -27,6 +28,17 @@ export default async function parseCliArgs (
     inputArgv,
     0,
   )
+  if (noptExploratoryResults['help']) {
+    return {
+      argv: noptExploratoryResults.argv,
+      cliArgs: noptExploratoryResults.argv.remain,
+      cliConf: {},
+      cmd: 'help',
+      dir: process.cwd(),
+      subCmd: null,
+      unknownOptions: [] as string[],
+    }
+  }
 
   const types = (() => {
     if (opts.getCommandLongName(noptExploratoryResults.argv.remain[0]) === 'recursive') {
