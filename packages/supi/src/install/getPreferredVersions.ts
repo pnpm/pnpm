@@ -1,3 +1,4 @@
+import { nameVerFromPkgSnapshot, PackageSnapshots } from '@pnpm/lockfile-utils'
 import { PreferredVersions } from '@pnpm/resolver-base'
 import { Dependencies, ImporterManifest } from '@pnpm/types'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
@@ -31,4 +32,17 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
       }
       return acc
     }, {} as PreferredVersions)
+}
+
+export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): PreferredVersions {
+  const preferredVersions: PreferredVersions = {}
+  for (const [relDepPath, snapshot] of Object.entries(snapshots)) {
+    const { name, version } = nameVerFromPkgSnapshot(relDepPath, snapshot)
+    if (!preferredVersions[name]) {
+      preferredVersions[name] = { [version]: 'version' }
+    } else {
+      preferredVersions[name][version] = 'version'
+    }
+  }
+  return preferredVersions
 }

@@ -87,3 +87,41 @@ test('update dependency when external lockfile directory is used', async (t: tap
 
   t.ok(lockfile.packages && lockfile.packages['/foo/100.1.0']) // tslint:disable-line:no-string-literal
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/2191
+test('preserve subdeps when installing on a package that has one dependency spec changed in the manifest', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await Promise.all([
+    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
+    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
+    addDistTag('bar', '100.0.0', 'latest'),
+    addDistTag('foo', '100.0.0', 'latest'),
+    addDistTag('foobarqar', '1.0.0', 'latest'),
+    addDistTag('peer-c', '1.0.0', 'latest'),
+  ])
+
+  const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
+
+  manifest.dependencies!['foobarqar'] = '^1.0.1'
+
+  await Promise.all([
+    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('foo', '100.1.0', 'latest'),
+    addDistTag('foobarqar', '1.0.1', 'latest'),
+  ])
+
+  await install(manifest, await testDefaults())
+
+  const lockfile = await project.readLockfile()
+
+  t.ok(lockfile.packages)
+  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
+  t.ok(lockfile.packages['/foobarqar/1.0.1'])
+  t.deepEqual(lockfile.packages['/foobarqar/1.0.1'].dependencies, {
+    bar: '100.0.0',
+    foo: '100.0.0',
+    qar: '100.0.0',
+  })
+})

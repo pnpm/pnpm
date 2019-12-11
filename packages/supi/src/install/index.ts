@@ -69,7 +69,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import getPreferredVersionsFromPackage from './getPreferredVersions'
+import getPreferredVersionsFromPackage, { getPreferredVersionsFromLockfile } from './getPreferredVersions'
 import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
@@ -643,11 +643,17 @@ async function installInContext (
     }
     return -1
   })()
+  const preferredVersions = opts.preferredVersions ?? (
+    !opts.update &&
+    ctx.wantedLockfile.packages &&
+    !R.isEmpty(ctx.wantedLockfile.packages) &&
+    getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages!) || undefined
+  )
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth,
     localPackages: opts.localPackages,
     lockfileOnly: opts.lockfileOnly,
-    preferredVersions: opts.preferredVersions,
+    preferredVersions,
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
   })
