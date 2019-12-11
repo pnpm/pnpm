@@ -1,6 +1,7 @@
 import PnpmError from '@pnpm/error'
 import {
   LocalPackages,
+  PreferredVersions,
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolver-base'
@@ -113,12 +114,7 @@ export type ResolveFromNpmOptions = {
   defaultTag?: string,
   dryRun?: boolean,
   registry: string,
-  preferredVersions?: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
-    },
-  },
+  preferredVersions?: PreferredVersions,
 } & ({
   importerDir?: string,
   localPackages?: undefined,

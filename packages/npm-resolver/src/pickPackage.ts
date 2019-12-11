@@ -1,5 +1,6 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
+import { VersionSelector } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
@@ -43,10 +44,7 @@ const metafileOperationLimits = {} as {
 
 export type PickPackageOptions = {
   auth: object,
-  preferredVersionSelector: {
-    selector: string,
-    type: 'version' | 'range' | 'tag',
-  } | undefined,
+  preferredVersionSelector: VersionSelector | undefined,
   registry: string,
   dryRun: boolean,
 }

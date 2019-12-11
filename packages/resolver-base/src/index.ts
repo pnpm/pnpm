@@ -44,18 +44,22 @@ export interface LocalPackages {
   },
 }
 
+export type VersionSelector = {
+  selector: string,
+  type: 'version' | 'range' | 'tag',
+}
+
+export type PreferredVersions = {
+  [packageName: string]: VersionSelector,
+}
+
 export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean,
   defaultTag?: string,
   importerDir: string,
   localPackages?: LocalPackages,
   lockfileDir: string,
-  preferredVersions: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
-    },
-  },
+  preferredVersions: PreferredVersions,
   registry: string,
 }
 

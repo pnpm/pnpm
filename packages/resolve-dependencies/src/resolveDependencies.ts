@@ -19,6 +19,7 @@ import packageIsInstallable from '@pnpm/package-is-installable'
 import {
   DirectoryResolution,
   LocalPackages,
+  PreferredVersions,
   Resolution,
 } from '@pnpm/resolver-base'
 import {
@@ -135,13 +136,6 @@ export interface ResolutionContext {
   registries: Registries,
   virtualStoreDir: string,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
-}
-
-type PreferredVersions = {
-  [packageName: string]: {
-    type: 'version' | 'range' | 'tag',
-    selector: string,
-  },
 }
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`

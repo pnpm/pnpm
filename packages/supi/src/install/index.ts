@@ -33,6 +33,7 @@ import resolveDependencies, {
 } from '@pnpm/resolve-dependencies'
 import {
   LocalPackages,
+  PreferredVersions,
   Resolution,
 } from '@pnpm/resolver-base'
 import {
@@ -112,12 +113,7 @@ export type DependenciesMutation = (
 export async function install (
   manifest: ImporterManifest,
   opts: InstallOptions & {
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
+    preferredVersions?: PreferredVersions,
   },
 ) {
   const importers = await mutateModules(
@@ -139,12 +135,7 @@ export type MutatedImporter = ImportersOptions & DependenciesMutation
 export async function mutateModules (
   importers: MutatedImporter[],
   maybeOpts: InstallOptions & {
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
+    preferredVersions?: PreferredVersions,
   },
 ) {
   const reporter = maybeOpts?.reporter
@@ -603,12 +594,7 @@ async function installInContext (
   opts: StrictInstallOptions & {
     makePartialCurrentLockfile: boolean,
     updateLockfileMinorVersion: boolean,
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
+    preferredVersions?: PreferredVersions,
     currentLockfileIsUpToDate: boolean,
   },
 ) {
@@ -893,12 +879,7 @@ async function toResolveImporter (
     lockfileOnly: boolean,
     storeDir: string,
     virtualStoreDir: string,
-    preferredVersions?: {
-      [packageName: string]: {
-        selector: string,
-        type: 'version' | 'range' | 'tag',
-      },
-    },
+    preferredVersions?: PreferredVersions,
   },
   importer: ImporterToUpdate,
   hoist: boolean,

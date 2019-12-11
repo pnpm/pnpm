@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import { LocalPackages, Resolution } from '@pnpm/resolver-base'
+import { LocalPackages, PreferredVersions, Resolution } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   ReadPackageHook,
@@ -38,12 +38,7 @@ export type ResolvedDirectDependency = {
 export interface Importer {
   id: string,
   modulesDir: string,
-  preferredVersions?: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
-    },
-  },
+  preferredVersions?: PreferredVersions,
   rootDir: string,
   wantedDependencies: Array<WantedDependency & { isNew?: boolean, raw: string, updateDepth: number }>,
 }

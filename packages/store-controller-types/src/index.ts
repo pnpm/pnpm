@@ -1,6 +1,7 @@
 import {
   DirectoryResolution,
   LocalPackages,
+  PreferredVersions,
   Resolution,
   WantedDependency,
 } from '@pnpm/resolver-base'
@@ -102,12 +103,7 @@ export interface RequestPackageOptions {
   importerDir: string,
   localPackages?: LocalPackages,
   lockfileDir: string,
-  preferredVersions: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
-    },
-  },
+  preferredVersions: PreferredVersions,
   registry: string,
   sideEffectsCache?: boolean,
   skipFetch?: boolean,

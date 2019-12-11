@@ -1,13 +1,11 @@
+import { VersionSelector } from '@pnpm/resolver-base'
 import semver = require('semver')
 import { RegistryPackageSpec } from './parsePref'
 import { PackageInRegistry, PackageMeta } from './pickPackage'
 
 export default function (
   spec: RegistryPackageSpec,
-  preferredVersionSelector: {
-    selector: string,
-    type: 'version' | 'range' | 'tag',
-  } | undefined,
+  preferredVersionSelector: VersionSelector | undefined,
   meta: PackageMeta,
 ): PackageInRegistry {
   let version!: string
@@ -28,10 +26,7 @@ export default function (
 function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSel?: {
-    type: 'version' | 'range' | 'tag',
-    selector: string,
-  },
+  preferredVerSel?: VersionSelector,
 ) {
   let versions: string[] | undefined
   const latest = meta['dist-tags'].latest
