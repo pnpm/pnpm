@@ -3,17 +3,9 @@
 // because it breaks pnpm's CLI output
 process.setMaxListeners(0)
 
-let argv = process.argv.slice(2)
+const argv = process.argv.slice(2)
 
-const dashDashIndex = argv.indexOf('--')
-const nonEscapedArgv = dashDashIndex === -1 ? argv : argv.slice(0, dashDashIndex)
-const helpOptions = new Set(['--help', '-h', '--h'])
-
-if (nonEscapedArgv.some((arg) => helpOptions.has(arg))) {
-  argv = ['help'].concat(argv)
-}
-
-(async () => { // tslint:disable-line:no-floating-promises
+; (async () => { // tslint:disable-line:no-floating-promises
   switch (argv[0]) {
     case '-v':
     case '--version':

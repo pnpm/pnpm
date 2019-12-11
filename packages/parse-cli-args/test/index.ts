@@ -163,3 +163,11 @@ test('do not incorrectly change "install" command to "add"', async (t) => {
   t.equal(cmd, 'install')
   t.end()
 })
+
+test('if a help option is used, set cmd to "help"', async (t) => {
+  const { cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, ['install', '--help'])
+  t.equal(cmd, 'help')
+  t.end()
+})
