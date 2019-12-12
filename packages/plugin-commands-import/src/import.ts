@@ -71,17 +71,10 @@ function getPreferredVersions (
 ) {
   const preferredVersions = {}
   for (const packageName of Object.keys(versionsByPackageNames)) {
-    if (versionsByPackageNames[packageName].size === 1) {
-      preferredVersions[packageName] = {
-        selector: Array.from(versionsByPackageNames[packageName])[0],
-        type: 'version',
-      }
-    } else {
-      preferredVersions[packageName] = {
-        selector: Array.from(versionsByPackageNames[packageName]).join(' || '),
-        type: 'range',
-      }
-    }
+    preferredVersions[packageName] = Array.from(versionsByPackageNames[packageName]).reduce((acc, version) => {
+      acc[version] = 'version'
+      return acc
+    }, {})
   }
   return preferredVersions
 }

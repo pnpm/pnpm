@@ -321,7 +321,7 @@ test("resolves to latest if it's inside the preferred range. Even if there are n
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'range', selector: '^3.0.0' },
+      'is-positive': { '^3.0.0': 'range' },
     },
     registry,
   })
@@ -349,7 +349,7 @@ test("resolve using the wanted range, when it doesn't intersect with the preferr
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'range', selector: '^2.0.0' },
+      'is-positive': { '^2.0.0': 'range' },
     },
     registry,
   })
@@ -376,7 +376,7 @@ test("use the preferred version if it's inside the wanted range", async t => {
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'version', selector: '3.0.0' },
+      'is-positive': { '3.0.0': 'version' },
     },
     registry,
   })
@@ -404,7 +404,7 @@ test("ignore the preferred version if it's not inside the wanted range", async t
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'version', selector: '2.0.0' },
+      'is-positive': { '2.0.0': 'version' },
     },
     registry,
   })
@@ -430,7 +430,38 @@ test('use the preferred range if it intersects with the wanted range', async t =
     pref: '>=1.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'range', selector: '^3.0.0' },
+      'is-positive': { '^3.0.0': 'range' },
+    },
+    registry,
+  })
+
+  // 1.0.0 is the latest but we prefer a version that is also in the preferred range
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
+  t.end()
+})
+
+test('use the preferred range if it intersects with the wanted range (an array of preferred versions is passed)', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '1.0.0' },
+    })
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir: tempy.directory(),
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    pref: '>=1.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': {
+        '3.0.0': 'version',
+        '3.1.0': 'version',
+      },
     },
     registry,
   })
@@ -458,7 +489,7 @@ test("ignore the preferred range if it doesn't intersect with the wanted range",
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'range', selector: '^2.0.0' },
+      'is-positive': { '^2.0.0': 'range' },
     },
     registry,
   })
@@ -487,7 +518,7 @@ test("use the preferred dist-tag if it's inside the wanted range", async t => {
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'tag', selector: 'stable' },
+      'is-positive': { 'stable': 'tag' },
     },
     registry,
   })
@@ -516,7 +547,7 @@ test("ignore the preferred dist-tag if it's not inside the wanted range", async 
     pref: '^3.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'tag', selector: 'stable' },
+      'is-positive': { 'stable': 'tag' },
     },
     registry,
   })
@@ -544,7 +575,7 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
     pref: '1.0.0 || 2.0.0',
   }, {
     preferredVersions: {
-      'is-positive': { type: 'range', selector: '1.0.0 || 3.0.0' },
+      'is-positive': { '1.0.0 || 3.0.0': 'range' },
     },
     registry,
   })

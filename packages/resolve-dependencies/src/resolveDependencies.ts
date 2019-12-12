@@ -318,17 +318,10 @@ export default async function resolveDependencies (
     for (const { pkgId } of pkgAddresses) {
       if (!pkgId) continue // This will happen only with linked dependencies
       const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
-      if (newPreferredVersions[resolvedPackage.name] && newPreferredVersions[resolvedPackage.name].type !== 'tag') {
-        newPreferredVersions[resolvedPackage.name] = {
-          selector: `${newPreferredVersions[resolvedPackage.name].selector} || ${resolvedPackage.version}`,
-          type: 'range',
-        }
-      } else {
-        newPreferredVersions[resolvedPackage.name] = {
-          selector: resolvedPackage.version,
-          type: 'version',
-        }
+      if (!newPreferredVersions[resolvedPackage.name]) {
+        newPreferredVersions[resolvedPackage.name] = {}
       }
+      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
     }
     await Promise.all(postponedResolutionsQueue.map((postponedResolution) => postponedResolution(newPreferredVersions)))
   }

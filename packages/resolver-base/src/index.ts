@@ -44,13 +44,12 @@ export interface LocalPackages {
   },
 }
 
-export type VersionSelector = {
-  selector: string,
-  type: 'version' | 'range' | 'tag',
+export type VersionSelectors = {
+  [selector: string]: 'version' | 'range' | 'tag',
 }
 
 export type PreferredVersions = {
-  [packageName: string]: VersionSelector,
+  [packageName: string]: VersionSelectors,
 }
 
 export interface ResolveOptions {

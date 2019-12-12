@@ -1,6 +1,6 @@
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
-import { VersionSelector } from '@pnpm/resolver-base'
+import { VersionSelectors } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
@@ -44,7 +44,7 @@ const metafileOperationLimits = {} as {
 
 export type PickPackageOptions = {
   auth: object,
-  preferredVersionSelector: VersionSelector | undefined,
+  preferredVersionSelectors: VersionSelectors | undefined,
   registry: string,
   dryRun: boolean,
 }
@@ -67,7 +67,7 @@ export default async (
   if (cachedMeta) {
     return {
       meta: cachedMeta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, cachedMeta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, cachedMeta),
     }
   }
 
@@ -82,14 +82,14 @@ export default async (
     if (ctx.offline) {
       if (metaCachedInStore) return {
         meta: metaCachedInStore,
-        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore),
+        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore),
       }
 
       throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
     }
 
     if (metaCachedInStore) {
-      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore)
+      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelectors, metaCachedInStore)
       if (pickedPackage) {
         return {
           meta: metaCachedInStore,
@@ -122,7 +122,7 @@ export default async (
     }
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
   } catch (err) {
     const meta = await loadMeta(pkgMirror, ctx.metaFileName) // TODO: add test for this usecase
@@ -131,7 +131,7 @@ export default async (
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {
       meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
   }
 }

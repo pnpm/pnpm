@@ -146,8 +146,7 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
       {
         preferredVersions: {
           'dep-of-pkg-with-1-dep': {
-            selector: '100.0.0',
-            type: 'version',
+            '100.0.0': 'version',
           },
         },
       },

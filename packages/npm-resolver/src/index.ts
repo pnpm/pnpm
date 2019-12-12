@@ -153,7 +153,7 @@ async function resolveNpm (
     pickResult = await ctx.pickPackage(spec, {
       auth,
       dryRun: opts.dryRun === true,
-      preferredVersionSelector: opts.preferredVersions?.[spec.name],
+      preferredVersionSelectors: opts.preferredVersions?.[spec.name],
       registry: opts.registry,
     })
   } catch (err) {
