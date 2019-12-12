@@ -204,7 +204,7 @@ export default async function resolveDependencies (
     // If the package has been updated, the dependencies
     // which were used by the previous version are passed
     // via this option
-    preferedDependencies?: ResolvedDependencies,
+    preferredDependencies?: ResolvedDependencies,
     preferredVersions: PreferredVersions,
     parentIsInstallable?: boolean,
     readPackageHook?: ReadPackageHook,
@@ -213,7 +213,7 @@ export default async function resolveDependencies (
 ): Promise<Array<PkgAddress | LinkedDependency>> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     parentDependsOnPeers: options.parentDependsOnPeers,
-    preferedDependencies: options.preferedDependencies,
+    preferredDependencies: options.preferredDependencies,
     prefix: ctx.prefix,
     proceed: options.proceed,
     registries: ctx.registries,
@@ -255,8 +255,8 @@ export default async function resolveDependencies (
             const resolvedPackage = ctx.resolvedPackagesByPackageId[resolveDependencyResult.pkgId]
             const resolvedDependencies = resolveDependencyResult.updated
               ? undefined
-              : extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
-            const optionalDependencyNames = extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.optionalDependencyNames || undefined
+              : extendedWantedDep.infoFromLockfile?.resolvedDependencies
+            const optionalDependencyNames = extendedWantedDep.infoFromLockfile?.optionalDependencyNames
             const children = await resolveDependencies(
               ctx,
               getWantedDependencies(resolveDependencyResult.pkg, {
@@ -269,12 +269,12 @@ export default async function resolveDependencies (
                 currentDepth: options.currentDepth + 1,
                 dependentId: resolveDependencyResult.pkgId,
                 parentDependsOnPeers: Boolean(
-                  Object.keys(resolveDependencyOpts.dependencyLockfile && resolveDependencyOpts.dependencyLockfile.peerDependencies || resolveDependencyResult.pkg.peerDependencies || {}).length,
+                  Object.keys(resolveDependencyOpts.dependencyLockfile?.peerDependencies ?? resolveDependencyResult.pkg.peerDependencies ?? {}).length,
                 ),
                 parentIsInstallable: resolveDependencyResult.installable,
                 parentNodeId: resolveDependencyResult.nodeId,
-                preferedDependencies: resolveDependencyResult.updated
-                  ? extendedWantedDep.infoFromLockfile && extendedWantedDep.infoFromLockfile.resolvedDependencies || undefined
+                preferredDependencies: resolveDependencyResult.updated
+                  ? extendedWantedDep.infoFromLockfile?.resolvedDependencies
                   : undefined,
                 preferredVersions,
                 // If the package is not linked, we should also gather information about its dependencies.
@@ -334,7 +334,7 @@ function getDepsToResolve (
   wantedLockfile: Lockfile,
   options: {
     parentDependsOnPeers: boolean,
-    preferedDependencies?: ResolvedDependencies,
+    preferredDependencies?: ResolvedDependencies,
     prefix: string,
     proceed: boolean,
     registries: Registries,
@@ -342,8 +342,8 @@ function getDepsToResolve (
     updateLockfile: boolean,
   },
 ) {
-  const resolvedDependencies = options.resolvedDependencies || {}
-  const preferedDependencies = options.preferedDependencies || {}
+  const resolvedDependencies = options.resolvedDependencies ?? {}
+  const preferredDependencies = options.preferredDependencies ?? {}
   const extendedWantedDeps = []
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
@@ -361,9 +361,9 @@ function getDepsToResolve (
     // and foo was updated to 1.1.0 which depends on bar ^1.0.0
     // then bar@1.0.0 can be reused for foo@1.1.0
     if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // tslint:disable-line
-      preferedDependencies[wantedDependency.alias] &&
+      preferredDependencies[wantedDependency.alias] &&
       preferedSatisfiesWanted(
-        preferedDependencies[wantedDependency.alias],
+        preferredDependencies[wantedDependency.alias],
         wantedDependency as {alias: string, pref: string},
         wantedLockfile,
         {
@@ -372,14 +372,12 @@ function getDepsToResolve (
       )
     ) {
       proceed = true
-      reference = preferedDependencies[wantedDependency.alias]
+      reference = preferredDependencies[wantedDependency.alias]
     }
     const infoFromLockfile = getInfoFromLockfile(wantedLockfile, options.registries, reference, wantedDependency.alias)
     if (
       !proceedAll &&
-      infoFromLockfile &&
-      infoFromLockfile.dependencyLockfile &&
-      infoFromLockfile.dependencyLockfile.peerDependencies
+      infoFromLockfile?.dependencyLockfile?.peerDependencies
     ) {
       proceed = true
       Object.keys(infoFromLockfile.dependencyLockfile.peerDependencies).forEach((peerName) => {
@@ -412,7 +410,7 @@ function preferedSatisfiesWanted (
 ) {
   const relDepPath = dp.refToRelative(preferredRef, wantedDep.alias)
   if (relDepPath === null) return false
-  const pkgSnapshot = lockfile.packages && lockfile.packages[relDepPath]
+  const pkgSnapshot = lockfile.packages?.[relDepPath]
   if (!pkgSnapshot) {
     logger.warn({
       message: `Could not find preferred package ${relDepPath} in lockfile`,
@@ -440,7 +438,7 @@ function getInfoFromLockfile (
     return null
   }
 
-  const dependencyLockfile = lockfile.packages && lockfile.packages[relDepPath]
+  const dependencyLockfile = lockfile.packages?.[relDepPath]
 
   if (dependencyLockfile) {
     if (dependencyLockfile.peerDependencies && dependencyLockfile.dependencies) {
@@ -504,7 +502,7 @@ async function resolveDependency (
   const proceed = update || options.proceed || !options.currentResolution
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages && ctx.currentLockfile.packages[options.relDepPath]) : undefined
+  const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages?.[options.relDepPath]) : undefined
   const depIsLinked = Boolean(options.depPath &&
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
@@ -629,16 +627,16 @@ async function resolveDependency (
 
     prepare = Boolean(
       pkgResponse.body.resolvedVia === 'git-repository' &&
-      pkg.scripts && typeof pkg.scripts.prepare === 'string',
+      typeof pkg.scripts?.prepare === 'string',
     )
 
     if (
-      options.dependencyLockfile && options.dependencyLockfile.deprecated &&
+      options.dependencyLockfile?.deprecated &&
       !pkgResponse.body.updated && !pkg.deprecated
     ) {
       pkg.deprecated = options.dependencyLockfile.deprecated
     }
-    hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
+    hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories?.bin)
     // tslint:enable:no-string-literal
   }
   if (!pkg.name) { // TODO: don't fail on optional dependencies
@@ -762,7 +760,7 @@ function getResolvedPackage (
       peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
     dev: options.wantedDependency.dev,
-    engineCache: !options.force && options.pkgResponse.body.cacheByEngine && options.pkgResponse.body.cacheByEngine[ENGINE_NAME],
+    engineCache: !options.force && options.pkgResponse.body.cacheByEngine?.[ENGINE_NAME],
     fetchingBundledManifest: options.pkgResponse.bundledManifest,
     fetchingFiles: options.pkgResponse.files!,
     finishing: options.pkgResponse.finishing!,
@@ -776,7 +774,7 @@ function getResolvedPackage (
     optional: options.wantedDependency.optional,
     optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
     path: options.pkgResponse.body.inStoreLocation!,
-    peerDependencies: peerDependencies || {},
+    peerDependencies: peerDependencies ?? {},
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
     requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),
@@ -817,7 +815,7 @@ function getWantedDependencies (
 ) {
   let deps = getNonDevWantedDependencies(pkg)
   if (!deps.length && opts.resolvedDependencies && opts.useManifestInfoFromLockfile) {
-    const optionalDependencyNames = opts.optionalDependencyNames || []
+    const optionalDependencyNames = opts.optionalDependencyNames ?? []
     deps = Object.keys(opts.resolvedDependencies)
       .map((depName) => ({
         alias: depName,
