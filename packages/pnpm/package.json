@@ -48,7 +48,7 @@
     "@types/archy": "0.0.31",
     "@types/mz": "^2.7.0",
     "@types/wrap-ansi": "3.0.0",
-    "@zkochan/libnpx": "11.0.2",
+    "@zkochan/libnpx": "11.0.3",
     "@zkochan/rimraf": "1.0.0",
     "archy": "1.0.0",
     "chalk": "3.0.0",
