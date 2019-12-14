@@ -284,7 +284,10 @@ export async function mutateModules (
           break
         }
         case 'installSome': {
-          await installSome(importer)
+          await installSome({
+            ...importer,
+            updatePackageManifest: true,
+          })
           break
         }
         case 'unlink': {
@@ -332,7 +335,12 @@ export async function mutateModules (
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
-          await installSome({ ...importer, mutation: 'installSome', dependencySelectors: packagesToInstall }, false)
+          await installSome({
+            ...importer,
+            dependencySelectors: packagesToInstall,
+            mutation: 'installSome',
+            updatePackageManifest: false,
+          })
           break
         }
       }
@@ -368,7 +376,7 @@ export async function mutateModules (
       })
     }
 
-    async function installSome (importer: any, updatePackageManifest: boolean = true) { // tslint:disable-line:no-any
+    async function installSome (importer: any) { // tslint:disable-line:no-any
       const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.manifest)
       const optionalDependencies = importer.targetDependenciesField ? {} : importer.manifest.optionalDependencies || {}
       const devDependencies = importer.targetDependenciesField ? {} : importer.manifest.devDependencies || {}
@@ -385,7 +393,6 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        updatePackageManifest,
         wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true })),
       })
     }
