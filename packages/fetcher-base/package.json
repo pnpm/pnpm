@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetcher-base",
-  "version": "5.1.0",
+  "version": "5.1.1",
   "description": "Types for pnpm-compatible fetchers",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetcher-base#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:5.1.0",
+    "@pnpm/resolver-base": "workspace:6.0.0",
     "@types/ssri": "6.0.1"
   },
   "devDependencies": {
