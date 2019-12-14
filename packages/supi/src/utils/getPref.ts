@@ -16,11 +16,14 @@ export async function updateImporterManifest (
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
-  const specsToUpsert = opts.directDependencies.map((rdd, index) => resolvedDirectDepToSpecObject(rdd, importer, {
-    pinnedVersion: importer.wantedDependencies[index]?.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
-    preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-    saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
-  }))
+  const specsToUpsert = opts.directDependencies.map((rdd, index) => {
+    const wantedDep = importer.wantedDependencies[index]!
+    return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw }, importer, {
+      pinnedVersion: wantedDep.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
+      preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
+      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+    })
+  })
   for (const pkgToInstall of importer.wantedDependencies) {
     if (pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
@@ -47,7 +50,7 @@ function resolvedDirectDepToSpecObject (
     resolution,
     specRaw,
     version,
-  }: ResolvedDirectDependency,
+  }: ResolvedDirectDependency & { isNew?: Boolean, specRaw: string },
   importer: ImporterToUpdate,
   opts: {
     pinnedVersion: PinnedVersion,

@@ -592,7 +592,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean,
   removePackages?: string[],
   updatePackageManifest: boolean,
-  wantedDependencies: WantedDependency[],
+  wantedDependencies: Array<WantedDependency & { isNew?: Boolean }>,
 } & DependenciesMutation
 
 async function installInContext (
@@ -700,7 +700,7 @@ async function installInContext (
     stage: 'resolution_done',
   })
 
-  const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer, index) => {
+  const importersToLink = await Promise.all<ImporterToLink>(importersToResolve.map(async (importer, index) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: ImporterManifest | undefined = importer.manifest
     if (importer.updatePackageManifest) {
@@ -732,7 +732,7 @@ async function installInContext (
           R.difference(
             Object.keys(getAllDependenciesFromPackage(importer.manifest)),
             resolvedImporter.directDependencies
-              .filter(({ isNew }) => isNew === true)
+              .filter((dep, index) => importer.wantedDependencies[index].isNew === true)
               .map(({ alias }) => alias) || [],
           ),
           importer.modulesDir,

@@ -28,10 +28,8 @@ export type ResolvedDirectDependency = {
   dev: boolean,
   resolution: Resolution,
   id: string,
-  isNew: boolean,
   version: string,
   name: string,
-  specRaw: string,
   normalizedPref?: string,
 }
 
@@ -40,7 +38,7 @@ export interface Importer {
   modulesDir: string,
   preferredVersions?: PreferredVersions,
   rootDir: string,
-  wantedDependencies: Array<WantedDependency & { isNew?: boolean, raw: string, updateDepth: number }>,
+  wantedDependencies: Array<WantedDependency & { updateDepth: number }>,
 }
 
 export default async function (
@@ -149,27 +147,20 @@ export default async function (
     },
   }
 
-  for (const { id, wantedDependencies } of importers) {
+  for (const { id } of importers) {
     const directDeps = directDepsByImporterId[id]
     const [linkedDependencies, directNonLinkedDeps] = R.partition((dep) => dep.isLinkedDependency === true, directDeps) as [LinkedDependency[], PkgAddress[]]
 
     resolvedImporters[id] = {
       directDependencies: directDeps
-        .map((dep, index) => {
-          const { isNew, raw } = wantedDependencies[index]
+        .map((dep) => {
           if (dep.isLinkedDependency === true) {
-            return {
-              ...dep,
-              isNew,
-              specRaw: raw,
-            }
+            return dep
           }
           return {
             ...ctx.dependenciesTree[dep.nodeId].resolvedPackage,
             alias: dep.alias,
-            isNew,
             normalizedPref: dep.normalizedPref,
-            specRaw: raw,
           }
         }) as ResolvedDirectDependency[],
       directNodeIdsByAlias: directNonLinkedDeps
