@@ -35,7 +35,7 @@ export interface ResolveResult {
   resolvedVia: 'npm-registry' | 'git-repository' | 'local-filesystem' | 'url' | string,
 }
 
-export interface LocalPackages {
+export interface WorkspacePackages {
   [name: string]: {
     [version: string]: {
       dir: string,
@@ -56,10 +56,10 @@ export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean,
   defaultTag?: string,
   importerDir: string,
-  localPackages?: LocalPackages,
   lockfileDir: string,
   preferredVersions: PreferredVersions,
   registry: string,
+  workspacePackages?: WorkspacePackages,
 }
 
 export type WantedDependency = {

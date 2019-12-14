@@ -134,10 +134,10 @@ async function resolveAndFetch (
         alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
         defaultTag: options.defaultTag,
         importerDir: options.importerDir,
-        localPackages: options.localPackages,
         lockfileDir: options.lockfileDir,
         preferredVersions: options.preferredVersions,
         registry: options.registry,
+        workspacePackages: options.workspacePackages,
       }), { priority: options.downloadPriority })
 
       manifest = resolveResult.manifest

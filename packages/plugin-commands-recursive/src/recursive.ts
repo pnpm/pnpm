@@ -10,7 +10,7 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { scopeLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
+import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -379,17 +379,17 @@ export async function recursive (
     saveState: async () => undefined,
   }
 
-  const localPackages = cmdFullName !== 'unlink'
-    ? arrayOfLocalPackagesToMap(allPkgs)
+  const workspacePackages = cmdFullName !== 'unlink'
+    ? arrayOfWorkspacePackagesToMap(allPkgs)
     : {}
   const installOpts = Object.assign(opts, {
-    localPackages,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
       && pkgs.length === allPkgs.length,
     storeController,
     storeDir: store.dir,
+    workspacePackages,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
     forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
@@ -478,9 +478,9 @@ export async function recursive (
         }
         if (opts.workspace) {
           if (!currentInput || !currentInput.length) {
-            currentInput = updateToWorkspacePackagesFromManifest(manifest, opts.include, localPackages!)
+            currentInput = updateToWorkspacePackagesFromManifest(manifest, opts.include, workspacePackages!)
           } else {
-            currentInput = createWorkspaceSpecs(currentInput, localPackages!)
+            currentInput = createWorkspaceSpecs(currentInput, workspacePackages!)
           }
         }
         writeImporterManifests.push(writeImporterManifest)

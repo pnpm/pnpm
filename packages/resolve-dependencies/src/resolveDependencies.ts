@@ -18,9 +18,9 @@ import logger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import {
   DirectoryResolution,
-  LocalPackages,
   PreferredVersions,
   Resolution,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
   PackageFilesResponse,
@@ -208,7 +208,7 @@ export default async function resolveDependencies (
     preferredVersions: PreferredVersions,
     parentIsInstallable?: boolean,
     readPackageHook?: ReadPackageHook,
-    localPackages?: LocalPackages,
+    workspacePackages?: WorkspacePackages,
   },
 ): Promise<Array<PkgAddress | LinkedDependency>> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
@@ -224,12 +224,12 @@ export default async function resolveDependencies (
     alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
     currentDepth: options.currentDepth,
     dependentId: options.dependentId,
-    localPackages: options.localPackages,
     parentDependsOnPeer: options.parentDependsOnPeers,
     parentIsInstallable: options.parentIsInstallable,
     parentNodeId: options.parentNodeId,
     preferredVersions: options.preferredVersions,
     readPackageHook: options.readPackageHook,
+    workspacePackages: options.workspacePackages,
   }
   const postponedResolutionsQueue = ctx.resolutionStrategy === 'fewer-dependencies'
     ? [] as Array<(preferredVersions: PreferredVersions) => Promise<void>> : undefined
@@ -487,7 +487,7 @@ type ResolveDependencyOptions = {
   update: boolean,
   updateDepth: number,
   proceed: boolean,
-  localPackages?: LocalPackages,
+  workspacePackages?: WorkspacePackages,
 }
 
 async function resolveDependency (
@@ -497,8 +497,8 @@ async function resolveDependency (
 ): Promise<PkgAddress | LinkedDependency | null> {
   const update = Boolean(
     options.update ||
-    options.localPackages &&
-    wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
+    options.workspacePackages &&
+    wantedDepIsLocallyAvailable(options.workspacePackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
   const proceed = update || options.proceed || !options.currentResolution
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
@@ -524,7 +524,6 @@ async function resolveDependency (
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
       importerDir: ctx.prefix,
-      localPackages: options.localPackages,
       lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
@@ -533,6 +532,7 @@ async function resolveDependency (
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
       update,
+      workspacePackages: options.workspacePackages,
     })
   } catch (err) {
     if (wantedDependency.optional) {

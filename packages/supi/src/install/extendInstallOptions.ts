@@ -2,7 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
-import { LocalPackages } from '@pnpm/resolver-base'
+import { WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   ReadPackageHook,
@@ -59,7 +59,7 @@ export interface StrictInstallOptions {
   tag: string,
   locks: string,
   ownLifecycleHooksStdio: 'inherit' | 'pipe',
-  localPackages: LocalPackages,
+  workspacePackages: WorkspacePackages,
   pruneStore: boolean,
   virtualStoreDir?: string,
   dir: string,
@@ -99,7 +99,6 @@ const defaults = async (opts: InstallOptions) => {
       optionalDependencies: true,
     },
     independentLeaves: false,
-    localPackages: {},
     lock: true,
     lockfileDir: opts.lockfileDir || opts.dir || process.cwd(),
     lockfileOnly: false,
@@ -132,6 +131,7 @@ const defaults = async (opts: InstallOptions) => {
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
+    workspacePackages: {},
   } as StrictInstallOptions
 }
 

@@ -299,7 +299,7 @@ test('headless install is used with an up-to-date lockfile when package referenc
       rootDir: path.resolve('project-2'),
     },
   ]
-  const localPackages = {
+  const workspacePackages = {
     'project-1': {
       '1.0.0': {
         dir: path.resolve('project-1'),
@@ -313,10 +313,10 @@ test('headless install is used with an up-to-date lockfile when package referenc
       },
     },
   }
-  await mutateModules(importers, await testDefaults({ localPackages, lockfileOnly: true }))
+  await mutateModules(importers, await testDefaults({ lockfileOnly: true, workspacePackages }))
 
   const reporter = sinon.spy()
-  await mutateModules(importers, await testDefaults({ localPackages, reporter }))
+  await mutateModules(importers, await testDefaults({ reporter, workspacePackages }))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -572,7 +572,8 @@ test('adding a new dependency with the workspace: protocol', async (t) => {
       rootDir: path.resolve('project-1'),
     },
   ], await testDefaults({
-    localPackages: {
+    saveWorkspaceProtocol: true,
+    workspacePackages: {
       foo: {
         '1.0.0': {
           dir: '',
@@ -583,7 +584,6 @@ test('adding a new dependency with the workspace: protocol', async (t) => {
         },
       },
     },
-    saveWorkspaceProtocol: true,
   }))
 
   t.deepEqual(manifest.dependencies, { 'foo': 'workspace:^1.0.0' })
@@ -630,7 +630,8 @@ test('update workspace range', async (t) => {
       rootDir: path.resolve('project-2'),
     },
   ], await testDefaults({
-    localPackages: {
+    update: true,
+    workspacePackages: {
       dep1: {
         '2.0.0': {
           dir: '',
@@ -686,7 +687,6 @@ test('update workspace range', async (t) => {
         },
       },
     },
-    update: true,
   }))
 
   const expected = {

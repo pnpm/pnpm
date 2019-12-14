@@ -1,9 +1,9 @@
 import PnpmError from '@pnpm/error'
 import {
-  LocalPackages,
   PreferredVersions,
   ResolveResult,
   WantedDependency,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
@@ -117,10 +117,10 @@ export type ResolveFromNpmOptions = {
   preferredVersions?: PreferredVersions,
 } & ({
   importerDir?: string,
-  localPackages?: undefined,
+  workspacePackages?: undefined,
 } | {
   importerDir: string,
-  localPackages: LocalPackages,
+  workspacePackages: WorkspacePackages,
 })
 
 async function resolveNpm (
@@ -135,13 +135,13 @@ async function resolveNpm (
   const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
     defaultTag,
     importerDir: opts.importerDir,
-    localPackages: opts.localPackages,
     registry: opts.registry,
+    workspacePackages: opts.workspacePackages,
   })
   if (resolvedFromWorkspace) {
     return resolvedFromWorkspace
   }
-  const localPackages = opts.alwaysTryWorkspacePackages !== false ? opts.localPackages : undefined
+  const workspacePackages = opts.alwaysTryWorkspacePackages !== false ? opts.workspacePackages : undefined
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, defaultTag, opts.registry)
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
@@ -157,8 +157,8 @@ async function resolveNpm (
       registry: opts.registry,
     })
   } catch (err) {
-    if (localPackages && opts.importerDir) {
-      const resolvedFromLocal = tryResolveFromLocalPackages(localPackages, spec, opts.importerDir)
+    if (workspacePackages && opts.importerDir) {
+      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.importerDir)
       if (resolvedFromLocal) return resolvedFromLocal
     }
     throw err
@@ -166,24 +166,24 @@ async function resolveNpm (
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
   if (!pickedPackage) {
-    if (localPackages && opts.importerDir) {
-      const resolvedFromLocal = tryResolveFromLocalPackages(localPackages, spec, opts.importerDir)
+    if (workspacePackages && opts.importerDir) {
+      const resolvedFromLocal = tryResolveFromWorkspacePackages(workspacePackages, spec, opts.importerDir)
       if (resolvedFromLocal) return resolvedFromLocal
     }
     throw new NoMatchingVersionError({ spec, packageMeta: meta })
   }
 
-  if (localPackages?.[pickedPackage.name] && opts.importerDir) {
-    if (localPackages[pickedPackage.name][pickedPackage.version]) {
+  if (workspacePackages?.[pickedPackage.name] && opts.importerDir) {
+    if (workspacePackages[pickedPackage.name][pickedPackage.version]) {
       return {
-        ...resolveFromLocalPackage(localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.importerDir),
+        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.importerDir),
         latest: meta['dist-tags'].latest,
       }
     }
-    const localVersion = pickMatchingLocalVersionOrNull(localPackages[pickedPackage.name], spec)
+    const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[pickedPackage.name], spec)
     if (localVersion && semver.gt(localVersion, pickedPackage.version)) {
       return {
-        ...resolveFromLocalPackage(localPackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.importerDir),
+        ...resolveFromLocalPackage(workspacePackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.importerDir),
         latest: meta['dist-tags'].latest,
       }
     }
@@ -209,9 +209,9 @@ function tryResolveFromWorkspace (
   wantedDependency: WantedDependency,
   opts: {
     defaultTag: string,
-    localPackages?: LocalPackages,
     importerDir?: string,
     registry: string,
+    workspacePackages?: WorkspacePackages,
   }
 ) {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
@@ -220,13 +220,13 @@ function tryResolveFromWorkspace (
   const pref = wantedDependency.pref.substr(10)
   const spec = parsePref(pref, wantedDependency.alias, opts.defaultTag, opts.registry)
   if (!spec) throw new Error(`Invalid workspace: spec (${wantedDependency.pref})`)
-  if (!opts.localPackages) {
-    throw new Error('Cannot resolve package from workspace because opts.localPackages is not defined')
+  if (!opts.workspacePackages) {
+    throw new Error('Cannot resolve package from workspace because opts.workspacePackages is not defined')
   }
   if (!opts.importerDir) {
     throw new Error('Cannot resolve package from workspace because opts.importerDir is not defined')
   }
-  const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.importerDir)
+  const resolvedFromLocal = tryResolveFromWorkspacePackages(opts.workspacePackages, spec, opts.importerDir)
   if (!resolvedFromLocal) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
@@ -236,15 +236,15 @@ function tryResolveFromWorkspace (
   return resolvedFromLocal
 }
 
-function tryResolveFromLocalPackages (
-  localPackages: LocalPackages,
+function tryResolveFromWorkspacePackages (
+  workspacePackages: WorkspacePackages,
   spec: RegistryPackageSpec,
   importerDir: string,
 ) {
-  if (!localPackages[spec.name]) return null
-  const localVersion = pickMatchingLocalVersionOrNull(localPackages[spec.name], spec)
+  if (!workspacePackages[spec.name]) return null
+  const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec)
   if (!localVersion) return null
-  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref, importerDir)
+  return resolveFromLocalPackage(workspacePackages[spec.name][localVersion], spec.normalizedPref, importerDir)
 }
 
 function pickMatchingLocalVersionOrNull (

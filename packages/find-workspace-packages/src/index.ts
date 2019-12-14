@@ -44,8 +44,8 @@ async function requirePackagesManifest (dir: string): Promise<{packages?: string
   }
 }
 
-export function arrayOfLocalPackagesToMap (
-  pkgs: Array<{dir: string, manifest: DependencyManifest}>,
+export function arrayOfWorkspacePackagesToMap (
+  pkgs: WorkspaceDependencyPackage[],
 ) {
   return pkgs.reduce((acc, pkg) => {
     if (!acc[pkg.manifest.name]) {

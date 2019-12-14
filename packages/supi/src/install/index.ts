@@ -32,9 +32,9 @@ import resolveDependencies, {
   ResolvedPackage,
 } from '@pnpm/resolve-dependencies'
 import {
-  LocalPackages,
   PreferredVersions,
   Resolution,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
@@ -194,7 +194,7 @@ export async function mutateModules (
         await pEvery(ctx.importers, async (importer) =>
           !hasLocalTarballDepsInRoot(ctx.wantedLockfile, importer.id) &&
           satisfiesPackageManifest(ctx.wantedLockfile, importer.manifest, importer.id) &&
-          linkedPackagesAreUpToDate(importer.manifest, ctx.wantedLockfile.importers[importer.id], importer.rootDir, opts.localPackages)
+          linkedPackagesAreUpToDate(importer.manifest, ctx.wantedLockfile.importers[importer.id], importer.rootDir, opts.workspacePackages)
         )
       )
     ) {
@@ -440,17 +440,17 @@ async function partitionLinkedPackages (
   dependencies: WantedDependency[],
   opts: {
     importerDir: string,
-    localPackages?: LocalPackages,
     lockfileOnly: boolean,
     modulesDir: string,
     storeDir: string,
     virtualStoreDir: string,
+    workspacePackages?: WorkspacePackages,
   },
 ) {
   const nonLinkedDependencies: WantedDependency[] = []
   const linkedAliases = new Set<string>()
   for (const dependency of dependencies) {
-    if (!dependency.alias || opts.localPackages?.[dependency.alias]) {
+    if (!dependency.alias || opts.workspacePackages?.[dependency.alias]) {
       nonLinkedDependencies.push(dependency)
       continue
     }
@@ -499,9 +499,9 @@ async function linkedPackagesAreUpToDate (
   manifest: ImporterManifest,
   lockfileImporter: LockfileImporter,
   prefix: string,
-  localPackages?: LocalPackages,
+  workspacePackages?: WorkspacePackages,
 ) {
-  const localPackagesByDirectory = localPackages ? getLocalPackagesByDirectory(localPackages) : {}
+  const workspacePackagesByDirectory = workspacePackages ? getWorkspacePackagesByDirectory(workspacePackages) : {}
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = lockfileImporter[depField]
     const pkgDeps = manifest[depField]
@@ -513,9 +513,9 @@ async function linkedPackagesAreUpToDate (
       if (isLinked && (pkgDeps[depName].startsWith('link:') || pkgDeps[depName].startsWith('file:'))) continue
       const dir = isLinked
         ? path.join(prefix, importerDeps[depName].substr(5))
-        : localPackages?.[depName]?.[importerDeps[depName]]?.dir
+        : workspacePackages?.[depName]?.[importerDeps[depName]]?.dir
       if (!dir) continue
-      const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
+      const linkedPkg = workspacePackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
       const availableVersion = pkgDeps[depName].startsWith('workspace:') ? pkgDeps[depName].substr(10) : pkgDeps[depName]
       const localPackageSatisfiesRange = linkedPkg && semver.satisfies(linkedPkg.version, availableVersion)
       if (isLinked !== localPackageSatisfiesRange) return false
@@ -524,14 +524,14 @@ async function linkedPackagesAreUpToDate (
   return true
 }
 
-function getLocalPackagesByDirectory (localPackages: LocalPackages) {
-  const localPackagesByDirectory = {}
-  Object.keys(localPackages || {}).forEach((pkgName) => {
-    Object.keys(localPackages[pkgName] || {}).forEach((pkgVersion) => {
-      localPackagesByDirectory[localPackages[pkgName][pkgVersion].dir] = localPackages[pkgName][pkgVersion].manifest
+function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) {
+  const workspacePackagesByDirectory = {}
+  Object.keys(workspacePackages || {}).forEach((pkgName) => {
+    Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
+      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].dir] = workspacePackages[pkgName][pkgVersion].manifest
     })
   })
-  return localPackagesByDirectory
+  return workspacePackagesByDirectory
 }
 
 function hasLocalTarballDepsInRoot (lockfile: Lockfile, importerId: string) {
@@ -651,11 +651,11 @@ async function installInContext (
   )
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth,
-    localPackages: opts.localPackages,
     lockfileOnly: opts.lockfileOnly,
     preferredVersions,
     storeDir: ctx.storeDir,
     virtualStoreDir: ctx.virtualStoreDir,
+    workspacePackages: opts.workspacePackages,
   })
   const importersToResolve = await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(ctx.hoistPattern && importer.id === '.'))))
   const {
@@ -673,7 +673,6 @@ async function installInContext (
       engineStrict: opts.engineStrict,
       force: opts.force,
       hooks: opts.hooks,
-      localPackages: opts.localPackages,
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
@@ -685,6 +684,7 @@ async function installInContext (
       updateLockfile: ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION || !opts.currentLockfileIsUpToDate,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
+      workspacePackages: opts.workspacePackages,
     },
   )
 
@@ -881,11 +881,11 @@ async function installInContext (
 async function toResolveImporter (
   opts: {
     defaultUpdateDepth: number,
-    localPackages: LocalPackages,
     lockfileOnly: boolean,
     storeDir: string,
     virtualStoreDir: string,
     preferredVersions?: PreferredVersions,
+    workspacePackages: WorkspacePackages,
   },
   importer: ImporterToUpdate,
   hoist: boolean,
@@ -893,11 +893,11 @@ async function toResolveImporter (
   const allDeps = getWantedDependencies(importer.manifest)
   const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
     importerDir: importer.rootDir,
-    localPackages: opts.localPackages,
     lockfileOnly: opts.lockfileOnly,
     modulesDir: importer.modulesDir,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
+    workspacePackages: opts.workspacePackages,
   })
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !importer.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))

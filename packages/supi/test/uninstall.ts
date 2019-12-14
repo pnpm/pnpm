@@ -295,7 +295,8 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
       },
     ],
     await testDefaults({
-      localPackages: {
+      store,
+      workspacePackages: {
         'project-2': {
           '1.0.0': {
             dir: path.resolve('project-2'),
@@ -310,7 +311,6 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
           },
         },
       },
-      store,
     }),
   )
 

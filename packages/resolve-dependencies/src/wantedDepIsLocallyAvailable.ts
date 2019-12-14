@@ -1,11 +1,11 @@
 import parsePref, { RegistryPackageSpec } from '@pnpm/npm-resolver/lib/parsePref'
-import { LocalPackages } from '@pnpm/resolver-base'
+import { WorkspacePackages } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
 import semver = require('semver')
 import { WantedDependency } from './getNonDevWantedDependencies'
 
 export default function wantedDepIsLocallyAvailable (
-  localPackages: LocalPackages,
+  workspacePackages: WorkspacePackages,
   wantedDependency: WantedDependency,
   opts: {
     defaultTag: string,
@@ -13,8 +13,8 @@ export default function wantedDepIsLocallyAvailable (
   },
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
-  if (!spec || !localPackages[spec.name]) return false
-  return pickMatchingLocalVersionOrNull(localPackages[spec.name], spec) !== null
+  if (!spec || !workspacePackages[spec.name]) return false
+  return pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec) !== null
 }
 
 // TODO: move this function to separate package or import from @pnpm/npm-resolver

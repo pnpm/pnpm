@@ -9,7 +9,7 @@ import {
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
+import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import pLimit from 'p-limit'
@@ -22,7 +22,7 @@ import {
   InstallOptions,
   link,
   linkToGlobal,
-  LocalPackages,
+  WorkspacePackages,
 } from 'supi'
 import * as installCommand from './install'
 
@@ -87,21 +87,21 @@ export async function handler (
   const cwd = opts?.dir ?? process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{dir: string, ctrl: StoreController}>>()
-  let workspacePackages
-  let localPackages!: LocalPackages
+  let workspacePackagesArr
+  let workspacePackages!: WorkspacePackages
   if (opts.workspaceDir) {
-    workspacePackages = await findWorkspacePackages(opts.workspaceDir, opts)
-    localPackages = arrayOfLocalPackagesToMap(workspacePackages)
+    workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
+    workspacePackages = arrayOfWorkspacePackagesToMap(workspacePackagesArr)
   } else {
-    localPackages = {}
+    workspacePackages = {}
   }
 
   const store = await createOrConnectStoreControllerCached(storeControllerCache, opts)
   const linkOpts = Object.assign(opts, {
-    localPackages,
     storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField: getSaveType(opts),
+    workspacePackages,
   })
 
   // pnpm link
@@ -123,9 +123,9 @@ export async function handler (
   if (pkgNames.length) {
     let globalPkgNames!: string[]
     if (opts.workspaceDir) {
-      workspacePackages = await findWorkspacePackages(opts.workspaceDir, opts)
+      workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
 
-      const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.includes(pkg.manifest.name))
+      const pkgsFoundInWorkspace = workspacePackagesArr.filter((pkg) => pkgNames.includes(pkg.manifest.name))
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
 
       if (pkgsFoundInWorkspace.length && !linkOpts.targetDependenciesField) {
@@ -154,9 +154,9 @@ export async function handler (
               workspaceDir: await findWorkspaceDir(dir),
             },
           ),
-          localPackages,
           storeController: s.ctrl,
           storeDir: s.dir,
+          workspacePackages,
         } as InstallOptions,
       )
     })),

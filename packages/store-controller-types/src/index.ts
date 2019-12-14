@@ -1,9 +1,9 @@
 import {
   DirectoryResolution,
-  LocalPackages,
   PreferredVersions,
   Resolution,
   WantedDependency,
+  WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
   DependencyManifest,
@@ -101,13 +101,13 @@ export interface RequestPackageOptions {
   defaultTag?: string,
   downloadPriority: number,
   importerDir: string,
-  localPackages?: LocalPackages,
   lockfileDir: string,
   preferredVersions: PreferredVersions,
   registry: string,
   sideEffectsCache?: boolean,
   skipFetch?: boolean,
   update?: boolean,
+  workspacePackages?: WorkspacePackages,
 }
 
 export type PackageResponse = {

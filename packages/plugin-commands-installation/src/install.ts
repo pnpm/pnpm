@@ -11,7 +11,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
+import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive/lib/recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from '@pnpm/plugin-commands-recursive/lib/updateWorkspaceDependencies'
 import { requireHooks } from '@pnpm/pnpmfile'
@@ -315,8 +315,8 @@ export async function handler (
 
   const dir = opts.dir || process.cwd()
 
-  const localPackages = opts.workspaceDir
-    ? arrayOfLocalPackagesToMap(
+  const workspacePackages = opts.workspaceDir
+    ? arrayOfWorkspacePackagesToMap(
       await findWorkspacePackages(opts.workspaceDir, opts),
     )
     : undefined
@@ -327,10 +327,10 @@ export async function handler (
     // In case installation is done in a multi-package repository
     // The dependencies should be built first,
     // so ignoring scripts for now
-    ignoreScripts: !!localPackages || opts.ignoreScripts,
-    localPackages,
+    ignoreScripts: !!workspacePackages || opts.ignoreScripts,
     storeController: store.ctrl,
     storeDir: store.dir,
+    workspacePackages,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
     forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
@@ -358,9 +358,9 @@ export async function handler (
   }
   if (opts.workspace) {
     if (!input || !input.length) {
-      input = updateToWorkspacePackagesFromManifest(manifest, opts.include, localPackages!)
+      input = updateToWorkspacePackagesFromManifest(manifest, opts.include, workspacePackages!)
     } else {
-      input = createWorkspaceSpecs(input, localPackages!)
+      input = createWorkspaceSpecs(input, workspacePackages!)
     }
   }
   if (!input || !input.length) {

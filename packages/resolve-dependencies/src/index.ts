@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import { LocalPackages, PreferredVersions, Resolution } from '@pnpm/resolver-base'
+import { PreferredVersions, Resolution, WorkspacePackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   ReadPackageHook,
@@ -64,8 +64,8 @@ export default async function (
     tag: string,
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
-    localPackages: LocalPackages,
     updateLockfile: boolean,
+    workspacePackages: WorkspacePackages,
   },
 ) {
   const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}
@@ -110,7 +110,6 @@ export default async function (
     const resolveOpts = {
       alwaysTryWorkspacePackages: opts.alwaysTryWorkspacePackages,
       currentDepth: 0,
-      localPackages: opts.localPackages,
       parentDependsOnPeers: true,
       parentNodeId: `>${importer.id}>`,
       preferredVersions: importer.preferredVersions || {},
@@ -121,6 +120,7 @@ export default async function (
         ...lockfileImporter.optionalDependencies,
       },
       updateDepth: -1,
+      workspacePackages: opts.workspacePackages,
     }
     directDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,

@@ -931,7 +931,8 @@ test('resolve from local directory when it matches the latest version of the pac
   })
   const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '1.0.0': {
           dir: '/home/istvan/src/is-positive',
@@ -942,7 +943,6 @@ test('resolve from local directory when it matches the latest version of the pac
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -973,7 +973,8 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
   const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, {
     alwaysTryWorkspacePackages: false,
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '1.0.0': {
           dir: '/home/istvan/src/is-positive',
@@ -984,7 +985,6 @@ test('do not resolve from local directory when alwaysTryWorkspacePackages is fal
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'npm-registry')
@@ -1012,7 +1012,8 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
   const resolveResult = await resolve({ alias: 'is-positive', pref: 'workspace:*' }, {
     alwaysTryWorkspacePackages: false,
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '1.0.0': {
           dir: '/home/istvan/src/is-positive',
@@ -1023,7 +1024,6 @@ test('resolve from local directory when alwaysTryWorkspacePackages is false but 
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1057,7 +1057,8 @@ test('use version from the registry if it is newer than the local one', async t 
     pref: '^3.0.0',
   }, {
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '3.0.0': {
           dir: '/home/istvan/src/is-positive',
@@ -1068,7 +1069,6 @@ test('use version from the registry if it is newer than the local one', async t 
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'npm-registry')
@@ -1104,7 +1104,8 @@ test('use local version if it is newer than the latest in the registry', async t
     pref: '^3.0.0',
   }, {
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '3.2.0': {
           dir: '/home/istvan/src/is-positive',
@@ -1115,7 +1116,6 @@ test('use local version if it is newer than the latest in the registry', async t
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1145,7 +1145,8 @@ test('resolve from local directory when package is not found in the registry', a
   })
   const resolveResult = await resolve({ alias: 'is-positive', pref: '1' }, {
     importerDir: '/home/istvan/src/foo',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '1.0.0': {
           dir: '/home/istvan/src/is-positive-1.0.0',
@@ -1170,7 +1171,6 @@ test('resolve from local directory when package is not found in the registry', a
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1200,7 +1200,8 @@ test('resolve from local directory when package is not found in the registry and
   })
   const resolveResult = await resolve({ alias: 'is-positive', pref: 'latest' }, {
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '1.0.0': {
           dir: '/home/istvan/src/is-positive-1.0.0',
@@ -1225,7 +1226,6 @@ test('resolve from local directory when package is not found in the registry and
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1255,7 +1255,8 @@ test('resolve from local directory when package is not found in the registry and
   })
   const resolveResult = await resolve({ alias: 'is-positive', pref: '1.1.0' }, {
     importerDir: '/home/istvan/src/foo',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '1.0.0': {
           dir: '/home/istvan/src/is-positive-1.0.0',
@@ -1280,7 +1281,6 @@ test('resolve from local directory when package is not found in the registry and
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1310,7 +1310,8 @@ test('resolve from local directory when the requested version is not found in th
   })
   const resolveResult = await resolve({ alias: 'is-positive', pref: '100.0.0' }, {
     importerDir: '/home/istvan/src/foo',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '100.0.0': {
           dir: '/home/istvan/src/is-positive',
@@ -1321,7 +1322,6 @@ test('resolve from local directory when the requested version is not found in th
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1347,7 +1347,8 @@ test('workspace protocol: resolve from local directory even when it does not mat
   })
   const resolveResult = await resolve({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '3.0.0': {
           dir: '/home/istvan/src/is-positive',
@@ -1358,7 +1359,6 @@ test('workspace protocol: resolve from local directory even when it does not mat
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1384,7 +1384,8 @@ test('workspace protocol: resolve from local package that has a pre-release vers
   })
   const resolveResult = await resolve({ alias: 'is-positive', pref: '*' }, {
     importerDir: '/home/istvan/src',
-    localPackages: {
+    registry,
+    workspacePackages: {
       'is-positive': {
         '3.0.0-alpha.1.2.3': {
           dir: '/home/istvan/src/is-positive',
@@ -1395,7 +1396,6 @@ test('workspace protocol: resolve from local package that has a pre-release vers
         },
       },
     },
-    registry,
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
@@ -1424,8 +1424,8 @@ test('workspace protocol: resolution fails if there is no matching local package
   try {
     await resolve({ alias: 'is-positive', pref: 'workspace:^3.0.0' }, {
       importerDir: '/home/istvan/src',
-      localPackages: {},
       registry,
+      workspacePackages: {},
     })
   } catch (_err) {
     err = _err
@@ -1457,7 +1457,7 @@ test('workspace protocol: resolution fails if there are no local packages', asyn
   }
 
   t.ok(err)
-  t.equal(err.message, 'Cannot resolve package from workspace because opts.localPackages is not defined')
+  t.equal(err.message, 'Cannot resolve package from workspace because opts.workspacePackages is not defined')
 
   t.end()
 })

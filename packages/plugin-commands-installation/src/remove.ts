@@ -1,7 +1,7 @@
 import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '@pnpm/find-workspace-packages'
+import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
@@ -78,8 +78,8 @@ export async function handler (
   if (!opts.ignorePnpmfile) {
     removeOpts['hooks'] = requireHooks(opts.lockfileDir || opts.dir, opts)
   }
-  removeOpts['localPackages'] = opts.workspaceDir
-    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
+  removeOpts['workspacePackages'] = opts.workspaceDir
+    ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined
   const currentManifest = await readImporterManifest(opts.dir, opts)
   const [mutationResult] = await mutateModules(
