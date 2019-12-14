@@ -342,6 +342,17 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async (t) => {
   await project.storeHas('is-positive', '3.1.0')
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/2188
+test('keeping existing specs untouched when adding new dependency', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDistTag('bar', '100.1.0', 'latest')
+
+  const manifest = await addDependenciesToPackage({ dependencies: { bar: '^100.0.0' } }, ['foo@100.1.0'], await testDefaults())
+
+  t.deepEqual(manifest.dependencies, { bar: '^100.0.0', foo: '100.1.0' })
+})
+
 test('forcing', async (t) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ fastUnpack: false }))
