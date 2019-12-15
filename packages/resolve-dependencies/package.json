@@ -44,7 +44,7 @@
     "path-exists": "4.0.0",
     "ramda": "0.26.1",
     "replace-string": "3.0.0",
-    "semver": "6.3.0"
+    "semver": "7.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
