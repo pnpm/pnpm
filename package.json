@@ -18,7 +18,7 @@
     "ts-node": "8.5.4",
     "tslint": "5.20.1",
     "typescript": "3.7.3",
-    "verdaccio": "4.3.5"
+    "verdaccio": "4.4.0"
   },
   "engines": {
     "pnpm": ">=4"

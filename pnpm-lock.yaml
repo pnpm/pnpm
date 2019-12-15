@@ -13,7 +13,7 @@ importers:
       ts-node: 8.5.4_typescript@3.7.3
       tslint: 5.20.1_typescript@3.7.3
       typescript: 3.7.3
-      verdaccio: 4.3.5
+      verdaccio: 4.4.0
     specifiers:
       '@pnpm/registry-mock': 1.11.1
       '@pnpm/tsconfig': 'workspace:*'
@@ -27,7 +27,7 @@ importers:
       ts-node: 8.5.4
       tslint: 5.20.1
       typescript: 3.7.3
-      verdaccio: 4.3.5
+      verdaccio: 4.4.0
   packages/audit:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -2957,7 +2957,7 @@ packages:
       read-yaml-file: 1.1.0
       rimraf: 3.0.0
       tempy: 0.3.0
-      verdaccio: 4.3.5
+      verdaccio: 4.4.0
       write-yaml-file: 3.0.1
     dev: true
     engines:
@@ -3281,6 +3281,15 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-MfXwbPa41mjkjCOFr6QOgThBzmtL1cuQuViurPQXpLsNeTC1EuZ1BkNjbrnOfEQuFKWsWmtLd8tEUP0hNcLMcg==
+  /@verdaccio/commons-api/8.4.2:
+    dependencies:
+      http-errors: 1.7.3
+      http-status-codes: 1.4.0
+    dev: true
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-h7ThJLEOXrJ0NwxqTGbbLJbq7bS4qWXHYCEBvonfz8194lpB46cGzZKPZIzrAP5THO7nZdlIHLLkoRCZOFT0Kg==
   /@verdaccio/file-locking/1.0.0:
     dependencies:
       lockfile: 1.0.4
@@ -3298,11 +3307,11 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-XsniyZl2YzbDGf7wsemM97RG/sqtX4/3dfy2quwULKd5WnNtSbX/ewm8EJyL8Ajsfx3y3xtzX9+jj6+7TBGE8g==
-  /@verdaccio/local-storage/8.2.0:
+  /@verdaccio/local-storage/8.4.2:
     dependencies:
-      '@verdaccio/commons-api': 8.3.0
+      '@verdaccio/commons-api': 8.4.2
       '@verdaccio/file-locking': 8.4.2
-      '@verdaccio/streams': 8.2.0
+      '@verdaccio/streams': 8.4.2
       async: 3.1.0
       level: 5.0.1
       lodash: 4.17.15
@@ -3311,15 +3320,15 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-gIamhfr7TwXAmOv/2NNr/Cisr9UextH/8w3qPnzdAMuZWAyquiZK9/z/DLDZm04H9A6pP9oaSfjXydUVeD4ZYg==
-  /@verdaccio/readme/8.2.0:
+      integrity: sha512-vr/1bzg4Tj5qpyTnlNybo2aNLwK7iDHiV1fBstJvrMULVm+XflKeJLTdb2tTGUD0QI6jp1E7oLhH0ob57bdxDg==
+  /@verdaccio/readme/8.4.2:
     dependencies:
       dompurify: 2.0.7
-      jsdom: 15.2.0
+      jsdom: 15.2.1
       marked: 0.7.0
     dev: true
     resolution:
-      integrity: sha512-fII0jdixadOkQFtFktZw3EMyYGvTs2nzhlkGM9WZfv4QH2pVVmrfx1E9sqBrKLHUvwgrO8sDfcC8wHJQ6tsNVw==
+      integrity: sha512-YfOAoCWpKKtf3yALI9ZDF6mYbgVRvar5FFHFxIyQI66/UX47EPncbLd4TGHWKXHojp2cJB6pX7211VsKcRFNlw==
   /@verdaccio/streams/8.2.0:
     dev: true
     engines:
@@ -3327,13 +3336,20 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-gwMHKVoJMWuI6dMxrekiv1gcNEpll/K6uj4juOjTwhp6IULUDbza7T6FHj3I5p5zxREEkiNGnCWmZki0437qEQ==
-  /@verdaccio/ui-theme/0.3.2:
+  /@verdaccio/streams/8.4.2:
     dev: true
     engines:
       node: '>=8'
       npm: '>=5'
     resolution:
-      integrity: sha512-bxICDb2dgHXp6DOEx8f1IfU7PsgF1AuuDxa87MbvXqfE3CfMGB2TEwlPWNlX+VSScgWNh/yYSDrOIQ2SqwgAGg==
+      integrity: sha512-dh155sB5eg8l8uOAG2ewuaDu/mAGv6/Ymz6p/5bWBQRSF5XT1U8MrY7sw+QAohN3wm6pUYqdFtvTIAQ7QOLL7Q==
+  /@verdaccio/ui-theme/0.3.9:
+    dev: true
+    engines:
+      node: '>= 10.13.0'
+      npm: '>=5'
+    resolution:
+      integrity: sha512-InTpEowYo6M9TjpQh4cVh/HZH1DW9oyhy8UpC1H4FOwvyknctN0dMavOseKWSrPAj+gPDzUw0IKAvwDI4OcPEg==
   /@yarnpkg/lockfile/1.1.0:
     dev: true
     resolution:
@@ -5407,13 +5423,13 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-6u0VYSCo/OW6IoD5WCLLy9JUGARbamfSavcNXry/eu8aHVFei6CD3Sw+VGX5alea1i9pgPHW0mbu6Xj0uBh7gA==
-  /envinfo/7.4.0:
+  /envinfo/7.5.0:
     dev: true
     engines:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-FdDfnWnCVjxTTpWE3d6Jgh5JDIA3Cw7LCgpM/pI7kK1ORkjaqI2r6NqQ+ln2j0dfpgxY00AWieSvtkiZQKIItA==
+      integrity: sha512-jDgnJaF/Btomk+m3PZDTTCb5XIIIX3zYItnCRfF73zVgvinLoRomuhi75Y4su0PtQxWz4v66XnLLckyvyJTOIQ==
   /errno/0.1.7:
     dependencies:
       prr: 1.0.1
@@ -6474,6 +6490,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-nDUtj0ltIt08tGi2VWSpSzNNFye0v3YSe9lX3lIqLTuVvvRiYCvs4QQBSHo0eomFYw1wlUuofurUAlTm+vHnXg==
+  /http-status-codes/1.4.0:
+    dev: true
+    resolution:
+      integrity: sha512-JrT3ua+WgH8zBD3HEJYbeEgnuQaAnUeRRko/YojPAJjGmIfGD3KPU/asLdsLwKjfxOmQe5nXMQ0pt/7MyapVbQ==
   /https-proxy-agent/3.0.1:
     dependencies:
       agent-base: 4.3.0
@@ -7019,7 +7039,7 @@ packages:
   /jsbn/0.1.1:
     resolution:
       integrity: sha1-peZUwuWi3rXyAdls77yoDA7y9RM=
-  /jsdom/15.2.0:
+  /jsdom/15.2.1:
     dependencies:
       abab: 2.0.3
       acorn: 7.1.0
@@ -7056,7 +7076,7 @@ packages:
       canvas:
         optional: true
     resolution:
-      integrity: sha512-+hRyEfjRPFwTYMmSQ3/f7U9nP8ZNZmbkmUek760ZpxnCPWJIhaaLRuUSvpJ36fZKCGENxLwxClzwpOpnXNfChQ==
+      integrity: sha512-fAl1W0/7T2G5vURSyxBzrJ1LSdQn6Tr5UX/xD4PXDx/PDgwygedfW6El/KIj3xJ7FU61TTYnc/l/B7P49Eqt6g==
   /json-append/1.1.1:
     dependencies:
       concat-stream: 1.6.2
@@ -7672,6 +7692,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-c+yYdCZJQrsRjTPhUx7VKkApw9bwDkNbHUKo1ovgcfDjb2kc8rLuRbIFyXL5WOEUwzSSKo3IXpph2K6DqB/KZg==
+  /marked/0.8.0:
+    dev: true
+    engines:
+      node: '>= 8.16.2'
+    hasBin: true
+    resolution:
+      integrity: sha512-MyUe+T/Pw4TZufHkzAfDj6HarCBWia2y27/bhuYkTaiUnfDYFnCP3KUN+9oM7Wi6JA2rymtVYbQu3spE0GCmxQ==
   /media-typer/0.3.0:
     dev: true
     engines:
@@ -11051,13 +11078,13 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-ukbKWzH4DtsNH9NF9wKo0axU/uupudANcuG7Hc1FL/PopOq7Z1rLRF7MgA+P8BJGnwaZRB4pq32hblM931AEWg==
-  /verdaccio/4.3.5:
+  /verdaccio/4.4.0:
     dependencies:
       '@verdaccio/commons-api': 8.3.0
-      '@verdaccio/local-storage': 8.2.0
-      '@verdaccio/readme': 8.2.0
+      '@verdaccio/local-storage': 8.4.2
+      '@verdaccio/readme': 8.4.2
       '@verdaccio/streams': 8.2.0
-      '@verdaccio/ui-theme': 0.3.2
+      '@verdaccio/ui-theme': 0.3.9
       JSONStream: 1.3.5
       async: 3.1.0
       body-parser: 1.19.0
@@ -11067,7 +11094,7 @@ packages:
       cookies: 0.7.3
       cors: 2.8.5
       dayjs: 1.8.17
-      envinfo: 7.4.0
+      envinfo: 7.5.0
       express: 4.17.1
       handlebars: 4.5.3
       http-errors: 1.7.3
@@ -11077,7 +11104,7 @@ packages:
       lockfile-lint: 2.0.1
       lodash: 4.17.15
       lunr-mutable-indexes: 2.3.2
-      marked: 0.7.0
+      marked: 0.8.0
       mime: 2.4.4
       minimatch: 3.0.4
       mkdirp: 0.5.1
@@ -11093,7 +11120,7 @@ packages:
       npm: '>=5'
     hasBin: true
     resolution:
-      integrity: sha512-184myBmaBc7nVpTYJCTLjhaBV+1dCw/do8clAmwUgxC5immDBf44YXJ/CtbJURgq532SLTrdlI4e4xnRl74RTg==
+      integrity: sha512-w1X6kjKazx7OtFb36algShiU/Zi9ihuGzpQHNEGmLB9e2Q3xHoZP44gGuOPCR91S9iCwfVA3yN3DtjZwITjK5A==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
