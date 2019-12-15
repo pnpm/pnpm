@@ -47,7 +47,7 @@
     "dependencies-hierarchy": "workspace:8.0.4",
     "p-limit": "2.2.1",
     "ramda": "0.26.1",
-    "semver": "6.3.0"
+    "semver": "7.0.0"
   },
   "devDependencies": {
     "@pnpm/list": "link:",

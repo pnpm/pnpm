@@ -48,7 +48,7 @@
     "pretty-time": "1.1.0",
     "ramda": "0.26.1",
     "right-pad": "1.0.1",
-    "semver": "6.3.0",
+    "semver": "7.0.0",
     "stacktracey": "1.2.122",
     "string-length": "3.1.0",
     "strip-ansi": "6.0.0"
