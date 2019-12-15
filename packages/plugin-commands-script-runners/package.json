@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -43,13 +43,13 @@
     "tape": "4.11.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.2.0",
+    "@pnpm/cli-utils": "workspace:0.2.1",
     "@pnpm/common-cli-options-help": "workspace:0.1.1",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/lifecycle": "workspace:8.0.0",
+    "@pnpm/lifecycle": "workspace:8.0.1",
     "@pnpm/types": "workspace:4.0.0",
-    "@pnpm/utils": "workspace:0.12.1",
+    "@pnpm/utils": "workspace:0.12.2",
     "common-tags": "1.8.0",
     "ramda": "0.26.1",
     "render-help": "0.0.0"

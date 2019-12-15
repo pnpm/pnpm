@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "4.0.7",
+  "version": "4.0.8",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -38,13 +38,13 @@
   "dependencies": {
     "@pnpm/matcher": "workspace:1.0.0",
     "@pnpm/read-importer-manifest": "workspace:2.0.1",
-    "@pnpm/read-package-json": "workspace:3.0.0",
+    "@pnpm/read-package-json": "workspace:3.0.1",
     "@pnpm/types": "workspace:4.0.0",
     "@zkochan/npm-package-arg": "1.0.2",
     "archy": "1.0.0",
     "chalk": "3.0.0",
     "cli-columns": "3.1.2",
-    "dependencies-hierarchy": "workspace:8.0.4",
+    "dependencies-hierarchy": "workspace:8.0.5",
     "p-limit": "2.2.1",
     "ramda": "0.26.1",
     "semver": "6.3.0"

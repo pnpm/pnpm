@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "8.0.0",
+  "version": "8.0.1",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -38,7 +38,7 @@
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/store-controller-types": "workspace:6.0.0",
     "@pnpm/types": "workspace:4.0.0",
-    "@pnpm/utils": "workspace:0.12.1",
+    "@pnpm/utils": "workspace:0.12.2",
     "@zkochan/rimraf": "1.0.0",
     "dependency-path": "workspace:4.0.1",
     "fs-vacuum": "1.2.10",

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/utils",
   "description": "Utils for pnpm",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -42,7 +42,7 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/read-package-json": "workspace:3.0.0",
+    "@pnpm/read-package-json": "workspace:3.0.1",
     "@pnpm/types": "workspace:4.0.0",
     "mz": "2.7.0",
     "normalize-registry-url": "1.0.0",
