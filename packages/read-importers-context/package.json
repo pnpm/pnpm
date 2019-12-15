@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-importers-context",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",

@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "7.0.1",
+  "version": "7.0.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
