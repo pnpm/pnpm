@@ -16,16 +16,18 @@ export async function updateImporterManifest (
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
-  const specsToUpsert = opts.directDependencies.map((rdd, index) => {
-    const wantedDep = importer.wantedDependencies[index]!
-    return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw }, importer, {
-      pinnedVersion: wantedDep.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
-      preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
-      saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+  const specsToUpsert = opts.directDependencies
+    .filter((rdd, index) => importer.wantedDependencies[index]!.updateSpec)
+    .map((rdd, index) => {
+      const wantedDep = importer.wantedDependencies[index]!
+      return resolvedDirectDepToSpecObject({ ...rdd, isNew: wantedDep.isNew, specRaw: wantedDep.raw }, importer, {
+        pinnedVersion: wantedDep.pinnedVersion ?? importer['pinnedVersion'] ?? 'major',
+        preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
+        saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
+      })
     })
-  })
   for (const pkgToInstall of importer.wantedDependencies) {
-    if (pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
+    if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
         alias: pkgToInstall.alias,
         peer: importer['peer'],
