@@ -6,7 +6,9 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import { handler as run } from './run'
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return {}
+}
 
 export function cliOptionsTypes () {
   return R.pick([
