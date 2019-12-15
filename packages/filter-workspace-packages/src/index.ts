@@ -2,9 +2,11 @@ import matcher from '@pnpm/matcher'
 import isSubdir = require('is-subdir')
 import { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
-import { PackageSelector } from './parsePackageSelectors'
+import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
 
-interface PackageGraph<T> {
+export { parsePackageSelector, PackageSelector }
+
+export interface PackageGraph<T> {
   [id: string]: PackageNode<T>,
 }
 
@@ -12,7 +14,7 @@ interface Graph {
   [nodeId: string]: string[],
 }
 
-export function filterGraph<T> (
+export default function filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
 ): PackageGraph<T> {

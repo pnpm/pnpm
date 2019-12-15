@@ -419,6 +419,30 @@ importers:
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
+  packages/filter-workspace-packages:
+    dependencies:
+      '@pnpm/matcher': 'link:../matcher'
+      is-subdir: 1.1.1
+      pkgs-graph: 'link:../pkgs-graph'
+      ramda: 0.26.1
+    devDependencies:
+      '@pnpm/filter-workspace-packages': 'link:'
+      '@types/is-windows': 1.0.0
+      '@types/ramda': 0.26.38
+      is-windows: 1.0.2
+      rimraf: 3.0.0
+      tape: 4.11.0
+    specifiers:
+      '@pnpm/filter-workspace-packages': 'link:'
+      '@pnpm/matcher': 'workspace:1.0.0'
+      '@types/is-windows': ^1.0.0
+      '@types/ramda': ^0.26.38
+      is-subdir: 1.1.1
+      is-windows: 1.0.2
+      pkgs-graph: 'workspace:5.0.0'
+      ramda: 0.26.1
+      rimraf: 3.0.0
+      tape: 4.11.0
   packages/find-packages:
     dependencies:
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
@@ -1535,6 +1559,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
+      '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
@@ -1588,6 +1613,7 @@ importers:
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/filter-workspace-packages': 'workspace:0.0.0'
       '@pnpm/find-workspace-packages': 'workspace:2.0.6'
       '@pnpm/lifecycle': 'workspace:8.0.1'
       '@pnpm/lockfile-file': 'workspace:3.0.1'

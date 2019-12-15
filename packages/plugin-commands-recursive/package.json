@@ -56,6 +56,7 @@
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
     "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/filter-workspace-packages": "workspace:0.0.0",
     "@pnpm/find-workspace-packages": "workspace:2.0.6",
     "@pnpm/lifecycle": "workspace:8.0.1",
     "@pnpm/lockfile-file": "workspace:3.0.1",
