@@ -348,6 +348,7 @@ export async function mutateModules (
 
     async function installCase (importer: any) { // tslint:disable-line:no-any
       const wantedDependencies = getWantedDependencies(importer.manifest, { updateWorkspaceDependencies: opts.update })
+        .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDependencies)
@@ -393,7 +394,7 @@ export async function mutateModules (
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
-        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true })),
+        wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true })),
       })
     }
 
@@ -592,7 +593,7 @@ export type ImporterToUpdate = {
   pruneDirectDependencies: boolean,
   removePackages?: string[],
   updatePackageManifest: boolean,
-  wantedDependencies: Array<WantedDependency & { isNew?: Boolean }>,
+  wantedDependencies: Array<WantedDependency & { isNew?: Boolean, updateSpec?: Boolean }>,
 } & DependenciesMutation
 
 async function installInContext (
