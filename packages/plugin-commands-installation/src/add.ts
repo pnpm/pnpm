@@ -1,6 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -61,6 +62,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
+    save: Boolean,
     workspace: Boolean,
   }
 }
@@ -149,10 +151,14 @@ export async function handler (
   input: string[],
   opts: InstallCommandOptions & {
     allowNew?: boolean,
+    save?: boolean,
     update?: boolean,
     useBetaCli?: boolean,
   },
   invocation?: string,
 ) {
+  if (opts.save === false) {
+    throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
+  }
   return install(input, opts, invocation)
 }
