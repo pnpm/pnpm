@@ -23,10 +23,7 @@ export function rcOptionsTypes () {
 }
 
 export function cliOptionsTypes () {
-  return {
-    ...IF_PRESENT_OPTION,
-    'recursive': allTypes.recursive,
-  }
+  return IF_PRESENT_OPTION
 }
 
 export const commandNames = ['run', 'run-script']
