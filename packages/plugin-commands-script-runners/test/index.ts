@@ -242,3 +242,16 @@ test('"pnpm run" prints the list of available commands', async (t) => {
   )
   t.end()
 })
+
+test('pnpm run does not fail with --if-present even if the wanted script is not present', async (t) => {
+  prepare(t, {})
+
+  await run.handler(['build'], {
+    dir: process.cwd(),
+    extraBinPaths: [],
+    ifPresent: true,
+    rawConfig: {},
+  })
+
+  t.end()
+})

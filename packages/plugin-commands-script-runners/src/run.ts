@@ -9,12 +9,24 @@ import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 
-export const rcOptionsTypes = cliOptionsTypes
+export const IF_PRESENT_OPTION = {
+  'if-present': Boolean,
+}
+
+export const IF_PRESENT_OPTION_HELP = {
+  description: 'Avoid exiting with a non-zero exit code when the script is undefined',
+  name: '--if-present',
+}
+
+export function rcOptionsTypes () {
+  return {}
+}
 
 export function cliOptionsTypes () {
-  return R.pick([
-    'recursive',
-  ], allTypes)
+  return {
+    ...IF_PRESENT_OPTION,
+    'recursive': allTypes.recursive,
+  }
 }
 
 export const commandNames = ['run', 'run-script']
@@ -35,6 +47,7 @@ export function help () {
             name: '--recursive',
             shortAlias: '-r',
           },
+          IF_PRESENT_OPTION_HELP,
         ],
       },
       FILTERING,
@@ -50,6 +63,7 @@ export async function handler (
     engineStrict?: boolean,
     extraBinPaths: string[],
     dir: string,
+    ifPresent?: boolean,
     rawConfig: object,
   },
 ) {
@@ -60,6 +74,7 @@ export async function handler (
     return printProjectCommands(manifest)
   }
   if (scriptName !== 'start' && !manifest.scripts?.[scriptName]) {
+    if (opts.ifPresent) return
     throw new PnpmError('NO_SCRIPT', `Missing script: ${scriptName}`)
   }
   const lifecycleOpts = {

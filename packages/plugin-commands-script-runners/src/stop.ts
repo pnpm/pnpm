@@ -1,11 +1,13 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import renderHelp = require('render-help')
-import { handler as run } from './run'
+import { handler as run, IF_PRESENT_OPTION, IF_PRESENT_OPTION_HELP } from './run'
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return {}
+}
 
 export function cliOptionsTypes () {
-  return {}
+  return IF_PRESENT_OPTION
 }
 
 export const commandNames = ['stop']
@@ -13,6 +15,15 @@ export const commandNames = ['stop']
 export function help () {
   return renderHelp({
     description: `Runs a package's "stop" script, if one was provided.`,
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          IF_PRESENT_OPTION_HELP,
+        ],
+      },
+    ],
     url: docsUrl('stop'),
     usages: ['pnpm stop [-- <args>...]'],
   })
