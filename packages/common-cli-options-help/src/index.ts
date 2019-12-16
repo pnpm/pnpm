@@ -71,6 +71,10 @@ export const FILTERING = {
       description: 'Includes all packages that are under the current working directory',
       name: '--filter .',
     },
+    {
+      description: 'Includes all packages changed since the specified commit/branch. E.g.: [master], [HEAD~2]. It may be used together with "...". So, for instance, ...[HEAD~1] selects all packages changed in the last commit and their dependents',
+      name: '--filter [<since>]',
+    },
   ],
   title: 'Filtering options (run the command only on packages that satisfy at least one of the selectors)',
 }
