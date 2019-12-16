@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.37.2",
+  "version": "0.37.4",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -40,7 +40,7 @@
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/prune-lockfile": "workspace:2.0.2",
     "@pnpm/read-importer-manifest": "workspace:2.0.1",
-    "@pnpm/read-importers-context": "workspace:3.0.3",
+    "@pnpm/read-importers-context": "workspace:3.0.5",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.0.1",
     "@pnpm/resolve-dependencies": "workspace:13.0.1",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "0.1.5",
+  "version": "0.1.8",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,22 +36,22 @@
     "tape": "4.11.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.2.2",
+    "@pnpm/cli-utils": "workspace:0.2.3",
     "@pnpm/common-cli-options-help": "workspace:0.1.1",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/find-workspace-dir": "workspace:1.0.0",
-    "@pnpm/find-workspace-packages": "workspace:2.0.2",
+    "@pnpm/find-workspace-packages": "workspace:2.0.6",
     "@pnpm/package-store": "workspace:7.0.2",
-    "@pnpm/plugin-commands-recursive": "workspace:0.1.5",
+    "@pnpm/plugin-commands-recursive": "workspace:0.1.7",
     "@pnpm/pnpmfile": "workspace:0.1.0",
-    "@pnpm/store-connection-manager": "workspace:0.2.2",
+    "@pnpm/store-connection-manager": "workspace:0.2.3",
     "common-tags": "1.8.0",
     "p-limit": "2.2.1",
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
-    "supi": "workspace:0.37.2"
+    "supi": "workspace:0.37.4"
   }
 }
