@@ -2,61 +2,48 @@ import path = require('path')
 
 export interface PackageSelector {
   excludeSelf?: boolean,
-  pattern: string,
-  scope: 'exact' | 'dependencies' | 'dependents',
-  selectBy: 'name' | 'location',
+  includeDependencies?: boolean,
+  includeDependents?: boolean,
+  namePattern?: string,
+  parentDir?: string,
 }
 
 export default (rawSelector: string, prefix: string): PackageSelector => {
-  if (rawSelector.endsWith('^...')) {
-    const pattern = rawSelector.substring(0, rawSelector.length - 4)
-    return {
-      excludeSelf: true,
-      pattern,
-      scope: 'dependencies',
-      selectBy: 'name',
+  let excludeSelf = false
+  const includeDependencies = rawSelector.endsWith('...')
+  if (includeDependencies) {
+    rawSelector = rawSelector.substring(0, rawSelector.length - 3)
+    if (rawSelector.endsWith('^')) {
+      excludeSelf = true
+      rawSelector = rawSelector.substr(0, rawSelector.length - 1)
     }
   }
-  if (rawSelector.startsWith('...^')) {
-    const pattern = rawSelector.substring(4)
-    return {
-      excludeSelf: true,
-      pattern,
-      scope: 'dependents',
-      selectBy: 'name',
+  const includeDependents = rawSelector.startsWith('...')
+  if (includeDependents) {
+    rawSelector = rawSelector.substring(3)
+    if (rawSelector.startsWith('^')) {
+      excludeSelf = true
+      rawSelector = rawSelector.substr(1)
     }
   }
-  if (rawSelector.endsWith('...')) {
-    const pattern = rawSelector.substring(0, rawSelector.length - 3)
+  if (includeDependencies || includeDependents) {
     return {
-      excludeSelf: false,
-      pattern,
-      scope: 'dependencies',
-      selectBy: 'name',
+      excludeSelf,
+      includeDependencies,
+      includeDependents,
+      namePattern: rawSelector,
     }
   }
-  if (rawSelector.startsWith('...')) {
-    const pattern = rawSelector.substring(3)
-    return {
-      excludeSelf: false,
-      pattern,
-      scope: 'dependents',
-      selectBy: 'name',
-    }
-  }
+
   if (isSelectorByLocation(rawSelector)) {
     return {
       excludeSelf: false,
-      pattern: path.join(prefix, rawSelector),
-      scope: 'exact',
-      selectBy: 'location',
+      parentDir: path.join(prefix, rawSelector),
     }
   }
   return {
     excludeSelf: false,
-    pattern: rawSelector,
-    scope: 'exact',
-    selectBy: 'name',
+    namePattern: rawSelector,
   }
 }
 

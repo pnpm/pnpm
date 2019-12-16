@@ -82,9 +82,8 @@ test('select only package dependencies (excluding the package itself)', async (t
   const selection = filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
-      pattern: 'project-1',
-      scope: 'dependencies',
-      selectBy: 'name',
+      includeDependencies: true,
+      namePattern: 'project-1',
     },
   ])
 
@@ -97,9 +96,8 @@ test('select package with dependencies', async (t) => {
   const selection = filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
-      pattern: 'project-1',
-      scope: 'dependencies',
-      selectBy: 'name',
+      includeDependencies: true,
+      namePattern: 'project-1',
     },
   ])
 
@@ -108,13 +106,27 @@ test('select package with dependencies', async (t) => {
   t.end()
 })
 
+test('select package with dependencies and dependents', async (t) => {
+  const selection = filterWorkspacePackages(PKGS_GRAPH, [
+    {
+      excludeSelf: true,
+      includeDependencies: true,
+      includeDependents: true,
+      namePattern: 'project-1',
+    },
+  ])
+
+  t.deepEqual(Object.keys(selection), ['/project-2', '/project-4', '/packages/project-0'])
+
+  t.end()
+})
+
 test('select package with dependents', async (t) => {
   const selection = filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
-      pattern: 'project-2',
-      scope: 'dependents',
-      selectBy: 'name',
+      includeDependents: true,
+      namePattern: 'project-2',
     },
   ])
 
@@ -127,9 +139,8 @@ test('select dependents excluding package itself', async (t) => {
   const selection = filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
-      pattern: 'project-2',
-      scope: 'dependents',
-      selectBy: 'name',
+      includeDependents: true,
+      namePattern: 'project-2',
     },
   ])
 
@@ -142,15 +153,13 @@ test('filter using two selectors: one selects dependencies another selects depen
   const selection = filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: true,
-      pattern: 'project-2',
-      scope: 'dependents',
-      selectBy: 'name',
+      includeDependents: true,
+      namePattern: 'project-2',
     },
     {
       excludeSelf: true,
-      pattern: 'project-1',
-      scope: 'dependencies',
-      selectBy: 'name',
+      includeDependencies: true,
+      namePattern: 'project-1',
     },
   ])
 
@@ -163,9 +172,7 @@ test('select just a package by name', (t) => {
   const selection = filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
-      pattern: 'project-2',
-      scope: 'exact',
-      selectBy: 'name',
+      namePattern: 'project-2',
     },
   ])
 
@@ -174,13 +181,11 @@ test('select just a package by name', (t) => {
   t.end()
 })
 
-test('select by location', (t) => {
+test('select by parentDir', (t) => {
   const selection = filterWorkspacePackages(PKGS_GRAPH, [
     {
       excludeSelf: false,
-      pattern: '/packages',
-      scope: 'exact',
-      selectBy: 'location',
+      parentDir: '/packages',
     },
   ])
 
