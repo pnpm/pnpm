@@ -6,48 +6,52 @@ import test = require('tape')
 test('parsePackageSelector()', (t) => {
   t.deepEqual(
     parsePackageSelector('foo', process.cwd()),
-    { excludeSelf: false, pattern: 'foo', scope: 'exact', selectBy: 'name' },
+    { excludeSelf: false, namePattern: 'foo' },
   )
   t.deepEqual(
     parsePackageSelector('foo...', process.cwd()),
-    { excludeSelf: false, pattern: 'foo', scope: 'dependencies', selectBy: 'name' },
+    { excludeSelf: false, namePattern: 'foo', includeDependencies: true, includeDependents: false },
   )
   t.deepEqual(
     parsePackageSelector('...foo', process.cwd()),
-    { excludeSelf: false, pattern: 'foo', scope: 'dependents', selectBy: 'name' },
+    { excludeSelf: false, namePattern: 'foo', includeDependencies: false, includeDependents: true },
+  )
+  t.deepEqual(
+    parsePackageSelector('...foo...', process.cwd()),
+    { excludeSelf: false, namePattern: 'foo', includeDependencies: true, includeDependents: true },
   )
   t.deepEqual(
     parsePackageSelector('foo^...', process.cwd()),
-    { excludeSelf: true, pattern: 'foo', scope: 'dependencies', selectBy: 'name' },
+    { excludeSelf: true, namePattern: 'foo', includeDependencies: true, includeDependents: false },
   )
   t.deepEqual(
     parsePackageSelector('...^foo', process.cwd()),
-    { excludeSelf: true, pattern: 'foo', scope: 'dependents', selectBy: 'name' },
+    { excludeSelf: true, namePattern: 'foo', includeDependencies: false, includeDependents: true },
   )
   t.deepEqual(
     parsePackageSelector('./foo', process.cwd()),
-    { excludeSelf: false, pattern: path.resolve('foo'), scope: 'exact', selectBy: 'location' },
+    { excludeSelf: false, parentDir: path.resolve('foo') },
   )
   t.deepEqual(
     parsePackageSelector('../foo', process.cwd()),
-    { excludeSelf: false, pattern: path.resolve('../foo'), scope: 'exact', selectBy: 'location' },
+    { excludeSelf: false, parentDir: path.resolve('../foo') },
   )
   t.deepEqual(
     parsePackageSelector('.', process.cwd()),
-    { excludeSelf: false, pattern: process.cwd(), scope: 'exact', selectBy: 'location' },
+    { excludeSelf: false, parentDir: process.cwd() },
   )
   t.deepEqual(
     parsePackageSelector('..', process.cwd()),
-    { excludeSelf: false, pattern: path.resolve('..'), scope: 'exact', selectBy: 'location' },
+    { excludeSelf: false, parentDir: path.resolve('..') },
   )
   if (isWindows()) {
     t.deepEqual(
       parsePackageSelector('.\\foo', process.cwd()),
-      { excludeSelf: false, pattern: path.resolve('foo'), scope: 'exact', selectBy: 'location' },
+      { excludeSelf: false, parentDir: path.resolve('foo') },
     )
     t.deepEqual(
       parsePackageSelector('..\\foo', process.cwd()),
-      { excludeSelf: false, pattern: path.resolve('../foo'), scope: 'exact', selectBy: 'location' },
+      { excludeSelf: false, parentDir: path.resolve('../foo') },
     )
   }
   t.end()

@@ -400,9 +400,8 @@ export async function handler (
       ignoredPackages: new Set([dir]),
       packageSelectors: [
         {
-          pattern: dir,
-          scope: 'dependencies',
-          selectBy: 'location',
+          includeDependencies: true,
+          parentDir: dir,
         },
       ],
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined

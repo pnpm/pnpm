@@ -23,24 +23,27 @@ export default function filterGraph<T> (
   const walkedDependents = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
   let reversedGraph: Graph | undefined
-  for (const { excludeSelf, pattern, scope, selectBy } of packageSelectors) {
-    const entryPackages = selectBy === 'name'
-      ? matchPackages(pkgGraph, pattern)
-      : matchPackagesByPath(pkgGraph, pattern)
+  for (const selector of packageSelectors) {
+    let entryPackages: string[]
+    if (selector.namePattern) {
+      entryPackages = matchPackages(pkgGraph, selector.namePattern)
+    } else if (selector.parentDir) {
+      entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
+    } else {
+      throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
+    }
 
-    switch (scope) {
-      case 'dependencies':
-        pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !excludeSelf })
-        continue
-      case 'dependents':
-        if (!reversedGraph) {
-          reversedGraph = reverseGraph(graph)
-        }
-        pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !excludeSelf })
-        continue
-      case 'exact':
-        Array.prototype.push.apply(cherryPickedPackages, entryPackages)
-        continue
+    if (selector.includeDependencies) {
+      pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !selector.excludeSelf })
+    }
+    if (selector.includeDependents) {
+      if (!reversedGraph) {
+        reversedGraph = reverseGraph(graph)
+      }
+      pickSubgraph(reversedGraph, entryPackages, walkedDependents, { includeRoot: !selector.excludeSelf })
+    }
+    if (!selector.includeDependencies && !selector.includeDependents) {
+      Array.prototype.push.apply(cherryPickedPackages, entryPackages)
     }
   }
   const walked = new Set([...walkedDependencies, ...walkedDependents])
@@ -82,7 +85,7 @@ function matchPackagesByPath<T> (
   graph: PackageGraph<T>,
   pathStartsWith: string,
 ) {
-  return Object.keys(graph).filter((location) => isSubdir(pathStartsWith, location))
+  return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
 
 function pickSubgraph (
