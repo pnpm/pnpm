@@ -1,6 +1,7 @@
 import path = require('path')
 
 export interface PackageSelector {
+  diff?: string,
   excludeSelf?: boolean,
   includeDependencies?: boolean,
   includeDependents?: boolean,
@@ -24,6 +25,14 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
     if (rawSelector.startsWith('^')) {
       excludeSelf = true
       rawSelector = rawSelector.substr(1)
+    }
+  }
+  if (rawSelector.startsWith('[') && rawSelector.endsWith(']')) {
+    return {
+      diff: rawSelector.substr(1, rawSelector.length - 2),
+      excludeSelf,
+      includeDependencies,
+      includeDependents,
     }
   }
   if (includeDependencies || includeDependents) {
