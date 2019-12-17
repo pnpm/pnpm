@@ -41,6 +41,7 @@ import {
 import exec from './exec'
 import list from './list'
 import outdated from './outdated'
+import publish from './publish'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
@@ -58,6 +59,7 @@ const supportedRecursiveCommands = new Set([
   'run',
   'test',
   'exec',
+  'publish',
 ])
 
 function getCommandFullName (commandName: string) {
@@ -101,6 +103,7 @@ export function cliOptionsTypes () {
       'reporter',
       'shared-workspace-lockfile',
       'sort',
+      'tag',
       'workspace-concurrency',
     ], allTypes),
   }
@@ -169,6 +172,10 @@ export function help () {
             description: `Run a command in each package.`,
             name: 'exec -- <command> [args...]',
           },
+          {
+            description: 'Publishes packages to the npm registry. Only publishes a package if its version is not taken in the registry.',
+            name: 'publish [--tag <tag>] [--access <public|restricted>]',
+          },
         ],
       },
       {
@@ -214,7 +221,7 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: RecursiveOptions & Pick<Config, 'filter' | 'depth' | 'engineStrict' | 'workspaceDir'> & { long?: boolean, table?: boolean },
+  opts: RecursiveOptions & Pick<Config, 'filter' | 'depth' | 'engineStrict' | 'tag' | 'workspaceDir'> & { long?: boolean, table?: boolean },
 ) {
   if (opts.workspaceConcurrency < 1) {
     throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
@@ -272,6 +279,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'lockfileOnly' |
   'pnpmfile' |
   'rawLocalConfig' |
+  'registries' |
   'save' |
   'saveDev' |
   'saveExact' |
@@ -282,8 +290,12 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'saveWorkspaceProtocol' |
   'sharedWorkspaceLockfile' |
   'sort' |
+  'tag' |
   'workspaceConcurrency'
 > & {
+  argv: {
+    original: string[],
+  },
   latest?: boolean,
   pending?: boolean,
   workspace?: boolean,
@@ -345,6 +357,10 @@ export async function recursive (
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
       }
       break
+    case 'publish': {
+      await publish(pkgs, opts)
+      return true
+    }
   }
 
   const chunks = opts.sort

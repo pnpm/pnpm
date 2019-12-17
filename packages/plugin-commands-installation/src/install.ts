@@ -267,6 +267,7 @@ export type InstallCommandOptions = Pick<Config,
   'lockfileDir' |
   'pnpmfile' |
   'rawLocalConfig' |
+  'registries' |
   'save' |
   'saveDev' |
   'saveExact' |
@@ -279,6 +280,9 @@ export type InstallCommandOptions = Pick<Config,
   'workspaceConcurrency' |
   'workspaceDir'
 > & CreateStoreControllerOptions & {
+  argv: {
+    original: string[],
+  },
   allowNew?: boolean,
   latest?: boolean,
   update?: boolean,

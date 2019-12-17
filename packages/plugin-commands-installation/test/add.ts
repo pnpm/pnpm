@@ -8,6 +8,9 @@ import test = require('tape')
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
 const DEFAULT_OPTIONS = {
+  argv: {
+    original: [],
+  },
   bail: false,
   cliOptions: {},
   include: {
@@ -19,6 +22,9 @@ const DEFAULT_OPTIONS = {
   pnpmfile: 'pnpmfile.js',
   rawConfig: { registry: REGISTRY_URL },
   rawLocalConfig: { registry: REGISTRY_URL },
+  registries: {
+    default: REGISTRY_URL,
+  },
   sort: true,
   workspaceConcurrency: 1,
 }

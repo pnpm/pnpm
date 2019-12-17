@@ -1564,12 +1564,16 @@ importers:
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/matcher': 'link:../matcher'
+      '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/plugin-commands-listing': 'link:../plugin-commands-listing'
       '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
+      '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
       '@pnpm/resolver-base': 'link:../resolver-base'
+      '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       camelcase-keys: 6.1.1
@@ -1578,6 +1582,7 @@ importers:
       execa: 3.4.0
       graph-sequencer: 2.0.0
       is-subdir: 1.1.1
+      lru-cache: 5.1.1
       mem: 6.0.1
       mz: 2.7.0
       p-filter: 2.1.0
@@ -1594,6 +1599,7 @@ importers:
       '@pnpm/plugin-commands-recursive': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/common-tags': 1.8.0
+      '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
       '@types/ramda': 0.26.38
       '@types/table': 4.0.7
@@ -1620,17 +1626,22 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
+      '@pnpm/npm-resolver': 'workspace:6.0.1'
       '@pnpm/outdated': 'workspace:6.0.4'
       '@pnpm/plugin-commands-listing': 'workspace:0.1.7'
       '@pnpm/plugin-commands-outdated': 'workspace:0.1.7'
+      '@pnpm/plugin-commands-publishing': 'workspace:0.1.7'
       '@pnpm/plugin-commands-recursive': 'link:'
       '@pnpm/pnpmfile': 'workspace:0.1.0'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/resolver-base': 'workspace:6.0.0'
+      '@pnpm/run-npm': 'workspace:1.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.3'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/utils': 'workspace:0.12.2'
       '@types/common-tags': ^1.8.0
+      '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.38
       '@types/table': ^4.0.7
@@ -1641,6 +1652,7 @@ importers:
       execa: 3.4.0
       graph-sequencer: 2.0.0
       is-subdir: 1.1.1
+      lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 6.0.1
       mz: 2.7.0
