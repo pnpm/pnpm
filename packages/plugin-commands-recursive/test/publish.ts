@@ -1,6 +1,7 @@
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import execa = require('execa')
 import fs = require('mz/fs')
 import test = require('tape')
 import { DEFAULT_OPTS } from './utils'
@@ -38,6 +39,15 @@ test('recursive publish', async (t) => {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
   })
+
+  {
+    const { stdout } = await execa('npm', ['view', '@pnpmtest/test-recursive-publish-project-1', 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+    t.deepEqual(JSON.parse(stdout.toString()), ['1.0.0'])
+  }
+  {
+    const { stdout } = await execa('npm', ['view', '@pnpmtest/test-recursive-publish-project-2', 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
+    t.deepEqual(JSON.parse(stdout.toString()), ['1.0.0'])
+  }
 
   t.end()
 })
