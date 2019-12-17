@@ -31,6 +31,15 @@ test('recursive publish', async (t) => {
         'is-negative': '1.0.0',
       },
     },
+    // This will not be published because is-positive@1.0.0 is in the registry
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
   ])
 
   await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
