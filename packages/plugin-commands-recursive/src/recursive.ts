@@ -310,7 +310,7 @@ export async function recursive (
   const pkgGraphResult = createPkgGraph(allPkgs)
   let pkgs: Array<{dir: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
   if (opts.packageSelectors && opts.packageSelectors.length) {
-    pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
+    pkgGraphResult.graph = await filterGraph(pkgGraphResult.graph, opts.packageSelectors, { workspaceDir: opts.workspaceDir })
     pkgs = allPkgs.filter(({ dir }) => pkgGraphResult.graph[dir])
   } else {
     pkgs = allPkgs

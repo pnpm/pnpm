@@ -44,13 +44,30 @@ const fixtures: Array<[string, PackageSelector]> = [
     '..',
     { excludeSelf: false, parentDir: path.resolve('..') },
   ],
+  [
+    '[master]',
+    { diff: 'master', excludeSelf: false, includeDependencies: false, includeDependents: false },
+  ],
+  [
+    '[master]...',
+    { diff: 'master', excludeSelf: false, includeDependencies: true, includeDependents: false },
+  ],
+  [
+    '...[master]',
+    { diff: 'master', excludeSelf: false, includeDependencies: false, includeDependents: true },
+  ],
+  [
+    '...[master]...',
+    { diff: 'master', excludeSelf: false, includeDependencies: true, includeDependents: true },
+  ],
 ]
 
 test('parsePackageSelector()', (t) => {
   for (let fixture of fixtures) {
     t.deepEqual(
       parsePackageSelector(fixture[0], process.cwd()),
-      fixture[1]
+      fixture[1],
+      `parsing ${fixture[0]}`,
     )
   }
   if (isWindows()) {

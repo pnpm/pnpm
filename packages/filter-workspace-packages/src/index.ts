@@ -2,6 +2,7 @@ import matcher from '@pnpm/matcher'
 import isSubdir = require('is-subdir')
 import { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
+import getChangedPkgs from './getChangedPackages'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
 
 export { parsePackageSelector, PackageSelector }
@@ -14,10 +15,13 @@ interface Graph {
   [nodeId: string]: string[],
 }
 
-export default function filterGraph<T> (
+export default async function filterGraph<T> (
   pkgGraph: PackageGraph<T>,
   packageSelectors: PackageSelector[],
-): PackageGraph<T> {
+  opts: {
+    workspaceDir: string,
+  },
+): Promise<PackageGraph<T>> {
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()
@@ -29,6 +33,8 @@ export default function filterGraph<T> (
       entryPackages = matchPackages(pkgGraph, selector.namePattern)
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
+    } else if (selector.diff) {
+      entryPackages = await getChangedPkgs(Object.keys(pkgGraph), selector.diff, { workspaceDir: opts.workspaceDir })
     } else {
       throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
     }
