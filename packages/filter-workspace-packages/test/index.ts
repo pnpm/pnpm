@@ -207,7 +207,10 @@ test('select by parentDir', async (t) => {
 
 test('select changed packages', async (t) => {
   // This test fails on Appveyor due to environmental issues
-  if (isCI && isWindows()) return
+  if (isCI && isWindows()) {
+    t.end()
+    return
+  }
   const workspaceDir = tempy.directory()
   await execa('git', ['init'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
