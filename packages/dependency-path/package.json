@@ -35,7 +35,7 @@
   "dependencies": {
     "@pnpm/types": "workspace:4.0.0",
     "encode-registry": "2.0.2",
-    "semver": "7.0.0"
+    "semver": "7.1.1"
   },
   "devDependencies": {
     "@types/semver": "^6.2.0",

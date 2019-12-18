@@ -71,7 +71,7 @@
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
     "run-groups": "2.0.1",
-    "semver": "7.0.0",
+    "semver": "7.1.1",
     "semver-utils": "1.1.4",
     "version-selector-type": "2.0.1"
   },
