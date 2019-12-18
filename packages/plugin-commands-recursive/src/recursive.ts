@@ -95,6 +95,7 @@ export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {
   return {
+    access: ['public', 'restricted'],
     recursive: Boolean,
     table: Boolean,
     ...R.pick([
@@ -293,6 +294,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'tag' |
   'workspaceConcurrency'
 > & {
+  access?: 'public' | 'restricted',
   argv: {
     original: string[],
   },

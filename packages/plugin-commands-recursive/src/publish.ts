@@ -11,6 +11,7 @@ import pFilter = require('p-filter')
 export default async function (
   pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
   opts: {
+    access?: 'public' | 'restricted',
     argv: {
       original: string[],
     },
@@ -56,6 +57,7 @@ export default async function (
     }, pkg.manifest.name, pkg.manifest.version))
   })
   for (const pkg of pkgsToPublish) {
+    const access = opts.access ?? (pkg.manifest.name!.startsWith('@') ? 'restricted' : 'public')
     await publish.handler([pkg.dir], {
       argv: {
         original: [
@@ -65,6 +67,8 @@ export default async function (
           'pnpm-temp',
           '--registry',
           pickRegistryForPackage(opts.registries, pkg.manifest.name!),
+          '--access',
+          access,
         ],
       },
       workspaceDir: opts.workspaceDir,
