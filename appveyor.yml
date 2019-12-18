@@ -15,7 +15,8 @@ version: '{build}'
 test_script:
   - node --version
   - pnpm --version
-  - pnpm t
+  - IF %APPVEYOR_REPO_BRANCH%==master pnpm run test-master
+  - IF NOT %APPVEYOR_REPO_BRANCH%==master pnpm run test-branch
 skip_tags: true
 cache:
   - storage

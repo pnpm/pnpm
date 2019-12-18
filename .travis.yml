@@ -20,7 +20,8 @@ script:
   # TODO: fix commitlint
   # - /bin/bash lint-commits.sh
   # - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
-  - pnpm t
+  - if [ "$TRAVIS_BRANCH" = "master" ]; then pnpm run test-master; fi
+  - if [ "$TRAVIS_BRANCH" != "master" ]; then pnpm run test-branch; fi
   - set +e
 cache:
   directories:
