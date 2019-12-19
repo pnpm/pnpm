@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-import",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "The import command",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -50,6 +50,6 @@
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
     "render-help": "0.0.0",
-    "supi": "workspace:0.37.5"
+    "supi": "workspace:0.37.6"
   }
 }

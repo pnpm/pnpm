@@ -1291,7 +1291,7 @@ importers:
       ncp: 2.0.0
       render-help: 0.0.0
       rimraf: 3.0.0
-      supi: 'workspace:0.37.5'
+      supi: 'workspace:0.37.6'
       tempy: 0.3.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1329,7 +1329,7 @@ importers:
       '@pnpm/find-workspace-packages': 'workspace:2.0.8'
       '@pnpm/package-store': 'workspace:7.0.2'
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-recursive': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/pnpmfile': 'workspace:0.1.0'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1
@@ -1342,7 +1342,7 @@ importers:
       ramda: 0.26.1
       render-help: 0.0.0
       rimraf: 3.0.0
-      supi: 'workspace:0.37.5'
+      supi: 'workspace:0.37.6'
   packages/plugin-commands-listing:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1609,7 +1609,7 @@ importers:
       render-help: 0.0.0
       rimraf: 3.0.0
       strip-ansi: 6.0.0
-      supi: 'workspace:0.37.5'
+      supi: 'workspace:0.37.6'
       table: 5.4.6
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
@@ -1769,12 +1769,12 @@ importers:
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/parse-cli-args': 'workspace:0.1.3'
       '@pnpm/plugin-commands-audit': 'workspace:0.1.7'
-      '@pnpm/plugin-commands-import': 'workspace:0.1.8'
-      '@pnpm/plugin-commands-installation': 'workspace:0.1.10'
+      '@pnpm/plugin-commands-import': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-installation': 'workspace:0.1.11'
       '@pnpm/plugin-commands-listing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-outdated': 'workspace:0.1.9'
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
-      '@pnpm/plugin-commands-recursive': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/plugin-commands-script-runners': 'workspace:0.1.9'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.1'
@@ -1841,7 +1841,7 @@ importers:
       rimraf: 3.0.0
       semver: 7.1.1
       signal-exit: 3.0.2
-      supi: 'workspace:0.37.5'
+      supi: 'workspace:0.37.6'
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
       tree-kill: 1.2.2
@@ -5423,7 +5423,7 @@ packages:
       function-bind: 1.1.1
       has: 1.0.3
       has-symbols: 1.0.1
-      is-callable: 1.1.4
+      is-callable: 1.1.5
       is-regex: 1.0.5
       object-inspect: 1.7.0
       object-keys: 1.1.1
@@ -5436,7 +5436,7 @@ packages:
       integrity: sha512-7MmGr03N7Rnuid6+wyhD9sHNE2n4tFSwExnU2lQl3lIo2ShXWGePY80zYaoMOmILWv57H0amMjZGHNzzGG70Rw==
   /es-to-primitive/1.2.1:
     dependencies:
-      is-callable: 1.1.4
+      is-callable: 1.1.5
       is-date-object: 1.0.2
       is-symbol: 1.0.3
     engines:
@@ -5849,7 +5849,7 @@ packages:
       integrity: sha1-JTqxojmJwyHxOwrNS/c//0By7Lc=
   /for-each/0.3.3:
     dependencies:
-      is-callable: 1.1.4
+      is-callable: 1.1.5
     dev: true
     resolution:
       integrity: sha512-jqYfLp7mo9vIyQf8ykW2v7A+2N4QjeCeI5+Dz9XraiO1ign81wjiH7Fb9vSOWvQfNtmSa4H2RoQTrrXivdUZmw==
@@ -6670,11 +6670,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-XuWOqlounIDiFAe+3yOuWsCRs/w=
-  /is-callable/1.1.4:
+  /is-callable/1.1.5:
     engines:
       node: '>= 0.4'
     resolution:
-      integrity: sha512-r5p9sxJjYnArLjObpjA4xu5EKI3CuKHkJXMhT7kwbpUyIFD1n5PMAsoPvWnvtZiNz7LjkYDRZhd7FlI0eMijEA==
+      integrity: sha512-ESKv5sMCJB2jnHTWZ3O5itG+O128Hsus4K4Qh1h2/cgn2vbgnLSVqfV46AeJA9D5EeeLa9w81KUXMtn34zhX+Q==
   /is-ci/2.0.0:
     dependencies:
       ci-info: 2.0.0

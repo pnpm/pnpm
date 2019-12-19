@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-recursive",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Recursive commands",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -88,7 +88,7 @@
     "ramda": "0.26.1",
     "read-ini-file": "2.0.0",
     "render-help": "0.0.0",
-    "supi": "workspace:0.37.5",
+    "supi": "workspace:0.37.6",
     "table": "5.4.6"
   },
   "peerDependencies": {
