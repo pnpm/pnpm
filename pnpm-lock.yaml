@@ -1653,6 +1653,44 @@ importers:
       ramda: 0.26.1
       render-help: 0.0.0
       rimraf: 3.0.0
+  packages/plugin-commands-store:
+    dependencies:
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/store-connection-manager': 'link:../store-connection-manager'
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@pnpm/store-path': 2.1.1
+      archy: 1.0.0
+      common-tags: 1.8.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      supi: 'link:../supi'
+    devDependencies:
+      '@pnpm/logger': 3.1.0
+      '@pnpm/plugin-commands-store': 'link:'
+      '@types/archy': 0.0.31
+      '@types/common-tags': 1.8.0
+      '@types/ramda': 0.26.38
+      rimraf: 3.0.0
+    specifiers:
+      '@pnpm/cli-utils': 'workspace:0.2.5'
+      '@pnpm/config': 'workspace:6.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/logger': 3.1.0
+      '@pnpm/plugin-commands-store': 'link:'
+      '@pnpm/store-connection-manager': 'workspace:0.2.5'
+      '@pnpm/store-controller-types': 'workspace:6.0.0'
+      '@pnpm/store-path': 2.1.1
+      '@types/archy': 0.0.31
+      '@types/common-tags': ^1.8.0
+      '@types/ramda': ^0.26.38
+      archy: 1.0.0
+      common-tags: 1.8.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      rimraf: 3.0.0
+      supi: 'workspace:0.37.6'
   packages/pnpm:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1673,18 +1711,16 @@ importers:
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
       '@pnpm/plugin-commands-script-runners': 'link:../plugin-commands-script-runners'
+      '@pnpm/plugin-commands-store': 'link:../plugin-commands-store'
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
-      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
-      '@types/archy': 0.0.31
       '@types/mz': 2.7.0
       '@types/wrap-ansi': 3.0.0
       '@zkochan/libnpx': 11.0.3
       '@zkochan/rimraf': 1.0.0
-      archy: 1.0.0
       chalk: 3.0.0
       common-tags: 1.8.0
       delay: 4.3.0
@@ -1776,17 +1812,16 @@ importers:
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/plugin-commands-script-runners': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-store': 'workspace:0.0.0'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:*'
       '@pnpm/run-npm': 'workspace:1.0.0'
       '@pnpm/server': 'workspace:6.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.5'
-      '@pnpm/store-controller-types': 'workspace:6.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/write-importer-manifest': 'workspace:*'
-      '@types/archy': 0.0.31
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
       '@types/cross-spawn': 6.0.1
@@ -1807,7 +1842,6 @@ importers:
       '@zkochan/libnpx': 11.0.3
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
-      archy: 1.0.0
       byline: 5.0.0
       chalk: 3.0.0
       common-tags: 1.8.0
@@ -2995,6 +3029,7 @@ packages:
     resolution:
       integrity: sha512-XIB2XbzHTN6ieIjfIMV9hlVcfPU26s2vafYWQcZHWXHOxiaRZYEDKEwdl129Zyg50+foYV2jCgtrqSA6qNuNSA==
   /@types/archy/0.0.31:
+    dev: true
     resolution:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/byline/4.2.31:

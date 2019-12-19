@@ -1,8 +1,8 @@
 import { docsUrl } from '@pnpm/cli-utils'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import logger, { globalInfo } from '@pnpm/logger'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import logger, { globalInfo, LogBase } from '@pnpm/logger'
+import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
@@ -15,7 +15,6 @@ import {
   storeStatus,
   storeUsages
 } from 'supi'
-import { PnpmOptions } from '../types'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -76,7 +75,11 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export async function handler (input: string[], opts: PnpmOptions) {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
+  reporter?: (logObj: LogBase) => void,
+}
+
+export async function handler (input: string[], opts: StoreCommandOptions) {
   let store
   switch (input[0]) {
     case 'status':
@@ -114,7 +117,7 @@ export async function handler (input: string[], opts: PnpmOptions) {
   }
 }
 
-async function statusCmd (opts: PnpmOptions) {
+async function statusCmd (opts: StoreCommandOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
     storeDir: await storePath(opts.dir, opts.storeDir),
   }))
