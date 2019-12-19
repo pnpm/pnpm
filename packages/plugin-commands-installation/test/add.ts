@@ -211,3 +211,22 @@ test('installing with "workspace=true" with linkWorkpacePackages on and saveWork
 
   t.end()
 })
+
+test('add: fail when --no-save option is used', async (t) => {
+  let err!: PnpmError
+  try {
+    await add.handler(['is-positive'], {
+      ...DEFAULT_OPTIONS,
+      cliOptions: {
+        save: false,
+      },
+      dir: process.cwd(),
+      linkWorkspacePackages: false,
+    })
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_OPTION_NOT_SUPPORTED')
+  t.equal(err.message, 'The "add" command currently does not support the no-save option')
+  t.end()
+})
