@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -42,7 +42,7 @@
     "rimraf": "3.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.2.4",
+    "@pnpm/cli-utils": "workspace:0.2.5",
     "@pnpm/common-cli-options-help": "workspace:0.1.2",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/error": "workspace:1.0.0",
