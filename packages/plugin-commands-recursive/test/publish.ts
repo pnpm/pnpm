@@ -42,6 +42,25 @@ test('recursive publish', async (t) => {
         prepublishOnly: 'exit 1',
       },
     },
+    // This will not be published because it is a private package
+    {
+      name: 'i-am-private',
+      version: '1.0.0',
+
+      private: true,
+      scripts: {
+        prepublishOnly: 'exit 1',
+      },
+    },
+    // Package with no name is skipped
+    {
+      location: 'no-name',
+      package: {
+        scripts: {
+          prepublishOnly: 'exit 1',
+        },
+      },
+    },
   ])
 
   await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')

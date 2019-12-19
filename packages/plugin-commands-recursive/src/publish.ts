@@ -48,7 +48,7 @@ export default async function (
     storeDir,
   })) as unknown as ResolveFunction
   const pkgsToPublish = await pFilter(pkgs, async (pkg) => {
-    if (!pkg.manifest.name || !pkg.manifest.version) return false
+    if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private) return false
     return !(await isAlreadyPublished({
       dir: pkg.dir,
       lockfileDir: opts.lockfileDir || pkg.dir,
