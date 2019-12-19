@@ -125,3 +125,23 @@ test('preserve subdeps when installing on a package that has one dependency spec
     qar: '100.0.0',
   })
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/2226
+test('update only the packages that were requested to be updated when hoisting is on', async (t) => {
+  const project = prepareEmpty(t)
+
+  await addDistTag('bar', '100.0.0', 'latest')
+  await addDistTag('foo', '100.0.0', 'latest')
+
+  let manifest = await addDependenciesToPackage({}, ['bar', 'foo'], await testDefaults({ hoistPattern: ['*'] }))
+
+  await addDistTag('bar', '100.1.0', 'latest')
+  await addDistTag('foo', '100.1.0', 'latest')
+
+  manifest = await addDependenciesToPackage(manifest, ['foo'], await testDefaults({ allowNew: false, update: true, hoistPattern: ['*'] }))
+
+  t.deepEqual(manifest.dependencies, { bar: '^100.0.0', foo: '^100.1.0' })
+
+  const lockfile = await project.readLockfile()
+  t.deepEqual(Object.keys(lockfile.packages), ['/bar/100.0.0', '/foo/100.1.0'])
+})

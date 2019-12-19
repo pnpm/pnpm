@@ -665,7 +665,7 @@ async function installInContext (
     virtualStoreDir: ctx.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
-  const importersToResolve = await Promise.all(importers.map((importer) => _toResolveImporter(importer, Boolean(ctx.hoistPattern && importer.id === '.'))))
+  const importersToResolve = await Promise.all(importers.map((importer) => _toResolveImporter(importer)))
   const {
     dependenciesTree,
     outdatedDependencies,
@@ -896,7 +896,6 @@ async function toResolveImporter (
     workspacePackages: WorkspacePackages,
   },
   importer: ImporterToUpdate,
-  hoist: boolean,
 ) {
   const allDeps = getWantedDependencies(importer.manifest)
   const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
@@ -910,14 +909,14 @@ async function toResolveImporter (
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !importer.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
-  if (!importer.manifest || hoist) {
+  if (!importer.manifest) {
     wantedDependencies = [
       ...importer.wantedDependencies,
       ...existingDeps,
     ]
     .map((dep) => ({
       ...dep,
-      updateDepth: hoist ? Infinity : opts.defaultUpdateDepth,
+      updateDepth: opts.defaultUpdateDepth,
     }))
   } else {
     wantedDependencies = [
