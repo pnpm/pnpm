@@ -421,6 +421,7 @@ importers:
       yaml-tag: 1.1.0
   packages/filter-workspace-packages:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/matcher': 'link:../matcher'
       execa: 3.4.0
       find-up: 4.1.0
@@ -440,6 +441,7 @@ importers:
       tape: 4.11.0
       touch: 3.1.0
     specifiers:
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-workspace-packages': 'link:'
       '@pnpm/matcher': 'workspace:1.0.0'
       '@types/is-ci': ^2.0.0

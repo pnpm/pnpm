@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import filterWorkspacePackages, { PackageGraph } from '@pnpm/filter-workspace-packages'
 import execa = require('execa')
 import fs = require('fs')
@@ -250,5 +251,18 @@ test('select changed packages', async (t) => {
 
   t.deepEqual(Object.keys(selection), [pkg1Dir])
 
+  t.end()
+})
+
+test('selection should fail when diffing to a branch that does not exist', async (t) => {
+  let err!: PnpmError
+  try {
+    await filterWorkspacePackages(PKGS_GRAPH, [{ diff: 'branch-does-no-exist' }], { workspaceDir: process.cwd() })
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_FILTER_CHANGED')
+  t.equal(err.message, "Filtering by changed packages failed. fatal: bad revision 'branch-does-no-exist'")
   t.end()
 })

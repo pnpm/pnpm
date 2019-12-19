@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import execa = require('execa')
 import findUp = require('find-up')
 import isSubdir = require('is-subdir')
@@ -21,19 +22,26 @@ export default async function changedSince (packageDirs: string[], commit: strin
 }
 
 async function getChangedDirsSinceCommit (commit: string, workingDir: string) {
-  const diff = await execa('git', [
-    'diff',
-    '--name-only',
-    commit,
-    '--',
-    workingDir,
-  ], { cwd: workingDir })
+  let diff!: string
+  try {
+    diff = (
+      await execa('git', [
+        'diff',
+        '--name-only',
+        commit,
+        '--',
+        workingDir,
+      ], { cwd: workingDir })
+    ).stdout
+  } catch (err) {
+    throw new PnpmError('FILTER_CHANGED', `Filtering by changed packages failed. ${err.stderr}`)
+  }
   const changedDirs = new Set<string>()
 
-  if (!diff.stdout) {
+  if (!diff) {
     return changedDirs
   }
-  const changedFiles = diff.stdout.split('\n')
+  const changedFiles = diff.split('\n')
 
   for (const changedFile of changedFiles) {
     changedDirs.add(path.dirname(changedFile))
