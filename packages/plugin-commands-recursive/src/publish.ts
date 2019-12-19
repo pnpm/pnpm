@@ -1,3 +1,4 @@
+import { Config } from '@pnpm/config'
 import createResolver from '@pnpm/npm-resolver'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { ResolveFunction } from '@pnpm/resolver-base'
@@ -10,7 +11,7 @@ import pFilter = require('p-filter')
 
 export default async function (
   pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
-  opts: {
+  opts: Pick<Config, 'cliOptions'> & {
     access?: 'public' | 'restricted',
     argv: {
       original: string[],
@@ -56,8 +57,8 @@ export default async function (
       resolve,
     }, pkg.manifest.name, pkg.manifest.version))
   })
+  const access = opts.cliOptions['access'] ? ['--access', opts.cliOptions['access']] : []
   for (const pkg of pkgsToPublish) {
-    const access = opts.access ?? (pkg.manifest.name!.startsWith('@') ? 'restricted' : 'public')
     await publish.handler([pkg.dir], {
       argv: {
         original: [
@@ -67,8 +68,7 @@ export default async function (
           'pnpm-temp',
           '--registry',
           pickRegistryForPackage(opts.registries, pkg.manifest.name!),
-          '--access',
-          access,
+          ...access,
         ],
       },
       workspaceDir: opts.workspaceDir,
