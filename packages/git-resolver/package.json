@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/fetch": "workspace:1.0.1",
     "@pnpm/resolver-base": "workspace:6.0.0",
-    "graceful-git": "3.0.0",
+    "graceful-git": "3.0.1",
     "hosted-git-info": "3.0.2",
     "semver": "7.1.1"
   },
