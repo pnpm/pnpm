@@ -1,22 +1,25 @@
+import { store } from '@pnpm/plugin-commands-store'
 import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import { execPnpm } from './utils'
+import test = require('tape')
 
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-
-test('pnpm store add express@4.16.3', async function (t: tape.Test) {
+test('pnpm store add express@4.16.3', async function (t) {
   tempDir(t)
 
   const storeDir = path.resolve('store')
 
-  await execPnpm('store', 'add', 'express@4.16.3', '--store-dir', storeDir)
+  await store.handler(['add', 'express@4.16.3'], {
+    dir: process.cwd(),
+    lock: true,
+    rawConfig: {
+      registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    },
+    registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+    storeDir,
+  })
 
   const pathToCheck = path.join(storeDir, '2', `localhost+${REGISTRY_MOCK_PORT}`, 'express', '4.16.3')
   t.ok(await exists(pathToCheck), `express@4.16.3 is in store (at ${pathToCheck})`)
@@ -29,15 +32,26 @@ test('pnpm store add express@4.16.3', async function (t: tape.Test) {
     },
     'package has been added to the store index',
   )
+  t.end()
 })
 
-test('pnpm store add scoped package that uses not the standard registry', async function (t: tape.Test) {
+test('pnpm store add scoped package that uses not the standard registry', async function (t) {
   tempDir(t)
-  await fs.writeFile('.npmrc', `@foo:registry=http://localhost:${REGISTRY_MOCK_PORT}/`, 'utf8')
 
   const storeDir = path.resolve('store')
 
-  await execPnpm('store', 'add', '@foo/no-deps@1.0.0', '--registry', 'https://registry.npmjs.org/', '--store-dir', storeDir)
+  await store.handler(['add', '@foo/no-deps@1.0.0'], {
+    dir: process.cwd(),
+    lock: true,
+    rawConfig: {
+      registry: 'https://registry.npmjs.org/',
+    },
+    registries: {
+      '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+      'default': 'https://registry.npmjs.org/',
+    },
+    storeDir,
+  })
 
   const pathToCheck = path.join(storeDir, '2', `localhost+${REGISTRY_MOCK_PORT}`, '@foo', 'no-deps', '1.0.0')
   t.ok(await exists(pathToCheck), `@foo/no-deps@1.0.0 is in store (at ${pathToCheck})`)
@@ -50,4 +64,5 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     },
     'package has been added to the store index',
   )
+  t.end()
 })

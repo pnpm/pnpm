@@ -1669,9 +1669,14 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/plugin-commands-store': 'link:'
+      '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.38
+      '@zkochan/rimraf': 1.0.0
+      execa: 4.0.0
+      load-json-file: 6.2.0
+      path-exists: 4.0.0
       rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.2.5'
@@ -1679,14 +1684,19 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/plugin-commands-store': 'link:'
+      '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.5'
       '@pnpm/store-controller-types': 'workspace:6.0.0'
       '@pnpm/store-path': 2.1.1
       '@types/archy': 0.0.31
       '@types/common-tags': ^1.8.0
       '@types/ramda': ^0.26.38
+      '@zkochan/rimraf': 1.0.0
       archy: 1.0.0
       common-tags: 1.8.0
+      execa: 4.0.0
+      load-json-file: 6.2.0
+      path-exists: 4.0.0
       ramda: 0.26.1
       render-help: 0.0.0
       rimraf: 3.0.0
