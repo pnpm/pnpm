@@ -65,7 +65,6 @@
     "ghooks": "2.0.4",
     "load-json-file": "6.2.0",
     "normalize-newline": "3.0.0",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0"
+    "rimraf": "3.0.0"
   }
 }

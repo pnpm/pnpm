@@ -52,7 +52,6 @@
     "@types/is-windows": "^1.0.0",
     "@types/json5": "0.0.30",
     "@types/parse-json": "4.0.0",
-    "tape": "4.11.0",
     "tempy": "0.3.0"
   }
 }

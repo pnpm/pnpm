@@ -37,7 +37,6 @@
     "read-package-json": "2.1.1"
   },
   "devDependencies": {
-    "@pnpm/read-package-json": "link:",
-    "tape": "4.11.0"
+    "@pnpm/read-package-json": "link:"
   }
 }

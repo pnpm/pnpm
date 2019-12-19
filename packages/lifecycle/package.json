@@ -46,7 +46,6 @@
     "@types/rimraf": "^2.0.3",
     "json-append": "1.1.1",
     "load-json-file": "6.2.0",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0"
+    "rimraf": "3.0.0"
   }
 }

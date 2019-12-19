@@ -40,7 +40,6 @@
   },
   "devDependencies": {
     "@pnpm/write-importer-manifest": "link:",
-    "tape": "4.11.0",
     "tempy": "0.3.0"
   }
 }

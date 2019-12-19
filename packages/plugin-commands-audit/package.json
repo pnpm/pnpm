@@ -33,8 +33,7 @@
     "@types/ramda": "^0.26.38",
     "@types/table": "^4.0.7",
     "rimraf": "3.0.0",
-    "strip-ansi": "6.0.0",
-    "tape": "4.11.0"
+    "strip-ansi": "6.0.0"
   },
   "dependencies": {
     "@pnpm/audit": "workspace:1.0.3",

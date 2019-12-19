@@ -29,8 +29,7 @@
   "devDependencies": {
     "@pnpm/parse-cli-args": "link:",
     "@types/nopt": "3.0.29",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0"
+    "rimraf": "3.0.0"
   },
   "dependencies": {
     "@pnpm/find-workspace-dir": "workspace:1.0.0",

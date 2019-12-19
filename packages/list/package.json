@@ -57,7 +57,6 @@
     "@types/ramda": "^0.26.38",
     "@types/semver": "^6.2.0",
     "common-tags": "1.8.0",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0"
+    "rimraf": "3.0.0"
   }
 }

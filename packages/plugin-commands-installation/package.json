@@ -32,8 +32,7 @@
     "@pnpm/registry-mock": "1.11.1",
     "@types/common-tags": "^1.8.0",
     "@types/ramda": "^0.26.38",
-    "rimraf": "3.0.0",
-    "tape": "4.11.0"
+    "rimraf": "3.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.2.4",

@@ -100,7 +100,7 @@
     "cross-spawn": "7.0.1",
     "deep-require-cwd": "1.0.0",
     "dir-is-case-sensitive": "1.0.2",
-    "execa": "3.4.0",
+    "execa": "4.0.0",
     "exists-link": "2.0.0",
     "fs-extra": "8.1.0",
     "is-windows": "1.0.2",
@@ -114,7 +114,6 @@
     "sinon": "7.5.0",
     "supi": "link:",
     "symlink-dir": "3.1.1",
-    "tape": "4.11.0",
     "tape-promise": "4.0.0",
     "write-json-file": "4.0.0",
     "write-yaml-file": "3.0.1"

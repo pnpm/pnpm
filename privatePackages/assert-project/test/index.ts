@@ -5,7 +5,7 @@ import path = require('path')
 import test = require('tape')
 
 test('assertProject()', async (t) => {
-  const project = assertProject(t, path.join(__dirname, '..'))
+  const project = assertProject(t, path.join(__dirname, '../../..'))
 
   await project.has('tape')
   await project.hasNot('sfdsff3g34')
