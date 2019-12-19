@@ -405,7 +405,7 @@ importers:
     dependencies:
       '@pnpm/error': 'link:../error'
       '@pnpm/matcher': 'link:../matcher'
-      execa: 3.4.0
+      execa: 4.0.0
       find-up: 4.1.0
       is-subdir: 1.1.1
       pkgs-graph: 'link:../pkgs-graph'
@@ -429,7 +429,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/ramda': ^0.26.38
       '@types/touch': ^3.1.1
-      execa: 3.4.0
+      execa: 4.0.0
       find-up: 4.1.0
       is-ci: 2.0.0
       is-subdir: 1.1.1
@@ -483,7 +483,7 @@ importers:
     dependencies:
       '@zkochan/rimraf': 1.0.0
       dint: 4.0.0
-      execa: 3.4.0
+      execa: 4.0.0
       path-temp: 2.0.0
     devDependencies:
       '@pnpm/git-fetcher': 'link:'
@@ -493,7 +493,7 @@ importers:
       '@pnpm/git-fetcher': 'link:'
       '@zkochan/rimraf': 1.0.0
       dint: 4.0.0
-      execa: 3.4.0
+      execa: 4.0.0
       path-temp: 2.0.0
       rimraf: 3.0.0
       tempy: 0.3.0
@@ -1523,7 +1523,7 @@ importers:
       camelcase-keys: 6.1.1
       chalk: 3.0.0
       common-tags: 1.8.0
-      execa: 3.4.0
+      execa: 4.0.0
       graph-sequencer: 2.0.0
       is-subdir: 1.1.1
       lru-cache: 5.1.1
@@ -1592,7 +1592,7 @@ importers:
       camelcase-keys: 6.1.1
       chalk: 3.0.0
       common-tags: 1.8.0
-      execa: 3.4.0
+      execa: 4.0.0
       graph-sequencer: 2.0.0
       is-subdir: 1.1.1
       lru-cache: 5.1.1
@@ -1689,7 +1689,7 @@ importers:
       common-tags: 1.8.0
       delay: 4.3.0
       diable: 4.0.2
-      get-port: 5.0.0
+      get-port: 5.1.0
       graceful-fs: 4.2.1
       is-ci: 2.0.0
       is-windows: 1.0.2
@@ -1818,7 +1818,7 @@ importers:
       dir-is-case-sensitive: 1.0.2
       execa: 4.0.0
       exists-link: 2.0.0
-      get-port: 5.0.0
+      get-port: 5.1.0
       graceful-fs: 4.2.1
       is-ci: 2.0.0
       is-windows: 1.0.2
@@ -5595,7 +5595,6 @@ packages:
       onetime: 5.1.0
       signal-exit: 3.0.2
       strip-final-newline: 2.0.0
-    dev: true
     engines:
       node: '>=10'
     resolution:
@@ -6052,14 +6051,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-POrVRGyS9X5w+855/H46JGVYBGuVgJXyIkbsTCzW+sv5x2qH+rfQjc7652DzkgOskF+cqLevA2En7V0hu0gZCg==
-  /get-port/5.0.0:
-    dependencies:
-      type-fest: 0.3.1
+  /get-port/5.1.0:
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-imzMU0FjsZqNa6BqOjbbW6w5BivHIuQKopjpPqcnx0AVHJQKCxK1O+Ab3OrVXhrekqfVMjwA9ZYu062R+KcIsQ==
+      integrity: sha512-bjioH1E9bTQUvgaB6VycVy1QVbTZI41yTnF9qkZz6ixgy/uhCH6D63bKeZ6Code/07JYA61MeI94jSdHss8PNA==
   /get-source/1.0.42:
     dependencies:
       data-uri-to-buffer: 2.0.2

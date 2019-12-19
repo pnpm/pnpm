@@ -55,7 +55,7 @@
     "common-tags": "1.8.0",
     "delay": "4.3.0",
     "diable": "4.0.2",
-    "get-port": "5.0.0",
+    "get-port": "5.1.0",
     "graceful-fs": "4.2.1",
     "is-ci": "2.0.0",
     "is-windows": "1.0.2",

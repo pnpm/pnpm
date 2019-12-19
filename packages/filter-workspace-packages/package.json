@@ -29,7 +29,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/matcher": "workspace:1.0.0",
-    "execa": "3.4.0",
+    "execa": "4.0.0",
     "find-up": "4.1.0",
     "is-subdir": "1.1.1",
     "pkgs-graph": "workspace:5.0.1",

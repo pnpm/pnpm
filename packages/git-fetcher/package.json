@@ -30,7 +30,7 @@
   "dependencies": {
     "@zkochan/rimraf": "1.0.0",
     "dint": "4.0.0",
-    "execa": "3.4.0",
+    "execa": "4.0.0",
     "path-temp": "2.0.0"
   },
   "devDependencies": {
