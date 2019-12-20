@@ -479,6 +479,44 @@ importers:
       find-packages: 'workspace:7.0.1'
       read-yaml-file: 1.1.0
       rimraf: 3.0.0
+  packages/get-context:
+    dependencies:
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/read-importers-context': 'link:../read-importers-context'
+      '@pnpm/types': 'link:../types'
+      '@zkochan/rimraf': 1.0.0
+      is-ci: 2.0.0
+      make-dir: 3.0.0
+      path-absolute: 1.0.1
+      ramda: 0.26.1
+    devDependencies:
+      '@pnpm/get-context': 'link:'
+      '@pnpm/logger': 3.1.0
+      '@types/is-ci': 2.0.0
+      '@types/ramda': 0.26.38
+      rimraf: 3.0.0
+    specifiers:
+      '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/core-loggers': 'workspace:4.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/get-context': 'link:'
+      '@pnpm/lockfile-file': 'workspace:3.0.1'
+      '@pnpm/logger': 3.1.0
+      '@pnpm/modules-yaml': 'workspace:5.0.0'
+      '@pnpm/read-importers-context': 'workspace:3.0.5'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@types/is-ci': ^2.0.0
+      '@types/ramda': ^0.26.38
+      '@zkochan/rimraf': 1.0.0
+      is-ci: 2.0.0
+      make-dir: 3.0.0
+      path-absolute: 1.0.1
+      ramda: 0.26.1
+      rimraf: 3.0.0
   packages/git-fetcher:
     dependencies:
       '@zkochan/rimraf': 1.0.0
@@ -1653,6 +1691,72 @@ importers:
       ramda: 0.26.1
       render-help: 0.0.0
       rimraf: 3.0.0
+  packages/plugin-commands-store:
+    dependencies:
+      '@pnpm/check-package': 3.0.1
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/get-context': 'link:../get-context'
+      '@pnpm/store-connection-manager': 'link:../store-connection-manager'
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@pnpm/store-path': 2.1.1
+      '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
+      archy: 1.0.0
+      common-tags: 1.8.0
+      dependency-path: 'link:../dependency-path'
+      p-filter: 2.1.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+    devDependencies:
+      '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/logger': 3.1.0
+      '@pnpm/plugin-commands-store': 'link:'
+      '@pnpm/prepare': 'link:../../privatePackages/prepare'
+      '@types/archy': 0.0.31
+      '@types/common-tags': 1.8.0
+      '@types/ramda': 0.26.38
+      '@types/sinon': 7.5.1
+      '@zkochan/rimraf': 1.0.0
+      execa: 4.0.0
+      load-json-file: 6.2.0
+      path-exists: 4.0.0
+      rimraf: 3.0.0
+      sinon: 7.5.0
+    specifiers:
+      '@pnpm/assert-store': 'workspace:1.0.0'
+      '@pnpm/check-package': 3.0.1
+      '@pnpm/cli-utils': 'workspace:0.2.5'
+      '@pnpm/config': 'workspace:6.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/get-context': 'workspace:0.0.0'
+      '@pnpm/lockfile-file': 'workspace:3.0.1'
+      '@pnpm/logger': 3.1.0
+      '@pnpm/plugin-commands-store': 'link:'
+      '@pnpm/prepare': 'workspace:0.0.0'
+      '@pnpm/store-connection-manager': 'workspace:0.2.5'
+      '@pnpm/store-controller-types': 'workspace:6.0.0'
+      '@pnpm/store-path': 2.1.1
+      '@pnpm/types': 'workspace:4.0.0'
+      '@pnpm/utils': 'workspace:0.12.2'
+      '@types/archy': 0.0.31
+      '@types/common-tags': ^1.8.0
+      '@types/ramda': ^0.26.38
+      '@types/sinon': ^7.5.1
+      '@zkochan/rimraf': 1.0.0
+      archy: 1.0.0
+      common-tags: 1.8.0
+      dependency-path: 'workspace:4.0.2'
+      execa: 4.0.0
+      load-json-file: 6.2.0
+      p-filter: 2.1.0
+      path-exists: 4.0.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      rimraf: 3.0.0
+      sinon: 7.5.0
   packages/pnpm:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1673,18 +1777,16 @@ importers:
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
       '@pnpm/plugin-commands-script-runners': 'link:../plugin-commands-script-runners'
+      '@pnpm/plugin-commands-store': 'link:../plugin-commands-store'
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
-      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
-      '@types/archy': 0.0.31
       '@types/mz': 2.7.0
       '@types/wrap-ansi': 3.0.0
       '@zkochan/libnpx': 11.0.3
       '@zkochan/rimraf': 1.0.0
-      archy: 1.0.0
       chalk: 3.0.0
       common-tags: 1.8.0
       delay: 4.3.0
@@ -1776,17 +1878,16 @@ importers:
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/plugin-commands-script-runners': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-store': 'workspace:0.0.0'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:*'
       '@pnpm/run-npm': 'workspace:1.0.0'
       '@pnpm/server': 'workspace:6.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.5'
-      '@pnpm/store-controller-types': 'workspace:6.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/write-importer-manifest': 'workspace:*'
-      '@types/archy': 0.0.31
       '@types/byline': 4.2.31
       '@types/common-tags': 1.8.0
       '@types/cross-spawn': 6.0.1
@@ -1807,7 +1908,6 @@ importers:
       '@zkochan/libnpx': 11.0.3
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
-      archy: 1.0.0
       byline: 5.0.0
       chalk: 3.0.0
       common-tags: 1.8.0
@@ -2144,6 +2244,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
       '@pnpm/fs-locker': 3.0.1
+      '@pnpm/get-context': 'link:../get-context'
       '@pnpm/headless': 'link:../headless'
       '@pnpm/hoist': 'link:../hoist'
       '@pnpm/lifecycle': 'link:../lifecycle'
@@ -2158,7 +2259,6 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
-      '@pnpm/read-importers-context': 'link:../read-importers-context'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
@@ -2176,7 +2276,6 @@ importers:
       graceful-fs: 4.2.1
       graph-sequencer: 2.0.0
       import-from: 3.0.0
-      is-ci: 2.0.0
       is-inner-link: 2.0.2
       is-subdir: 1.1.1
       load-json-file: 6.2.0
@@ -2220,6 +2319,7 @@ importers:
       execa: 4.0.0
       exists-link: 2.0.0
       fs-extra: 8.1.0
+      is-ci: 2.0.0
       is-windows: 1.0.2
       ncp: 2.0.0
       npm-run-all: 4.1.5
@@ -2246,6 +2346,7 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-lockfile': 'workspace:3.0.4'
       '@pnpm/fs-locker': 3.0.1
+      '@pnpm/get-context': 'workspace:0.0.0'
       '@pnpm/headless': 'workspace:11.0.3'
       '@pnpm/hoist': 'workspace:2.0.4'
       '@pnpm/lifecycle': 'workspace:8.0.1'
@@ -2263,7 +2364,6 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/prune-lockfile': 'workspace:2.0.3'
       '@pnpm/read-importer-manifest': 'workspace:2.0.1'
-      '@pnpm/read-importers-context': 'workspace:3.0.5'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.0.1'
       '@pnpm/resolve-dependencies': 'workspace:13.0.2'
@@ -2995,6 +3095,7 @@ packages:
     resolution:
       integrity: sha512-XIB2XbzHTN6ieIjfIMV9hlVcfPU26s2vafYWQcZHWXHOxiaRZYEDKEwdl129Zyg50+foYV2jCgtrqSA6qNuNSA==
   /@types/archy/0.0.31:
+    dev: true
     resolution:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/byline/4.2.31:
@@ -3151,7 +3252,7 @@ packages:
       integrity: sha512-uo22Nf32Cc3EURp9tYlFttY8MVQZ1zoVum+D+yQ2jm4IqQFxDtwCQlP/WMwbuj4ey5kw1rJ7v6OacDszfWiqLA==
   /@types/ramda/0.26.38:
     dependencies:
-      ts-toolbelt: 4.14.5
+      ts-toolbelt: 4.14.6
     dev: true
     resolution:
       integrity: sha512-legQx15y72vedr5fkVTb5xZaI/OXMzJgZYbMxVL5r269sOg7fZIeitEOumcevMPOMZdqH4cMoL35VuU13TLvVA==
@@ -10697,6 +10798,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-wEy8LX3vElGPT2eKj0f8GxGM18Ik8WkTQaQX64DPDh0qW0RUY9+cc1o0mOg2GknjSxiQO7mYxw/YiCAzOFDMHw==
+  /ts-toolbelt/4.14.6:
+    dev: true
+    resolution:
+      integrity: sha512-SONcnRd93+LuYGfn/CZg5A5qhCODohZslAVZKHHu5bnwUxoXLqd2k2VIdwRUXYfKnY+UCeNbI2pTPz+Dno6Mpg==
   /tslib/1.10.0:
     dev: true
     resolution:

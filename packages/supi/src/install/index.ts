@@ -10,6 +10,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
+import getContext, { ImportersOptions, PnpmContext } from '@pnpm/get-context'
 import headless from '@pnpm/headless'
 import {
   runLifecycleHooksConcurrently,
@@ -57,7 +58,6 @@ import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
-import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import lock from '../lock'
 import lockfilesEqual from '../lockfilesEqual'

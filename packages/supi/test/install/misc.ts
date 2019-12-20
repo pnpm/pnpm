@@ -6,6 +6,7 @@ import {
   StageLog,
   StatsLog,
 } from '@pnpm/core-loggers'
+import UnexpectedVirtualStoreDirError from '@pnpm/get-context/lib/checkCompatibility/UnexpectedVirtualStoreDirError'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ImporterManifest } from '@pnpm/types'
@@ -24,7 +25,6 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import UnexpectedVirtualStoreDirError from 'supi/lib/getContext/checkCompatibility/UnexpectedVirtualStoreDirError'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile = require('write-json-file')

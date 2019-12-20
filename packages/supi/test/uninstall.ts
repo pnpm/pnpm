@@ -18,7 +18,6 @@ import {
   addDependenciesToPackage,
   link,
   mutateModules,
-  storePrune,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -161,9 +160,7 @@ test('uninstall package with dependencies and do not touch other deps', async (t
       mutation: 'uninstallSome',
       rootDir: process.cwd(),
     },
-  ], await testDefaults({ save: true })))[0].manifest
-
-  await storePrune(await testDefaults())
+  ], await testDefaults({ pruneStore: true, save: true })))[0].manifest
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')

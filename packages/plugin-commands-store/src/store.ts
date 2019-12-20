@@ -1,21 +1,18 @@
 import { docsUrl } from '@pnpm/cli-utils'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import logger, { globalInfo } from '@pnpm/logger'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import logger, { globalInfo, LogBase } from '@pnpm/logger'
+import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import {
-  storeAdd,
-  storePrune,
-  storeStatus,
-  storeUsages
-} from 'supi'
-import { PnpmOptions } from '../types'
+import storeAdd from './storeAdd'
+import storePrune from './storePrune'
+import storeStatus from './storeStatus'
+import storeUsages from './storeUsages'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -76,7 +73,11 @@ class StoreStatusError extends PnpmError {
   }
 }
 
-export async function handler (input: string[], opts: PnpmOptions) {
+export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 'storeDir'> & CreateStoreControllerOptions & {
+  reporter?: (logObj: LogBase) => void,
+}
+
+export async function handler (input: string[], opts: StoreCommandOptions) {
   let store
   switch (input[0]) {
     case 'status':
@@ -104,8 +105,7 @@ export async function handler (input: string[], opts: PnpmOptions) {
         reporter: opts.reporter,
         storeController: store.ctrl,
       })
-      prettyPrintUsages(packageSelectors, packageUsagesBySelectors)
-      return
+      return prettyPrintUsages(packageSelectors, packageUsagesBySelectors)
     default:
       return help()
       if (input[0]) {
@@ -114,7 +114,7 @@ export async function handler (input: string[], opts: PnpmOptions) {
   }
 }
 
-async function statusCmd (opts: PnpmOptions) {
+async function statusCmd (opts: StoreCommandOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
     storeDir: await storePath(opts.dir, opts.storeDir),
   }))
@@ -133,7 +133,7 @@ async function statusCmd (opts: PnpmOptions) {
  * Uses archy to output package usages in a directory-tree like format.
  * @param packageUsages a list of PackageUsage, one per query
  */
-function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [packageSelector: string]: PackageUsages[] }): void {
+function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [packageSelector: string]: PackageUsages[] }) {
 
   // Create nodes for top level usage response
   const packageUsageNodes: archy.Data[] = selectors.map((selector) => {
@@ -177,5 +177,5 @@ function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [pa
   })
 
   const rootTrees = packageUsageNodes.map(node => archy(node))
-  rootTrees.forEach(tree => globalInfo(tree))
+  return rootTrees.join('\n')
 }

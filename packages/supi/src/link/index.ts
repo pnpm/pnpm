@@ -1,6 +1,7 @@
 import {
   summaryLogger,
 } from '@pnpm/core-loggers'
+import { getContextForSingleImporter } from '@pnpm/get-context'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
@@ -23,7 +24,6 @@ import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
-import { getContextForSingleImporter } from '../getContext'
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import save, { guessDependencyType, PackageSpecObject } from '../save'
 import getPref from '../utils/getPref'

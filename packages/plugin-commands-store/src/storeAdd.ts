@@ -2,8 +2,7 @@ import PnpmError from '@pnpm/error'
 import logger, { globalInfo, streamParser } from '@pnpm/logger'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
-import { pickRegistryForPackage } from '@pnpm/utils'
-import parseWantedDependencies from './parseWantedDependencies'
+import { parseWantedDependency, pickRegistryForPackage } from '@pnpm/utils'
 import { ReporterFunction } from './types'
 
 export default async function (
@@ -21,15 +20,7 @@ export default async function (
     streamParser.on('data', reporter)
   }
 
-  const deps = parseWantedDependencies(fuzzyDeps, {
-    allowNew: true,
-    currentPrefs: {},
-    defaultTag: opts.tag || 'latest',
-    dev: false,
-    devDependencies: {},
-    optional: false,
-    optionalDependencies: {},
-  })
+  const deps = fuzzyDeps.map((dep) => parseWantedDependency(dep))
 
   let hasFailures = false
   const prefix = opts.prefix || process.cwd()
@@ -40,9 +31,9 @@ export default async function (
     try {
       const pkgResponse = await opts.storeController.requestPackage(dep, {
         downloadPriority: 1,
+        importerDir: prefix,
         lockfileDir: prefix,
         preferredVersions: {},
-        importerDir: prefix,
         registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
       })
       await pkgResponse.files!()
