@@ -9,12 +9,10 @@ import archy = require('archy')
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import {
-  storeAdd,
-  storePrune,
-  storeStatus,
-  storeUsages
-} from 'supi'
+import storeAdd from './storeAdd'
+import storePrune from './storePrune'
+import storeStatus from './storeStatus'
+import storeUsages from './storeUsages'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -107,8 +105,7 @@ export async function handler (input: string[], opts: StoreCommandOptions) {
         reporter: opts.reporter,
         storeController: store.ctrl,
       })
-      prettyPrintUsages(packageSelectors, packageUsagesBySelectors)
-      return
+      return prettyPrintUsages(packageSelectors, packageUsagesBySelectors)
     default:
       return help()
       if (input[0]) {
@@ -136,7 +133,7 @@ async function statusCmd (opts: StoreCommandOptions) {
  * Uses archy to output package usages in a directory-tree like format.
  * @param packageUsages a list of PackageUsage, one per query
  */
-function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [packageSelector: string]: PackageUsages[] }): void {
+function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [packageSelector: string]: PackageUsages[] }) {
 
   // Create nodes for top level usage response
   const packageUsageNodes: archy.Data[] = selectors.map((selector) => {
@@ -180,5 +177,5 @@ function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [pa
   })
 
   const rootTrees = packageUsageNodes.map(node => archy(node))
-  rootTrees.forEach(tree => globalInfo(tree))
+  return rootTrees.join('\n')
 }

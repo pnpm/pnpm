@@ -4,6 +4,7 @@ import {
   WANTED_LOCKFILE,
 } from '@pnpm/constants'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import getContext from '@pnpm/get-context'
 import {
   runLifecycleHooksConcurrently,
   runPostinstallHooks,
@@ -28,7 +29,6 @@ import path = require('path')
 import R = require('ramda')
 import runGroups from 'run-groups'
 import semver = require('semver')
-import getContext from '../getContext'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,

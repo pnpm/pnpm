@@ -1,6 +1,7 @@
 import { store } from '@pnpm/plugin-commands-store'
 import { tempDir } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import fs = require('fs')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
@@ -64,5 +65,34 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     },
     'package has been added to the store index',
   )
+  t.end()
+})
+
+test('should fail if some packages can not be added', async (t) => {
+  tempDir(t)
+  fs.mkdirSync('_')
+  process.chdir('_')
+  const storeDir = path.resolve('pnpm-store')
+
+  let thrown = false
+  try {
+    await store.handler(['add', '@pnpm/this-does-not-exist'], {
+      dir: process.cwd(),
+      lock: true,
+      rawConfig: {
+        registry: 'https://registry.npmjs.org/',
+      },
+      registries: {
+        '@foo': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+        'default': 'https://registry.npmjs.org/',
+      },
+      storeDir,
+    })
+  } catch (e) {
+    thrown = true
+    t.equal(e.code, 'ERR_PNPM_STORE_ADD_FAILURE', 'has thrown the correct error code')
+    t.equal(e.message, 'Some packages have not been added correctly', 'has thrown the correct error')
+  }
+  t.ok(thrown, 'has thrown')
   t.end()
 })
