@@ -11,9 +11,9 @@ importers:
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
       tape: 4.12.0
-      ts-node: 8.5.4_typescript@3.7.3
-      tslint: 5.20.1_typescript@3.7.3
-      typescript: 3.7.3
+      ts-node: 8.5.4_typescript@3.7.4
+      tslint: 5.20.1_typescript@3.7.4
+      typescript: 3.7.4
       verdaccio: 4.4.0
     specifiers:
       '@pnpm/registry-mock': 1.11.1
@@ -28,7 +28,7 @@ importers:
       tape: 4.12.0
       ts-node: 8.5.4
       tslint: 5.20.1
-      typescript: 3.7.3
+      typescript: 3.7.4
       verdaccio: 4.4.0
   packages/audit:
     dependencies:
@@ -3246,7 +3246,7 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.26.36:
     dependencies:
-      ts-toolbelt: 4.14.5
+      ts-toolbelt: 4.14.6
     dev: true
     resolution:
       integrity: sha512-uo22Nf32Cc3EURp9tYlFttY8MVQZ1zoVum+D+yQ2jm4IqQFxDtwCQlP/WMwbuj4ey5kw1rJ7v6OacDszfWiqLA==
@@ -4065,7 +4065,7 @@ packages:
   /array-includes/3.1.0:
     dependencies:
       define-properties: 1.1.3
-      es-abstract: 1.17.0-next.1
+      es-abstract: 1.17.0
     dev: false
     engines:
       node: '>= 0.4'
@@ -5518,7 +5518,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-Ck2uN9YA0VopukU9jvkg8YRDM/Y=
-  /es-abstract/1.17.0-next.1:
+  /es-abstract/1.17.0:
     dependencies:
       es-to-primitive: 1.2.1
       function-bind: 1.1.1
@@ -5534,7 +5534,7 @@ packages:
     engines:
       node: '>= 0.4'
     resolution:
-      integrity: sha512-7MmGr03N7Rnuid6+wyhD9sHNE2n4tFSwExnU2lQl3lIo2ShXWGePY80zYaoMOmILWv57H0amMjZGHNzzGG70Rw==
+      integrity: sha512-yYkE07YF+6SIBmg1MsJ9dlub5L48Ek7X0qz+c/CPCHS9EBXfESorzng4cJQjJW5/pB6vDF41u7F8vUhLVDqIug==
   /es-to-primitive/1.2.1:
     dependencies:
       is-callable: 1.1.5
@@ -8476,7 +8476,7 @@ packages:
   /object.getownpropertydescriptors/2.1.0:
     dependencies:
       define-properties: 1.1.3
-      es-abstract: 1.17.0-next.1
+      es-abstract: 1.17.0
     dev: true
     engines:
       node: '>= 0.8'
@@ -9505,7 +9505,7 @@ packages:
   /regexp.prototype.flags/1.3.0:
     dependencies:
       define-properties: 1.1.3
-      es-abstract: 1.17.0-next.1
+      es-abstract: 1.17.0
     dev: true
     engines:
       node: '>= 0.4'
@@ -10322,7 +10322,7 @@ packages:
   /string.prototype.padend/3.1.0:
     dependencies:
       define-properties: 1.1.3
-      es-abstract: 1.17.0-next.1
+      es-abstract: 1.17.0
     dev: true
     engines:
       node: '>= 0.4'
@@ -10331,7 +10331,7 @@ packages:
   /string.prototype.trim/1.2.1:
     dependencies:
       define-properties: 1.1.3
-      es-abstract: 1.17.0-next.1
+      es-abstract: 1.17.0
       function-bind: 1.1.1
     dev: true
     engines:
@@ -10778,13 +10778,13 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.5.4_typescript@3.7.3:
+  /ts-node/8.5.4_typescript@3.7.4:
     dependencies:
       arg: 4.1.2
       diff: 4.0.1
       make-error: 1.3.5
       source-map-support: 0.5.16
-      typescript: 3.7.3
+      typescript: 3.7.4
       yn: 3.1.1
     dev: true
     engines:
@@ -10794,10 +10794,6 @@ packages:
       typescript: '>=2.0'
     resolution:
       integrity: sha512-izbVCRV68EasEPQ8MSIGBNK9dc/4sYJJKYA+IarMQct1RtEot6Xp0bXuClsbUSnKpg50ho+aOAx8en5c+y4OFw==
-  /ts-toolbelt/4.14.5:
-    dev: true
-    resolution:
-      integrity: sha512-wEy8LX3vElGPT2eKj0f8GxGM18Ik8WkTQaQX64DPDh0qW0RUY9+cc1o0mOg2GknjSxiQO7mYxw/YiCAzOFDMHw==
   /ts-toolbelt/4.14.6:
     dev: true
     resolution:
@@ -10824,7 +10820,7 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/5.20.1_typescript@3.7.3:
+  /tslint/5.20.1_typescript@3.7.4:
     dependencies:
       '@babel/code-frame': 7.5.5
       builtin-modules: 1.1.1
@@ -10838,8 +10834,8 @@ packages:
       resolve: 1.14.1
       semver: 5.7.1
       tslib: 1.10.0
-      tsutils: 2.29.0_typescript@3.7.3
-      typescript: 3.7.3
+      tsutils: 2.29.0_typescript@3.7.4
+      typescript: 3.7.4
     dev: true
     engines:
       node: '>=4.8.0'
@@ -10848,10 +10844,10 @@ packages:
       typescript: '>=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
     resolution:
       integrity: sha512-EcMxhzCFt8k+/UP5r8waCf/lzmeSyVlqxqMEDQE7rWYiQky8KpIBz1JAoYXfROHrPZ1XXd43q8yQnULOLiBRQg==
-  /tsutils/2.29.0_typescript@3.7.3:
+  /tsutils/2.29.0_typescript@3.7.4:
     dependencies:
       tslib: 1.10.0
-      typescript: 3.7.3
+      typescript: 3.7.4
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
@@ -10927,13 +10923,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.7.3:
+  /typescript/3.7.4:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-Mcr/Qk7hXqFBXMN7p7Lusj1ktCBydylfQM/FZCk5glCNQJrCUKPkMHdo9R0MTFWsC/4kPFvDS0fDPvukfCkFsw==
+      integrity: sha512-A25xv5XCtarLwXpcDNZzCGvW2D1S3/bACratYBx2sax8PefsFhlYmkQicKHvpYflFS8if4zne5zT5kpJ7pzuvw==
   /typpy/2.0.0:
     dev: false
     resolution:
