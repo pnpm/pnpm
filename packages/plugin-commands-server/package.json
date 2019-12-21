@@ -1,0 +1,64 @@
+{
+  "name": "@pnpm/plugin-commands-server",
+  "version": "0.0.0",
+  "description": "Commands for controlling the store server",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "tsc": "rimraf lib && tsc",
+    "test": "pnpm run tsc && pnpm run lint",
+    "prepublishOnly": "pnpm run tsc"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-server",
+  "keywords": [
+    "pnpm",
+    "server"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://pnpm.js.org",
+  "devDependencies": {
+    "@pnpm/logger": "^3.1.0",
+    "@pnpm/plugin-commands-server": "link:",
+    "@types/common-tags": "^1.8.0",
+    "@types/is-windows": "^1.0.0",
+    "@types/mz": "^2.7.0",
+    "@types/ramda": "^0.26.38",
+    "@types/signal-exit": "^3.0.0",
+    "rimraf": "3.0.0"
+  },
+  "dependencies": {
+    "@pnpm/cli-utils": "workspace:0.2.5",
+    "@pnpm/common-cli-options-help": "workspace:0.1.2",
+    "@pnpm/config": "workspace:6.0.0",
+    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/server": "workspace:6.0.0",
+    "@pnpm/store-connection-manager": "workspace:0.2.5",
+    "@pnpm/store-path": "2.1.1",
+    "common-tags": "1.8.0",
+    "delay": "4.3.0",
+    "diable": "4.0.2",
+    "get-port": "5.1.0",
+    "is-windows": "1.0.2",
+    "make-dir": "3.0.0",
+    "mz": "2.7.0",
+    "process-exists": "3.1.0",
+    "ramda": "0.26.1",
+    "render-help": "0.0.0",
+    "signal-exit": "3.0.2",
+    "tree-kill": "1.2.2"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^3.1.0"
+  }
+}

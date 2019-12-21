@@ -2,7 +2,11 @@ import { packageManager } from '@pnpm/cli-utils'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { createServer } from '@pnpm/server'
-import { createNewStoreController, serverConnectionInfoDir } from '@pnpm/store-connection-manager'
+import {
+  createNewStoreController,
+  CreateStoreControllerOptions,
+  serverConnectionInfoDir,
+} from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
 import Diable = require('diable')
 import getPort = require('get-port')
@@ -11,12 +15,11 @@ import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import onExit = require('signal-exit')
-import { PnpmOptions } from '../../types'
 
 const storeServerLogger = logger('store-server')
 
 export default async (
-  opts: PnpmOptions & {
+  opts: CreateStoreControllerOptions & {
     background?: boolean,
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,

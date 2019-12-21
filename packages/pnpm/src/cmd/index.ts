@@ -12,6 +12,7 @@ import {
   stop,
   test,
 } from '@pnpm/plugin-commands-script-runners'
+import { server } from '@pnpm/plugin-commands-server'
 import { store } from '@pnpm/plugin-commands-store'
 import { PnpmOptions } from '../types'
 import createHelp from './help'
@@ -19,7 +20,6 @@ import * as installTest from './installTest'
 import * as prune from './prune'
 import * as rebuild from './rebuild'
 import * as root from './root'
-import * as server from './server'
 
 export type Command = (
   args: string[],

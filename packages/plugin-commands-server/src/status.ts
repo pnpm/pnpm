@@ -1,12 +1,12 @@
+import { Config } from '@pnpm/config'
 import { globalInfo } from '@pnpm/logger'
 import { serverConnectionInfoDir, tryLoadServerJson } from '@pnpm/store-connection-manager'
 import storePath from '@pnpm/store-path'
 import { stripIndents } from 'common-tags'
 import path = require('path')
-import { PnpmOptions } from '../../types'
 
 export default async (
-  opts: PnpmOptions,
+  opts: Pick<Config, 'dir' | 'storeDir'>,
 ) => {
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)

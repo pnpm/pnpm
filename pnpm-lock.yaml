@@ -1691,6 +1691,64 @@ importers:
       ramda: 0.26.1
       render-help: 0.0.0
       rimraf: 3.0.0
+  packages/plugin-commands-server:
+    dependencies:
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/error': 'link:../error'
+      '@pnpm/server': 'link:../server'
+      '@pnpm/store-connection-manager': 'link:../store-connection-manager'
+      '@pnpm/store-path': 2.1.1
+      common-tags: 1.8.0
+      delay: 4.3.0
+      diable: 4.0.2
+      get-port: 5.1.0
+      is-windows: 1.0.2
+      make-dir: 3.0.0
+      mz: 2.7.0
+      process-exists: 3.1.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      signal-exit: 3.0.2
+      tree-kill: 1.2.2
+    devDependencies:
+      '@pnpm/logger': 3.1.0
+      '@pnpm/plugin-commands-server': 'link:'
+      '@types/common-tags': 1.8.0
+      '@types/is-windows': 1.0.0
+      '@types/mz': 2.7.0
+      '@types/ramda': 0.26.38
+      '@types/signal-exit': 3.0.0
+      rimraf: 3.0.0
+    specifiers:
+      '@pnpm/cli-utils': 'workspace:0.2.5'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.2'
+      '@pnpm/config': 'workspace:6.0.0'
+      '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/logger': ^3.1.0
+      '@pnpm/plugin-commands-server': 'link:'
+      '@pnpm/server': 'workspace:6.0.0'
+      '@pnpm/store-connection-manager': 'workspace:0.2.5'
+      '@pnpm/store-path': 2.1.1
+      '@types/common-tags': ^1.8.0
+      '@types/is-windows': ^1.0.0
+      '@types/mz': ^2.7.0
+      '@types/ramda': ^0.26.38
+      '@types/signal-exit': ^3.0.0
+      common-tags: 1.8.0
+      delay: 4.3.0
+      diable: 4.0.2
+      get-port: 5.1.0
+      is-windows: 1.0.2
+      make-dir: 3.0.0
+      mz: 2.7.0
+      process-exists: 3.1.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      rimraf: 3.0.0
+      signal-exit: 3.0.2
+      tree-kill: 1.2.2
   packages/plugin-commands-store:
     dependencies:
       '@pnpm/check-package': 3.0.1
@@ -1777,6 +1835,7 @@ importers:
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
       '@pnpm/plugin-commands-script-runners': 'link:../plugin-commands-script-runners'
+      '@pnpm/plugin-commands-server': 'link:../plugin-commands-server'
       '@pnpm/plugin-commands-store': 'link:../plugin-commands-store'
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/server': 'link:../server'
@@ -1789,22 +1848,13 @@ importers:
       '@zkochan/rimraf': 1.0.0
       chalk: 3.0.0
       common-tags: 1.8.0
-      delay: 4.3.0
-      diable: 4.0.2
-      get-port: 5.1.0
       graceful-fs: 4.2.1
       is-ci: 2.0.0
-      is-windows: 1.0.2
       loud-rejection: 2.2.0
-      make-dir: 3.0.0
-      mz: 2.7.0
       nopt: 4.0.1
-      process-exists: 3.1.0
       ramda: 0.26.1
       render-help: 0.0.0
-      signal-exit: 3.0.2
       supi: 'link:../supi'
-      tree-kill: 1.2.2
       update-notifier: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1828,17 +1878,20 @@ importers:
       '@types/ramda': 0.26.38
       '@types/retry': 0.12.0
       '@types/semver': 6.2.0
-      '@types/signal-exit': 3.0.0
       '@types/table': 4.0.7
       '@types/update-notifier': 2.5.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
       cross-spawn: 7.0.1
       deep-require-cwd: 1.0.0
+      delay: 4.3.0
       dir-is-case-sensitive: 1.0.2
       execa: 4.0.0
       exists-link: 2.0.0
+      is-windows: 1.0.2
       load-json-file: 6.2.0
+      make-dir: 3.0.0
+      mz: 2.7.0
       ncp: 2.0.0
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
@@ -1851,6 +1904,7 @@ importers:
       semver: 7.1.1
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
+      tree-kill: 1.2.2
       write-json-file: 4.0.0
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
@@ -1878,6 +1932,7 @@ importers:
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/plugin-commands-script-runners': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-server': 'workspace:0.0.0'
       '@pnpm/plugin-commands-store': 'workspace:0.0.0'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-importer-manifest': 'workspace:2.0.1'
@@ -1901,7 +1956,6 @@ importers:
       '@types/ramda': ^0.26.38
       '@types/retry': 0.12.0
       '@types/semver': ^6.2.0
-      '@types/signal-exit': 3.0.0
       '@types/table': ^4.0.7
       '@types/update-notifier': 2.5.0
       '@types/wrap-ansi': 3.0.0
@@ -1914,11 +1968,9 @@ importers:
       cross-spawn: 7.0.1
       deep-require-cwd: 1.0.0
       delay: 4.3.0
-      diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
       execa: 4.0.0
       exists-link: 2.0.0
-      get-port: 5.1.0
       graceful-fs: 4.2.1
       is-ci: 2.0.0
       is-windows: 1.0.2
@@ -1933,14 +1985,12 @@ importers:
       p-any: 2.1.0
       path-exists: 4.0.0
       pnpm: 'link:'
-      process-exists: 3.1.0
       ramda: 0.26.1
       read-yaml-file: 1.1.0
       render-help: 0.0.0
       retry: 0.12.0
       rimraf: 3.0.0
       semver: 7.1.1
-      signal-exit: 3.0.2
       supi: 'workspace:0.37.6'
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
@@ -10756,7 +10806,6 @@ packages:
     resolution:
       integrity: sha1-qLE/1r/SSJUZZ0zN5VujaTtwbQk=
   /tree-kill/1.2.2:
-    dev: false
     hasBin: true
     resolution:
       integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==
