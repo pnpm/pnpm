@@ -2,10 +2,10 @@ import { docsUrl } from '@pnpm/cli-utils'
 import { OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { PnpmOptions } from '../../types'
 import start from './start'
 import status from './status'
 import stop from './stop'
@@ -99,7 +99,7 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: PnpmOptions & {
+  opts: CreateStoreControllerOptions & {
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
     unstoppable?: boolean,
