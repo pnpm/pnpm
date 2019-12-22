@@ -72,7 +72,7 @@
     "nock": "11.7.0",
     "normalize-path": "3.0.0",
     "rimraf": "3.0.0",
-    "sinon": "7.5.0",
+    "sinon": "8.0.0",
     "tempy": "0.3.0"
   }
 }
