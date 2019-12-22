@@ -47,6 +47,7 @@
     "@pnpm/resolver-base": "workspace:6.0.0",
     "@pnpm/store-controller-types": "workspace:6.0.0",
     "@pnpm/symlink-dependency": "workspace:3.0.0",
+    "@pnpm/test-fixtures": "workspace:0.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.12.2",
     "@zkochan/npm-package-arg": "1.0.2",

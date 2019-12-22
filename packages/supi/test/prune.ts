@@ -1,5 +1,6 @@
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import path = require('path')
 import sinon = require('sinon')
 import {
@@ -10,7 +11,7 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { pathToLocalPkg, testDefaults } from './utils'
+import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)

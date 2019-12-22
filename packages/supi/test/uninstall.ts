@@ -8,6 +8,7 @@ import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { PackageManifest } from '@pnpm/types'
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
 import path = require('path')
@@ -23,10 +24,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
 import writeJsonFile = require('write-json-file')
-import {
-  pathToLocalPkg,
-  testDefaults,
-} from './utils'
+import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)

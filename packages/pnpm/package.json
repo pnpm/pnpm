@@ -37,6 +37,7 @@
     "@pnpm/plugin-commands-listing": "workspace:0.1.9",
     "@pnpm/plugin-commands-outdated": "workspace:0.1.9",
     "@pnpm/plugin-commands-publishing": "workspace:0.1.9",
+    "@pnpm/plugin-commands-rebuild": "workspace:0.0.0",
     "@pnpm/plugin-commands-recursive": "workspace:0.1.10",
     "@pnpm/plugin-commands-script-runners": "workspace:0.1.9",
     "@pnpm/plugin-commands-server": "workspace:0.0.0",

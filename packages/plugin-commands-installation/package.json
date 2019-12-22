@@ -43,6 +43,7 @@
     "@pnpm/find-workspace-dir": "workspace:1.0.0",
     "@pnpm/find-workspace-packages": "workspace:2.0.8",
     "@pnpm/package-store": "workspace:7.0.2",
+    "@pnpm/plugin-commands-rebuild": "workspace:0.0.0",
     "@pnpm/plugin-commands-recursive": "workspace:0.1.10",
     "@pnpm/pnpmfile": "workspace:0.1.0",
     "@pnpm/store-connection-manager": "workspace:0.2.5",

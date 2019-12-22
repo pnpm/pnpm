@@ -1,10 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
+import { copyFixture, pathToLocalPkg } from '@pnpm/test-fixtures'
 import rimraf = require('@zkochan/rimraf')
 import { copy } from 'fs-extra'
 import fs = require('mz/fs')
-import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
 import path = require('path')
 import {
@@ -15,20 +15,14 @@ import {
 import symlinkDir = require('symlink-dir')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { promisify } from 'util'
-import {
-  local,
-  pathToLocalPkg,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
-const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
 test('scoped modules from a directory', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await addDependenciesToPackage({}, [local('local-scoped-pkg')], await testDefaults())
+  await addDependenciesToPackage({}, [`file:${pathToLocalPkg('local-scoped-pkg')}`], await testDefaults())
 
   const m = project.requireModule('@scope/local-scoped-pkg')
 
@@ -37,7 +31,7 @@ test('scoped modules from a directory', async (t: tape.Test) => {
 
 test('local file', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
+  await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
 
   const manifest = await addDependenciesToPackage({}, ['file:../local-pkg'], await testDefaults())
 
@@ -61,7 +55,7 @@ test('local file', async (t: tape.Test) => {
 
 test('local file via link:', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
+  await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
 
   const manifest = await addDependenciesToPackage({}, ['link:../local-pkg'], await testDefaults())
 
@@ -85,7 +79,7 @@ test('local file via link:', async (t: tape.Test) => {
 
 test('local file with symlinked node_modules', async (t: tape.Test) => {
   const project = prepareEmpty(t)
-  await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
+  await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
   await fs.mkdir(path.join('..', 'node_modules'))
   await symlinkDir(path.join('..', 'node_modules'), 'node_modules')
 
@@ -144,7 +138,7 @@ test('tarball local package', async (t: tape.Test) => {
 test('tarball local package from project directory', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await copy(path.join(pathToLocalPkg('tar-pkg'), 'tar-pkg-1.0.0.tgz'), path.resolve('tar-pkg-1.0.0.tgz'))
+  await copyFixture('tar-pkg/tar-pkg-1.0.0.tgz', path.resolve('tar-pkg-1.0.0.tgz'))
 
   const manifest = await install({
     dependencies: {
@@ -175,13 +169,13 @@ test('tarball local package from project directory', async (t: tape.Test) => {
 test('update tarball local package when its integrity changes', async (t) => {
   const project = prepareEmpty(t)
 
-  await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  await copyFixture('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
 
   const lockfile1 = await project.readLockfile()
   t.equal(lockfile1.packages['file:../tar.tgz'].dependencies!['is-positive'], '1.0.0')
 
-  await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  await copyFixture('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   await install(manifest, await testDefaults())
 
   const lockfile2 = await project.readLockfile()
@@ -193,7 +187,7 @@ test('do not update deps when installing in a project that has local tarball dep
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepareEmpty(t)
 
-  await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  await copyFixture('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz', 'peer-a'], await testDefaults({ lockfileOnly: true }))
 
   const initialLockfile = await project.readLockfile()
@@ -218,12 +212,12 @@ test('do not update deps when installing in a project that has local tarball dep
 test(`frozen-lockfile: installation fails if the integrity of a tarball dependency changed`, async (t) => {
   prepareEmpty(t)
 
-  await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  await copyFixture('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
   const manifest = await addDependenciesToPackage({}, ['../tar.tgz'], await testDefaults())
 
   await rimraf('node_modules')
 
-  await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  await copyFixture('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))
 
   let err!: Error
   try {

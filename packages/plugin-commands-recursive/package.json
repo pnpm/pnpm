@@ -66,6 +66,7 @@
     "@pnpm/plugin-commands-listing": "workspace:0.1.9",
     "@pnpm/plugin-commands-outdated": "workspace:0.1.9",
     "@pnpm/plugin-commands-publishing": "workspace:0.1.9",
+    "@pnpm/plugin-commands-rebuild": "workspace:0.0.0",
     "@pnpm/pnpmfile": "workspace:0.1.0",
     "@pnpm/resolver-base": "workspace:6.0.0",
     "@pnpm/run-npm": "workspace:1.0.0",

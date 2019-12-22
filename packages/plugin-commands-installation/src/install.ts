@@ -12,6 +12,7 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { recursive } from '@pnpm/plugin-commands-recursive/lib/recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from '@pnpm/plugin-commands-recursive/lib/updateWorkspaceDependencies'
 import { requireHooks } from '@pnpm/pnpmfile'
@@ -22,7 +23,6 @@ import renderHelp = require('render-help')
 import {
   install,
   mutateModules,
-  rebuild,
 } from 'supi'
 
 const OVERWRITE_UPDATE_OPTIONS = {

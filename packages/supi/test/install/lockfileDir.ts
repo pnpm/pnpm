@@ -1,17 +1,15 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
+import { copyFixture } from '@pnpm/test-fixtures'
 import rimraf = require('@zkochan/rimraf')
-import ncpCB = require('ncp')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
-import { addDependenciesToPackage, mutateModules, rebuild } from 'supi'
+import { addDependenciesToPackage, mutateModules } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { promisify } from 'util'
-import { pathToLocalPkg, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
-const ncp = promisify(ncpCB)
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 const testSkip = promisifyTape(tape.skip)
@@ -48,7 +46,7 @@ testSkip('subsequent installation fails if a different lockfile directory is spe
 test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${WANTED_LOCKFILE} is used`, async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await ncp(path.join(pathToLocalPkg('tar-pkg-with-dep-2'), 'tar-pkg-with-dep-1.0.0.tgz'), 'pkg.tgz')
+  await copyFixture('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz', 'pkg.tgz')
 
   const lockfileDir = path.resolve('..')
   let [{ manifest }] = await mutateModules(
@@ -83,8 +81,4 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
   )
 
   await project.has('tar-pkg-with-dep')
-
-  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ lockfileDir }))
-
-  t.pass('rebuild did not fail')
 })

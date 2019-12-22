@@ -8,7 +8,7 @@ import exists = require('path-exists')
 import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
-import { addDependenciesToPackage, install, mutateModules, rebuild } from 'supi'
+import { addDependenciesToPackage, install, mutateModules } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -353,33 +353,6 @@ test('only skip optional dependencies', async (t: tape.Test) => {
   t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/stream-shift/1.0.0`)), 'stream-shift is linked into node_modules')
 
   t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/got/3.3.1/node_modules/duplexify`)), 'duplexify is linked into node_modules of got')
-})
-
-test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
-  prepareEmpty(t)
-
-  const manifest = await install({
-    dependencies: {
-      'pre-and-postinstall-scripts-example': '1.0.0',
-    },
-    optionalDependencies: {
-      'not-compatible-with-any-os': '1.0.0',
-    },
-  }, await testDefaults({ fastUnpack: false, ignoreScripts: true }))
-
-  const reporter = sinon.spy()
-
-  await rebuild([{
-    buildIndex: 0,
-    manifest,
-    rootDir: process.cwd(),
-  }], await testDefaults({ pending: true, reporter }))
-
-  t.ok(reporter.calledWithMatch({
-    level: 'debug',
-    message: `No entry for "/not-compatible-with-any-os/1.0.0" in ${WANTED_LOCKFILE}`,
-    name: 'pnpm',
-  }), 'missing package reported')
 })
 
 test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace packages', async (t: tape.Test) => {

@@ -9,6 +9,7 @@ import {
 import UnexpectedVirtualStoreDirError from '@pnpm/get-context/lib/checkCompatibility/UnexpectedVirtualStoreDirError'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import { ImporterManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
@@ -31,7 +32,6 @@ import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
-  local,
   testDefaults,
 } from '../utils'
 
@@ -800,7 +800,7 @@ test('install a dependency with * range', async (t: tape.Test) => {
 test('should throw error when trying to install a package without name', async (t: tape.Test) => {
   prepareEmpty(t)
   try {
-    await addDependenciesToPackage({}, [local('missing-pkg-name.tgz')], await testDefaults())
+    await addDependenciesToPackage({}, [`file:${pathToLocalPkg('missing-pkg-name.tgz')}`], await testDefaults())
     t.fail('installation should have failed')
   } catch (err) {
     if (err.message.match(/^Can't install .*: Missing package name$/)) {

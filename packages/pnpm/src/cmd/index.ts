@@ -4,6 +4,7 @@ import { add, install, link, remove, unlink, update } from '@pnpm/plugin-command
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
+import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import {
   restart,
@@ -18,7 +19,6 @@ import { PnpmOptions } from '../types'
 import createHelp from './help'
 import * as installTest from './installTest'
 import * as prune from './prune'
-import * as rebuild from './rebuild'
 import * as root from './root'
 
 export type Command = (

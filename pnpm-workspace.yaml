@@ -11,3 +11,4 @@ packages:
   - "!packages/dependencies-hierarchy/fixtures/**"
   - "!packages/dependencies-hierarchy/fixtureMonorepo/**"
   - "!packages/dependencies-hierarchy/fixtureWithLinks/**"
+  - "!privatePackages/test-fixtures/fixtures/**"

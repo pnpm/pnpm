@@ -1341,6 +1341,7 @@ importers:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/package-store': 'link:../package-store'
+      '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
@@ -1367,6 +1368,7 @@ importers:
       '@pnpm/find-workspace-packages': 'workspace:2.0.8'
       '@pnpm/package-store': 'workspace:7.0.2'
       '@pnpm/plugin-commands-installation': 'link:'
+      '@pnpm/plugin-commands-rebuild': 'workspace:0.0.0'
       '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/pnpmfile': 'workspace:0.1.0'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1533,6 +1535,88 @@ importers:
       rimraf: 3.0.0
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
+  packages/plugin-commands-rebuild:
+    dependencies:
+      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
+      '@pnpm/config': 'link:../config'
+      '@pnpm/constants': 'link:../constants'
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/get-context': 'link:../get-context'
+      '@pnpm/lifecycle': 'link:../lifecycle'
+      '@pnpm/link-bins': 5.0.1
+      '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/lockfile-walker': 'link:../lockfile-walker'
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/store-connection-manager': 'link:../store-connection-manager'
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
+      '@zkochan/npm-package-arg': 1.0.2
+      common-tags: 1.8.0
+      dependency-path: 'link:../dependency-path'
+      graph-sequencer: 2.0.0
+      load-json-file: 6.2.0
+      p-limit: 2.2.1
+      ramda: 0.26.1
+      render-help: 0.0.0
+      run-groups: 2.0.1
+      semver: 7.1.1
+    devDependencies:
+      '@pnpm/logger': 3.1.0
+      '@pnpm/plugin-commands-rebuild': 'link:'
+      '@pnpm/prepare': 'link:../../privatePackages/prepare'
+      '@pnpm/registry-mock': 1.11.1
+      '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
+      '@types/common-tags': 1.8.0
+      '@types/ramda': 0.26.38
+      '@types/semver': 6.2.0
+      '@types/sinon': 7.5.1
+      execa: 4.0.0
+      path-exists: 4.0.0
+      rimraf: 3.0.0
+      sinon: 8.0.0
+    specifiers:
+      '@pnpm/cli-utils': 'workspace:0.2.5'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.2'
+      '@pnpm/config': 'workspace:6.0.0'
+      '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/core-loggers': 'workspace:4.0.0'
+      '@pnpm/get-context': 'workspace:0.0.0'
+      '@pnpm/lifecycle': 'workspace:8.0.1'
+      '@pnpm/link-bins': 5.0.1
+      '@pnpm/lockfile-utils': 'workspace:2.0.5'
+      '@pnpm/lockfile-walker': 'workspace:1.0.1'
+      '@pnpm/logger': ^3.1.0
+      '@pnpm/modules-yaml': 'workspace:5.0.0'
+      '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/plugin-commands-rebuild': 'link:'
+      '@pnpm/prepare': 'workspace:0.0.0'
+      '@pnpm/registry-mock': 1.11.1
+      '@pnpm/store-connection-manager': 'workspace:0.2.5'
+      '@pnpm/store-controller-types': 'workspace:6.0.0'
+      '@pnpm/test-fixtures': 'workspace:0.0.0'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@pnpm/utils': 'workspace:0.12.2'
+      '@types/common-tags': ^1.8.0
+      '@types/ramda': ^0.26.38
+      '@types/semver': ^6.2.0
+      '@types/sinon': ^7.5.1
+      '@zkochan/npm-package-arg': 1.0.2
+      common-tags: 1.8.0
+      dependency-path: 'workspace:4.0.2'
+      execa: 4.0.0
+      graph-sequencer: 2.0.0
+      load-json-file: 6.2.0
+      p-limit: 2.2.1
+      path-exists: 4.0.0
+      ramda: 0.26.1
+      render-help: 0.0.0
+      rimraf: 3.0.0
+      run-groups: 2.0.1
+      semver: 7.1.1
+      sinon: 8.0.0
   packages/plugin-commands-recursive:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1551,6 +1635,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'link:../plugin-commands-listing'
       '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
+      '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/run-npm': 'link:../run-npm'
@@ -1612,6 +1697,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-outdated': 'workspace:0.1.9'
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-rebuild': 'workspace:0.0.0'
       '@pnpm/plugin-commands-recursive': 'link:'
       '@pnpm/pnpmfile': 'workspace:0.1.0'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1833,6 +1919,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'link:../plugin-commands-listing'
       '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
+      '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
       '@pnpm/plugin-commands-script-runners': 'link:../plugin-commands-script-runners'
       '@pnpm/plugin-commands-server': 'link:../plugin-commands-server'
@@ -1930,6 +2017,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-outdated': 'workspace:0.1.9'
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
+      '@pnpm/plugin-commands-rebuild': 'workspace:0.0.0'
       '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/plugin-commands-script-runners': 'workspace:0.1.9'
       '@pnpm/plugin-commands-server': 'workspace:0.0.0'
@@ -2315,6 +2403,7 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
+      '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@zkochan/npm-package-arg': 1.0.2
@@ -2421,6 +2510,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:6.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/symlink-dependency': 'workspace:3.0.0'
+      '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/utils': 'workspace:0.12.2'
       '@types/common-tags': 1.8.0
@@ -2678,6 +2768,46 @@ importers:
       write-json5-file: 2.1.2
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
+  privatePackages/test-fixtures:
+    dependencies:
+      ncp: 2.0.0
+    devDependencies:
+      '@types/ncp': 2.0.3
+      rimraf: 3.0.0
+    specifiers:
+      '@types/ncp': ^2.0.3
+      ncp: 2.0.0
+      rimraf: 3.0.0
+  privatePackages/test-fixtures/fixtures/hello-world-js-bin:
+    dependencies:
+      cowsay: 1.2.1
+    specifiers:
+      cowsay: 1.2.1
+  privatePackages/test-fixtures/fixtures/local-pkg:
+    specifiers: {}
+  privatePackages/test-fixtures/fixtures/local-scoped-pkg:
+    specifiers: {}
+  privatePackages/test-fixtures/fixtures/missing-pkg-name:
+    specifiers: {}
+  privatePackages/test-fixtures/fixtures/symlink-workspace/app1/packages/public/bar:
+    specifiers: {}
+  privatePackages/test-fixtures/fixtures/symlink-workspace/app1/packages/public/foo:
+    dependencies:
+      bar: 'link:../bar'
+    specifiers:
+      bar: 1.0.0
+  privatePackages/test-fixtures/fixtures/tar-pkg:
+    specifiers: {}
+  privatePackages/test-fixtures/fixtures/tar-pkg-with-dep-1:
+    dependencies:
+      is-positive: 1.0.0
+    specifiers:
+      is-positive: ^1.0.0
+  privatePackages/test-fixtures/fixtures/tar-pkg-with-dep-2:
+    dependencies:
+      is-positive: 2.0.0
+    specifiers:
+      is-positive: ^2.0.0
   tools:
     devDependencies:
       '@commitlint/cli': 8.2.0
@@ -3124,6 +3254,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-B8SEsgd8gArBLMD6zpRw3juQ2FVSsmdd7qlevyDqzS9WTCtvF55/gAL+h6gue8ZvPYcdiPdvueM/qm//9XzyTQ==
+  /@sinonjs/formatio/4.0.1:
+    dependencies:
+      '@sinonjs/commons': 1.7.0
+      '@sinonjs/samsam': 4.2.0
+    dev: true
+    resolution:
+      integrity: sha512-asIdlLFrla/WZybhm0C8eEzaDNNrzymiTqHMeJl6zPW2881l3uuVRpm0QlRQEjqYWv6CcKMGYME3LbrLJsORBw==
   /@sinonjs/samsam/3.3.3:
     dependencies:
       '@sinonjs/commons': 1.7.0
@@ -3132,6 +3269,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-bKCMKZvWIjYD0BLGnNrxVuw4dkWCYsLqFOUWw8VgKF/+5Y+mE7LfHWPIYoDXowH+3a9LsWDMo0uAP8YDosPvHQ==
+  /@sinonjs/samsam/4.2.0:
+    dependencies:
+      '@sinonjs/commons': 1.7.0
+      array-from: 2.1.1
+      lodash.get: 4.4.2
+    dev: true
+    resolution:
+      integrity: sha512-yG7QbUz38ZPIegfuSMEcbOo0kkLGmPa8a0Qlz4dk7+cXYALDScWjIZzAm/u2+Frh+bcdZF6wZJZwwuJjY0WAjA==
   /@sinonjs/text-encoding/0.7.1:
     dev: true
     resolution:
@@ -3682,7 +3827,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.1
+      graceful-fs: 4.2.3
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
@@ -4112,15 +4257,16 @@ packages:
     dev: true
     resolution:
       integrity: sha1-nlKHYrSpBmrRY6aWKjZEGOlibs4=
-  /array-includes/3.1.0:
+  /array-includes/3.1.1:
     dependencies:
       define-properties: 1.1.3
       es-abstract: 1.17.0
+      is-string: 1.0.5
     dev: false
     engines:
       node: '>= 0.4'
     resolution:
-      integrity: sha512-ONOEQoKrvXPKk7Su92Co0YMqYO32FfqJTzkKU9u2UpIXyYZIzLSvpdg4AwvSw4mSUW0czu6inK+zby6Oj6gDjQ==
+      integrity: sha512-c2VXaCHl7zPsvpkFsw4nxvFie4fh1ur9bpcgsVkIjqn0H/Xwdg+7fv3n2r/isyS8EBj5b06M9kHyZuIr4El6WQ==
   /array-union/1.0.2:
     dependencies:
       array-uniq: 1.0.3
@@ -4985,6 +5131,17 @@ packages:
     dev: false
     resolution:
       integrity: sha512-16ZvhVjVhEP75sMflsPtXcwbly+79os1zhBVcpRWNmnwifEbZChW+0URYING/A2ehBwp8i0pOXJYzdpiGO3Ivw==
+  /cowsay/1.2.1:
+    dependencies:
+      get-stdin: 5.0.1
+      optimist: 0.6.1
+      string-width: 2.1.1
+    dev: false
+    engines:
+      node: '>= 4'
+    hasBin: true
+    resolution:
+      integrity: sha1-O96fF7pkBJvTWf9XuJFuyB0DMv4=
   /cp-file/7.0.0:
     dependencies:
       graceful-fs: 4.2.1
@@ -6204,6 +6361,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-uWjGsKBDhDJJAui/Gl3zJXmkUP4=
+  /get-stdin/5.0.1:
+    dev: false
+    engines:
+      node: '>=0.12.0'
+    resolution:
+      integrity: sha1-Ei4WFZHiH/TFJTAwVpPyDmOTo5g=
   /get-stdin/7.0.0:
     dev: true
     engines:
@@ -6387,7 +6550,7 @@ packages:
   /graph-sequencer/2.0.0:
     dependencies:
       array-flatten: 2.1.2
-      array-includes: 3.1.0
+      array-includes: 3.1.1
     dev: false
     resolution:
       integrity: sha1-v7gJuK9YT29Sh83OUHow1K6m7nA=
@@ -6465,7 +6628,6 @@ packages:
     resolution:
       integrity: sha1-tdRU3CGZriJWmfNGfloH87lVuv0=
   /has-flag/4.0.0:
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -7038,6 +7200,18 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-056IzLiWHdgVd6Eq1F9HtJl+cIkvi5X2MJ/A1fjQtByHkzQE1wGardnPhqrarOGDF88BOW+297X7PDvZ2vcyVg==
+  /is-positive/1.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=
+  /is-positive/2.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-sU8GvS24EK5sixJ0HRNr+u8Nh70=
   /is-promise/2.1.0:
     dev: true
     resolution:
@@ -7064,6 +7238,12 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-XCoy+WlUr7d1+Z8GgSuXmpuUFC9fOhRXglJMx+dwLKTkL44Cjd4W1Z5P+BQZpr+cR93aGP4S/s7Ftw6Nd/kiEw==
+  /is-string/1.0.5:
+    dev: false
+    engines:
+      node: '>= 0.4'
+    resolution:
+      integrity: sha512-buY6VNRjhQMiF1qWDouloZlQbRhDPCebwxSjxMjxgemYT46YMd2NR0/H+fBhEfWX4A/w9TBJ+ol+okqJKFE6vQ==
   /is-subdir/1.1.1:
     dependencies:
       better-path-resolve: 1.0.0
@@ -7571,6 +7751,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-GVhwRQ9aExkkeN9Lw9I9LeoZB7Y=
+  /lodash.get/4.4.2:
+    dev: true
+    resolution:
+      integrity: sha1-LRd/ZS+jHpObRDjVNBSZ36OCXpk=
   /lodash.includes/4.3.0:
     dev: true
     resolution:
@@ -7993,7 +8177,6 @@ packages:
     resolution:
       integrity: sha512-FyBrT/d0d4+uiZRbqznPXqw3IpZZG3gl3wKWiX784FycUKVwBt0uLBFkQrtE4tZOrgo78nZp2jnKz3L65T5LdQ==
   /minimist/0.0.10:
-    dev: true
     resolution:
       integrity: sha1-3j+YVD2/lggr5IrRoMfNqDYwHc8=
   /minimist/0.0.8:
@@ -8186,6 +8369,17 @@ packages:
     dev: true
     resolution:
       integrity: sha512-Ymbac/94xeIrMf59REBPOv0thr+CJVFMhrlAkW/gjCIE58BGQdCj0x7KRCb3yz+Ga2Rz3E9XXSvUyyxqqhjQAQ==
+  /nise/3.0.0:
+    dependencies:
+      '@sinonjs/commons': 1.7.0
+      '@sinonjs/formatio': 4.0.1
+      '@sinonjs/text-encoding': 0.7.1
+      just-extend: 4.0.2
+      lolex: 5.1.2
+      path-to-regexp: 1.8.0
+    dev: true
+    resolution:
+      integrity: sha512-EObFx5tioBMePHpU/gGczaY2YDqL255iwjmZwswu2CiwEW8xIGrr3E2xij+efIppS1nLQo9NyXSIUySGHUOhHQ==
   /nm-prune/4.0.0:
     dependencies:
       find-root: 1.1.0
@@ -8599,7 +8793,6 @@ packages:
     dependencies:
       minimist: 0.0.10
       wordwrap: 0.0.3
-    dev: true
     resolution:
       integrity: sha1-2j6nRob6IaGaERwybpDrFaAZZoY=
   /optionator/0.8.3:
@@ -10073,6 +10266,18 @@ packages:
     dev: true
     resolution:
       integrity: sha512-AoD0oJWerp0/rY9czP/D6hDTTUYGpObhZjMpd7Cl/A6+j0xBE+ayL/ldfggkBXUs0IkvIiM1ljM8+WkOc5k78Q==
+  /sinon/8.0.0:
+    dependencies:
+      '@sinonjs/commons': 1.7.0
+      '@sinonjs/formatio': 4.0.1
+      '@sinonjs/samsam': 4.2.0
+      diff: 4.0.1
+      lolex: 5.1.2
+      nise: 3.0.0
+      supports-color: 7.1.0
+    dev: true
+    resolution:
+      integrity: sha512-9ugfO9tMrxTzqViG0hGhJoLXj8M01FZwfXMpYSmQT1AuV2jyXDJZUMpbENHBY9/2c2u6RKkHOcbYINx2FttUkg==
   /slash/2.0.0:
     dev: true
     engines:
@@ -10528,7 +10733,6 @@ packages:
   /supports-color/7.1.0:
     dependencies:
       has-flag: 4.0.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -11368,7 +11572,6 @@ packages:
     resolution:
       integrity: sha512-Hz/mrNwitNRh/HUAtM/VT/5VH+ygD6DV7mYKZAtHOrbs8U7lvPS6xf7EJKMF0uW1KJCl0H701g3ZGus+muE5vQ==
   /wordwrap/0.0.3:
-    dev: true
     engines:
       node: '>=0.4.0'
     resolution:

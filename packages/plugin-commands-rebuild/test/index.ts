@@ -1,36 +1,42 @@
-import { prepareEmpty, preparePackages } from '@pnpm/prepare'
+///<reference path="../../../typings/index.d.ts" />
+import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { rebuild } from '@pnpm/plugin-commands-rebuild'
+import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { copyFixture } from '@pnpm/test-fixtures'
 import { PackageManifest } from '@pnpm/types'
-import ncpCB = require('ncp')
+import execa = require('execa')
 import path = require('path')
 import exists = require('path-exists')
-import {
-  addDependenciesToPackage,
-  mutateModules,
-  rebuild,
-  rebuildPkgs,
-} from 'supi'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
+import sinon = require('sinon')
+import test = require('tape')
 import { promisify } from 'util'
-import {
-  pathToLocalPkg,
-  testDefaults,
-} from './utils'
 
-const ncp = promisify(ncpCB.ncp)
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
+const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const DEFAULT_OPTS = {
+  independentLeaves: false,
+  lock: false,
+  rawConfig: {
+    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
+  },
+  registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
+}
 
-test('rebuilds dependencies', async (t: tape.Test) => {
+test('rebuilds dependencies', async (t) => {
   const project = prepareEmpty(t)
+  const storeDir = path.resolve('store')
 
-  const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
-  const manifest = await addDependenciesToPackage(
-    {},
-    pkgs,
-    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies', ignoreScripts: true }),
-  )
+  await execa('pnpm', [
+    'add',
+    '--save-dev',
+    'pre-and-postinstall-scripts-example',
+    'zkochan/install-scripts-example#prepare',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
 
   let modules = await project.readModulesManifest()
   t.deepEqual(modules!.pendingBuilds, [
@@ -38,16 +44,12 @@ test('rebuilds dependencies', async (t: tape.Test) => {
     'github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb',
   ])
 
-  await rebuild(
-    [
-      {
-        buildIndex: 0,
-        manifest,
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults(),
-  )
+  await rebuild.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    pending: false,
+    storeDir,
+  })
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -71,32 +73,58 @@ test('rebuilds dependencies', async (t: tape.Test) => {
     t.equal(scripts[2], 'postinstall')
     t.equal(scripts[3], 'prepare')
   }
+  t.end()
 })
 
-test('rebuild does not fail when a linked package is present', async (t: tape.Test) => {
+test('rebuild does not fail when a linked package is present', async (t) => {
   prepareEmpty(t)
-  await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
+  const storeDir = path.resolve('store')
+  await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
 
-  const manifest = await addDependenciesToPackage({}, ['link:../local-pkg', 'is-positive'], await testDefaults())
+  await execa('pnpm', [
+    'add',
+    'link:../local-pkg',
+    'is-positive',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
 
-  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults())
+  await rebuild.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    pending: false,
+    storeDir,
+  })
 
   // see related issue https://github.com/pnpm/pnpm/issues/1155
   t.pass('rebuild did not fail')
+  t.end()
 })
 
-test('rebuilds specific dependencies', async (t: tape.Test) => {
+test('rebuilds specific dependencies', async (t) => {
   const project = prepareEmpty(t)
-  const manifest = await addDependenciesToPackage(
-    {},
-    [
-      'pre-and-postinstall-scripts-example',
-      'zkochan/install-scripts-example'
-    ],
-    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies', ignoreScripts: true }),
-  )
+  const storeDir = path.resolve('store')
+  await execa('pnpm', [
+    'add',
+    '--save-dev',
+    'pre-and-postinstall-scripts-example',
+    'zkochan/install-scripts-example',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
 
-  await rebuildPkgs([{ manifest, rootDir: process.cwd() }], ['install-scripts-example-for-pnpm'], await testDefaults())
+  await rebuild.handler(['install-scripts-example-for-pnpm'], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    pending: false,
+    storeDir,
+  })
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
@@ -106,12 +134,30 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
 
   const generatedByPostinstall = project.requireModule('install-scripts-example-for-pnpm/generated-by-postinstall')
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+  t.end()
 })
 
-test('rebuild with pending option', async (t: tape.Test) => {
+test('rebuild with pending option', async (t) => {
   const project = prepareEmpty(t)
-  let manifest = await addDependenciesToPackage({}, ['pre-and-postinstall-scripts-example'], await testDefaults({ fastUnpack: false, ignoreScripts: true }))
-  manifest = await addDependenciesToPackage(manifest, ['zkochan/install-scripts-example'], await testDefaults({ fastUnpack: false, ignoreScripts: true }))
+  const storeDir = path.resolve('store')
+  await execa('pnpm', [
+    'add',
+    'pre-and-postinstall-scripts-example',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
+  await execa('pnpm', [
+    'add',
+    'zkochan/install-scripts-example',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
 
   let modules = await project.readModulesManifest()
   t.deepEqual(modules!.pendingBuilds, [
@@ -125,7 +171,12 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
+  await rebuild.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    pending: true,
+    storeDir,
+  })
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -146,12 +197,22 @@ test('rebuild with pending option', async (t: tape.Test) => {
     const generatedByPostinstall = project.requireModule('install-scripts-example-for-pnpm/generated-by-postinstall')
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
   }
+  t.end()
 })
 
-test('rebuild dependencies in correct order', async (t: tape.Test) => {
+test('rebuild dependencies in correct order', async (t) => {
   const project = prepareEmpty(t)
+  const storeDir = path.resolve('store')
 
-  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false, ignoreScripts: true }))
+  await execa('pnpm', [
+    'add',
+    'with-postinstall-a',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
 
   let modules = await project.readModulesManifest()
   t.ok(modules)
@@ -160,19 +221,36 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
+  await rebuild.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    pending: false,
+    storeDir,
+  })
 
   modules = await project.readModulesManifest()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
   t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.end()
 })
 
-test('rebuild dependencies in correct order when node_modules uses independent-leaves', async (t: tape.Test) => {
+test('rebuild dependencies in correct order when node_modules uses independent-leaves', async (t) => {
   const project = prepareEmpty(t)
+  const storeDir = path.resolve('store')
 
-  const manifest = await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false, ignoreScripts: true, independentLeaves: true }))
+  await execa('pnpm', [
+    'add',
+    'with-postinstall-a',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+    '--independent-leaves',
+    '--no-hoist',
+  ])
 
   let modules = await project.readModulesManifest()
   t.ok(modules)
@@ -181,105 +259,36 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true }, independentLeaves: true }))
+  await rebuild.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    independentLeaves: true,
+    pending: true,
+    storeDir,
+  })
 
   modules = await project.readModulesManifest()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
   t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.end()
 })
 
-test('rebuild multiple packages in correct order', async (t: tape.Test) => {
-  const pkgs = [
-    {
-      name: 'project-1',
-      version: '1.0.0',
-
-      dependencies: {
-        'json-append': '1',
-      },
-      scripts: {
-        postinstall: `node -e "process.stdout.write('project-1')" | json-append ../output1.json && node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
-      },
-    },
-    {
-      name: 'project-2',
-      version: '1.0.0',
-
-      dependencies: {
-        'json-append': '1',
-        'project-1': '1'
-      },
-      scripts: {
-        postinstall: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
-      },
-    },
-    {
-      name: 'project-3',
-      version: '1.0.0',
-
-      dependencies: {
-        'json-append': '1',
-        'project-1': '1'
-      },
-      scripts: {
-        postinstall: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
-      },
-    },
-    {
-      name: 'project-0',
-      version: '1.0.0',
-
-      dependencies: {},
-    },
-  ] as PackageManifest[]
-  preparePackages(t, pkgs)
-
-  const importers = [
-    {
-      buildIndex: 1,
-      manifest: pkgs[2],
-      rootDir: path.resolve('project-3'),
-    },
-    {
-      buildIndex: 1,
-      manifest: pkgs[1],
-      rootDir: path.resolve('project-2'),
-    },
-    {
-      buildIndex: 0,
-      manifest: pkgs[0],
-      rootDir: path.resolve('project-1'),
-    },
-    {
-      buildIndex: 0,
-      manifest: pkgs[3],
-      rootDir: path.resolve('project-0'),
-    },
-  ]
-  await mutateModules(
-    importers.map((importer) => ({ ...importer, mutation: 'install' as 'install' })),
-    await testDefaults({ fastUnpack: false, ignoreScripts: true }),
-  )
-
-  await rebuild(importers, await testDefaults())
-
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
-
-  t.deepEqual(outputs1, ['project-1', 'project-2'])
-  t.deepEqual(outputs2, ['project-1', 'project-3'])
-})
-
-test('rebuild links bins', async (t: tape.Test) => {
+test('rebuild links bins', async (t) => {
   const project = prepareEmpty(t)
+  const storeDir = path.resolve('store')
 
-  const manifest = await addDependenciesToPackage(
-    {},
-    ['has-generated-bins-as-dep', 'generated-bins'],
-    await testDefaults({ fastUnpack: false, ignoreScripts: true }),
-  )
+  await execa('pnpm', [
+    'add',
+    'has-generated-bins-as-dep',
+    'generated-bins',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
 
   t.notOk(await exists(path.resolve('node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/.bin/cmd2')))
@@ -288,10 +297,54 @@ test('rebuild links bins', async (t: tape.Test) => {
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2')))
 
-  await rebuild([{ buildIndex: 0, manifest, rootDir: process.cwd() }], await testDefaults({ rawConfig: { pending: true } }))
+  await rebuild.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    pending: true,
+    storeDir,
+  })
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')
   await project.isExecutable('has-generated-bins-as-dep/node_modules/.bin/cmd1')
   await project.isExecutable('has-generated-bins-as-dep/node_modules/.bin/cmd2')
+  t.end()
+})
+
+test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t) => {
+  prepare(t, {
+    dependencies: {
+      'pre-and-postinstall-scripts-example': '1.0.0',
+    },
+    optionalDependencies: {
+      'not-compatible-with-any-os': '1.0.0',
+    },
+  })
+  const storeDir = path.resolve('store')
+
+  await execa('pnpm', [
+    'install',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    storeDir,
+    '--ignore-scripts',
+  ])
+
+  const reporter = sinon.spy()
+
+  await rebuild.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    pending: true,
+    reporter,
+    storeDir,
+  })
+
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    message: `No entry for "/not-compatible-with-any-os/1.0.0" in ${WANTED_LOCKFILE}`,
+    name: 'pnpm',
+  }), 'missing package reported')
+  t.end()
 })

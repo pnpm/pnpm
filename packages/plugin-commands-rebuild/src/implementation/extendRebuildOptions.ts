@@ -1,9 +1,9 @@
+import { LogBase } from '@pnpm/logger'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
-import pnpmPkgJson from '../pnpmPkgJson'
-import { ReporterFunction } from '../types'
 
 export interface StrictRebuildOptions {
   childConcurrency: number,
@@ -18,7 +18,7 @@ export interface StrictRebuildOptions {
   registries: Registries,
   dir: string,
 
-  reporter: ReporterFunction,
+  reporter: (logObj: LogBase) => void,
   production: boolean,
   development: boolean,
   optional: boolean,
@@ -37,10 +37,8 @@ export type RebuildOptions = Partial<StrictRebuildOptions> &
   Pick<StrictRebuildOptions, 'storeDir' | 'storeController'>
 
 const defaults = async (opts: RebuildOptions) => {
-  const packageManager = opts.packageManager || {
-    name: pnpmPkgJson.name,
-    version: pnpmPkgJson.version,
-  }
+  const packageManager = opts.packageManager ||
+    await loadJsonFile<{name: string, version: string}>(path.join(__dirname, '../../package.json'))!
   const dir = opts.dir || process.cwd()
   const lockfileDir = opts.lockfileDir || dir
   return {

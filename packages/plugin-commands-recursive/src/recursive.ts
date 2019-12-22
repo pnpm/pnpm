@@ -13,6 +13,7 @@ import PnpmError from '@pnpm/error'
 import filterGraph, { PackageSelector, parsePackageSelector } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
+import { rebuild, rebuildPkgs } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
@@ -35,8 +36,6 @@ import {
   InstallOptions,
   MutatedImporter,
   mutateModules,
-  rebuild,
-  rebuildPkgs,
 } from 'supi'
 import exec from './exec'
 import list from './list'

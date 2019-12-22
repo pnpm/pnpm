@@ -6,6 +6,5 @@ export * from './api'
 
 export { ImportersOptions } from '@pnpm/get-context'
 export { InstallOptions } from './install/extendInstallOptions'
-export { RebuildOptions } from './rebuild/extendRebuildOptions'
 
 export { WorkspacePackages } from '@pnpm/resolver-base'

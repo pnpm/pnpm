@@ -3,6 +3,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
@@ -20,10 +21,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { promisify } from 'util'
 import writeJsonFile = require('write-json-file')
-import {
-  pathToLocalPkg,
-  testDefaults,
-} from './utils'
+import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)

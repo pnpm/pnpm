@@ -1,15 +1,15 @@
 import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
-import { createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import { Config, types as allTypes } from '@pnpm/config'
+import { LogBase } from '@pnpm/logger'
+import { CreateStoreControllerOptions, createOrConnectStoreController } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import {
   rebuild,
   rebuildPkgs,
-} from 'supi'
-import { PnpmOptions } from '../types'
+} from './implementation'
 
 export function rcOptionsTypes () {
   return {}
@@ -58,8 +58,9 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: PnpmOptions & { pending: boolean },
-  command: string,
+  opts: Pick<Config, 'dir' | 'engineStrict' | 'independentLeaves'> &
+    CreateStoreControllerOptions &
+    { reporter?: (logObj: LogBase) => void, pending: boolean },
 ) {
   const store = await createOrConnectStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
