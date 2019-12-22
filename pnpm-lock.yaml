@@ -611,7 +611,7 @@ importers:
       npm-run-all: 4.1.5
       read-yaml-file: 1.1.0
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
       tape-promise: 4.0.0
       tempy: 0.3.0
     specifiers:
@@ -662,7 +662,7 @@ importers:
       ramda: 0.26.1
       read-yaml-file: 1.1.0
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
       tape-promise: 4.0.0
       tempy: 0.3.0
   packages/hoist:
@@ -1115,7 +1115,7 @@ importers:
       nock: 11.7.0
       normalize-path: 3.0.0
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/check-package': 3.0.1
@@ -1152,7 +1152,7 @@ importers:
       ramda: 0.26.1
       rename-overwrite: 2.0.2
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
       ssri: 6.0.1
       symlink-dir: 3.1.1
       tempy: 0.3.0
@@ -1191,7 +1191,7 @@ importers:
       '@types/sinon': 7.5.1
       proxyquire: 2.1.3
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1224,7 +1224,7 @@ importers:
       ramda: 0.26.1
       rename-overwrite: 2.0.2
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
       tempy: 0.3.0
       write-json-file: 4.0.0
   packages/parse-cli-args:
@@ -1868,7 +1868,7 @@ importers:
       load-json-file: 6.2.0
       path-exists: 4.0.0
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.0'
       '@pnpm/check-package': 3.0.1
@@ -1900,7 +1900,7 @@ importers:
       ramda: 0.26.1
       render-help: 0.0.0
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
   packages/pnpm:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -2467,7 +2467,7 @@ importers:
       read-yaml-file: 1.1.0
       resolve-link-target: 1.0.1
       rimraf: 3.0.0
-      sinon: 7.5.0
+      sinon: 8.0.0
       supi: 'link:'
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
@@ -2564,7 +2564,7 @@ importers:
       run-groups: 2.0.1
       semver: 7.1.1
       semver-utils: 1.1.4
-      sinon: 7.5.0
+      sinon: 8.0.0
       supi: 'link:'
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
@@ -2778,36 +2778,6 @@ importers:
       '@types/ncp': ^2.0.3
       ncp: 2.0.0
       rimraf: 3.0.0
-  privatePackages/test-fixtures/fixtures/hello-world-js-bin:
-    dependencies:
-      cowsay: 1.2.1
-    specifiers:
-      cowsay: 1.2.1
-  privatePackages/test-fixtures/fixtures/local-pkg:
-    specifiers: {}
-  privatePackages/test-fixtures/fixtures/local-scoped-pkg:
-    specifiers: {}
-  privatePackages/test-fixtures/fixtures/missing-pkg-name:
-    specifiers: {}
-  privatePackages/test-fixtures/fixtures/symlink-workspace/app1/packages/public/bar:
-    specifiers: {}
-  privatePackages/test-fixtures/fixtures/symlink-workspace/app1/packages/public/foo:
-    dependencies:
-      bar: 'link:../bar'
-    specifiers:
-      bar: 1.0.0
-  privatePackages/test-fixtures/fixtures/tar-pkg:
-    specifiers: {}
-  privatePackages/test-fixtures/fixtures/tar-pkg-with-dep-1:
-    dependencies:
-      is-positive: 1.0.0
-    specifiers:
-      is-positive: ^1.0.0
-  privatePackages/test-fixtures/fixtures/tar-pkg-with-dep-2:
-    dependencies:
-      is-positive: 2.0.0
-    specifiers:
-      is-positive: ^2.0.0
   tools:
     devDependencies:
       '@commitlint/cli': 8.2.0
@@ -3247,13 +3217,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-qbk9AP+cZUsKdW1GJsBpxPKFmCJ0T8swwzVje3qFd+AkQb74Q/tiuzrdfFg8AD2g5HH/XbE/I8Uc1KYHVYWfhg==
-  /@sinonjs/formatio/3.2.2:
-    dependencies:
-      '@sinonjs/commons': 1.7.0
-      '@sinonjs/samsam': 3.3.3
-    dev: true
-    resolution:
-      integrity: sha512-B8SEsgd8gArBLMD6zpRw3juQ2FVSsmdd7qlevyDqzS9WTCtvF55/gAL+h6gue8ZvPYcdiPdvueM/qm//9XzyTQ==
   /@sinonjs/formatio/4.0.1:
     dependencies:
       '@sinonjs/commons': 1.7.0
@@ -3261,14 +3224,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-asIdlLFrla/WZybhm0C8eEzaDNNrzymiTqHMeJl6zPW2881l3uuVRpm0QlRQEjqYWv6CcKMGYME3LbrLJsORBw==
-  /@sinonjs/samsam/3.3.3:
-    dependencies:
-      '@sinonjs/commons': 1.7.0
-      array-from: 2.1.1
-      lodash: 4.17.15
-    dev: true
-    resolution:
-      integrity: sha512-bKCMKZvWIjYD0BLGnNrxVuw4dkWCYsLqFOUWw8VgKF/+5Y+mE7LfHWPIYoDXowH+3a9LsWDMo0uAP8YDosPvHQ==
   /@sinonjs/samsam/4.2.0:
     dependencies:
       '@sinonjs/commons': 1.7.0
@@ -5131,17 +5086,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-16ZvhVjVhEP75sMflsPtXcwbly+79os1zhBVcpRWNmnwifEbZChW+0URYING/A2ehBwp8i0pOXJYzdpiGO3Ivw==
-  /cowsay/1.2.1:
-    dependencies:
-      get-stdin: 5.0.1
-      optimist: 0.6.1
-      string-width: 2.1.1
-    dev: false
-    engines:
-      node: '>= 4'
-    hasBin: true
-    resolution:
-      integrity: sha1-O96fF7pkBJvTWf9XuJFuyB0DMv4=
   /cp-file/7.0.0:
     dependencies:
       graceful-fs: 4.2.1
@@ -5534,12 +5478,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-BzLapmfcyhgyBqXQyIWg5jAEbCzQMi3jkbITHoUT4vVZ8zcGgwafuwy6JpnlK+qE5N0U92SKD852LVjHYMVE5Q==
-  /diff/3.5.0:
-    dev: true
-    engines:
-      node: '>=0.3.1'
-    resolution:
-      integrity: sha512-A46qtFgd+g7pDZinpnwiRJtxbC1hpgf0uzP3iG89scHk0AUC7A1TGxf5OiiOUv/JMZR8GOt8hL900hV0bOy5xA==
   /diff/4.0.1:
     dev: true
     engines:
@@ -6361,12 +6299,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-uWjGsKBDhDJJAui/Gl3zJXmkUP4=
-  /get-stdin/5.0.1:
-    dev: false
-    engines:
-      node: '>=0.12.0'
-    resolution:
-      integrity: sha1-Ei4WFZHiH/TFJTAwVpPyDmOTo5g=
   /get-stdin/7.0.0:
     dev: true
     engines:
@@ -7200,18 +7132,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-056IzLiWHdgVd6Eq1F9HtJl+cIkvi5X2MJ/A1fjQtByHkzQE1wGardnPhqrarOGDF88BOW+297X7PDvZ2vcyVg==
-  /is-positive/1.0.0:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=
-  /is-positive/2.0.0:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-sU8GvS24EK5sixJ0HRNr+u8Nh70=
   /is-promise/2.1.0:
     dev: true
     resolution:
@@ -7851,10 +7771,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-pMIXoN2aUFFdm5ICBgkas9TgMc8=
-  /lolex/4.2.0:
-    dev: true
-    resolution:
-      integrity: sha512-gKO5uExCXvSm6zbF562EvM+rd1kQDnB9AZBbiQVzf1ZmdDpxUSvpnAaVOP83N/31mRK8Ml8/VE8DMvsAZQ+7wg==
   /lolex/5.1.2:
     dependencies:
       '@sinonjs/commons': 1.7.0
@@ -8177,6 +8093,7 @@ packages:
     resolution:
       integrity: sha512-FyBrT/d0d4+uiZRbqznPXqw3IpZZG3gl3wKWiX784FycUKVwBt0uLBFkQrtE4tZOrgo78nZp2jnKz3L65T5LdQ==
   /minimist/0.0.10:
+    dev: true
     resolution:
       integrity: sha1-3j+YVD2/lggr5IrRoMfNqDYwHc8=
   /minimist/0.0.8:
@@ -8359,16 +8276,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
-  /nise/1.5.3:
-    dependencies:
-      '@sinonjs/formatio': 3.2.2
-      '@sinonjs/text-encoding': 0.7.1
-      just-extend: 4.0.2
-      lolex: 5.1.2
-      path-to-regexp: 1.8.0
-    dev: true
-    resolution:
-      integrity: sha512-Ymbac/94xeIrMf59REBPOv0thr+CJVFMhrlAkW/gjCIE58BGQdCj0x7KRCb3yz+Ga2Rz3E9XXSvUyyxqqhjQAQ==
   /nise/3.0.0:
     dependencies:
       '@sinonjs/commons': 1.7.0
@@ -8793,6 +8700,7 @@ packages:
     dependencies:
       minimist: 0.0.10
       wordwrap: 0.0.3
+    dev: true
     resolution:
       integrity: sha1-2j6nRob6IaGaERwybpDrFaAZZoY=
   /optionator/0.8.3:
@@ -10254,18 +10162,6 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/7.5.0:
-    dependencies:
-      '@sinonjs/commons': 1.7.0
-      '@sinonjs/formatio': 3.2.2
-      '@sinonjs/samsam': 3.3.3
-      diff: 3.5.0
-      lolex: 4.2.0
-      nise: 1.5.3
-      supports-color: 5.5.0
-    dev: true
-    resolution:
-      integrity: sha512-AoD0oJWerp0/rY9czP/D6hDTTUYGpObhZjMpd7Cl/A6+j0xBE+ayL/ldfggkBXUs0IkvIiM1ljM8+WkOc5k78Q==
   /sinon/8.0.0:
     dependencies:
       '@sinonjs/commons': 1.7.0
@@ -11572,6 +11468,7 @@ packages:
     resolution:
       integrity: sha512-Hz/mrNwitNRh/HUAtM/VT/5VH+ygD6DV7mYKZAtHOrbs8U7lvPS6xf7EJKMF0uW1KJCl0H701g3ZGus+muE5vQ==
   /wordwrap/0.0.3:
+    dev: true
     engines:
       node: '>=0.4.0'
     resolution:
