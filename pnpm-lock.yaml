@@ -1926,10 +1926,7 @@ importers:
       '@pnpm/plugin-commands-store': 'link:../plugin-commands-store'
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/types': 'link:../types'
-      '@types/mz': 2.7.0
-      '@types/wrap-ansi': 3.0.0
       '@zkochan/libnpx': 11.0.3
-      '@zkochan/rimraf': 1.0.0
       chalk: 3.0.0
       common-tags: 1.8.0
       graceful-fs: 4.2.1
@@ -1955,12 +1952,14 @@ importers:
       '@types/is-ci': 2.0.0
       '@types/is-windows': 1.0.0
       '@types/mkdirp': 0.5.2
+      '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
       '@types/ramda': 0.26.38
       '@types/retry': 0.12.0
       '@types/semver': 6.2.0
       '@types/table': 4.0.7
       '@types/update-notifier': 2.5.0
+      '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
       cross-spawn: 7.0.1
@@ -2034,7 +2033,6 @@ importers:
       '@types/semver': ^6.2.0
       '@types/table': ^4.0.7
       '@types/update-notifier': 2.5.0
-      '@types/wrap-ansi': 3.0.0
       '@zkochan/libnpx': 11.0.3
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -3457,6 +3455,7 @@ packages:
     resolution:
       integrity: sha512-8oDqyLC7eD4HM307boe2QWKyuzdzWBj56xI/imSl2cpL+U3tCMaTAkMJ4ee5JBZ/FsOJlvRGeIShiZDAl1qERA==
   /@types/wrap-ansi/3.0.0:
+    dev: true
     resolution:
       integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
   /@types/write-file-atomic/3.0.0:
