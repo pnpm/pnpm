@@ -52,7 +52,7 @@
     "is-windows": "1.0.2",
     "make-dir": "3.0.0",
     "mz": "2.7.0",
-    "process-exists": "3.1.0",
+    "process-exists": "4.0.0",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
     "signal-exit": "3.0.2",
