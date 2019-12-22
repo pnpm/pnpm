@@ -1355,6 +1355,7 @@ importers:
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/registry-mock': 1.11.1
+      '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.38
       rimraf: 3.0.0
@@ -1374,6 +1375,7 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1
       '@pnpm/store-connection-manager': 'workspace:0.2.5'
+      '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@types/common-tags': ^1.8.0
       '@types/ramda': ^0.26.38
       common-tags: 1.8.0
@@ -1904,7 +1906,6 @@ importers:
   packages/pnpm:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
-      '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/default-reporter': 'link:../default-reporter'
@@ -1926,7 +1927,6 @@ importers:
       '@pnpm/plugin-commands-store': 'link:../plugin-commands-store'
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/server': 'link:../server'
-      '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
       '@types/mz': 2.7.0
@@ -1941,7 +1941,6 @@ importers:
       nopt: 4.0.1
       ramda: 0.26.1
       render-help: 0.0.0
-      supi: 'link:../supi'
       update-notifier: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1998,7 +1997,6 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/cli-utils': 'workspace:0.2.5'
-      '@pnpm/common-cli-options-help': 'workspace:0.1.2'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -2027,7 +2025,6 @@ importers:
       '@pnpm/read-package-json': 'workspace:*'
       '@pnpm/run-npm': 'workspace:1.0.0'
       '@pnpm/server': 'workspace:6.0.0'
-      '@pnpm/store-connection-manager': 'workspace:0.2.5'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/write-importer-manifest': 'workspace:*'
@@ -2079,7 +2076,6 @@ importers:
       retry: 0.12.0
       rimraf: 3.0.0
       semver: 7.1.1
-      supi: 'workspace:0.37.6'
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
       tree-kill: 1.2.2

@@ -74,15 +74,12 @@ export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
     'cliOptions' |
     'engineStrict' |
-    'globalBin' |
-    'globalDir' |
     'include' |
-    'linkWorkspacePackages' |
     'saveDev' |
     'saveOptional' |
     'saveProd' |
     'workspaceDir'
-  >,
+  > & Partial<Pick<Config, 'globalBin' | 'globalDir' | 'linkWorkspacePackages'>>,
 ) {
   const cwd = opts?.dir ?? process.cwd()
 
@@ -106,7 +103,7 @@ export async function handler (
 
   // pnpm link
   if (!input || !input.length) {
-    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalDir, opts)
+    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalDir!, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       // A temporary workaround. global bin/prefix are always defined when --global is set
@@ -136,7 +133,7 @@ export async function handler (
     } else {
       globalPkgNames = pkgNames
     }
-    const globalPkgPath = pathAbsolute(opts.globalDir)
+    const globalPkgPath = pathAbsolute(opts.globalDir!)
     globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
   }
 

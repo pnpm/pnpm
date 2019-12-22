@@ -22,7 +22,6 @@
   ],
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.2.5",
-    "@pnpm/common-cli-options-help": "workspace:0.1.2",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
     "@pnpm/default-reporter": "workspace:5.0.5",
@@ -44,7 +43,6 @@
     "@pnpm/plugin-commands-store": "workspace:0.0.0",
     "@pnpm/run-npm": "workspace:1.0.0",
     "@pnpm/server": "workspace:6.0.0",
-    "@pnpm/store-connection-manager": "workspace:0.2.5",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/types": "workspace:4.0.0",
     "@types/mz": "^2.7.0",
@@ -59,7 +57,6 @@
     "nopt": "4.0.1",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
-    "supi": "workspace:0.37.6",
     "update-notifier": "4.0.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 import { audit } from '@pnpm/plugin-commands-audit'
 import { importCommand } from '@pnpm/plugin-commands-import'
-import { add, install, link, remove, unlink, update } from '@pnpm/plugin-commands-installation'
+import { add, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
@@ -18,7 +18,6 @@ import { store } from '@pnpm/plugin-commands-store'
 import { PnpmOptions } from '../types'
 import createHelp from './help'
 import * as installTest from './installTest'
-import * as prune from './prune'
 import * as root from './root'
 
 export type Command = (
