@@ -6,7 +6,7 @@ import {
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { Config, types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes, WsPkg, WsPkgsGraph } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { scopeLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
@@ -221,7 +221,7 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: RecursiveOptions & Pick<Config, 'filter' | 'depth' | 'engineStrict' | 'tag' | 'workspaceDir'> & { long?: boolean, table?: boolean },
+  opts: RecursiveOptions & Pick<Config, 'filter' | 'depth' | 'engineStrict' | 'tag' | 'workspaceDir'> & { long?: boolean, table?: boolean } & Required<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph'>>,
 ) {
   if (opts.workspaceConcurrency < 1) {
     throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
@@ -240,21 +240,8 @@ export async function handler (
   }
 
   const workspaceDir = opts.workspaceDir ?? process.cwd()
-  const allWorkspacePkgs = await findWorkspacePackages(workspaceDir, opts)
 
-  if (!allWorkspacePkgs.length) {
-    logger.info({ message: `No packages found in "${workspaceDir}"`, prefix: workspaceDir })
-    return undefined
-  }
-
-  if (opts.filter) {
-    // TODO: maybe @pnpm/config should return this in a parsed form already?
-    // We don't use opts.prefix in this case because opts.prefix searches for a package.json in parent directories and
-    // selects the directory where it finds one
-    opts['packageSelectors'] = opts.filter.map((f) => parsePackageSelector(f, process.cwd())) // tslint:disable-line
-  }
-
-  const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, { ...opts, workspaceDir }, cmdFullName, cmd)
+  const atLeastOnePackageMatched = await recursive(opts.allWsPkgs, input, { ...opts, workspaceDir }, cmdFullName, cmd)
 
   if (typeof atLeastOnePackageMatched === 'string') {
     return atLeastOnePackageMatched
@@ -303,33 +290,25 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 }
 
 export async function recursive (
-  allPkgs: Array<{dir: string, manifest: DependencyManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void>}>,
+  allWsPkgs: WsPkg[],
   input: string[],
   opts: RecursiveOptions & {
     allowNew?: boolean,
-    packageSelectors?: PackageSelector[],
     ignoredPackages?: Set<string>,
     update?: boolean,
     useBetaCli?: boolean,
+    selectedWsPkgsGraph: WsPkgsGraph,
   } & Required<Pick<Config, 'workspaceDir'>>,
   cmdFullName: string,
   cmd: string,
 ): Promise<boolean | string> {
-  if (allPkgs.length === 0) {
+  if (allWsPkgs.length === 0) {
     // It might make sense to throw an exception in this case
     return false
   }
 
-  const pkgGraphResult = createPkgGraph(allPkgs)
-  let pkgs: Array<{dir: string, manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> }>
-  if (opts.packageSelectors && opts.packageSelectors.length) {
-    pkgGraphResult.graph = await filterGraph(pkgGraphResult.graph, opts.packageSelectors, { workspaceDir: opts.workspaceDir })
-    pkgs = allPkgs.filter(({ dir }) => pkgGraphResult.graph[dir])
-  } else {
-    pkgs = allPkgs
-  }
-
-  const allPackagesAreSelected = pkgs.length === allPkgs.length
+  const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+  const allPackagesAreSelected = pkgs.length === allWsPkgs.length
 
   if (pkgs.length === 0) {
     return false
@@ -341,7 +320,7 @@ export async function recursive (
 
   scopeLogger.debug({
     selected: pkgs.length,
-    total: allPkgs.length,
+    total: allWsPkgs.length,
     workspacePrefix: opts.workspaceDir,
   })
 
@@ -365,21 +344,21 @@ export async function recursive (
   }
 
   const chunks = opts.sort
-    ? sortPackages(pkgGraphResult.graph)
-    : [Object.keys(pkgGraphResult.graph).sort()]
+    ? sortPackages(opts.selectedWsPkgsGraph)
+    : [Object.keys(opts.selectedWsPkgsGraph).sort()]
 
   switch (cmdFullName) {
     case 'test':
-      throwOnFail(await run(chunks, pkgGraphResult.graph, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
+      throwOnFail(await run(chunks, opts.selectedWsPkgsGraph, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
       return true
     case 'run':
-      throwOnFail(await run(chunks, pkgGraphResult.graph, input, cmd, { ...opts, allPackagesAreSelected } as any)) // tslint:disable-line:no-any
+      throwOnFail(await run(chunks, opts.selectedWsPkgsGraph, input, cmd, { ...opts, allPackagesAreSelected } as any)) // tslint:disable-line:no-any
       return true
     case 'update':
       opts = { ...opts, update: true, allowNew: false } as any // tslint:disable-line:no-any
       break
     case 'exec':
-      throwOnFail(await exec(chunks, pkgGraphResult.graph, input, cmd, opts as any)) // tslint:disable-line:no-any
+      throwOnFail(await exec(chunks, opts.selectedWsPkgsGraph, input, cmd, opts as any)) // tslint:disable-line:no-any
       return true
   }
 
@@ -396,13 +375,13 @@ export async function recursive (
   }
 
   const workspacePackages = cmdFullName !== 'unlink'
-    ? arrayOfWorkspacePackagesToMap(allPkgs)
+    ? arrayOfWorkspacePackagesToMap(allWsPkgs)
     : {}
   const installOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
-      && pkgs.length === allPkgs.length,
+      && pkgs.length === allWsPkgs.length,
     storeController,
     storeDir: store.dir,
     workspacePackages,
@@ -551,7 +530,7 @@ export async function recursive (
 
     let pkgPaths = chunks.length === 0
       ? chunks[0]
-      : Object.keys(pkgGraphResult.graph).sort()
+      : Object.keys(opts.selectedWsPkgsGraph).sort()
 
     const limitInstallation = pLimit(opts.workspaceConcurrency)
     await Promise.all(pkgPaths.map((rootDir: string) =>
@@ -747,7 +726,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
   )
 }
 
-function sortPackages<T> (pkgGraph: {[nodeId: string]: PackageNode<T>}): string[][] {
+function sortPackages (pkgGraph: WsPkgsGraph): string[][] {
   const keys = Object.keys(pkgGraph)
   const setOfKeys = new Set(keys)
   const graph = new Map(

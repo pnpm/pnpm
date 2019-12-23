@@ -4,8 +4,8 @@ import R = require('ramda')
 import semver = require('semver')
 
 export type Manifest = {
-  name: string,
-  version: string,
+  name?: string,
+  version?: string,
   dependencies?: {
     [name: string]: string,
   },
@@ -75,7 +75,8 @@ export default function<T> (pkgs: Array<Package & T>): {
 
         const pkgs = R.values(pkgMap).filter(pkg => pkg.manifest.name === depName)
         if (!pkgs.length) return ''
-        const versions = pkgs.map(pkg => pkg.manifest.version)
+        const versions = pkgs.filter(({ manifest }) => manifest.version)
+          .map(pkg => pkg.manifest.version) as string[]
         if (versions.includes(rawSpec)) {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
           return matchedPkg!.dir

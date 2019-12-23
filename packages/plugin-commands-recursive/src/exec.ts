@@ -1,12 +1,12 @@
+import { WsPkgsGraph } from '@pnpm/config'
 import logger from '@pnpm/logger'
 import execa = require('execa')
 import pLimit from 'p-limit'
-import { PackageNode } from 'pkgs-graph'
 import RecursiveSummary from './recursiveSummary'
 
 export default async <T> (
   packageChunks: string[][],
-  graph: {[id: string]: PackageNode<T>},
+  graph: WsPkgsGraph,
   args: string[],
   cmd: string,
   opts: {

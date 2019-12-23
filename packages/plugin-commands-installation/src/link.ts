@@ -122,7 +122,8 @@ export async function handler (
     if (opts.workspaceDir) {
       workspacePackagesArr = await findWorkspacePackages(opts.workspaceDir, opts)
 
-      const pkgsFoundInWorkspace = workspacePackagesArr.filter((pkg) => pkgNames.includes(pkg.manifest.name))
+      const pkgsFoundInWorkspace = workspacePackagesArr
+        .filter(({ manifest }) => manifest.name && pkgNames.includes(manifest.name))
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.dir))
 
       if (pkgsFoundInWorkspace.length && !linkOpts.targetDependenciesField) {

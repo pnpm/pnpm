@@ -1,8 +1,9 @@
+import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import test = require('tape')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, readWsPkgs } from './utils'
 
 test('pnpm recursive test', async (t) => {
   const projects = preparePackages(t, [
@@ -49,13 +50,18 @@ test('pnpm recursive test', async (t) => {
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
   await recursive.handler(['test'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -96,14 +102,19 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   await recursive.handler(['test'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   t.pass('command did not fail')
@@ -137,14 +148,22 @@ test('pnpm recursive test with filtering', async (t) => {
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
   await recursive.handler(['test'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
-    filter: ['project-1'],
+    selectedWsPkgsGraph: await filterPkgsBySelectorObjects(
+      allWsPkgs,
+      [{ namePattern: 'project-1' }],
+      { workspaceDir: process.cwd() },
+    ),
   })
 
   const outputs = await import(path.resolve('output.json')) as string[]

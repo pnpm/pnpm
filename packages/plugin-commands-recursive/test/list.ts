@@ -8,7 +8,7 @@ import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, readWsPkgs } from './utils'
 
 test('recursive list', async (t) => {
   const projects = preparePackages(t, [
@@ -34,14 +34,19 @@ test('recursive list', async (t) => {
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   const output = await recursive.handler(['list'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -91,15 +96,20 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   const output = await recursive.handler(['list'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     depth: 2,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -153,13 +163,16 @@ test('recursive list --filter', async (t) => {
 
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
   })
 
   const output = await recursive.handler(['list'], {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
-    filter: ['project-1...'],
+    ...await readWsPkgs(process.cwd(), [
+      { includeDependencies: true, namePattern: 'project-1' },
+    ]),
   })
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -188,6 +201,7 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
   try {
     const output = await recursive.handler(['why'], {
       ...DEFAULT_OPTS,
+      ...await readWsPkgs(process.cwd(), []),
       dir: process.cwd(),
     })
   } catch (_err) {

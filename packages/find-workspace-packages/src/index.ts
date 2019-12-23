@@ -1,13 +1,13 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { DependencyManifest, ImporterManifest } from '@pnpm/types'
+import { ImporterManifest } from '@pnpm/types'
 import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 
 interface WorkspaceDependencyPackage {
   dir: string
-  manifest: DependencyManifest
+  manifest: ImporterManifest
   writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
 }
 
@@ -29,7 +29,6 @@ export default async (
     packageIsInstallable(pkg.dir, pkg.manifest, opts)
   }
 
-  // FIXME: `name` and `version` might be missing from entries in `pkgs`.
   return pkgs as WorkspaceDependencyPackage[]
 }
 
@@ -48,6 +47,7 @@ export function arrayOfWorkspacePackagesToMap (
   pkgs: WorkspaceDependencyPackage[],
 ) {
   return pkgs.reduce((acc, pkg) => {
+    if (!pkg.manifest.name || !pkg.manifest.version) return acc
     if (!acc[pkg.manifest.name]) {
       acc[pkg.manifest.name] = {}
     }

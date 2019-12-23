@@ -6,11 +6,11 @@ import camelcase from 'camelcase'
 import path = require('path')
 import R = require('ramda')
 import whichcb = require('which')
-import { Config, ConfigWithDeprecatedSettings, UniversalOptions } from './Config'
+import { Config, ConfigWithDeprecatedSettings, UniversalOptions, WsPkg, WsPkgsGraph } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'
 
-export { Config, UniversalOptions }
+export { Config, UniversalOptions, WsPkg, WsPkgsGraph }
 
 const npmDefaults = loadNpmConf.defaults
 

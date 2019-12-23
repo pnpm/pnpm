@@ -1,15 +1,15 @@
+import { WsPkgsGraph } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import { PackageManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import pLimit from 'p-limit'
-import { PackageNode } from 'pkgs-graph'
 import RecursiveSummary from './recursiveSummary'
 
 export default async <T> (
   packageChunks: string[][],
-  graph: {[id: string]: PackageNode<T>},
+  graph: WsPkgsGraph,
   args: string[],
   cmd: string,
   opts: {

@@ -1,6 +1,6 @@
 import matcher from '@pnpm/matcher'
 import isSubdir = require('is-subdir')
-import { PackageNode } from 'pkgs-graph'
+import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
 import R = require('ramda')
 import getChangedPkgs from './getChangedPackages'
 import parsePackageSelector, { PackageSelector } from './parsePackageSelector'
@@ -13,6 +13,37 @@ export interface PackageGraph<T> {
 
 interface Graph {
   [nodeId: string]: string[],
+}
+
+export async function filterPackages<T> (
+  pkgs: Array<Package & T>,
+  filter: string[],
+  opts: {
+    prefix: string,
+    workspaceDir: string,
+  },
+): Promise<PackageGraph<T>> {
+  const packageSelectors = filter.
+    map((f) => parsePackageSelector(f, opts.prefix))
+
+  return filterPkgsBySelectorObjects(pkgs, packageSelectors, opts)
+}
+
+export async function filterPkgsBySelectorObjects<T> (
+  pkgs: Array<Package & T>,
+  packageSelectors: PackageSelector[],
+  opts: {
+    workspaceDir: string,
+  },
+): Promise<PackageGraph<T>> {
+  const { graph } = createPkgGraph<T>(pkgs)
+  if (packageSelectors && packageSelectors.length) {
+    return filterGraph(graph, packageSelectors, {
+      workspaceDir: opts.workspaceDir,
+    })
+  } else {
+    return graph
+  }
 }
 
 export default async function filterGraph<T> (
@@ -84,7 +115,7 @@ function matchPackages<T> (
   pattern: string,
 ) {
   const match = matcher(pattern)
-  return Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name))
+  return Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
 }
 
 function matchPackagesByPath<T> (

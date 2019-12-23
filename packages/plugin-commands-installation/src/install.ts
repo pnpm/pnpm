@@ -11,6 +11,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
+import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { recursive } from '@pnpm/plugin-commands-recursive/lib/recursive'
@@ -397,17 +398,20 @@ export async function handler (
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
     // TODO: reuse somehow the previous read of packages
     // this is not optimal
-    const allWorkspacePkgs = await findWorkspacePackages(opts.workspaceDir, opts)
-    await recursive(allWorkspacePkgs, [], {
+    const allWsPkgs = await findWorkspacePackages(opts.workspaceDir, opts)
+    const selectedWsPkgsGraph = await filterPkgsBySelectorObjects(allWsPkgs, [
+      {
+        includeDependencies: true,
+        parentDir: dir,
+      },
+    ], {
+      workspaceDir: opts.workspaceDir,
+    })
+    await recursive(allWsPkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
       ignoredPackages: new Set([dir]),
-      packageSelectors: [
-        {
-          includeDependencies: true,
-          parentDir: dir,
-        },
-      ],
+      selectedWsPkgsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined
     }, 'install', 'install')
 

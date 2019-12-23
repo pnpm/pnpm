@@ -1,8 +1,19 @@
-import { IncludedDependencies, Registries } from '@pnpm/types'
+import { ImporterManifest, IncludedDependencies, Registries } from '@pnpm/types'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
+export type WsPkg = {
+  dir: string,
+  manifest: ImporterManifest,
+  writeImporterManifest: (manifest: ImporterManifest) => Promise<void>,
+}
+
+export type WsPkgsGraph = Record<string, { dependencies: string[], package: WsPkg }>
+
 export interface Config {
+  allWsPkgs?: WsPkg[],
+  selectedWsPkgsGraph?: WsPkgsGraph,
+
   allowNew: boolean,
   bail: boolean,
   color: 'always' | 'auto' | 'never',

@@ -4,7 +4,7 @@ import { PackageManifest } from '@pnpm/types'
 import path = require('path')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, readWsPkgs } from './utils'
 
 test('pnpm recursive rebuild', async (t) => {
   const projects = preparePackages(t, [
@@ -26,10 +26,13 @@ test('pnpm recursive rebuild', async (t) => {
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
     ignoreScripts: true,
+    selectedWsPkgsGraph,
   })
 
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -39,7 +42,9 @@ test('pnpm recursive rebuild', async (t) => {
 
   await recursive.handler(['rebuild'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   await projects['project-1'].has('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -97,15 +102,20 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
   preparePackages(t, pkgs)
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
     ignoreScripts: true,
+    selectedWsPkgsGraph,
   })
 
   await recursive.handler(['rebuild'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]

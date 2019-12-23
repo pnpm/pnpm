@@ -19,6 +19,8 @@ import {
   types as allTypes,
 } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
+import { filterPackages } from '@pnpm/filter-workspace-packages'
+import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import parseCliArgs from '@pnpm/parse-cli-args'
 import isCI = require('is-ci')
@@ -168,6 +170,21 @@ export default async function run (inputArgv: string[]) {
 
   if (selfUpdate) {
     await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
+  }
+
+  if (workspaceDir && cmd === 'recursive') {
+    const allWsPkgs = await findWorkspacePackages(workspaceDir, config)
+
+    if (!allWsPkgs.length) {
+      console.log(`No packages found in "${workspaceDir}"`)
+      process.exit(0)
+      return
+    }
+    config.selectedWsPkgsGraph = await filterPackages(allWsPkgs, config.filter ?? [], {
+      prefix: process.cwd(),
+      workspaceDir,
+    })
+    config.allWsPkgs = allWsPkgs
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
