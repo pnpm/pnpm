@@ -4,7 +4,7 @@ import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import exists = require('path-exists')
 import test = require('tape')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, readWsPkgs } from './utils'
 
 test('recursive linking/unlinking', async (t) => {
   const projects = preparePackages(t, [
@@ -26,9 +26,12 @@ test('recursive linking/unlinking', async (t) => {
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
@@ -41,7 +44,9 @@ test('recursive linking/unlinking', async (t) => {
 
   await recursive.handler(['unlink'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   process.chdir('project-1')
@@ -80,9 +85,12 @@ test('recursive unlink specific package', async (t) => {
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
@@ -95,7 +103,9 @@ test('recursive unlink specific package', async (t) => {
 
   await recursive.handler(['unlink', 'is-positive'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   process.chdir('project-1')

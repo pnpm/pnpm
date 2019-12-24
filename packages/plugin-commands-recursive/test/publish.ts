@@ -4,7 +4,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa = require('execa')
 import fs = require('mz/fs')
 import test = require('tape')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, readWsPkgs } from './utils'
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -67,6 +67,7 @@ test('recursive publish', async (t) => {
 
   await recursive.handler(['publish'], {
     ...DEFAULT_OPTS,
+    ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
   })
 
@@ -83,6 +84,7 @@ test('recursive publish', async (t) => {
 
   await recursive.handler(['publish'], {
     ...DEFAULT_OPTS,
+    ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
     tag: 'next',
   })

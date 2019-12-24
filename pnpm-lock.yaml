@@ -1338,6 +1338,7 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/error': 'link:../error'
+      '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/package-store': 'link:../package-store'
@@ -1365,6 +1366,7 @@ importers:
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/find-workspace-packages': 'workspace:2.0.8'
       '@pnpm/package-store': 'workspace:7.0.2'
@@ -1910,6 +1912,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/default-reporter': 'link:../default-reporter'
       '@pnpm/file-reporter': 0.1.0
+      '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/logger': 3.1.0
       '@pnpm/parse-cli-args': 'link:../parse-cli-args'
@@ -1932,6 +1935,7 @@ importers:
       graceful-fs: 4.2.1
       is-ci: 2.0.0
       loud-rejection: 2.2.0
+      pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.26.1
       render-help: 0.0.0
       update-notifier: 4.0.0
@@ -1996,6 +2000,7 @@ importers:
       '@pnpm/core-loggers': 'workspace:4.0.0'
       '@pnpm/default-reporter': 'workspace:5.0.5'
       '@pnpm/file-reporter': 0.1.0
+      '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/find-workspace-packages': 'workspace:2.0.8'
       '@pnpm/lockfile-types': 'workspace:1.1.0'
@@ -2057,6 +2062,7 @@ importers:
       npm-run-all: 4.1.5
       p-any: 2.1.0
       path-exists: 4.0.0
+      pkgs-graph: 'workspace:5.0.1'
       pnpm: 'link:'
       ramda: 0.26.1
       read-yaml-file: 1.1.0

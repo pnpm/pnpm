@@ -1,3 +1,5 @@
+import { filterPkgsBySelectorObjects, PackageSelector } from '@pnpm/filter-workspace-packages'
+import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}`
@@ -43,4 +45,19 @@ export const DEFAULT_OPTS = {
   useRunningStoreServer: false,
   useStoreServer: false,
   workspaceConcurrency: 4,
+}
+
+export async function readWsPkgs (
+  workspaceDir: string,
+  pkgSelectors: PackageSelector[],
+) {
+  const allWsPkgs = await findWorkspacePackages(workspaceDir, {})
+  const selectedWsPkgsGraph = await filterPkgsBySelectorObjects(
+    allWsPkgs,
+    pkgSelectors,
+    {
+      workspaceDir,
+    },
+  )
+  return { allWsPkgs, selectedWsPkgsGraph }
 }

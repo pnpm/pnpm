@@ -4,7 +4,7 @@ import { stripIndent } from 'common-tags'
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, readWsPkgs } from './utils'
 
 test('pnpm recursive outdated', async (t) => {
   preparePackages(t, [
@@ -37,15 +37,20 @@ test('pnpm recursive outdated', async (t) => {
     },
   ])
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   {
     const output = await recursive.handler(['outdated'], {
       ...DEFAULT_OPTS,
+      allWsPkgs,
       dir: process.cwd(),
+      selectedWsPkgsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -64,8 +69,10 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await recursive.handler(['outdated'], {
       ...DEFAULT_OPTS,
+      allWsPkgs,
       dir: process.cwd(),
       long: true,
+      selectedWsPkgsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -84,7 +91,9 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await recursive.handler(['outdated'], {
       ...DEFAULT_OPTS,
+      allWsPkgs,
       dir: process.cwd(),
+      selectedWsPkgsGraph,
       table: false,
     })
 
@@ -106,8 +115,10 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await recursive.handler(['outdated'], {
       ...DEFAULT_OPTS,
+      allWsPkgs,
       dir: process.cwd(),
       long: true,
+      selectedWsPkgsGraph,
       table: false,
     })
 
@@ -132,7 +143,9 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await recursive.handler(['outdated', 'is-positive'], {
       ...DEFAULT_OPTS,
+      allWsPkgs,
       dir: process.cwd(),
+      selectedWsPkgsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -179,15 +192,20 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
+  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
   await recursive.handler(['install'], {
     ...DEFAULT_OPTS,
+    allWsPkgs,
     dir: process.cwd(),
+    selectedWsPkgsGraph,
   })
 
   {
     const output = await recursive.handler(['outdated'], {
       ...DEFAULT_OPTS,
+      allWsPkgs,
       dir: process.cwd(),
+      selectedWsPkgsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -206,7 +224,9 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   {
     const output = await recursive.handler(['outdated', 'is-positive'], {
       ...DEFAULT_OPTS,
+      allWsPkgs,
       dir: process.cwd(),
+      selectedWsPkgsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
