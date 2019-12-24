@@ -13,6 +13,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
+    "pretest": "rimraf node_modules/.bin/pnpm",
     "test": "pnpm run tsc && pnpm run lint",
     "prepublishOnly": "pnpm run tsc"
   },
