@@ -172,17 +172,18 @@ export default async function run (inputArgv: string[]) {
     await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
   }
 
-  if (workspaceDir && cmd === 'recursive') {
-    const allWsPkgs = await findWorkspacePackages(workspaceDir, config)
+  if (cmd === 'recursive') {
+    const wsDir = workspaceDir ?? process.cwd()
+    const allWsPkgs = await findWorkspacePackages(wsDir, config)
 
     if (!allWsPkgs.length) {
-      console.log(`No packages found in "${workspaceDir}"`)
+      console.log(`No packages found in "${wsDir}"`)
       process.exit(0)
       return
     }
     config.selectedWsPkgsGraph = await filterPackages(allWsPkgs, config.filter ?? [], {
       prefix: process.cwd(),
-      workspaceDir,
+      workspaceDir: wsDir,
     })
     config.allWsPkgs = allWsPkgs
   }
