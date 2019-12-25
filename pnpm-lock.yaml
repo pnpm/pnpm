@@ -1510,23 +1510,32 @@ importers:
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
+      '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/read-importer-manifest': 'link:../read-importer-manifest'
+      '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/run-npm': 'link:../run-npm'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
       '@zkochan/rimraf': 1.0.0
       cp-file: 7.0.0
       fast-glob: 3.1.1
+      lru-cache: 5.1.1
       mz: 2.7.0
+      p-filter: 2.1.0
       ramda: 0.26.1
       render-help: 0.0.0
       write-json-file: 4.2.1
     devDependencies:
+      '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/cross-spawn': 6.0.1
+      '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
       '@types/ramda': 0.26.38
       cross-spawn: 7.0.1
+      execa: 4.0.0
       path-exists: 4.0.0
       rimraf: 3.0.0
       write-yaml-file: 3.0.1
@@ -1534,19 +1543,28 @@ importers:
       '@pnpm/cli-utils': 'workspace:0.2.5'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
+      '@pnpm/npm-resolver': 'workspace:6.0.2'
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/read-importer-manifest': 'workspace:2.0.1'
+      '@pnpm/resolver-base': 'workspace:6.0.0'
       '@pnpm/run-npm': 'workspace:1.0.0'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:4.0.0'
+      '@pnpm/utils': 'workspace:0.12.2'
       '@types/cross-spawn': ^6.0.1
+      '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.38
       '@zkochan/rimraf': 1.0.0
       cp-file: 7.0.0
       cross-spawn: 7.0.1
+      execa: 4.0.0
       fast-glob: 3.1.1
+      lru-cache: 5.1.1
       mz: 2.7.0
+      p-filter: 2.1.0
       path-exists: 4.0.0
       ramda: 0.26.1
       render-help: 0.0.0
@@ -1648,8 +1666,6 @@ importers:
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/matcher': 'link:../matcher'
-      '@pnpm/npm-resolver': 'link:../npm-resolver'
-      '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -1664,7 +1680,6 @@ importers:
       execa: 4.0.0
       graph-sequencer: 2.0.0
       is-subdir: 1.1.1
-      lru-cache: 5.1.1
       mem: 6.0.1
       mz: 2.7.0
       p-filter: 2.1.0
@@ -1706,8 +1721,6 @@ importers:
       '@pnpm/lockfile-types': 'workspace:1.1.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/npm-resolver': 'workspace:6.0.2'
-      '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-rebuild': 'workspace:0.0.0'
       '@pnpm/plugin-commands-recursive': 'link:'
       '@pnpm/pnpmfile': 'workspace:0.1.0'
@@ -1730,7 +1743,6 @@ importers:
       execa: 4.0.0
       graph-sequencer: 2.0.0
       is-subdir: 1.1.1
-      lru-cache: 5.1.1
       make-dir: 3.0.0
       mem: 6.0.1
       mz: 2.7.0
@@ -5789,7 +5801,7 @@ packages:
       human-signals: 1.1.1
       is-stream: 2.0.0
       merge-stream: 2.0.0
-      npm-run-path: 4.0.0
+      npm-run-path: 4.0.1
       onetime: 5.1.0
       signal-exit: 3.0.2
       strip-final-newline: 2.0.0
@@ -8359,13 +8371,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-NakjLfo11wZ7TLLd8jV7GHFTbF8=
-  /npm-run-path/4.0.0:
+  /npm-run-path/4.0.1:
     dependencies:
       path-key: 3.1.1
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-8eyAOAH+bYXFPSnNnKr3J+yoybe8O87Is5rtAQ8qRczJz1ajcsjg8l2oZqP+Ppx15Ii3S1vUTjQN2h4YO2tWWQ==
+      integrity: sha512-S48WzZW777zhNIrn7gxOlISNAqi9ZC/uQFnRdbeIHhZhCA6UqpkOT8T1G7BvfdgP4Er8gF4sUbaS0i7QvIfCWw==
   /npm/4.6.1:
     bundledDependencies:
       - abbrev

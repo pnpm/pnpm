@@ -8,6 +8,7 @@ import path = require('path')
 import exists = require('path-exists')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
+import { DEFAULT_OPTS } from './utils'
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -22,7 +23,11 @@ test('publish: package with package.json', async (t) => {
     version: '0.0.0',
   })
 
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, 'publish')
   t.end()
 })
 
@@ -32,7 +37,11 @@ test('publish: package with package.yaml', async (t) => {
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
 
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, 'publish')
 
   t.ok(await exists('package.yaml'))
   t.notOk(await exists('package.json'))
@@ -45,7 +54,11 @@ test('publish: package with package.json5', async (t) => {
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })
 
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, 'publish')
 
   t.ok(await exists('package.json5'))
   t.notOk(await exists('package.json'))
@@ -60,7 +73,11 @@ test('publish: package with package.json5 running publish from different folder'
 
   process.chdir('..')
 
-  await publish.handler(['project'], { argv: { original: ['publish', ...CREDENTIALS, 'project'] } }, 'publish')
+  await publish.handler(['project'], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS, 'project'] },
+    dir: process.cwd(),
+  }, 'publish')
 
   t.ok(await exists('project/package.json5'))
   t.notOk(await exists('project/package.json'))
@@ -129,10 +146,20 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
   await fs.writeFile('project-200/LICENSE', 'project-200 license', 'utf8')
 
   process.chdir('project-100')
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] }, workspaceDir }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+    workspaceDir,
+  }, 'publish')
 
   process.chdir('../project-200')
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] }, workspaceDir }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+    workspaceDir,
+  }, 'publish')
 
   process.chdir('../target')
 
@@ -181,7 +208,11 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
 
   process.chdir('test-publish-config')
   await fs.writeFile('published-bin.js', `#!/usr/bin/env node`, 'utf8')
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, 'publish')
 
   const originalManifests = await import(path.resolve('package.json'))
   t.deepEqual(originalManifests, {
@@ -286,7 +317,12 @@ test.skip('publish package that calls executable from the workspace .bin folder 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('test-publish-scripts')
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] }, workspaceDir }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+    workspaceDir,
+  }, 'publish')
 
   t.deepEqual(
     await import(path.resolve('output.json')),
@@ -353,7 +389,11 @@ test('convert specs with workspace protocols to regular version ranges', async (
 
   let err!: PnpmError
   try {
-    await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+    await publish.handler([], {
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      dir: process.cwd(),
+    }, 'publish')
   } catch (_err) {
     err = _err
   }
@@ -368,7 +408,11 @@ test('convert specs with workspace protocols to regular version ranges', async (
   crossSpawn.sync('pnpm', ['multi', 'install', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
 
   process.chdir('workspace-protocol-package')
-  await publish.handler([], { argv: { original: ['publish', ...CREDENTIALS] } }, 'publish')
+  await publish.handler([], {
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, 'publish')
 
   process.chdir('../target')
 

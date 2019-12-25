@@ -36,7 +36,6 @@ import {
   mutateModules,
 } from 'supi'
 import exec from './exec'
-import publish from './publish'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
@@ -328,10 +327,6 @@ export async function recursive (
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
       }
       break
-    case 'publish': {
-      await publish(pkgs, opts)
-      return true
-    }
   }
 
   const chunks = opts.sort

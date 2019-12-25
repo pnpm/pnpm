@@ -1,5 +1,5 @@
 import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
 import runNpm from '@pnpm/run-npm'
@@ -12,6 +12,7 @@ import path = require('path')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
+import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -35,15 +36,24 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: {
+  opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
       original: string[],
     },
     engineStrict?: boolean,
+    recursive?: boolean,
     workspaceDir?: string,
-  },
-  command: string,
+  } & Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph'>,
+  command?: string,
 ) {
+  if (opts.recursive && opts.selectedWsPkgsGraph) {
+    const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+    await recursivePublish(pkgs, {
+      ...opts,
+      workspaceDir: opts.workspaceDir ?? process.cwd(),
+    })
+    return
+  }
   if (args.length && args[0].endsWith('.tgz')) {
     await runNpm(['publish', ...args])
     return

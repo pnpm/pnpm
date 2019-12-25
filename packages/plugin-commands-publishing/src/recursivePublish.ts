@@ -1,43 +1,49 @@
-import { Config } from '@pnpm/config'
+import { Config, WsPkg } from '@pnpm/config'
 import createResolver from '@pnpm/npm-resolver'
-import { publish } from '@pnpm/plugin-commands-publishing'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import runNpm from '@pnpm/run-npm'
 import storePath from '@pnpm/store-path'
-import { ImporterManifest, Registries } from '@pnpm/types'
+import { Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/utils'
 import LRU = require('lru-cache')
 import pFilter = require('p-filter')
+import { handler as publish } from './publish'
+
+export type PublishRecursiveOpts = Required<Pick<Config,
+  'cliOptions' |
+  'dir' |
+  'rawConfig' |
+  'registries' |
+  'workspaceDir'
+>> &
+Partial<Pick<Config,
+  'tag' |
+  'ca' |
+  'cert' |
+  'fetchRetries' |
+  'fetchRetryFactor' |
+  'fetchRetryMaxtimeout' |
+  'fetchRetryMintimeout' |
+  'httpsProxy' |
+  'key' |
+  'localAddress' |
+  'lockfileDir' |
+  'offline' |
+  'proxy' |
+  'storeDir' |
+  'strictSsl' |
+  'userAgent' |
+  'verifyStoreIntegrity'
+>> & {
+  access?: 'public' | 'restricted',
+  argv: {
+    original: string[],
+  },
+}
 
 export default async function (
-  pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
-  opts: Pick<Config, 'cliOptions'> & {
-    access?: 'public' | 'restricted',
-    argv: {
-      original: string[],
-    },
-    tag?: string,
-    ca?: string,
-    cert?: string,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMaxtimeout?: number,
-    fetchRetryMintimeout?: number,
-    httpsProxy?: string,
-    key?: string,
-    localAddress?: string,
-    lockfileDir?: string,
-    offline?: boolean,
-    dir: string,
-    proxy?: string,
-    rawConfig: object,
-    registries: Registries,
-    storeDir?: string,
-    strictSsl?: boolean,
-    userAgent?: string,
-    verifyStoreIntegrity?: boolean,
-    workspaceDir: string,
-  },
+  pkgs: WsPkg[],
+  opts: PublishRecursiveOpts,
 ) {
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
   const resolve = createResolver(Object.assign(opts, {
@@ -59,7 +65,8 @@ export default async function (
   })
   const access = opts.cliOptions['access'] ? ['--access', opts.cliOptions['access']] : []
   for (const pkg of pkgsToPublish) {
-    await publish.handler([pkg.dir], {
+    await publish([pkg.dir], {
+      ...opts,
       argv: {
         original: [
           'publish',
@@ -71,7 +78,7 @@ export default async function (
           ...access,
         ],
       },
-      workspaceDir: opts.workspaceDir,
+      recursive: false,
     }, 'publish')
   }
   const tag = opts.tag || 'latest'
