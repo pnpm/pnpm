@@ -10,13 +10,12 @@ import { Config, types as allTypes, WsPkg, WsPkgsGraph } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { scopeLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
-import filterGraph, { PackageSelector, parsePackageSelector } from '@pnpm/filter-workspace-packages'
-import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { rebuild, rebuildPkgs } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { DependencyManifest, ImporterManifest, PackageManifest } from '@pnpm/types'
+import { ImporterManifest, PackageManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import { oneLine } from 'common-tags'
 import graphSequencer = require('graph-sequencer')
@@ -26,7 +25,6 @@ import fs = require('mz/fs')
 import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
-import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
 import readIniFile = require('read-ini-file')
 import renderHelp = require('render-help')
@@ -38,7 +36,6 @@ import {
   mutateModules,
 } from 'supi'
 import exec from './exec'
-import list from './list'
 import publish from './publish'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
@@ -326,9 +323,6 @@ export async function recursive (
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
 
   switch (cmdFullName) {
-    case 'why':
-    case 'list':
-      return list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
     case 'add':
       if (!input || !input.length) {
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')

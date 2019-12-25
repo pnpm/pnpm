@@ -1403,7 +1403,10 @@ importers:
       render-help: 0.0.0
     devDependencies:
       '@pnpm/constants': 'link:../constants'
+      '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
+      '@pnpm/logger': 3.1.0
       '@pnpm/plugin-commands-listing': 'link:'
+      '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/common-tags': 1.8.0
       '@types/mz': 2.7.0
@@ -1419,8 +1422,11 @@ importers:
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
       '@pnpm/list': 'workspace:4.0.12'
+      '@pnpm/logger': ^3.1.0
       '@pnpm/plugin-commands-listing': 'link:'
+      '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@types/common-tags': 1.8.0
       '@types/mz': ^2.7.0
@@ -1643,7 +1649,6 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
-      '@pnpm/plugin-commands-listing': 'link:../plugin-commands-listing'
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
@@ -1664,7 +1669,6 @@ importers:
       mz: 2.7.0
       p-filter: 2.1.0
       p-limit: 2.2.1
-      pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.26.1
       read-ini-file: 2.0.0
       render-help: 0.0.0
@@ -1703,7 +1707,6 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/npm-resolver': 'workspace:6.0.2'
-      '@pnpm/plugin-commands-listing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-rebuild': 'workspace:0.0.0'
       '@pnpm/plugin-commands-recursive': 'link:'
@@ -1734,7 +1737,6 @@ importers:
       p-filter: 2.1.0
       p-limit: 2.2.1
       path-exists: 4.0.0
-      pkgs-graph: 'workspace:5.0.1'
       ramda: 0.26.1
       read-ini-file: 2.0.0
       read-yaml-file: 1.1.0

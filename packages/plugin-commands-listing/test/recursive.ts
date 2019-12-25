@@ -1,5 +1,6 @@
 import PnpmError from '@pnpm/error'
 import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { list, why } from '@pnpm/plugin-commands-listing'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
@@ -43,12 +44,13 @@ test('recursive list', async (t) => {
     selectedWsPkgsGraph,
   })
 
-  const output = await recursive.handler(['list'], {
+  const output = await list.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+  }, 'list')
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -105,13 +107,14 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
     selectedWsPkgsGraph,
   })
 
-  const output = await recursive.handler(['list'], {
+  const output = await list.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     depth: 2,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+  }, 'list')
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -168,13 +171,14 @@ test('recursive list --filter', async (t) => {
     dir: process.cwd(),
   })
 
-  const output = await recursive.handler(['list'], {
+  const output = await list.handler([], {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    recursive: true,
     ...await readWsPkgs(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
-  })
+  }, 'list')
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -200,11 +204,12 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
 
   let err!: PnpmError
   try {
-    const output = await recursive.handler(['why'], {
+    await why.handler([], {
       ...DEFAULT_OPTS,
       ...await readWsPkgs(process.cwd(), []),
       dir: process.cwd(),
-    })
+      recursive: true,
+    }, 'why')
   } catch (_err) {
     err = _err
   }
