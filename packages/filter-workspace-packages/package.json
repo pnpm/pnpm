@@ -28,6 +28,7 @@
   "homepage": "https://pnpm.js.org",
   "dependencies": {
     "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/find-workspace-packages": "workspace:2.0.8",
     "@pnpm/matcher": "workspace:1.0.0",
     "execa": "4.0.0",
     "find-up": "4.1.0",

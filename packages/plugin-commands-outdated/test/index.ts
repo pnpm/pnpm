@@ -11,6 +11,7 @@ import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import { promisify } from 'util'
+import './recursive'
 
 const copyFile = promisify(fs.copyFile)
 const fixtures = path.join(__dirname, '../../../fixtures')

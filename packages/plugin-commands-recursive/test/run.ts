@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { filterPkgsBySelectorObjects, readWsPkgs } from '@pnpm/filter-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
@@ -7,7 +7,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 test('pnpm recursive run', async (t) => {
   const projects = preparePackages(t, [

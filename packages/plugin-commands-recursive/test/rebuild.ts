@@ -1,10 +1,11 @@
+import { readWsPkgs } from '@pnpm/filter-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
 import path = require('path')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 test('pnpm recursive rebuild', async (t) => {
   const projects = preparePackages(t, [

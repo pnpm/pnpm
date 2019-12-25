@@ -33,7 +33,9 @@
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
     "@pnpm/constants": "workspace:3.0.0",
+    "@pnpm/filter-workspace-packages": "workspace:1.0.1",
     "@pnpm/plugin-commands-outdated": "link:",
+    "@pnpm/plugin-commands-recursive": "workspace:0.1.10",
     "@pnpm/prepare": "workspace:0.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "@types/common-tags": "1.8.0",

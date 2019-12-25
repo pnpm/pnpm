@@ -1,9 +1,9 @@
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
+import { filterPkgsBySelectorObjects, readWsPkgs } from '@pnpm/filter-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import test = require('tape')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 test('pnpm recursive test', async (t) => {
   const projects = preparePackages(t, [

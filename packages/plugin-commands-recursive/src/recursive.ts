@@ -39,7 +39,6 @@ import {
 } from 'supi'
 import exec from './exec'
 import list from './list'
-import outdated from './outdated'
 import publish from './publish'
 import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
@@ -330,8 +329,6 @@ export async function recursive (
     case 'why':
     case 'list':
       return list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
-    case 'outdated':
-      return outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
     case 'add':
       if (!input || !input.length) {
         throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')

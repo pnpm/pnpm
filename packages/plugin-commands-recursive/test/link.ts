@@ -1,10 +1,11 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { readWsPkgs } from '@pnpm/filter-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import exists = require('path-exists')
 import test = require('tape')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 test('recursive linking/unlinking', async (t) => {
   const projects = preparePackages(t, [

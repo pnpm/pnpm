@@ -404,6 +404,7 @@ importers:
   packages/filter-workspace-packages:
     dependencies:
       '@pnpm/error': 'link:../error'
+      '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/matcher': 'link:../matcher'
       execa: 4.0.0
       find-up: 4.1.0
@@ -424,6 +425,7 @@ importers:
     specifiers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-workspace-packages': 'link:'
+      '@pnpm/find-workspace-packages': 'workspace:2.0.8'
       '@pnpm/matcher': 'workspace:1.0.0'
       '@types/is-ci': ^2.0.0
       '@types/is-windows': ^1.0.0
@@ -464,6 +466,7 @@ importers:
   packages/find-workspace-packages:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
       '@pnpm/types': 'link:../types'
       find-packages: 'link:../find-packages'
@@ -473,6 +476,7 @@ importers:
       rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.2.5'
+      '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/find-workspace-packages': 'link:'
       '@pnpm/types': 'workspace:4.0.0'
@@ -1449,7 +1453,9 @@ importers:
       wrap-ansi: 6.2.0
     devDependencies:
       '@pnpm/constants': 'link:../constants'
+      '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/plugin-commands-outdated': 'link:'
+      '@pnpm/plugin-commands-recursive': 'link:../plugin-commands-recursive'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/types': 'link:../types'
       '@types/common-tags': 1.8.0
@@ -1467,11 +1473,13 @@ importers:
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.0.0'
+      '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-yaml': 'workspace:5.0.0'
       '@pnpm/outdated': 'workspace:6.0.5'
       '@pnpm/plugin-commands-outdated': 'link:'
+      '@pnpm/plugin-commands-recursive': 'workspace:0.1.10'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/store-path': 2.1.1
@@ -1635,9 +1643,7 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
-      '@pnpm/outdated': 'link:../outdated'
       '@pnpm/plugin-commands-listing': 'link:../plugin-commands-listing'
-      '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
       '@pnpm/plugin-commands-publishing': 'link:../plugin-commands-publishing'
       '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
@@ -1697,9 +1703,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/npm-resolver': 'workspace:6.0.2'
-      '@pnpm/outdated': 'workspace:6.0.5'
       '@pnpm/plugin-commands-listing': 'workspace:0.1.9'
-      '@pnpm/plugin-commands-outdated': 'workspace:0.1.9'
       '@pnpm/plugin-commands-publishing': 'workspace:0.1.9'
       '@pnpm/plugin-commands-rebuild': 'workspace:0.0.0'
       '@pnpm/plugin-commands-recursive': 'link:'

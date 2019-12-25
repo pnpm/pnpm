@@ -1,4 +1,5 @@
 import PnpmError from '@pnpm/error'
+import { readWsPkgs } from '@pnpm/filter-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import makeDir = require('make-dir')
@@ -7,7 +8,7 @@ import path = require('path')
 import test = require('tape')
 import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 test('recursive install/uninstall', async (t) => {
   const projects = preparePackages(t, [

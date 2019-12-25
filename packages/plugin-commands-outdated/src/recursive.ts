@@ -1,8 +1,12 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
+import { DependenciesField, ImporterManifest } from '@pnpm/types'
+import chalk = require('chalk')
+import { stripIndent } from 'common-tags'
+import R = require('ramda')
+import { table } from 'table'
 import {
-  DEFAULT_COMPARATORS,
   getCellWidth,
   outdatedDependenciesOfWorkspacePackages,
   OutdatedOptions,
@@ -11,12 +15,8 @@ import {
   renderLatest,
   renderPackageName,
   toOutdatedWithVersionDiff,
-} from '@pnpm/plugin-commands-outdated/lib/outdated'
-import { DependenciesField, ImporterManifest } from '@pnpm/types'
-import chalk = require('chalk')
-import { stripIndent } from 'common-tags'
-import R = require('ramda')
-import { table } from 'table'
+} from './outdated'
+import { DEFAULT_COMPARATORS } from './utils'
 
 const DEP_PRIORITY: Record<DependenciesField, number> = {
   dependencies: 1,
@@ -26,7 +26,8 @@ const DEP_PRIORITY: Record<DependenciesField, number> = {
 
 const COMPARATORS = [
   ...DEFAULT_COMPARATORS,
-  (o1: OutdatedInWorkspace, o2: OutdatedInWorkspace) => DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
+  (o1: OutdatedInWorkspace, o2: OutdatedInWorkspace) =>
+    DEP_PRIORITY[o1.belongsTo] - DEP_PRIORITY[o2.belongsTo],
 ]
 
 interface OutdatedInWorkspace extends OutdatedPackage {
@@ -41,7 +42,6 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 export default async (
   pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
   args: string[],
-  cmd: string,
   opts: OutdatedOptions,
 ) => {
   const outdatedByNameAndType = {} as Record<string, OutdatedInWorkspace>

@@ -1,6 +1,6 @@
 import { createLatestManifestGetter, docsUrl, readImporterManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import {
   getLockfileImporterId,
@@ -10,7 +10,7 @@ import {
 import matcher from '@pnpm/matcher'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import outdated, { OutdatedPackage } from '@pnpm/outdated'
-import semverDiff, { SEMVER_CHANGE } from '@pnpm/semver-diff'
+import semverDiff from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
 import { ImporterManifest, Registries } from '@pnpm/types'
 import chalk = require('chalk')
@@ -21,6 +21,11 @@ import renderHelp = require('render-help')
 import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
+import outdatedRecursive from './recursive'
+import {
+  DEFAULT_COMPARATORS,
+  OutdatedWithVersionDiff,
+} from './utils'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -82,17 +87,7 @@ export function help () {
   })
 }
 
-export type OutdatedWithVersionDiff = OutdatedPackage & { change: SEMVER_CHANGE | null, diff?: [string[], string[]] }
-
-/**
- * Default comparators used as the argument to `ramda.sortWith()`.
- */
-export const DEFAULT_COMPARATORS = [
-  sortBySemverChange,
-  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff) => o1.packageName.localeCompare(o2.packageName),
-]
-
-export interface OutdatedOptions {
+export type OutdatedOptions = {
   alwaysAuth: boolean
   ca?: string
   cert?: string
@@ -112,6 +107,7 @@ export interface OutdatedOptions {
   dir: string
   proxy?: string
   rawConfig: object
+  recursive?: boolean,
   registries: Registries
   lockfileDir?: string
   store?: string
@@ -119,13 +115,17 @@ export interface OutdatedOptions {
   table?: boolean
   tag: string
   userAgent: string
-}
+} & Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph'>
 
 export async function handler (
   args: string[],
   opts: OutdatedOptions,
-  command: string,
+  command?: string,
 ) {
+  if (opts.recursive && opts.selectedWsPkgsGraph) {
+    const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+    return outdatedRecursive(pkgs, args, opts)
+  }
   const packages = [
     {
       dir: opts.dir,
@@ -272,20 +272,6 @@ function joinVersionTuples (versionTuples: string[], startIndex: number) {
    }-${
      versionTuples.slice(neededForSemver).join('.')
    }`
-}
-
-export function sortBySemverChange (outdated1: OutdatedWithVersionDiff, outdated2: OutdatedWithVersionDiff) {
-  return pkgPriority(outdated1) - pkgPriority(outdated2)
-}
-
-function pkgPriority (pkg: OutdatedWithVersionDiff) {
-  switch (pkg.change) {
-    case null: return 0
-    case 'fix': return 1
-    case 'feature': return 2
-    case 'breaking': return 3
-    default: return 4
-  }
 }
 
 export function renderDetails ({ latestManifest }: OutdatedPackage) {

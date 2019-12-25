@@ -1,11 +1,12 @@
 import PnpmError from '@pnpm/error'
+import { readWsPkgs } from '@pnpm/filter-workspace-packages'
 import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 test('pnpm recursive exec', async (t) => {
   const projects = preparePackages(t, [

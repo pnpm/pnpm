@@ -1,15 +1,11 @@
 import { packageIsInstallable } from '@pnpm/cli-utils'
+import { WsPkg } from '@pnpm/config'
 import { WORKSPACE_MANIFEST_FILENAME } from '@pnpm/constants'
-import { ImporterManifest } from '@pnpm/types'
 import findPackages from 'find-packages'
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 
-interface WorkspaceDependencyPackage {
-  dir: string
-  manifest: ImporterManifest
-  writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
-}
+export { WsPkg }
 
 export default async (
   workspaceRoot: string,
@@ -29,7 +25,7 @@ export default async (
     packageIsInstallable(pkg.dir, pkg.manifest, opts)
   }
 
-  return pkgs as WorkspaceDependencyPackage[]
+  return pkgs as WsPkg[]
 }
 
 async function requirePackagesManifest (dir: string): Promise<{packages?: string[]} | null> {
@@ -44,7 +40,7 @@ async function requirePackagesManifest (dir: string): Promise<{packages?: string
 }
 
 export function arrayOfWorkspacePackagesToMap (
-  pkgs: WorkspaceDependencyPackage[],
+  pkgs: WsPkg[],
 ) {
   return pkgs.reduce((acc, pkg) => {
     if (!pkg.manifest.name || !pkg.manifest.version) return acc
