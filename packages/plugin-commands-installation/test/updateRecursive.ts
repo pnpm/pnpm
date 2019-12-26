@@ -1,6 +1,6 @@
 import { readWsPkgs } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
-import { recursive } from '@pnpm/plugin-commands-recursive'
+import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
@@ -28,18 +28,22 @@ test('recursive update', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
-  await recursive.handler(['update', 'is-positive@2.0.0'], {
+  await update.handler(['is-positive@2.0.0'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   t.equal(projects['project-1'].requireModule('is-positive/package.json').version, '2.0.0')
@@ -76,24 +80,28 @@ test('recursive update --latest foo should only update workspace packages that h
   const lockfileDir = process.cwd()
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
     lockfileDir,
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
-  await recursive.handler(['update', '@zkochan/async-regex-replace', 'foo', 'qar@100.1.0'], {
+  await update.handler(['@zkochan/async-regex-replace', 'foo', 'qar@100.1.0'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
     latest: true,
     lockfileDir,
+    recursive: true,
     selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
@@ -128,22 +136,26 @@ test('recursive update --latest foo should only update packages that have foo', 
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
-  await recursive.handler(['update', 'foo', 'qar@100.1.0'], {
+  await update.handler(['foo', 'qar@100.1.0'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
     latest: true,
+    recursive: true,
     selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   {
@@ -172,10 +184,12 @@ test('recursive update in workspace should not add new dependencies', async (t) 
     },
   ])
 
-  await recursive.handler(['update', 'is-positive'], {
+  await update.handler(['is-positive'], {
     ...DEFAULT_OPTS,
     ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
   })
 
   projects['project-1'].hasNot('is-positive')
@@ -195,10 +209,12 @@ test('recursive update should not add new dependencies', async (t) => {
     },
   ])
 
-  await recursive.handler(['update', 'is-positive'], {
+  await update.handler(['is-positive'], {
     ...DEFAULT_OPTS,
     ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
   })
 
   projects['project-1'].hasNot('is-positive')

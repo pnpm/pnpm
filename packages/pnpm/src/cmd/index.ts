@@ -5,8 +5,8 @@ import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
-import { recursive } from '@pnpm/plugin-commands-recursive'
 import {
+  exec,
   restart,
   run,
   start,
@@ -35,6 +35,7 @@ const commands: Array<{
 }> = [
   add,
   audit,
+  exec,
   importCommand,
   install,
   installTest,
@@ -45,7 +46,6 @@ const commands: Array<{
   prune,
   publish,
   rebuild,
-  recursive,
   remove,
   restart,
   root,

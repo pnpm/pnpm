@@ -34,6 +34,8 @@ import extendOptions, {
   StrictRebuildOptions,
 } from './extendRebuildOptions'
 
+export { RebuildOptions }
+
 function findPackages (
   packages: PackageSnapshots,
   searched: PackageSelector[],

@@ -1,6 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { readWsPkgs } from '@pnpm/filter-workspace-packages'
-import { recursive } from '@pnpm/plugin-commands-recursive'
+import { install, link, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import exists = require('path-exists')
@@ -28,12 +28,14 @@ test('recursive linking/unlinking', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
@@ -43,11 +45,13 @@ test('recursive linking/unlinking', async (t) => {
     t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
-  await recursive.handler(['unlink'], {
+  await unlink.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   process.chdir('project-1')
@@ -87,12 +91,14 @@ test('recursive unlink specific package', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
@@ -102,11 +108,13 @@ test('recursive unlink specific package', async (t) => {
     t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
-  await recursive.handler(['unlink', 'is-positive'], {
+  await unlink.handler(['is-positive'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   process.chdir('project-1')

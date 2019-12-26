@@ -6,6 +6,7 @@ import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
 import { mutateModules } from 'supi'
 import { cliOptionsTypes, rcOptionsTypes } from './install'
+import recursive from './recursive'
 
 export { cliOptionsTypes, rcOptionsTypes }
 
@@ -40,7 +41,28 @@ export function help () {
   })
 }
 
-export async function handler (input: string[], opts: CreateStoreControllerOptions & Pick<Config, 'engineStrict'>) {
+export async function handler (
+  input: string[],
+  opts: CreateStoreControllerOptions &
+    Pick<Config,
+      'allWsPkgs' |
+      'bail' |
+      'engineStrict' |
+      'include' |
+      'linkWorkspacePackages' |
+      'selectedWsPkgsGraph' |
+      'rawLocalConfig' |
+      'registries' |
+      'pnpmfile' |
+      'workspaceDir'
+    > & {
+      recursive?: boolean,
+    },
+) {
+  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
+    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')
+    return
+  }
   const store = await createOrConnectStoreController(opts)
   const unlinkOpts = Object.assign(opts, {
     storeController: store.ctrl,

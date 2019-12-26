@@ -14,7 +14,7 @@ import { scopeLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
-import { rebuild, rebuildPkgs } from '@pnpm/plugin-commands-rebuild/lib/implementation'
+import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -38,51 +38,6 @@ import {
   mutateModules,
 } from 'supi'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
-
-const supportedRecursiveCommands = new Set([
-  'add',
-  'install',
-  'remove',
-  'update',
-  'unlink',
-  'list',
-  'why',
-  'outdated',
-  'rebuild',
-  'run',
-  'test',
-  'exec',
-  'publish',
-])
-
-function getCommandFullName (commandName: string) {
-  switch (commandName) {
-    case 'i':
-      return 'install'
-    case 'r':
-    case 'rm':
-    case 'un':
-    case 'uninstall':
-      return 'remove'
-    case 'up':
-    case 'upgrade':
-      return 'update'
-    case 'dislink':
-      return 'unlink'
-    case 'ls':
-    case 'la':
-    case 'll':
-      return 'list'
-    case 'rb':
-      return 'rebuild'
-    case 'run-script':
-      return 'run'
-    case 't':
-    case 'tst':
-      return 'test'
-  }
-  return commandName
-}
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -213,43 +168,8 @@ export function help () {
   })
 }
 
-export async function handler (
-  input: string[],
-  opts: RecursiveOptions & Pick<Config, 'filter' | 'depth' | 'engineStrict' | 'tag' | 'workspaceDir'> & { long?: boolean, table?: boolean } & Required<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph'>>,
-) {
-  if (opts.workspaceConcurrency < 1) {
-    throw new PnpmError('INVALID_WORKSPACE_CONCURRENCY', 'Workspace concurrency should be at least 1')
-  }
-
-  const cmd = input.shift()
-  if (!cmd) {
-    help()
-    return undefined
-  }
-  const cmdFullName = getCommandFullName(cmd)
-  if (!supportedRecursiveCommands.has(cmdFullName)) {
-    help()
-    throw new PnpmError('INVALID_RECURSIVE_COMMAND',
-      `"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
-  }
-
-  const workspaceDir = opts.workspaceDir ?? process.cwd()
-
-  const atLeastOnePackageMatched = await recursive(opts.allWsPkgs, input, { ...opts, workspaceDir }, cmdFullName, cmd)
-
-  if (typeof atLeastOnePackageMatched === 'string') {
-    return atLeastOnePackageMatched
-  }
-
-  if (atLeastOnePackageMatched === false) {
-    logger.info({ message: `No packages matched the filters in "${workspaceDir}"`, prefix: workspaceDir })
-  }
-  return undefined
-}
-
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'bail' |
-  'cliOptions' |
   'globalPnpmfile' |
   'hoistPattern' |
   'ignorePnpmfile' |
@@ -270,20 +190,14 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'saveProd' |
   'saveWorkspaceProtocol' |
   'sharedWorkspaceLockfile' |
-  'sort' |
-  'tag' |
-  'workspaceConcurrency'
+  'tag'
 > & {
-  access?: 'public' | 'restricted',
-  argv: {
-    original: string[],
-  },
   latest?: boolean,
   pending?: boolean,
   workspace?: boolean,
-}
+} & Partial<Pick<Config, 'sort' | 'workspaceConcurrency'>>
 
-export async function recursive (
+export default async function recursive (
   allWsPkgs: WsPkg[],
   input: string[],
   opts: RecursiveOptions & {
@@ -294,7 +208,6 @@ export async function recursive (
     selectedWsPkgsGraph: WsPkgsGraph,
   } & Required<Pick<Config, 'workspaceDir'>>,
   cmdFullName: string,
-  cmd: string,
 ): Promise<boolean | string> {
   if (allWsPkgs.length === 0) {
     // It might make sense to throw an exception in this case
@@ -302,12 +215,11 @@ export async function recursive (
   }
 
   const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
-  const allPackagesAreSelected = pkgs.length === allWsPkgs.length
 
   if (pkgs.length === 0) {
     return false
   }
-  const manifestsByPath: { [dir: string]: { manifest: ImporterManifest, writeImporterManifest: (manifest: ImporterManifest) => Promise<void> } } = {}
+  const manifestsByPath: { [dir: string]: Omit<WsPkg, 'dir'> } = {}
   for (const { dir, manifest, writeImporterManifest } of pkgs) {
     manifestsByPath[dir] = { manifest, writeImporterManifest }
   }
@@ -318,7 +230,7 @@ export async function recursive (
     workspacePrefix: opts.workspaceDir,
   })
 
-  const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
+  const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
   switch (cmdFullName) {
     case 'add':
@@ -328,15 +240,9 @@ export async function recursive (
       break
   }
 
-  const chunks = opts.sort
+  const chunks = opts.sort !== false
     ? sortPackages(opts.selectedWsPkgsGraph)
     : [Object.keys(opts.selectedWsPkgsGraph).sort()]
-
-  switch (cmdFullName) {
-    case 'update':
-      opts = { ...opts, update: true, allowNew: false } as any // tslint:disable-line:no-any
-      break
-  }
 
   const store = await createOrConnectStoreController(opts)
 
@@ -418,22 +324,104 @@ export async function recursive (
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
 
-  if (cmdFullName !== 'rebuild') {
-    // For a workspace with shared lockfile
-    if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
-      if (opts.hoistPattern) {
-        logger.info({ message: 'Only the root workspace package is going to have hoisted dependencies in node_modules', prefix: opts.lockfileDir })
+  // For a workspace with shared lockfile
+  if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
+    if (opts.hoistPattern) {
+      logger.info({ message: 'Only the root workspace package is going to have hoisted dependencies in node_modules', prefix: opts.lockfileDir })
+    }
+    let importers = await getImporters()
+    const isFromWorkspace = isSubdir.bind(null, opts.lockfileDir)
+    importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
+    if (importers.length === 0) return true
+    const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
+    const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
+    const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
+    const mutatedImporters = [] as MutatedImporter[]
+    await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
+      const localConfig = await memReadLocalConfig(rootDir)
+      const { manifest, writeImporterManifest } = manifestsByPath[rootDir]
+      let currentInput = [...input]
+      if (updateToLatest) {
+        if (!currentInput || !currentInput.length) {
+          currentInput = updateToLatestSpecsFromManifest(manifest, include)
+        } else {
+          currentInput = createLatestSpecs(currentInput, manifest)
+          if (!currentInput.length) {
+            installOpts.pruneLockfileImporters = false
+            return
+          }
+        }
       }
-      let importers = await getImporters()
-      const isFromWorkspace = isSubdir.bind(null, opts.lockfileDir)
-      importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
-      if (importers.length === 0) return true
-      const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
-      const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
-      const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
-      const mutatedImporters = [] as MutatedImporter[]
-      await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
-        const localConfig = await memReadLocalConfig(rootDir)
+      if (opts.workspace) {
+        if (!currentInput || !currentInput.length) {
+          currentInput = updateToWorkspacePackagesFromManifest(manifest, opts.include, workspacePackages!)
+        } else {
+          currentInput = createWorkspaceSpecs(currentInput, workspacePackages!)
+        }
+      }
+      writeImporterManifests.push(writeImporterManifest)
+      switch (mutation) {
+        case 'uninstallSome':
+          mutatedImporters.push({
+            dependencyNames: currentInput,
+            manifest,
+            mutation,
+            rootDir,
+            targetDependenciesField: getSaveType(opts),
+          } as MutatedImporter)
+          return
+        case 'installSome':
+          mutatedImporters.push({
+            allowNew: cmdFullName === 'install' || cmdFullName === 'add',
+            dependencySelectors: currentInput,
+            manifest,
+            mutation,
+            peer: opts.savePeer,
+            pinnedVersion: getPinnedVersion({
+              saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+              savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
+            }),
+            rootDir,
+            targetDependenciesField: getSaveType(opts),
+          } as MutatedImporter)
+          return
+        case 'install':
+          mutatedImporters.push({
+            buildIndex,
+            manifest,
+            mutation,
+            rootDir,
+          } as MutatedImporter)
+          return
+      }
+    }))
+    const mutatedPkgs = await mutateModules(mutatedImporters, {
+      ...installOpts,
+      hooks,
+      storeController: store.ctrl,
+    })
+    if (opts.save !== false) {
+      await Promise.all(
+        mutatedPkgs
+          .map(({ manifest }, index) => writeImporterManifests[index](manifest))
+      )
+    }
+    return true
+  }
+
+  let pkgPaths = chunks.length === 0
+    ? chunks[0]
+    : Object.keys(opts.selectedWsPkgsGraph).sort()
+
+  const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
+  await Promise.all(pkgPaths.map((rootDir: string) =>
+    limitInstallation(async () => {
+      const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
+      try {
+        if (opts.ignoredPackages && opts.ignoredPackages.has(rootDir)) {
+          return
+        }
+
         const { manifest, writeImporterManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
         if (updateToLatest) {
@@ -441,163 +429,78 @@ export async function recursive (
             currentInput = updateToLatestSpecsFromManifest(manifest, include)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
-            if (!currentInput.length) {
-              installOpts.pruneLockfileImporters = false
-              return
-            }
+            if (!currentInput.length) return
           }
         }
-        if (opts.workspace) {
-          if (!currentInput || !currentInput.length) {
-            currentInput = updateToWorkspacePackagesFromManifest(manifest, opts.include, workspacePackages!)
-          } else {
-            currentInput = createWorkspaceSpecs(currentInput, workspacePackages!)
-          }
-        }
-        writeImporterManifests.push(writeImporterManifest)
-        switch (mutation) {
-          case 'uninstallSome':
-            mutatedImporters.push({
-              dependencyNames: currentInput,
-              manifest,
-              mutation,
-              rootDir,
-              targetDependenciesField: getSaveType(opts),
-            } as MutatedImporter)
-            return
-          case 'installSome':
-            mutatedImporters.push({
-              allowNew: cmdFullName === 'install' || cmdFullName === 'add',
-              dependencySelectors: currentInput,
-              manifest,
-              mutation,
-              peer: opts.savePeer,
-              pinnedVersion: getPinnedVersion({
-                saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
-                savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
-              }),
-              rootDir,
-              targetDependenciesField: getSaveType(opts),
-            } as MutatedImporter)
-            return
-          case 'install':
-            mutatedImporters.push({
-              buildIndex,
-              manifest,
-              mutation,
-              rootDir,
-            } as MutatedImporter)
-            return
-        }
-      }))
-      const mutatedPkgs = await mutateModules(mutatedImporters, {
-        ...installOpts,
-        hooks,
-        storeController: store.ctrl,
-      })
-      if (opts.save !== false) {
-        await Promise.all(
-          mutatedPkgs
-            .map(({ manifest }, index) => writeImporterManifests[index](manifest))
-        )
-      }
-      return true
-    }
 
-    let pkgPaths = chunks.length === 0
-      ? chunks[0]
-      : Object.keys(opts.selectedWsPkgsGraph).sort()
-
-    const limitInstallation = pLimit(opts.workspaceConcurrency)
-    await Promise.all(pkgPaths.map((rootDir: string) =>
-      limitInstallation(async () => {
-        const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
-        try {
-          if (opts.ignoredPackages && opts.ignoredPackages.has(rootDir)) {
-            return
-          }
-
-          const { manifest, writeImporterManifest } = manifestsByPath[rootDir]
-          let currentInput = [...input]
-          if (updateToLatest) {
-            if (!currentInput || !currentInput.length) {
-              currentInput = updateToLatestSpecsFromManifest(manifest, include)
-            } else {
-              currentInput = createLatestSpecs(currentInput, manifest)
-              if (!currentInput.length) return
-            }
-          }
-
-          let action!: any // tslint:disable-line:no-any
-          switch (cmdFullName) {
-            case 'unlink':
-              action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
-              break
-            case 'remove':
-              action = (manifest: PackageManifest, opts: any) => mutateModules([ // tslint:disable-line:no-any
-                {
-                  dependencyNames: currentInput,
-                  manifest,
-                  mutation: 'uninstallSome',
-                  rootDir,
-                },
-              ], opts)
-              break
-            default:
-              action = currentInput.length === 0
-                ? install
-                : (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // tslint:disable-line:no-any
-              break
-          }
-
-          const localConfig = await memReadLocalConfig(rootDir)
-          const newManifest = await action(
-            manifest,
-            {
-              ...installOpts,
-              ...localConfig,
-              bin: path.join(rootDir, 'node_modules', '.bin'),
-              dir: rootDir,
-              hooks,
-              ignoreScripts: true,
-              pinnedVersion: getPinnedVersion({
-                saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
-                savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
-              }),
-              rawConfig: {
-                ...installOpts.rawConfig,
-                ...localConfig,
+        let action!: any // tslint:disable-line:no-any
+        switch (cmdFullName) {
+          case 'unlink':
+            action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
+            break
+          case 'remove':
+            action = (manifest: PackageManifest, opts: any) => mutateModules([ // tslint:disable-line:no-any
+              {
+                dependencyNames: currentInput,
+                manifest,
+                mutation: 'uninstallSome',
+                rootDir,
               },
-              storeController,
-            },
-          )
-          if (opts.save !== false) {
-            await writeImporterManifest(newManifest)
-          }
-          result.passes++
-        } catch (err) {
-          logger.info(err)
-
-          if (!opts.bail) {
-            result.fails.push({
-              error: err,
-              message: err.message,
-              prefix: rootDir,
-            })
-            return
-          }
-
-          err['prefix'] = rootDir // tslint:disable-line:no-string-literal
-          throw err
+            ], opts)
+            break
+          default:
+            action = currentInput.length === 0
+              ? install
+              : (manifest: PackageManifest, opts: any) => addDependenciesToPackage(manifest, currentInput, opts) // tslint:disable-line:no-any
+            break
         }
-      }),
-    ))
 
-    await saveState()
-  }
+        const localConfig = await memReadLocalConfig(rootDir)
+        const newManifest = await action(
+          manifest,
+          {
+            ...installOpts,
+            ...localConfig,
+            bin: path.join(rootDir, 'node_modules', '.bin'),
+            dir: rootDir,
+            hooks,
+            ignoreScripts: true,
+            pinnedVersion: getPinnedVersion({
+              saveExact: typeof localConfig.saveExact === 'boolean' ? localConfig.saveExact : opts.saveExact,
+              savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
+            }),
+            rawConfig: {
+              ...installOpts.rawConfig,
+              ...localConfig,
+            },
+            storeController,
+          },
+        )
+        if (opts.save !== false) {
+          await writeImporterManifest(newManifest)
+        }
+        result.passes++
+      } catch (err) {
+        logger.info(err)
+
+        if (!opts.bail) {
+          result.fails.push({
+            error: err,
+            message: err.message,
+            prefix: rootDir,
+          })
+          return
+        }
+
+        err['prefix'] = rootDir // tslint:disable-line:no-string-literal
+        throw err
+      }
+    }),
+  ))
+
+  await saveState()
 
   if (
-    cmdFullName === 'rebuild' ||
     !opts.lockfileOnly && !opts.ignoreScripts && (
       cmdFullName === 'add' ||
       cmdFullName === 'install' ||
@@ -605,69 +508,10 @@ export async function recursive (
       cmdFullName === 'unlink'
     )
   ) {
-    const action = (
-      cmdFullName !== 'rebuild' || input.length === 0
-      ? rebuild
-      : (importers: any, opts: any) => rebuildPkgs(importers, input, opts) // tslint:disable-line
-    )
-    if (opts.lockfileDir) {
-      const importers = await getImporters()
-      await action(
-        importers,
-        {
-          ...installOpts,
-          pending: cmdFullName !== 'rebuild' || opts.pending === true,
-        },
-      )
-      return true
-    }
-    const limitRebuild = pLimit(opts.workspaceConcurrency)
-    for (const chunk of chunks) {
-      await Promise.all(chunk.map((rootDir: string) =>
-        limitRebuild(async () => {
-          try {
-            if (opts.ignoredPackages && opts.ignoredPackages.has(rootDir)) {
-              return
-            }
-            const localConfig = await memReadLocalConfig(rootDir)
-            await action(
-              [
-                {
-                  buildIndex: 0,
-                  manifest: manifestsByPath[rootDir].manifest,
-                  rootDir,
-                },
-              ],
-              {
-                ...installOpts,
-                ...localConfig,
-                dir: rootDir,
-                pending: cmdFullName !== 'rebuild' || opts.pending === true,
-                rawConfig: {
-                  ...installOpts.rawConfig,
-                  ...localConfig,
-                },
-              },
-            )
-            result.passes++
-          } catch (err) {
-            logger.info(err)
-
-            if (!opts.bail) {
-              result.fails.push({
-                error: err,
-                message: err.message,
-                prefix: rootDir,
-              })
-              return
-            }
-
-            err['prefix'] = rootDir // tslint:disable-line:no-string-literal
-            throw err
-          }
-        }),
-      ))
-    }
+    await rebuild.handler([], {
+      ...opts,
+      pending: opts.pending === true,
+    })
   }
 
   throwOnFail(result)

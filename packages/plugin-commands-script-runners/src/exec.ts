@@ -7,6 +7,8 @@ import pLimit from 'p-limit'
 import R = require('ramda')
 import renderHelp = require('render-help')
 
+export const commandNames = ['exec']
+
 export const rcOptionsTypes = cliOptionsTypes
 
 export function cliOptionsTypes () {

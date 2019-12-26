@@ -1,6 +1,6 @@
 import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
-import { recursive } from '@pnpm/plugin-commands-recursive'
 import { preparePackages } from '@pnpm/prepare'
 import { stripIndent } from 'common-tags'
 import stripAnsi = require('strip-ansi')
@@ -39,12 +39,14 @@ test('pnpm recursive outdated', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   {
     const output = await outdated.handler([], {
@@ -197,12 +199,14 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   {
     const output = await outdated.handler([], {

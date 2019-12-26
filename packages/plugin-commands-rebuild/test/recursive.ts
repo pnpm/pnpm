@@ -1,5 +1,6 @@
 import { readWsPkgs } from '@pnpm/filter-workspace-packages'
-import { recursive } from '@pnpm/plugin-commands-recursive'
+import { install } from '@pnpm/plugin-commands-installation'
+import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
 import path = require('path')
@@ -28,24 +29,28 @@ test('pnpm recursive rebuild', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
     ignoreScripts: true,
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  await recursive.handler(['rebuild'], {
+  await rebuild.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   await projects['project-1'].has('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
@@ -104,19 +109,23 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
     ignoreScripts: true,
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
-  await recursive.handler(['rebuild'], {
+  await rebuild.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]

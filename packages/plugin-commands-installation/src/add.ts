@@ -160,5 +160,5 @@ export async function handler (
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }
-  return install(input, opts, invocation)
+  return install(input, opts, invocation ?? 'add')
 }

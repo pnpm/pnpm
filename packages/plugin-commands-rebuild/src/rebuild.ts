@@ -10,6 +10,7 @@ import {
   rebuild,
   rebuildPkgs,
 } from './implementation'
+import recursive from './recursive'
 
 export function rcOptionsTypes () {
   return {}
@@ -58,10 +59,18 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: Pick<Config, 'dir' | 'engineStrict' | 'independentLeaves'> &
+  opts: Pick<Config, 'allWsPkgs' | 'dir' | 'engineStrict' | 'independentLeaves' | 'rawLocalConfig' | 'registries' | 'selectedWsPkgsGraph' | 'workspaceDir'> &
     CreateStoreControllerOptions &
-    { reporter?: (logObj: LogBase) => void, pending: boolean },
+    {
+      recursive?: boolean,
+      reporter?: (logObj: LogBase) => void,
+      pending: boolean,
+    },
 ) {
+  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
+    await recursive(opts.allWsPkgs, args, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! })
+    return
+  }
   const store = await createOrConnectStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
     storeController: store.ctrl,
