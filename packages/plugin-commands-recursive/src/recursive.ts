@@ -37,7 +37,6 @@ import {
   MutatedImporter,
   mutateModules,
 } from 'supi'
-import exec from './exec'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const supportedRecursiveCommands = new Set([
@@ -337,9 +336,6 @@ export async function recursive (
     case 'update':
       opts = { ...opts, update: true, allowNew: false } as any // tslint:disable-line:no-any
       break
-    case 'exec':
-      throwOnFail(await exec(chunks, opts.selectedWsPkgsGraph, input, cmd, opts as any)) // tslint:disable-line:no-any
-      return true
   }
 
   const store = await createOrConnectStoreController(opts)
