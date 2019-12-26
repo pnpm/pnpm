@@ -1,8 +1,8 @@
+import { RecursiveSummary } from '@pnpm/cli-utils'
 import { WsPkgsGraph } from '@pnpm/config'
 import logger from '@pnpm/logger'
 import execa = require('execa')
 import pLimit from 'p-limit'
-import RecursiveSummary from './recursiveSummary'
 
 export default async <T> (
   packageChunks: string[][],

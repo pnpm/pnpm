@@ -32,14 +32,19 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:1.0.1",
+    "@pnpm/logger": "^3.1.0",
+    "@pnpm/plugin-commands-recursive": "workspace:0.1.10",
     "@pnpm/plugin-commands-script-runners": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
     "@types/common-tags": "^1.8.0",
     "@types/mz": "^2.7.0",
     "@types/ramda": "^0.26.38",
+    "@zkochan/rimraf": "1.0.0",
     "execa": "4.0.0",
     "mz": "2.7.0",
-    "rimraf": "3.0.0"
+    "rimraf": "3.0.0",
+    "write-yaml-file": "3.0.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.2.5",
@@ -47,10 +52,15 @@
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lifecycle": "workspace:8.0.1",
+    "@pnpm/sort-packages": "workspace:0.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.12.2",
     "common-tags": "1.8.0",
+    "p-limit": "2.2.1",
     "ramda": "0.26.1",
     "render-help": "0.0.0"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^3.1.0"
   }
 }

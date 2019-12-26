@@ -1,6 +1,6 @@
 import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
-import { types as allTypes } from '@pnpm/config'
+import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { ImporterManifest } from '@pnpm/types'
@@ -8,6 +8,7 @@ import { realNodeModulesDir } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
+import runRecursive, { RecursiveRunOpts } from './runRecursive'
 
 export const IF_PRESENT_OPTION = {
   'if-present': Boolean,
@@ -54,16 +55,25 @@ export function help () {
   })
 }
 
+export type RunOpts = Omit<RecursiveRunOpts, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'> & {
+  ifPresent?: boolean,
+  recursive?: boolean,
+} & Pick<Config, 'dir' | 'engineStrict'> & (
+  { recursive?: false } &
+  Partial<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'>>
+  |
+  { recursive: true } &
+  Required<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'>>
+)
+
 export async function handler (
   args: string[],
-  opts: {
-    engineStrict?: boolean,
-    extraBinPaths: string[],
-    dir: string,
-    ifPresent?: boolean,
-    rawConfig: object,
-  },
+  opts: RunOpts,
 ) {
+  if (opts.recursive) {
+    await runRecursive(args, opts)
+    return
+  }
   const dir = opts.dir
   const manifest = await readImporterManifestOnly(dir, opts)
   const scriptName = args[0]

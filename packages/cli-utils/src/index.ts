@@ -8,6 +8,7 @@ export * from './createLatestManifestGetter'
 export * from './getPinnedVersion'
 export * from './packageIsInstallable'
 export * from './readImporterManifest'
+export * from './recursiveSummary'
 export * from './style'
 export * from './updateToLatestSpecsFromManifest'
 

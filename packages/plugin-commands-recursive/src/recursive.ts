@@ -3,6 +3,8 @@ import {
   docsUrl,
   getPinnedVersion,
   getSaveType,
+  RecursiveSummary,
+  throwOnCommandFail,
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
@@ -14,11 +16,11 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { rebuild, rebuildPkgs } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
+import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { ImporterManifest, PackageManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import { oneLine } from 'common-tags'
-import graphSequencer = require('graph-sequencer')
 import isSubdir = require('is-subdir')
 import mem = require('mem')
 import fs = require('mz/fs')
@@ -36,8 +38,6 @@ import {
   mutateModules,
 } from 'supi'
 import exec from './exec'
-import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
-import run from './run'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const supportedRecursiveCommands = new Set([
@@ -334,12 +334,6 @@ export async function recursive (
     : [Object.keys(opts.selectedWsPkgsGraph).sort()]
 
   switch (cmdFullName) {
-    case 'test':
-      throwOnFail(await run(chunks, opts.selectedWsPkgsGraph, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
-      return true
-    case 'run':
-      throwOnFail(await run(chunks, opts.selectedWsPkgsGraph, input, cmd, { ...opts, allPackagesAreSelected } as any)) // tslint:disable-line:no-any
-      return true
     case 'update':
       opts = { ...opts, update: true, allowNew: false } as any // tslint:disable-line:no-any
       break
@@ -710,72 +704,6 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest
     ],
     opts,
   )
-}
-
-function sortPackages (pkgGraph: WsPkgsGraph): string[][] {
-  const keys = Object.keys(pkgGraph)
-  const setOfKeys = new Set(keys)
-  const graph = new Map(
-    keys.map((pkgPath) => [
-      pkgPath,
-      pkgGraph[pkgPath].dependencies.filter(
-        /* remove cycles of length 1 (ie., package 'a' depends on 'a').  They
-        confuse the graph-sequencer, but can be ignored when ordering packages
-        topologically.
-
-        See the following example where 'b' and 'c' depend on themselves:
-
-          graphSequencer({graph: new Map([
-            ['a', ['b', 'c']],
-            ['b', ['b']],
-            ['c', ['b', 'c']]]
-          ),
-          groups: [['a', 'b', 'c']]})
-
-        returns chunks:
-
-            [['b'],['a'],['c']]
-
-        But both 'b' and 'c' should be executed _before_ 'a', because 'a' depends on
-        them.  It works (and is considered 'safe' if we run:)
-
-          graphSequencer({graph: new Map([
-            ['a', ['b', 'c']],
-            ['b', []],
-            ['c', ['b']]]
-          ), groups: [['a', 'b', 'c']]})
-
-        returning:
-
-            [['b'], ['c'], ['a']]
-
-        */
-        d => d !== pkgPath &&
-        /* remove unused dependencies that we can ignore due to a filter expression.
-
-        Again, the graph sequencer used to behave weirdly in the following edge case:
-
-          graphSequencer({graph: new Map([
-            ['a', ['b', 'c']],
-            ['d', ['a']],
-            ['e', ['a', 'b', 'c']]]
-          ),
-          groups: [['a', 'e', 'e']]})
-
-        returns chunks:
-
-            [['d'],['a'],['e']]
-
-        But we really want 'a' to be executed first.
-        */
-        setOfKeys.has(d))]
-    ) as Array<[string, string[]]>,
-  )
-  const graphSequencerResult = graphSequencer({
-    graph,
-    groups: [keys],
-  })
-  return graphSequencerResult.chunks
 }
 
 async function readLocalConfig (prefix: string) {
