@@ -34,7 +34,7 @@
   "devDependencies": {
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/filter-workspace-packages": "workspace:1.0.1",
-    "@pnpm/plugin-commands-installation": "link:../plugin-commands-installation",
+    "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-outdated": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
     "@pnpm/types": "workspace:4.0.0",

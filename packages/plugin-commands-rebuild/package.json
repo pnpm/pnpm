@@ -34,7 +34,6 @@
   "devDependencies": {
     "@pnpm/filter-workspace-packages": "workspace:1.0.1",
     "@pnpm/logger": "^3.1.0",
-    "@pnpm/plugin-commands-installation": "link:../plugin-commands-installation",
     "@pnpm/plugin-commands-rebuild": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
     "@pnpm/registry-mock": "1.11.1",

@@ -1,4 +1,4 @@
-const REGISTRY = `https://registry.npmjs.org/`
+export const REGISTRY = `https://registry.npmjs.org/`
 
 export const DEFAULT_OPTS = {
   alwaysAuth: false,

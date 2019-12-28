@@ -1463,7 +1463,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
       '@pnpm/list': 'workspace:4.0.12'
       '@pnpm/logger': ^3.1.0
-      '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
+      '@pnpm/plugin-commands-installation': 'workspace:*'
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@types/common-tags': 1.8.0
@@ -1522,7 +1522,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-yaml': 'workspace:5.0.0'
       '@pnpm/outdated': 'workspace:6.0.5'
-      '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
+      '@pnpm/plugin-commands-installation': 'workspace:*'
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/semver-diff': 1.0.2
@@ -1645,7 +1645,6 @@ importers:
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/logger': 3.1.0
-      '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/registry-mock': 1.11.1
@@ -1675,7 +1674,6 @@ importers:
       '@pnpm/logger': ^3.1.0
       '@pnpm/modules-yaml': 'workspace:5.0.0'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1

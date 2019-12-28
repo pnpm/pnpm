@@ -1,13 +1,13 @@
 import PnpmError from '@pnpm/error'
 import { readWsPkgs } from '@pnpm/filter-workspace-packages'
-import { recursive } from '@pnpm/plugin-commands-recursive'
 import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
+import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS, REGISTRY } from './utils'
 
 test('pnpm recursive exec', async (t) => {
   const projects = preparePackages(t, [
@@ -50,13 +50,15 @@ test('pnpm recursive exec', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
+  const { selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
   await exec.handler(['npm', 'run', 'build'], {
     ...DEFAULT_OPTS,
     selectedWsPkgsGraph,
@@ -128,13 +130,15 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
+  const { selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
 
   let failed = false
   let err1!: PnpmError
@@ -199,14 +203,15 @@ test('pnpm recursive exec --no-sort', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    linkWorkspacePackages: true,
-    selectedWsPkgsGraph,
-  })
+  const { selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
   await exec.handler(['npm', 'run', 'build'], {
     ...DEFAULT_OPTS,
     selectedWsPkgsGraph,
