@@ -58,8 +58,6 @@ export function cliOptionsTypes () {
   }
 }
 
-export const commandNames = ['recursive', 'multi', 'm']
-
 export function help () {
   return renderHelp({
     description: oneLine`
@@ -232,14 +230,6 @@ export default async function recursive (
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
-  switch (cmdFullName) {
-    case 'add':
-      if (!input || !input.length) {
-        throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm recursive add` requires the package name')
-      }
-      break
-  }
-
   const chunks = opts.sort !== false
     ? sortPackages(opts.selectedWsPkgsGraph)
     : [Object.keys(opts.selectedWsPkgsGraph).sort()]
@@ -303,25 +293,6 @@ export default async function recursive (
   const include = opts.include
   if (updateToLatest) {
     delete opts.include
-  }
-  if (opts.workspace && (cmdFullName === 'install' || cmdFullName === 'add')) {
-    if (opts.latest) {
-      throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
-    }
-    if (!opts.workspaceDir) {
-      throw new PnpmError('WORKSPACE_OPTION_OUTSIDE_WORKSPACE', '--workspace can only be used inside a workspace')
-    }
-    if (!opts.linkWorkspacePackages && !opts.saveWorkspaceProtocol) {
-      if (opts.rawLocalConfig['save-workspace-protocol'] === false) {
-        throw new PnpmError('BAD_OPTIONS', oneLine`This workspace has link-workspace-packages turned off,
-          so dependencies are linked from the workspace only when the workspace protocol is used.
-          Either set link-workspace-packages to true or don't use the --no-save-workspace-protocol option
-          when running add/update with the --workspace option`)
-      } else {
-        opts.saveWorkspaceProtocol = true
-      }
-    }
-    opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
 
   // For a workspace with shared lockfile
@@ -499,6 +470,9 @@ export default async function recursive (
   ))
 
   await saveState()
+  // The store should be unlocked because otherwise rebuild will not be able
+  // to access it
+  await storeController.close()
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (

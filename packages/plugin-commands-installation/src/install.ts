@@ -300,10 +300,6 @@ export async function handler (
   opts: InstallCommandOptions,
   invocation: string,
 ) {
-  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
-    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, invocation)
-    return
-  }
   if (opts.workspace) {
     if (opts.latest) {
       throw new PnpmError('BAD_OPTIONS', 'Cannot use --latest with --workspace simultaneously')
@@ -322,6 +318,10 @@ export async function handler (
       }
     }
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
+  }
+  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
+    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, invocation)
+    return
   }
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
@@ -377,9 +377,6 @@ export async function handler (
     }
   }
   if (!input || !input.length) {
-    if (invocation === 'add') {
-      throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
-    }
     const updatedManifest = await install(manifest, installOpts)
     if (opts.update === true && opts.save !== false) {
       await writeImporterManifest(updatedManifest)

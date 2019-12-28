@@ -1,7 +1,7 @@
 import PnpmError from '@pnpm/error'
 import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { install } from '@pnpm/plugin-commands-installation'
 import { list, why } from '@pnpm/plugin-commands-listing'
-import { recursive } from '@pnpm/plugin-commands-recursive'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
@@ -37,12 +37,14 @@ test('recursive list', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   const output = await list.handler([], {
     ...DEFAULT_OPTS,
@@ -100,12 +102,14 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   const output = await list.handler([], {
     ...DEFAULT_OPTS,
@@ -165,11 +169,13 @@ test('recursive list --filter', async (t) => {
     },
   ])
 
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
-  })
+    recursive: true,
+    workspaceDir: process.cwd(),
+  }, 'install')
 
   const output = await list.handler([], {
     ...DEFAULT_OPTS,

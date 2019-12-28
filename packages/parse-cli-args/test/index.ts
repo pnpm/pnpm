@@ -13,55 +13,55 @@ const DEFAULT_OPTS = {
 }
 
 test('a command is recursive if it has a --filter option', async (t) => {
-  const { cmd, subCmd } = await parseCliArgs({
+  const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     globalOptionsTypes: { filter: [String, Array] },
   }, ['--filter', 'foo', 'update'])
-  t.equal(cmd, 'recursive')
-  t.equal(subCmd, 'update')
+  t.equal(cmd, 'update')
+  t.ok(cliConf['recursive'])
   t.end()
 })
 
 test('a command is recursive if -r option is used', async (t) => {
-  const { cmd, subCmd } = await parseCliArgs({
+  const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     globalOptionsTypes: { recursive: Boolean },
     shortHands: { 'r': ['--recursive'] },
   }, ['-r', 'update'])
-  t.equal(cmd, 'recursive')
-  t.equal(subCmd, 'update')
+  t.equal(cmd, 'update')
+  t.ok(cliConf['recursive'])
   t.end()
 })
 
 test('a command is recursive if --recursive option is used', async (t) => {
-  const { cmd, subCmd } = await parseCliArgs({
+  const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     globalOptionsTypes: { recursive: Boolean },
   }, ['-r', 'update'])
-  t.equal(cmd, 'recursive')
-  t.equal(subCmd, 'update')
+  t.equal(cmd, 'update')
+  t.ok(cliConf['recursive'])
   t.end()
 })
 
 test('the install command is recursive when executed in a subdir of a workspace', async (t) => {
-  const { cmd, subCmd, workspaceDir } = await parseCliArgs({
+  const { cliConf, cmd, workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
     globalOptionsTypes: { dir: String },
   }, ['--dir', __dirname, 'install'])
-  t.equal(cmd, 'recursive')
-  t.equal(subCmd, 'install')
+  t.equal(cmd, 'install')
+  t.ok(cliConf['recursive'])
   t.equal(workspaceDir, path.join(__dirname, '../../..'))
   t.end()
 })
 
 test('the install command is recursive when executed in the root of a workspace', async (t) => {
   const expectedWorkspaceDir = path.join(__dirname, '../../..')
-  const { cmd, subCmd, workspaceDir } = await parseCliArgs({
+  const { cliConf, cmd, workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
     globalOptionsTypes: { dir: String },
   }, ['--dir', expectedWorkspaceDir, 'install'])
-  t.equal(cmd, 'recursive')
-  t.equal(subCmd, 'install')
+  t.equal(cmd, 'install')
+  t.ok(cliConf['recursive'])
   t.equal(workspaceDir, expectedWorkspaceDir)
   t.end()
 })
@@ -112,6 +112,7 @@ test('detect unknown options', async (t) => {
     getTypesByCommandName: (commandName: string) => {
       if (commandName === 'install') {
         return {
+          recursive: Boolean,
           registry: String,
         }
       }
@@ -121,24 +122,6 @@ test('detect unknown options', async (t) => {
     isKnownCommand: (commandName) => commandName === 'install',
   }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
   t.deepEqual(unknownOptions, ['save-dev', 'qar'])
-  t.end()
-})
-
-test('merge option types of recursive and subcommand', async (t) => {
-  const { unknownOptions } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    getTypesByCommandName: (commandName: string) => {
-      switch (commandName) {
-        case 'install': return { recursive: Boolean, registry: String }
-        case 'recursive': return { sort: Boolean }
-        default: return {}
-      }
-    },
-    globalOptionsTypes: { filter: [String, Array] },
-    isKnownCommand: (commandName) => commandName === 'install',
-    shortHands: { 'r': ['--recursive'] },
-  }, ['-r', 'install', '--registry=https://example.com', '--sort'])
-  t.deepEqual(unknownOptions, [])
   t.end()
 })
 

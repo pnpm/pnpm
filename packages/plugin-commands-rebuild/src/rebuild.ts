@@ -2,7 +2,10 @@ import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { LogBase } from '@pnpm/logger'
-import { CreateStoreControllerOptions, createOrConnectStoreController } from '@pnpm/store-connection-manager'
+import {
+  createOrConnectStoreController,
+  CreateStoreControllerOptions,
+} from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')

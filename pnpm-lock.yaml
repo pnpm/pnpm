@@ -1443,6 +1443,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/logger': 3.1.0
+      '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/common-tags': 1.8.0
@@ -1462,6 +1463,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
       '@pnpm/list': 'workspace:4.0.12'
       '@pnpm/logger': ^3.1.0
+      '@pnpm/plugin-commands-installation': 'link:../plugin-commands-installation'
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@types/common-tags': 1.8.0
