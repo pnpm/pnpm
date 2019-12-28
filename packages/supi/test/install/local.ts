@@ -18,7 +18,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('scoped modules from a directory', async (t: tape.Test) => {
   const project = prepareEmpty(t)

@@ -10,7 +10,6 @@ const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync<PackageManifest>(path.join(pkgRoot, 'package.json'))
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('installation fails if lifecycle script fails', t => {
   const project = prepare(t, {

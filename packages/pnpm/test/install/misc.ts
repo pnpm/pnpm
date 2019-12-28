@@ -23,7 +23,6 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('bin files are found by lifecycle scripts', t => {
   const project = prepare(t, {

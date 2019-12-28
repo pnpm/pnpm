@@ -11,7 +11,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const testSkip = promisifyTape(tape.skip)
 
 testSkip('subsequent installation uses same lockfile directory by default', async (t: tape.Test) => {

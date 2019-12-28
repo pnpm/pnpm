@@ -36,7 +36,6 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 const IS_WINDOWS = isWindows()
 
@@ -423,7 +422,7 @@ test("don't refetch package to store if it has been modified and verify-store-in
 
 // TODO: decide what to do with this case
 // tslint:disable-next-line:no-string-literal
-test['skip']('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
+test.skip('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 

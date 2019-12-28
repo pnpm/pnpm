@@ -27,7 +27,6 @@ import writeJsonFile = require('write-json-file')
 import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB.ncp)
 
 test('uninstall package with no dependencies', async (t: tape.Test) => {

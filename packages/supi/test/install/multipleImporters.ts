@@ -17,7 +17,6 @@ import writeYamlFile = require('write-yaml-file')
 import { addDistTag, testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('install only the dependencies of the specified importer', async (t) => {
   const projects = preparePackages(t, [

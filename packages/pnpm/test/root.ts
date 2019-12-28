@@ -6,7 +6,6 @@ import promisifyTape from 'tape-promise'
 import { execPnpmSync } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('pnpm root', async (t: tape.Test) => {
   tempDir(t)

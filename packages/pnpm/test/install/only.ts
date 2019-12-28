@@ -8,7 +8,7 @@ import { execPnpm } from '../utils'
 
 const basicPackageManifest = loadJsonFile.sync<PackageManifest>(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
-test['only'] = promisifyTape(tape.only)
+
 
 test('production install (with --production flag)', async (t: tape.Test) => {
   const project = prepare(t, basicPackageManifest)

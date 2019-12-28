@@ -15,7 +15,7 @@ test('API', (t) => {
 // this seems illogical as even though all save types are false,
 // the dependency will be saved
 // tslint:disable-next-line:no-string-literal
-test['skip']('install fails when all saving types are false', async (t: test.Test) => {
+test.skip('install fails when all saving types are false', async (t: test.Test) => {
   try {
     await pnpm.install({}, await testDefaults({ save: false, saveDev: false, saveOptional: false }))
     t.fail('installation should have failed')

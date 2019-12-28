@@ -7,7 +7,6 @@ import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('recursive update --latest should update deps with correct specs', async (t: tape.Test) => {
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })

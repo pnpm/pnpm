@@ -11,7 +11,6 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('global installation', async (t: tape.Test) => {
   prepare(t)

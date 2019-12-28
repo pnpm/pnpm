@@ -6,7 +6,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const addDistTag = pnpmRegistryMock.addDistTag
 
 test('prefer version ranges specified for top dependencies', async (t: tape.Test) => {

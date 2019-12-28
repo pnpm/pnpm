@@ -10,7 +10,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

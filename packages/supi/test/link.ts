@@ -24,7 +24,6 @@ import writeJsonFile = require('write-json-file')
 import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB.ncp)
 
 test('relative link', async (t: tape.Test) => {
@@ -260,7 +259,7 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
   }
 })
 
-// test['skip']('relative link when an external lockfile is used', async (t: tape.Test) => {
+// test.skip('relative link when an external lockfile is used', async (t: tape.Test) => {
 //   const projects = prepare(t, [
 //     {
 //       name: 'project',

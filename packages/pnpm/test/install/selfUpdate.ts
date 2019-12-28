@@ -10,7 +10,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-test['only'] = promisifyTape(tape.only)
+
 
 test('self-update stops the store server', async (t: tape.Test) => {
   const project = prepare(t)

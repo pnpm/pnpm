@@ -13,7 +13,6 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('save to package.json (is-positive@^1.0.0)', async (t) => {
   const project = prepareEmpty(t)

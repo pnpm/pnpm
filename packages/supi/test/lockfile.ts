@@ -26,8 +26,6 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
-test['skip'] = promisifyTape(tape.skip) // tslint:disable-line:no-string-literal
 
 const LOCKFILE_WARN_LOG = {
   level: 'warn',
@@ -559,7 +557,7 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
 // Skipped because the npm-registry.compass.com server was down
 // might be a good idea to mock it
 // tslint:disable-next-line:no-string-literal
-test['skip']('installing from lockfile when using npm enterprise', async (t: tape.Test) => {
+test.skip('installing from lockfile when using npm enterprise', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({ registry: 'https://npm-registry.compass.com/' })

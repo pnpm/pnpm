@@ -8,7 +8,6 @@ import promisifyTape from 'tape-promise'
 import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('uninstall package and remove from appropriate property', async function (t: tape.Test) {
   const project = prepare(t)

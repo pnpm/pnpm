@@ -11,7 +11,6 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('some commands pass through to npm', t => {
   const result = execPnpmSync('dist-tag', 'ls', 'is-positive')
