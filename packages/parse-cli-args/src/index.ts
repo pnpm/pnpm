@@ -79,7 +79,7 @@ export default async function parseCliArgs (
 
   if (cliConf['recursive'] !== true && (cliConf['filter'] || RECURSIVE_CMDS.has(cmd))) {
     cliConf['recursive'] = true
-    if (RECURSIVE_CMDS.has(cmd)) {
+    if (subCmd && RECURSIVE_CMDS.has(cmd)) {
       cliArgs.shift()
       argv.remain.shift()
       cmd = subCmd

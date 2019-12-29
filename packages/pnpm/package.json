@@ -22,6 +22,7 @@
   ],
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.2.5",
+    "@pnpm/common-cli-options-help": "workspace:0.1.2",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
     "@pnpm/default-reporter": "workspace:5.0.5",

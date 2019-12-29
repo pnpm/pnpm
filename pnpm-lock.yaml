@@ -1884,6 +1884,7 @@ importers:
   packages/pnpm:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/default-reporter': 'link:../default-reporter'
@@ -1970,6 +1971,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/cli-utils': 'workspace:0.2.5'
+      '@pnpm/common-cli-options-help': 'workspace:0.1.2'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.0'

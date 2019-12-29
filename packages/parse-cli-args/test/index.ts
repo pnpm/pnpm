@@ -66,6 +66,16 @@ test('the install command is recursive when executed in the root of a workspace'
   t.end()
 })
 
+test('recursive is returned as the command name if no subcommand passed', async (t) => {
+  const { cliConf, cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    globalOptionsTypes: { filter: [String, Array] },
+  }, ['recursive'])
+  t.equal(cmd, 'recursive')
+  t.ok(cliConf['recursive'])
+  t.end()
+})
+
 test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
   const { workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,

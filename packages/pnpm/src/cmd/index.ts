@@ -18,6 +18,7 @@ import { store } from '@pnpm/plugin-commands-store'
 import { PnpmOptions } from '../types'
 import createHelp from './help'
 import * as installTest from './installTest'
+import * as recursive from './recursive'
 import * as root from './root'
 
 export type Command = (
@@ -46,6 +47,7 @@ const commands: Array<{
   prune,
   publish,
   rebuild,
+  recursive,
   remove,
   restart,
   root,
