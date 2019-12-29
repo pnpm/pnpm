@@ -2698,6 +2698,7 @@ importers:
       '@pnpm/assert-project': 'link:'
       '@types/is-windows': 1.0.0
       '@types/isexe': 2.0.0
+      '@types/node': 12.12.22
       rimraf: 3.0.0
     specifiers:
       '@pnpm/assert-project': 'link:'
@@ -2709,6 +2710,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
       '@types/mz': ^2.7.0
+      '@types/node': '12'
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2737,6 +2739,7 @@ importers:
       write-pkg: 4.0.0
       write-yaml-file: 3.0.1
     devDependencies:
+      '@types/node': 12.12.22
       rimraf: 3.0.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
@@ -2744,6 +2747,7 @@ importers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
       '@types/mkdirp': 0.5.2
+      '@types/node': '12'
       make-dir: 3.0.0
       rimraf: 3.0.0
       tempy: 0.3.0
