@@ -46,13 +46,13 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
     path.join('project', 'node_modules'),
     {
       ...opts,
+      dir: path.resolve('project'),
       manifest: {
         dependencies: {
           'is-positive': '^1.0.0',
           'is-subdir': '^1.0.0',
         },
       },
-      dir: path.resolve('project'),
     },
   )
 
