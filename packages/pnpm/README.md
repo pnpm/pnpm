@@ -16,7 +16,7 @@ Features:
 
 * **Fast.** As fast as npm and Yarn.
 * **Efficient.** One version of a package is saved only ever once on a disk.
-* **Great for [multi-package repositories](https://pnpm.js.org/en/workspaces) (a.k.a. monorepos).**
+* **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
 * **Works everywhere.** Works on Windows, Linux and OS X.
