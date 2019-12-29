@@ -2,8 +2,8 @@ import {
   Dependencies,
 } from '@pnpm/types'
 import { parseWantedDependency } from '@pnpm/utils'
-import { PinnedVersion, WantedDependency } from './install/getWantedDependencies'
 import guessPinnedVersionFromExistingSpec from './guessPinnedVersionFromExistingSpec'
+import { PinnedVersion, WantedDependency } from './install/getWantedDependencies'
 
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],

@@ -7,8 +7,8 @@ import {
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import { PackageManifest } from '@pnpm/types'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
+import { PackageManifest } from '@pnpm/types'
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
 import path = require('path')
