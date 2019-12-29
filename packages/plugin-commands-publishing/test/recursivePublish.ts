@@ -1,10 +1,11 @@
-import { recursive } from '@pnpm/plugin-commands-recursive'
+import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa = require('execa')
 import fs = require('mz/fs')
 import test = require('tape')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -65,10 +66,11 @@ test('recursive publish', async (t) => {
 
   await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
-  await recursive.handler(['publish'], {
+  await publish.handler([], {
     ...DEFAULT_OPTS,
     ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
+    recursive: true,
   })
 
   {
@@ -82,10 +84,11 @@ test('recursive publish', async (t) => {
 
   await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
 
-  await recursive.handler(['publish'], {
+  await publish.handler([], {
     ...DEFAULT_OPTS,
     ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
+    recursive: true,
     tag: 'next',
   })
 

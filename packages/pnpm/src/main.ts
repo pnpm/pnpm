@@ -130,21 +130,6 @@ export default async function run (inputArgv: string[]) {
     process.env['FORCE_COLOR'] = '0'
   }
 
-  if (
-    cmd === 'add' &&
-    workspaceDir === dir &&
-    !config.ignoreWorkspaceRootCheck
-  ) {
-    // Reporting is not initialized at this point, so just printing the error
-    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
-      chalk.red('Running this command will add the dependency to the workspace root, ' +
-        'which might not be what you want - if you really meant it, ' +
-        'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).')}`)
-    console.log(`For help, run: pnpm help ${cmd}`)
-    process.exit(1)
-    return
-  }
-
   const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && argv.remain.includes(packageManager.name)
 
   // Don't check for updates
@@ -172,7 +157,7 @@ export default async function run (inputArgv: string[]) {
     await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
   }
 
-  if (cmd === 'recursive') {
+  if (cliConf['recursive']) {
     const wsDir = workspaceDir ?? process.cwd()
     const allWsPkgs = await findWorkspacePackages(wsDir, config)
 
@@ -186,6 +171,7 @@ export default async function run (inputArgv: string[]) {
       workspaceDir: wsDir,
     })
     config.allWsPkgs = allWsPkgs
+    config.workspaceDir = wsDir
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
@@ -198,7 +184,7 @@ export default async function run (inputArgv: string[]) {
         })
       }
 
-      if (cmd !== 'recursive') {
+      if (!cliConf['recursive']) {
         scopeLogger.debug(workspaceDir
           ? { selected: 1, workspacePrefix: workspaceDir }
           : { selected: 1 })

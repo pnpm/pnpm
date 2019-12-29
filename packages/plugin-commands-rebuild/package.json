@@ -32,6 +32,7 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
+    "@pnpm/filter-workspace-packages": "workspace:1.0.1",
     "@pnpm/logger": "^3.1.0",
     "@pnpm/plugin-commands-rebuild": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
@@ -44,7 +45,8 @@
     "execa": "4.0.0",
     "path-exists": "4.0.0",
     "rimraf": "3.0.0",
-    "sinon": "8.0.0"
+    "sinon": "8.0.0",
+    "write-yaml-file": "3.0.1"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.2.5",
@@ -52,6 +54,7 @@
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
+    "@pnpm/find-workspace-packages": "workspace:2.0.8",
     "@pnpm/get-context": "workspace:0.0.0",
     "@pnpm/lifecycle": "workspace:8.0.1",
     "@pnpm/link-bins": "5.0.1",
@@ -59,17 +62,21 @@
     "@pnpm/lockfile-walker": "workspace:1.0.1",
     "@pnpm/modules-yaml": "workspace:5.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
+    "@pnpm/sort-packages": "workspace:0.0.0",
     "@pnpm/store-connection-manager": "workspace:0.2.5",
     "@pnpm/store-controller-types": "workspace:6.0.0",
     "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.12.2",
     "@zkochan/npm-package-arg": "1.0.2",
+    "camelcase-keys": "6.1.1",
     "common-tags": "1.8.0",
     "dependency-path": "workspace:4.0.2",
     "graph-sequencer": "2.0.0",
     "load-json-file": "6.2.0",
+    "mem": "6.0.1",
     "p-limit": "2.2.1",
     "ramda": "0.26.1",
+    "read-ini-file": "2.0.0",
     "render-help": "0.0.0",
     "run-groups": "2.0.1",
     "semver": "7.1.1"

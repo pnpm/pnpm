@@ -5,8 +5,8 @@ import { list, why } from '@pnpm/plugin-commands-listing'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { pack, publish } from '@pnpm/plugin-commands-publishing'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
-import { recursive } from '@pnpm/plugin-commands-recursive'
 import {
+  exec,
   restart,
   run,
   start,
@@ -18,6 +18,7 @@ import { store } from '@pnpm/plugin-commands-store'
 import { PnpmOptions } from '../types'
 import createHelp from './help'
 import * as installTest from './installTest'
+import * as recursive from './recursive'
 import * as root from './root'
 
 export type Command = (
@@ -35,6 +36,7 @@ const commands: Array<{
 }> = [
   add,
   audit,
+  exec,
   importCommand,
   install,
   installTest,

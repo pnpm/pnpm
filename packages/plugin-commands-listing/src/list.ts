@@ -6,6 +6,7 @@ import list, { forPackages as listForPackages } from '@pnpm/list'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
+import listRecursive from './recursive'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -97,15 +98,20 @@ export function help () {
 
 export function handler (
   args: string[],
-  opts: Pick<Config, 'dir' | 'include'> & {
+  opts: Pick<Config, 'allWsPkgs' | 'dir' | 'include' | 'selectedWsPkgsGraph'> & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     lockfileDir?: string,
     long?: boolean,
     parseable?: boolean,
+    recursive?: boolean,
   },
   command: string,
 ) {
+  if (opts.recursive && opts.selectedWsPkgsGraph) {
+    const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+    return listRecursive(pkgs, args, command, opts)
+  }
   return render([opts.dir], args, {
     ...opts,
     lockfileDir: opts.lockfileDir || opts.dir,

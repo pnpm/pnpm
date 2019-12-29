@@ -1,36 +1,35 @@
-import { WsPkgsGraph } from '@pnpm/config'
+import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
+import { Config, WsPkgsGraph } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
+import sortPackages from '@pnpm/sort-packages'
 import { PackageManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import pLimit from 'p-limit'
-import RecursiveSummary from './recursiveSummary'
 
-export default async <T> (
-  packageChunks: string[][],
-  graph: WsPkgsGraph,
+export type RecursiveRunOpts = Pick<Config,
+  'unsafePerm' |
+  'rawConfig'
+> & Required<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>>
+
+export default async (
   args: string[],
-  cmd: string,
-  opts: {
-    bail: boolean,
-    extraBinPaths: string[],
-    workspaceConcurrency: number,
-    unsafePerm: boolean,
-    rawConfig: object,
-    workspaceDir: string,
-    allPackagesAreSelected: boolean,
-  },
+  opts: RecursiveRunOpts,
 ) => {
   const scriptName = args[0]
   let hasCommand = 0
+  const packageChunks = opts.sort
+    ? sortPackages(opts.selectedWsPkgsGraph)
+    : [Object.keys(opts.selectedWsPkgsGraph).sort()]
 
   const result = {
     fails: [],
     passes: 0,
   } as RecursiveSummary
 
-  const limitRun = pLimit(opts.workspaceConcurrency)
+  const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
   const stdio = (
     opts.workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
@@ -40,7 +39,7 @@ export default async <T> (
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = graph[prefix] as {package: {dir: string, manifest: PackageManifest}}
+        const pkg = opts.selectedWsPkgsGraph[prefix] as {package: {dir: string, manifest: PackageManifest}}
         if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
           return
         }
@@ -86,7 +85,8 @@ export default async <T> (
   }
 
   if (scriptName !== 'test' && !hasCommand) {
-    if (opts.allPackagesAreSelected) {
+    const allPackagesAreSelected = Object.keys(opts.selectedWsPkgsGraph).length === opts.allWsPkgs.length
+    if (allPackagesAreSelected) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
     } else {
       logger.info({
@@ -96,5 +96,5 @@ export default async <T> (
     }
   }
 
-  return result
+  throwOnCommandFail('pnpm recursive run', result)
 }

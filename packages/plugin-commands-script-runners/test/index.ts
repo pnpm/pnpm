@@ -11,6 +11,9 @@ import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
+import './exec'
+import './runRecursive'
+import './testRecursive'
 
 test('pnpm run: returns correct exit code', async (t) => {
   prepare(t, {

@@ -11,16 +11,10 @@ import exists = require('path-exists')
 import sinon = require('sinon')
 import test = require('tape')
 import { promisify } from 'util'
+import './recursive'
+import { DEFAULT_OPTS } from './utils'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
-const DEFAULT_OPTS = {
-  independentLeaves: false,
-  lock: false,
-  rawConfig: {
-    registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
-  },
-  registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
-}
 
 test('rebuilds dependencies', async (t) => {
   const project = prepareEmpty(t)

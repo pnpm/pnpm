@@ -22,6 +22,7 @@
   ],
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.2.5",
+    "@pnpm/common-cli-options-help": "workspace:0.1.2",
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/core-loggers": "workspace:4.0.0",
     "@pnpm/default-reporter": "workspace:5.0.5",
@@ -37,7 +38,6 @@
     "@pnpm/plugin-commands-outdated": "workspace:0.1.9",
     "@pnpm/plugin-commands-publishing": "workspace:0.1.9",
     "@pnpm/plugin-commands-rebuild": "workspace:0.0.0",
-    "@pnpm/plugin-commands-recursive": "workspace:0.1.10",
     "@pnpm/plugin-commands-script-runners": "workspace:0.1.9",
     "@pnpm/plugin-commands-server": "workspace:0.0.0",
     "@pnpm/plugin-commands-store": "workspace:0.0.0",

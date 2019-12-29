@@ -5,7 +5,7 @@ export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'raw
 export type WsPkg = {
   dir: string,
   manifest: ImporterManifest,
-  writeImporterManifest: (manifest: ImporterManifest) => Promise<void>,
+  writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
 }
 
 export type WsPkgsGraph = Record<string, { dependencies: string[], package: WsPkg }>

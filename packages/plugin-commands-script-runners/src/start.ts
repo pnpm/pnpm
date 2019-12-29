@@ -1,7 +1,12 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { oneLine } from 'common-tags'
 import renderHelp = require('render-help')
-import { handler as run, IF_PRESENT_OPTION, IF_PRESENT_OPTION_HELP } from './run'
+import {
+  handler as run,
+  IF_PRESENT_OPTION,
+  IF_PRESENT_OPTION_HELP,
+  RunOpts,
+} from './run'
 
 export function rcOptionsTypes () {
   return {}
@@ -34,11 +39,7 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: {
-    extraBinPaths: string[],
-    dir: string,
-    rawConfig: object,
-  },
+  opts: RunOpts,
 ) {
   return run(['start', ...args], opts)
 }

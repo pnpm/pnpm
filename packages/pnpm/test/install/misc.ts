@@ -323,7 +323,7 @@ test('`pnpm recursive add` should fail if no package name was provided', (t: tap
   const { status, stdout } = execPnpmSync('recursive', 'add')
 
   t.equal(status, 1)
-  t.ok(stdout.toString().includes('`pnpm recursive add` requires the package name'))
+  t.ok(stdout.toString().includes('`pnpm add` requires the package name'))
 
   t.end()
 })

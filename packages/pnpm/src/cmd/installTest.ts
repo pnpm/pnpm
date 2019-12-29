@@ -20,6 +20,6 @@ export function help () {
 }
 
 export async function handler (input: string[], opts: PnpmOptions) {
-  await install.handler(input, opts)
+  await install.handler(input, opts, 'install')
   await test.handler(input, opts)
 }

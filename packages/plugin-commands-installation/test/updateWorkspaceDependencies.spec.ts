@@ -2,7 +2,7 @@ import PnpmError from '@pnpm/error'
 import {
   createWorkspaceSpecs,
   updateToWorkspacePackagesFromManifest,
-} from '@pnpm/plugin-commands-recursive/lib/updateWorkspaceDependencies'
+} from '@pnpm/plugin-commands-installation/lib/updateWorkspaceDependencies'
 import test = require('tape')
 
 const INCLUDE_ALL = {

@@ -10,6 +10,7 @@ import renderHelp = require('render-help')
 import {
   mutateModules,
 } from 'supi'
+import recursive from './recursive'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -68,8 +69,29 @@ export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
 
 export async function handler (
   input: string[],
-  opts: CreateStoreControllerOptions & Pick<Config, 'ignorePnpmfile' | 'engineStrict' | 'lockfileDir' | 'linkWorkspacePackages' | 'workspaceDir' | 'bin' | 'globalPnpmfile' | 'pnpmfile'>,
+  opts: CreateStoreControllerOptions & Pick<Config,
+    'allWsPkgs' |
+    'bail' |
+    'bin' |
+    'engineStrict' |
+    'globalPnpmfile' |
+    'ignorePnpmfile' |
+    'include' |
+    'lockfileDir' |
+    'linkWorkspacePackages' |
+    'pnpmfile' |
+    'rawLocalConfig' |
+    'registries' |
+    'selectedWsPkgsGraph' |
+    'workspaceDir'
+  > & {
+    recursive?: boolean,
+  },
 ) {
+  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
+    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, 'remove')
+    return
+  }
   const store = await createOrConnectStoreController(opts)
   const removeOpts = Object.assign(opts, {
     storeController: store.ctrl,

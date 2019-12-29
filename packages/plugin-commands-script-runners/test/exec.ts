@@ -1,11 +1,13 @@
 import PnpmError from '@pnpm/error'
-import { recursive } from '@pnpm/plugin-commands-recursive'
+import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { exec } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
+import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS, REGISTRY } from './utils'
 
 test('pnpm recursive exec', async (t) => {
   const projects = preparePackages(t, [
@@ -48,17 +50,17 @@ test('pnpm recursive exec', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  const { selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await exec.handler(['npm', 'run', 'build'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
-  await recursive.handler(['exec', 'npm', 'run', 'build'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
     selectedWsPkgsGraph,
   })
 
@@ -80,10 +82,8 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['exec', 'node', '-e', `require('fs').writeFileSync('pkgname', process.env.PNPM_PACKAGE_NAME, 'utf8')`], {
+  await exec.handler(['node', '-e', `require('fs').writeFileSync('pkgname', process.env.PNPM_PACKAGE_NAME, 'utf8')`], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
     selectedWsPkgsGraph,
   })
 
@@ -130,21 +130,21 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
+  const { selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
 
   let failed = false
   let err1!: PnpmError
   try {
-    await recursive.handler(['exec', 'npm', 'run', 'build', '--no-bail'], {
+    await exec.handler(['npm', 'run', 'build', '--no-bail'], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
-      dir: process.cwd(),
       selectedWsPkgsGraph,
     })
   } catch (_err) {
@@ -162,10 +162,8 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
   failed = false
   let err2!: PnpmError
   try {
-    await recursive.handler(['exec', 'npm', 'run', 'build'], {
+    await exec.handler(['npm', 'run', 'build'], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
-      dir: process.cwd(),
       selectedWsPkgsGraph,
     })
   } catch (_err) {
@@ -205,18 +203,17 @@ test('pnpm recursive exec --no-sort', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  const { selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await exec.handler(['npm', 'run', 'build'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    linkWorkspacePackages: true,
-    selectedWsPkgsGraph,
-  })
-  await recursive.handler(['exec', 'npm', 'run', 'build'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
     selectedWsPkgsGraph,
     sort: false,
     workspaceConcurrency: 1,

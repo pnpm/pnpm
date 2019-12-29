@@ -10,6 +10,7 @@ import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
+import './recursive'
 
 test('listing packages', async (t) => {
   prepare(t, {

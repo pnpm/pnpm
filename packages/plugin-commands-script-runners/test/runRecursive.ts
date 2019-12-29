@@ -1,13 +1,14 @@
 import PnpmError from '@pnpm/error'
-import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
-import { recursive } from '@pnpm/plugin-commands-recursive'
+import { filterPkgsBySelectorObjects, readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
+import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS, REGISTRY } from './utils'
 
 test('pnpm recursive run', async (t) => {
   const projects = preparePackages(t, [
@@ -57,17 +58,21 @@ test('pnpm recursive run', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler(['build'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
-  await recursive.handler(['run', 'build'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
@@ -105,17 +110,21 @@ test('pnpm recursive run concurrently', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler(['build'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
-  await recursive.handler(['run', 'build'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
+    workspaceDir: process.cwd(),
   })
 
   const outputs1 = await import(path.resolve('output1.json')) as number[]
@@ -154,20 +163,24 @@ test('`pnpm recursive run` fails when run without filters and no package has the
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
 
   let err!: PnpmError
   try {
-    await recursive.handler(['run', 'this-command-does-not-exist'], {
+    await run.handler(['this-command-does-not-exist'], {
       ...DEFAULT_OPTS,
       allWsPkgs,
       dir: process.cwd(),
+      recursive: true,
       selectedWsPkgsGraph,
+      workspaceDir: process.cwd(),
     })
   } catch (_err) {
     err = _err
@@ -206,10 +219,12 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
 
   let err!: PnpmError
   try {
-    await recursive.handler(['run', 'this-command-does-not-exist'], {
+    await run.handler(['this-command-does-not-exist'], {
       ...DEFAULT_OPTS,
       ...await readWsPkgs(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
+      recursive: true,
+      workspaceDir: process.cwd(),
     })
   } catch (_err) {
     err = _err
@@ -246,22 +261,26 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  const { allWsPkgs } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler(['this-command-does-not-exist'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
-  await recursive.handler(['run', 'this-command-does-not-exist'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph: await filterPkgsBySelectorObjects(
       allWsPkgs,
       [{ namePattern: 'project-1' }],
       { workspaceDir: process.cwd() },
     ),
+    workspaceDir: process.cwd(),
   })
   t.end()
 })
@@ -306,20 +325,24 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
 
   let err1!: PnpmError
   try {
-    await recursive.handler(['run', 'build', '--no-bail'], {
+    await run.handler(['build', '--no-bail'], {
       ...DEFAULT_OPTS,
       allWsPkgs,
       dir: process.cwd(),
+      recursive: true,
       selectedWsPkgsGraph,
+      workspaceDir: process.cwd(),
     })
   } catch (_err) {
     err1 = _err
@@ -333,11 +356,13 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
 
   let err2!: PnpmError
   try {
-    await recursive.handler(['run', 'build'], {
+    await run.handler(['build'], {
       ...DEFAULT_OPTS,
       allWsPkgs,
       dir: process.cwd(),
+      recursive: true,
       selectedWsPkgsGraph,
+      workspaceDir: process.cwd(),
     })
   } catch (_err) {
     err2 = _err
@@ -376,22 +401,26 @@ test('pnpm recursive run with filtering', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  const { allWsPkgs } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler(['build'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
-  await recursive.handler(['run', 'build'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph: await filterPkgsBySelectorObjects(
       allWsPkgs,
       [{ namePattern: 'project-1' }],
       { workspaceDir: process.cwd() },
     ),
+    workspaceDir: process.cwd(),
   })
 
   const outputs = await import(path.resolve('output.json')) as string[]
@@ -415,19 +444,23 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
-    ...DEFAULT_OPTS,
-    allWsPkgs,
-    dir: process.cwd(),
-    selectedWsPkgsGraph,
-  })
+  const { allWsPkgs } = await readWsPkgs(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
 
   process.env['npm_config_unsafe_perm'] = 'false'
-  await recursive.handler(['run', 'build'], {
+  await run.handler(['build'], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
+    workspaceDir: process.cwd(),
     ...await readWsPkgs(process.cwd(), []),
   })
   delete process.env['npm_config_unsafe_perm']

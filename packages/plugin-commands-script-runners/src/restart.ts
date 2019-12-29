@@ -1,5 +1,10 @@
 import renderHelp = require('render-help')
-import { handler as run, IF_PRESENT_OPTION, IF_PRESENT_OPTION_HELP } from './run'
+import {
+  handler as run,
+  IF_PRESENT_OPTION,
+  IF_PRESENT_OPTION_HELP,
+  RunOpts,
+} from './run'
 import { handler as start } from './start'
 import { handler as stop } from './stop'
 
@@ -31,11 +36,7 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: {
-    extraBinPaths: string[],
-    dir: string,
-    rawConfig: object,
-  },
+  opts: RunOpts,
 ) {
   await stop(args, opts)
   await run(['restart', ...args], opts)

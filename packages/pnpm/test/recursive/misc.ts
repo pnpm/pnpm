@@ -371,12 +371,12 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   {
-    const { status, stderr } = execPnpmSync('add', 'is-positive')
+    const { status, stdout } = execPnpmSync('add', 'is-positive')
 
     t.equal(status, 1)
 
     t.ok(
-      stderr.toString().includes(
+      stdout.toString().includes(
         'Running this command will add the dependency to the workspace root, ' +
         'which might not be what you want - if you really meant it, ' +
         'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'

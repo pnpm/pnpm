@@ -1,5 +1,7 @@
 import PnpmError from '@pnpm/error'
-import { recursive } from '@pnpm/plugin-commands-recursive'
+import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { install } from '@pnpm/plugin-commands-installation'
+import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
@@ -8,7 +10,7 @@ import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
-import { DEFAULT_OPTS, readWsPkgs } from './utils'
+import { DEFAULT_OPTS } from './utils'
 
 test('recursive list', async (t) => {
   const projects = preparePackages(t, [
@@ -35,19 +37,22 @@ test('recursive list', async (t) => {
   ])
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
-  const output = await recursive.handler(['list'], {
+  const output = await list.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+  }, 'list')
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -97,20 +102,23 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+    workspaceDir: process.cwd(),
+  }, 'install')
 
-  const output = await recursive.handler(['list'], {
+  const output = await list.handler([], {
     ...DEFAULT_OPTS,
     allWsPkgs,
     depth: 2,
     dir: process.cwd(),
+    recursive: true,
     selectedWsPkgsGraph,
-  })
+  }, 'list')
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -161,19 +169,22 @@ test('recursive list --filter', async (t) => {
     },
   ])
 
-  await recursive.handler(['install'], {
+  await install.handler([], {
     ...DEFAULT_OPTS,
     ...await readWsPkgs(process.cwd(), []),
     dir: process.cwd(),
-  })
+    recursive: true,
+    workspaceDir: process.cwd(),
+  }, 'install')
 
-  const output = await recursive.handler(['list'], {
+  const output = await list.handler([], {
     ...DEFAULT_OPTS,
     dir: process.cwd(),
+    recursive: true,
     ...await readWsPkgs(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
-  })
+  }, 'list')
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -199,11 +210,12 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
 
   let err!: PnpmError
   try {
-    const output = await recursive.handler(['why'], {
+    await why.handler([], {
       ...DEFAULT_OPTS,
       ...await readWsPkgs(process.cwd(), []),
       dir: process.cwd(),
-    })
+      recursive: true,
+    }, 'why')
   } catch (_err) {
     err = _err
   }

@@ -25,6 +25,7 @@ import {
   WorkspacePackages,
 } from 'supi'
 import * as installCommand from './install'
+import recursive from './recursive'
 
 const installLimit = pLimit(4)
 

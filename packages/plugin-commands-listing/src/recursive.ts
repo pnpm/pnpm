@@ -1,13 +1,12 @@
-import { Config } from '@pnpm/config'
+import { Config, WsPkg } from '@pnpm/config'
 import logger from '@pnpm/logger'
-import { list } from '@pnpm/plugin-commands-listing'
-import { ImporterManifest } from '@pnpm/types'
+import { render } from './list'
 
 export default async (
-  pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
+  pkgs: WsPkg[],
   args: string[],
   cmd: string,
-  opts: Config & {
+  opts: Pick<Config, 'lockfileDir' | 'include'> & {
     depth?: number,
     long?: boolean,
     parseable?: boolean,
@@ -16,7 +15,7 @@ export default async (
 ) => {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
-    return list.render(pkgs.map((pkg) => pkg.dir), args, {
+    return render(pkgs.map((pkg) => pkg.dir), args, {
       ...opts,
       alwaysPrintRootPackage: depth === -1,
       lockfileDir: opts.lockfileDir,
@@ -25,7 +24,7 @@ export default async (
   const outputs = []
   for (const { dir } of pkgs) {
     try {
-      const output = await list.render([dir], args, {
+      const output = await render([dir], args, {
         ...opts,
         alwaysPrintRootPackage: depth === -1,
         lockfileDir: opts.lockfileDir || dir,

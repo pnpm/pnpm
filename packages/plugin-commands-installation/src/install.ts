@@ -14,8 +14,6 @@ import PnpmError from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
-import { recursive } from '@pnpm/plugin-commands-recursive/lib/recursive'
-import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from '@pnpm/plugin-commands-recursive/lib/updateWorkspaceDependencies'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
@@ -25,6 +23,8 @@ import {
   install,
   mutateModules,
 } from 'supi'
+import recursive from './recursive'
+import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -256,6 +256,7 @@ export function help () {
 }
 
 export type InstallCommandOptions = Pick<Config,
+  'allWsPkgs' |
   'bail' |
   'bin' |
   'cliOptions' |
@@ -277,7 +278,9 @@ export type InstallCommandOptions = Pick<Config,
   'savePrefix' |
   'saveProd' |
   'saveWorkspaceProtocol' |
+  'selectedWsPkgsGraph' |
   'sort' |
+  'sharedWorkspaceLockfile' |
   'workspaceConcurrency' |
   'workspaceDir'
 > & CreateStoreControllerOptions & {
@@ -288,13 +291,14 @@ export type InstallCommandOptions = Pick<Config,
   latest?: boolean,
   update?: boolean,
   useBetaCli?: boolean,
+  recursive?: boolean,
   workspace?: boolean,
 }
 
 export async function handler (
   input: string[],
   opts: InstallCommandOptions,
-  invocation?: string,
+  invocation: string,
 ) {
   if (opts.workspace) {
     if (opts.latest) {
@@ -314,6 +318,10 @@ export async function handler (
       }
     }
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
+  }
+  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
+    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, invocation)
+    return
   }
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
@@ -369,9 +377,6 @@ export async function handler (
     }
   }
   if (!input || !input.length) {
-    if (invocation === 'add') {
-      throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
-    }
     const updatedManifest = await install(manifest, installOpts)
     if (opts.update === true && opts.save !== false) {
       await writeImporterManifest(updatedManifest)
@@ -401,6 +406,7 @@ export async function handler (
     const allWsPkgs = await findWorkspacePackages(opts.workspaceDir, opts)
     const selectedWsPkgsGraph = await filterPkgsBySelectorObjects(allWsPkgs, [
       {
+        excludeSelf: true,
         includeDependencies: true,
         parentDir: dir,
       },
@@ -410,10 +416,9 @@ export async function handler (
     await recursive(allWsPkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
-      ignoredPackages: new Set([dir]),
       selectedWsPkgsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined
-    }, 'install', 'install')
+    }, 'install')
 
     if (opts.ignoreScripts) return
 

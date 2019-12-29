@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/find-workspace-packages",
-  "version": "2.0.8",
-  "description": "Finds packages inside a workspace",
+  "name": "@pnpm/sort-packages",
+  "version": "0.0.0",
+  "description": "Sort packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -16,7 +16,7 @@
     "test": "pnpm run tsc && pnpm run lint",
     "prepublishOnly": "pnpm run tsc"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/find-workspace-packages",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/sort-packages",
   "keywords": [
     "pnpm"
   ],
@@ -27,15 +27,11 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
-    "@pnpm/find-workspace-packages": "link:",
+    "@pnpm/sort-packages": "link:",
     "rimraf": "3.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.2.5",
     "@pnpm/config": "workspace:6.0.0",
-    "@pnpm/constants": "workspace:3.0.0",
-    "@pnpm/types": "workspace:4.0.0",
-    "find-packages": "workspace:7.0.1",
-    "read-yaml-file": "1.1.0"
+    "graph-sequencer": "2.0.0"
   }
 }

@@ -4,7 +4,7 @@ import { types as allTypes } from '@pnpm/config'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { handler as run } from './run'
+import { handler as run, RunOpts } from './run'
 
 export function rcOptionsTypes () {
   return {}
@@ -46,11 +46,7 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: {
-    extraBinPaths: string[],
-    dir: string,
-    rawConfig: object,
-  },
+  opts: RunOpts,
 ) {
   return run(['test', ...args], opts)
 }

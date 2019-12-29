@@ -151,6 +151,7 @@ export async function handler (
   input: string[],
   opts: InstallCommandOptions & {
     allowNew?: boolean,
+    ignoreWorkspaceRootCheck?: boolean,
     save?: boolean,
     update?: boolean,
     useBetaCli?: boolean,
@@ -160,5 +161,20 @@ export async function handler (
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }
-  return install(input, opts, invocation)
+  if (!input || !input.length) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
+  }
+  if (
+    !opts.recursive &&
+    opts.workspaceDir === opts.dir &&
+    !opts.ignoreWorkspaceRootCheck
+  ) {
+    throw new PnpmError('ADDING_TO_ROOT',
+      'Running this command will add the dependency to the workspace root, ' +
+      'which might not be what you want - if you really meant it, ' +
+      'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).',
+    )
+  }
+
+  return install(input, opts, invocation ?? 'add')
 }

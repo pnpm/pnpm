@@ -6,12 +6,10 @@ interface ActionFailure {
   error: Error,
 }
 
-interface RecursiveSummary {
+export interface RecursiveSummary {
   fails: ActionFailure[],
   passes: number,
 }
-
-export default RecursiveSummary
 
 class RecursiveFailError extends PnpmError {
   public readonly fails: ActionFailure[]
