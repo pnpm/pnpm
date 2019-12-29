@@ -18,7 +18,6 @@ import writeYamlFile = require('write-yaml-file')
 import { execPnpm, execPnpxSync } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('linking a package inside a monorepo', async (t: tape.Test) => {
   const projects = preparePackages(t, [

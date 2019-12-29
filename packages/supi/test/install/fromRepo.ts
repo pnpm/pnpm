@@ -15,7 +15,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('from a github repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
@@ -137,7 +136,7 @@ test('from a git repo', async (t: tape.Test) => {
 
 // This test is unstable due to dependency on third party registry
 // tslint:disable-next-line:no-string-literal
-test['skip']('from a non-github git repo', async (t: tape.Test) => {
+test.skip('from a non-github git repo', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], await testDefaults())

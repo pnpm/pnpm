@@ -17,7 +17,6 @@ import {
 
 const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('linking multiple packages', async (t: tape.Test) => {
   const project = prepare(t)

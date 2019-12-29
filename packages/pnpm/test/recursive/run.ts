@@ -7,7 +7,6 @@ import writeYamlFile = require('write-yaml-file')
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('pnpm recursive run finds bins from the root of the workspace', async (t: tape.Test) => {
   preparePackages(t, [

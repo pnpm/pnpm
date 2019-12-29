@@ -19,7 +19,6 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
   const project = prepareEmpty(t)

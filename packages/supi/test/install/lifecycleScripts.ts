@@ -18,7 +18,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('run pre/postinstall scripts', async (t: tape.Test) => {
   const project = prepareEmpty(t)
@@ -147,7 +146,7 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
 // TODO: unskip
 // For some reason this fails on CI environments
 // tslint:disable-next-line:no-string-literal
-test['skip']('creates env for scripts', async (t: tape.Test) => {
+test.skip('creates env for scripts', async (t: tape.Test) => {
   prepareEmpty(t)
   const manifest = await addDependenciesToPackage({
     scripts: {

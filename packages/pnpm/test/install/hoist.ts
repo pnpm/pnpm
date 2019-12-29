@@ -6,7 +6,6 @@ import writeYamlFile = require('write-yaml-file')
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('hoist the dependency graph', async function (t) {
   const project = prepare(t)

@@ -12,7 +12,6 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('preserve subdeps on update', async (t: tape.Test) => {
   const project = prepareEmpty(t)

@@ -21,7 +21,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test("don't fail when peer dependency is fetched from GitHub", async (t) => {
   prepareEmpty(t)
@@ -330,7 +329,7 @@ test('peer dependencies are linked when running two separate named installations
 })
 
 // tslint:disable-next-line:no-string-literal
-test['skip']('peer dependencies are linked', async (t: tape.Test) => {
+test.skip('peer dependencies are linked', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   await install({
     dependencies: {

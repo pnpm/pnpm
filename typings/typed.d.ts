@@ -21,16 +21,6 @@ declare module 'read-ini-file' {
   export = readIniFile;
 }
 
-declare module 'tape-promise' {
-  import tape = require('tape')
-  export = tapePromise;
-
-  function tapePromise(tape: any): (name: string, cb: tape.TestCase) => void;
-  function tapePromise(tape: any): (name: string, opts: tape.TestOptions, cb: tape.TestCase) => void;
-  function tapePromise(tape: any): (cb: tape.TestCase) => void;
-  function tapePromise(tape: any): (opts: tape.TestOptions, cb: tape.TestCase) => void;
-}
-
 declare module 'semver-utils' {
   export function parseRange (range: string): Array<{
     semver?: string,

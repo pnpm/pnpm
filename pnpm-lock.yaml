@@ -609,6 +609,7 @@ importers:
       '@types/ramda': 0.26.38
       '@types/rimraf': 2.0.3
       '@types/sinon': 7.5.1
+      '@types/tape-promise': 4.0.0
       '@zkochan/rimraf': 1.0.0
       fs-extra: 8.1.0
       is-windows: 1.0.2
@@ -655,6 +656,7 @@ importers:
       '@types/ramda': ^0.26.38
       '@types/rimraf': ^2.0.3
       '@types/sinon': ^7.5.1
+      '@types/tape-promise': 4.0.0
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:4.0.2'
       fs-extra: 8.1.0
@@ -1938,6 +1940,7 @@ importers:
       '@types/retry': 0.12.0
       '@types/semver': 6.2.0
       '@types/table': 4.0.7
+      '@types/tape-promise': 4.0.0
       '@types/update-notifier': 2.5.0
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -2013,6 +2016,7 @@ importers:
       '@types/retry': 0.12.0
       '@types/semver': ^6.2.0
       '@types/table': ^4.0.7
+      '@types/tape-promise': 4.0.0
       '@types/update-notifier': 2.5.0
       '@zkochan/libnpx': 11.0.3
       '@zkochan/rimraf': 1.0.0
@@ -2429,6 +2433,7 @@ importers:
       '@types/ramda': 0.26.38
       '@types/semver': 6.2.0
       '@types/sinon': 7.5.1
+      '@types/tape-promise': 4.0.0
       anonymous-npm-registry-client: 0.1.2
       cross-spawn: 7.0.1
       deep-require-cwd: 1.0.0
@@ -2503,6 +2508,7 @@ importers:
       '@types/ramda': ^0.26.38
       '@types/semver': ^6.2.0
       '@types/sinon': ^7.5.1
+      '@types/tape-promise': 4.0.0
       '@zkochan/npm-package-arg': 1.0.2
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -3424,6 +3430,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-HKtXvBxU8U8evZCSlUi9HbfT/SFW7nSGCoiBEheB06jAhXeW6JbGh8biEAqIFG5rZo9f8xeJVdIn455sddmIcw==
+  /@types/tape-promise/4.0.0:
+    dependencies:
+      '@types/tape': 4.2.33
+    dev: true
+    resolution:
+      integrity: sha512-Ek6EryyaAvP3Lm1aol660YfmhpDkf04TJHK6Vc+R68EQrecK8Qkbv7Ct5jvY2Yf0fkhmkeim4DOz3yDiEYEnNQ==
   /@types/tape/4.2.33:
     dependencies:
       '@types/node': 12.12.21

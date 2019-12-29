@@ -15,7 +15,6 @@ import promisifyTape from 'tape-promise'
 import { addDistTag, testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('should hoist dependencies', async (t) => {
   const project = prepareEmpty(t)

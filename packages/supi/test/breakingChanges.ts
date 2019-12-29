@@ -11,7 +11,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('fail on non-compatible node_modules', async (t: tape.Test) => {
   prepareEmpty(t)

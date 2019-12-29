@@ -10,7 +10,6 @@ import { promisify } from 'util'
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB)
 
 test('corrupted tarball should be redownloaded to the store', async (t: tape.Test) => {

@@ -6,7 +6,6 @@ import promisifyTape from 'tape-promise'
 import { execPnpm, execPnpmSync } from './utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 const RECORD_ARGS_FILE = `require('fs').writeFileSync('args.json', JSON.stringify(require('./args.json').concat([process.argv.slice(2)])), 'utf8')`
 

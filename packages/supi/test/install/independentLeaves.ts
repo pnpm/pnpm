@@ -9,7 +9,6 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
 
 test('install with --independent-leaves', async (t: tape.Test) => {
   const project = prepareEmpty(t)
