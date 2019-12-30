@@ -1,9 +1,9 @@
-import { Config, WsPkg } from '@pnpm/config'
+import { Config, Project } from '@pnpm/config'
 import logger from '@pnpm/logger'
 import { render } from './list'
 
 export default async (
-  pkgs: WsPkg[],
+  pkgs: Project[],
   args: string[],
   cmd: string,
   opts: Pick<Config, 'lockfileDir' | 'include'> & {

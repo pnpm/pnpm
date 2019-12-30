@@ -1,4 +1,4 @@
-import { Config, WsPkg } from '@pnpm/config'
+import { Config, Project } from '@pnpm/config'
 import createResolver from '@pnpm/npm-resolver'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import runNpm from '@pnpm/run-npm'
@@ -42,7 +42,7 @@ Partial<Pick<Config,
 }
 
 export default async function (
-  pkgs: WsPkg[],
+  pkgs: Project[],
   opts: PublishRecursiveOpts,
 ) {
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)

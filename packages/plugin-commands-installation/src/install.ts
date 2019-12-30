@@ -256,7 +256,7 @@ export function help () {
 }
 
 export type InstallCommandOptions = Pick<Config,
-  'allWsPkgs' |
+  'allProjects' |
   'bail' |
   'bin' |
   'cliOptions' |
@@ -278,7 +278,7 @@ export type InstallCommandOptions = Pick<Config,
   'savePrefix' |
   'saveProd' |
   'saveWorkspaceProtocol' |
-  'selectedWsPkgsGraph' |
+  'selectedProjectsGraph' |
   'sort' |
   'sharedWorkspaceLockfile' |
   'workspaceConcurrency' |
@@ -319,8 +319,8 @@ export async function handler (
     }
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
-  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
-    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, invocation)
+  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
+    await recursive(opts.allProjects, input, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, invocation)
     return
   }
   // `pnpm install ""` is going to be just `pnpm install`
@@ -403,8 +403,8 @@ export async function handler (
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
     // TODO: reuse somehow the previous read of packages
     // this is not optimal
-    const allWsPkgs = await findWorkspacePackages(opts.workspaceDir, opts)
-    const selectedWsPkgsGraph = await filterPkgsBySelectorObjects(allWsPkgs, [
+    const allProjects = await findWorkspacePackages(opts.workspaceDir, opts)
+    const selectedProjectsGraph = await filterPkgsBySelectorObjects(allProjects, [
       {
         excludeSelf: true,
         includeDependencies: true,
@@ -413,10 +413,10 @@ export async function handler (
     ], {
       workspaceDir: opts.workspaceDir,
     })
-    await recursive(allWsPkgs, [], {
+    await recursive(allProjects, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined
     }, 'install')
 

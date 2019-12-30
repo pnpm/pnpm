@@ -1,5 +1,5 @@
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
-import { Config, WsPkgsGraph } from '@pnpm/config'
+import { Config, ProjectsGraph } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
@@ -11,7 +11,7 @@ import pLimit from 'p-limit'
 export type RecursiveRunOpts = Pick<Config,
   'unsafePerm' |
   'rawConfig'
-> & Required<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'>> &
+> & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>>
 
 export default async (
@@ -21,8 +21,8 @@ export default async (
   const scriptName = args[0]
   let hasCommand = 0
   const packageChunks = opts.sort
-    ? sortPackages(opts.selectedWsPkgsGraph)
-    : [Object.keys(opts.selectedWsPkgsGraph).sort()]
+    ? sortPackages(opts.selectedProjectsGraph)
+    : [Object.keys(opts.selectedProjectsGraph).sort()]
 
   const result = {
     fails: [],
@@ -39,7 +39,7 @@ export default async (
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = opts.selectedWsPkgsGraph[prefix] as {package: {dir: string, manifest: PackageManifest}}
+        const pkg = opts.selectedProjectsGraph[prefix] as {package: {dir: string, manifest: PackageManifest}}
         if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
           return
         }
@@ -85,7 +85,7 @@ export default async (
   }
 
   if (scriptName !== 'test' && !hasCommand) {
-    const allPackagesAreSelected = Object.keys(opts.selectedWsPkgsGraph).length === opts.allWsPkgs.length
+    const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
     if (allPackagesAreSelected) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)
     } else {

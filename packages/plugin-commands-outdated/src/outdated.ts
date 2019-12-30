@@ -115,15 +115,15 @@ export type OutdatedOptions = {
   table?: boolean
   tag: string
   userAgent: string
-} & Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph'>
+} & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>
 
 export async function handler (
   args: string[],
   opts: OutdatedOptions,
   command?: string,
 ) {
-  if (opts.recursive && opts.selectedWsPkgsGraph) {
-    const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+  if (opts.recursive && opts.selectedProjectsGraph) {
+    const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return outdatedRecursive(pkgs, args, opts)
   }
   const packages = [

@@ -159,18 +159,18 @@ export default async function run (inputArgv: string[]) {
 
   if (cliConf['recursive']) {
     const wsDir = workspaceDir ?? process.cwd()
-    const allWsPkgs = await findWorkspacePackages(wsDir, config)
+    const allProjects = await findWorkspacePackages(wsDir, config)
 
-    if (!allWsPkgs.length) {
+    if (!allProjects.length) {
       console.log(`No packages found in "${wsDir}"`)
       process.exit(0)
       return
     }
-    config.selectedWsPkgsGraph = await filterPackages(allWsPkgs, config.filter ?? [], {
+    config.selectedProjectsGraph = await filterPackages(allProjects, config.filter ?? [], {
       prefix: process.cwd(),
       workspaceDir: wsDir,
     })
-    config.allWsPkgs = allWsPkgs
+    config.allProjects = allProjects
     config.workspaceDir = wsDir
   }
 

@@ -43,11 +43,11 @@ export async function handler (
     engineStrict?: boolean,
     recursive?: boolean,
     workspaceDir?: string,
-  } & Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph'>,
+  } & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>,
   command?: string,
 ) {
-  if (opts.recursive && opts.selectedWsPkgsGraph) {
-    const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+  if (opts.recursive && opts.selectedProjectsGraph) {
+    const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     await recursivePublish(pkgs, {
       ...opts,
       workspaceDir: opts.workspaceDir ?? process.cwd(),

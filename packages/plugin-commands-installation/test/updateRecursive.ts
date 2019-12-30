@@ -1,4 +1,4 @@
-import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { install, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
@@ -27,22 +27,22 @@ test('recursive update', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
   await update.handler(['is-positive@2.0.0'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -79,14 +79,14 @@ test('recursive update --latest foo should only update workspace packages that h
 
   const lockfileDir = process.cwd()
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     lockfileDir,
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
@@ -95,12 +95,12 @@ test('recursive update --latest foo should only update workspace packages that h
 
   await update.handler(['@zkochan/async-regex-replace', 'foo', 'qar@100.1.0'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     latest: true,
     lockfileDir,
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -135,13 +135,13 @@ test('recursive update --latest foo should only update packages that have foo', 
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
@@ -150,11 +150,11 @@ test('recursive update --latest foo should only update packages that have foo', 
 
   await update.handler(['foo', 'qar@100.1.0'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     latest: true,
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -186,7 +186,7 @@ test('recursive update in workspace should not add new dependencies', async (t) 
 
   await update.handler(['is-positive'], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -211,7 +211,7 @@ test('recursive update should not add new dependencies', async (t) => {
 
   await update.handler(['is-positive'], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),

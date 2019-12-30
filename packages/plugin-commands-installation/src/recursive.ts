@@ -6,7 +6,7 @@ import {
   throwOnCommandFail,
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
-import { Config, WsPkg, WsPkgsGraph } from '@pnpm/config'
+import { Config, Project, ProjectsGraph } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
@@ -63,43 +63,43 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 } & Partial<Pick<Config, 'sort' | 'workspaceConcurrency'>>
 
 export default async function recursive (
-  allWsPkgs: WsPkg[],
+  allProjects: Project[],
   input: string[],
   opts: RecursiveOptions & {
     allowNew?: boolean,
     ignoredPackages?: Set<string>,
     update?: boolean,
     useBetaCli?: boolean,
-    selectedWsPkgsGraph: WsPkgsGraph,
+    selectedProjectsGraph: ProjectsGraph,
   } & Required<Pick<Config, 'workspaceDir'>>,
   cmdFullName: string,
 ): Promise<boolean | string> {
-  if (allWsPkgs.length === 0) {
+  if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
     return false
   }
 
-  const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+  const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
 
   if (pkgs.length === 0) {
     return false
   }
-  const manifestsByPath: { [dir: string]: Omit<WsPkg, 'dir'> } = {}
+  const manifestsByPath: { [dir: string]: Omit<Project, 'dir'> } = {}
   for (const { dir, manifest, writeImporterManifest } of pkgs) {
     manifestsByPath[dir] = { manifest, writeImporterManifest }
   }
 
   scopeLogger.debug({
     selected: pkgs.length,
-    total: allWsPkgs.length,
+    total: allProjects.length,
     workspacePrefix: opts.workspaceDir,
   })
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
   const chunks = opts.sort !== false
-    ? sortPackages(opts.selectedWsPkgsGraph)
-    : [Object.keys(opts.selectedWsPkgsGraph).sort()]
+    ? sortPackages(opts.selectedProjectsGraph)
+    : [Object.keys(opts.selectedProjectsGraph).sort()]
 
   const store = await createOrConnectStoreController(opts)
 
@@ -114,13 +114,13 @@ export default async function recursive (
   }
 
   const workspacePackages = cmdFullName !== 'unlink'
-    ? arrayOfWorkspacePackagesToMap(allWsPkgs)
+    ? arrayOfWorkspacePackagesToMap(allProjects)
     : {}
   const installOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
-      && pkgs.length === allWsPkgs.length,
+      && pkgs.length === allProjects.length,
     storeController,
     storeDir: store.dir,
     workspacePackages,
@@ -249,7 +249,7 @@ export default async function recursive (
 
   let pkgPaths = chunks.length === 0
     ? chunks[0]
-    : Object.keys(opts.selectedWsPkgsGraph).sort()
+    : Object.keys(opts.selectedProjectsGraph).sort()
 
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map((rootDir: string) =>

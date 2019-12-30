@@ -55,15 +55,15 @@ export function help () {
   })
 }
 
-export type RunOpts = Omit<RecursiveRunOpts, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'> & {
+export type RunOpts = Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'> & {
   ifPresent?: boolean,
   recursive?: boolean,
 } & Pick<Config, 'dir' | 'engineStrict'> & (
   { recursive?: false } &
-  Partial<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'>>
+  Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
   |
   { recursive: true } &
-  Required<Pick<Config, 'allWsPkgs' | 'selectedWsPkgsGraph' | 'workspaceDir'>>
+  Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
 )
 
 export async function handler (

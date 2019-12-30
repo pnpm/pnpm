@@ -45,12 +45,12 @@ export async function handler (
   input: string[],
   opts: CreateStoreControllerOptions &
     Pick<Config,
-      'allWsPkgs' |
+      'allProjects' |
       'bail' |
       'engineStrict' |
       'include' |
       'linkWorkspacePackages' |
-      'selectedWsPkgsGraph' |
+      'selectedProjectsGraph' |
       'rawLocalConfig' |
       'registries' |
       'pnpmfile' |
@@ -59,8 +59,8 @@ export async function handler (
       recursive?: boolean,
     },
 ) {
-  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
-    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')
+  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
+    await recursive(opts.allProjects, input, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')
     return
   }
   const store = await createOrConnectStoreController(opts)

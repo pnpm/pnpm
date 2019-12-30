@@ -1,4 +1,4 @@
-import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
 import { preparePackages } from '@pnpm/prepare'
@@ -38,23 +38,23 @@ test('pnpm recursive outdated', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
   {
     const output = await outdated.handler([], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -73,11 +73,11 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await outdated.handler([], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       long: true,
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -96,10 +96,10 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await outdated.handler([], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
       table: false,
     })
 
@@ -121,11 +121,11 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await outdated.handler([], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       long: true,
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
       table: false,
     })
 
@@ -150,10 +150,10 @@ test('pnpm recursive outdated', async (t) => {
   {
     const output = await outdated.handler(['is-positive'], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -198,23 +198,23 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
   {
     const output = await outdated.handler([], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
@@ -233,10 +233,10 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   {
     const output = await outdated.handler(['is-positive'], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
     })
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`

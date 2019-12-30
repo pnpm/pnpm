@@ -70,7 +70,7 @@ export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
 export async function handler (
   input: string[],
   opts: CreateStoreControllerOptions & Pick<Config,
-    'allWsPkgs' |
+    'allProjects' |
     'bail' |
     'bin' |
     'engineStrict' |
@@ -82,14 +82,14 @@ export async function handler (
     'pnpmfile' |
     'rawLocalConfig' |
     'registries' |
-    'selectedWsPkgsGraph' |
+    'selectedProjectsGraph' |
     'workspaceDir'
   > & {
     recursive?: boolean,
   },
 ) {
-  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
-    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, 'remove')
+  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
+    await recursive(opts.allProjects, input, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'remove')
     return
   }
   const store = await createOrConnectStoreController(opts)
