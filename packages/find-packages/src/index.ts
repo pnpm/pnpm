@@ -18,7 +18,7 @@ declare namespace findPkgs {
     patterns?: string[]
   }
 
-  interface WorkspacePackage {
+  interface Project {
     dir: string
     manifest: ImporterManifest
 
@@ -26,7 +26,7 @@ declare namespace findPkgs {
   }
 }
 
-async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.WorkspacePackage[]> {
+async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.Project[]> {
   opts = opts || {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
@@ -58,7 +58,7 @@ async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkg
           return {
             dir: path.dirname(manifestPath),
             ...await readExactImporterManifest(manifestPath),
-          } as findPkgs.WorkspacePackage
+          } as findPkgs.Project
         } catch (err) {
           if (err.code === 'ENOENT') {
             return null!
