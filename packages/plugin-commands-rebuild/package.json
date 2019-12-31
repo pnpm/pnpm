@@ -57,7 +57,7 @@
     "@pnpm/find-workspace-packages": "workspace:2.0.8",
     "@pnpm/get-context": "workspace:0.0.0",
     "@pnpm/lifecycle": "workspace:8.0.1",
-    "@pnpm/link-bins": "5.0.1",
+    "@pnpm/link-bins": "workspace:5.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.5",
     "@pnpm/lockfile-walker": "workspace:1.0.1",
     "@pnpm/modules-yaml": "workspace:5.0.0",

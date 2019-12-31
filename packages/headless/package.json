@@ -83,7 +83,7 @@
     "@pnpm/filter-lockfile": "workspace:3.0.4",
     "@pnpm/hoist": "workspace:2.0.4",
     "@pnpm/lifecycle": "workspace:8.0.1",
-    "@pnpm/link-bins": "5.0.1",
+    "@pnpm/link-bins": "workspace:5.0.1",
     "@pnpm/lockfile-file": "workspace:3.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.5",
     "@pnpm/matcher": "workspace:1.0.0",

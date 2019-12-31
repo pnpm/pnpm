@@ -30,3 +30,7 @@ declare module 'semver-utils' {
     patch?: string,
   }>
 }
+
+declare namespace NodeJS.Module {
+  function _nodeModulePaths(from: string): string[]
+}
