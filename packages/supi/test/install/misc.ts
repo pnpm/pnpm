@@ -10,7 +10,7 @@ import UnexpectedVirtualStoreDirError from '@pnpm/get-context/lib/checkCompatibi
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { pathToLocalPkg } from '@pnpm/test-fixtures'
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
 import execa = require('execa')
@@ -144,7 +144,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
       },
       name: 'project',
       version: '0.0.0',
-    } as ImporterManifest,
+    } as ProjectManifest,
   } as PackageManifestLog), 'updated package.json logged')
 
   const m = project.requireModule('lodash')
@@ -792,7 +792,7 @@ test('install a dependency with * range', async (t: tape.Test) => {
       dependencies: {
         'has-beta-only': '*',
       },
-    } as ImporterManifest,
+    } as ProjectManifest,
   } as PackageManifestLog), 'should log package-json updated even when package.json was not changed')
 })
 

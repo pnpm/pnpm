@@ -91,7 +91,7 @@
     "@pnpm/modules-yaml": "workspace:5.0.0",
     "@pnpm/package-requester": "workspace:10.0.1",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/read-importer-manifest": "workspace:2.0.1",
+    "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.0.1",
     "@pnpm/store-controller-types": "workspace:6.0.0",
     "@pnpm/symlink-dependency": "workspace:3.0.0",

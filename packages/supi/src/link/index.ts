@@ -12,13 +12,13 @@ import {
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
-import readImporterManifest from '@pnpm/read-importer-manifest'
+import readProjectManifest from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
   DependencyManifest,
-  ImporterManifest,
+  ProjectManifest,
 } from '@pnpm/types'
 import normalize = require('normalize-path')
 import path = require('path')
@@ -64,7 +64,7 @@ export default async function link (
       linkFromPath = linkFrom.path
       linkFromAlias = linkFrom.alias
     }
-    const { manifest } = await readImporterManifest(linkFromPath) as { manifest: DependencyManifest }
+    const { manifest } = await readProjectManifest(linkFromPath) as { manifest: DependencyManifest }
     specsToUpsert.push({
       alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {
@@ -134,7 +134,7 @@ export default async function link (
     warn: (message: string) => logger.warn({ message, prefix: opts.dir }),
   })
 
-  let newPkg!: ImporterManifest
+  let newPkg!: ProjectManifest
   if (opts.targetDependenciesField) {
     newPkg = await save(opts.dir, opts.manifest, specsToUpsert)
     for (const { alias } of specsToUpsert) {
@@ -170,7 +170,7 @@ function addLinkToLockfile (
   opts: {
     linkedPkgName: string,
     packagePath: string,
-    manifest?: ImporterManifest,
+    manifest?: ProjectManifest,
   },
 ) {
   const id = `link:${opts.packagePath}`

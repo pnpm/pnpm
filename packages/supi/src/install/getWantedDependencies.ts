@@ -1,4 +1,4 @@
-import { Dependencies, ImporterManifest } from '@pnpm/types'
+import { Dependencies, ProjectManifest } from '@pnpm/types'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import guessPinnedVersionFromExistingSpec from '../guessPinnedVersionFromExistingSpec'
 
@@ -14,7 +14,7 @@ export interface WantedDependency {
 }
 
 export default function getWantedDependencies (
-  pkg: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
   opts?: {
     updateWorkspaceDependencies?: boolean,
   }

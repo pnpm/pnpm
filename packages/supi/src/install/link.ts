@@ -20,7 +20,7 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { ImporterManifest, Registries } from '@pnpm/types'
+import { ProjectManifest, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
@@ -45,7 +45,7 @@ export interface Importer {
   directNodeIdsByAlias: {[alias: string]: string},
   id: string,
   linkedDependencies: LinkedDependency[],
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   modulesDir: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],

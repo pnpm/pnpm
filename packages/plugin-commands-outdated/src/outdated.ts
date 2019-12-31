@@ -1,4 +1,4 @@
-import { createLatestManifestGetter, docsUrl, readImporterManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { createLatestManifestGetter, docsUrl, readProjectManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -12,7 +12,7 @@ import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import outdated, { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
-import { ImporterManifest, Registries } from '@pnpm/types'
+import { ProjectManifest, Registries } from '@pnpm/types'
 import chalk = require('chalk')
 import { oneLine, stripIndent } from 'common-tags'
 import path = require('path')
@@ -129,7 +129,7 @@ export async function handler (
   const packages = [
     {
       dir: opts.dir,
-      manifest: await readImporterManifestOnly(opts.dir, opts),
+      manifest: await readProjectManifestOnly(opts.dir, opts),
     },
   ]
   const { outdatedPackages } = (await outdatedDependenciesOfWorkspacePackages(packages, args, opts))[0]
@@ -287,7 +287,7 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
 }
 
 export async function outdatedDependenciesOfWorkspacePackages (
-  pkgs: Array<{dir: string, manifest: ImporterManifest}>,
+  pkgs: Array<{dir: string, manifest: ProjectManifest}>,
   args: string[],
   opts: OutdatedOptions,
 ) {

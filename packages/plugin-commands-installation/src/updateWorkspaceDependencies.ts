@@ -1,9 +1,9 @@
 import PnpmError from '@pnpm/error'
 import { WorkspacePackages } from '@pnpm/resolver-base'
-import { ImporterManifest, IncludedDependencies } from '@pnpm/types'
+import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import { parseWantedDependency } from '@pnpm/utils'
 
-export function updateToWorkspacePackagesFromManifest (manifest: ImporterManifest, include: IncludedDependencies, workspacePackages: WorkspacePackages) {
+export function updateToWorkspacePackagesFromManifest (manifest: ProjectManifest, include: IncludedDependencies, workspacePackages: WorkspacePackages) {
   const allDeps = {
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),

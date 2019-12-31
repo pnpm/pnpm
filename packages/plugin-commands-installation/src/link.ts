@@ -2,9 +2,9 @@ import {
   docsUrl,
   getConfig,
   getSaveType,
-  readImporterManifest,
-  readImporterManifestOnly,
-  tryReadImporterManifest,
+  readProjectManifest,
+  readProjectManifestOnly,
+  tryReadProjectManifest,
 } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
@@ -104,7 +104,7 @@ export async function handler (
 
   // pnpm link
   if (!input || !input.length) {
-    const { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.globalDir!, opts)
+    const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.globalDir!, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
       // A temporary workaround. global bin/prefix are always defined when --global is set
@@ -112,7 +112,7 @@ export async function handler (
       globalDir: linkOpts.globalDir!,
       manifest: manifest || {},
     })
-    await writeImporterManifest(newManifest)
+    await writeProjectManifest(newManifest)
     return
   }
 
@@ -143,7 +143,7 @@ export async function handler (
     pkgPaths.map((dir) => installLimit(async () => {
       const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
       await install(
-        await readImporterManifestOnly(dir, opts), {
+        await readProjectManifestOnly(dir, opts), {
           ...await getConfig(
             { ...opts.cliOptions, 'dir': dir },
             {
@@ -160,7 +160,7 @@ export async function handler (
       )
     })),
   )
-  const { manifest, writeImporterManifest } = await readImporterManifest(cwd, opts)
+  const { manifest, writeProjectManifest } = await readProjectManifest(cwd, opts)
 
   // When running `pnpm link --production ../source`
   // only the `source` project should be pruned using the --production flag.
@@ -172,7 +172,7 @@ export async function handler (
     ...linkOpts,
     manifest,
   })
-  await writeImporterManifest(newManifest)
+  await writeProjectManifest(newManifest)
 
   await Promise.all(
     Array.from(storeControllerCache.values())

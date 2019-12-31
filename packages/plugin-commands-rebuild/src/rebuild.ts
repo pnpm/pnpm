@@ -1,4 +1,4 @@
-import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { LogBase } from '@pnpm/logger'
@@ -85,7 +85,7 @@ export async function handler (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(rebuildOpts.dir, opts),
+          manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
           rootDir: rebuildOpts.dir,
         },
       ],
@@ -95,7 +95,7 @@ export async function handler (
   await rebuildPkgs(
     [
       {
-        manifest: await readImporterManifestOnly(rebuildOpts.dir, opts),
+        manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
         rootDir: rebuildOpts.dir,
       },
     ],

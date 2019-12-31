@@ -40,7 +40,7 @@
     "@pnpm/package-requester": "workspace:10.0.1",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/prune-lockfile": "workspace:2.0.3",
-    "@pnpm/read-importer-manifest": "workspace:2.0.1",
+    "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.0.1",
     "@pnpm/resolve-dependencies": "workspace:13.0.2",

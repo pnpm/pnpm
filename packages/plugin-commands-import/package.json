@@ -45,7 +45,7 @@
     "@pnpm/cli-utils": "workspace:0.2.5",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/read-importer-manifest": "workspace:2.0.1",
+    "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/store-connection-manager": "workspace:0.2.5",
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",

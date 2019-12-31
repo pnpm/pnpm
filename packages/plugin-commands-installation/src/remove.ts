@@ -1,4 +1,4 @@
-import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
@@ -103,7 +103,7 @@ export async function handler (
   removeOpts['workspacePackages'] = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined
-  const currentManifest = await readImporterManifest(opts.dir, opts)
+  const currentManifest = await readProjectManifest(opts.dir, opts)
   const [mutationResult] = await mutateModules(
     [
       {
@@ -116,5 +116,5 @@ export async function handler (
     ],
     removeOpts,
   )
-  await currentManifest.writeImporterManifest(mutationResult.manifest)
+  await currentManifest.writeProjectManifest(mutationResult.manifest)
 }

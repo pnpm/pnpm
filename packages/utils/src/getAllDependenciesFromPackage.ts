@@ -1,7 +1,7 @@
-import { Dependencies, ImporterManifest } from '@pnpm/types'
+import { Dependencies, ProjectManifest } from '@pnpm/types'
 
 export default function getAllDependenciesFromPackage (
-  pkg: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
 ): Dependencies {
   return {
     ...pkg.devDependencies,

@@ -1,9 +1,9 @@
-import { docsUrl, readImporterManifest } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import { tryReadImporterManifest } from '@pnpm/read-importer-manifest'
+import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import runNpm from '@pnpm/run-npm'
-import { Dependencies, ImporterManifest } from '@pnpm/types'
+import { Dependencies, ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
 import fg = require('fast-glob')
@@ -110,7 +110,7 @@ export async function fakeRegularManifest (
   const copiedLicenses: string[] = opts.dir !== opts.workspaceDir && (await findLicenses({ cwd: opts.dir })).length === 0
     ? await copyLicenses(opts.workspaceDir, opts.dir) : []
 
-  const { fileName, manifest, writeImporterManifest } = await readImporterManifest(opts.dir, opts)
+  const { fileName, manifest, writeProjectManifest } = await readProjectManifest(opts.dir, opts)
   const publishManifest = await makePublishManifest(opts.dir, manifest)
   const replaceManifest = fileName !== 'package.json' || !R.equals(manifest, publishManifest)
   if (replaceManifest) {
@@ -120,14 +120,14 @@ export async function fakeRegularManifest (
   await fn()
   if (replaceManifest) {
     await rimraf(path.join(opts.dir, 'package.json'))
-    await writeImporterManifest(manifest, true)
+    await writeProjectManifest(manifest, true)
   }
   await Promise.all(
     copiedLicenses.map((copiedLicense) => fs.unlink(copiedLicense))
   )
 }
 
-async function makePublishManifest (dir: string, originalManifest: ImporterManifest) {
+async function makePublishManifest (dir: string, originalManifest: ProjectManifest) {
   const publishManifest = {
     ...originalManifest,
     dependencies: await makePublishDependencies(dir, originalManifest.dependencies),
@@ -166,7 +166,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
     return depSpec
   }
   if (depSpec === 'workspace:*') {
-    const { manifest } = await tryReadImporterManifest(path.join(dir, 'node_modules', depName))
+    const { manifest } = await tryReadProjectManifest(path.join(dir, 'node_modules', depName))
     if (!manifest || !manifest.version) {
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',

@@ -1,9 +1,9 @@
-import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
@@ -75,7 +75,7 @@ export async function handler (
     return
   }
   const dir = opts.dir
-  const manifest = await readImporterManifestOnly(dir, opts)
+  const manifest = await readProjectManifestOnly(dir, opts)
   const scriptName = args[0]
   if (!scriptName) {
     return printProjectCommands(manifest)
@@ -137,7 +137,7 @@ const ALL_LIFECYCLE_SCRIPTS = new Set([
   'postshrinkwrap',
 ])
 
-function printProjectCommands (manifest: ImporterManifest) {
+function printProjectCommands (manifest: ProjectManifest) {
   const lifecycleScripts = [] as string[][]
   const otherScripts = [] as string[][]
 

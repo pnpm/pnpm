@@ -1,4 +1,4 @@
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import fs = require('graceful-fs')
 import JSON5 = require('json5')
 import parseJson = require('parse-json')
@@ -10,7 +10,7 @@ export async function readJson5File (filePath: string) {
   const text = await readFileWithoutBom(filePath)
   try {
     return {
-      data: JSON5.parse(text) as ImporterManifest,
+      data: JSON5.parse(text) as ProjectManifest,
       text,
     }
   } catch (err) {
@@ -24,7 +24,7 @@ export async function readJsonFile (filePath: string) {
   const text = await readFileWithoutBom(filePath)
   try {
     return {
-      data: parseJson(text, filePath) as ImporterManifest,
+      data: parseJson(text, filePath) as ProjectManifest,
       text,
     }
   } catch (err) {

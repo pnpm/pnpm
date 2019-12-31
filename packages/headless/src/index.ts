@@ -45,14 +45,14 @@ import {
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { DependencyManifest, ImporterManifest, Registries } from '@pnpm/types'
+import { DependencyManifest, ProjectManifest, Registries } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
@@ -80,7 +80,7 @@ export interface HeadlessOptions {
   importers: Array<{
     binsDir: string,
     buildIndex: number,
-    manifest: ImporterManifest,
+    manifest: ProjectManifest,
     modulesDir: string,
     id: string,
     pruneDirectDependencies?: boolean,
@@ -389,12 +389,12 @@ async function linkRootPackages (
     importerDir: string,
     importerId: string,
     importerModulesDir: string,
-    importers: Array<{ id: string, manifest: ImporterManifest }>,
+    importers: Array<{ id: string, manifest: ProjectManifest }>,
     lockfileDir: string,
     rootDependencies: {[alias: string]: string},
   },
 ) {
-  const importerManifestsByImporterId = {} as { [id: string]: ImporterManifest }
+  const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
   for (const { id, manifest } of opts.importers) {
     importerManifestsByImporterId[id] = manifest
   }
@@ -417,7 +417,7 @@ async function linkRootPackages (
               return importerManifestsByImporterId[importerId]
             }
             // TODO: cover this case with a test
-            return await readImporterManifestOnly(packageDir) as DependencyManifest
+            return await readProjectManifestOnly(packageDir) as DependencyManifest
           })() as DependencyManifest
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
             fromDependenciesField: isDev && 'devDependencies' ||

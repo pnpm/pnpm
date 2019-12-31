@@ -1,4 +1,4 @@
-import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -73,7 +73,7 @@ export async function handler (
     return mutateModules([
       {
         dependencyNames: input,
-        manifest: await readImporterManifestOnly(opts.dir, opts),
+        manifest: await readProjectManifestOnly(opts.dir, opts),
         mutation: 'unlinkSome',
         rootDir: opts.dir,
       },
@@ -81,7 +81,7 @@ export async function handler (
   }
   return mutateModules([
     {
-      manifest: await readImporterManifestOnly(opts.dir, opts),
+      manifest: await readProjectManifestOnly(opts.dir, opts),
       mutation: 'unlink',
       rootDir: opts.dir,
     },

@@ -20,7 +20,7 @@ import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
@@ -79,7 +79,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildPkgs (
-  importers: Array<{ manifest: ImporterManifest, rootDir: string }>,
+  importers: Array<{ manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
@@ -125,7 +125,7 @@ export async function rebuildPkgs (
 }
 
 export async function rebuild (
-  importers: Array<{ buildIndex: number, manifest: ImporterManifest, rootDir: string }>,
+  importers: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   maybeOpts: RebuildOptions,
 ) {
   const reporter = maybeOpts?.reporter

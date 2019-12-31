@@ -1,7 +1,7 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   createOrConnectStoreController,
   CreateStoreControllerOptions,
@@ -47,7 +47,7 @@ export async function handler (
     storeController: store.ctrl,
     storeDir: store.dir,
   }
-  await install(await readImporterManifestOnly(opts.dir), installOpts)
+  await install(await readProjectManifestOnly(opts.dir), installOpts)
 }
 
 async function readNpmLockfile (dir: string) {

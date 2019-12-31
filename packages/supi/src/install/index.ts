@@ -41,7 +41,7 @@ import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
   DependencyManifest,
-  ImporterManifest,
+  ProjectManifest,
   Registries,
 } from '@pnpm/types'
 import {
@@ -64,7 +64,7 @@ import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
-import { updateImporterManifest } from '../utils/getPref'
+import { updateProjectManifest } from '../utils/getPref'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -106,12 +106,12 @@ export type DependenciesMutation = (
   }
 ) & (
   {
-    manifest: ImporterManifest,
+    manifest: ProjectManifest,
   }
 )
 
 export async function install (
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   opts: InstallOptions & {
     preferredVersions?: PreferredVersions,
   },
@@ -157,7 +157,7 @@ export async function mutateModules (
     }
   }
 
-  let result!: Array<{ rootDir: string, manifest: ImporterManifest }>
+  let result!: Array<{ rootDir: string, manifest: ProjectManifest }>
   try {
     if (opts.lock) {
       result = await lock(ctx.lockfileDir, _install, {
@@ -179,7 +179,7 @@ export async function mutateModules (
 
   return result
 
-  async function _install (): Promise<Array<{ rootDir: string, manifest: ImporterManifest }>> {
+  async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
     const installsOnly = importers.every((importer) => importer.mutation === 'install')
     if (
       !opts.lockfileOnly &&
@@ -220,7 +220,7 @@ export async function mutateModules (
             binsDir: string,
             buildIndex: number,
             id: string,
-            manifest: ImporterManifest,
+            manifest: ProjectManifest,
             modulesDir: string,
             rootDir: string,
             pruneDirectDependencies?: boolean,
@@ -251,7 +251,7 @@ export async function mutateModules (
 
     const importersToInstall = [] as ImporterToUpdate[]
 
-    const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, rootDir: string, manifest: ImporterManifest, modulesDir: string }>
+    const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, rootDir: string, manifest: ProjectManifest, modulesDir: string }>
     const scriptsOpts = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
@@ -436,7 +436,7 @@ async function isExternalLink (storeDir: string, modules: string, pkgName: strin
   return !link.isInner && !isSubdir(storeDir, link.target)
 }
 
-function pkgHasDependencies (manifest: ImporterManifest) {
+function pkgHasDependencies (manifest: ProjectManifest) {
   return Boolean(
     R.keys(manifest.dependencies).length ||
     R.keys(manifest.devDependencies).length ||
@@ -504,7 +504,7 @@ function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDe
 }
 
 async function linkedPackagesAreUpToDate (
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   lockfileImporter: LockfileImporter,
   prefix: string,
   workspacePackages?: WorkspacePackages,
@@ -555,7 +555,7 @@ function refIsLocalTarball (ref: string) {
 }
 
 export async function addDependenciesToPackage (
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   dependencySelectors: string[],
   opts: InstallOptions & {
     allowNew?: boolean,
@@ -587,7 +587,7 @@ export async function addDependenciesToPackage (
 export type ImporterToUpdate = {
   binsDir: string,
   id: string,
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   modulesDir: string,
   rootDir: string,
   pruneDirectDependencies: boolean,
@@ -703,9 +703,9 @@ async function installInContext (
 
   const importersToLink = await Promise.all<ImporterToLink>(importersToResolve.map(async (importer, index) => {
     const resolvedImporter = resolvedImporters[importer.id]
-    let newPkg: ImporterManifest | undefined = importer.manifest
+    let newPkg: ProjectManifest | undefined = importer.manifest
     if (importer.updatePackageManifest) {
-      newPkg = await updateImporterManifest(importersToResolve[index], {
+      newPkg = await updateProjectManifest(importersToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
@@ -953,7 +953,7 @@ async function linkAllBins (
 }
 
 function addDirectDependenciesToLockfile (
-  newManifest: ImporterManifest,
+  newManifest: ProjectManifest,
   lockfileImporter: LockfileImporter,
   linkedPackages: Array<{alias: string}>,
   directDependencies: Array<{
@@ -1027,7 +1027,7 @@ function addDirectDependenciesToLockfile (
   return newLockfileImporter
 }
 
-function alignDependencyTypes (manifest: ImporterManifest, lockfileImporter: LockfileImporter) {
+function alignDependencyTypes (manifest: ProjectManifest, lockfileImporter: LockfileImporter) {
   const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
 
   // Aligning the dependency types in pnpm-lock.yaml
@@ -1041,7 +1041,7 @@ function alignDependencyTypes (manifest: ImporterManifest, lockfileImporter: Loc
   }
 }
 
-function getAliasToDependencyTypeMap (manifest: ImporterManifest) {
+function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
   const depTypesOfAliases = {}
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!manifest[depType]) continue

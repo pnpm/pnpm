@@ -1,10 +1,10 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-types'
 import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import readImporterManifest from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import readProjectManifest from '@pnpm/read-project-manifest'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
-import writeImporterManifest from '@pnpm/write-importer-manifest'
+import writeProjectManifest from '@pnpm/write-project-manifest'
 import rimraf = require('@zkochan/rimraf')
 import crossSpawn = require('cross-spawn')
 import delay = require('delay')
@@ -129,13 +129,13 @@ test('install --save-exact', async (t: tape.Test) => {
 test('install to a project that uses package.yaml', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
-  await writeImporterManifest(path.resolve('package.yaml'), { name: 'foo', version: '1.0.0' })
+  await writeProjectManifest(path.resolve('package.yaml'), { name: 'foo', version: '1.0.0' })
 
   await execPnpm('install', 'is-positive@3.1.0', '--save-exact', '--save-dev')
 
   await project.has('is-positive')
 
-  const { manifest } = await readImporterManifest(process.cwd())
+  const { manifest } = await readProjectManifest(process.cwd())
 
   t.deepEqual(manifest && manifest.devDependencies, { 'is-positive': '3.1.0' })
 })

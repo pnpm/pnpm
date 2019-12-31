@@ -3,8 +3,8 @@ import {
   docsUrl,
   getPinnedVersion,
   getSaveType,
-  readImporterManifestOnly,
-  tryReadImporterManifest,
+  readProjectManifestOnly,
+  tryReadProjectManifest,
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
@@ -353,7 +353,7 @@ export async function handler (
     installOpts['hooks'] = requireHooks(opts.lockfileDir || dir, opts)
   }
 
-  let { manifest, writeImporterManifest } = await tryReadImporterManifest(opts.dir, opts)
+  let { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.dir, opts)
   if (manifest === null) {
     if (opts.update) {
       throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
@@ -379,7 +379,7 @@ export async function handler (
   if (!input || !input.length) {
     const updatedManifest = await install(manifest, installOpts)
     if (opts.update === true && opts.save !== false) {
-      await writeImporterManifest(updatedManifest)
+      await writeProjectManifest(updatedManifest)
     }
   } else {
     const [updatedImporter] = await mutateModules([
@@ -396,7 +396,7 @@ export async function handler (
       },
     ], installOpts)
     if (opts.save !== false) {
-      await writeImporterManifest(updatedImporter.manifest)
+      await writeProjectManifest(updatedImporter.manifest)
     }
   }
 
@@ -426,7 +426,7 @@ export async function handler (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(opts.dir, opts),
+          manifest: await readProjectManifestOnly(opts.dir, opts),
           rootDir: opts.dir,
         },
       ], {

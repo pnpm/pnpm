@@ -1,7 +1,7 @@
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   DependenciesField,
-  ImporterManifest,
+  ProjectManifest,
   Registries,
 } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
@@ -16,7 +16,7 @@ interface StrictLinkOptions {
   lockfileDir: string,
   pinnedVersion: 'major' | 'minor' | 'patch',
   storeController: StoreController,
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   registries: Registries,
   storeDir: string,
   reporter: ReporterFunction,

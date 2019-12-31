@@ -1,7 +1,7 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
-import { DependenciesField, ImporterManifest } from '@pnpm/types'
+import { DependenciesField, ProjectManifest } from '@pnpm/types'
 import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
@@ -33,14 +33,14 @@ const COMPARATORS = [
 interface OutdatedInWorkspace extends OutdatedPackage {
   belongsTo: DependenciesField,
   current?: string,
-  dependentPkgs: Array<{ location: string, manifest: ImporterManifest }>,
+  dependentPkgs: Array<{ location: string, manifest: ProjectManifest }>,
   latest?: string,
   packageName: string,
   wanted: string,
 }
 
 export default async (
-  pkgs: Array<{ dir: string, manifest: ImporterManifest }>,
+  pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   args: string[],
   opts: OutdatedOptions,
 ) => {

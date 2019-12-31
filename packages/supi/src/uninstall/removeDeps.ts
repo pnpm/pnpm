@@ -2,17 +2,17 @@ import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  ImporterManifest,
+  ProjectManifest,
 } from '@pnpm/types'
 
 export default async function (
-  packageManifest: ImporterManifest,
+  packageManifest: ProjectManifest,
   removedPackages: string[],
   opts: {
     saveType?: DependenciesField,
     prefix: string,
   },
-): Promise<ImporterManifest> {
+): Promise<ProjectManifest> {
   if (opts.saveType) {
     packageManifest[opts.saveType] = packageManifest[opts.saveType]
 

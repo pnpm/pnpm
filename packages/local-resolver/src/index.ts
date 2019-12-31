@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   DirectoryResolution,
   ResolveResult,
@@ -49,7 +49,7 @@ export default async function resolveLocal (
 
   let localDependencyManifest!: DependencyManifest
   try {
-    localDependencyManifest = await readImporterManifestOnly(spec.fetchSpec) as DependencyManifest
+    localDependencyManifest = await readProjectManifestOnly(spec.fetchSpec) as DependencyManifest
   } catch (internalErr) {
     switch (internalErr.code) {
       case 'ENOTDIR': {

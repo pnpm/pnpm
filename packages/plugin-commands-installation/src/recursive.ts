@@ -14,7 +14,7 @@ import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { ImporterManifest, PackageManifest } from '@pnpm/types'
+import { PackageManifest, ProjectManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import isSubdir = require('is-subdir')
 import mem = require('mem')
@@ -85,8 +85,8 @@ export default async function recursive (
     return false
   }
   const manifestsByPath: { [dir: string]: Omit<Project, 'dir'> } = {}
-  for (const { dir, manifest, writeImporterManifest } of pkgs) {
-    manifestsByPath[dir] = { manifest, writeImporterManifest }
+  for (const { dir, manifest, writeProjectManifest } of pkgs) {
+    manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
 
   scopeLogger.debug({
@@ -138,7 +138,7 @@ export default async function recursive (
   const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, rootDir: string }>
+    const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
     await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
@@ -173,11 +173,11 @@ export default async function recursive (
     if (importers.length === 0) return true
     const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
-    const writeImporterManifests = [] as Array<(manifest: ImporterManifest) => Promise<void>>
+    const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedImporter[]
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
-      const { manifest, writeImporterManifest } = manifestsByPath[rootDir]
+      const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...input]
       if (updateToLatest) {
         if (!currentInput || !currentInput.length) {
@@ -197,7 +197,7 @@ export default async function recursive (
           currentInput = createWorkspaceSpecs(currentInput, workspacePackages!)
         }
       }
-      writeImporterManifests.push(writeImporterManifest)
+      writeProjectManifests.push(writeProjectManifest)
       switch (mutation) {
         case 'uninstallSome':
           mutatedImporters.push({
@@ -241,7 +241,7 @@ export default async function recursive (
     if (opts.save !== false) {
       await Promise.all(
         mutatedPkgs
-          .map(({ manifest }, index) => writeImporterManifests[index](manifest))
+          .map(({ manifest }, index) => writeProjectManifests[index](manifest))
       )
     }
     return true
@@ -260,7 +260,7 @@ export default async function recursive (
           return
         }
 
-        const { manifest, writeImporterManifest } = manifestsByPath[rootDir]
+        const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -315,7 +315,7 @@ export default async function recursive (
           },
         )
         if (opts.save !== false) {
-          await writeImporterManifest(newManifest)
+          await writeProjectManifest(newManifest)
         }
         result.passes++
       } catch (err) {
@@ -360,7 +360,7 @@ export default async function recursive (
   return true
 }
 
-async function unlink (manifest: ImporterManifest, opts: any) { // tslint:disable-line:no-any
+async function unlink (manifest: ProjectManifest, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {
@@ -373,7 +373,7 @@ async function unlink (manifest: ImporterManifest, opts: any) { // tslint:disabl
   )
 }
 
-async function unlinkPkgs (dependencyNames: string[], manifest: ImporterManifest, opts: any) { // tslint:disable-line:no-any
+async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest, opts: any) { // tslint:disable-line:no-any
   return mutateModules(
     [
       {

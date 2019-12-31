@@ -9,7 +9,7 @@ import {
 import readImportersContext from '@pnpm/read-importers-context'
 import {
   DEPENDENCIES_FIELDS,
-  ImporterManifest,
+  ProjectManifest,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
@@ -49,7 +49,7 @@ export interface PnpmContext<T> {
 
 export interface ImportersOptions {
   binsDir?: string,
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   rootDir: string,
 }
 
@@ -298,7 +298,7 @@ export interface PnpmSingleContext {
   hoistedAliases: {[depPath: string]: string[]},
   hoistedModulesDir: string,
   hoistPattern: string[] | undefined,
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   modulesDir: string,
   importerId: string,
   prefix: string,
@@ -317,7 +317,7 @@ export interface PnpmSingleContext {
 }
 
 export async function getContextForSingleImporter (
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,

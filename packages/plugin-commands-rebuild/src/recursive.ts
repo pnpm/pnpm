@@ -8,7 +8,7 @@ import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { ImporterManifest, PackageManifest } from '@pnpm/types'
+import { ProjectManifest, PackageManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import mem = require('mem')
 import pLimit from 'p-limit'
@@ -47,8 +47,8 @@ export default async function recursive (
     return
   }
   const manifestsByPath: { [dir: string]: Omit<Project, 'dir'> } = {}
-  for (const { dir, manifest, writeImporterManifest } of pkgs) {
-    manifestsByPath[dir] = { manifest, writeImporterManifest }
+  for (const { dir, manifest, writeProjectManifest } of pkgs) {
+    manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
 
   scopeLogger.debug({
@@ -83,7 +83,7 @@ export default async function recursive (
   const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, rootDir: string }>
+    const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
     await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))

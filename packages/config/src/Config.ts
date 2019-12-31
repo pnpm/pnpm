@@ -1,11 +1,15 @@
-import { ImporterManifest, IncludedDependencies, Registries } from '@pnpm/types'
+import {
+  IncludedDependencies,
+  ProjectManifest,
+  Registries,
+} from '@pnpm/types'
 
 export type UniversalOptions = Pick<Config, 'color' | 'dir' | 'rawConfig' | 'rawLocalConfig'>
 
 export type Project = {
   dir: string,
-  manifest: ImporterManifest,
-  writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
+  manifest: ProjectManifest,
+  writeProjectManifest (manifest: ProjectManifest, force?: boolean | undefined): Promise<void>
 }
 
 export type ProjectsGraph = Record<string, { dependencies: string[], package: Project }>
