@@ -6,7 +6,7 @@ import {
   IncludedDependencies,
   Modules,
 } from '@pnpm/modules-yaml'
-import readImportersContext from '@pnpm/read-importers-context'
+import readImportersContext from '@pnpm/read-projects-context'
 import {
   DEPENDENCIES_FIELDS,
   ProjectManifest,
@@ -27,14 +27,14 @@ export interface PnpmContext<T> {
   existsWantedLockfile: boolean,
   extraBinPaths: string[],
   hoistedAliases: {[depPath: string]: string[]}
-  importers: Array<{
-    modulesDir: string,
-    id: string,
-  } & T & Required<ImportersOptions>>,
   include: IncludedDependencies,
   independentLeaves: boolean,
   modulesFile: Modules | null,
   pendingBuilds: string[],
+  projects: Array<{
+    modulesDir: string,
+    id: string,
+  } & T & Required<ProjectOptions>>,
   rootModulesDir: string,
   hoistPattern: string[] | undefined,
   hoistedModulesDir: string,
@@ -47,14 +47,14 @@ export interface PnpmContext<T> {
   registries: Registries,
 }
 
-export interface ImportersOptions {
+export interface ProjectOptions {
   binsDir?: string,
   manifest: ProjectManifest,
   rootDir: string,
 }
 
 export default async function getContext<T> (
-  importers: (ImportersOptions & T)[],
+  projects: (ProjectOptions & T)[],
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
@@ -79,11 +79,11 @@ export default async function getContext<T> (
     forceShamefullyHoist?: boolean,
   },
 ): Promise<PnpmContext<T>> {
-  const importersContext = await readImportersContext(importers, opts.lockfileDir)
+  const importersContext = await readImportersContext(projects, opts.lockfileDir)
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (importersContext.modules) {
-    await validateNodeModules(importersContext.modules, importersContext.importers, {
+    await validateNodeModules(importersContext.modules, importersContext.projects, {
       currentHoistPattern: importersContext.currentHoistPattern,
       force: opts.force,
       include: opts.include,
@@ -104,16 +104,16 @@ export default async function getContext<T> (
 
   await makeDir(opts.storeDir)
 
-  importers.forEach((importer) => {
+  projects.forEach((project) => {
     packageManifestLogger.debug({
-      initial: importer.manifest,
-      prefix: importer.rootDir,
+      initial: project.manifest,
+      prefix: project.rootDir,
     })
   })
   if (opts.hooks?.readPackage) {
-    importers = importers.map((importer) => ({
-      ...importer,
-      manifest: opts.hooks!.readPackage!(importer.manifest),
+    projects = projects.map((project) => ({
+      ...project,
+      manifest: opts.hooks!.readPackage!(project.manifest),
     }))
   }
 
@@ -132,12 +132,12 @@ export default async function getContext<T> (
     hoistedModulesDir,
     hoistPattern: typeof importersContext.hoist === 'boolean' ?
       importersContext.currentHoistPattern : opts.hoistPattern,
-    importers: importersContext.importers,
     include: opts.include || importersContext.include,
     independentLeaves: Boolean(typeof importersContext.independentLeaves === 'undefined' ? opts.independentLeaves : importersContext.independentLeaves),
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
+    projects: importersContext.projects,
     registries: {
       ...opts.registries,
       ...importersContext.registries,
@@ -150,8 +150,8 @@ export default async function getContext<T> (
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
-      importers: importersContext.importers,
       lockfileDir: opts.lockfileDir,
+      projects: importersContext.projects,
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       virtualStoreDir,
@@ -163,7 +163,7 @@ export default async function getContext<T> (
 
 async function validateNodeModules (
   modules: Modules,
-  importers: Array<{
+  projects: Array<{
     modulesDir: string,
     id: string,
     rootDir: string,
@@ -186,10 +186,10 @@ async function validateNodeModules (
     forceShamefullyHoist?: boolean,
   },
 ) {
-  const rootImporter = importers.find(({ id }) => id === '.')
+  const rootProject = projects.find(({ id }) => id === '.')
   if (opts.forceShamefullyHoist && modules.shamefullyHoist !== opts.shamefullyHoist) {
-    if (opts.force && rootImporter) {
-      await purgeModulesDirsOfImporter(rootImporter)
+    if (opts.force && rootProject) {
+      await purgeModulesDirsOfImporter(rootProject)
       return
     }
     if (modules.shamefullyHoist) {
@@ -208,7 +208,7 @@ async function validateNodeModules (
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
     if (opts.force) {
       // TODO: remove the node_modules in the lockfile directory
-      await Promise.all(importers.map(purgeModulesDirsOfImporter))
+      await Promise.all(projects.map(purgeModulesDirsOfImporter))
       return
     }
     if (modules.independentLeaves) {
@@ -224,7 +224,7 @@ async function validateNodeModules (
       + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
     )
   }
-  if (opts.forceHoistPattern && rootImporter) {
+  if (opts.forceHoistPattern && rootProject) {
     try {
       if (!R.equals(opts.currentHoistPattern, (opts.hoistPattern || undefined))) {
         if (opts.currentHoistPattern) {
@@ -242,17 +242,17 @@ async function validateNodeModules (
       }
     } catch (err) {
       if (!opts.force) throw err
-      await purgeModulesDirsOfImporter(rootImporter)
+      await purgeModulesDirsOfImporter(rootProject)
     }
   }
-  await Promise.all(importers.map(async (importer) => {
+  await Promise.all(projects.map(async (project) => {
     try {
       checkCompatibility(modules, {
-        modulesDir: importer.modulesDir,
+        modulesDir: project.modulesDir,
         storeDir: opts.storeDir,
         virtualStoreDir: opts.virtualStoreDir,
       })
-      if (opts.lockfileDir !== importer.rootDir && opts.include && modules.included) {
+      if (opts.lockfileDir !== project.rootDir && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('INCLUDED_DEPS_CONFLICT',
@@ -264,7 +264,7 @@ async function validateNodeModules (
       }
     } catch (err) {
       if (!opts.force) throw err
-      await purgeModulesDirsOfImporter(importer)
+      await purgeModulesDirsOfImporter(project)
     }
   }))
 }
@@ -347,7 +347,7 @@ export async function getContextForSingleImporter (
     currentHoistPattern,
     hoist,
     hoistedAliases,
-    importers,
+    projects,
     include,
     independentLeaves,
     modules,
@@ -367,13 +367,13 @@ export async function getContextForSingleImporter (
 
   const storeDir = opts.storeDir
 
-  const importer = importers[0]
+  const importer = projects[0]
   const modulesDir = importer.modulesDir
   const importerId = importer.id
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (modules) {
-    await validateNodeModules(modules, importers, {
+    await validateNodeModules(modules, projects, {
       currentHoistPattern,
       force: opts.force,
       include: opts.include,
@@ -428,8 +428,8 @@ export async function getContextForSingleImporter (
     ...await readLockfileFile({
       force: opts.force,
       forceSharedLockfile: opts.forceSharedLockfile,
-      importers: [{ id: importerId, rootDir: opts.dir }],
       lockfileDir: opts.lockfileDir,
+      projects: [{ id: importerId, rootDir: opts.dir }],
       registry: opts.registries.default,
       useLockfile: opts.useLockfile,
       virtualStoreDir,

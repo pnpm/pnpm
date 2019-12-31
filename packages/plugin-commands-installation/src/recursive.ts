@@ -28,7 +28,7 @@ import {
   addDependenciesToPackage,
   install,
   InstallOptions,
-  MutatedImporter,
+  MutatedProject,
   mutateModules,
 } from 'supi'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
@@ -174,7 +174,7 @@ export default async function recursive (
     const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
-    const mutatedImporters = [] as MutatedImporter[]
+    const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
@@ -206,7 +206,7 @@ export default async function recursive (
             mutation,
             rootDir,
             targetDependenciesField: getSaveType(opts),
-          } as MutatedImporter)
+          } as MutatedProject)
           return
         case 'installSome':
           mutatedImporters.push({
@@ -221,7 +221,7 @@ export default async function recursive (
             }),
             rootDir,
             targetDependenciesField: getSaveType(opts),
-          } as MutatedImporter)
+          } as MutatedProject)
           return
         case 'install':
           mutatedImporters.push({
@@ -229,7 +229,7 @@ export default async function recursive (
             manifest,
             mutation,
             rootDir,
-          } as MutatedImporter)
+          } as MutatedProject)
           return
       }
     }))

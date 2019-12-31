@@ -43,7 +43,7 @@
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lockfile-file": "workspace:3.0.1",
     "@pnpm/modules-yaml": "workspace:5.0.0",
-    "@pnpm/read-importers-context": "workspace:3.0.5",
+    "@pnpm/read-projects-context": "workspace:3.0.5",
     "@pnpm/types": "workspace:4.0.0",
     "@zkochan/rimraf": "1.0.0",
     "is-ci": "2.0.0",

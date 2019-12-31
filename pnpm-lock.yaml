@@ -492,7 +492,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
-      '@pnpm/read-importers-context': 'link:../read-importers-context'
+      '@pnpm/read-projects-context': 'link:../read-projects-context'
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       is-ci: 2.0.0
@@ -513,7 +513,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:5.0.0'
-      '@pnpm/read-importers-context': 'workspace:3.0.5'
+      '@pnpm/read-projects-context': 'workspace:3.0.5'
       '@pnpm/types': 'workspace:4.0.0'
       '@types/is-ci': ^2.0.0
       '@types/ramda': ^0.26.38
@@ -602,7 +602,7 @@ importers:
       '@pnpm/headless': 'link:'
       '@pnpm/logger': 3.1.0
       '@pnpm/package-store': 'link:../package-store'
-      '@pnpm/read-importers-context': 'link:../read-importers-context'
+      '@pnpm/read-projects-context': 'link:../read-projects-context'
       '@pnpm/store-path': 2.1.1
       '@types/fs-extra': 8.0.1
       '@types/mz': 2.7.0
@@ -643,9 +643,9 @@ importers:
       '@pnpm/package-requester': 'workspace:10.0.1'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-importers-context': 'workspace:*'
       '@pnpm/read-package-json': 'workspace:3.0.1'
       '@pnpm/read-project-manifest': 'workspace:2.0.1'
+      '@pnpm/read-projects-context': 'workspace:*'
       '@pnpm/store-controller-types': 'workspace:6.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/symlink-dependency': 'workspace:3.0.0'
@@ -2183,22 +2183,6 @@ importers:
       ramda: 0.26.1
       rimraf: 3.0.0
       yaml-tag: 1.1.0
-  packages/read-importers-context:
-    dependencies:
-      '@pnpm/lockfile-file': 'link:../lockfile-file'
-      '@pnpm/modules-yaml': 'link:../modules-yaml'
-      '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
-    devDependencies:
-      '@pnpm/logger': 3.1.0
-      rimraf: 3.0.0
-    specifiers:
-      '@pnpm/lockfile-file': 'workspace:3.0.1'
-      '@pnpm/logger': 3.1.0
-      '@pnpm/modules-yaml': 'workspace:5.0.0'
-      '@pnpm/types': 'workspace:4.0.0'
-      '@pnpm/utils': 'workspace:0.12.2'
-      rimraf: 3.0.0
   packages/read-modules-dir:
     dependencies:
       mz: 2.7.0
@@ -2259,6 +2243,22 @@ importers:
       sort-keys: 4.0.0
       strip-bom: 4.0.0
       tempy: 0.3.0
+  packages/read-projects-context:
+    dependencies:
+      '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
+    devDependencies:
+      '@pnpm/logger': 3.1.0
+      rimraf: 3.0.0
+    specifiers:
+      '@pnpm/lockfile-file': 'workspace:3.0.1'
+      '@pnpm/logger': 3.1.0
+      '@pnpm/modules-yaml': 'workspace:5.0.0'
+      '@pnpm/types': 'workspace:4.0.0'
+      '@pnpm/utils': 'workspace:0.12.2'
+      rimraf: 3.0.0
   packages/resolve-dependencies:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'

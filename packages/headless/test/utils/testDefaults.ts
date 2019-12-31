@@ -2,8 +2,8 @@ import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
-import readImportersContext from '@pnpm/read-importers-context'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import readImportersContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import storePath from '@pnpm/store-path'
 import path = require('path')
@@ -26,7 +26,7 @@ export default async function testDefaults (
 ): Promise<HeadlessOptions> {
   let storeDir = opts?.storeDir ?? tempy.directory()
   const lockfileDir = opts?.lockfileDir ?? process.cwd()
-  const { importers, include, pendingBuilds, registries } = await readImportersContext(
+  const { include, pendingBuilds, projects, registries } = await readImportersContext(
     [
       {
         rootDir: lockfileDir,
@@ -65,9 +65,6 @@ export default async function testDefaults (
     },
     engineStrict: false,
     force: false,
-    importers: opts.importers ? opts.importers : await Promise.all(
-      importers.map(async (importer) => ({ ...importer, manifest: await readPackageJsonFromDir(importer.rootDir) }))
-    ),
     include,
     independentLeaves: false,
     lockfileDir,
@@ -76,6 +73,9 @@ export default async function testDefaults (
       version: '1.0.0',
     },
     pendingBuilds,
+    projects: opts.projects ? opts.projects : await Promise.all(
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
+    ),
     rawConfig: {},
     registries: registries || {
       default: registry,

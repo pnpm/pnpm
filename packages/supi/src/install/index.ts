@@ -10,7 +10,7 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
-import getContext, { ImportersOptions, PnpmContext } from '@pnpm/get-context'
+import getContext, { PnpmContext, ProjectOptions } from '@pnpm/get-context'
 import headless from '@pnpm/headless'
 import {
   runLifecycleHooksConcurrently,
@@ -130,10 +130,10 @@ export async function install (
   return importers[0].manifest
 }
 
-export type MutatedImporter = ImportersOptions & DependenciesMutation
+export type MutatedProject = ProjectOptions & DependenciesMutation
 
 export async function mutateModules (
-  importers: MutatedImporter[],
+  projects: MutatedProject[],
   maybeOpts: InstallOptions & {
     preferredVersions?: PreferredVersions,
   },
@@ -149,9 +149,9 @@ export async function mutateModules (
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
-  const ctx = await getContext(importers, opts)
+  const ctx = await getContext(projects, opts)
 
-  for (const { manifest, rootDir } of ctx.importers) {
+  for (const { manifest, rootDir } of ctx.projects) {
     if (!manifest) {
       throw new Error(`No package.json found in "${rootDir}"`)
     }
@@ -180,7 +180,7 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
-    const installsOnly = importers.every((importer) => importer.mutation === 'install')
+    const installsOnly = projects.every((project) => project.mutation === 'install')
     if (
       !opts.lockfileOnly &&
       !opts.update &&
@@ -188,18 +188,18 @@ export async function mutateModules (
       (
         opts.frozenLockfile ||
         opts.preferFrozenLockfile &&
-        (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.importers.length) &&
+        (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
-        await pEvery(ctx.importers, async (importer) =>
-          !hasLocalTarballDepsInRoot(ctx.wantedLockfile, importer.id) &&
-          satisfiesPackageManifest(ctx.wantedLockfile, importer.manifest, importer.id) &&
-          linkedPackagesAreUpToDate(importer.manifest, ctx.wantedLockfile.importers[importer.id], importer.rootDir, opts.workspacePackages)
+        await pEvery(ctx.projects, async (project) =>
+          !hasLocalTarballDepsInRoot(ctx.wantedLockfile, project.id) &&
+          satisfiesPackageManifest(ctx.wantedLockfile, project.manifest, project.id) &&
+          linkedPackagesAreUpToDate(project.manifest, ctx.wantedLockfile.importers[project.id], project.rootDir, opts.workspacePackages)
         )
       )
     ) {
       if (!ctx.existsWantedLockfile) {
-        if (ctx.importers.some((importer) => pkgHasDependencies(importer.manifest))) {
+        if (ctx.projects.some((project) => pkgHasDependencies(project.manifest))) {
           throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
         }
       } else {
@@ -216,7 +216,13 @@ export async function mutateModules (
           hoistedAliases: ctx.hoistedAliases,
           hoistPattern: ctx.hoistPattern,
           ignoreScripts: opts.ignoreScripts,
-          importers: ctx.importers as Array<{
+          include: opts.include,
+          independentLeaves: opts.independentLeaves,
+          lockfileDir: ctx.lockfileDir,
+          ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
+          packageManager:  opts.packageManager,
+          pendingBuilds: ctx.pendingBuilds,
+          projects: ctx.projects as Array<{
             binsDir: string,
             buildIndex: number,
             id: string,
@@ -225,12 +231,6 @@ export async function mutateModules (
             rootDir: string,
             pruneDirectDependencies?: boolean,
           }>,
-          include: opts.include,
-          independentLeaves: opts.independentLeaves,
-          lockfileDir: ctx.lockfileDir,
-          ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
-          packageManager:  opts.packageManager,
-          pendingBuilds: ctx.pendingBuilds,
           pruneStore: opts.pruneStore,
           rawConfig: opts.rawConfig,
           registries: opts.registries,
@@ -245,13 +245,13 @@ export async function mutateModules (
           virtualStoreDir: ctx.virtualStoreDir,
           wantedLockfile: ctx.wantedLockfile,
         })
-        return importers
+        return projects
       }
     }
 
-    const importersToInstall = [] as ImporterToUpdate[]
+    const projectsToInstall = [] as ImporterToUpdate[]
 
-    const importersToBeInstalled = ctx.importers.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, rootDir: string, manifest: ProjectManifest, modulesDir: string }>
+    const projectsToBeInstalled = ctx.projects.filter(({ mutation }) => mutation === 'install') as Array<{ buildIndex: number, rootDir: string, manifest: ProjectManifest, modulesDir: string }>
     const scriptsOpts = {
       extraBinPaths: opts.extraBinPaths,
       rawConfig: opts.rawConfig,
@@ -261,82 +261,82 @@ export async function mutateModules (
     if (!opts.ignoreScripts) {
       await runLifecycleHooksConcurrently(
         ['preinstall'],
-        importersToBeInstalled,
+        projectsToBeInstalled,
         opts.childConcurrency,
         scriptsOpts,
       )
     }
 
     // TODO: make it concurrent
-    for (const importer of ctx.importers) {
-      switch (importer.mutation) {
+    for (const project of ctx.projects) {
+      switch (project.mutation) {
         case 'uninstallSome':
-          importersToInstall.push({
+          projectsToInstall.push({
             pruneDirectDependencies: false,
-            ...importer,
-            removePackages: importer.dependencyNames,
+            ...project,
+            removePackages: project.dependencyNames,
             updatePackageManifest: true,
             wantedDependencies: [],
           })
           break
         case 'install': {
-          await installCase(importer)
+          await installCase(project)
           break
         }
         case 'installSome': {
           await installSome({
-            ...importer,
+            ...project,
             updatePackageManifest: true,
           })
           break
         }
         case 'unlink': {
-          const packageDirs = await readModulesDirs(importer.modulesDir)
+          const packageDirs = await readModulesDirs(project.modulesDir)
           const externalPackages = await pFilter(
             packageDirs!,
-            (packageDir: string) => isExternalLink(ctx.storeDir, importer.modulesDir, packageDir),
+            (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir),
           )
-          const allDeps = getAllDependenciesFromPackage(importer.manifest)
+          const allDeps = getAllDependenciesFromPackage(project.manifest)
           const packagesToInstall: string[] = []
           for (const pkgName of externalPackages) {
-            await rimraf(path.join(importer.modulesDir, pkgName))
+            await rimraf(path.join(project.modulesDir, pkgName))
             if (allDeps[pkgName]) {
               packagesToInstall.push(pkgName)
             }
           }
-          if (!packagesToInstall.length) return importers
+          if (!packagesToInstall.length) return projects
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
-          await installCase({ ...importer, mutation: 'install' })
+          await installCase({ ...project, mutation: 'install' })
           break
         }
         case 'unlinkSome': {
           const packagesToInstall: string[] = []
-          const allDeps = getAllDependenciesFromPackage(importer.manifest)
-          for (const depName of importer.dependencyNames) {
+          const allDeps = getAllDependenciesFromPackage(project.manifest)
+          for (const depName of project.dependencyNames) {
             try {
-              if (!await isExternalLink(ctx.storeDir, importer.modulesDir, depName)) {
+              if (!await isExternalLink(ctx.storeDir, project.modulesDir, depName)) {
                 logger.warn({
                   message: `${depName} is not an external link`,
-                  prefix: importer.rootDir,
+                  prefix: project.rootDir,
                 })
                 continue
               }
             } catch (err) {
               if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
             }
-            await rimraf(path.join(importer.modulesDir, depName))
+            await rimraf(path.join(project.modulesDir, depName))
             if (allDeps[depName]) {
               packagesToInstall.push(depName)
             }
           }
-          if (!packagesToInstall.length) return importers
+          if (!packagesToInstall.length) return projects
 
           // TODO: install only those that were unlinked
           // but don't update their version specs in package.json
           await installSome({
-            ...importer,
+            ...project,
             dependencySelectors: packagesToInstall,
             mutation: 'installSome',
             updatePackageManifest: false,
@@ -346,54 +346,54 @@ export async function mutateModules (
       }
     }
 
-    async function installCase (importer: any) { // tslint:disable-line:no-any
-      const wantedDependencies = getWantedDependencies(importer.manifest, { updateWorkspaceDependencies: opts.update })
+    async function installCase (project: any) { // tslint:disable-line:no-any
+      const wantedDependencies = getWantedDependencies(project.manifest, { updateWorkspaceDependencies: opts.update })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[importer.id], wantedDependencies)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedLockfile.importers[project.id], wantedDependencies)
       }
-      const scripts = opts.ignoreScripts ? {} : (importer.manifest?.scripts ?? {})
-      if (opts.ignoreScripts && importer.manifest?.scripts &&
-        (importer.manifest.scripts.preinstall || importer.manifest.scripts.prepublish ||
-          importer.manifest.scripts.install ||
-          importer.manifest.scripts.postinstall ||
-          importer.manifest.scripts.prepare)
+      const scripts = opts.ignoreScripts ? {} : (project.manifest?.scripts ?? {})
+      if (opts.ignoreScripts && project.manifest?.scripts &&
+        (project.manifest.scripts.preinstall || project.manifest.scripts.prepublish ||
+          project.manifest.scripts.install ||
+          project.manifest.scripts.postinstall ||
+          project.manifest.scripts.prepare)
       ) {
-        ctx.pendingBuilds.push(importer.id)
+        ctx.pendingBuilds.push(project.id)
       }
 
       if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
         logger.warn({
           message: '`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.',
-          prefix: importer.rootDir,
+          prefix: project.rootDir,
         })
       }
-      importersToInstall.push({
+      projectsToInstall.push({
         pruneDirectDependencies: false,
-        ...importer,
+        ...project,
         updatePackageManifest: opts.update === true,
         wantedDependencies,
       })
     }
 
-    async function installSome (importer: any) { // tslint:disable-line:no-any
-      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.manifest)
-      const optionalDependencies = importer.targetDependenciesField ? {} : importer.manifest.optionalDependencies || {}
-      const devDependencies = importer.targetDependenciesField ? {} : importer.manifest.devDependencies || {}
-      const wantedDeps = parseWantedDependencies(importer.dependencySelectors, {
-        allowNew: importer.allowNew !== false,
+    async function installSome (project: any) { // tslint:disable-line:no-any
+      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(project.manifest)
+      const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
+      const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
+      const wantedDeps = parseWantedDependencies(project.dependencySelectors, {
+        allowNew: project.allowNew !== false,
         currentPrefs,
         defaultTag: opts.tag,
-        dev: importer.targetDependenciesField === 'devDependencies',
+        dev: project.targetDependenciesField === 'devDependencies',
         devDependencies,
-        optional: importer.targetDependenciesField === 'optionalDependencies',
+        optional: project.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
         updateWorkspaceDependencies: opts.update,
       })
-      importersToInstall.push({
+      projectsToInstall.push({
         pruneDirectDependencies: false,
-        ...importer,
+        ...project,
         wantedDependencies: wantedDeps.map(wantedDep => ({ ...wantedDep, isNew: true, updateSpec: true })),
       })
     }
@@ -408,7 +408,7 @@ export async function mutateModules (
       // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
       !equalLockfiles
     )
-    const result = await installInContext(importersToInstall, ctx, {
+    const result = await installInContext(projectsToInstall, ctx, {
       ...opts,
       currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
@@ -418,7 +418,7 @@ export async function mutateModules (
 
     if (!opts.ignoreScripts) {
       await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
-        importersToBeInstalled,
+        projectsToBeInstalled,
         opts.childConcurrency,
         scriptsOpts,
       )
@@ -447,7 +447,7 @@ function pkgHasDependencies (manifest: ProjectManifest) {
 async function partitionLinkedPackages (
   dependencies: WantedDependency[],
   opts: {
-    importerDir: string,
+    projectDir: string,
     lockfileOnly: boolean,
     modulesDir: string,
     storeDir: string,
@@ -464,7 +464,7 @@ async function partitionLinkedPackages (
     }
     const isInnerLink = await safeIsInnerLink(opts.modulesDir, dependency.alias, {
       hideAlienModules: opts.lockfileOnly === false,
-      importerDir: opts.importerDir,
+      projectDir: opts.projectDir,
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     })
@@ -475,7 +475,7 @@ async function partitionLinkedPackages (
     // This info-log might be better to be moved to the reporter
     logger.info({
       message: `${dependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
-      prefix: opts.importerDir,
+      prefix: opts.projectDir,
     })
     linkedAliases.add(dependency.alias)
   }
@@ -564,7 +564,7 @@ export async function addDependenciesToPackage (
     targetDependenciesField?: DependenciesField,
   },
 ) {
-  const importers = await mutateModules(
+  const projects = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -581,7 +581,7 @@ export async function addDependenciesToPackage (
       ...opts,
       lockfileDir: opts.lockfileDir || opts.dir,
     })
-  return importers[0].manifest
+  return projects[0].manifest
 }
 
 export type ImporterToUpdate = {
@@ -597,7 +597,7 @@ export type ImporterToUpdate = {
 } & DependenciesMutation
 
 async function installInContext (
-  importers: ImporterToUpdate[],
+  projects: ImporterToUpdate[],
   ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
     makePartialCurrentLockfile: boolean,
@@ -614,27 +614,27 @@ async function installInContext (
   }
 
   ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
-  for (const { id } of importers) {
+  for (const { id } of projects) {
     if (!ctx.wantedLockfile.importers[id]) {
       ctx.wantedLockfile.importers[id] = { specifiers: {} }
     }
   }
   if (opts.pruneLockfileImporters) {
-    const importerIds = new Set(importers.map(({ id }) => id))
+    const projectIds = new Set(projects.map(({ id }) => id))
     for (const wantedImporter of Object.keys(ctx.wantedLockfile.importers)) {
-      if (!importerIds.has(wantedImporter)) {
+      if (!projectIds.has(wantedImporter)) {
         delete ctx.wantedLockfile.importers[wantedImporter]
       }
     }
   }
 
   await Promise.all(
-    importers
-      .map(async (importer) => {
-        if (importer.mutation !== 'uninstallSome') return
-        importer.manifest = await removeDeps(importer.manifest, importer.dependencyNames, {
-          prefix: importer.rootDir,
-          saveType: importer.targetDependenciesField,
+    projects
+      .map(async (project) => {
+        if (project.mutation !== 'uninstallSome') return
+        project.manifest = await removeDeps(project.manifest, project.dependencyNames, {
+          prefix: project.rootDir,
+          saveType: project.targetDependenciesField,
         })
       }),
   )
@@ -665,7 +665,7 @@ async function installInContext (
     virtualStoreDir: ctx.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
-  const importersToResolve = await Promise.all(importers.map((importer) => _toResolveImporter(importer)))
+  const projectsToResolve = await Promise.all(projects.map((project) => _toResolveImporter(project)))
   const {
     dependenciesTree,
     outdatedDependencies,
@@ -673,7 +673,7 @@ async function installInContext (
     resolvedPackagesByPackageId,
     wantedToBeSkippedPackageIds,
   } = await resolveDependencies(
-    importersToResolve,
+    projectsToResolve,
     {
       alwaysTryWorkspacePackages: opts.linkWorkspacePackages,
       currentLockfile: ctx.currentLockfile,
@@ -701,25 +701,25 @@ async function installInContext (
     stage: 'resolution_done',
   })
 
-  const importersToLink = await Promise.all<ImporterToLink>(importersToResolve.map(async (importer, index) => {
-    const resolvedImporter = resolvedImporters[importer.id]
-    let newPkg: ProjectManifest | undefined = importer.manifest
-    if (importer.updatePackageManifest) {
-      newPkg = await updateProjectManifest(importersToResolve[index], {
+  const projectsToLink = await Promise.all<ImporterToLink>(projectsToResolve.map(async (project, index) => {
+    const resolvedImporter = resolvedImporters[project.id]
+    let newPkg: ProjectManifest | undefined = project.manifest
+    if (project.updatePackageManifest) {
+      newPkg = await updateProjectManifest(projectsToResolve[index], {
         directDependencies: resolvedImporter.directDependencies,
         preserveWorkspaceProtocol: opts.preserveWorkspaceProtocol,
         saveWorkspaceProtocol: opts.saveWorkspaceProtocol,
       })
     } else {
       packageManifestLogger.debug({
-        prefix: importer.rootDir,
-        updated: importer.manifest,
+        prefix: project.rootDir,
+        updated: project.manifest,
       })
     }
 
     if (newPkg) {
-      const lockfileImporter = ctx.wantedLockfile.importers[importer.id]
-      ctx.wantedLockfile.importers[importer.id] = addDirectDependenciesToLockfile(
+      const lockfileImporter = ctx.wantedLockfile.importers[project.id]
+      ctx.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
         newPkg,
         lockfileImporter,
         resolvedImporter.linkedDependencies,
@@ -728,34 +728,34 @@ async function installInContext (
       )
     }
 
-    const topParents = importer.manifest
+    const topParents = project.manifest
       ? await getTopParents(
           R.difference(
-            Object.keys(getAllDependenciesFromPackage(importer.manifest)),
+            Object.keys(getAllDependenciesFromPackage(project.manifest)),
             resolvedImporter.directDependencies
-              .filter((dep, index) => importer.wantedDependencies[index].isNew === true)
+              .filter((dep, index) => project.wantedDependencies[index].isNew === true)
               .map(({ alias }) => alias) || [],
           ),
-          importer.modulesDir,
+          project.modulesDir,
         )
       : []
 
     return {
-      binsDir: importer.binsDir,
+      binsDir: project.binsDir,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      id: importer.id,
+      id: project.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
-      manifest: newPkg || importer.manifest,
-      modulesDir: importer.modulesDir,
-      pruneDirectDependencies: importer.pruneDirectDependencies,
-      removePackages: importer.removePackages,
-      rootDir: importer.rootDir,
+      manifest: newPkg || project.manifest,
+      modulesDir: project.modulesDir,
+      pruneDirectDependencies: project.pruneDirectDependencies,
+      removePackages: project.removePackages,
+      rootDir: project.rootDir,
       topParents,
     }
   }))
 
   const result = await linkPackages(
-    importersToLink,
+    projectsToLink,
     dependenciesTree,
     {
       afterAllResolvedHook: opts.hooks?.afterAllResolved,
@@ -826,7 +826,7 @@ async function installInContext (
     }
 
     if (!opts.lockfileOnly) {
-      await Promise.all(importersToLink.map(linkBinsOfImporter))
+      await Promise.all(projectsToLink.map(linkBinsOfImporter))
     }
   }
 
@@ -883,7 +883,7 @@ async function installInContext (
 
   await opts.storeController.close()
 
-  return importersToLink.map(({ manifest, rootDir }) => ({ rootDir, manifest }))
+  return projectsToLink.map(({ manifest, rootDir }) => ({ rootDir, manifest }))
 }
 
 async function toResolveImporter (
@@ -895,23 +895,23 @@ async function toResolveImporter (
     preferredVersions?: PreferredVersions,
     workspacePackages: WorkspacePackages,
   },
-  importer: ImporterToUpdate,
+  project: ImporterToUpdate,
 ) {
-  const allDeps = getWantedDependencies(importer.manifest)
+  const allDeps = getWantedDependencies(project.manifest)
   const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
-    importerDir: importer.rootDir,
     lockfileOnly: opts.lockfileOnly,
-    modulesDir: importer.modulesDir,
+    modulesDir: project.modulesDir,
+    projectDir: project.rootDir,
     storeDir: opts.storeDir,
     virtualStoreDir: opts.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
   const existingDeps = nonLinkedDependencies
-    .filter(({ alias }) => !importer.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
+    .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
-  if (!importer.manifest) {
+  if (!project.manifest) {
     wantedDependencies = [
-      ...importer.wantedDependencies,
+      ...project.wantedDependencies,
       ...existingDeps,
     ]
     .map((dep) => ({
@@ -920,13 +920,13 @@ async function toResolveImporter (
     }))
   } else {
     wantedDependencies = [
-      ...importer.wantedDependencies.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+      ...project.wantedDependencies.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
       ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
     ]
   }
   return {
-    ...importer,
-    preferredVersions: opts.preferredVersions ?? (importer.manifest && getPreferredVersionsFromPackage(importer.manifest)) ?? {},
+    ...project,
+    preferredVersions: opts.preferredVersions ?? (project.manifest && getPreferredVersionsFromPackage(project.manifest)) ?? {},
     wantedDependencies: wantedDependencies
       .filter(({ alias, updateDepth }) => updateDepth >= 0 || !linkedAliases.has(alias)),
   }

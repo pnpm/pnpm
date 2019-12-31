@@ -79,7 +79,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildPkgs (
-  importers: Array<{ manifest: ProjectManifest, rootDir: string }>,
+  projects: Array<{ manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
@@ -88,7 +88,7 @@ export async function rebuildPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(importers, opts)
+  const ctx = await getContext(projects, opts)
 
   if (!ctx.currentLockfile || !ctx.currentLockfile.packages) return
   const packages = ctx.currentLockfile.packages
@@ -108,7 +108,7 @@ export async function rebuildPkgs (
   })
 
   let pkgs = [] as string[]
-  for (const { rootDir } of importers) {
+  for (const { rootDir } of projects) {
     pkgs = [
       ...pkgs,
       ...findPackages(packages, searched, { prefix: rootDir }),
@@ -125,7 +125,7 @@ export async function rebuildPkgs (
 }
 
 export async function rebuild (
-  importers: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
+  projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
   maybeOpts: RebuildOptions,
 ) {
   const reporter = maybeOpts?.reporter
@@ -133,7 +133,7 @@ export async function rebuild (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(importers, opts)
+  const ctx = await getContext(projects, opts)
 
   let idsToRebuild: string[] = []
 
@@ -160,11 +160,11 @@ export async function rebuild (
   }
   await runLifecycleHooksConcurrently(
     ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
-    ctx.importers,
+    ctx.projects,
     opts.childConcurrency || 5,
     scriptsOpts,
   )
-  for (const { id, manifest } of ctx.importers) {
+  for (const { id, manifest } of ctx.projects) {
     if (manifest?.scripts && (!opts.pending || ctx.pendingBuilds.includes(id))) {
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(id), 1)
     }
@@ -223,7 +223,7 @@ async function _rebuild (
     virtualStoreDir: string,
     rootModulesDir: string,
     currentLockfile: Lockfile,
-    importers: Array<{ id: string, rootDir: string }>,
+    projects: Array<{ id: string, rootDir: string }>,
     independentLeaves: boolean,
     extraBinPaths: string[],
   },
@@ -237,7 +237,7 @@ async function _rebuild (
   getSubgraphToBuild(
     lockfileWalker(
       ctx.currentLockfile,
-      ctx.importers.map(({ id }) => id),
+      ctx.projects.map(({ id }) => id),
       {
         include: {
           dependencies: opts.production,
@@ -333,7 +333,7 @@ async function _rebuild (
         return linkBins(modules, binPath, { warn })
       })),
   )
-  await Promise.all(ctx.importers.map(({ rootDir }) => limitLinking(() => {
+  await Promise.all(ctx.projects.map(({ rootDir }) => limitLinking(() => {
     const modules = path.join(rootDir, 'node_modules')
     const binPath = path.join(modules, '.bin')
     return linkBins(modules, binPath, {

@@ -25,7 +25,7 @@
     "@pnpm/headless": "link:",
     "@pnpm/logger": "3.1.0",
     "@pnpm/package-store": "workspace:*",
-    "@pnpm/read-importers-context": "workspace:*",
+    "@pnpm/read-projects-context": "workspace:*",
     "@pnpm/store-path": "2.1.1",
     "@types/fs-extra": "^8.0.1",
     "@types/mz": "^2.7.0",
