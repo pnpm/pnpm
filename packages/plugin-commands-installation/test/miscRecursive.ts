@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import makeDir = require('make-dir')
@@ -30,13 +30,13 @@ test('recursive install/uninstall', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
@@ -46,10 +46,10 @@ test('recursive install/uninstall', async (t) => {
 
   await add.handler(['noop'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'add')
 
@@ -58,10 +58,10 @@ test('recursive install/uninstall', async (t) => {
 
   await remove.handler(['is-negative'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -94,7 +94,7 @@ test('recursive install with package that has link', async (t) => {
 
   await install.handler([], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -130,7 +130,7 @@ test('running `pnpm recursive` on a subset of packages', async t => {
 
   await install.handler([], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -183,7 +183,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
 
   await install.handler([], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
@@ -219,7 +219,7 @@ test('recursive installation fails when installation in one of the packages fail
   try {
     await install.handler([], {
       ...DEFAULT_OPTS,
-      ...await readWsPkgs(process.cwd(), []),
+      ...await readProjects(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),
@@ -247,13 +247,13 @@ test('second run of `recursive install` after package.json has been edited manua
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
@@ -268,10 +268,10 @@ test('second run of `recursive install` after package.json has been edited manua
 
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
@@ -317,7 +317,7 @@ test('recursive --filter ignore excluded packages', async (t) => {
 
   await install.handler([], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), [
+    ...await readProjects(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
     dir: process.cwd(),
@@ -362,7 +362,7 @@ test('recursive filter multiple times', async (t) => {
 
   await install.handler([], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), [
+    ...await readProjects(process.cwd(), [
       { namePattern: 'project-1' },
       { namePattern: 'project-2' },
     ]),
@@ -401,7 +401,7 @@ test('recursive install --no-bail', async (t) => {
   try {
     await install.handler([], {
       ...DEFAULT_OPTS,
-      ...await readWsPkgs(process.cwd(), []),
+      ...await readProjects(process.cwd(), []),
       bail: false,
       dir: process.cwd(),
       recursive: true,
@@ -435,7 +435,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   await update.handler(['project-2'], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     linkWorkspacePackages: false,
     lockfileDir: process.cwd(),

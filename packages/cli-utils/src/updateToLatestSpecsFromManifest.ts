@@ -1,9 +1,9 @@
-import { ImporterManifest, IncludedDependencies } from '@pnpm/types'
+import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import R = require('ramda')
 import getVerSelType = require('version-selector-type')
 
-export function updateToLatestSpecsFromManifest (manifest: ImporterManifest, include: IncludedDependencies) {
+export function updateToLatestSpecsFromManifest (manifest: ProjectManifest, include: IncludedDependencies) {
   const allDeps = {
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),
@@ -22,7 +22,7 @@ export function updateToLatestSpecsFromManifest (manifest: ImporterManifest, inc
   return updateSpecs
 }
 
-export function createLatestSpecs (specs: string[], manifest: ImporterManifest) {
+export function createLatestSpecs (specs: string[], manifest: ProjectManifest) {
   const allDeps = getAllDependenciesFromPackage(manifest)
   return specs
     .filter((selector) => selector.includes('@', 1)

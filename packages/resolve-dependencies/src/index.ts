@@ -94,7 +94,7 @@ export default async function (
   }
 
   await Promise.all(importers.map(async (importer) => {
-    const lockfileImporter = opts.wantedLockfile.importers[importer.id]
+    const projectSnapshot = opts.wantedLockfile.importers[importer.id]
     // This array will only contain the dependencies that should be linked in.
     // The already linked-in dependencies will not be added.
     const linkedDependencies = [] as LinkedDependency[]
@@ -113,9 +113,9 @@ export default async function (
       preferredVersions: importer.preferredVersions || {},
       proceed: true,
       resolvedDependencies: {
-        ...lockfileImporter.dependencies,
-        ...lockfileImporter.devDependencies,
-        ...lockfileImporter.optionalDependencies,
+        ...projectSnapshot.dependencies,
+        ...projectSnapshot.devDependencies,
+        ...projectSnapshot.optionalDependencies,
       },
       updateDepth: -1,
       workspacePackages: opts.workspacePackages,

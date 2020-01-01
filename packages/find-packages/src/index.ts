@@ -1,5 +1,5 @@
-import { readExactImporterManifest } from '@pnpm/read-importer-manifest'
-import { ImporterManifest } from '@pnpm/types'
+import { readExactProjectManifest } from '@pnpm/read-project-manifest'
+import { ProjectManifest } from '@pnpm/types'
 import fastGlob = require('fast-glob')
 import pFilter = require('p-filter')
 import path = require('path')
@@ -18,15 +18,15 @@ declare namespace findPkgs {
     patterns?: string[]
   }
 
-  interface WorkspacePackage {
+  interface Project {
     dir: string
-    manifest: ImporterManifest
+    manifest: ProjectManifest
 
-    writeImporterManifest (manifest: ImporterManifest, force?: boolean | undefined): Promise<void>
+    writeProjectManifest (manifest: ProjectManifest, force?: boolean | undefined): Promise<void>
   }
 }
 
-async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.WorkspacePackage[]> {
+async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.Project[]> {
   opts = opts || {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
@@ -57,8 +57,8 @@ async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkg
         try {
           return {
             dir: path.dirname(manifestPath),
-            ...await readExactImporterManifest(manifestPath),
-          } as findPkgs.WorkspacePackage
+            ...await readExactProjectManifest(manifestPath),
+          } as findPkgs.Project
         } catch (err) {
           if (err.code === 'ENOENT') {
             return null!

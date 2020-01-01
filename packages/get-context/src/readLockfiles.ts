@@ -24,7 +24,7 @@ export default async function (
   opts: {
     force: boolean,
     forceSharedLockfile: boolean,
-    importers: Array<{
+    projects: Array<{
       id: string,
       rootDir: string,
     }>,
@@ -55,7 +55,7 @@ export default async function (
     readCurrentLockfile(opts.virtualStoreDir, lockfileOpts),
   ])
   const sopts = { lockfileVersion: LOCKFILE_VERSION }
-  const importerIds = opts.importers.map((importer) => importer.id)
+  const importerIds = opts.projects.map((importer) => importer.id)
   const currentLockfile = files[1] || createLockfileObject(importerIds, sopts)
   for (const importerId of importerIds) {
     if (!currentLockfile.importers[importerId]) {

@@ -19,11 +19,11 @@ export interface LocalPackageSpec {
 
 export default function parsePref (
   pref: string,
-  importerDir: string,
+  projectDir: string,
   lockfileDir: string,
 ): LocalPackageSpec | null {
   if (pref.startsWith('link:')) {
-    return fromLocal(pref, importerDir, lockfileDir, 'directory')
+    return fromLocal(pref, projectDir, lockfileDir, 'directory')
   }
   if (pref.endsWith('.tgz')
     || pref.endsWith('.tar.gz')
@@ -33,7 +33,7 @@ export default function parsePref (
     || isFilespec.test(pref)
   ) {
     const type = isFilename.test(pref) ? 'file' : 'directory'
-    return fromLocal(pref, importerDir, lockfileDir, type)
+    return fromLocal(pref, projectDir, lockfileDir, type)
   }
   if (pref.startsWith('path:')) {
     const err = new PnpmError('PATH_IS_UNSUPPORTED_PROTOCOL', 'Local dependencies via `path:` protocol are not supported. ' +
@@ -49,7 +49,7 @@ export default function parsePref (
 
 function fromLocal (
   pref: string,
-  importerDir: string,
+  projectDir: string,
   lockfileDir: string,
   type: 'file' | 'directory',
 ): LocalPackageSpec {
@@ -65,16 +65,16 @@ function fromLocal (
     fetchSpec = resolvePath(os.homedir(), spec.slice(2))
     normalizedPref = `${protocol}${spec}`
   } else {
-    fetchSpec = resolvePath(importerDir, spec)
+    fetchSpec = resolvePath(projectDir, spec)
     if (isAbsolute(spec)) {
       normalizedPref = `${protocol}${spec}`
     } else {
-      normalizedPref = `${protocol}${path.relative(importerDir, fetchSpec)}`
+      normalizedPref = `${protocol}${path.relative(projectDir, fetchSpec)}`
     }
   }
 
-  const dependencyPath = normalize(path.relative(importerDir, fetchSpec))
-  const id = type === 'directory' || importerDir === lockfileDir
+  const dependencyPath = normalize(path.relative(projectDir, fetchSpec))
+  const id = type === 'directory' || projectDir === lockfileDir
     ? `${protocol}${dependencyPath}`
     : `${protocol}${normalize(path.relative(lockfileDir, fetchSpec))}`
 

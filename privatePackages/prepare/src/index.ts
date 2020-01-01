@@ -1,5 +1,5 @@
 import assertProject, { Modules, Project } from '@pnpm/assert-project'
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import makeDir = require('make-dir')
 import path = require('path')
 import { Test } from 'tape'
@@ -31,7 +31,7 @@ export function tempDir (t: Test) {
 
 export function preparePackages (
   t: Test,
-  pkgs: Array<{ location: string, package: ImporterManifest } | ImporterManifest>,
+  pkgs: Array<{ location: string, package: ProjectManifest } | ProjectManifest>,
   opts?: {
     manifestFormat?: ManifestFormat,
     tempDir?: string,
@@ -49,7 +49,7 @@ export function preparePackages (
         tempDir: path.join(dirname, aPkg['location']),
       })
     } else {
-      result[aPkg['name']] = prepare(t, aPkg as ImporterManifest, {
+      result[aPkg['name']] = prepare(t, aPkg as ProjectManifest, {
         manifestFormat,
         tempDir: path.join(dirname, aPkg['name']),
       })
@@ -61,7 +61,7 @@ export function preparePackages (
 
 export default function prepare (
   test: Test,
-  manifest?: ImporterManifest,
+  manifest?: ProjectManifest,
   opts?: {
     manifestFormat?: ManifestFormat,
     tempDir?: string,

@@ -1,4 +1,4 @@
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependenciesField, Registries } from '@pnpm/types'
 import dh from 'dependencies-hierarchy'
 import R = require('ramda')
@@ -42,7 +42,7 @@ export async function forPackages (
       search,
     }))
     .map(async ([projectPath, dependenciesHierarchy]) => {
-      const entryPkg = await readImporterManifestOnly(projectPath)
+      const entryPkg = await readProjectManifestOnly(projectPath)
       return {
         name: entryPkg.name,
         version: entryPkg.version,
@@ -91,7 +91,7 @@ export default async function (
       })
     )
     .map(async ([projectPath, dependenciesHierarchy]) => {
-      const entryPkg = await readImporterManifestOnly(projectPath)
+      const entryPkg = await readProjectManifestOnly(projectPath)
       return {
         name: entryPkg.name,
         version: entryPkg.version,

@@ -1,12 +1,12 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
-import { DependencyManifest, ImporterManifest } from '@pnpm/types'
+import { DependencyManifest, ProjectManifest } from '@pnpm/types'
 import lifecycle = require('@zkochan/npm-lifecycle')
 
 function noop () {} // tslint:disable-line:no-empty
 
 export default async function runLifecycleHook (
   stage: string,
-  manifest: ImporterManifest | DependencyManifest,
+  manifest: ProjectManifest | DependencyManifest,
   opts: {
     args?: string[],
     depPath: string,
@@ -89,6 +89,6 @@ export default async function runLifecycleHook (
   }
 }
 
-function getId (manifest: ImporterManifest | DependencyManifest) {
+function getId (manifest: ProjectManifest | DependencyManifest) {
   return `${manifest.name || ''}@${manifest.version || ''}`
 }

@@ -1,4 +1,4 @@
-import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { LogBase } from '@pnpm/logger'
@@ -62,7 +62,7 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: Pick<Config, 'allWsPkgs' | 'dir' | 'engineStrict' | 'independentLeaves' | 'rawLocalConfig' | 'registries' | 'selectedWsPkgsGraph' | 'workspaceDir'> &
+  opts: Pick<Config, 'allProjects' | 'dir' | 'engineStrict' | 'independentLeaves' | 'rawLocalConfig' | 'registries' | 'selectedProjectsGraph' | 'workspaceDir'> &
     CreateStoreControllerOptions &
     {
       recursive?: boolean,
@@ -70,8 +70,8 @@ export async function handler (
       pending: boolean,
     },
 ) {
-  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
-    await recursive(opts.allWsPkgs, args, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! })
+  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
+    await recursive(opts.allProjects, args, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! })
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -85,7 +85,7 @@ export async function handler (
       [
         {
           buildIndex: 0,
-          manifest: await readImporterManifestOnly(rebuildOpts.dir, opts),
+          manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
           rootDir: rebuildOpts.dir,
         },
       ],
@@ -95,7 +95,7 @@ export async function handler (
   await rebuildPkgs(
     [
       {
-        manifest: await readImporterManifestOnly(rebuildOpts.dir, opts),
+        manifest: await readProjectManifestOnly(rebuildOpts.dir, opts),
         rootDir: rebuildOpts.dir,
       },
     ],

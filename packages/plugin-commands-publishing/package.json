@@ -51,7 +51,7 @@
     "@pnpm/config": "workspace:6.0.0",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/npm-resolver": "workspace:6.0.2",
-    "@pnpm/read-importer-manifest": "workspace:2.0.1",
+    "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/resolver-base": "workspace:6.0.0",
     "@pnpm/run-npm": "workspace:1.0.0",
     "@pnpm/store-path": "2.1.1",

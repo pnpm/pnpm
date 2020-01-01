@@ -35,7 +35,7 @@
     "find-packages": "link:"
   },
   "dependencies": {
-    "@pnpm/read-importer-manifest": "workspace:2.0.1",
+    "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/types": "workspace:4.0.0",
     "fast-glob": "^3.1.1",
     "p-filter": "^2.1.0"

@@ -7,22 +7,22 @@ import {
 } from '@pnpm/utils'
 import path = require('path')
 
-export interface ImporterOptions {
+export interface ProjectOptions {
   binsDir?: string,
   rootDir: string,
 }
 
 export default async function <T>(
-  importers: (ImporterOptions & T)[],
+  projects: (ProjectOptions & T)[],
   lockfileDir: string,
 ): Promise<{
   currentHoistPattern?: string[],
   hoist?: boolean,
   hoistedAliases: { [depPath: string]: string[] },
-  importers: Array<{
+  projects: Array<{
     id: string,
     modulesDir: string,
-  } & T & Required<ImporterOptions>>,
+  } & T & Required<ProjectOptions>>,
   include: Record<DependenciesField, boolean>,
   independentLeaves: boolean | undefined,
   modules: Modules | null,
@@ -38,22 +38,22 @@ export default async function <T>(
     currentHoistPattern: modules?.hoistPattern || undefined,
     hoist: !modules ? undefined : Boolean(modules.hoistPattern),
     hoistedAliases: modules?.hoistedAliases || {},
-    importers: await Promise.all(
-      importers.map(async (importer) => {
-        const modulesDir = await realNodeModulesDir(importer.rootDir)
-        const importerId = getLockfileImporterId(lockfileDir, importer.rootDir)
-
-        return {
-          ...importer,
-          binsDir: importer.binsDir || path.join(importer.rootDir, 'node_modules', '.bin'),
-          id: importerId,
-          modulesDir,
-        }
-      })),
     include: modules?.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
     independentLeaves: modules?.independentLeaves || undefined,
     modules,
     pendingBuilds: modules?.pendingBuilds || [],
+    projects: await Promise.all(
+      projects.map(async (project) => {
+        const modulesDir = await realNodeModulesDir(project.rootDir)
+        const importerId = getLockfileImporterId(lockfileDir, project.rootDir)
+
+        return {
+          ...project,
+          binsDir: project.binsDir || path.join(project.rootDir, 'node_modules', '.bin'),
+          id: importerId,
+          modulesDir,
+        }
+      })),
     registries: modules?.registries && normalizeRegistries(modules.registries),
     rootModulesDir,
     shamefullyHoist: modules?.shamefullyHoist || undefined,

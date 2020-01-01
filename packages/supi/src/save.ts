@@ -2,7 +2,7 @@ import { packageManifestLogger } from '@pnpm/core-loggers'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  ImporterManifest,
+  ProjectManifest,
 } from '@pnpm/types'
 
 export type PackageSpecObject = {
@@ -14,15 +14,15 @@ export type PackageSpecObject = {
 
 export default async function save (
   prefix: string,
-  packageManifest: ImporterManifest,
+  packageManifest: ProjectManifest,
   packageSpecs: Array<PackageSpecObject>,
   opts?: {
     dryRun?: boolean,
   }
-): Promise<ImporterManifest> {
+): Promise<ProjectManifest> {
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {
-      const spec = packageSpec.pref || findSpec(packageSpec.alias, packageManifest as ImporterManifest)
+      const spec = packageSpec.pref || findSpec(packageSpec.alias, packageManifest as ProjectManifest)
       if (spec) {
         packageManifest[packageSpec.saveType] = packageManifest[packageSpec.saveType] || {}
         packageManifest[packageSpec.saveType]![packageSpec.alias] = spec
@@ -37,7 +37,7 @@ export default async function save (
         }
       }
     } else if (packageSpec.pref) {
-      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest as ImporterManifest) || 'dependencies'
+      const usedDepType = guessDependencyType(packageSpec.alias, packageManifest as ProjectManifest) || 'dependencies'
       packageManifest[usedDepType] = packageManifest[usedDepType] || {}
       packageManifest[usedDepType]![packageSpec.alias] = packageSpec.pref
     }
@@ -47,15 +47,15 @@ export default async function save (
     prefix,
     updated: packageManifest,
   })
-  return packageManifest as ImporterManifest
+  return packageManifest as ProjectManifest
 }
 
-function findSpec (alias: string, manifest: ImporterManifest): string | undefined {
+function findSpec (alias: string, manifest: ProjectManifest): string | undefined {
   const foundDepType = guessDependencyType(alias, manifest)
   return foundDepType && manifest[foundDepType]![alias]
 }
 
-export function guessDependencyType (alias: string, manifest: ImporterManifest): DependenciesField | undefined {
+export function guessDependencyType (alias: string, manifest: ProjectManifest): DependenciesField | undefined {
   return DEPENDENCIES_FIELDS
     .find((depField) => Boolean(manifest[depField]?.[alias]))
 }

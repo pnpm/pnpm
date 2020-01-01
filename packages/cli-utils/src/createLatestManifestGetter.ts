@@ -47,9 +47,9 @@ export async function getLatestManifest (
   packageName: string,
 ) {
   const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
-    importerDir: opts.dir,
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
+    projectDir: opts.dir,
     registry: pickRegistryForPackage(opts.registries, packageName),
   })
   return resolution && resolution.manifest || null

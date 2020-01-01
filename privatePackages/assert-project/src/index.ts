@@ -1,6 +1,6 @@
 import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { Lockfile, LockfileImporter } from '@pnpm/lockfile-types'
+import { Lockfile, ProjectSnapshot } from '@pnpm/lockfile-types'
 import { Modules, read as readModules } from '@pnpm/modules-yaml'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import path = require('path')
@@ -12,7 +12,7 @@ import isExecutable from './isExecutable'
 
 export { isExecutable, Modules }
 
-export type RawLockfile = Lockfile & Partial<LockfileImporter>
+export type RawLockfile = Lockfile & Partial<ProjectSnapshot>
 
 export interface Project {
   requireModule: NodeRequireFunction

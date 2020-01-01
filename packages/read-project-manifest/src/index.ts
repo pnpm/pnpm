@@ -1,6 +1,6 @@
 import PnpmError from '@pnpm/error'
-import { ImporterManifest } from '@pnpm/types'
-import writeImporterManifest from '@pnpm/write-importer-manifest'
+import { ProjectManifest } from '@pnpm/types'
+import writeProjectManifest from '@pnpm/write-project-manifest'
 import detectIndent = require('detect-indent')
 import equal = require('fast-deep-equal')
 import fs = require('fs')
@@ -17,43 +17,43 @@ import {
 
 const stat = promisify(fs.stat)
 
-type WriteImporterManifest = (manifest: ImporterManifest, force?: boolean) => Promise<void>
+type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
-export default async function readImporterManifest (importerDir: string): Promise<{
+export default async function readProjectManifest (projectDir: string): Promise<{
   fileName: string,
-  manifest: ImporterManifest
-  writeImporterManifest: WriteImporterManifest
+  manifest: ProjectManifest
+  writeProjectManifest: WriteProjectManifest
 }> {
-  const result = await tryReadImporterManifest(importerDir)
+  const result = await tryReadProjectManifest(projectDir)
   if (result.manifest !== null) {
     return result as {
       fileName: string,
-      manifest: ImporterManifest
-      writeImporterManifest: WriteImporterManifest
+      manifest: ProjectManifest
+      writeProjectManifest: WriteProjectManifest
     }
   }
   throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
-    `No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
+    `No package.json (or package.yaml, or package.json5) was found in "${projectDir}".`)
 }
 
-export async function readImporterManifestOnly (importerDir: string): Promise<ImporterManifest> {
-  const { manifest } = await readImporterManifest(importerDir)
+export async function readProjectManifestOnly (projectDir: string): Promise<ProjectManifest> {
+  const { manifest } = await readProjectManifest(projectDir)
   return manifest
 }
 
-export async function tryReadImporterManifest (importerDir: string): Promise<{
+export async function tryReadProjectManifest (projectDir: string): Promise<{
   fileName: string,
-  manifest: ImporterManifest | null
-  writeImporterManifest: WriteImporterManifest
+  manifest: ProjectManifest | null
+  writeProjectManifest: WriteProjectManifest
 }> {
   try {
-    const manifestPath = path.join(importerDir, 'package.json')
+    const manifestPath = path.join(projectDir, 'package.json')
     const { data, text } = await readJsonFile(manifestPath)
     const { indent } = detectIndent(text)
     return {
       fileName: 'package.json',
       manifest: data,
-      writeImporterManifest: createManifestWriter({
+      writeProjectManifest: createManifestWriter({
         indent,
         initialManifest: data,
         manifestPath,
@@ -63,13 +63,13 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
     if (err.code !== 'ENOENT') throw err
   }
   try {
-    const manifestPath = path.join(importerDir, 'package.json5')
+    const manifestPath = path.join(projectDir, 'package.json5')
     const { data, text } = await readJson5File(manifestPath)
     const { indent } = detectIndent(text)
     return {
       fileName: 'package.json5',
       manifest: data,
-      writeImporterManifest: createManifestWriter({
+      writeProjectManifest: createManifestWriter({
         indent,
         initialManifest: data,
         manifestPath,
@@ -79,12 +79,12 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
     if (err.code !== 'ENOENT') throw err
   }
   try {
-    const manifestPath = path.join(importerDir, 'package.yaml')
+    const manifestPath = path.join(projectDir, 'package.yaml')
     const manifest = await readPackageYaml(manifestPath)
     return {
       fileName: 'package.yaml',
       manifest,
-      writeImporterManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+      writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
     }
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
@@ -93,25 +93,25 @@ export async function tryReadImporterManifest (importerDir: string): Promise<{
     // ENOTDIR isn't used on Windows, but pnpm expects it.
     let s: Stats | undefined
     try {
-      s = await stat(importerDir)
+      s = await stat(projectDir)
     } catch (err) {
       // Ignore
     }
     if (s && !s.isDirectory()) {
-      const err = new Error(`"${importerDir}" is not a directory`)
+      const err = new Error(`"${projectDir}" is not a directory`)
       err['code'] = 'ENOTDIR' // tslint:disable-line
       throw err
     }
   }
-  const filePath = path.join(importerDir, 'package.json')
+  const filePath = path.join(projectDir, 'package.json')
   return {
     fileName: 'package.json',
     manifest: null,
-    writeImporterManifest: (manifest: ImporterManifest) => writeImporterManifest(filePath, manifest),
+    writeProjectManifest: (manifest: ProjectManifest) => writeProjectManifest(filePath, manifest),
   }
 }
 
-export async function readExactImporterManifest (manifestPath: string) {
+export async function readExactProjectManifest (manifestPath: string) {
   const base = path.basename(manifestPath).toLowerCase()
   switch (base) {
     case 'package.json': {
@@ -119,7 +119,7 @@ export async function readExactImporterManifest (manifestPath: string) {
       const { indent } = detectIndent(text)
       return {
         manifest: data,
-        writeImporterManifest: createManifestWriter({
+        writeProjectManifest: createManifestWriter({
           indent,
           initialManifest: data,
           manifestPath,
@@ -131,7 +131,7 @@ export async function readExactImporterManifest (manifestPath: string) {
       const { indent } = detectIndent(text)
       return {
         manifest: data,
-        writeImporterManifest: createManifestWriter({
+        writeProjectManifest: createManifestWriter({
           indent,
           initialManifest: data,
           manifestPath,
@@ -142,7 +142,7 @@ export async function readExactImporterManifest (manifestPath: string) {
       const manifest = await readPackageYaml(manifestPath)
       return {
         manifest,
-        writeImporterManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
+        writeProjectManifest: createManifestWriter({ initialManifest: manifest, manifestPath }),
       }
     }
   }
@@ -151,7 +151,7 @@ export async function readExactImporterManifest (manifestPath: string) {
 
 async function readPackageYaml (filePath: string) {
   try {
-    return await readYamlFile<ImporterManifest>(filePath)
+    return await readYamlFile<ProjectManifest>(filePath)
   } catch (err) {
     if (err.name !== 'YAMLException') throw err
     err.message += `\nin ${filePath}`
@@ -162,16 +162,16 @@ async function readPackageYaml (filePath: string) {
 
 function createManifestWriter (
   opts: {
-    initialManifest: ImporterManifest,
+    initialManifest: ProjectManifest,
     indent?: string | number | undefined,
     manifestPath: string,
   },
-): (WriteImporterManifest) {
+): (WriteProjectManifest) {
   const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))
-  return async (updatedManifest: ImporterManifest, force?: boolean) => {
+  return async (updatedManifest: ProjectManifest, force?: boolean) => {
     updatedManifest = normalize(updatedManifest)
     if (force === true || !equal(initialManifest, updatedManifest)) {
-      return writeImporterManifest(opts.manifestPath, updatedManifest, { indent: opts.indent })
+      return writeProjectManifest(opts.manifestPath, updatedManifest, { indent: opts.indent })
     }
   }
 }
@@ -183,7 +183,7 @@ const dependencyKeys = new Set([
   'peerDependencies',
 ])
 
-function normalize (manifest: ImporterManifest) {
+function normalize (manifest: ProjectManifest) {
   const result = {}
 
   for (const key of Object.keys(manifest)) {

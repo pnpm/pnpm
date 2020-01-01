@@ -81,7 +81,7 @@ interface BaseManifest {
 
 export type DependencyManifest = BaseManifest & Required<Pick<BaseManifest, 'name' | 'version'>>
 
-export type ImporterManifest = BaseManifest & {
+export type ProjectManifest = BaseManifest & {
   private?: boolean,
 }
 

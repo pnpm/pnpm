@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { filterPkgsBySelectorObjects, readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
@@ -57,7 +57,7 @@ test('pnpm recursive run', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -68,10 +68,10 @@ test('pnpm recursive run', async (t) => {
   ])
   await run.handler(['build'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -109,7 +109,7 @@ test('pnpm recursive run concurrently', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -120,10 +120,10 @@ test('pnpm recursive run concurrently', async (t) => {
   ])
   await run.handler(['build'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -162,7 +162,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -176,10 +176,10 @@ test('`pnpm recursive run` fails when run without filters and no package has the
   try {
     await run.handler(['this-command-does-not-exist'], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
       workspaceDir: process.cwd(),
     })
   } catch (_err) {
@@ -221,7 +221,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
   try {
     await run.handler(['this-command-does-not-exist'], {
       ...DEFAULT_OPTS,
-      ...await readWsPkgs(process.cwd(), [{ namePattern: '*' }]),
+      ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),
@@ -261,7 +261,7 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     },
   ])
 
-  const { allWsPkgs } = await readWsPkgs(process.cwd(), [])
+  const { allProjects } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -272,11 +272,11 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
   ])
   await run.handler(['this-command-does-not-exist'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph: await filterPkgsBySelectorObjects(
-      allWsPkgs,
+    selectedProjectsGraph: await filterPkgsBySelectorObjects(
+      allProjects,
       [{ namePattern: 'project-1' }],
       { workspaceDir: process.cwd() },
     ),
@@ -324,7 +324,7 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -338,10 +338,10 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
   try {
     await run.handler(['build', '--no-bail'], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
       workspaceDir: process.cwd(),
     })
   } catch (_err) {
@@ -358,10 +358,10 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
   try {
     await run.handler(['build'], {
       ...DEFAULT_OPTS,
-      allWsPkgs,
+      allProjects,
       dir: process.cwd(),
       recursive: true,
-      selectedWsPkgsGraph,
+      selectedProjectsGraph,
       workspaceDir: process.cwd(),
     })
   } catch (_err) {
@@ -401,7 +401,7 @@ test('pnpm recursive run with filtering', async (t) => {
     },
   ])
 
-  const { allWsPkgs } = await readWsPkgs(process.cwd(), [])
+  const { allProjects } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -412,11 +412,11 @@ test('pnpm recursive run with filtering', async (t) => {
   ])
   await run.handler(['build'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph: await filterPkgsBySelectorObjects(
-      allWsPkgs,
+    selectedProjectsGraph: await filterPkgsBySelectorObjects(
+      allProjects,
       [{ namePattern: 'project-1' }],
       { workspaceDir: process.cwd() },
     ),
@@ -444,7 +444,7 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
     },
   ])
 
-  const { allWsPkgs } = await readWsPkgs(process.cwd(), [])
+  const { allProjects } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -457,11 +457,11 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
   process.env['npm_config_unsafe_perm'] = 'false'
   await run.handler(['build'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
   })
   delete process.env['npm_config_unsafe_perm']
 

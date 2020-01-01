@@ -7,7 +7,7 @@ export { getConfig, getSaveType, packageManager }
 export * from './createLatestManifestGetter'
 export * from './getPinnedVersion'
 export * from './packageIsInstallable'
-export * from './readImporterManifest'
+export * from './readProjectManifest'
 export * from './recursiveSummary'
 export * from './style'
 export * from './updateToLatestSpecsFromManifest'

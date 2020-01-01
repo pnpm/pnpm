@@ -7,8 +7,8 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
-  ImporterManifest,
   PackageManifest,
+  ProjectManifest,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import semver = require('semver')
@@ -28,7 +28,7 @@ export default async function outdated (
   opts: {
     currentLockfile: Lockfile | null,
     match?: (dependencyName: string) => boolean,
-    manifest: ImporterManifest,
+    manifest: ProjectManifest,
     prefix: string,
     getLatestManifest: GetLatestManifestFunction,
     lockfileDir: string,
@@ -128,7 +128,7 @@ export default async function outdated (
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
 }
 
-function packageHasNoDeps (manifest: ImporterManifest) {
+function packageHasNoDeps (manifest: ProjectManifest) {
   return (!manifest.dependencies || isEmpty(manifest.dependencies))
     && (!manifest.devDependencies || isEmpty(manifest.devDependencies))
     && (!manifest.optionalDependencies || isEmpty(manifest.optionalDependencies))

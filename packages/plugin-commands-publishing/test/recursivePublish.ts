@@ -1,4 +1,4 @@
-import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import { publish } from '@pnpm/plugin-commands-publishing'
 import { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -68,7 +68,7 @@ test('recursive publish', async (t) => {
 
   await publish.handler([], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
   })
@@ -86,7 +86,7 @@ test('recursive publish', async (t) => {
 
   await publish.handler([], {
     ...DEFAULT_OPTS,
-    ...await readWsPkgs(process.cwd(), []),
+    ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     tag: 'next',

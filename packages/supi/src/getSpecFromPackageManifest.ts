@@ -1,7 +1,7 @@
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 
 export default (
-  manifest: Pick<ImporterManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+  manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
   depName: string,
 ) => {
   return manifest.dependencies?.[depName]

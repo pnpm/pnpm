@@ -5,20 +5,20 @@ import { getContextForSingleImporter } from '@pnpm/get-context'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
-  LockfileImporter,
+  ProjectSnapshot,
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile-file'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
-import readImporterManifest from '@pnpm/read-importer-manifest'
+import readProjectManifest from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
   DependencyManifest,
-  ImporterManifest,
+  ProjectManifest,
 } from '@pnpm/types'
 import normalize = require('normalize-path')
 import path = require('path')
@@ -64,7 +64,7 @@ export default async function link (
       linkFromPath = linkFrom.path
       linkFromAlias = linkFrom.alias
     }
-    const { manifest } = await readImporterManifest(linkFromPath) as { manifest: DependencyManifest }
+    const { manifest } = await readProjectManifest(linkFromPath) as { manifest: DependencyManifest }
     specsToUpsert.push({
       alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {
@@ -134,7 +134,7 @@ export default async function link (
     warn: (message: string) => logger.warn({ message, prefix: opts.dir }),
   })
 
-  let newPkg!: ImporterManifest
+  let newPkg!: ProjectManifest
   if (opts.targetDependenciesField) {
     newPkg = await save(opts.dir, opts.manifest, specsToUpsert)
     for (const { alias } of specsToUpsert) {
@@ -166,11 +166,11 @@ export default async function link (
 }
 
 function addLinkToLockfile (
-  lockfileImporter: LockfileImporter,
+  projectSnapshot: ProjectSnapshot,
   opts: {
     linkedPkgName: string,
     packagePath: string,
-    manifest?: ImporterManifest,
+    manifest?: ProjectManifest,
   },
 ) {
   const id = `link:${opts.packagePath}`
@@ -178,10 +178,10 @@ function addLinkToLockfile (
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName]) {
       addedTo = depType
-      lockfileImporter[depType] = lockfileImporter[depType] || {}
-      lockfileImporter[depType]![opts.linkedPkgName] = id
-    } else if (lockfileImporter[depType]) {
-      delete lockfileImporter[depType]![opts.linkedPkgName]
+      projectSnapshot[depType] = projectSnapshot[depType] || {}
+      projectSnapshot[depType]![opts.linkedPkgName] = id
+    } else if (projectSnapshot[depType]) {
+      delete projectSnapshot[depType]![opts.linkedPkgName]
     }
   }
 
@@ -190,9 +190,9 @@ function addLinkToLockfile (
 
   const availableSpec = getSpecFromPackageManifest(opts.manifest, opts.linkedPkgName)
   if (availableSpec) {
-    lockfileImporter.specifiers[opts.linkedPkgName] = availableSpec
+    projectSnapshot.specifiers[opts.linkedPkgName] = availableSpec
   } else {
-    delete lockfileImporter.specifiers[opts.linkedPkgName]
+    delete projectSnapshot.specifiers[opts.linkedPkgName]
   }
 }
 

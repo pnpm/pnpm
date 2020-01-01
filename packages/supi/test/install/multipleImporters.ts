@@ -8,7 +8,7 @@ import exists = require('path-exists')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
-  MutatedImporter,
+  MutatedProject,
   mutateModules,
 } from 'supi'
 import tape = require('tape')
@@ -30,7 +30,7 @@ test('install only the dependencies of the specified importer', async (t) => {
     },
   ])
 
-  const importers: MutatedImporter[] = [
+  const importers: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: {
@@ -144,7 +144,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
     },
   ])
 
-  const importers: MutatedImporter[] = [
+  const importers: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: {
@@ -234,7 +234,7 @@ test('headless install is used when package linked to another package in the wor
   }
   const projects = preparePackages(t, [pkg1, pkg2])
 
-  const importers: MutatedImporter[] = [
+  const importers: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: pkg1,
@@ -284,7 +284,7 @@ test('headless install is used with an up-to-date lockfile when package referenc
   }
   const projects = preparePackages(t, [pkg1, pkg2])
 
-  const importers: MutatedImporter[] = [
+  const importers: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: pkg1,

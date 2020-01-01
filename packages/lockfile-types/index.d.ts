@@ -1,12 +1,10 @@
 export interface Lockfile {
-  importers: {
-    [path: string]: LockfileImporter,
-  },
+  importers: Record<string, ProjectSnapshot>,
   lockfileVersion: number,
   packages?: PackageSnapshots,
 }
 
-export interface LockfileImporter {
+export interface ProjectSnapshot {
   specifiers: ResolvedDependencies,
   dependencies?: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,

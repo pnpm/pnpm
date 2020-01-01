@@ -98,7 +98,7 @@ export function help () {
 
 export function handler (
   args: string[],
-  opts: Pick<Config, 'allWsPkgs' | 'dir' | 'include' | 'selectedWsPkgsGraph'> & {
+  opts: Pick<Config, 'allProjects' | 'dir' | 'include' | 'selectedProjectsGraph'> & {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
     lockfileDir?: string,
@@ -108,8 +108,8 @@ export function handler (
   },
   command: string,
 ) {
-  if (opts.recursive && opts.selectedWsPkgsGraph) {
-    const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+  if (opts.recursive && opts.selectedProjectsGraph) {
+    const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     return listRecursive(pkgs, args, command, opts)
   }
   return render([opts.dir], args, {

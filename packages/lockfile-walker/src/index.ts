@@ -26,11 +26,11 @@ export function lockfileWalkerGroupImporterSteps (
   const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
 
   return importerIds.map((importerId) => {
-    const lockfileImporter = lockfile.importers[importerId]
+    const projectSnapshot = lockfile.importers[importerId]
     const entryNodes = R.toPairs({
-      ...(opts?.include?.devDependencies === false ? {} : lockfileImporter.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : lockfileImporter.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : lockfileImporter.optionalDependencies),
+      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
+      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
+      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
     .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
@@ -57,11 +57,11 @@ export default function lockfileWalker (
   const entryNodes = [] as string[]
 
   importerIds.forEach((importerId) => {
-    const lockfileImporter = lockfile.importers[importerId]
+    const projectSnapshot = lockfile.importers[importerId]
     R.toPairs({
-      ...(opts?.include?.devDependencies === false ? {} : lockfileImporter.devDependencies),
-      ...(opts?.include?.dependencies === false ? {} : lockfileImporter.dependencies),
-      ...(opts?.include?.optionalDependencies === false ? {} : lockfileImporter.optionalDependencies),
+      ...(opts?.include?.devDependencies === false ? {} : projectSnapshot.devDependencies),
+      ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
+      ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
     .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
     .filter((nodeId) => nodeId !== null)

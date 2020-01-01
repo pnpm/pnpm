@@ -45,14 +45,14 @@ import {
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { DependencyManifest, ImporterManifest, Registries } from '@pnpm/types'
+import { DependencyManifest, ProjectManifest, Registries } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
@@ -77,10 +77,10 @@ export interface HeadlessOptions {
   ignoreScripts: boolean,
   include: IncludedDependencies,
   independentLeaves: boolean,
-  importers: Array<{
+  projects: Array<{
     binsDir: string,
     buildIndex: number,
-    manifest: ImporterManifest,
+    manifest: ProjectManifest,
     modulesDir: string,
     id: string,
     pruneDirectDependencies?: boolean,
@@ -131,7 +131,7 @@ export default async (opts: HeadlessOptions) => {
   const hoistedModulesDir = opts.shamefullyHoist
     ? rootModulesDir : path.join(virtualStoreDir, 'node_modules')
 
-  for (const { id, manifest, rootDir } of opts.importers) {
+  for (const { id, manifest, rootDir } of opts.projects) {
     if (!satisfiesPackageManifest(wantedLockfile, manifest, id)) {
       throw new PnpmError('OUTDATED_LOCKFILE',
         `Cannot install with "frozen-lockfile" because ${WANTED_LOCKFILE} is not up-to-date with ` +
@@ -149,7 +149,7 @@ export default async (opts: HeadlessOptions) => {
   if (!opts.ignoreScripts) {
     await runLifecycleHooksConcurrently(
       ['preinstall'],
-      opts.importers,
+      opts.projects,
       opts.childConcurrency || 5,
       scriptsOpts,
     )
@@ -158,7 +158,7 @@ export default async (opts: HeadlessOptions) => {
   const skipped = opts.skipped || new Set<string>()
   if (currentLockfile) {
     await prune(
-      opts.importers,
+      opts.projects,
       {
         currentLockfile,
         dryRun: false,
@@ -191,7 +191,7 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     skipped,
   }
-  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.importers.map(({ id }) => id), {
+  const filteredLockfile = filterLockfileByImportersAndEngine(wantedLockfile, opts.projects.map(({ id }) => id), {
     ...filterOpts,
     currentEngine: opts.currentEngine,
     engineStrict: opts.engineStrict,
@@ -204,7 +204,7 @@ export default async (opts: HeadlessOptions) => {
     opts.force ? null : currentLockfile,
     {
       ...opts,
-      importerIds: opts.importers.map(({ id }) => id),
+      importerIds: opts.projects.map(({ id }) => id),
       lockfileDir,
       skipped,
       virtualStoreDir,
@@ -237,7 +237,7 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  const rootImporterWithFlatModules = opts.hoistPattern && opts.importers.find((importer) => importer.id === '.')
+  const rootImporterWithFlatModules = opts.hoistPattern && opts.projects.find(({ id }) => id === '.')
   let newHoistedAliases!: {[depPath: string]: string[]}
   if (rootImporterWithFlatModules) {
     newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
@@ -260,13 +260,13 @@ export default async (opts: HeadlessOptions) => {
     newHoistedAliases = {}
   }
 
-  await Promise.all(opts.importers.map(async ({ rootDir, id, manifest, modulesDir }) => {
+  await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
     await linkRootPackages(filteredLockfile, {
-      importerDir: rootDir,
       importerId: id,
       importerModulesDir: modulesDir,
-      importers: opts.importers,
       lockfileDir,
+      projectDir: rootDir,
+      projects: opts.projects,
       registries: opts.registries,
       rootDependencies: directDependenciesByImporterId[id],
     })
@@ -280,7 +280,7 @@ export default async (opts: HeadlessOptions) => {
   }))
 
   if (opts.ignoreScripts) {
-    for (const { id, manifest } of opts.importers) {
+    for (const { id, manifest } of opts.projects) {
       if (opts.ignoreScripts && manifest?.scripts &&
         (manifest.scripts.preinstall || manifest.scripts.prepublish ||
           manifest.scripts.install ||
@@ -299,7 +299,7 @@ export default async (opts: HeadlessOptions) => {
       )
   } else {
     const directNodes = new Set<string>()
-    for (const { id } of opts.importers) {
+    for (const { id } of opts.projects) {
       R
         .values(directDependenciesByImporterId[id])
         .filter((loc) => graph[loc])
@@ -326,9 +326,9 @@ export default async (opts: HeadlessOptions) => {
   }
 
   await linkAllBins(graph, { optional: opts.include.optionalDependencies, warn })
-  await Promise.all(opts.importers.map(linkBinsOfImporter))
+  await Promise.all(opts.projects.map(linkBinsOfImporter))
 
-  if (currentLockfile && !R.equals(opts.importers.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
+  if (currentLockfile && !R.equals(opts.projects.map(({ id }) => id).sort(), Object.keys(filteredLockfile.importers).sort())) {
     Object.assign(filteredLockfile.packages, currentLockfile.packages)
   }
   await writeCurrentLockfile(virtualStoreDir, filteredLockfile)
@@ -357,7 +357,7 @@ export default async (opts: HeadlessOptions) => {
   if (!opts.ignoreScripts) {
     await runLifecycleHooksConcurrently(
       ['install', 'postinstall', 'prepublish', 'prepare'],
-      opts.importers,
+      opts.projects,
       opts.childConcurrency || 5,
       scriptsOpts,
     )
@@ -386,45 +386,45 @@ async function linkRootPackages (
   lockfile: Lockfile,
   opts: {
     registries: Registries,
-    importerDir: string,
+    projectDir: string,
     importerId: string,
     importerModulesDir: string,
-    importers: Array<{ id: string, manifest: ImporterManifest }>,
+    projects: Array<{ id: string, manifest: ProjectManifest }>,
     lockfileDir: string,
     rootDependencies: {[alias: string]: string},
   },
 ) {
-  const importerManifestsByImporterId = {} as { [id: string]: ImporterManifest }
-  for (const { id, manifest } of opts.importers) {
+  const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
+  for (const { id, manifest } of opts.projects) {
     importerManifestsByImporterId[id] = manifest
   }
-  const lockfileImporter = lockfile.importers[opts.importerId]
+  const projectSnapshot = lockfile.importers[opts.importerId]
   const allDeps = {
-    ...lockfileImporter.devDependencies,
-    ...lockfileImporter.dependencies,
-    ...lockfileImporter.optionalDependencies,
+    ...projectSnapshot.devDependencies,
+    ...projectSnapshot.dependencies,
+    ...projectSnapshot.optionalDependencies,
   }
   return Promise.all(
     Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
-          const isDev = lockfileImporter.devDependencies?.[alias]
-          const isOptional = lockfileImporter.optionalDependencies?.[alias]
-          const packageDir = path.join(opts.importerDir, allDeps[alias].substr(5))
+          const isDev = projectSnapshot.devDependencies?.[alias]
+          const isOptional = projectSnapshot.optionalDependencies?.[alias]
+          const packageDir = path.join(opts.projectDir, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
               return importerManifestsByImporterId[importerId]
             }
             // TODO: cover this case with a test
-            return await readImporterManifestOnly(packageDir) as DependencyManifest
+            return await readProjectManifestOnly(packageDir) as DependencyManifest
           })() as DependencyManifest
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
             fromDependenciesField: isDev && 'devDependencies' ||
               isOptional && 'optionalDependencies' ||
               'dependencies',
             linkedPackage,
-            prefix: opts.importerDir,
+            prefix: opts.projectDir,
           })
           return
         }
@@ -437,8 +437,8 @@ async function linkRootPackages (
         if ((await symlinkDependency(peripheralLocation, opts.importerModulesDir, alias)).reused) {
           return
         }
-        const isDev = lockfileImporter.devDependencies?.[alias]
-        const isOptional = lockfileImporter.optionalDependencies?.[alias]
+        const isDev = projectSnapshot.devDependencies?.[alias]
+        const isOptional = projectSnapshot.optionalDependencies?.[alias]
 
         const relDepPath = dp.refToRelative(allDeps[alias], alias)
         if (relDepPath === null) return
@@ -455,7 +455,7 @@ async function linkRootPackages (
             realName: pkgInfo.name,
             version: pkgInfo.version,
           },
-          prefix: opts.importerDir,
+          prefix: opts.projectDir,
         })
       }),
   )
@@ -584,11 +584,11 @@ async function lockfileToDepGraph (
       graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
     for (const importerId of opts.importerIds) {
-      const lockfileImporter = lockfile.importers[importerId]
+      const projectSnapshot = lockfile.importers[importerId]
       const rootDeps = {
-        ...(opts.include.devDependencies ? lockfileImporter.devDependencies : {}),
-        ...(opts.include.dependencies ? lockfileImporter.dependencies : {}),
-        ...(opts.include.optionalDependencies ? lockfileImporter.optionalDependencies : {}),
+        ...(opts.include.devDependencies ? projectSnapshot.devDependencies : {}),
+        ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
+        ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
       }
       directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps)
     }

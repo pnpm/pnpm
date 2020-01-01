@@ -1,9 +1,9 @@
 import {
   getLockfileImporterId,
   Lockfile,
-  LockfileImporter,
   PackageSnapshot,
   PackageSnapshots,
+  ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
@@ -58,7 +58,7 @@ export default async function dependenciesHierarchy (
     search?: SearchFunction,
     lockfileDir: string,
   },
-): Promise<{ [importerDir: string]: DependenciesHierarchy }> {
+): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
   if (!maybeOpts || !maybeOpts.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
@@ -70,7 +70,7 @@ export default async function dependenciesHierarchy (
   })
   const currentLockfile = modules?.virtualStoreDir && await readCurrentLockfile(modules.virtualStoreDir, { ignoreIncompatible: false }) || null
 
-  const result = {} as { [importerDir: string]: DependenciesHierarchy }
+  const result = {} as { [projectDir: string]: DependenciesHierarchy }
 
   if (!currentLockfile) {
     for (let projectPath of projectPaths) {
@@ -215,11 +215,11 @@ async function dependenciesHierarchyForPackage (
   return result
 }
 
-function getAllDirectDependencies (lockfileImporter: LockfileImporter) {
+function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
   return {
-    ...lockfileImporter.dependencies,
-    ...lockfileImporter.devDependencies,
-    ...lockfileImporter.optionalDependencies,
+    ...projectSnapshot.dependencies,
+    ...projectSnapshot.devDependencies,
+    ...projectSnapshot.optionalDependencies,
   }
 }
 

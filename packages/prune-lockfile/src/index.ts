@@ -1,8 +1,8 @@
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import {
   Lockfile,
-  LockfileImporter,
   PackageSnapshots,
+  ProjectSnapshot,
   ResolvedDependencies,
 } from '@pnpm/lockfile-types'
 import { PackageManifest } from '@pnpm/types'
@@ -82,7 +82,7 @@ export function pruneLockfile (
     }
   }
 
-  const updatedImporter: LockfileImporter = {
+  const updatedImporter: ProjectSnapshot = {
     specifiers,
   }
   const prunnedLockfile: Lockfile = {

@@ -2,13 +2,13 @@ import {
   RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { Config, types as allTypes, WsPkg, WsPkgsGraph } from '@pnpm/config'
+import { Config, types as allTypes, Project, ProjectsGraph } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { ImporterManifest, PackageManifest } from '@pnpm/types'
+import { ProjectManifest, PackageManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import mem = require('mem')
 import pLimit from 'p-limit'
@@ -30,46 +30,46 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 } & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency'>>
 
 export default async function recursive (
-  allWsPkgs: WsPkg[],
+  allProjects: Project[],
   input: string[],
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>,
-  } & Required<Pick<Config, 'selectedWsPkgsGraph' | 'workspaceDir'>>,
+  } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>,
 ) {
-  if (allWsPkgs.length === 0) {
+  if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
     return
   }
 
-  const pkgs = Object.values(opts.selectedWsPkgsGraph).map((wsPkg) => wsPkg.package)
+  const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
 
   if (pkgs.length === 0) {
     return
   }
-  const manifestsByPath: { [dir: string]: Omit<WsPkg, 'dir'> } = {}
-  for (const { dir, manifest, writeImporterManifest } of pkgs) {
-    manifestsByPath[dir] = { manifest, writeImporterManifest }
+  const manifestsByPath: { [dir: string]: Omit<Project, 'dir'> } = {}
+  for (const { dir, manifest, writeProjectManifest } of pkgs) {
+    manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
 
   scopeLogger.debug({
     selected: pkgs.length,
-    total: allWsPkgs.length,
+    total: allProjects.length,
     workspacePrefix: opts.workspaceDir,
   })
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive rebuild`)
 
   const chunks = opts.sort !== false
-    ? sortPackages(opts.selectedWsPkgsGraph)
-    : [Object.keys(opts.selectedWsPkgsGraph).sort()]
+    ? sortPackages(opts.selectedProjectsGraph)
+    : [Object.keys(opts.selectedProjectsGraph).sort()]
 
   const store = await createOrConnectStoreController(opts)
 
-  const workspacePackages = arrayOfWorkspacePackagesToMap(allWsPkgs)
+  const workspacePackages = arrayOfWorkspacePackagesToMap(allProjects)
   const rebuildOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
-      && pkgs.length === allWsPkgs.length,
+      && pkgs.length === allProjects.length,
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,
@@ -83,7 +83,7 @@ export default async function recursive (
   const memReadLocalConfig = mem(readLocalConfig)
 
   async function getImporters () {
-    const importers = [] as Array<{ buildIndex: number, manifest: ImporterManifest, rootDir: string }>
+    const importers = [] as Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>
     await Promise.all(chunks.map((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
         prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))

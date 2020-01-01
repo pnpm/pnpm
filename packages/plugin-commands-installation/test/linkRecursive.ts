@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install, link, unlink } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
@@ -27,13 +27,13 @@ test('recursive linking/unlinking', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
@@ -47,10 +47,10 @@ test('recursive linking/unlinking', async (t) => {
 
   await unlink.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -90,13 +90,13 @@ test('recursive unlink specific package', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await install.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, 'install')
 
@@ -110,10 +110,10 @@ test('recursive unlink specific package', async (t) => {
 
   await unlink.handler(['is-positive'], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 

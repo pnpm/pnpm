@@ -13,7 +13,7 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  MutatedImporter,
+  MutatedProject,
   mutateModules,
 } from 'supi'
 import tape = require('tape')
@@ -124,7 +124,7 @@ test('the right peer dependency is used in every workspace package', async (t: t
     },
   ])
 
-  const importers: MutatedImporter[] = [
+  const importers: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: manifest1,

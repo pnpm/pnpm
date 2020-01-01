@@ -1,7 +1,7 @@
-import { WsPkgsGraph } from '@pnpm/config'
+import { ProjectsGraph } from '@pnpm/config'
 import graphSequencer = require('graph-sequencer')
 
-export default function sortPackages (pkgGraph: WsPkgsGraph): string[][] {
+export default function sortPackages (pkgGraph: ProjectsGraph): string[][] {
   const keys = Object.keys(pkgGraph)
   const setOfKeys = new Set(keys)
   const graph = new Map(

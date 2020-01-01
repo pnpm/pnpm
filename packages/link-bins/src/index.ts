@@ -1,7 +1,7 @@
 import binify, { Command } from '@pnpm/package-bins'
-import { readImporterManifestOnly } from '@pnpm/read-importer-manifest'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import { DependencyManifest } from '@pnpm/types'
 import cmdShim = require('@zkochan/cmd-shim')
 import isSubdir = require('is-subdir')
@@ -112,7 +112,7 @@ async function getPackageBins (
     allowExoticManifests: boolean,
   },
 ) {
-  const pkg = opts.allowExoticManifests ? await safeReadImporterManifestOnly(target) : await safeReadPkg(target)
+  const pkg = opts.allowExoticManifests ? await safeReadProjectManifestOnly(target) : await safeReadPkg(target)
 
   if (!pkg) {
     // There's a directory in node_modules without package.json: ${target}.
@@ -165,9 +165,9 @@ async function safeReadPkg (pkgPath: string): Promise<DependencyManifest | null>
   }
 }
 
-async function safeReadImporterManifestOnly (importerDir: string) {
+async function safeReadProjectManifestOnly (projectDir: string) {
   try {
-    return await readImporterManifestOnly(importerDir) as DependencyManifest
+    return await readProjectManifestOnly(projectDir) as DependencyManifest
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return null

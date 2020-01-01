@@ -1,5 +1,5 @@
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
-import { Config, types, WsPkgsGraph } from '@pnpm/config'
+import { Config, types } from '@pnpm/config'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import execa = require('execa')
@@ -28,7 +28,7 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: Required<Pick<Config, 'selectedWsPkgsGraph'>> & {
+  opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
     bail?: boolean,
     unsafePerm?: boolean,
     rawConfig: object,
@@ -44,8 +44,8 @@ export async function handler (
   } as RecursiveSummary
 
   const chunks = opts.sort
-    ? sortPackages(opts.selectedWsPkgsGraph)
-    : [Object.keys(opts.selectedWsPkgsGraph).sort()]
+    ? sortPackages(opts.selectedProjectsGraph)
+    : [Object.keys(opts.selectedProjectsGraph).sort()]
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
@@ -55,7 +55,7 @@ export async function handler (
             cwd: prefix,
             env: {
               ...process.env,
-              PNPM_PACKAGE_NAME: opts.selectedWsPkgsGraph[prefix].package.manifest.name,
+              PNPM_PACKAGE_NAME: opts.selectedProjectsGraph[prefix].package.manifest.name,
             },
             stdio: 'inherit',
           })

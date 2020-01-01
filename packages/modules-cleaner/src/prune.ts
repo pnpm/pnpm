@@ -5,8 +5,8 @@ import {
 import filterLockfile, { filterLockfileByImporters } from '@pnpm/filter-lockfile'
 import {
   Lockfile,
-  LockfileImporter,
   PackageSnapshots,
+  ProjectSnapshot,
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
@@ -56,7 +56,7 @@ export default async function prune (
     skipped: opts.skipped,
   })
   await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
-    const currentImporter = opts.currentLockfile.importers[id] || {} as LockfileImporter
+    const currentImporter = opts.currentLockfile.importers[id] || {} as ProjectSnapshot
     const currentPkgs = R.toPairs(mergeDependencies(currentImporter))
     const wantedPkgs = R.toPairs(mergeDependencies(wantedLockfile.importers[id]))
 
@@ -170,9 +170,9 @@ export default async function prune (
   return new Set(orphanDepPaths)
 }
 
-function mergeDependencies (lockfileImporter: LockfileImporter): { [depName: string]: string } {
+function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {
   return R.mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => lockfileImporter[depType] || {}),
+    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] || {}),
   )
 }
 

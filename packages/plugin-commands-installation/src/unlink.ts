@@ -1,4 +1,4 @@
-import { docsUrl, readImporterManifestOnly } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config } from '@pnpm/config'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -45,12 +45,12 @@ export async function handler (
   input: string[],
   opts: CreateStoreControllerOptions &
     Pick<Config,
-      'allWsPkgs' |
+      'allProjects' |
       'bail' |
       'engineStrict' |
       'include' |
       'linkWorkspacePackages' |
-      'selectedWsPkgsGraph' |
+      'selectedProjectsGraph' |
       'rawLocalConfig' |
       'registries' |
       'pnpmfile' |
@@ -59,8 +59,8 @@ export async function handler (
       recursive?: boolean,
     },
 ) {
-  if (opts.recursive && opts.allWsPkgs && opts.selectedWsPkgsGraph && opts.workspaceDir) {
-    await recursive(opts.allWsPkgs, input, { ...opts, selectedWsPkgsGraph: opts.selectedWsPkgsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')
+  if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
+    await recursive(opts.allProjects, input, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -73,7 +73,7 @@ export async function handler (
     return mutateModules([
       {
         dependencyNames: input,
-        manifest: await readImporterManifestOnly(opts.dir, opts),
+        manifest: await readProjectManifestOnly(opts.dir, opts),
         mutation: 'unlinkSome',
         rootDir: opts.dir,
       },
@@ -81,7 +81,7 @@ export async function handler (
   }
   return mutateModules([
     {
-      manifest: await readImporterManifestOnly(opts.dir, opts),
+      manifest: await readProjectManifestOnly(opts.dir, opts),
       mutation: 'unlink',
       rootDir: opts.dir,
     },

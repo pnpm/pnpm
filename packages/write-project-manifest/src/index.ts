@@ -1,4 +1,4 @@
-import { ImporterManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import writeJsonFile = require('write-json-file')
 import writeJson5File = require('write-json5-file')
 import writeYamlFile = require('write-yaml-file')
@@ -8,9 +8,9 @@ const YAML_FORMAT = {
   noRefs: true,
 }
 
-export default function writeImporterManifest (
+export default function writeProjectManifest (
   filePath: string,
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   opts?: { indent?: string | number | undefined },
 ): Promise<void> {
   switch (filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()) {

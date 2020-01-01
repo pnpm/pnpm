@@ -1,4 +1,4 @@
-import { readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { readProjects } from '@pnpm/filter-workspace-packages'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { preparePackages } from '@pnpm/prepare'
 import { PackageManifest } from '@pnpm/types'
@@ -28,7 +28,7 @@ test('pnpm recursive rebuild', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -46,10 +46,10 @@ test('pnpm recursive rebuild', async (t) => {
 
   await rebuild.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -108,7 +108,7 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
   preparePackages(t, pkgs)
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -121,10 +121,10 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
 
   await rebuild.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 

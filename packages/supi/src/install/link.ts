@@ -20,7 +20,7 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
-import { ImporterManifest, Registries } from '@pnpm/types'
+import { ProjectManifest, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
@@ -40,12 +40,12 @@ export {
   DependenciesGraphNode,
 }
 
-export interface Importer {
+export interface Project {
   binsDir: string,
   directNodeIdsByAlias: {[alias: string]: string},
   id: string,
   linkedDependencies: LinkedDependency[],
-  manifest: ImporterManifest,
+  manifest: ProjectManifest,
   modulesDir: string,
   pruneDirectDependencies: boolean,
   removePackages?: string[],
@@ -54,7 +54,7 @@ export interface Importer {
 }
 
 export default async function linkPackages (
-  importers: Importer[],
+  projects: Project[],
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (lockfile: Lockfile) => Lockfile,
@@ -93,32 +93,32 @@ export default async function linkPackages (
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
-  const { depGraph, importersDirectAbsolutePathsByAlias } = resolvePeers({
+  const { depGraph, projectsDirectAbsolutePathsByAlias } = resolvePeers({
     dependenciesTree,
-    importers,
     independentLeaves: opts.independentLeaves,
     lockfileDir: opts.lockfileDir,
+    projects,
     strictPeerDependencies: opts.strictPeerDependencies,
     virtualStoreDir: opts.virtualStoreDir,
   })
-  for (const { id } of importers) {
-    for (const [alias, depPath] of R.toPairs(importersDirectAbsolutePathsByAlias[id])) {
+  for (const { id } of projects) {
+    for (const [alias, depPath] of R.toPairs(projectsDirectAbsolutePathsByAlias[id])) {
       const depNode = depGraph[depPath]
       if (depNode.isPure) continue
 
-      const lockfileImporter = opts.wantedLockfile.importers[id]
+      const projectSnapshot = opts.wantedLockfile.importers[id]
       const ref = absolutePathToRef(depPath, {
         alias,
         realName: depNode.name,
         registries: opts.registries,
         resolution: depNode.resolution,
       })
-      if (lockfileImporter.dependencies?.[alias]) {
-        lockfileImporter.dependencies[alias] = ref
-      } else if (lockfileImporter.devDependencies?.[alias]) {
-        lockfileImporter.devDependencies[alias] = ref
-      } else if (lockfileImporter.optionalDependencies?.[alias]) {
-        lockfileImporter.optionalDependencies[alias] = ref
+      if (projectSnapshot.dependencies?.[alias]) {
+        projectSnapshot.dependencies[alias] = ref
+      } else if (projectSnapshot.devDependencies?.[alias]) {
+        projectSnapshot.devDependencies[alias] = ref
+      } else if (projectSnapshot.optionalDependencies?.[alias]) {
+        projectSnapshot.optionalDependencies[alias] = ref
       }
     }
   }
@@ -149,7 +149,7 @@ export default async function linkPackages (
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter(({ optional }) => !optional)
   }
-  const removedDepPaths = await prune(importers, {
+  const removedDepPaths = await prune(projects, {
     currentLockfile: opts.currentLockfile,
     dryRun: opts.dryRun,
     hoistedAliases: opts.hoistedAliases,
@@ -169,18 +169,18 @@ export default async function linkPackages (
     stage: 'importing_started',
   })
 
-  const importerIds = importers.map(({ id }) => id)
+  const projectIds = projects.map(({ id }) => id)
   const filterOpts = {
     include: opts.include,
     registries: opts.registries,
     skipped: opts.skipped,
   }
-  const newCurrentLockfile = filterLockfileByImporters(newWantedLockfile, importerIds, {
+  const newCurrentLockfile = filterLockfileByImporters(newWantedLockfile, projectIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
   })
   const newDepPaths = await linkNewPackages(
-    filterLockfileByImporters(opts.currentLockfile, importerIds, {
+    filterLockfileByImporters(opts.currentLockfile, projectIds, {
       ...filterOpts,
       failOnMissingDependencies: false,
     }),
@@ -209,8 +209,8 @@ export default async function linkPackages (
       return acc
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
 
-  await Promise.all(importers.map(({ id, manifest, modulesDir, rootDir }) => {
-    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[id]
+  await Promise.all(projects.map(({ id, manifest, modulesDir, rootDir }) => {
+    const directAbsolutePathsByAlias = projectsDirectAbsolutePathsByAlias[id]
     return Promise.all(
       Object.keys(directAbsolutePathsByAlias)
         .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
@@ -265,7 +265,7 @@ export default async function linkPackages (
   }))
 
   let currentLockfile: Lockfile
-  const allImportersIncluded = R.equals(importerIds.sort(), Object.keys(newWantedLockfile.importers).sort())
+  const allImportersIncluded = R.equals(projectIds.sort(), Object.keys(newWantedLockfile.importers).sort())
   if (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
@@ -275,7 +275,7 @@ export default async function linkPackages (
       : filterLockfileByImporters(
         opts.currentLockfile,
         Object.keys(newWantedLockfile.importers)
-          .filter((importerId) => !importerIds.includes(importerId) && opts.currentLockfile.importers[importerId]),
+          .filter((projectId) => !projectIds.includes(projectId) && opts.currentLockfile.importers[projectId]),
         {
           ...filterOpts,
           failOnMissingDependencies: false,
@@ -290,11 +290,11 @@ export default async function linkPackages (
         }
       }
     }
-    const importers = importerIds.reduce((acc, importerId) => {
-      acc[importerId] = newWantedLockfile.importers[importerId]
+    const projects = projectIds.reduce((acc, projectId) => {
+      acc[projectId] = newWantedLockfile.importers[projectId]
       return acc
     }, opts.currentLockfile.importers)
-    currentLockfile = { ...newWantedLockfile, packages, importers }
+    currentLockfile = { ...newWantedLockfile, packages, importers: projects }
   } else if (
     opts.include.dependencies &&
     opts.include.devDependencies &&
@@ -308,7 +308,7 @@ export default async function linkPackages (
 
   let newHoistedAliases: {[depPath: string]: string[]} = {}
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    const rootImporterWithFlatModules = opts.hoistPattern && importers.find(({ id }) => id === '.')
+    const rootImporterWithFlatModules = opts.hoistPattern && projects.find(({ id }) => id === '.')
     if (rootImporterWithFlatModules) {
       newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
         getIndependentPackageLocation: opts.independentLeaves
@@ -331,13 +331,13 @@ export default async function linkPackages (
 
   if (!opts.dryRun) {
     await Promise.all(
-      importers.map((importer) =>
-        Promise.all(importer.linkedDependencies.map((linkedDependency) => {
-          const depLocation = resolvePath(importer.rootDir, linkedDependency.resolution.directory)
-          return symlinkDirectRootDependency(depLocation, importer.modulesDir, linkedDependency.alias, {
+      projects.map((project) =>
+        Promise.all(project.linkedDependencies.map((linkedDependency) => {
+          const depLocation = resolvePath(project.rootDir, linkedDependency.resolution.directory)
+          return symlinkDirectRootDependency(depLocation, project.modulesDir, linkedDependency.alias, {
             fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
             linkedPackage: linkedDependency,
-            prefix: importer.rootDir,
+            prefix: project.rootDir,
           })
         })),
       ),

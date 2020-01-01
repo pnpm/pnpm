@@ -7,7 +7,7 @@ import resolveLinkTarget = require('resolve-link-target')
 import {
   addDependenciesToPackage,
   install,
-  MutatedImporter,
+  MutatedProject,
   mutateModules,
 } from 'supi'
 import tape = require('tape')
@@ -337,7 +337,7 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
     },
   ])
 
-  const importers: MutatedImporter[] = [
+  const mutatedProjects: MutatedProject[] = [
     {
       buildIndex: 0,
       manifest: workspaceRootManifest,
@@ -351,7 +351,7 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
       rootDir: path.resolve('package'),
     },
   ]
-  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
+  await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
 
   await projects['root'].has('pkg-with-1-dep')
   await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
@@ -366,7 +366,7 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
   await rimraf('node_modules')
   await rimraf('package/node_modules')
 
-  await mutateModules(importers, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
+  await mutateModules(mutatedProjects, await testDefaults({ frozenLockfile: true, hoistPattern: '*' }))
 
   await projects['root'].has('pkg-with-1-dep')
   await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')

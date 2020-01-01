@@ -1,4 +1,4 @@
-import findWorkspacePackages, { WsPkg } from '@pnpm/find-workspace-packages'
+import findWorkspacePackages, { Project } from '@pnpm/find-workspace-packages'
 import matcher from '@pnpm/matcher'
 import isSubdir = require('is-subdir')
 import createPkgGraph, { Package, PackageNode } from 'pkgs-graph'
@@ -16,19 +16,19 @@ interface Graph {
   [nodeId: string]: string[],
 }
 
-export async function readWsPkgs (
+export async function readProjects (
   workspaceDir: string,
   pkgSelectors: PackageSelector[],
 ) {
-  const allWsPkgs = await findWorkspacePackages(workspaceDir, {})
-  const selectedWsPkgsGraph = await filterPkgsBySelectorObjects(
-    allWsPkgs,
+  const allProjects = await findWorkspacePackages(workspaceDir, {})
+  const selectedProjectsGraph = await filterPkgsBySelectorObjects(
+    allProjects,
     pkgSelectors,
     {
       workspaceDir,
     },
   )
-  return { allWsPkgs, selectedWsPkgsGraph }
+  return { allProjects, selectedProjectsGraph }
 }
 
 export async function filterPackages<T> (

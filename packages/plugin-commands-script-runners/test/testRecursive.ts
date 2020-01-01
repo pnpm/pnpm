@@ -1,4 +1,4 @@
-import { filterPkgsBySelectorObjects, readWsPkgs } from '@pnpm/filter-workspace-packages'
+import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspace-packages'
 import { test as testCommand } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import execa = require('execa')
@@ -51,7 +51,7 @@ test('pnpm recursive test', async (t) => {
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -62,10 +62,10 @@ test('pnpm recursive test', async (t) => {
   ])
   await testCommand.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -107,7 +107,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     },
   ])
 
-  const { allWsPkgs, selectedWsPkgsGraph } = await readWsPkgs(process.cwd(), [])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -119,10 +119,10 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
 
   await testCommand.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph,
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
@@ -157,7 +157,7 @@ test('pnpm recursive test with filtering', async (t) => {
     },
   ])
 
-  const { allWsPkgs } = await readWsPkgs(process.cwd(), [])
+  const { allProjects } = await readProjects(process.cwd(), [])
   await execa('pnpm', [
     'install',
     '-r',
@@ -168,11 +168,11 @@ test('pnpm recursive test with filtering', async (t) => {
   ])
   await testCommand.handler([], {
     ...DEFAULT_OPTS,
-    allWsPkgs,
+    allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedWsPkgsGraph: await filterPkgsBySelectorObjects(
-      allWsPkgs,
+    selectedProjectsGraph: await filterPkgsBySelectorObjects(
+      allProjects,
       [{ namePattern: 'project-1' }],
       { workspaceDir: process.cwd() },
     ),

@@ -5,7 +5,7 @@ import { ImporterToUpdate } from '../install'
 import { PinnedVersion } from '../install/getWantedDependencies'
 import save, { PackageSpecObject } from '../save'
 
-export async function updateImporterManifest (
+export async function updateProjectManifest (
   importer: ImporterToUpdate,
   opts: {
     directDependencies: ResolvedDirectDependency[],
