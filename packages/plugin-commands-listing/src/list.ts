@@ -26,7 +26,7 @@ export function cliOptionsTypes () {
   ], allTypes)
 }
 
-export const commandNames = ['list', 'ls', 'la', 'll']
+export const commandNames = ['list', 'ls']
 
 export function help () {
   return renderHelp({
@@ -96,26 +96,27 @@ export function help () {
   })
 }
 
+export type ListCommandOptions = Pick<Config, 'allProjects' | 'dir' | 'include' | 'selectedProjectsGraph'> & {
+  alwaysPrintRootPackage?: boolean,
+  depth?: number,
+  lockfileDir?: string,
+  long?: boolean,
+  parseable?: boolean,
+  recursive?: boolean,
+}
+
 export function handler (
   args: string[],
-  opts: Pick<Config, 'allProjects' | 'dir' | 'include' | 'selectedProjectsGraph'> & {
-    alwaysPrintRootPackage?: boolean,
-    depth?: number,
-    lockfileDir?: string,
-    long?: boolean,
-    parseable?: boolean,
-    recursive?: boolean,
-  },
-  command: string,
+  opts: ListCommandOptions,
 ) {
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, args, command, opts)
+    return listRecursive(pkgs, args, opts)
   }
   return render([opts.dir], args, {
     ...opts,
     lockfileDir: opts.lockfileDir || opts.dir,
-  }, command)
+  })
 }
 
 export async function render (
@@ -129,23 +130,17 @@ export async function render (
     json?: boolean,
     parseable?: boolean,
   },
-  command: string,
 ) {
-  const isWhy = command === 'why'
-  if (isWhy && !args.length) {
-    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
-  }
-  opts.long = opts.long || command === 'll' || command === 'la'
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: isWhy ? Infinity : opts.depth || 0,
+    depth: opts.depth ?? 0,
     include: opts.include,
     lockfileDir: opts.lockfileDir,
     long: opts.long,
     // tslint:disable-next-line: no-unnecessary-type-assertion
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
-  return isWhy || args.length
+  return args.length
     ? listForPackages(args, prefixes, listOpts)
     : list(prefixes, listOpts)
 }

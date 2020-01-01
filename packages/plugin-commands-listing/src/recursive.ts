@@ -5,7 +5,6 @@ import { render } from './list'
 export default async (
   pkgs: Project[],
   args: string[],
-  cmd: string,
   opts: Pick<Config, 'lockfileDir' | 'include'> & {
     depth?: number,
     long?: boolean,
@@ -19,7 +18,7 @@ export default async (
       ...opts,
       alwaysPrintRootPackage: depth === -1,
       lockfileDir: opts.lockfileDir,
-    }, cmd)
+    })
   }
   const outputs = []
   for (const { dir } of pkgs) {
@@ -28,7 +27,7 @@ export default async (
         ...opts,
         alwaysPrintRootPackage: depth === -1,
         lockfileDir: opts.lockfileDir || dir,
-      }, cmd)
+      })
       if (!output) continue
       outputs.push(output)
     } catch (err) {

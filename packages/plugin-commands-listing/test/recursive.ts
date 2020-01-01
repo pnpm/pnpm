@@ -52,7 +52,7 @@ test('recursive list', async (t) => {
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
-  }, 'list')
+  })
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -118,7 +118,7 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
-  }, 'list')
+  })
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -184,7 +184,7 @@ test('recursive list --filter', async (t) => {
     ...await readProjects(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
-  }, 'list')
+  })
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -215,7 +215,7 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
       ...await readProjects(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
-    }, 'why')
+    })
   } catch (_err) {
     err = _err
   }

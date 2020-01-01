@@ -1,10 +1,11 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import { oneLine, stripIndent } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { handler as list } from './list'
+import { handler as list, ListCommandOptions } from './list'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -80,4 +81,12 @@ export function help () {
   })
 }
 
-export const handler = list
+export function handler (
+  args: string[],
+  opts: ListCommandOptions,
+) {
+  if (!args.length) {
+    throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
+  }
+  return list(args, { ...opts, depth: Infinity })
+}
