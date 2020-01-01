@@ -5,7 +5,7 @@ import { getContextForSingleImporter } from '@pnpm/get-context'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
   getLockfileImporterId,
-  LockfileImporter,
+  ProjectSnapshot,
   writeCurrentLockfile,
   writeLockfiles,
 } from '@pnpm/lockfile-file'
@@ -166,7 +166,7 @@ export default async function link (
 }
 
 function addLinkToLockfile (
-  lockfileImporter: LockfileImporter,
+  projectSnapshot: ProjectSnapshot,
   opts: {
     linkedPkgName: string,
     packagePath: string,
@@ -178,10 +178,10 @@ function addLinkToLockfile (
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.manifest?.[depType]?.[opts.linkedPkgName]) {
       addedTo = depType
-      lockfileImporter[depType] = lockfileImporter[depType] || {}
-      lockfileImporter[depType]![opts.linkedPkgName] = id
-    } else if (lockfileImporter[depType]) {
-      delete lockfileImporter[depType]![opts.linkedPkgName]
+      projectSnapshot[depType] = projectSnapshot[depType] || {}
+      projectSnapshot[depType]![opts.linkedPkgName] = id
+    } else if (projectSnapshot[depType]) {
+      delete projectSnapshot[depType]![opts.linkedPkgName]
     }
   }
 
@@ -190,9 +190,9 @@ function addLinkToLockfile (
 
   const availableSpec = getSpecFromPackageManifest(opts.manifest, opts.linkedPkgName)
   if (availableSpec) {
-    lockfileImporter.specifiers[opts.linkedPkgName] = availableSpec
+    projectSnapshot.specifiers[opts.linkedPkgName] = availableSpec
   } else {
-    delete lockfileImporter.specifiers[opts.linkedPkgName]
+    delete projectSnapshot.specifiers[opts.linkedPkgName]
   }
 }
 

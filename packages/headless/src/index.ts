@@ -398,18 +398,18 @@ async function linkRootPackages (
   for (const { id, manifest } of opts.projects) {
     importerManifestsByImporterId[id] = manifest
   }
-  const lockfileImporter = lockfile.importers[opts.importerId]
+  const projectSnapshot = lockfile.importers[opts.importerId]
   const allDeps = {
-    ...lockfileImporter.devDependencies,
-    ...lockfileImporter.dependencies,
-    ...lockfileImporter.optionalDependencies,
+    ...projectSnapshot.devDependencies,
+    ...projectSnapshot.dependencies,
+    ...projectSnapshot.optionalDependencies,
   }
   return Promise.all(
     Object.keys(allDeps)
       .map(async (alias) => {
         if (allDeps[alias].startsWith('link:')) {
-          const isDev = lockfileImporter.devDependencies?.[alias]
-          const isOptional = lockfileImporter.optionalDependencies?.[alias]
+          const isDev = projectSnapshot.devDependencies?.[alias]
+          const isOptional = projectSnapshot.optionalDependencies?.[alias]
           const packageDir = path.join(opts.projectDir, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
@@ -437,8 +437,8 @@ async function linkRootPackages (
         if ((await symlinkDependency(peripheralLocation, opts.importerModulesDir, alias)).reused) {
           return
         }
-        const isDev = lockfileImporter.devDependencies?.[alias]
-        const isOptional = lockfileImporter.optionalDependencies?.[alias]
+        const isDev = projectSnapshot.devDependencies?.[alias]
+        const isOptional = projectSnapshot.optionalDependencies?.[alias]
 
         const relDepPath = dp.refToRelative(allDeps[alias], alias)
         if (relDepPath === null) return
@@ -584,11 +584,11 @@ async function lockfileToDepGraph (
       graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
     for (const importerId of opts.importerIds) {
-      const lockfileImporter = lockfile.importers[importerId]
+      const projectSnapshot = lockfile.importers[importerId]
       const rootDeps = {
-        ...(opts.include.devDependencies ? lockfileImporter.devDependencies : {}),
-        ...(opts.include.dependencies ? lockfileImporter.dependencies : {}),
-        ...(opts.include.optionalDependencies ? lockfileImporter.optionalDependencies : {}),
+        ...(opts.include.devDependencies ? projectSnapshot.devDependencies : {}),
+        ...(opts.include.dependencies ? projectSnapshot.dependencies : {}),
+        ...(opts.include.optionalDependencies ? projectSnapshot.optionalDependencies : {}),
       }
       directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps)
     }

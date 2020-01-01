@@ -1,9 +1,9 @@
 import {
   getLockfileImporterId,
   Lockfile,
-  LockfileImporter,
   PackageSnapshot,
   PackageSnapshots,
+  ProjectSnapshot,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
@@ -215,11 +215,11 @@ async function dependenciesHierarchyForPackage (
   return result
 }
 
-function getAllDirectDependencies (lockfileImporter: LockfileImporter) {
+function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
   return {
-    ...lockfileImporter.dependencies,
-    ...lockfileImporter.devDependencies,
-    ...lockfileImporter.optionalDependencies,
+    ...projectSnapshot.dependencies,
+    ...projectSnapshot.devDependencies,
+    ...projectSnapshot.optionalDependencies,
   }
 }
 

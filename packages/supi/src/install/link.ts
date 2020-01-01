@@ -106,19 +106,19 @@ export default async function linkPackages (
       const depNode = depGraph[depPath]
       if (depNode.isPure) continue
 
-      const lockfileImporter = opts.wantedLockfile.importers[id]
+      const projectSnapshot = opts.wantedLockfile.importers[id]
       const ref = absolutePathToRef(depPath, {
         alias,
         realName: depNode.name,
         registries: opts.registries,
         resolution: depNode.resolution,
       })
-      if (lockfileImporter.dependencies?.[alias]) {
-        lockfileImporter.dependencies[alias] = ref
-      } else if (lockfileImporter.devDependencies?.[alias]) {
-        lockfileImporter.devDependencies[alias] = ref
-      } else if (lockfileImporter.optionalDependencies?.[alias]) {
-        lockfileImporter.optionalDependencies[alias] = ref
+      if (projectSnapshot.dependencies?.[alias]) {
+        projectSnapshot.dependencies[alias] = ref
+      } else if (projectSnapshot.devDependencies?.[alias]) {
+        projectSnapshot.devDependencies[alias] = ref
+      } else if (projectSnapshot.optionalDependencies?.[alias]) {
+        projectSnapshot.optionalDependencies[alias] = ref
       }
     }
   }

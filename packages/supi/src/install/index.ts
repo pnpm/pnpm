@@ -18,7 +18,7 @@ import {
 import linkBins from '@pnpm/link-bins'
 import {
   Lockfile,
-  LockfileImporter,
+  ProjectSnapshot,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
@@ -487,7 +487,7 @@ async function partitionLinkedPackages (
 
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
-function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDeps: WantedDependency[]) {
+function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDeps: WantedDependency[]) {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies || {}
   importer.devDependencies = importer.devDependencies || {}
@@ -505,13 +505,13 @@ function forgetResolutionsOfPrevWantedDeps (importer: LockfileImporter, wantedDe
 
 async function linkedPackagesAreUpToDate (
   manifest: ProjectManifest,
-  lockfileImporter: LockfileImporter,
+  projectSnapshot: ProjectSnapshot,
   prefix: string,
   workspacePackages?: WorkspacePackages,
 ) {
   const workspacePackagesByDirectory = workspacePackages ? getWorkspacePackagesByDirectory(workspacePackages) : {}
   for (const depField of DEPENDENCIES_FIELDS) {
-    const importerDeps = lockfileImporter[depField]
+    const importerDeps = projectSnapshot[depField]
     const pkgDeps = manifest[depField]
     if (!importerDeps || !pkgDeps) continue
     const depNames = Object.keys(importerDeps)
@@ -718,10 +718,10 @@ async function installInContext (
     }
 
     if (newPkg) {
-      const lockfileImporter = ctx.wantedLockfile.importers[project.id]
+      const projectSnapshot = ctx.wantedLockfile.importers[project.id]
       ctx.wantedLockfile.importers[project.id] = addDirectDependenciesToLockfile(
         newPkg,
-        lockfileImporter,
+        projectSnapshot,
         resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
         ctx.registries,
@@ -954,7 +954,7 @@ async function linkAllBins (
 
 function addDirectDependenciesToLockfile (
   newManifest: ProjectManifest,
-  lockfileImporter: LockfileImporter,
+  projectSnapshot: ProjectSnapshot,
   linkedPackages: Array<{alias: string}>,
   directDependencies: Array<{
     alias: string,
@@ -967,8 +967,8 @@ function addDirectDependenciesToLockfile (
     normalizedPref?: string,
   }>,
   registries: Registries,
-): LockfileImporter {
-  const newLockfileImporter = {
+): ProjectSnapshot {
+  const newProjectSnapshot = {
     dependencies: {},
     devDependencies: {},
     optionalDependencies: {},
@@ -976,7 +976,7 @@ function addDirectDependenciesToLockfile (
   }
 
   linkedPackages.forEach((linkedPkg) => {
-    newLockfileImporter.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
+    newProjectSnapshot.specifiers[linkedPkg.alias] = getSpecFromPackageManifest(newManifest, linkedPkg.alias)
   })
 
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
@@ -1003,40 +1003,40 @@ function addDirectDependenciesToLockfile (
         resolution: dep.resolution,
       })
       if (dep.dev) {
-        newLockfileImporter.devDependencies[dep.alias] = ref
+        newProjectSnapshot.devDependencies[dep.alias] = ref
       } else if (dep.optional) {
-        newLockfileImporter.optionalDependencies[dep.alias] = ref
+        newProjectSnapshot.optionalDependencies[dep.alias] = ref
       } else {
-        newLockfileImporter.dependencies[dep.alias] = ref
+        newProjectSnapshot.dependencies[dep.alias] = ref
       }
-      newLockfileImporter.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
-    } else if (lockfileImporter.specifiers[alias]) {
-      newLockfileImporter.specifiers[alias] = lockfileImporter.specifiers[alias]
-      if (lockfileImporter.dependencies?.[alias]) {
-        newLockfileImporter.dependencies[alias] = lockfileImporter.dependencies[alias]
-      } else if (lockfileImporter.optionalDependencies?.[alias]) {
-        newLockfileImporter.optionalDependencies[alias] = lockfileImporter.optionalDependencies[alias]
-      } else if (lockfileImporter.devDependencies?.[alias]) {
-        newLockfileImporter.devDependencies[alias] = lockfileImporter.devDependencies[alias]
+      newProjectSnapshot.specifiers[dep.alias] = getSpecFromPackageManifest(newManifest, dep.alias)
+    } else if (projectSnapshot.specifiers[alias]) {
+      newProjectSnapshot.specifiers[alias] = projectSnapshot.specifiers[alias]
+      if (projectSnapshot.dependencies?.[alias]) {
+        newProjectSnapshot.dependencies[alias] = projectSnapshot.dependencies[alias]
+      } else if (projectSnapshot.optionalDependencies?.[alias]) {
+        newProjectSnapshot.optionalDependencies[alias] = projectSnapshot.optionalDependencies[alias]
+      } else if (projectSnapshot.devDependencies?.[alias]) {
+        newProjectSnapshot.devDependencies[alias] = projectSnapshot.devDependencies[alias]
       }
     }
   }
 
-  alignDependencyTypes(newManifest, newLockfileImporter)
+  alignDependencyTypes(newManifest, newProjectSnapshot)
 
-  return newLockfileImporter
+  return newProjectSnapshot
 }
 
-function alignDependencyTypes (manifest: ProjectManifest, lockfileImporter: LockfileImporter) {
+function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: ProjectSnapshot) {
   const depTypesOfAliases = getAliasToDependencyTypeMap(manifest)
 
   // Aligning the dependency types in pnpm-lock.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!lockfileImporter[depType]) continue
-    for (const alias of Object.keys(lockfileImporter[depType] || {})) {
+    if (!projectSnapshot[depType]) continue
+    for (const alias of Object.keys(projectSnapshot[depType] || {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      lockfileImporter[depTypesOfAliases[alias]][alias] = lockfileImporter[depType]![alias]
-      delete lockfileImporter[depType]![alias]
+      projectSnapshot[depTypesOfAliases[alias]][alias] = projectSnapshot[depType]![alias]
+      delete projectSnapshot[depType]![alias]
     }
   }
 }
