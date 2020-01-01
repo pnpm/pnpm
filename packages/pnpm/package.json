@@ -152,7 +152,7 @@
     "?commit": "echo 'Run Git commit wizard'",
     "commit": "commit",
     "commitmsg": "commitlint -e",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:tap": "ts-node test --type-check",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm && registry-mock prepare",

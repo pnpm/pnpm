@@ -11,8 +11,8 @@
     "lib/"
   ],
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc && pnpm run lint",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run tsc",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },

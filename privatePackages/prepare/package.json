@@ -21,9 +21,9 @@
     "tslint-eslint-rules": "5.4.0"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c ../../tslint.json --project .",
     "prepublishOnly": "pnpm run tsc",
-    "test": "pnpm run tsc && pnpm run lint",
+    "test": "pnpm run tsc",
     "tsc": "rimraf lib && tsc"
   }
 }

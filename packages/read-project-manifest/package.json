@@ -11,8 +11,8 @@
     "lib"
   ],
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run lint && pnpm run tsc && ts-node test --type-check",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run tsc && ts-node test --type-check",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },

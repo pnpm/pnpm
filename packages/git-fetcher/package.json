@@ -8,8 +8,8 @@
     "lib"
   ],
   "scripts": {
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run tsc && ts-node test --type-check",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },

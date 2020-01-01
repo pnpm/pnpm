@@ -24,8 +24,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/modules-cleaner#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc && pnpm run lint",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run tsc",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },

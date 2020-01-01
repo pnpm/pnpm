@@ -76,9 +76,9 @@
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",
-    "test": "pnpm run lint && pnpm run tsc && ts-node test --type-check",
+    "test": "pnpm run tsc && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   }

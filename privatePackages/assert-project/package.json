@@ -36,12 +36,12 @@
   "scripts": {
     "commit": "commit",
     "commitmsg": "commitlint -e",
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c ../../tslint.json --project .",
     "lint-test": "tslint -c tslint.json --project test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc",
     "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm run lint && pnpm run lint-test && pnpm run tsc && ts-node test"
+    "test": "pnpm run tsc && ts-node test"
   },
   "dependencies": {
     "@pnpm/assert-store": "workspace:1.0.0",

@@ -8,8 +8,8 @@
   ],
   "typings": "lib/index.d.ts",
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --type-check",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run tsc && ts-node test --type-check",
     "tsc": "tsc",
     "prepublishOnly": "pnpm run tsc"
   },

@@ -11,9 +11,9 @@
     "node": ">=10"
   },
   "scripts": {
-    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "tsc",
-    "test": "pnpm run tsc && pnpm run lint && ts-node test --ts-node",
+    "test": "pnpm run tsc && ts-node test --ts-node",
     "prepublishOnly": "pnpm run tsc",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix"
   },
