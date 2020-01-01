@@ -6,7 +6,7 @@ import {
   IncludedDependencies,
   Modules,
 } from '@pnpm/modules-yaml'
-import readImportersContext from '@pnpm/read-projects-context'
+import readProjectsContext from '@pnpm/read-projects-context'
 import {
   DEPENDENCIES_FIELDS,
   ProjectManifest,
@@ -79,7 +79,7 @@ export default async function getContext<T> (
     forceShamefullyHoist?: boolean,
   },
 ): Promise<PnpmContext<T>> {
-  const importersContext = await readImportersContext(projects, opts.lockfileDir)
+  const importersContext = await readProjectsContext(projects, opts.lockfileDir)
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (importersContext.modules) {
@@ -356,7 +356,7 @@ export async function getContextForSingleImporter (
     shamefullyHoist,
     skipped,
     rootModulesDir,
-  } = await readImportersContext(
+  } = await readProjectsContext(
     [
       {
         rootDir: opts.dir,
@@ -439,6 +439,10 @@ export async function getContextForSingleImporter (
     initial: manifest,
     prefix: opts.dir,
   })
+  
 
+  
   return ctx
+  
 }
+

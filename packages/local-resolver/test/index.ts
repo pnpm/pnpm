@@ -4,7 +4,7 @@ import path = require('path')
 import test = require('tape')
 
 test('resolve directory', async t => {
-  const resolveResult = await resolveFromLocal({ pref: '..' }, { importerDir: __dirname })
+  const resolveResult = await resolveFromLocal({ pref: '..' }, { projectDir: __dirname })
   t.equal(resolveResult!.id, 'link:..')
   t.equal(resolveResult!.normalizedPref, 'link:..')
   t.equal(resolveResult!['manifest']!.name, '@pnpm/local-resolver')
@@ -14,7 +14,7 @@ test('resolve directory', async t => {
 })
 
 test('resolve directory specified using the file: protocol', async t => {
-  const resolveResult = await resolveFromLocal({ pref: 'file:..' }, { importerDir: __dirname })
+  const resolveResult = await resolveFromLocal({ pref: 'file:..' }, { projectDir: __dirname })
   t.equal(resolveResult!.id, 'link:..')
   t.equal(resolveResult!.normalizedPref, 'link:..')
   t.equal(resolveResult!['manifest']!.name, '@pnpm/local-resolver')
@@ -24,7 +24,7 @@ test('resolve directory specified using the file: protocol', async t => {
 })
 
 test('resolve directoty specified using the link: protocol', async t => {
-  const resolveResult = await resolveFromLocal({ pref: 'link:..' }, { importerDir: __dirname })
+  const resolveResult = await resolveFromLocal({ pref: 'link:..' }, { projectDir: __dirname })
   t.equal(resolveResult!.id, 'link:..')
   t.equal(resolveResult!.normalizedPref, 'link:..')
   t.equal(resolveResult!['manifest']!.name, '@pnpm/local-resolver')
@@ -35,7 +35,7 @@ test('resolve directoty specified using the link: protocol', async t => {
 
 test('resolve file', async t => {
   const wantedDependency = { pref: './pnpm-local-resolver-0.1.1.tgz' }
-  const resolveResult = await resolveFromLocal(wantedDependency, { importerDir: __dirname })
+  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
 
   t.deepEqual(resolveResult, {
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
@@ -53,8 +53,8 @@ test('resolve file', async t => {
 test("resolve file when lockfile directory differs from the package's dir", async t => {
   const wantedDependency = { pref: './pnpm-local-resolver-0.1.1.tgz' }
   const resolveResult = await resolveFromLocal(wantedDependency, {
-    importerDir: __dirname,
     lockfileDir: path.join(__dirname, '..'),
+    projectDir: __dirname,
   })
 
   t.deepEqual(resolveResult, {
@@ -72,7 +72,7 @@ test("resolve file when lockfile directory differs from the package's dir", asyn
 
 test('resolve tarball specified with file: protocol', async t => {
   const wantedDependency = { pref: 'file:./pnpm-local-resolver-0.1.1.tgz' }
-  const resolveResult = await resolveFromLocal(wantedDependency, { importerDir: __dirname })
+  const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
 
   t.deepEqual(resolveResult, {
     id: 'file:pnpm-local-resolver-0.1.1.tgz',
@@ -90,7 +90,7 @@ test('resolve tarball specified with file: protocol', async t => {
 test('fail when resolving tarball specified with the link: protocol', async t => {
   try {
     const wantedDependency = { pref: 'link:./pnpm-local-resolver-0.1.1.tgz' }
-    const resolveResult = await resolveFromLocal(wantedDependency, { importerDir: __dirname })
+    const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
     t.fail()
   } catch (err) {
     t.ok(err)
@@ -102,7 +102,7 @@ test('fail when resolving tarball specified with the link: protocol', async t =>
 test('fail when resolving from not existing directory', async t => {
   try {
     const wantedDependency = { pref: 'link:./dir-does-not-exist' }
-    const resolveResult = await resolveFromLocal(wantedDependency, { importerDir: __dirname })
+    const resolveResult = await resolveFromLocal(wantedDependency, { projectDir: __dirname })
     t.fail()
   } catch (err) {
     t.ok(err)
@@ -113,7 +113,7 @@ test('fail when resolving from not existing directory', async t => {
 
 test('throw error when the path: protocol is used', async t => {
   try {
-    await resolveFromLocal({ pref: 'path:..' }, { importerDir: __dirname })
+    await resolveFromLocal({ pref: 'path:..' }, { projectDir: __dirname })
     t.fail()
   } catch (err) {
     t.ok(err)

@@ -262,10 +262,10 @@ export default async (opts: HeadlessOptions) => {
 
   await Promise.all(opts.projects.map(async ({ rootDir, id, manifest, modulesDir }) => {
     await linkRootPackages(filteredLockfile, {
-      importerDir: rootDir,
       importerId: id,
       importerModulesDir: modulesDir,
       lockfileDir,
+      projectDir: rootDir,
       projects: opts.projects,
       registries: opts.registries,
       rootDependencies: directDependenciesByImporterId[id],
@@ -386,7 +386,7 @@ async function linkRootPackages (
   lockfile: Lockfile,
   opts: {
     registries: Registries,
-    importerDir: string,
+    projectDir: string,
     importerId: string,
     importerModulesDir: string,
     projects: Array<{ id: string, manifest: ProjectManifest }>,
@@ -410,7 +410,7 @@ async function linkRootPackages (
         if (allDeps[alias].startsWith('link:')) {
           const isDev = lockfileImporter.devDependencies?.[alias]
           const isOptional = lockfileImporter.optionalDependencies?.[alias]
-          const packageDir = path.join(opts.importerDir, allDeps[alias].substr(5))
+          const packageDir = path.join(opts.projectDir, allDeps[alias].substr(5))
           const linkedPackage = await (async () => {
             const importerId = getLockfileImporterId(opts.lockfileDir, packageDir)
             if (importerManifestsByImporterId[importerId]) {
@@ -424,7 +424,7 @@ async function linkRootPackages (
               isOptional && 'optionalDependencies' ||
               'dependencies',
             linkedPackage,
-            prefix: opts.importerDir,
+            prefix: opts.projectDir,
           })
           return
         }
@@ -455,7 +455,7 @@ async function linkRootPackages (
             realName: pkgInfo.name,
             version: pkgInfo.version,
           },
-          prefix: opts.importerDir,
+          prefix: opts.projectDir,
         })
       }),
   )

@@ -77,7 +77,7 @@ import getWantedDependencies, {
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
-  Importer as ImporterToLink,
+  Project as ProjectToLink,
 } from './link'
 import { absolutePathToRef } from './lockfile'
 
@@ -116,7 +116,7 @@ export async function install (
     preferredVersions?: PreferredVersions,
   },
 ) {
-  const importers = await mutateModules(
+  const projects = await mutateModules(
     [
       {
         buildIndex: 0,
@@ -127,7 +127,7 @@ export async function install (
     ],
     opts,
   )
-  return importers[0].manifest
+  return projects[0].manifest
 }
 
 export type MutatedProject = ProjectOptions & DependenciesMutation
@@ -701,7 +701,7 @@ async function installInContext (
     stage: 'resolution_done',
   })
 
-  const projectsToLink = await Promise.all<ImporterToLink>(projectsToResolve.map(async (project, index) => {
+  const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project, index) => {
     const resolvedImporter = resolvedImporters[project.id]
     let newPkg: ProjectManifest | undefined = project.manifest
     if (project.updatePackageManifest) {
@@ -934,7 +934,7 @@ async function toResolveImporter (
 
 const limitLinking = pLimit(16)
 
-function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ImporterToLink) {
+function linkBinsOfImporter ({ modulesDir, binsDir, rootDir }: ProjectToLink) {
   const warn = (message: string) => logger.warn({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, { allowExoticManifests: true, warn })
 }

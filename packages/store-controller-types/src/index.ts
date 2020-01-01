@@ -100,7 +100,7 @@ export interface RequestPackageOptions {
   currentResolution?: Resolution,
   defaultTag?: string,
   downloadPriority: number,
-  importerDir: string,
+  projectDir: string,
   lockfileDir: string,
   preferredVersions: PreferredVersions,
   registry: string,

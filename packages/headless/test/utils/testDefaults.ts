@@ -3,7 +3,7 @@ import createResolver from '@pnpm/default-resolver'
 import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import readImportersContext from '@pnpm/read-projects-context'
+import readProjectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import storePath from '@pnpm/store-path'
 import path = require('path')
@@ -26,7 +26,7 @@ export default async function testDefaults (
 ): Promise<HeadlessOptions> {
   let storeDir = opts?.storeDir ?? tempy.directory()
   const lockfileDir = opts?.lockfileDir ?? process.cwd()
-  const { include, pendingBuilds, projects, registries } = await readImportersContext(
+  const { include, pendingBuilds, projects, registries } = await readProjectsContext(
     [
       {
         rootDir: lockfileDir,

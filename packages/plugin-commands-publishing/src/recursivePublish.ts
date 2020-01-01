@@ -106,9 +106,9 @@ async function isAlreadyPublished (
 ) {
   try {
     await opts.resolve({ alias: pkgName, pref: pkgVersion }, {
-      importerDir: opts.dir,
       lockfileDir: opts.lockfileDir,
       preferredVersions: {},
+      projectDir: opts.dir,
       registry: pickRegistryForPackage(opts.registries, pkgName),
     })
     return true

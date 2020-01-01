@@ -165,9 +165,9 @@ async function safeReadPkg (pkgPath: string): Promise<DependencyManifest | null>
   }
 }
 
-async function safeReadProjectManifestOnly (importerDir: string) {
+async function safeReadProjectManifestOnly (projectDir: string) {
   try {
-    return await readProjectManifestOnly(importerDir) as DependencyManifest
+    return await readProjectManifestOnly(projectDir) as DependencyManifest
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND') {
       return null

@@ -19,12 +19,12 @@ const stat = promisify(fs.stat)
 
 type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Promise<void>
 
-export default async function readProjectManifest (importerDir: string): Promise<{
+export default async function readProjectManifest (projectDir: string): Promise<{
   fileName: string,
   manifest: ProjectManifest
   writeProjectManifest: WriteProjectManifest
 }> {
-  const result = await tryReadProjectManifest(importerDir)
+  const result = await tryReadProjectManifest(projectDir)
   if (result.manifest !== null) {
     return result as {
       fileName: string,
@@ -33,21 +33,21 @@ export default async function readProjectManifest (importerDir: string): Promise
     }
   }
   throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
-    `No package.json (or package.yaml, or package.json5) was found in "${importerDir}".`)
+    `No package.json (or package.yaml, or package.json5) was found in "${projectDir}".`)
 }
 
-export async function readProjectManifestOnly (importerDir: string): Promise<ProjectManifest> {
-  const { manifest } = await readProjectManifest(importerDir)
+export async function readProjectManifestOnly (projectDir: string): Promise<ProjectManifest> {
+  const { manifest } = await readProjectManifest(projectDir)
   return manifest
 }
 
-export async function tryReadProjectManifest (importerDir: string): Promise<{
+export async function tryReadProjectManifest (projectDir: string): Promise<{
   fileName: string,
   manifest: ProjectManifest | null
   writeProjectManifest: WriteProjectManifest
 }> {
   try {
-    const manifestPath = path.join(importerDir, 'package.json')
+    const manifestPath = path.join(projectDir, 'package.json')
     const { data, text } = await readJsonFile(manifestPath)
     const { indent } = detectIndent(text)
     return {
@@ -63,7 +63,7 @@ export async function tryReadProjectManifest (importerDir: string): Promise<{
     if (err.code !== 'ENOENT') throw err
   }
   try {
-    const manifestPath = path.join(importerDir, 'package.json5')
+    const manifestPath = path.join(projectDir, 'package.json5')
     const { data, text } = await readJson5File(manifestPath)
     const { indent } = detectIndent(text)
     return {
@@ -79,7 +79,7 @@ export async function tryReadProjectManifest (importerDir: string): Promise<{
     if (err.code !== 'ENOENT') throw err
   }
   try {
-    const manifestPath = path.join(importerDir, 'package.yaml')
+    const manifestPath = path.join(projectDir, 'package.yaml')
     const manifest = await readPackageYaml(manifestPath)
     return {
       fileName: 'package.yaml',
@@ -93,17 +93,17 @@ export async function tryReadProjectManifest (importerDir: string): Promise<{
     // ENOTDIR isn't used on Windows, but pnpm expects it.
     let s: Stats | undefined
     try {
-      s = await stat(importerDir)
+      s = await stat(projectDir)
     } catch (err) {
       // Ignore
     }
     if (s && !s.isDirectory()) {
-      const err = new Error(`"${importerDir}" is not a directory`)
+      const err = new Error(`"${projectDir}" is not a directory`)
       err['code'] = 'ENOTDIR' // tslint:disable-line
       throw err
     }
   }
-  const filePath = path.join(importerDir, 'package.json')
+  const filePath = path.join(projectDir, 'package.json')
   return {
     fileName: 'package.json',
     manifest: null,

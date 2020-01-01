@@ -133,9 +133,9 @@ async function resolveAndFetch (
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
         defaultTag: options.defaultTag,
-        importerDir: options.importerDir,
         lockfileDir: options.lockfileDir,
         preferredVersions: options.preferredVersions,
+        projectDir: options.projectDir,
         registry: options.registry,
         workspacePackages: options.workspacePackages,
       }), { priority: options.downloadPriority })

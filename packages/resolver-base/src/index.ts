@@ -55,7 +55,7 @@ export type PreferredVersions = {
 export interface ResolveOptions {
   alwaysTryWorkspacePackages?: boolean,
   defaultTag?: string,
-  importerDir: string,
+  projectDir: string,
   lockfileDir: string,
   preferredVersions: PreferredVersions,
   registry: string,

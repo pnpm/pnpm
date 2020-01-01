@@ -67,7 +67,7 @@ export interface DependenciesGraph {
 
 export default function (
   opts: {
-    importers: Array<{
+    projects: Array<{
       directNodeIdsByAlias: {[alias: string]: string},
       // only the top dependencies that were already installed
       // to avoid warnings about unresolved peer dependencies
@@ -83,12 +83,12 @@ export default function (
   },
 ): {
   depGraph: DependenciesGraph,
-  importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}},
+  projectsDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}},
 } {
   const depGraph: DependenciesGraph = {}
   const absolutePathsByNodeId = {}
 
-  for (const { directNodeIdsByAlias, topParents, rootDir } of opts.importers) {
+  for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
     const pkgsByName = Object.assign(
       R.fromPairs(
         topParents.map(({ name, version }: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
@@ -130,16 +130,16 @@ export default function (
     }, {})
   })
 
-  const importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}} = {}
-  for (const { directNodeIdsByAlias, id } of opts.importers) {
-    importersDirectAbsolutePathsByAlias[id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
+  const projectsDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}} = {}
+  for (const { directNodeIdsByAlias, id } of opts.projects) {
+    projectsDirectAbsolutePathsByAlias[id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
       rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[directNodeIdsByAlias[alias]]
       return rootAbsolutePathsByAlias
     }, {})
   }
   return {
     depGraph,
-    importersDirectAbsolutePathsByAlias,
+    projectsDirectAbsolutePathsByAlias,
   }
 }
 

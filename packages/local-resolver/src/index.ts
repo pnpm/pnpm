@@ -16,8 +16,8 @@ import parsePref from './parsePref'
 export default async function resolveLocal (
   wantedDependency: {pref: string},
   opts: {
-    importerDir: string,
     lockfileDir?: string,
+    projectDir: string,
   },
 ): Promise<
   (
@@ -32,9 +32,8 @@ export default async function resolveLocal (
     )
    ) | null
 > {
-  const spec = parsePref(wantedDependency.pref, opts.importerDir, opts.lockfileDir || opts.importerDir)
+  const spec = parsePref(wantedDependency.pref, opts.projectDir, opts.lockfileDir ?? opts.projectDir)
   if (!spec) return null
-
   if (spec.type === 'file') {
     return {
       id: spec.id,
