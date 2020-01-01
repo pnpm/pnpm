@@ -87,7 +87,7 @@ export function help () {
   return renderHelp({
     aliases: ['i'],
     description: oneLine`Installs all dependencies of the project in the current working directory.
-      When executed inside a workspace, installs all dependencies of all workspace packages.`,
+      When executed inside a workspace, installs all dependencies of all projects.`,
     descriptionLists: [
       {
         title: 'Options',

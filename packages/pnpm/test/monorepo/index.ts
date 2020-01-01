@@ -466,7 +466,7 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   }
 })
 
-test('recursive install with shared-workspace-lockfile builds workspace packages in correct order', async (t: tape.Test) => {
+test('recursive install with shared-workspace-lockfile builds workspace projects in correct order', async (t: tape.Test) => {
   const jsonAppend = (append: string, target: string) => `node -e "process.stdout.write('${append}')" | json-append ${target}`
   const projects = preparePackages(t, [
     {
@@ -909,7 +909,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }
 })
 
-test('dependencies of workspace packages are built during headless installation', async (t: tape.Test) => {
+test('dependencies of workspace projects are built during headless installation', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',

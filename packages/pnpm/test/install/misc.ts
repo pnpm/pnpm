@@ -375,7 +375,7 @@ test('engine-strict=true: install should fail if the used Node version does not 
   t.ok(stdout.toString().includes('Your Node version is incompatible with'))
 })
 
-test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace packages', async (t: tape.Test) => {
+test('recursive install should fail if the used pnpm version does not satisfy the pnpm version specified in engines of any of the workspace projects', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -408,7 +408,7 @@ test('recursive install should fail if the used pnpm version does not satisfy th
   t.ok(stdout.toString().includes('Your pnpm version is incompatible with'))
 })
 
-test('engine-strict=true: recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace packages', async (t: tape.Test) => {
+test('engine-strict=true: recursive install should fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -441,7 +441,7 @@ test('engine-strict=true: recursive install should fail if the used Node version
   t.ok(stdout.toString().includes('Your Node version is incompatible with'))
 })
 
-test('engine-strict=false: recursive install should not fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace packages', async (t: tape.Test) => {
+test('engine-strict=false: recursive install should not fail if the used Node version does not satisfy the Node version specified in engines of any of the workspace projects', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-1',

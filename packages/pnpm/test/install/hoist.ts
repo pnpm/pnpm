@@ -39,7 +39,7 @@ test('shamefully hoist the dependency graph', async function (t) {
   await project.hasNot('cookie')
 })
 
-test('shamefully-hoist: applied to all the workspace packages when set to true in the root .npmrc file', async (t: tape.Test) => {
+test('shamefully-hoist: applied to all the workspace projects when set to true in the root .npmrc file', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       location: '.',

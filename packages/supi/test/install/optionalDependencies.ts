@@ -354,7 +354,7 @@ test('only skip optional dependencies', async (t: tape.Test) => {
   t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/got/3.3.1/node_modules/duplexify`)), 'duplexify is linked into node_modules of got')
 })
 
-test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace packages', async (t: tape.Test) => {
+test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project1',

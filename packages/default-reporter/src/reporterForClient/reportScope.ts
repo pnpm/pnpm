@@ -46,9 +46,9 @@ export default (
       }
 
       if (log.workspacePrefix) {
-        msg += ' workspace packages'
+        msg += ' workspace projects'
       } else {
-        msg += ' packages'
+        msg += ' projects'
       }
 
       return most.of({ msg })

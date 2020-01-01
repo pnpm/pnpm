@@ -370,7 +370,7 @@ test('current lockfile contains only installed dependencies when adding a new im
   t.deepEqual(Object.keys(currentLockfile?.packages || {}), ['/is-negative/1.0.0'])
 })
 
-test('partial installation in a monorepo does not remove dependencies of other workspace packages', async (t: tape.Test) => {
+test('partial installation in a monorepo does not remove dependencies of other workspace projects', async (t: tape.Test) => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   prepareEmpty(t)
 
@@ -463,7 +463,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
   t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
 })
 
-test('partial installation in a monorepo does not remove dependencies of other workspace packages when lockfile is frozen', async (t: tape.Test) => {
+test('partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen', async (t: tape.Test) => {
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   prepareEmpty(t)
 

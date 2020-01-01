@@ -50,7 +50,7 @@ test('prints scope of recursive install in a workspace when not all packages are
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: 1 of 10 workspace packages`)
+      t.equal(output, `Scope: 1 of 10 workspace projects`)
     },
   })
 })
@@ -75,7 +75,7 @@ test('prints scope of recursive install in a workspace when all packages are sel
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: all 10 workspace packages`)
+      t.equal(output, `Scope: all 10 workspace projects`)
     },
   })
 })
@@ -99,7 +99,7 @@ test('prints scope of recursive install not in a workspace when not all packages
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: 1 of 10 packages`)
+      t.equal(output, `Scope: 1 of 10 projects`)
     },
   })
 })
@@ -123,7 +123,7 @@ test('prints scope of recursive install not in a workspace when all packages are
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, `Scope: all 10 packages`)
+      t.equal(output, `Scope: all 10 projects`)
     },
   })
 })

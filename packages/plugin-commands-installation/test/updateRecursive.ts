@@ -51,7 +51,7 @@ test('recursive update', async (t) => {
   t.end()
 })
 
-test('recursive update --latest foo should only update workspace packages that have foo', async (t) => {
+test('recursive update --latest foo should only update projects that have foo', async (t) => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'qar', version: '100.0.0', distTag: 'latest' })

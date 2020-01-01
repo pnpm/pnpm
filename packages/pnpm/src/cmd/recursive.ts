@@ -101,7 +101,7 @@ export function help () {
           {
             description: oneLine`
               Creates a single ${WANTED_LOCKFILE} file in the root of the workspace.
-              A shared lockfile also means that all dependencies of all workspace packages will be in a single node_modules.`,
+              A shared lockfile also means that all dependencies of all projects will be in a single node_modules.`,
             name: '--shared-workspace-lockfile',
           },
         ],
