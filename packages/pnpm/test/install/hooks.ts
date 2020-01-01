@@ -156,7 +156,7 @@ test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test)
       dependencies: {
         'is-positive': '1.0.0',
       },
-    }
+    },
   ])
 
   const pnpmfile = `
@@ -187,10 +187,10 @@ test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test)
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
   // tslint:disable: no-unnecessary-type-assertion
   t.deepEqual(lockfile.packages!['/is-positive/1.0.0'].dependencies, {
-    'dep-of-pkg-with-1-dep': '100.1.0'
+    'dep-of-pkg-with-1-dep': '100.1.0',
   }, 'dep-of-pkg-with-1-dep is dependency of is-positive')
   t.deepEqual(lockfile.packages!['/is-negative/1.0.0'].dependencies, {
-    'dep-of-pkg-with-1-dep': '100.1.0'
+    'dep-of-pkg-with-1-dep': '100.1.0',
   }, 'dep-of-pkg-with-1-dep is dependency of is-negative')
   // tslint:enable: no-unnecessary-type-assertion
 })

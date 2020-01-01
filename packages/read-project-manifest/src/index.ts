@@ -22,14 +22,14 @@ type WriteProjectManifest = (manifest: ProjectManifest, force?: boolean) => Prom
 export default async function readProjectManifest (projectDir: string): Promise<{
   fileName: string,
   manifest: ProjectManifest
-  writeProjectManifest: WriteProjectManifest
+  writeProjectManifest: WriteProjectManifest,
 }> {
   const result = await tryReadProjectManifest(projectDir)
   if (result.manifest !== null) {
     return result as {
       fileName: string,
       manifest: ProjectManifest
-      writeProjectManifest: WriteProjectManifest
+      writeProjectManifest: WriteProjectManifest,
     }
   }
   throw new PnpmError('NO_IMPORTER_MANIFEST_FOUND',
@@ -44,7 +44,7 @@ export async function readProjectManifestOnly (projectDir: string): Promise<Proj
 export async function tryReadProjectManifest (projectDir: string): Promise<{
   fileName: string,
   manifest: ProjectManifest | null
-  writeProjectManifest: WriteProjectManifest
+  writeProjectManifest: WriteProjectManifest,
 }> {
   try {
     const manifestPath = path.join(projectDir, 'package.json')

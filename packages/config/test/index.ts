@@ -541,7 +541,7 @@ test('throw error if --no-hoist is used with --shamefully-hoist', async (t) => {
     await getConfig({
       cliOptions: {
         'hoist': false,
-        'shamefully-hoist': true
+        'shamefully-hoist': true,
       },
       packageManager: {
         name: 'pnpm',
@@ -560,7 +560,7 @@ test('throw error if --no-hoist is used with --shamefully-flatten', async (t) =>
     await getConfig({
       cliOptions: {
         'hoist': false,
-        'shamefully-flatten': true
+        'shamefully-flatten': true,
       },
       packageManager: {
         name: 'pnpm',
@@ -579,7 +579,7 @@ test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
     await getConfig({
       cliOptions: {
         'hoist': false,
-        'hoist-pattern': 'eslint-*'
+        'hoist-pattern': 'eslint-*',
       },
       packageManager: {
         name: 'pnpm',

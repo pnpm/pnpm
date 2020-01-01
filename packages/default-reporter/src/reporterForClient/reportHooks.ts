@@ -8,7 +8,7 @@ export default (
   opts: {
     cwd: string,
     isRecursive: boolean,
-  }
+  },
 ) => {
   return hook$
     .map((log) => ({

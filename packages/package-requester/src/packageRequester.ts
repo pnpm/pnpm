@@ -57,7 +57,7 @@ const pickBundledManifest = R.pick([
   'peerDependencies',
   'peerDependenciesMeta',
   'scripts',
-  'version'
+  'version',
 ])
 
 export default function (
@@ -239,7 +239,7 @@ function fetchToStore (
       packageId: string,
       resolution: Resolution,
       target: string,
-      opts: FetchOptions
+      opts: FetchOptions,
     ) => Promise<FetchResult>,
     fetchingLocker: Map<string, {
       finishing: Promise<void>,

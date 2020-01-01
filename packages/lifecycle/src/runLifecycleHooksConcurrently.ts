@@ -39,7 +39,7 @@ export default async function runLifecycleHooksConcurrently (
           if (!manifest.scripts || !manifest.scripts[stage]) continue
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
         }
-      }
+      },
     )
   })
   await runGroups(childConcurrency, groups)

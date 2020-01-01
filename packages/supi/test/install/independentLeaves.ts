@@ -30,7 +30,7 @@ test('--independent-leaves throws exception when executed on node_modules instal
     await addDependenciesToPackage(manifest, ['is-negative'], {
       ...opts,
       forceIndependentLeaves: true,
-      independentLeaves: true
+      independentLeaves: true,
     })
     t.fail('installation should have failed')
   } catch (err) {

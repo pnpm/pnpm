@@ -1,7 +1,7 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
 import createStore from '@pnpm/package-store'
-import { connectStoreController, createServer, } from '@pnpm/server'
+import { connectStoreController, createServer } from '@pnpm/server'
 import { PackageFilesResponse, ResolveFunction } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
 import rimraf = require('@zkochan/rimraf')
@@ -57,7 +57,7 @@ test('server', async t => {
       projectDir,
       registry,
       sideEffectsCache: false,
-    }
+    },
   )
 
   t.equal((await response.bundledManifest!()).name, 'is-positive', 'responded with bundledManifest')
@@ -151,7 +151,7 @@ test('server errors should arrive to the client', async t => {
         projectDir,
         registry,
         sideEffectsCache: false,
-      }
+      },
     )
   } catch (e) {
     caught = true
@@ -320,7 +320,7 @@ test('find package usages', async t => {
       projectDir,
       registry,
       sideEffectsCache: false,
-    }
+    },
   )
   await requestResponse.bundledManifest!()
   await requestResponse.finishing!()

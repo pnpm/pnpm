@@ -145,8 +145,8 @@ function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [pa
       return {
         label,
         nodes: [
-          'Not found in store'
-        ]
+          'Not found in store',
+        ],
       } as archy.Data
     }
 
@@ -158,21 +158,21 @@ function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [pa
       const locations: string[] = foundPackage.usages
       const locationNodes: archy.Data[] = locations.map(location => {
         return {
-          label: 'Project with dependency: ' + location
+          label: 'Project with dependency: ' + location,
         } as archy.Data
       })
 
       // Now create node for the package found in the store
       return {
         label,
-        nodes: locationNodes.length === 0 ? ['No pnpm projects using this package'] : locationNodes
+        nodes: locationNodes.length === 0 ? ['No pnpm projects using this package'] : locationNodes,
       } as archy.Data
     })
 
     // Now create node for the original query
     return {
       label,
-      nodes: foundPackagesNodes
+      nodes: foundPackagesNodes,
     } as archy.Data
   })
 

@@ -744,7 +744,7 @@ function getResolvedPackage (
     pkgResponse: PackageResponse,
     prepare: boolean,
     wantedDependency: WantedDependency,
-  }
+  },
 ) {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
 

@@ -501,9 +501,9 @@ test('accessing private packages', async t => {
     registry,
     {
       reqheaders: {
-        'authorization': 'Bearer ofjergrg349gj3f2'
-      }
-    }
+        'authorization': 'Bearer ofjergrg349gj3f2',
+      },
+    },
   )
   .get('/foo.tgz')
   .replyWithFile(200, tarballPath, {

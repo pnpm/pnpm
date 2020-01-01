@@ -25,7 +25,7 @@ test('pnpm recursive test', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         test: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
@@ -37,7 +37,7 @@ test('pnpm recursive test', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         test: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
@@ -88,7 +88,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -96,7 +96,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -149,7 +149,7 @@ test('pnpm recursive test with filtering', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         test: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,

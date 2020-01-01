@@ -351,11 +351,11 @@ test('convert specs with workspace protocols to regular version ranges', async (
         'lodash.delay': '~4.1.0',
       },
       devDependencies: {
-        'random-package': 'workspace:^1.2.3'
+        'random-package': 'workspace:^1.2.3',
       },
       optionalDependencies: {
         'lodash.deburr': 'workspace:^4.1.0',
-      }
+      },
     },
     {
       name: 'is-negative',
@@ -380,7 +380,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
     {
       name: 'target',
       version: '1.0.0',
-    }
+    },
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })

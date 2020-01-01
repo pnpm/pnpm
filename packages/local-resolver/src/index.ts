@@ -3,7 +3,7 @@ import { readProjectManifestOnly } from '@pnpm/read-project-manifest'
 import {
   DirectoryResolution,
   ResolveResult,
-  TarballResolution
+  TarballResolution,
 } from '@pnpm/resolver-base'
 import { DependencyManifest } from '@pnpm/types'
 import fs = require('graceful-fs')

@@ -150,7 +150,7 @@ export default async function recursive (
             manifest: manifestsByPath[prefix].manifest,
             rootDir: prefix,
           })
-        })
+        }),
       )
     }))
     return importers
@@ -241,7 +241,7 @@ export default async function recursive (
     if (opts.save !== false) {
       await Promise.all(
         mutatedPkgs
-          .map(({ manifest }, index) => writeProjectManifests[index](manifest))
+          .map(({ manifest }, index) => writeProjectManifests[index](manifest)),
       )
     }
     return true

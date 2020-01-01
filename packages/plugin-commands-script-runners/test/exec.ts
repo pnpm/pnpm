@@ -28,7 +28,7 @@ test('pnpm recursive exec', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
@@ -42,7 +42,7 @@ test('pnpm recursive exec', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
@@ -110,7 +110,7 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `exit 1 && node -e "process.stdout.write('project-2')" | json-append ../output.json`,
@@ -122,7 +122,7 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,

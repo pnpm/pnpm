@@ -111,7 +111,7 @@ export default (
     maxTimeout: 6e4, // 1 minute
     minTimeout: 1e4, // 10 seconds
     retries: 2,
-    ...gotOpts.retry
+    ...gotOpts.retry,
   }
 
   return async function download (url: string, saveto: string, opts: {

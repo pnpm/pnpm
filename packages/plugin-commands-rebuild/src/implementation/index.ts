@@ -243,11 +243,11 @@ async function _rebuild (
           dependencies: opts.production,
           devDependencies: opts.development,
           optionalDependencies: opts.optional,
-        }
-      }
+        },
+      },
     ),
     nodesToBuildAndTransitive,
-    { pkgsToRebuild: ctx.pkgsToRebuild }
+    { pkgsToRebuild: ctx.pkgsToRebuild },
   )
   const nodesToBuildAndTransitiveArray = Array.from(nodesToBuildAndTransitive)
 
@@ -314,7 +314,7 @@ async function _rebuild (
         }
         throw err
       }
-    }
+    },
   ))
 
   await runGroups(opts.childConcurrency || 5, groups)

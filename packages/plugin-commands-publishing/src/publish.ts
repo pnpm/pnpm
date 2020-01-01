@@ -123,7 +123,7 @@ export async function fakeRegularManifest (
     await writeProjectManifest(manifest, true)
   }
   await Promise.all(
-    copiedLicenses.map((copiedLicense) => fs.unlink(copiedLicense))
+    copiedLicenses.map((copiedLicense) => fs.unlink(copiedLicense)),
   )
 }
 
@@ -191,7 +191,7 @@ async function copyLicenses (sourceDir: string, destDir: string) {
         const licenseCopyDest = path.join(destDir, path.basename(licensePath))
         copiedLicenses.push(licenseCopyDest)
         return cpFile(licensePath, licenseCopyDest)
-      })
+      }),
   )
   return copiedLicenses
 }

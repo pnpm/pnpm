@@ -10,7 +10,7 @@ const createImportPackage = proxyquire('@pnpm/package-store/lib/storeController/
   '../fs/importIndexedDir': proxyquire('@pnpm/package-store/lib/fs/importIndexedDir', {
     'make-dir': makeDirMock,
     'mz/fs': fsMock,
-    'path-temp': (dir: string) => path.join(dir, '_tmp')
+    'path-temp': (dir: string) => path.join(dir, '_tmp'),
   }),
   'make-dir': makeDirMock,
   'mz/fs': fsMock,

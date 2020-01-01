@@ -82,7 +82,7 @@ function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWo
     'Package',
     'Current',
     'Latest',
-    'Dependents'
+    'Dependents',
   ]
 
   let columnFns = [
@@ -132,7 +132,7 @@ function renderOutdatedList (outdatedByNameAndType: Record<string, OutdatedInWor
         info += `\n${chalk.bold(
             outdatedPkg.dependentPkgs.length > 1
               ? 'Dependents:'
-              : 'Dependent:'
+              : 'Dependent:',
           )} ${dependents}`
       }
 

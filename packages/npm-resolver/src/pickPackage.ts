@@ -39,7 +39,7 @@ export type PackageInRegistry = PackageManifest & {
  * otherwise it would cause EPERM exceptions
  */
 const metafileOperationLimits = {} as {
-  [pkgMirror: string]: Limit
+  [pkgMirror: string]: Limit,
 }
 
 export type PickPackageOptions = {

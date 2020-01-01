@@ -1087,7 +1087,7 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }
+    },
   ], await testDefaults())
 
   const updatedLockfile = await project.readLockfile()

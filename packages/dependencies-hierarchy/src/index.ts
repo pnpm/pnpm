@@ -209,7 +209,7 @@ async function dependenciesHierarchyForPackage (
       }
       result.unsavedDependencies = result.unsavedDependencies || []
       result.unsavedDependencies.push(newEntry)
-    })
+    }),
   )
 
   return result

@@ -19,7 +19,7 @@ test('create package graph', t => {
         dependencies: {
           'foo': '^1.0.0',
           'is-positive': '1.0.0',
-        }
+        },
       },
     },
     {
@@ -29,8 +29,8 @@ test('create package graph', t => {
         version: '1.0.0',
 
         dependencies: {
-          bar: '^10.0.0'
-        }
+          bar: '^10.0.0',
+        },
       },
     },
     {
@@ -40,8 +40,8 @@ test('create package graph', t => {
         version: '2.0.0',
 
         dependencies: {
-          foo: '^2.0.0'
-        }
+          foo: '^2.0.0',
+        },
       },
     },
     {
@@ -65,7 +65,7 @@ test('create package graph', t => {
           dependencies: {
             'foo': '^1.0.0',
             'is-positive': '1.0.0',
-          }
+          },
         },
       },
     },
@@ -78,8 +78,8 @@ test('create package graph', t => {
           version: '1.0.0',
 
           dependencies: {
-            bar: '^10.0.0'
-          }
+            bar: '^10.0.0',
+          },
         },
       },
     },
@@ -197,7 +197,7 @@ test('create package graph for local directory dependencies', t => {
           version: '2.0.0',
 
           dependencies: {
-            foo: 'file:../foo@2'
+            foo: 'file:../foo@2',
           },
         },
       },
@@ -227,7 +227,7 @@ test('create package graph ignoring the workspace protocol', t => {
         dependencies: {
           'foo': 'workspace:^1.0.0',
           'is-positive': '1.0.0',
-        }
+        },
       },
     },
     {
@@ -237,8 +237,8 @@ test('create package graph ignoring the workspace protocol', t => {
         version: '1.0.0',
 
         dependencies: {
-          bar: '^10.0.0'
-        }
+          bar: '^10.0.0',
+        },
       },
     },
     {
@@ -248,8 +248,8 @@ test('create package graph ignoring the workspace protocol', t => {
         version: '2.0.0',
 
         dependencies: {
-          foo: 'workspace:^2.0.0'
-        }
+          foo: 'workspace:^2.0.0',
+        },
       },
     },
     {
@@ -273,7 +273,7 @@ test('create package graph ignoring the workspace protocol', t => {
           dependencies: {
             'foo': 'workspace:^1.0.0',
             'is-positive': '1.0.0',
-          }
+          },
         },
       },
     },
@@ -286,8 +286,8 @@ test('create package graph ignoring the workspace protocol', t => {
           version: '1.0.0',
 
           dependencies: {
-            bar: '^10.0.0'
-          }
+            bar: '^10.0.0',
+          },
         },
       },
     },

@@ -17,7 +17,7 @@ export default function getWantedDependencies (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
   opts?: {
     updateWorkspaceDependencies?: boolean,
-  }
+  },
 ): WantedDependency[] {
   const depsToInstall = getAllDependenciesFromPackage(pkg)
   return getWantedDependenciesFromGivenSet(depsToInstall, {

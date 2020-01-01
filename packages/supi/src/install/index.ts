@@ -194,7 +194,7 @@ export async function mutateModules (
         await pEvery(ctx.projects, async (project) =>
           !hasLocalTarballDepsInRoot(ctx.wantedLockfile, project.id) &&
           satisfiesPackageManifest(ctx.wantedLockfile, project.manifest, project.id) &&
-          linkedPackagesAreUpToDate(project.manifest, ctx.wantedLockfile.importers[project.id], project.rootDir, opts.workspacePackages)
+          linkedPackagesAreUpToDate(project.manifest, ctx.wantedLockfile.importers[project.id], project.rootDir, opts.workspacePackages),
         )
       )
     ) {
@@ -440,7 +440,7 @@ function pkgHasDependencies (manifest: ProjectManifest) {
   return Boolean(
     R.keys(manifest.dependencies).length ||
     R.keys(manifest.devDependencies).length ||
-    R.keys(manifest.optionalDependencies).length
+    R.keys(manifest.optionalDependencies).length,
   )
 }
 

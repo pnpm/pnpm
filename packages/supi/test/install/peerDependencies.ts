@@ -76,7 +76,7 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
       manifest,
       mutation: 'uninstallSome',
       rootDir: process.cwd(),
-    }
+    },
   ], opts)
 
   t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency link is not removed')
@@ -646,7 +646,7 @@ test('peer dependency is resolved from parent package', async (t) => {
   preparePackages(t, [
     {
       name: 'pkg',
-    }
+    },
   ])
   await mutateModules([
     {
@@ -668,7 +668,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
   preparePackages(t, [
     {
       name: 'pkg',
-    }
+    },
   ])
   const [{ manifest }] = await mutateModules([
     {
@@ -693,7 +693,7 @@ test('transitive peerDependencies field does not break the lockfile on subsequen
   t.deepEqual(Object.keys(lockfile.packages!['/most/1.7.3_most@1.7.3'].dependencies!), [
     '@most/multicast',
     '@most/prelude',
-    'symbol-observable'
+    'symbol-observable',
   ])
 })
 
@@ -701,7 +701,7 @@ test('peer dependency is resolved from parent package via its alias', async (t) 
   preparePackages(t, [
     {
       name: 'pkg',
-    }
+    },
   ])
   await mutateModules([
     {

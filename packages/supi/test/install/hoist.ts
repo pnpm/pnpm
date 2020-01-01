@@ -323,7 +323,7 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
     name: 'package',
 
     dependencies: {
-      'foobar': '100.0.0'
+      'foobar': '100.0.0',
     },
   }
   const projects = preparePackages(t, [

@@ -212,7 +212,7 @@ function tryResolveFromWorkspace (
     projectDir?: string,
     registry: string,
     workspacePackages?: WorkspacePackages,
-  }
+  },
 ) {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null

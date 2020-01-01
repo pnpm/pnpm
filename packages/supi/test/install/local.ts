@@ -199,7 +199,7 @@ test('do not update deps when installing in a project that has local tarball dep
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }
+    },
   ], await testDefaults())
 
   const latestLockfile = await project.readLockfile()

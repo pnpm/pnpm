@@ -80,7 +80,7 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         postinstall: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
@@ -92,7 +92,7 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         postinstall: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,

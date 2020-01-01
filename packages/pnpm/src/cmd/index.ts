@@ -24,7 +24,7 @@ import * as root from './root'
 export type Command = (
   args: string[],
   opts: PnpmOptions,
-  invocation?: string
+  invocation?: string,
 ) => string | void | Promise<string | void>
 
 const commands: Array<{

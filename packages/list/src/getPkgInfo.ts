@@ -18,7 +18,7 @@ export default async function getPkgInfo (
     // If the package.json is not found inside node_modules, it should be read from the store.
     // This frequently happens when the independent-leaves config is true.
     manifest = {
-      description: '[Could not find additional info about this dependency]'
+      description: '[Could not find additional info about this dependency]',
     }
   }
   return {

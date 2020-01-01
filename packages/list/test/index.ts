@@ -320,8 +320,8 @@ test('JSON list with depth 1', async t => {
             version: '2.4.3',
 
             resolved: 'https://registry.npmjs.org/write-file-atomic/-/write-file-atomic-2.4.3.tgz',
-          }
-        }
+          },
+        },
       },
     },
     devDependencies: {

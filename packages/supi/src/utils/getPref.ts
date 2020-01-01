@@ -58,7 +58,7 @@ function resolvedDirectDepToSpecObject (
     pinnedVersion: PinnedVersion,
     preserveWorkspaceProtocol: boolean,
     saveWorkspaceProtocol: boolean,
-  }
+  },
 ): PackageSpecObject {
   let pref!: string
   if (normalizedPref) {

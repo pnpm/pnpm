@@ -91,7 +91,7 @@ export default async (
     } else {
       logger.info({
         message: `None of the selected packages has a "${scriptName}" script`,
-        prefix: opts.workspaceDir
+        prefix: opts.workspaceDir,
       })
     }
   }

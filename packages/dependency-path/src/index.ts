@@ -8,7 +8,7 @@ export function isAbsolute (dependencyPath: string) {
 
 export function resolve (
   registries: Registries,
-  resolutionLocation: string
+  resolutionLocation: string,
 ) {
   if (!isAbsolute(resolutionLocation)) {
     let registryUrl!: string
@@ -61,7 +61,7 @@ export function getRegistryByPackageName (registries: Registries, packageName: s
 export function relative (
   registries: Registries,
   packageName: string,
-  absoluteResolutionLoc: string
+  absoluteResolutionLoc: string,
 ) {
   const registryName = encodeRegistry(getRegistryByPackageName(registries, packageName))
 
@@ -73,7 +73,7 @@ export function relative (
 
 export function refToRelative (
   reference: string,
-  pkgName: string
+  pkgName: string,
 ) {
   if (reference.startsWith('link:')) {
     return null

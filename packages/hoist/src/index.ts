@@ -30,7 +30,7 @@ export default async function hoistByLockfile (
   const deps = await getDependencies(
     lockfileWalker(
       opts.lockfile,
-      Object.keys(opts.lockfile.importers)
+      Object.keys(opts.lockfile.importers),
     ),
     0,
     {

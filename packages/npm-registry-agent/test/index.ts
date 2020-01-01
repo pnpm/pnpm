@@ -7,7 +7,7 @@ const MockHttp = mockHttpAgent('http')
 MockHttp['HttpsAgent'] = mockHttpAgent('https')
 const agent = proxiquire('../lib/index.js', {
   'agentkeepalive': MockHttp,
-  'https-proxy-agent': mockHttpAgent('https-proxy')
+  'https-proxy-agent': mockHttpAgent('https-proxy'),
 }).default
 
 function mockHttpAgent (type: string) {
@@ -24,7 +24,7 @@ test('extracts process env variables', t => {
   t.deepEqual(
     getProcessEnv(['not_existing_env', 'test_ENV', 'another_env']),
     'test',
-    'extracts env from array of env names'
+    'extracts env from array of env names',
   )
   t.end()
 })
@@ -66,7 +66,7 @@ test('all expected options passed down to HttpsAgent', t => {
 
 test('all expected options passed down to proxy agent', t => {
   const opts = Object.assign({
-    proxy: 'https://user:pass@my.proxy:1234/foo'
+    proxy: 'https://user:pass@my.proxy:1234/foo',
   }, OPTS)
   t.deepEqual(agent('https://foo.com/bar', opts), {
     __type: 'https-proxy',

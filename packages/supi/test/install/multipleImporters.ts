@@ -401,18 +401,18 @@ test('partial installation in a monorepo does not remove dependencies of other w
     importers: {
       'project-1': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
       },
       'project-2': {
         dependencies: {
-          'pkg-with-1-dep': '100.0.0'
+          'pkg-with-1-dep': '100.0.0',
         },
         specifiers: {
-          'pkg-with-1-dep': '100.0.0'
+          'pkg-with-1-dep': '100.0.0',
         },
       },
     },
@@ -421,8 +421,8 @@ test('partial installation in a monorepo does not remove dependencies of other w
       '/dep-of-pkg-with-1-dep/100.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw=='
-        }
+          integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
+        },
       },
       '/is-positive/1.0.0': {
         dev: false,
@@ -430,7 +430,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss='
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
         },
       },
       '/pkg-with-1-dep/100.0.0': {
@@ -439,7 +439,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
         dev: false,
         resolution: {
-          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA=='
+          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA==',
         },
       },
     },
@@ -494,18 +494,18 @@ test('partial installation in a monorepo does not remove dependencies of other w
     importers: {
       'project-1': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
       },
       'project-2': {
         dependencies: {
-          'pkg-with-1-dep': '100.0.0'
+          'pkg-with-1-dep': '100.0.0',
         },
         specifiers: {
-          'pkg-with-1-dep': '100.0.0'
+          'pkg-with-1-dep': '100.0.0',
         },
       },
     },
@@ -514,8 +514,8 @@ test('partial installation in a monorepo does not remove dependencies of other w
       '/dep-of-pkg-with-1-dep/100.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw=='
-        }
+          integrity: 'sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==',
+        },
       },
       '/is-positive/1.0.0': {
         dev: false,
@@ -523,7 +523,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss='
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
         },
       },
       '/pkg-with-1-dep/100.0.0': {
@@ -532,7 +532,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
         dev: false,
         resolution: {
-          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA=='
+          integrity: 'sha512-OStTw86MRiQHB1JTSy6wl+9GT46aK8w4ghZT3e8ZN899J+FUsfD1nFl5gANa4Qol1LTBRqXeKomgXIAo9R/RZA==',
         },
       },
     },

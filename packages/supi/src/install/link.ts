@@ -465,7 +465,7 @@ async function selectNewFromWantedDeps (
         }
         newDeps.add(depPath)
       },
-    )
+    ),
   )
   return newDeps
 }

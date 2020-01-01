@@ -67,17 +67,17 @@ test('writeWantedLockfile()', async t => {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -111,17 +111,17 @@ test('writeCurrentLockfile()', async t => {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -156,17 +156,17 @@ test('existsWantedLockfile()', async t => {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -197,17 +197,17 @@ test('writeLockfiles()', async t => {
           'is-positive': '2.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },

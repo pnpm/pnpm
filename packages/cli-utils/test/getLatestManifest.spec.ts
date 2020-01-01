@@ -26,7 +26,7 @@ test('getLatestManifest()', async (t) => {
         resolution: {
           type: 'tarball',
         },
-        resolvedVia: 'npm-registry'
+        resolvedVia: 'npm-registry',
       }
     }
     t.deepEqual(await getLatestManifest(resolve, opts, 'foo'), {
@@ -47,7 +47,7 @@ test('getLatestManifest()', async (t) => {
         resolution: {
           type: 'tarball',
         },
-        resolvedVia: 'npm-registry'
+        resolvedVia: 'npm-registry',
       }
     }
     t.deepEqual(await getLatestManifest(resolve, opts, '@scope/foo'), {

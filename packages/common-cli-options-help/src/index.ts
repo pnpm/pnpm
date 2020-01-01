@@ -22,7 +22,7 @@ export const OPTIONS = {
   virtualStoreDir: {
     description: 'The directory with links to the store (default is node_modules/.pnpm). All direct and indirect dependencies of the project are linked into this directory',
     name: '--virtual-store-dir <dir>',
-  }
+  },
 }
 
 export const UNIVERSAL_OPTIONS = [

@@ -19,7 +19,7 @@ export const TABLE_OPTIONS = {
     joinBody: '─',
     joinJoin: '┼',
     joinLeft: '├',
-    joinRight: '┤'
+    joinRight: '┤',
   },
   columns: {},
 }

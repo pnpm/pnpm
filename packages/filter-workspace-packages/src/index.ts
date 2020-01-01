@@ -146,7 +146,7 @@ function pickSubgraph (
   nextNodeIds: string[],
   walked: Set<string>,
   opts: {
-    includeRoot: boolean
+    includeRoot: boolean,
   },
 ) {
   for (const nextNodeId of nextNodeIds) {

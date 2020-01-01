@@ -917,7 +917,7 @@ test('dependencies of workspace packages are built during headless installation'
 
       dependencies: {
         'pre-and-postinstall-scripts-example': '1.0.0',
-      }
+      },
     },
   ])
 
@@ -942,7 +942,7 @@ test("linking the package's bin to another workspace package in a monorepo", asy
       name: 'hello',
       version: '1.0.0',
 
-      bin: 'index.js'
+      bin: 'index.js',
     },
     {
       name: 'main',
@@ -1035,8 +1035,8 @@ test('root package is included when not specified', async (t: tape.Test) => {
           version: '4.0.0',
         },
       ],
-      { tempDir: `${tempDir}/project` }
-    )
+      { tempDir: `${tempDir}/project` },
+    ),
   )
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!store/**'] })
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
@@ -1073,8 +1073,8 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
           version: '4.0.0',
         },
       ],
-      { tempDir: `${tempDir}/project` }
-    )
+      { tempDir: `${tempDir}/project` },
+    ),
   )
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!.', '!./', '!store/**'] })
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })

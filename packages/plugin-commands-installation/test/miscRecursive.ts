@@ -163,7 +163,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
         dependencies: {
           'is-negative': '1.0.0',
         },
-      }
+      },
     },
     {
       location: 'root-project',
@@ -174,8 +174,8 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
         dependencies: {
           'debug': '*',
         },
-      }
-    }
+      },
+    },
   ])
 
   await makeDir('node_modules')
@@ -311,7 +311,7 @@ test('recursive --filter ignore excluded packages', async (t) => {
   await writeYamlFile('pnpm-workspace.yaml', {
     packages: [
       '**',
-      '!project-1'
+      '!project-1',
     ],
   })
 

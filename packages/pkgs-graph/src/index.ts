@@ -94,7 +94,7 @@ export default function<T> (pkgs: Array<Package & T>): {
 }
 
 function createPkgMap (pkgs: Package[]): {
-  [pkgId: string]: Package
+  [pkgId: string]: Package,
 } {
   const pkgMap = {}
   for (let pkg of pkgs) {

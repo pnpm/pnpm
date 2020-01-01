@@ -75,7 +75,7 @@ export default async function (
     opts: {
       lockfileDir: string,
       targetEngine?: string,
-    }
+    },
   ) {
     if (opts.targetEngine) {
       const sideEffectsCacheLocation = (await getCacheByEngine(initOpts.storeDir, packageId))[opts.targetEngine]

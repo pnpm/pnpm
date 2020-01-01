@@ -37,7 +37,7 @@ export default function getAgent (
     `strict-ssl:${isHttps ? !!opts.strictSSL : '>no-strict-ssl<'}`,
     `ca:${(isHttps && opts.ca) || '>no-ca<'}`,
     `cert:${(isHttps && opts.cert) || '>no-cert<'}`,
-    `key:${(isHttps && opts.key) || '>no-key<'}`
+    `key:${(isHttps && opts.key) || '>no-key<'}`,
   ].join(':')
 
   if (AGENT_CACHE.peek(key)) {
@@ -65,12 +65,12 @@ export default function getAgent (
       localAddress: opts.localAddress,
       maxSockets: opts.maxSockets || 15,
       rejectUnauthorized: opts.strictSSL,
-      timeout: agentTimeout
+      timeout: agentTimeout,
     } as any) // tslint:disable-line:no-any
     : new HttpAgent({
       localAddress: opts.localAddress,
       maxSockets: opts.maxSockets || 15,
-      timeout: agentTimeout
+      timeout: agentTimeout,
     } as any) // tslint:disable-line:no-any
   AGENT_CACHE.set(key, agent)
   return agent

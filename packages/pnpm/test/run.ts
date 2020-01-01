@@ -35,7 +35,7 @@ test('test -r: pass the args to the command that is specfied in the build script
   preparePackages(t, [{
     name: 'project',
     scripts: {
-      test: 'ts-node test'
+      test: 'ts-node test',
     },
   }])
 

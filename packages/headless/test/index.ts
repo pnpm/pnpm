@@ -254,7 +254,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
         rootDir: lockfileDir,
       },
     ],
-    lockfileDir
+    lockfileDir,
   )
 
   await headless(await testDefaults({
@@ -262,7 +262,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
     independentLeaves: true,
     lockfileDir: lockfileDir,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir), })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
     ),
   }))
 
@@ -752,7 +752,7 @@ test('using side effects cache and hoistPattern=*', async (t) => {
     hoistPattern: '*',
     lockfileDir,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir), })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
     ),
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -838,7 +838,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
     independentLeaves: true,
     lockfileDir: workspaceFixture,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir), })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
     ),
   }))
 

@@ -52,7 +52,7 @@ export default async (
     }
 
     return chunk.map((depPath: string) =>
-      async () => buildDependency(depPath, depGraph, buildDepOpts)
+      async () => buildDependency(depPath, depGraph, buildDepOpts),
     )
   })
   await runGroups(opts.childConcurrency || 4, groups)
@@ -71,7 +71,7 @@ async function buildDependency (
     storeController: StoreController,
     unsafePerm: boolean,
     warn: (message: string) => void,
-  }
+  },
 ) {
   const depNode = depGraph[depPath]
   try {

@@ -27,10 +27,10 @@ const test = promisifyTape(tape)
 test('bin files are found by lifecycle scripts', t => {
   const project = prepare(t, {
     dependencies: {
-      'hello-world-js-bin': '*'
+      'hello-world-js-bin': '*',
     },
     scripts: {
-      postinstall: 'hello-world-js-bin'
+      postinstall: 'hello-world-js-bin',
     },
   })
 
@@ -476,7 +476,7 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
 
 test('using a custom virtual-store-dir location', async (t: tape.Test) => {
   prepare(t, {
-    dependencies: { 'rimraf': '2.5.1' }
+    dependencies: { 'rimraf': '2.5.1' },
   })
 
   await execPnpm('install', '--virtual-store-dir=.pnpm')

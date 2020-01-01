@@ -32,7 +32,7 @@ export default function filterByImporters (
       lockfileWalker(
         lockfile,
         importerIds,
-        { include: opts.include, skipped: opts.skipped }
+        { include: opts.include, skipped: opts.skipped },
       ),
       packages,
       {

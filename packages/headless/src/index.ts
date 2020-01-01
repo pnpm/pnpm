@@ -559,7 +559,7 @@ async function lockfileToDepGraph (
           requiresBuild: pkgSnapshot.requiresBuild === true,
         }
         pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
-      })
+      }),
     )
     const ctx = {
       force: opts.force,

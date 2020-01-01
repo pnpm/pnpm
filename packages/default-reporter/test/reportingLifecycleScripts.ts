@@ -103,14 +103,14 @@ test('groups lifecycle output', t => {
     exitCode: 0,
     optional: false,
     stage: 'install',
-    wd: 'packages/qar'
+    wd: 'packages/qar',
   })
   lifecycleLogger.debug({
     depPath: 'packages/foo',
     exitCode: 0,
     optional: false,
     stage: 'postinstall',
-    wd: 'packages/foo'
+    wd: 'packages/foo',
   })
 
   t.plan(1)
@@ -223,14 +223,14 @@ test('groups lifecycle output when append-only is used', t => {
     exitCode: 0,
     optional: false,
     stage: 'install',
-    wd: 'packages/qar'
+    wd: 'packages/qar',
   })
   lifecycleLogger.debug({
     depPath: 'packages/foo',
     exitCode: 0,
     optional: false,
     stage: 'postinstall',
-    wd: 'packages/foo'
+    wd: 'packages/foo',
   })
 
   t.plan(1)
@@ -287,7 +287,7 @@ test('collapse lifecycle output when it has too many lines', t => {
     exitCode: 0,
     optional: false,
     stage: 'postinstall',
-    wd: 'packages/foo'
+    wd: 'packages/foo',
   })
 
   t.plan(1)

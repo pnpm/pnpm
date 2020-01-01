@@ -112,7 +112,7 @@ export function help () {
     usages: [
       'pnpm recursive [command] [flags] [--filter <package selector>]',
       'pnpm multi [command] [flags] [--filter <package selector>]',
-      'pnpm m [command] [flags] [--filter <package selector>]'
+      'pnpm m [command] [flags] [--filter <package selector>]',
     ],
   })
 }

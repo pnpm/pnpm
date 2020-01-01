@@ -118,7 +118,7 @@ export default async function getContext<T> (
   }
 
   const extraBinPaths = [
-    ...opts.extraBinPaths || []
+    ...opts.extraBinPaths || [],
   ]
   const shamefullyHoist = Boolean(typeof importersContext.shamefullyHoist === 'undefined' ? opts.shamefullyHoist : importersContext.shamefullyHoist)
   if (opts.hoistPattern && !shamefullyHoist) {
@@ -273,7 +273,7 @@ async function purgeModulesDirsOfImporter (
   importer: {
     modulesDir: string,
     rootDir: string,
-  }
+  },
 ) {
   logger.info({
     message: `Recreating ${importer.modulesDir}`,
@@ -394,7 +394,7 @@ export async function getContextForSingleImporter (
 
   await makeDir(storeDir)
   const extraBinPaths = [
-    ...opts.extraBinPaths || []
+    ...opts.extraBinPaths || [],
   ]
   const sHoist = Boolean(typeof shamefullyHoist === 'undefined' ? opts.shamefullyHoist : shamefullyHoist)
   if (opts.hoistPattern && !sHoist) {

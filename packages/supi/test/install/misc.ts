@@ -928,7 +928,7 @@ test('do not update deps when lockfile is present', async (t) => {
       manifest,
       mutation: 'install',
       rootDir: process.cwd(),
-    }
+    },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
   const latestLockfile = await project.readLockfile()
@@ -992,7 +992,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       },
     },
     specifiers: {
-      foobarqar: '1.0.1'
+      foobarqar: '1.0.1',
     },
   })
 

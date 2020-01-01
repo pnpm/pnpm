@@ -66,7 +66,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
-      }
+      },
     ],
     opts,
   )
@@ -100,7 +100,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
-      }
+      },
     ],
     opts,
   )
@@ -137,7 +137,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
-      }
+      },
     ],
     opts,
   )
@@ -171,7 +171,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
       dependencies: {
         'is-subdir': '^1.0.0',
       },
-    }
+    },
   })
 
   process.chdir('project')
@@ -182,7 +182,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
-      }
+      },
     ],
     opts,
   )
@@ -226,7 +226,7 @@ test('unlink all packages', async (t: tape.Test) => {
         manifest,
         mutation: 'unlink',
         rootDir: path.resolve('project'),
-      }
+      },
     ],
     opts,
   )
@@ -247,7 +247,7 @@ test("don't warn about scoped packages when running unlink w/o params", async (t
         manifest,
         mutation: 'unlink',
         rootDir: process.cwd(),
-      }
+      },
     ],
     await testDefaults({ reporter }),
   )
@@ -272,7 +272,7 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
-      }
+      },
     ],
     await testDefaults({ reporter }),
   )
@@ -297,7 +297,7 @@ test("don't unlink package that is not a link when independent-leaves = true", a
         manifest,
         mutation: 'unlinkSome',
         rootDir: process.cwd(),
-      }
+      },
     ],
     await testDefaults({ independentLeaves: true, reporter }),
   )

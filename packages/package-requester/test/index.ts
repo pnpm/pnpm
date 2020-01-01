@@ -455,7 +455,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-    })
+    }),
   ])
 
   let ino1!: Number
@@ -646,7 +646,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
       lockfileDir: tempy.directory(),
       pkgId,
       resolution,
-    })
+    }),
   ])
 
   t.ok(await fetchResults[1].bundledManifest!())

@@ -34,7 +34,7 @@ test('satisfiesPackageManifest()', t => {
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: { foo: '^1.0.0' }
+    dependencies: { foo: '^1.0.0' },
   }, '.'))
   t.ok(satisfiesPackageManifest({
     ...DEFAULT_LOCKFILE_FIELDS,
@@ -115,15 +115,15 @@ test('satisfiesPackageManifest()', t => {
       importers: {
         '.': {
           dependencies: {
-            foo: '1.0.0'
+            foo: '1.0.0',
           },
           optionalDependencies: {
-            bar: '2.0.0'
+            bar: '2.0.0',
           },
           specifiers: {
             bar: '2.0.0',
-            foo: '^1.0.0'
-          }
+            foo: '^1.0.0',
+          },
         },
       },
     }
@@ -131,11 +131,11 @@ test('satisfiesPackageManifest()', t => {
       ...DEFAULT_PKG_FIELDS,
       dependencies: {
         bar: '2.0.0',
-        foo: '^1.0.0'
+        foo: '^1.0.0',
       },
       optionalDependencies: {
-        bar: '2.0.0'
-      }
+        bar: '2.0.0',
+      },
     }
     t.ok(satisfiesPackageManifest(lockfile, pkg, '.'))
   }
@@ -151,15 +151,15 @@ test('satisfiesPackageManifest()', t => {
           },
           specifiers: {
             bar: '2.0.0',
-            qar: '^1.0.0'
-          }
+            qar: '^1.0.0',
+          },
         },
       },
     }
     const pkg = {
       ...DEFAULT_PKG_FIELDS,
       dependencies: {
-        bar: '2.0.0'
+        bar: '2.0.0',
       },
     }
     t.notOk(satisfiesPackageManifest(lockfile, pkg, '.'))
@@ -176,14 +176,14 @@ test('satisfiesPackageManifest()', t => {
           },
           specifiers: {
             bar: '2.0.0',
-          }
+          },
         },
       },
     }
     const pkg = {
       ...DEFAULT_PKG_FIELDS,
       dependencies: {
-        bar: '2.0.0'
+        bar: '2.0.0',
       },
     }
     t.notOk(satisfiesPackageManifest(lockfile, pkg, '.'))

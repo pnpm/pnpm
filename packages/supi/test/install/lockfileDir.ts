@@ -74,7 +74,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
         manifest,
         mutation: 'install',
         rootDir: process.cwd(),
-      }
+      },
     ],
     await testDefaults({ frozenLockfile: true, lockfileDir }),
   )

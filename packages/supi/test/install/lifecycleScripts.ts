@@ -297,7 +297,7 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
         manifest,
         mutation: 'install',
         rootDir: process.cwd(),
-      }
+      },
     ],
     await testDefaults({ frozenLockfile: true }),
   )
@@ -324,7 +324,7 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
         manifest,
         mutation: 'install',
         rootDir: process.cwd(),
-      }
+      },
     ],
     await testDefaults({ frozenLockfile: true, hoistPattern: '*' }),
   )
@@ -363,7 +363,7 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
         manifest,
         mutation: 'install',
         rootDir: process.cwd(),
-      }
+      },
     ],
     await testDefaults({ frozenLockfile: true, ignoreScripts: true }),
   )

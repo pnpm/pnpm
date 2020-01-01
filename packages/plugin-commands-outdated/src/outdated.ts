@@ -62,7 +62,7 @@ export function help () {
             description: oneLine`
             By default, details about the outdated packages (such as a link to the repo) are not displayed.
             To display the details, pass this option.`,
-            name: '--long'
+            name: '--long',
           },
           {
             description: oneLine`
@@ -114,7 +114,7 @@ export type OutdatedOptions = {
   strictSsl: boolean
   table?: boolean
   tag: string
-  userAgent: string
+  userAgent: string,
 } & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>
 
 export async function handler (
@@ -147,7 +147,7 @@ function renderOutdatedTable (outdatedPackages: ReadonlyArray<OutdatedPackage>, 
   let columnNames = [
     'Package',
     'Current',
-    'Latest'
+    'Latest',
   ]
 
   let columnFns = [

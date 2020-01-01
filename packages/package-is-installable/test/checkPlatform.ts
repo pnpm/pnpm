@@ -6,7 +6,7 @@ const packageId = 'registry.npmjs.org/foo/1.0.0'
 test('target cpu wrong', (t) => {
   const target = {
     cpu: 'enten-cpu',
-    os: 'any'
+    os: 'any',
   }
   const err = checkPlatform(packageId, target)
   t.ok(err, 'error present')
@@ -17,7 +17,7 @@ test('target cpu wrong', (t) => {
 test('os wrong', (t) => {
   const target = {
     cpu: 'any',
-    os: 'enten-os'
+    os: 'enten-os',
   }
   const err = checkPlatform(packageId, target)
   t.ok(err, 'error present')

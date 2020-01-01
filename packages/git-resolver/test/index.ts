@@ -360,7 +360,7 @@ test('resolveFromGit() private repo with commit hash', async (t) => {
     resolution: {
       commit: '2fa0531ab04e300a24ef4fd7fb3a280eccb7ccc5',
       repo: 'git+ssh://git@github.com/fake/private-repo.git',
-      type: 'git'
+      type: 'git',
     },
     resolvedVia: 'git-repository',
   })

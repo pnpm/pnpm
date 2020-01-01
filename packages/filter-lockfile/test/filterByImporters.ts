@@ -28,8 +28,8 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
           },
           specifiers: {
             'project-2-prod-dep': '^1.0.0',
-          }
-        }
+          },
+        },
       },
       lockfileVersion: 5.1,
       packages: {
@@ -93,8 +93,8 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         },
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
-        }
-      }
+        },
+      },
     },
     lockfileVersion: 5.1,
     packages: {
@@ -267,8 +267,8 @@ test('filterByImporters(): do not include skipped packages', (t) => {
           },
           specifiers: {
             'project-2-prod-dep': '^1.0.0',
-          }
-        }
+          },
+        },
       },
       lockfileVersion: 5.1,
       packages: {
@@ -336,8 +336,8 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         },
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
-        }
-      }
+        },
+      },
     },
     lockfileVersion: 5.1,
     packages: {

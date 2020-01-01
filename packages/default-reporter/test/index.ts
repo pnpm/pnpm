@@ -490,7 +490,7 @@ test('prints added/removed stats during installation', t => {
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+5')} ${chalk.red('-1')}
-        ${ADD + ADD + ADD + ADD + ADD + SUB}`
+        ${ADD + ADD + ADD + ADD + ADD + SUB}`,
       )
     },
   })
@@ -514,7 +514,7 @@ test('prints added/removed stats during installation when 0 removed', t => {
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+2')}
-        ${ADD + ADD}`
+        ${ADD + ADD}`,
       )
     },
   })
@@ -538,7 +538,7 @@ test('prints only the added stats if nothing was removed', t => {
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+1')}
-        ${ADD}`
+        ${ADD}`,
       )
     },
   })
@@ -562,7 +562,7 @@ test('prints only the removed stats if nothing was added', t => {
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-1')}
-        ${SUB}`
+        ${SUB}`,
       )
     },
   })
@@ -587,7 +587,7 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+100')}
-        ${R.repeat(ADD, 20).join('')}`
+        ${R.repeat(ADD, 20).join('')}`,
       )
     },
   })
@@ -612,7 +612,7 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-100')}
-        ${R.repeat(SUB, 20).join('')}`
+        ${R.repeat(SUB, 20).join('')}`,
       )
     },
   })
@@ -637,7 +637,7 @@ test('prints at least one remove sign when removed !== 0', t => {
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+100')} ${chalk.red('-1')}
-        ${R.repeat(ADD, 19).join('') + SUB}`
+        ${R.repeat(ADD, 19).join('') + SUB}`,
       )
     },
   })
@@ -662,7 +662,7 @@ test('prints at least one add sign when added !== 0', t => {
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+1')} ${chalk.red('-100')}
-        ${ADD + R.repeat(SUB, 19).join('')}`
+        ${ADD + R.repeat(SUB, 19).join('')}`,
       )
     },
   })
@@ -685,7 +685,7 @@ test('prints just removed during uninstallation', t => {
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-4')}
-        ${SUB + SUB + SUB + SUB}`
+        ${SUB + SUB + SUB + SUB}`,
       )
     },
   })
@@ -747,7 +747,7 @@ test('prints added/removed stats and warnings during recursive installation', t 
         dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
         .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
         ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
-        .                                        | ${WARN} ${DEPRECATED} foo@1.0.0`
+        .                                        | ${WARN} ${DEPRECATED} foo@1.0.0`,
       )
     },
   })
@@ -773,7 +773,7 @@ test('recursive installation: prints only the added stats if nothing was removed
     error: t.end,
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.green('+190')} ${R.repeat(ADD, 12).join('')}`
+        pkg-1                                    | ${chalk.green('+190')} ${R.repeat(ADD, 12).join('')}`,
       )
     },
   })
@@ -799,7 +799,7 @@ test('recursive installation: prints only the removed stats if nothing was added
     error: t.end,
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.red('-190')} ${R.repeat(SUB, 12).join('')}`
+        pkg-1                                    | ${chalk.red('-190')} ${R.repeat(SUB, 12).join('')}`,
       )
     },
   })
@@ -825,7 +825,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
     error: t.end,
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${R.repeat(ADD, 8).join('') + SUB}`
+        pkg-1                                    | ${chalk.green('+100')}   ${chalk.red('-1')} ${R.repeat(ADD, 8).join('') + SUB}`,
       )
     },
   })
@@ -851,7 +851,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
     error: t.end,
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`
+        pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`,
       )
     },
   })
@@ -876,7 +876,7 @@ test('recursive uninstall: prints removed packages number', t => {
     error: t.end,
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                                    |   ${chalk.red('-1')} ${SUB}`
+        pkg-1                                    |   ${chalk.red('-1')} ${SUB}`,
       )
     },
   })
@@ -905,7 +905,7 @@ test('install: print hook message', t => {
     error: t.end,
     next: output => {
       t.equal(output, stripIndents`
-        ${chalk.magentaBright('readPackage')}: foo`
+        ${chalk.magentaBright('readPackage')}: foo`,
       )
     },
   })
@@ -934,7 +934,7 @@ test('recursive: print hook message', t => {
     error: t.end,
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`
+        pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`,
       )
     },
   })

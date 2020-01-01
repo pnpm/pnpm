@@ -62,7 +62,7 @@ async function renderTreeForPackage (
       const depsLabel = chalk.cyanBright(
         dependenciesField !== 'unsavedDependencies'
           ? `${dependenciesField}:`
-          : 'not saved (you should add these dependencies to package.json if you need them):'
+          : 'not saved (you should add these dependencies to package.json if you need them):',
       )
       output += `\n${depsLabel}\n`
       const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor

@@ -7,7 +7,7 @@ export default (
   installCheck$: most.Stream<InstallCheckLog>,
   opts: {
     cwd: string,
-  }
+  },
 ) => {
   return installCheck$
     .map(formatInstallCheck.bind(null, opts.cwd))

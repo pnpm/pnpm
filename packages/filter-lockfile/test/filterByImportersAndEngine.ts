@@ -30,8 +30,8 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
           },
           specifiers: {
             'project-2-prod-dep': '^1.0.0',
-          }
-        }
+          },
+        },
       },
       lockfileVersion: 5.1,
       packages: {
@@ -125,8 +125,8 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         specifiers: {
           'project-2-prod-dep': '^1.0.0',
-        }
-      }
+        },
+      },
     },
     lockfileVersion: 5.1,
     packages: {

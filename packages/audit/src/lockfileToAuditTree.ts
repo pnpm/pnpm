@@ -8,14 +8,14 @@ export type AuditNode = {
   integrity?: string
   requires?: Record<string, string>
   dependencies?: { [name: string]: AuditNode }
-  dev: boolean
+  dev: boolean,
 }
 
 export type AuditTree = AuditNode & {
   name?: string,
   install: Array<string>
   remove: Array<string>
-  metadata: Object
+  metadata: Object,
 }
 
 export default function lockfileToAuditTree (

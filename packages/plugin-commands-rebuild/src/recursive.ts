@@ -100,7 +100,7 @@ export default async function recursive (
             manifest: manifestsByPath[prefix].manifest,
             rootDir: prefix,
           })
-        })
+        }),
       )
     }))
     return importers

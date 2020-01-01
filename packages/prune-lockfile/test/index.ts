@@ -18,10 +18,10 @@ test('remove one redundant package', t => {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0'
+          'is-positive': '^1.0.0',
         },
       },
     },
@@ -30,13 +30,13 @@ test('remove one redundant package', t => {
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -45,16 +45,16 @@ test('remove one redundant package', t => {
     version: '1.0.0',
 
     dependencies: {
-      'is-positive': '^1.0.0'
-    }
+      'is-positive': '^1.0.0',
+    },
   }, '.', DEFAULT_OPTS), {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0'
+          'is-positive': '^1.0.0',
         },
       },
     },
@@ -63,7 +63,7 @@ test('remove one redundant package', t => {
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -77,10 +77,10 @@ test('remove redundant linked package', t => {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': 'link:../is-positive'
+          'is-positive': 'link:../is-positive',
         },
         specifiers: {
-          'is-positive': '^1.0.0'
+          'is-positive': '^1.0.0',
         },
       },
     },
@@ -90,7 +90,7 @@ test('remove redundant linked package', t => {
     name: 'foo',
     version: '1.0.0',
 
-    dependencies: {}
+    dependencies: {},
   }, '.', DEFAULT_OPTS), {
     importers: {
       '.': {
@@ -125,20 +125,20 @@ test('keep all', t => {
         },
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
     },
   }, {
@@ -148,7 +148,7 @@ test('keep all', t => {
     dependencies: {
       'is-negative': '^1.0.0',
       'is-positive': '^1.0.0',
-    }
+    },
   }, '.', DEFAULT_OPTS), {
     importers: {
       '.': {
@@ -170,20 +170,20 @@ test('keep all', t => {
         },
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
     },
   })
@@ -229,8 +229,8 @@ test('optional dependency should have optional = true', t => {
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/parent-of-foo/1.0.0': {
         dependencies: {
@@ -248,8 +248,8 @@ test('optional dependency should have optional = true', t => {
           'is-positive': '1.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
     },
   }, {
@@ -301,8 +301,8 @@ test('optional dependency should have optional = true', t => {
         dev: false,
         optional: true,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/parent-of-foo/1.0.0': {
         dependencies: {
@@ -320,8 +320,8 @@ test('optional dependency should have optional = true', t => {
           'is-positive': '1.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
     },
   })
@@ -348,8 +348,8 @@ test('optional dependency should not have optional = true if used not only as op
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
@@ -357,8 +357,8 @@ test('optional dependency should not have optional = true if used not only as op
           'is-positive': '1.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
     },
   }, {
@@ -387,8 +387,8 @@ test('optional dependency should not have optional = true if used not only as op
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
@@ -396,7 +396,7 @@ test('optional dependency should not have optional = true if used not only as op
           'is-positive': '1.0.0',
         },
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -425,13 +425,13 @@ test('dev dependency should have dev = true', t => {
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -465,13 +465,13 @@ test('dev dependency should have dev = true', t => {
       '/is-positive/1.0.0': {
         dev: true,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -500,8 +500,8 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/some-pkg/1.0.0': {
         dependencies: {
@@ -509,7 +509,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -542,8 +542,8 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/some-pkg/1.0.0': {
         dependencies: {
@@ -551,7 +551,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -576,7 +576,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
     packages: {
       '/a/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -603,7 +603,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
       '/a/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -840,13 +840,13 @@ test('remove dependencies that are not in the package', t => {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         devDependencies: {
-          'is-negative': '1.0.0'
+          'is-negative': '1.0.0',
         },
         optionalDependencies: {
-          'fsevents': '1.0.0'
+          'fsevents': '1.0.0',
         },
         specifiers: {
           'fsevents': '^1.0.0',
@@ -859,18 +859,18 @@ test('remove dependencies that are not in the package', t => {
     packages: {
       '/fsevents/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
       '/is-negative/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/1.0.0': {
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
     },
   }, {
@@ -893,10 +893,10 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0'
+          'is-positive': '^1.0.0',
         },
       },
     },
@@ -905,7 +905,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -916,15 +916,15 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
     dependencies: {
       'is-negative': '^1.0.0',
       'is-positive': '^1.0.0',
-    }
+    },
   }, '.', DEFAULT_OPTS), {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0'
+          'is-positive': '^1.0.0',
         },
       },
     },
@@ -933,7 +933,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -948,10 +948,10 @@ test('keep lockfileMinorVersion, if present', t => {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0'
+          'is-positive': '^1.0.0',
         },
       },
     },
@@ -960,7 +960,7 @@ test('keep lockfileMinorVersion, if present', t => {
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -970,15 +970,15 @@ test('keep lockfileMinorVersion, if present', t => {
 
     dependencies: {
       'is-positive': '^1.0.0',
-    }
+    },
   }, '.', DEFAULT_OPTS), {
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0'
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0'
+          'is-positive': '^1.0.0',
         },
       },
     },
@@ -987,7 +987,7 @@ test('keep lockfileMinorVersion, if present', t => {
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -1023,8 +1023,8 @@ test('keep linked package even if it is not in package.json', t => {
     version: '1.0.0',
 
     dependencies: {
-      'is-negative': '^1.0.0'
-    }
+      'is-negative': '^1.0.0',
+    },
   }, '.', DEFAULT_OPTS), {
     importers: {
       '.': {
@@ -1076,20 +1076,20 @@ test("prune: don't remove package used by another importer", t => {
       '/is-negative/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
     },
   }, {
@@ -1153,13 +1153,13 @@ test('pruneSharedLockfile: remove one redundant package', t => {
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/is-positive/2.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },
@@ -1179,7 +1179,7 @@ test('pruneSharedLockfile: remove one redundant package', t => {
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
     },

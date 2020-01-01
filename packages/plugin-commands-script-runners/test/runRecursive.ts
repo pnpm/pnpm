@@ -29,7 +29,7 @@ test('pnpm recursive run', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
@@ -43,7 +43,7 @@ test('pnpm recursive run', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
@@ -145,7 +145,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -153,7 +153,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -200,7 +200,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -208,7 +208,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -244,7 +244,7 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -252,7 +252,7 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
       version: '1.0.0',
 
       dependencies: {
-        'project-1': '1'
+        'project-1': '1',
       },
     },
     {
@@ -316,7 +316,7 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
@@ -391,7 +391,7 @@ test('pnpm recursive run with filtering', async (t) => {
 
       dependencies: {
         'json-append': '1',
-        'project-1': '1'
+        'project-1': '1',
       },
       scripts: {
         build: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,

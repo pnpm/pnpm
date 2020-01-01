@@ -11,7 +11,7 @@ import {
   ConfigWithDeprecatedSettings,
   Project,
   ProjectsGraph,
-  UniversalOptions
+  UniversalOptions,
 } from './Config'
 import findBestGlobalPrefixOnWindows from './findBestGlobalPrefixOnWindows'
 import getScopeRegistries, { normalizeRegistry } from './getScopeRegistries'

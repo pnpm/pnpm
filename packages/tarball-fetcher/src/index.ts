@@ -85,7 +85,7 @@ function fetchFromTarball (
         registry?: string,
         tarball: string,
       },
-      opts: FetchOptions
+      opts: FetchOptions,
     ) => Promise<FetchResult>,
     ignore?: IgnoreFunction,
   },
@@ -183,7 +183,7 @@ async function fetchFromLocalTarball (
   opts: {
     ignore?: IgnoreFunction,
     integrity?: string,
-  }
+  },
 ): Promise<FetchResult> {
   const tarballStream = fs.createReadStream(tarball)
   const tempLocation = pathTemp(dir)
