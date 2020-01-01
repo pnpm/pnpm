@@ -439,10 +439,6 @@ export async function getContextForSingleImporter (
     initial: manifest,
     prefix: opts.dir,
   })
-  
 
-  
   return ctx
-  
 }
-

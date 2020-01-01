@@ -31,9 +31,9 @@ export default async function (
     try {
       const pkgResponse = await opts.storeController.requestPackage(dep, {
         downloadPriority: 1,
-        projectDir: prefix,
         lockfileDir: prefix,
         preferredVersions: {},
+        projectDir: prefix,
         registry: dep.alias && pickRegistryForPackage(registries, dep.alias) || registries.default,
       })
       await pkgResponse.files!()

@@ -259,11 +259,11 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
 
   await headless(await testDefaults({
     hoistPattern: '*',
+    independentLeaves: true,
+    lockfileDir: lockfileDir,
     projects: await Promise.all(
       projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir), })),
     ),
-    independentLeaves: true,
-    lockfileDir: lockfileDir,
   }))
 
   const project = assertProject(t, lockfileDir)
@@ -750,10 +750,10 @@ test('using side effects cache and hoistPattern=*', async (t) => {
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     hoistPattern: '*',
+    lockfileDir,
     projects: await Promise.all(
       projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir), })),
     ),
-    lockfileDir,
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
@@ -796,8 +796,8 @@ test('installing in a workspace', async (t) => {
   )
 
   await headless(await testDefaults({
-    projects,
     lockfileDir: workspaceFixture,
+    projects,
   }))
 
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
@@ -805,8 +805,8 @@ test('installing in a workspace', async (t) => {
   await projectBar.has('foo')
 
   await headless(await testDefaults({
-    projects: [projects[0]],
     lockfileDir: workspaceFixture,
+    projects: [projects[0]],
   }))
 
   const rootNodeModules = assertProject(t, workspaceFixture)

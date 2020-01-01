@@ -2,14 +2,14 @@
 import linkBins, {
   linkBinsOfPackages,
 } from '@pnpm/link-bins'
-import test = require('tape')
+import isWindows = require('is-windows')
+import fs = require('mz/fs')
+import ncpcb = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
-import tempy = require('tempy')
-import fs = require('mz/fs')
-import isWindows = require('is-windows')
 import sinon = require('sinon')
-import ncpcb = require('ncp')
+import test = require('tape')
+import tempy = require('tempy')
 import { promisify } from 'util'
 
 const ncp = promisify(ncpcb)
@@ -42,7 +42,7 @@ test('linkBins()', async (t) => {
   t.comment(`linking bins to ${binTarget}`)
   const warn = sinon.spy()
 
-  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, {warn})
+  await linkBins(path.join(simpleFixture, 'node_modules'), binTarget, { warn })
 
   t.notOk(warn.called)
   t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['simple']))
@@ -140,12 +140,12 @@ test('linkBinsOfPackages()', async (t) => {
   await linkBinsOfPackages(
     [
       {
-        manifest: await import(path.join(simpleFixture, 'node_modules/simple/package.json')),
         location: path.join(simpleFixture, 'node_modules/simple'),
+        manifest: await import(path.join(simpleFixture, 'node_modules/simple/package.json')),
       },
     ],
     binTarget,
-    {warn},
+    { warn },
   )
 
   t.notOk(warn.called)
@@ -162,7 +162,7 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
   t.comment(`linking bins to ${binTarget}`)
   const warn = sinon.spy()
 
-  await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, {warn})
+  await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
 
   t.ok(warn.calledWith(`Cannot link bin "bar" of "foo" to "${binTarget}". A package called "bar" already has its bin linked.`))
   t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['bar', 'foofoo']))
@@ -194,16 +194,16 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
   await linkBinsOfPackages(
     [
       {
-        manifest: await import(path.join(modulesPath, 'bar', 'package.json')),
         location: path.join(modulesPath, 'bar'),
+        manifest: await import(path.join(modulesPath, 'bar', 'package.json')),
       },
       {
-        manifest: await import(path.join(modulesPath, 'foo', 'package.json')),
         location: path.join(modulesPath, 'foo'),
+        manifest: await import(path.join(modulesPath, 'foo', 'package.json')),
       },
     ],
     binTarget,
-    {warn},
+    { warn },
   )
 
   t.ok(warn.calledWith(`Cannot link bin "bar" of "foo" to "${binTarget}". A package called "bar" already has its bin linked.`))

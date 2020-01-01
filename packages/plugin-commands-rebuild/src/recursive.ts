@@ -2,13 +2,18 @@ import {
   RecursiveSummary,
   throwOnCommandFail,
 } from '@pnpm/cli-utils'
-import { Config, types as allTypes, Project, ProjectsGraph } from '@pnpm/config'
+import {
+  Config,
+  Project,
+  ProjectsGraph,
+  types as allTypes,
+} from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { ProjectManifest, PackageManifest } from '@pnpm/types'
+import { PackageManifest, ProjectManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import mem = require('mem')
 import pLimit from 'p-limit'
