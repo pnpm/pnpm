@@ -413,7 +413,6 @@ importers:
       is-subdir: 1.1.1
       pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.26.1
-      tempy: 0.3.0
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:'
       '@types/is-ci': 2.0.0
@@ -423,6 +422,7 @@ importers:
       is-ci: 2.0.0
       is-windows: 1.0.2
       rimraf: 3.0.0
+      tempy: 0.3.0
       touch: 3.1.0
     specifiers:
       '@pnpm/error': 'workspace:1.0.0'
