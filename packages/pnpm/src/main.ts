@@ -184,11 +184,17 @@ export default async function run (inputArgv: string[]) {
         })
       }
 
-      if (!cliConf['recursive']) {
-        scopeLogger.debug(workspaceDir
-          ? { selected: 1, workspacePrefix: workspaceDir }
-          : { selected: 1 })
-      }
+      scopeLogger.debug({
+        ...(
+          !cliConf['recursive']
+            ? { selected: 1 }
+            : {
+              selected: Object.keys(config.selectedProjectsGraph!).length,
+              total: config.allProjects!.length,
+            }
+        ),
+        ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
+      })
 
       try {
         const result = pnpmCmds[cmd](

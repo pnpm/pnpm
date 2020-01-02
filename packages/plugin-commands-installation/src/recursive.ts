@@ -7,7 +7,6 @@ import {
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { Config, Project, ProjectsGraph } from '@pnpm/config'
-import { scopeLogger } from '@pnpm/core-loggers'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
@@ -88,12 +87,6 @@ export default async function recursive (
   for (const { dir, manifest, writeProjectManifest } of pkgs) {
     manifestsByPath[dir] = { manifest, writeProjectManifest }
   }
-
-  scopeLogger.debug({
-    selected: pkgs.length,
-    total: allProjects.length,
-    workspacePrefix: opts.workspaceDir,
-  })
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmdFullName}`)
 
