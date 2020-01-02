@@ -81,7 +81,7 @@ export default async function run (inputArgv: string[]) {
     'W': ['--ignore-workspace-root-check'],
   }
   // tslint:enable
-  const { argv, cliArgs, cliConf, cmd, dir, subCmd, unknownOptions, workspaceDir } = await parseCliArgs({
+  const { argv, cliArgs, cliConf, cmd, subCmd, unknownOptions, workspaceDir } = await parseCliArgs({
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getCliOptionsTypes,
     globalOptionsTypes: GLOBAL_OPTIONS,

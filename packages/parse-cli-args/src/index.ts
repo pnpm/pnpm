@@ -119,7 +119,6 @@ export default async function parseCliArgs (
     cliArgs,
     cliConf,
     cmd,
-    dir,
     subCmd,
     unknownOptions,
     workspaceDir,
