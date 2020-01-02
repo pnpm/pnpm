@@ -554,48 +554,6 @@ test('repeat install with no inner lockfile should not rewrite packages in node_
   await project.has('is-negative')
 })
 
-// Skipped because the npm-registry.compass.com server was down
-// might be a good idea to mock it
-// tslint:disable-next-line:no-string-literal
-test.skip('installing from lockfile when using npm enterprise', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-
-  const opts = await testDefaults({ registry: 'https://npm-registry.compass.com/' })
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive@3.1.0'], opts)
-
-  const lockfile = await project.readLockfile()
-
-  t.deepEqual(lockfile, {
-    dependencies: {
-      'is-positive': '3.1.0',
-    },
-    lockfileVersion: 5.1,
-    packages: {
-      '/is-positive/3.1.0': {
-        dev: false,
-        engines: {
-          node: '>=0.10.0',
-        },
-        resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
-          tarball: '/i/is-positive/_attachments/is-positive-3.1.0.tgz',
-        },
-      },
-    },
-    specifiers: {
-      'is-positive': '^3.1.0',
-    },
-  })
-
-  await rimraf(opts.storeDir)
-  await rimraf('node_modules')
-
-  await install(manifest, opts)
-
-  await project.has('is-positive')
-})
-
 test('packages are placed in devDependencies even if they are present as non-dev as well', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
