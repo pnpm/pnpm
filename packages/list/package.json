@@ -37,15 +37,15 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
     "@pnpm/matcher": "workspace:1.0.0",
-    "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.0.1",
+    "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/types": "workspace:4.0.0",
     "@zkochan/npm-package-arg": "1.0.2",
     "archy": "1.0.0",
     "chalk": "3.0.0",
     "cli-columns": "3.1.2",
     "dependencies-hierarchy": "workspace:8.0.6",
-    "p-limit": "2.2.1",
+    "p-limit": "2.2.2",
     "ramda": "0.26.1",
     "semver": "7.1.1"
   },

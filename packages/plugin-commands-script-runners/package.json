@@ -55,7 +55,7 @@
     "@pnpm/types": "workspace:4.0.0",
     "@pnpm/utils": "workspace:0.12.2",
     "common-tags": "1.8.0",
-    "p-limit": "2.2.1",
+    "p-limit": "2.2.2",
     "ramda": "0.26.1",
     "render-help": "0.0.0"
   },
