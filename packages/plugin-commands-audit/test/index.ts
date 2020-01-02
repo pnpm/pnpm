@@ -14,7 +14,7 @@ test('audit', async (t) => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-  }, 'audit')
+  })
   t.equal(
     stripAnsi(output),
     `┌─────────────────────┬──────────────────────────────────┐
@@ -88,7 +88,7 @@ test('audit --dev', async (t) => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-  }, 'audit')
+  })
 
   t.equal(
     stripAnsi(output),
@@ -120,7 +120,7 @@ test('audit --audit-level', async (t) => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-  }, 'audit')
+  })
 
   t.equal(
     stripAnsi(output),
@@ -173,7 +173,7 @@ test('audit: no vulnerabilities', async (t) => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-  }, 'audit')
+  })
 
   t.equal(stripAnsi(output), 'No known vulnerabilities found')
   t.end()
@@ -191,7 +191,7 @@ test('audit --json', async (t) => {
     registries: {
       default: 'https://registry.npmjs.org/',
     },
-  }, 'audit')
+  })
 
   const json = JSON.parse(output)
   t.ok(json.metadata)

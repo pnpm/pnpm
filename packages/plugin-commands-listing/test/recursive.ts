@@ -44,7 +44,7 @@ test('recursive list', async (t) => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   const output = await list.handler([], {
     ...DEFAULT_OPTS,
@@ -109,7 +109,7 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   const output = await list.handler([], {
     ...DEFAULT_OPTS,
@@ -175,7 +175,7 @@ test('recursive list --filter', async (t) => {
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   const output = await list.handler([], {
     ...DEFAULT_OPTS,

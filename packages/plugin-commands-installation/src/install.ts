@@ -298,7 +298,6 @@ export type InstallCommandOptions = Pick<Config,
 export async function handler (
   input: string[],
   opts: InstallCommandOptions,
-  invocation: string,
 ) {
   if (opts.workspace) {
     if (opts.latest) {
@@ -320,7 +319,11 @@ export async function handler (
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
-    await recursive(opts.allProjects, input, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, invocation)
+    await recursive(opts.allProjects,
+      input,
+      { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! },
+      opts.update ? 'update' : (input.length === 0 ? 'install' : 'add'),
+    )
     return
   }
   // `pnpm install ""` is going to be just `pnpm install`

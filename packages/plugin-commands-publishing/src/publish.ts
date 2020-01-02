@@ -44,7 +44,6 @@ export async function handler (
     recursive?: boolean,
     workspaceDir?: string,
   } & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>,
-  command?: string,
 ) {
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)

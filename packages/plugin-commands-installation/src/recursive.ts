@@ -72,7 +72,7 @@ export default async function recursive (
     useBetaCli?: boolean,
     selectedProjectsGraph: ProjectsGraph,
   } & Required<Pick<Config, 'workspaceDir'>>,
-  cmdFullName: string,
+  cmdFullName: 'install' | 'add' | 'remove' | 'unlink' | 'update',
 ): Promise<boolean | string> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case

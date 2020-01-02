@@ -79,7 +79,7 @@ export default async function (
         ],
       },
       recursive: false,
-    }, 'publish')
+    })
   }
   const tag = opts.tag || 'latest'
   for (const pkg of pkgsToPublish) {

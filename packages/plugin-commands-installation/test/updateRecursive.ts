@@ -35,7 +35,7 @@ test('recursive update', async (t) => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   await update.handler(['is-positive@2.0.0'], {
     ...DEFAULT_OPTS,
@@ -88,7 +88,7 @@ test('recursive update --latest foo should only update projects that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
@@ -143,7 +143,7 @@ test('recursive update --latest foo should only update packages that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })

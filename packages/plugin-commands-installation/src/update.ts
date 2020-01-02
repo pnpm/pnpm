@@ -106,5 +106,5 @@ export async function handler (
   input: string[],
   opts: InstallCommandOptions,
 ) {
-  return install(input, { ...opts, update: true, allowNew: false }, 'update')
+  return install(input, { ...opts, update: true, allowNew: false })
 }

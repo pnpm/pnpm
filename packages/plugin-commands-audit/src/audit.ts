@@ -84,7 +84,6 @@ export async function handler (
     lockfileDir?: string,
     registries: Registries,
   },
-  command: string,
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir || opts.dir, { ignoreIncompatible: true })
   if (!lockfile) {

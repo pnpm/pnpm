@@ -49,7 +49,7 @@ test('pnpm outdated: show details', async (t) => {
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
     long: true,
-  }, 'outdated')
+  })
 
   t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
@@ -80,7 +80,7 @@ test('pnpm outdated: no table', async (t) => {
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
       table: false,
-    }, 'outdated')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
     deprecated
@@ -100,7 +100,7 @@ test('pnpm outdated: no table', async (t) => {
       dir: process.cwd(),
       long: true,
       table: false,
-    }, 'outdated')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
     deprecated
@@ -132,7 +132,7 @@ test('pnpm outdated: only current lockfile is available', async (t) => {
   const output = await outdated.handler([], {
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
-  }, 'outdated')
+  })
 
   t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬─────────┬────────────┐
@@ -157,7 +157,7 @@ test('pnpm outdated: only wanted lockfile is available', async (t) => {
   const output = await outdated.handler([], {
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
-  }, 'outdated')
+  })
 
   t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬────────────────────────┬────────────┐
@@ -179,7 +179,7 @@ test('pnpm outdated does not print anything when all is good', async (t) => {
   const output = await outdated.handler([], {
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
-  }, 'outdated')
+  })
 
   t.equal(output, '')
   t.end()
@@ -192,7 +192,7 @@ test('pnpm outdated with external lockfile', async (t) => {
     ...OUTDATED_OPTIONS,
     dir: process.cwd(),
     lockfileDir: path.resolve('..'),
-  }, 'outdated')
+  })
 
   t.equal(stripAnsi(output), stripIndent`
   ┌─────────────┬──────────────────────┬────────┐
@@ -214,7 +214,7 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
     const output = await outdated.handler([], {
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
-    }, 'outdated')
+    })
   } catch (_err) {
     err = _err
   }
