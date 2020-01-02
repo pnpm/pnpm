@@ -46,7 +46,7 @@ test('pnpm recursive outdated', async (t) => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   {
     const output = await outdated.handler([], {
@@ -206,7 +206,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  }, 'install')
+  })
 
   {
     const output = await outdated.handler([], {

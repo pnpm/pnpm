@@ -28,7 +28,7 @@ test('listing packages', async (t) => {
     const output = await list.handler([], {
       dir: process.cwd(),
       include: { dependencies: true, devDependencies: false, optionalDependencies: false },
-    }, 'list')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -44,7 +44,7 @@ test('listing packages', async (t) => {
     const output = await list.handler([], {
       dir: process.cwd(),
       include: { dependencies: false, devDependencies: true, optionalDependencies: false },
-    }, 'list')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -60,7 +60,7 @@ test('listing packages', async (t) => {
     const output = await list.handler([], {
       dir: process.cwd(),
       include: { dependencies: true, devDependencies: true, optionalDependencies: true },
-    }, 'list')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -93,7 +93,7 @@ test('independent-leaves=true: pnpm list --long', async (t) => {
     dir: process.cwd(),
     include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     long: true,
-  }, 'list')
+  })
 
   // TODO: the --long flag should work with --independent-leaves
   t.equal(stripAnsi(output), stripIndent`
@@ -135,7 +135,7 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
     dir: process.cwd(),
     include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     lockfileDir: path.resolve('..'),
-  }, 'list')
+  })
 
   t.equal(stripAnsi(output), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -160,7 +160,7 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
       depth: 10,
       dir: process.cwd(),
       include: { dependencies: true, devDependencies: true, optionalDependencies: true },
-    }, 'list')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -179,7 +179,7 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
       depth: 10,
       dir: process.cwd(),
       include: { dependencies: true, devDependencies: true, optionalDependencies: true },
-    }, 'list')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -196,7 +196,7 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
     const output = await why.handler(['not-compatible-with-any-os'], {
       dir: process.cwd(),
       include: { dependencies: true, devDependencies: true, optionalDependencies: true },
-    }, 'why')
+    })
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -219,7 +219,7 @@ test('`pnpm why` should fail if no package name was provided', async (t) => {
     const output = await why.handler([], {
       dir: process.cwd(),
       include: { dependencies: true, devDependencies: true, optionalDependencies: true },
-    }, 'why')
+    })
   } catch (_err) {
     err = _err
   }

@@ -27,7 +27,6 @@ export async function handler (
     engineStrict?: boolean,
     workspaceDir?: string,
   },
-  command: string,
 ) {
   let _status!: number
   await fakeRegularManifest({

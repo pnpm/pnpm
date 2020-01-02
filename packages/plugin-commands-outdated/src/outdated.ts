@@ -120,7 +120,6 @@ export type OutdatedOptions = {
 export async function handler (
   args: string[],
   opts: OutdatedOptions,
-  command?: string,
 ) {
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)

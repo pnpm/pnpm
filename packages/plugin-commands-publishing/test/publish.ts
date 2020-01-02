@@ -27,7 +27,7 @@ test('publish: package with package.json', async (t) => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-  }, 'publish')
+  })
   t.end()
 })
 
@@ -41,7 +41,7 @@ test('publish: package with package.yaml', async (t) => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-  }, 'publish')
+  })
 
   t.ok(await exists('package.yaml'))
   t.notOk(await exists('package.json'))
@@ -58,7 +58,7 @@ test('publish: package with package.json5', async (t) => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-  }, 'publish')
+  })
 
   t.ok(await exists('package.json5'))
   t.notOk(await exists('package.json'))
@@ -77,7 +77,7 @@ test('publish: package with package.json5 running publish from different folder'
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS, 'project'] },
     dir: process.cwd(),
-  }, 'publish')
+  })
 
   t.ok(await exists('project/package.json5'))
   t.notOk(await exists('project/package.json'))
@@ -106,10 +106,10 @@ test('pack packages with workspace LICENSE if no own LICENSE is present', async 
   await fs.writeFile('project-2/LICENSE', 'project-2 license', 'utf8')
 
   process.chdir('project-1')
-  await pack.handler([], { argv: { original: [] }, dir: process.cwd(), workspaceDir }, 'pack')
+  await pack.handler([], { argv: { original: [] }, dir: process.cwd(), workspaceDir })
 
   process.chdir('../project-2')
-  await pack.handler([], { argv: { original: [] }, dir: process.cwd(), workspaceDir }, 'pack')
+  await pack.handler([], { argv: { original: [] }, dir: process.cwd(), workspaceDir })
 
   process.chdir('../target')
 
@@ -151,7 +151,7 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
     workspaceDir,
-  }, 'publish')
+  })
 
   process.chdir('../project-200')
   await publish.handler([], {
@@ -159,7 +159,7 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
     workspaceDir,
-  }, 'publish')
+  })
 
   process.chdir('../target')
 
@@ -212,7 +212,7 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-  }, 'publish')
+  })
 
   const originalManifests = await import(path.resolve('package.json'))
   t.deepEqual(originalManifests, {
@@ -322,7 +322,7 @@ test.skip('publish package that calls executable from the workspace .bin folder 
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
     workspaceDir,
-  }, 'publish')
+  })
 
   t.deepEqual(
     await import(path.resolve('output.json')),
@@ -393,7 +393,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
-    }, 'publish')
+    })
   } catch (_err) {
     err = _err
   }
@@ -412,7 +412,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-  }, 'publish')
+  })
 
   process.chdir('../target')
 
