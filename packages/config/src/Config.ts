@@ -66,8 +66,6 @@ export interface Config {
     version: string,
   },
   sideEffectsCache?: boolean,
-  sideEffectsCacheRead?: boolean,
-  sideEffectsCacheWrite?: boolean,
   sideEffectsCacheReadonly?: boolean,
   shamefullyHoist?: boolean,
   dev?: boolean,

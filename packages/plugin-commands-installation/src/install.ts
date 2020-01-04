@@ -279,6 +279,8 @@ export type InstallCommandOptions = Pick<Config,
   'saveProd' |
   'saveWorkspaceProtocol' |
   'selectedProjectsGraph' |
+  'sideEffectsCache' |
+  'sideEffectsCacheReadonly' |
   'sort' |
   'sharedWorkspaceLockfile' |
   'workspaceConcurrency' |
@@ -345,6 +347,8 @@ export async function handler (
     // The dependencies should be built first,
     // so ignoring scripts for now
     ignoreScripts: !!workspacePackages || opts.ignoreScripts,
+    sideEffectsCacheRead: opts.sideEffectsCache || opts.sideEffectsCacheReadonly,
+    sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
     storeDir: store.dir,
     workspacePackages,

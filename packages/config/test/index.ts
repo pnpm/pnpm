@@ -266,42 +266,6 @@ test('filter is read from .npmrc as an array', async (t) => {
   t.end()
 })
 
-test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
-  {
-    const { config } = await getConfig({
-      cliOptions: {
-        'side-effects-cache': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.ok(config)
-    t.ok(config.sideEffectsCache) // for backward compatibility
-    t.ok(config.sideEffectsCacheRead)
-    t.ok(config.sideEffectsCacheWrite)
-  }
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {
-        'side-effects-cache-readonly': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.ok(config)
-    t.ok(config.sideEffectsCacheReadonly) // for backward compatibility
-    t.ok(config.sideEffectsCacheRead)
-    t.notOk(config.sideEffectsCacheWrite)
-  }
-
-  t.end()
-})
-
 test('throw error if --save-prod is used with --save-peer', async (t) => {
   try {
     await getConfig({

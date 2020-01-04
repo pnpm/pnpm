@@ -62,7 +62,18 @@ export function help () {
 
 export async function handler (
   args: string[],
-  opts: Pick<Config, 'allProjects' | 'dir' | 'engineStrict' | 'independentLeaves' | 'rawLocalConfig' | 'registries' | 'selectedProjectsGraph' | 'workspaceDir'> &
+  opts: Pick<Config,
+    'allProjects' |
+    'dir' |
+    'engineStrict' |
+    'independentLeaves' |
+    'rawLocalConfig' |
+    'registries' |
+    'selectedProjectsGraph' |
+    'sideEffectsCache' |
+    'sideEffectsCacheReadonly' |
+    'workspaceDir'
+  > &
     CreateStoreControllerOptions &
     {
       recursive?: boolean,
@@ -76,6 +87,8 @@ export async function handler (
   }
   const store = await createOrConnectStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
+    sideEffectsCacheRead: opts.sideEffectsCache || opts.sideEffectsCacheReadonly,
+    sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
     storeDir: store.dir,
   })

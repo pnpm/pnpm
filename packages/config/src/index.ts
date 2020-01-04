@@ -308,9 +308,6 @@ export default async (
     pnpmConfig.filter = (pnpmConfig.filter as string).split(' ')
   }
 
-  pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache || pnpmConfig.sideEffectsCacheReadonly
-  pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
-
   if (!pnpmConfig.ignoreScripts && pnpmConfig.workspaceDir) {
     pnpmConfig.extraBinPaths = [path.join(pnpmConfig.workspaceDir, 'node_modules', '.bin')]
   } else {
