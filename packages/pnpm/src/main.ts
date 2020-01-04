@@ -108,7 +108,6 @@ export default async function run (inputArgv: string[]) {
   }
   try {
     config = await getConfig(cliConf, {
-      command: subCmd ? [cmd, subCmd] : [cmd],
       excludeReporter: false,
       rcOptionsTypes: getRCOptionsTypes(cmd),
       workspaceDir,

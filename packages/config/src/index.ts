@@ -88,8 +88,6 @@ export type CliOptions = Record<string, unknown> & { dir?: string }
 export default async (
   opts: {
     cliOptions: CliOptions,
-    // The canonical names of commands. "pnpm i -r"=>"pnpm recursive install"
-    command?: string[],
     packageManager: {
       name: string,
       version: string,
@@ -100,19 +98,7 @@ export default async (
 ): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}
-  const command = opts.command ?? []
   const warnings = new Array<string>()
-
-  switch (command[command.length - 1]) {
-    case 'update':
-      if (typeof cliOptions['frozen-lockfile'] !== 'undefined') {
-        throw new PnpmError('CONFIG_BAD_OPTION', 'The "frozen-lockfile" option cannot be used with the "update" command')
-      }
-      if (typeof cliOptions['prefer-frozen-lockfile'] !== 'undefined') {
-        throw new PnpmError('CONFIG_BAD_OPTION', 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
-      }
-      break
-  }
 
   if (cliOptions['hoist'] === false) {
     if (cliOptions['shamefully-hoist'] === true) {
@@ -146,7 +132,6 @@ export default async (
   const npmConfig = loadNpmConf(cliOptions, rcOptionsTypes, {
     'bail': true,
     'color': 'auto',
-    'depth': (command[0] === 'list' || command[1] === 'list') ? 0 : Infinity,
     'fetch-retries': 2,
     'fetch-retry-factor': 10,
     'fetch-retry-maxtimeout': 60000,

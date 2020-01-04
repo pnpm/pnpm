@@ -302,81 +302,6 @@ test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
   t.end()
 })
 
-test('depth is 0 by default for list commands', async (t) => {
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      command: ['list'],
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.equal(config.depth, 0)
-  }
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      command: ['list', 'bole'],
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.equal(config.depth, 0)
-  }
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      command: ['recursive', 'list'],
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.equal(config.depth, 0)
-  }
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      command: ['recursive', 'list', 'bole'],
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.equal(config.depth, 0)
-  }
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      command: ['recursive', 'list'],
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.equal(config.depth, 0)
-  }
-
-  {
-    const { config } = await getConfig({
-      cliOptions: {},
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-    t.equal(config.depth, Infinity)
-  }
-
-  t.end()
-})
-
 test('throw error if --save-prod is used with --save-peer', async (t) => {
   try {
     await getConfig({
@@ -460,50 +385,11 @@ test('extraBinPaths', async (t) => {
   t.end()
 })
 
-test('throw error on "update --frozen-lockfile"', async (t) => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'frozen-lockfile': true,
-      },
-      command: ['update'],
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err) {
-    t.equal(err.message, 'The "frozen-lockfile" option cannot be used with the "update" command')
-    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_BAD_OPTION')
-    t.end()
-  }
-})
-
-test('throw error on "update --prefer-frozen-lockfile"', async (t) => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'prefer-frozen-lockfile': true,
-      },
-      command: ['update'],
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err) {
-    t.equal(err.message, 'The "prefer-frozen-lockfile" option cannot be used with the "update" command')
-    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_BAD_OPTION')
-    t.end()
-  }
-})
-
 test('convert shamefully-flatten to hoist-pattern=* and warn', async (t) => {
   const { config, warnings } = await getConfig({
     cliOptions: {
       'shamefully-flatten': true,
     },
-    command: ['install'],
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
@@ -525,7 +411,6 @@ test('hoist-pattern is undefined if --no-hoist used', async (t) => {
     cliOptions: {
       'hoist': false,
     },
-    command: ['install'],
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',

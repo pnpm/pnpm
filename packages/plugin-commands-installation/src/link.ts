@@ -146,7 +146,6 @@ export async function handler (
           ...await getConfig(
             { ...opts.cliOptions, 'dir': dir },
             {
-              command: ['link'],
               excludeReporter: true,
               rcOptionsTypes: installCommand.rcOptionsTypes(),
               workspaceDir: await findWorkspaceDir(dir),
