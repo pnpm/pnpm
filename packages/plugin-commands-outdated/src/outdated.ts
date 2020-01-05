@@ -84,15 +84,15 @@ export function help () {
             name: '--no-table',
           },
           {
-            description: 'Analyze only "dependencies" and "optionalDependencies"',
+            description: 'Check only "dependencies" and "optionalDependencies"',
             name: '--production',
           },
           {
-            description: 'Analyze only "devDependencies"',
+            description: 'Check only "devDependencies"',
             name: '--dev',
           },
           {
-            description: `Don't analyze "optionalDependencies"`,
+            description: `Don't check "optionalDependencies"`,
             name: '--no-optional',
           },
           OPTIONS.globalDir,
