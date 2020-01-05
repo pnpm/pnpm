@@ -37,6 +37,10 @@ const fixtures: Array<[string, PackageSelector]> = [
     { excludeSelf: false, parentDir: path.resolve('../foo') },
   ],
   [
+    '...{./foo}',
+    { excludeSelf: false, includeDependencies: false, includeDependents: true, parentDir: path.resolve('foo') },
+  ],
+  [
     '.',
     { excludeSelf: false, parentDir: process.cwd() },
   ],

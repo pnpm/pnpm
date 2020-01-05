@@ -27,6 +27,14 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
       rawSelector = rawSelector.substr(1)
     }
   }
+  if (rawSelector.startsWith('{') && rawSelector.endsWith('}')) {
+    return {
+      excludeSelf,
+      includeDependencies,
+      includeDependents,
+      parentDir: path.join(prefix, rawSelector.substr(1, rawSelector.length - 2)),
+    }
+  }
   if (rawSelector.startsWith('[') && rawSelector.endsWith(']')) {
     return {
       diff: rawSelector.substr(1, rawSelector.length - 2),
