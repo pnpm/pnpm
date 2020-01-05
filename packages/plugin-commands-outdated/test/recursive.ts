@@ -75,6 +75,25 @@ test('pnpm recursive outdated', async (t) => {
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
+      production: false,
+      recursive: true,
+      selectedProjectsGraph,
+    })
+
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
+    ┌───────────────────┬─────────┬────────┬────────────┐
+    │ Package           │ Current │ Latest │ Dependents │
+    ├───────────────────┼─────────┼────────┼────────────┤
+    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │
+    └───────────────────┴─────────┴────────┴────────────┘
+    ` + '\n')
+  }
+
+  {
+    const output = await outdated.handler([], {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
       long: true,
       recursive: true,
       selectedProjectsGraph,
@@ -227,6 +246,25 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
     ├───────────────────┼─────────┼────────┼──────────────────────┤
     │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
     └───────────────────┴─────────┴────────┴──────────────────────┘
+    ` + '\n')
+  }
+
+  {
+    const output = await outdated.handler([], {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      production: false,
+      recursive: true,
+      selectedProjectsGraph,
+    })
+
+    t.equal(stripAnsi(output as unknown as string), stripIndent`
+    ┌───────────────────┬─────────┬────────┬────────────┐
+    │ Package           │ Current │ Latest │ Dependents │
+    ├───────────────────┼─────────┼────────┼────────────┤
+    │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3  │
+    └───────────────────┴─────────┴────────┴────────────┘
     ` + '\n')
   }
 

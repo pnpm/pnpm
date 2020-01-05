@@ -7,6 +7,7 @@ import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
+  IncludedDependencies,
   PackageManifest,
   ProjectManifest,
 } from '@pnpm/types'
@@ -27,11 +28,12 @@ export interface OutdatedPackage {
 export default async function outdated (
   opts: {
     currentLockfile: Lockfile | null,
-    match?: (dependencyName: string) => boolean,
-    manifest: ProjectManifest,
-    prefix: string,
     getLatestManifest: GetLatestManifestFunction,
+    include?: IncludedDependencies,
     lockfileDir: string,
+    manifest: ProjectManifest,
+    match?: (dependencyName: string) => boolean,
+    prefix: string,
     wantedLockfile: Lockfile,
   },
 ): Promise<OutdatedPackage[]> {
@@ -43,7 +45,10 @@ export default async function outdated (
 
   await Promise.all(
     DEPENDENCIES_FIELDS.map(async (depType) => {
-      if (!opts.wantedLockfile.importers[importerId][depType]) return
+      if (
+        opts.include?.[depType] === false ||
+        !opts.wantedLockfile.importers[importerId][depType]
+      ) return
 
       let pkgs = Object.keys(opts.wantedLockfile.importers[importerId][depType]!)
 

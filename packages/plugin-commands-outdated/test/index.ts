@@ -52,19 +52,63 @@ test('pnpm outdated: show details', async (t) => {
   })
 
   t.equal(stripAnsi(output), stripIndent`
-  ┌─────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
-  │ Package     │ Current │ Latest     │ Details                                     │
-  ├─────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-  │ deprecated  │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
-  │             │         │            │ dolor sit amet, consectetur adipiscing      │
-  │             │         │            │ elit.                                       │
-  │             │         │            │ https://foo.bar/qar                         │
-  ├─────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-  │ is-negative │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme │
-  ├─────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
-  │ is-positive │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
-  └─────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
+  ┌───────────────────┬─────────┬────────────┬─────────────────────────────────────────────┐
+  │ Package           │ Current │ Latest     │ Details                                     │
+  ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+  │ deprecated        │ 1.0.0   │ Deprecated │ This package is deprecated. Lorem ipsum     │
+  │                   │         │            │ dolor sit amet, consectetur adipiscing      │
+  │                   │         │            │ elit.                                       │
+  │                   │         │            │ https://foo.bar/qar                         │
+  ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+  │ is-negative       │ 1.0.0   │ 2.1.0      │ https://github.com/kevva/is-negative#readme │
+  ├───────────────────┼─────────┼────────────┼─────────────────────────────────────────────┤
+  │ is-positive (dev) │ 1.0.0   │ 3.1.0      │ https://github.com/kevva/is-positive#readme │
+  └───────────────────┴─────────┴────────────┴─────────────────────────────────────────────┘
   ` + '\n')
+  t.end()
+})
+
+test('pnpm outdated: showing only prod or dev dependencies', async (t) => {
+  tempDir(t)
+
+  await makeDir(path.resolve('node_modules/.pnpm'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  {
+    const output = await outdated.handler([], {
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+      production: false,
+    })
+
+    t.equal(stripAnsi(output), stripIndent`
+    ┌───────────────────┬─────────┬────────┐
+    │ Package           │ Current │ Latest │
+    ├───────────────────┼─────────┼────────┤
+    │ is-positive (dev) │ 1.0.0   │ 3.1.0  │
+    └───────────────────┴─────────┴────────┘
+    ` + '\n')
+  }
+
+  {
+    const output = await outdated.handler([], {
+      ...OUTDATED_OPTIONS,
+      dev: false,
+      dir: process.cwd(),
+    })
+
+    t.equal(stripAnsi(output), stripIndent`
+    ┌─────────────┬─────────┬────────────┐
+    │ Package     │ Current │ Latest     │
+    ├─────────────┼─────────┼────────────┤
+    │ deprecated  │ 1.0.0   │ Deprecated │
+    ├─────────────┼─────────┼────────────┤
+    │ is-negative │ 1.0.0   │ 2.1.0      │
+    └─────────────┴─────────┴────────────┘
+    ` + '\n')
+  }
+
   t.end()
 })
 
@@ -89,7 +133,7 @@ test('pnpm outdated: no table', async (t) => {
     is-negative
     1.0.0 => 2.1.0
 
-    is-positive
+    is-positive (dev)
     1.0.0 => 3.1.0
     ` + '\n')
   }
@@ -114,7 +158,7 @@ test('pnpm outdated: no table', async (t) => {
     1.0.0 => 2.1.0
     https://github.com/kevva/is-negative#readme
 
-    is-positive
+    is-positive (dev)
     1.0.0 => 3.1.0
     https://github.com/kevva/is-positive#readme
     ` + '\n')
@@ -135,15 +179,15 @@ test('pnpm outdated: only current lockfile is available', async (t) => {
   })
 
   t.equal(stripAnsi(output), stripIndent`
-  ┌─────────────┬─────────┬────────────┐
-  │ Package     │ Current │ Latest     │
-  ├─────────────┼─────────┼────────────┤
-  │ deprecated  │ 1.0.0   │ Deprecated │
-  ├─────────────┼─────────┼────────────┤
-  │ is-negative │ 1.0.0   │ 2.1.0      │
-  ├─────────────┼─────────┼────────────┤
-  │ is-positive │ 1.0.0   │ 3.1.0      │
-  └─────────────┴─────────┴────────────┘
+  ┌───────────────────┬─────────┬────────────┐
+  │ Package           │ Current │ Latest     │
+  ├───────────────────┼─────────┼────────────┤
+  │ deprecated        │ 1.0.0   │ Deprecated │
+  ├───────────────────┼─────────┼────────────┤
+  │ is-negative       │ 1.0.0   │ 2.1.0      │
+  ├───────────────────┼─────────┼────────────┤
+  │ is-positive (dev) │ 1.0.0   │ 3.1.0      │
+  └───────────────────┴─────────┴────────────┘
   ` + '\n')
   t.end()
 })
@@ -160,15 +204,15 @@ test('pnpm outdated: only wanted lockfile is available', async (t) => {
   })
 
   t.equal(stripAnsi(output), stripIndent`
-  ┌─────────────┬────────────────────────┬────────────┐
-  │ Package     │ Current                │ Latest     │
-  ├─────────────┼────────────────────────┼────────────┤
-  │ deprecated  │ missing (wanted 1.0.0) │ Deprecated │
-  ├─────────────┼────────────────────────┼────────────┤
-  │ is-positive │ missing (wanted 3.1.0) │ 3.1.0      │
-  ├─────────────┼────────────────────────┼────────────┤
-  │ is-negative │ missing (wanted 1.1.0) │ 2.1.0      │
-  └─────────────┴────────────────────────┴────────────┘
+  ┌───────────────────┬────────────────────────┬────────────┐
+  │ Package           │ Current                │ Latest     │
+  ├───────────────────┼────────────────────────┼────────────┤
+  │ deprecated        │ missing (wanted 1.0.0) │ Deprecated │
+  ├───────────────────┼────────────────────────┼────────────┤
+  │ is-positive (dev) │ missing (wanted 3.1.0) │ 3.1.0      │
+  ├───────────────────┼────────────────────────┼────────────┤
+  │ is-negative       │ missing (wanted 1.1.0) │ 2.1.0      │
+  └───────────────────┴────────────────────────┴────────────┘
   ` + '\n')
   t.end()
 })

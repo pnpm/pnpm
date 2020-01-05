@@ -12,7 +12,11 @@ import { read as readModulesManifest } from '@pnpm/modules-yaml'
 import outdated, { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import storePath from '@pnpm/store-path'
-import { ProjectManifest, Registries } from '@pnpm/types'
+import {
+  IncludedDependencies,
+  ProjectManifest,
+  Registries,
+} from '@pnpm/types'
 import chalk = require('chalk')
 import { oneLine, stripIndent } from 'common-tags'
 import path = require('path')
@@ -33,9 +37,12 @@ export function cliOptionsTypes () {
   return {
     ...R.pick([
       'depth',
+      'dev',
       'global-dir',
       'global',
       'long',
+      'optional',
+      'production',
       'recursive',
     ], allTypes),
     'table': Boolean,
@@ -76,6 +83,18 @@ export function help () {
             description: 'Prints the outdated packages in a list. Good for small consoles',
             name: '--no-table',
           },
+          {
+            description: 'Analyze only "dependencies" and "optionalDependencies"',
+            name: '--production',
+          },
+          {
+            description: 'Analyze only "devDependencies"',
+            name: '--dev',
+          },
+          {
+            description: `Don't analyze "optionalDependencies"`,
+            name: '--no-optional',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
@@ -115,15 +134,24 @@ export type OutdatedOptions = {
   table?: boolean
   tag: string
   userAgent: string,
-} & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>
+} & Pick<Config, 'allProjects' |
+  'dev' |
+  'optional' |
+  'production' |
+  'selectedProjectsGraph'>
 
 export async function handler (
   args: string[],
   opts: OutdatedOptions,
 ) {
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return outdatedRecursive(pkgs, args, opts)
+    return outdatedRecursive(pkgs, args, { ...opts, include })
   }
   const packages = [
     {
@@ -131,7 +159,7 @@ export async function handler (
       manifest: await readProjectManifestOnly(opts.dir, opts),
     },
   ]
-  const { outdatedPackages } = (await outdatedDependenciesOfWorkspacePackages(packages, args, opts))[0]
+  const { outdatedPackages } = (await outdatedDepsOfProjects(packages, args, { ...opts, include }))[0]
 
   if (!outdatedPackages.length) return ''
 
@@ -285,10 +313,10 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
   return outputs.join('\n')
 }
 
-export async function outdatedDependenciesOfWorkspacePackages (
+export async function outdatedDepsOfProjects (
   pkgs: Array<{dir: string, manifest: ProjectManifest}>,
   args: string[],
-  opts: OutdatedOptions,
+  opts: OutdatedOptions & { include: IncludedDependencies },
 ) {
   const lockfileDir = opts.lockfileDir || opts.dir
   const modules = await readModulesManifest(path.join(lockfileDir, 'node_modules'))
@@ -311,6 +339,7 @@ export async function outdatedDependenciesOfWorkspacePackages (
       outdatedPackages: await outdated({
         currentLockfile,
         getLatestManifest,
+        include: opts.include,
         lockfileDir,
         manifest,
         match,

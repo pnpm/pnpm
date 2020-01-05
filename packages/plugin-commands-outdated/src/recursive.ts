@@ -1,14 +1,18 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { OutdatedPackage } from '@pnpm/outdated'
-import { DependenciesField, ProjectManifest } from '@pnpm/types'
+import {
+  DependenciesField,
+  IncludedDependencies,
+  ProjectManifest,
+} from '@pnpm/types'
 import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
 import { table } from 'table'
 import {
   getCellWidth,
-  outdatedDependenciesOfWorkspacePackages,
+  outdatedDepsOfProjects,
   OutdatedOptions,
   renderCurrent,
   renderDetails,
@@ -42,11 +46,11 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 export default async (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   args: string[],
-  opts: OutdatedOptions,
+  opts: OutdatedOptions & { include: IncludedDependencies },
 ) => {
   const outdatedByNameAndType = {} as Record<string, OutdatedInWorkspace>
   if (opts.lockfileDir) {
-    const outdatedPackagesByProject = await outdatedDependenciesOfWorkspacePackages(pkgs, args, opts)
+    const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, args, opts)
     for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
       outdatedPackages.forEach((outdatedPkg) => {
         const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])
@@ -59,7 +63,7 @@ export default async (
   } else {
     await Promise.all(pkgs.map(async ({ dir, manifest }) => {
       const { outdatedPackages } = (
-        await outdatedDependenciesOfWorkspacePackages([{ manifest, dir }], args, { ...opts, lockfileDir: dir })
+        await outdatedDepsOfProjects([{ manifest, dir }], args, { ...opts, lockfileDir: dir })
       )[0]
       outdatedPackages.forEach((outdatedPkg) => {
         const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])
