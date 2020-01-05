@@ -74,7 +74,6 @@ export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
     'cliOptions' |
     'engineStrict' |
-    'include' |
     'saveDev' |
     'saveOptional' |
     'saveProd' |
@@ -141,16 +140,22 @@ export async function handler (
   await Promise.all(
     pkgPaths.map((dir) => installLimit(async () => {
       const s = await createOrConnectStoreControllerCached(storeControllerCache, opts)
+      const config = await getConfig(
+        { ...opts.cliOptions, 'dir': dir },
+        {
+          excludeReporter: true,
+          rcOptionsTypes: installCommand.rcOptionsTypes(),
+          workspaceDir: await findWorkspaceDir(dir),
+        },
+      )
       await install(
         await readProjectManifestOnly(dir, opts), {
-          ...await getConfig(
-            { ...opts.cliOptions, 'dir': dir },
-            {
-              excludeReporter: true,
-              rcOptionsTypes: installCommand.rcOptionsTypes(),
-              workspaceDir: await findWorkspaceDir(dir),
-            },
-          ),
+          ...config,
+          include: {
+            dependencies: config.production !== false,
+            devDependencies: config.dev !== false,
+            optionalDependencies: config.optional !== false,
+          },
           storeController: s.ctrl,
           storeDir: s.dir,
           workspacePackages,
@@ -159,12 +164,6 @@ export async function handler (
     })),
   )
   const { manifest, writeProjectManifest } = await readProjectManifest(cwd, opts)
-
-  // When running `pnpm link --production ../source`
-  // only the `source` project should be pruned using the --production flag.
-  // The target directory should keep its existing dependencies.
-  // Except the ones that are replaced by the link.
-  delete linkOpts.include
 
   const newManifest = await link(pkgPaths, path.join(cwd, 'node_modules'), {
     ...linkOpts,

@@ -76,7 +76,6 @@ export async function handler (
     'engineStrict' |
     'globalPnpmfile' |
     'ignorePnpmfile' |
-    'include' |
     'lockfileDir' |
     'linkWorkspacePackages' |
     'pnpmfile' |

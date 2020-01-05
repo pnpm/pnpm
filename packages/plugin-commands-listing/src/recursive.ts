@@ -1,12 +1,14 @@
 import { Config, Project } from '@pnpm/config'
 import logger from '@pnpm/logger'
+import { IncludedDependencies } from '@pnpm/types'
 import { render } from './list'
 
 export default async (
   pkgs: Project[],
   args: string[],
-  opts: Pick<Config, 'lockfileDir' | 'include'> & {
+  opts: Pick<Config, 'lockfileDir'> & {
     depth?: number,
+    include: IncludedDependencies,
     long?: boolean,
     parseable?: boolean,
     lockfileDir?: string,

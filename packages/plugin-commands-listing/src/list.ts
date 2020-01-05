@@ -3,6 +3,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import list, { forPackages as listForPackages } from '@pnpm/list'
+import { IncludedDependencies } from '@pnpm/types'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -96,7 +97,14 @@ export function help () {
   })
 }
 
-export type ListCommandOptions = Pick<Config, 'allProjects' | 'dir' | 'include' | 'selectedProjectsGraph'> & {
+export type ListCommandOptions = Pick<Config,
+  'allProjects' |
+  'dev' |
+  'dir' |
+  'optional' |
+  'production' |
+  'selectedProjectsGraph'
+> & {
   alwaysPrintRootPackage?: boolean,
   depth?: number,
   lockfileDir?: string,
@@ -109,12 +117,18 @@ export function handler (
   args: string[],
   opts: ListCommandOptions,
 ) {
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, args, opts)
+    return listRecursive(pkgs, args, { ...opts, include })
   }
   return render([opts.dir], args, {
     ...opts,
+    include,
     lockfileDir: opts.lockfileDir || opts.dir,
   })
 }
@@ -122,9 +136,10 @@ export function handler (
 export async function render (
   prefixes: string[],
   args: string[],
-  opts: Pick<Config, 'include'> & {
+  opts: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
+    include: IncludedDependencies,
     lockfileDir: string,
     long?: boolean,
     json?: boolean,

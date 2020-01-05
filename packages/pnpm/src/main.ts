@@ -67,6 +67,7 @@ export default async function run (inputArgv: string[]) {
     'p': ['--parseable'],
     'porcelain': ['--parseable'],
     'prod': ['--production'],
+    'development': ['--dev'],
     'g': ['--global'],
     'S': ['--save'],
     'D': ['--save-dev'],

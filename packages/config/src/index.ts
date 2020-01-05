@@ -289,19 +289,14 @@ export default async (
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true
-    pnpmConfig.development = false
+    pnpmConfig.dev = false
   } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
     pnpmConfig.production = false
-    pnpmConfig.development = true
+    pnpmConfig.dev = true
     pnpmConfig.optional = false
   } else {
     pnpmConfig.production = true
-    pnpmConfig.development = true
-  }
-  pnpmConfig.include = {
-    dependencies: pnpmConfig.production !== false,
-    devDependencies: pnpmConfig.development !== false,
-    optionalDependencies: pnpmConfig.optional !== false,
+    pnpmConfig.dev = true
   }
 
   if (typeof pnpmConfig.filter === 'string') {

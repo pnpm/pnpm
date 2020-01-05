@@ -26,8 +26,9 @@ test('listing packages', async (t) => {
 
   {
     const output = await list.handler([], {
+      dev: false,
       dir: process.cwd(),
-      include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+      optional: false,
     })
 
     t.equal(stripAnsi(output), stripIndent`
@@ -43,7 +44,8 @@ test('listing packages', async (t) => {
   {
     const output = await list.handler([], {
       dir: process.cwd(),
-      include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+      optional: false,
+      production: false,
     })
 
     t.equal(stripAnsi(output), stripIndent`
@@ -59,7 +61,6 @@ test('listing packages', async (t) => {
   {
     const output = await list.handler([], {
       dir: process.cwd(),
-      include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     })
 
     t.equal(stripAnsi(output), stripIndent`
@@ -91,7 +92,6 @@ test('independent-leaves=true: pnpm list --long', async (t) => {
 
   const output = await list.handler([], {
     dir: process.cwd(),
-    include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     long: true,
   })
 
@@ -133,7 +133,6 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
 
   const output = await list.handler([], {
     dir: process.cwd(),
-    include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     lockfileDir: path.resolve('..'),
   })
 
@@ -159,7 +158,6 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
     const output = await list.handler([], {
       depth: 10,
       dir: process.cwd(),
-      include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     })
 
     t.equal(stripAnsi(output), stripIndent`
@@ -178,7 +176,6 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
     const output = await list.handler(['not-compatible-with-any-os'], {
       depth: 10,
       dir: process.cwd(),
-      include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     })
 
     t.equal(stripAnsi(output), stripIndent`
@@ -195,7 +192,6 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
   {
     const output = await why.handler(['not-compatible-with-any-os'], {
       dir: process.cwd(),
-      include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     })
 
     t.equal(stripAnsi(output), stripIndent`
@@ -218,7 +214,6 @@ test('`pnpm why` should fail if no package name was provided', async (t) => {
   try {
     const output = await why.handler([], {
       dir: process.cwd(),
-      include: { dependencies: true, devDependencies: true, optionalDependencies: true },
     })
   } catch (_err) {
     err = _err

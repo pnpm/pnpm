@@ -48,7 +48,6 @@ export async function handler (
       'allProjects' |
       'bail' |
       'engineStrict' |
-      'include' |
       'linkWorkspacePackages' |
       'selectedProjectsGraph' |
       'rawLocalConfig' |

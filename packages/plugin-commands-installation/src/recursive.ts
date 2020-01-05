@@ -13,7 +13,11 @@ import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { PackageManifest, ProjectManifest } from '@pnpm/types'
+import {
+  IncludedDependencies,
+  PackageManifest,
+  ProjectManifest,
+} from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import isSubdir = require('is-subdir')
 import mem = require('mem')
@@ -38,7 +42,6 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'hoistPattern' |
   'ignorePnpmfile' |
   'ignoreScripts' |
-  'include' |
   'linkWorkspacePackages' |
   'lockfileDir' |
   'lockfileOnly' |
@@ -56,6 +59,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'sharedWorkspaceLockfile' |
   'tag'
 > & {
+  include?: IncludedDependencies,
   latest?: boolean,
   pending?: boolean,
   workspace?: boolean,
@@ -150,7 +154,11 @@ export default async function recursive (
   }
 
   const updateToLatest = opts.update && opts.latest
-  const include = opts.include
+  const include = opts.include ?? {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
+  }
   if (updateToLatest) {
     delete opts.include
   }
@@ -185,7 +193,7 @@ export default async function recursive (
       }
       if (opts.workspace) {
         if (!currentInput || !currentInput.length) {
-          currentInput = updateToWorkspacePackagesFromManifest(manifest, opts.include, workspacePackages!)
+          currentInput = updateToWorkspacePackagesFromManifest(manifest, include, workspacePackages!)
         } else {
           currentInput = createWorkspaceSpecs(currentInput, workspacePackages!)
         }

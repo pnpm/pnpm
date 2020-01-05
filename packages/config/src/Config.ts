@@ -1,5 +1,4 @@
 import {
-  IncludedDependencies,
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
@@ -34,7 +33,6 @@ export interface Config {
   dir: string,
   bin?: string,
   ignoreScripts?: boolean
-  include: IncludedDependencies
   save?: boolean,
   saveProd?: boolean,
   saveDev?: boolean,
@@ -42,7 +40,6 @@ export interface Config {
   savePeer?: boolean,
   saveWorkspaceProtocol?: boolean,
   production?: boolean,
-  development?: boolean,
   fetchRetries?: number,
   fetchRetryFactor?: number,
   fetchRetryMintimeout?: number,
