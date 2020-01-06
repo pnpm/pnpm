@@ -26,7 +26,7 @@ export function createLatestManifestGetter (
     userAgent?: string,
     verifyStoreIntegrity?: boolean,
   },
-): (packageName: string) => Promise<DependencyManifest | null> {
+): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
   const resolve = createResolver(Object.assign(opts, {
     fullMetadata: true,
     metaCache: new LRU({
@@ -45,8 +45,9 @@ export async function getLatestManifest (
     registries: Registries,
   },
   packageName: string,
+  pref: string,
 ) {
-  const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
+  const resolution = await resolve({ alias: packageName, pref }, {
     lockfileDir: opts.lockfileDir,
     preferredVersions: {},
     projectDir: opts.dir,

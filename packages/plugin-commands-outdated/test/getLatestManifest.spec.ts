@@ -29,7 +29,7 @@ test('getLatestManifest()', async (t) => {
         resolvedVia: 'npm-registry',
       }
     }
-    t.deepEqual(await getLatestManifest(resolve, opts, 'foo'), {
+    t.deepEqual(await getLatestManifest(resolve, opts, 'foo', 'latest'), {
       name: 'foo',
       version: '1.0.0',
     })
@@ -50,7 +50,7 @@ test('getLatestManifest()', async (t) => {
         resolvedVia: 'npm-registry',
       }
     }
-    t.deepEqual(await getLatestManifest(resolve, opts, '@scope/foo'), {
+    t.deepEqual(await getLatestManifest(resolve, opts, '@scope/foo', 'latest'), {
       name: 'foo',
       version: '2.0.0',
     })

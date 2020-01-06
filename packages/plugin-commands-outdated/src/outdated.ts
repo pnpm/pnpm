@@ -46,6 +46,7 @@ export function cliOptionsTypes () {
       'production',
       'recursive',
     ], allTypes),
+    'compatible': Boolean,
     'table': Boolean,
   }
 }
@@ -66,6 +67,10 @@ export function help () {
         title: 'Options',
 
         list: [
+          {
+            description: 'Print only versions that satisfy the available specs in the manifests',
+            name: '--compatible',
+          },
           {
             description: oneLine`
             By default, details about the outdated packages (such as a link to the repo) are not displayed.
@@ -111,6 +116,7 @@ export type OutdatedOptions = {
   alwaysAuth: boolean
   ca?: string
   cert?: string
+  compatible?: boolean,
   engineStrict?: boolean
   fetchRetries: number
   fetchRetryFactor: number
@@ -338,6 +344,7 @@ export async function outdatedDepsOfProjects (
     return {
       manifest,
       outdatedPackages: await outdated({
+        compatible: opts.compatible,
         currentLockfile,
         getLatestManifest,
         include: opts.include,
