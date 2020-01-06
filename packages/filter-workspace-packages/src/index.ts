@@ -78,10 +78,11 @@ export default async function filterGraph<T> (
     let entryPackages: string[]
     if (selector.namePattern) {
       entryPackages = matchPackages(pkgGraph, selector.namePattern)
+    } else if (selector.diff) {
+      entryPackages = await getChangedPkgs(Object.keys(pkgGraph),
+        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir })
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
-    } else if (selector.diff) {
-      entryPackages = await getChangedPkgs(Object.keys(pkgGraph), selector.diff, { workspaceDir: opts.workspaceDir })
     } else {
       throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
     }

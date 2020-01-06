@@ -27,40 +27,27 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
       rawSelector = rawSelector.substr(1)
     }
   }
-  if (rawSelector.startsWith('{') && rawSelector.endsWith('}')) {
-    return {
-      excludeSelf,
-      includeDependencies,
-      includeDependents,
-      parentDir: path.join(prefix, rawSelector.substr(1, rawSelector.length - 2)),
+  const matches = rawSelector.match(/^([^.][^{}[\]]*)?(\{[^\}]+\})?(\[[^\]]+\])?$/)
+  if (matches === null) {
+    if (isSelectorByLocation(rawSelector)) {
+      return {
+        excludeSelf: false,
+        parentDir: path.join(prefix, rawSelector),
+      }
     }
-  }
-  if (rawSelector.startsWith('[') && rawSelector.endsWith(']')) {
     return {
-      diff: rawSelector.substr(1, rawSelector.length - 2),
-      excludeSelf,
-      includeDependencies,
-      includeDependents,
-    }
-  }
-  if (includeDependencies || includeDependents) {
-    return {
-      excludeSelf,
-      includeDependencies,
-      includeDependents,
+      excludeSelf: false,
       namePattern: rawSelector,
     }
   }
 
-  if (isSelectorByLocation(rawSelector)) {
-    return {
-      excludeSelf: false,
-      parentDir: path.join(prefix, rawSelector),
-    }
-  }
   return {
-    excludeSelf: false,
-    namePattern: rawSelector,
+    diff: matches[3] && matches[3].substr(1, matches[3].length - 2),
+    excludeSelf,
+    includeDependencies,
+    includeDependents,
+    namePattern: matches[1],
+    parentDir: matches[2] && path.join(prefix, matches[2].substr(1, matches[2].length - 2)),
   }
 }
 
