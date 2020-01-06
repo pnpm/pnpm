@@ -72,7 +72,7 @@ export const FILTERING = {
       name: '--filter .',
     },
     {
-      description: 'Includes all projects that are under the specified directory. Can be used with "..." to select dependents/dependencies as well. Can be combined with [<since>], for instance, all changed projects inside a directory: {packages}[origin/master]',
+      description: 'Includes all projects that are under the specified directory. It may be used with "..." to select dependents/dependencies as well. It also may be combined with [<since>]. For instance, all changed projects inside a directory: {packages}[origin/master]',
       name: '--filter {<dir>}',
     },
     {
