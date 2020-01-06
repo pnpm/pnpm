@@ -72,6 +72,10 @@ export const FILTERING = {
       name: '--filter .',
     },
     {
+      description: 'Includes all projects that are under the specified directory. It may be used with "..." to select dependents/dependencies as well. It also may be combined with [<since>]. For instance, all changed projects inside a directory: {packages}[origin/master]',
+      name: '--filter {<dir>}',
+    },
+    {
       description: 'Includes all packages changed since the specified commit/branch. E.g.: [master], [HEAD~2]. It may be used together with "...". So, for instance, ...[HEAD~1] selects all packages changed in the last commit and their dependents',
       name: '--filter [<since>]',
     },

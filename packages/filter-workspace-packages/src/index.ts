@@ -75,14 +75,22 @@ export default async function filterGraph<T> (
   const graph = pkgGraphToGraph(pkgGraph)
   let reversedGraph: Graph | undefined
   for (const selector of packageSelectors) {
-    let entryPackages: string[]
-    if (selector.namePattern) {
-      entryPackages = matchPackages(pkgGraph, selector.namePattern)
+    let entryPackages: string[] | null = null
+    if (selector.diff) {
+      entryPackages = await getChangedPkgs(Object.keys(pkgGraph),
+        selector.diff, { workspaceDir: selector.parentDir ?? opts.workspaceDir })
     } else if (selector.parentDir) {
       entryPackages = matchPackagesByPath(pkgGraph, selector.parentDir)
-    } else if (selector.diff) {
-      entryPackages = await getChangedPkgs(Object.keys(pkgGraph), selector.diff, { workspaceDir: opts.workspaceDir })
-    } else {
+    }
+    if (selector.namePattern) {
+      if (!entryPackages) {
+        entryPackages = matchPackages(pkgGraph, selector.namePattern)
+      } else {
+        entryPackages = matchPackages(R.pick(entryPackages, pkgGraph), selector.namePattern)
+      }
+    }
+
+    if (!entryPackages) {
       throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
     }
 

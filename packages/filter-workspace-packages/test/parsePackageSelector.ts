@@ -6,59 +6,174 @@ import test = require('tape')
 const fixtures: Array<[string, PackageSelector]> = [
   [
     'foo',
-    { excludeSelf: false, namePattern: 'foo' },
+    {
+      diff: undefined,
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: false,
+      namePattern: 'foo',
+      parentDir: undefined,
+    },
   ],
   [
     'foo...',
-    { excludeSelf: false, namePattern: 'foo', includeDependencies: true, includeDependents: false },
+    {
+      diff: undefined,
+      excludeSelf: false,
+      includeDependencies: true,
+      includeDependents: false,
+      namePattern: 'foo',
+      parentDir: undefined,
+    },
   ],
   [
     '...foo',
-    { excludeSelf: false, namePattern: 'foo', includeDependencies: false, includeDependents: true },
+    {
+      diff: undefined,
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: true,
+      namePattern: 'foo',
+      parentDir: undefined,
+    },
   ],
   [
     '...foo...',
-    { excludeSelf: false, namePattern: 'foo', includeDependencies: true, includeDependents: true },
+    {
+      diff: undefined,
+      excludeSelf: false,
+      includeDependencies: true,
+      includeDependents: true,
+      namePattern: 'foo',
+      parentDir: undefined,
+    },
   ],
   [
     'foo^...',
-    { excludeSelf: true, namePattern: 'foo', includeDependencies: true, includeDependents: false },
+    {
+      diff: undefined,
+      excludeSelf: true,
+      includeDependencies: true,
+      includeDependents: false,
+      namePattern: 'foo',
+      parentDir: undefined,
+    },
   ],
   [
     '...^foo',
-    { excludeSelf: true, namePattern: 'foo', includeDependencies: false, includeDependents: true },
+    {
+      diff: undefined,
+      excludeSelf: true,
+      includeDependencies: false,
+      includeDependents: true,
+      namePattern: 'foo',
+      parentDir: undefined,
+    },
   ],
   [
     './foo',
-    { excludeSelf: false, parentDir: path.resolve('foo') },
+    {
+      excludeSelf: false,
+      parentDir: path.resolve('foo'),
+    },
   ],
   [
     '../foo',
-    { excludeSelf: false, parentDir: path.resolve('../foo') },
+    {
+      excludeSelf: false,
+      parentDir: path.resolve('../foo'),
+    },
+  ],
+  [
+    '...{./foo}',
+    {
+      diff: undefined,
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: true,
+      namePattern: undefined,
+      parentDir: path.resolve('foo'),
+    },
   ],
   [
     '.',
-    { excludeSelf: false, parentDir: process.cwd() },
+    {
+      excludeSelf: false,
+      parentDir: process.cwd(),
+    },
   ],
   [
     '..',
-    { excludeSelf: false, parentDir: path.resolve('..') },
+    {
+      excludeSelf: false,
+      parentDir: path.resolve('..'),
+    },
   ],
   [
     '[master]',
-    { diff: 'master', excludeSelf: false, includeDependencies: false, includeDependents: false },
+    {
+      diff: 'master',
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: false,
+      namePattern: undefined,
+      parentDir: undefined,
+    },
+  ],
+  [
+    '{foo}[master]',
+    {
+      diff: 'master',
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: false,
+      namePattern: undefined,
+      parentDir: path.resolve('foo'),
+    },
+  ],
+  [
+    'pattern{foo}[master]',
+    {
+      diff: 'master',
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: false,
+      namePattern: 'pattern',
+      parentDir: path.resolve('foo'),
+    },
   ],
   [
     '[master]...',
-    { diff: 'master', excludeSelf: false, includeDependencies: true, includeDependents: false },
+    {
+      diff: 'master',
+      excludeSelf: false,
+      includeDependencies: true,
+      includeDependents: false,
+      namePattern: undefined,
+      parentDir: undefined,
+    },
   ],
   [
     '...[master]',
-    { diff: 'master', excludeSelf: false, includeDependencies: false, includeDependents: true },
+    {
+      diff: 'master',
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: true,
+      namePattern: undefined,
+      parentDir: undefined,
+    },
   ],
   [
     '...[master]...',
-    { diff: 'master', excludeSelf: false, includeDependencies: true, includeDependents: true },
+    {
+      diff: 'master',
+      excludeSelf: false,
+      includeDependencies: true,
+      includeDependents: true,
+      namePattern: undefined,
+      parentDir: undefined,
+    },
   ],
 ]
 

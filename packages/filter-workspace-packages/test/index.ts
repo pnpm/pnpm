@@ -221,10 +221,17 @@ test('select changed packages', async (t) => {
   await mkdir(pkg1Dir)
   await touch(path.join(pkg1Dir, 'file.js'))
 
-  await execa('git', ['add', '.'], { cwd: workspaceDir })
-  await execa('git', ['commit', '--allow-empty', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+  const pkg2Dir = path.join(workspaceDir, 'package-2')
 
-  const selection = await filterWorkspacePackages({
+  await mkdir(pkg2Dir)
+  await touch(path.join(pkg2Dir, 'file.js'))
+
+  await execa('git', ['add', '.'], { cwd: workspaceDir })
+  await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
+
+  const pkg20Dir = path.join(workspaceDir, 'package-20')
+
+  const pkgsGraph = {
     [workspaceDir]: {
       dependencies: [],
       package: {
@@ -245,11 +252,51 @@ test('select changed packages', async (t) => {
         },
       },
     },
-  }, [{
-    diff: 'HEAD~1',
-  }], { workspaceDir })
+    [pkg2Dir]: {
+      dependencies: [],
+      package: {
+        dir: pkg2Dir,
+        manifest: {
+          name: 'package-2',
+          version: '0.0.0',
+        },
+      },
+    },
+    [pkg20Dir]: {
+      dependencies: [],
+      package: {
+        dir: pkg20Dir,
+        manifest: {
+          name: 'package-20',
+          version: '0.0.0',
+        },
+      },
+    },
+  }
 
-  t.deepEqual(Object.keys(selection), [pkg1Dir])
+  {
+    const selection = await filterWorkspacePackages(pkgsGraph, [{
+      diff: 'HEAD~1',
+    }], { workspaceDir })
+
+    t.deepEqual(Object.keys(selection), [pkg1Dir, pkg2Dir])
+  }
+  {
+    const selection = await filterWorkspacePackages(pkgsGraph, [{
+      diff: 'HEAD~1',
+      parentDir: pkg2Dir,
+    }], { workspaceDir })
+
+    t.deepEqual(Object.keys(selection), [pkg2Dir])
+  }
+  {
+    const selection = await filterWorkspacePackages(pkgsGraph, [{
+      diff: 'HEAD~1',
+      namePattern: 'package-2*',
+    }], { workspaceDir })
+
+    t.deepEqual(Object.keys(selection), [pkg2Dir])
+  }
 
   t.end()
 })
