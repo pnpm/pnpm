@@ -1,1 +1,0 @@
-import './getLatestManifest.spec'

@@ -15,7 +15,7 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "pretest": "rimraf node_modules/.bin/pnpm",
-    "test": "pnpm run tsc && ts-node test --type-check",
+    "test": "pnpm run tsc",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/cli-utils",
@@ -32,22 +32,18 @@
     "@pnpm/cli-utils": "link:",
     "@pnpm/logger": "^3.1.0",
     "@pnpm/types": "workspace:4.0.0",
-    "@types/lru-cache": "^5.1.0",
     "@types/ramda": "^0.26.38",
     "pnpm": "link:../pnpm",
     "rimraf": "3.0.0"
   },
   "dependencies": {
     "@pnpm/config": "workspace:6.0.0",
-    "@pnpm/default-resolver": "workspace:6.0.3",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/package-is-installable": "workspace:4.0.1",
     "@pnpm/read-project-manifest": "workspace:2.0.1",
     "@pnpm/utils": "workspace:0.12.2",
     "chalk": "3.0.0",
     "load-json-file": "6.2.0",
-    "lru-cache": "5.1.1",
-    "mem": "6.0.1",
     "ramda": "0.26.1",
     "version-selector-type": "2.0.1"
   },

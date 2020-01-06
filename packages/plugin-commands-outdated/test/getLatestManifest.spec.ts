@@ -1,6 +1,6 @@
-import { getLatestManifest } from '@pnpm/cli-utils'
 import { ResolveFunction } from '@pnpm/default-resolver'
 import test = require('tape')
+import { getLatestManifest } from '../lib/createLatestManifestGetter'
 
 test('getLatestManifest()', async (t) => {
   t.plan(4)

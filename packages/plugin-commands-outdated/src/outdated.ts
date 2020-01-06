@@ -1,4 +1,4 @@
-import { createLatestManifestGetter, docsUrl, readProjectManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -25,6 +25,7 @@ import renderHelp = require('render-help')
 import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
+import { createLatestManifestGetter } from './createLatestManifestGetter'
 import outdatedRecursive from './recursive'
 import {
   DEFAULT_COMPARATORS,

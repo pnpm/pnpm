@@ -85,41 +85,33 @@ importers:
   packages/cli-utils:
     dependencies:
       '@pnpm/config': 'link:../config'
-      '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/utils': 'link:../utils'
       chalk: 3.0.0
       load-json-file: 6.2.0
-      lru-cache: 5.1.1
-      mem: 6.0.1
       ramda: 0.26.1
       version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/cli-utils': 'link:'
       '@pnpm/logger': 3.1.0
       '@pnpm/types': 'link:../types'
-      '@types/lru-cache': 5.1.0
       '@types/ramda': 0.26.39
       pnpm: 'link:../pnpm'
       rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'link:'
       '@pnpm/config': 'workspace:6.0.0'
-      '@pnpm/default-resolver': 'workspace:6.0.3'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': ^3.1.0
       '@pnpm/package-is-installable': 'workspace:4.0.1'
       '@pnpm/read-project-manifest': 'workspace:2.0.1'
       '@pnpm/types': 'workspace:4.0.0'
       '@pnpm/utils': 'workspace:0.12.2'
-      '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.26.38
       chalk: 3.0.0
       load-json-file: 6.2.0
-      lru-cache: 5.1.1
-      mem: 6.0.1
       pnpm: 'link:../pnpm'
       ramda: 0.26.1
       rimraf: 3.0.0
@@ -237,7 +229,7 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/normalize-path': 3.0.0
       '@types/pretty-time': 1.1.0
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@types/semver': ^6.2.0
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
@@ -1375,7 +1367,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.1'
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': 'workspace:4.0.0'
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@types/table': ^4.0.7
       chalk: 3.0.0
       ramda: 0.26.1
@@ -1564,6 +1556,7 @@ importers:
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
+      '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/matcher': 'link:../matcher'
@@ -1571,8 +1564,11 @@ importers:
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/store-path': 2.1.1
+      '@pnpm/utils': 'link:../utils'
       chalk: 3.0.0
       common-tags: 1.8.0
+      lru-cache: 5.1.1
+      mem: 6.0.1
       ramda: 0.26.1
       render-help: 0.0.0
       table: 5.4.6
@@ -1585,6 +1581,7 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/types': 'link:../types'
       '@types/common-tags': 1.8.0
+      '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
       '@types/ramda': 0.26.39
       '@types/table': 4.0.7
@@ -1598,6 +1595,7 @@ importers:
       '@pnpm/common-cli-options-help': 'workspace:0.1.2'
       '@pnpm/config': 'workspace:6.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/default-resolver': 'workspace:6.0.3'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-workspace-packages': 'workspace:1.0.1'
       '@pnpm/lockfile-file': 'workspace:3.0.1'
@@ -1610,14 +1608,18 @@ importers:
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:4.0.0'
+      '@pnpm/utils': 'workspace:0.12.2'
       '@types/common-tags': 1.8.0
+      '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.0
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@types/table': ^4.0.7
       '@types/wrap-ansi': 3.0.0
       chalk: 3.0.0
       common-tags: 1.8.0
+      lru-cache: 5.1.1
       make-dir: 3.0.0
+      mem: 6.0.1
       mz: 2.7.0
       ramda: 0.26.1
       render-help: 0.0.0
@@ -1676,7 +1678,7 @@ importers:
       '@types/cross-spawn': ^6.0.1
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.0
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@zkochan/rimraf': 1.0.0
       cp-file: 7.0.0
       cross-spawn: 7.0.1
@@ -1829,7 +1831,7 @@ importers:
       '@pnpm/utils': 'workspace:0.12.2'
       '@types/common-tags': ^1.8.0
       '@types/mz': ^2.7.0
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@zkochan/rimraf': 1.0.0
       common-tags: 1.8.0
       execa: 4.0.0
@@ -1882,7 +1884,7 @@ importers:
       '@types/common-tags': ^1.8.0
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.0
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@types/signal-exit': ^3.0.0
       common-tags: 1.8.0
       delay: 4.3.0
@@ -1949,7 +1951,7 @@ importers:
       '@pnpm/utils': 'workspace:0.12.2'
       '@types/archy': 0.0.31
       '@types/common-tags': ^1.8.0
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@types/sinon': ^7.5.1
       '@zkochan/rimraf': 1.0.0
       archy: 1.0.0
@@ -2092,7 +2094,7 @@ importers:
       '@types/mkdirp': 0.5.2
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
-      '@types/ramda': ^0.26.39
+      '@types/ramda': ^0.26.38
       '@types/retry': 0.12.0
       '@types/semver': ^6.2.0
       '@types/table': ^4.0.7

@@ -4,7 +4,6 @@ import packageManager from './pnpmPkgJson'
 
 export { getConfig, getSaveType, packageManager }
 
-export * from './createLatestManifestGetter'
 export * from './getPinnedVersion'
 export * from './packageIsInstallable'
 export * from './readProjectManifest'
