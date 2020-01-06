@@ -229,6 +229,8 @@ test('select changed packages', async (t) => {
   await execa('git', ['add', '.'], { cwd: workspaceDir })
   await execa('git', ['commit', '--allow-empty-message', '-m', '', '--no-gpg-sign'], { cwd: workspaceDir })
 
+  const pkg20Dir = path.join(workspaceDir, 'package-20')
+
   const pkgsGraph = {
     [workspaceDir]: {
       dependencies: [],
@@ -260,6 +262,16 @@ test('select changed packages', async (t) => {
         },
       },
     },
+    [pkg20Dir]: {
+      dependencies: [],
+      package: {
+        dir: pkg20Dir,
+        manifest: {
+          name: 'package-20',
+          version: '0.0.0',
+        },
+      },
+    },
   }
 
   {
@@ -273,6 +285,14 @@ test('select changed packages', async (t) => {
     const selection = await filterWorkspacePackages(pkgsGraph, [{
       diff: 'HEAD~1',
       parentDir: pkg2Dir,
+    }], { workspaceDir })
+
+    t.deepEqual(Object.keys(selection), [pkg2Dir])
+  }
+  {
+    const selection = await filterWorkspacePackages(pkgsGraph, [{
+      diff: 'HEAD~1',
+      namePattern: 'package-2*',
     }], { workspaceDir })
 
     t.deepEqual(Object.keys(selection), [pkg2Dir])

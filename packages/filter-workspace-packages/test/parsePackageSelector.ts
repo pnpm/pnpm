@@ -132,6 +132,17 @@ const fixtures: Array<[string, PackageSelector]> = [
     },
   ],
   [
+    'pattern{foo}[master]',
+    {
+      diff: 'master',
+      excludeSelf: false,
+      includeDependencies: false,
+      includeDependents: false,
+      namePattern: 'pattern',
+      parentDir: path.resolve('foo'),
+    },
+  ],
+  [
     '[master]...',
     {
       diff: 'master',
