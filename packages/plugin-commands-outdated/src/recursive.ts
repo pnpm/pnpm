@@ -75,6 +75,8 @@ export default async (
     }))
   }
 
+  if (R.isEmpty(outdatedByNameAndType)) return ''
+
   if (opts.table !== false) {
     return renderOutdatedTable(outdatedByNameAndType, opts)
   }
