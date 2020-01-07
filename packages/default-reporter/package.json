@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "5.0.5",
+  "version": "5.1.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,10 +34,10 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:6.0.0",
-    "@pnpm/core-loggers": "workspace:4.0.0",
+    "@pnpm/config": "workspace:7.0.0",
+    "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/types": "workspace:4.0.0",
+    "@pnpm/types": "workspace:5.0.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
     "chalk": "3.0.0",
@@ -59,7 +59,7 @@
     "@types/common-tags": "1.8.0",
     "@types/normalize-path": "3.0.0",
     "@types/pretty-time": "1.1.0",
-    "@types/ramda": "^0.26.38",
+    "@types/ramda": "^0.26.39",
     "@types/semver": "^6.2.0",
     "delay": "4.3.0",
     "ghooks": "2.0.4",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "13.0.2",
+  "version": "14.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,17 +30,17 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:4.0.0",
+    "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/lockfile-types": "workspace:1.1.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.5",
-    "@pnpm/npm-resolver": "workspace:6.0.2",
-    "@pnpm/package-is-installable": "workspace:4.0.1",
-    "@pnpm/resolver-base": "workspace:6.0.0",
-    "@pnpm/store-controller-types": "workspace:6.0.0",
-    "@pnpm/types": "workspace:4.0.0",
-    "@pnpm/utils": "workspace:0.12.2",
-    "dependency-path": "workspace:4.0.2",
+    "@pnpm/lockfile-types": "workspace:2.0.0",
+    "@pnpm/lockfile-utils": "workspace:2.0.6",
+    "@pnpm/npm-resolver": "workspace:7.0.0",
+    "@pnpm/package-is-installable": "workspace:4.0.2",
+    "@pnpm/resolver-base": "workspace:7.0.0",
+    "@pnpm/store-controller-types": "workspace:7.0.0",
+    "@pnpm/types": "workspace:5.0.0",
+    "@pnpm/utils": "workspace:0.12.3",
+    "dependency-path": "workspace:4.0.3",
     "path-exists": "4.0.0",
     "ramda": "0.26.1",
     "replace-string": "3.0.0",
@@ -49,7 +49,7 @@
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/resolve-dependencies": "link:",
-    "@types/ramda": "^0.26.38",
+    "@types/ramda": "^0.26.39",
     "@types/semver": "^6.2.0",
     "rimraf": "3.0.0"
   }

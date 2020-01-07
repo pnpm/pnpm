@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "8.0.2",
+  "version": "8.0.3",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -30,24 +30,24 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:4.0.0",
-    "@pnpm/filter-lockfile": "workspace:3.0.4",
-    "@pnpm/lockfile-types": "workspace:1.1.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.5",
-    "@pnpm/package-bins": "workspace:4.0.1",
+    "@pnpm/core-loggers": "workspace:4.0.1",
+    "@pnpm/filter-lockfile": "workspace:3.0.5",
+    "@pnpm/lockfile-types": "workspace:2.0.0",
+    "@pnpm/lockfile-utils": "workspace:2.0.6",
+    "@pnpm/package-bins": "workspace:4.0.2",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/store-controller-types": "workspace:6.0.0",
-    "@pnpm/types": "workspace:4.0.0",
-    "@pnpm/utils": "workspace:0.12.2",
+    "@pnpm/store-controller-types": "workspace:7.0.0",
+    "@pnpm/types": "workspace:5.0.0",
+    "@pnpm/utils": "workspace:0.12.3",
     "@zkochan/rimraf": "1.0.0",
-    "dependency-path": "workspace:4.0.2",
+    "dependency-path": "workspace:4.0.3",
     "fs-vacuum": "1.2.10",
     "ramda": "0.26.1"
   },
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/modules-cleaner": "link:",
-    "@types/ramda": "^0.26.38",
+    "@types/ramda": "^0.26.39",
     "rimraf": "3.0.0"
   }
 }

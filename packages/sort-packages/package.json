@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Sort packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,7 +31,7 @@
     "rimraf": "3.0.0"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:6.0.0",
+    "@pnpm/config": "workspace:7.0.0",
     "graph-sequencer": "2.0.0"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "6.0.5",
+  "version": "6.1.0",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -40,11 +40,11 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:3.0.0",
-    "@pnpm/lockfile-file": "workspace:3.0.1",
-    "@pnpm/lockfile-utils": "workspace:2.0.5",
-    "@pnpm/types": "workspace:4.0.0",
-    "@pnpm/utils": "workspace:0.12.2",
-    "dependency-path": "workspace:4.0.2",
+    "@pnpm/lockfile-file": "workspace:3.0.2",
+    "@pnpm/lockfile-utils": "workspace:2.0.6",
+    "@pnpm/types": "workspace:5.0.0",
+    "@pnpm/utils": "workspace:0.12.3",
+    "dependency-path": "workspace:4.0.3",
     "semver": "7.1.1"
   },
   "devDependencies": {

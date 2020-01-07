@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store-controller-types",
-  "version": "6.0.0",
+  "version": "7.0.0",
   "description": "Types for the store controller",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
     "rimraf": "3.0.0"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:6.0.0",
-    "@pnpm/types": "workspace:4.0.0"
+    "@pnpm/resolver-base": "workspace:7.0.0",
+    "@pnpm/types": "workspace:5.0.0"
   }
 }

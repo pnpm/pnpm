@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/get-context",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Gets context information about a project",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,7 +31,7 @@
     "@pnpm/get-context": "link:",
     "@pnpm/logger": "3.1.0",
     "@types/is-ci": "^2.0.0",
-    "@types/ramda": "^0.26.38",
+    "@types/ramda": "^0.26.39",
     "rimraf": "3.0.0"
   },
   "peerDependencies": {
@@ -39,12 +39,12 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:3.0.0",
-    "@pnpm/core-loggers": "workspace:4.0.0",
+    "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/lockfile-file": "workspace:3.0.1",
-    "@pnpm/modules-yaml": "workspace:5.0.0",
-    "@pnpm/read-projects-context": "workspace:3.0.5",
-    "@pnpm/types": "workspace:4.0.0",
+    "@pnpm/lockfile-file": "workspace:3.0.2",
+    "@pnpm/modules-yaml": "workspace:5.0.1",
+    "@pnpm/read-projects-context": "workspace:1.0.0",
+    "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
     "is-ci": "2.0.0",
     "make-dir": "3.0.0",

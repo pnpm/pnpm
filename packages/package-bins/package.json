@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-bins",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "Returns bins of a package",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-bins#readme",
   "dependencies": {
-    "@pnpm/types": "workspace:4.0.0",
+    "@pnpm/types": "workspace:5.0.0",
     "graceful-fs": "4.2.3",
     "is-subdir": "1.1.1",
     "p-filter": "2.1.0"
@@ -37,7 +37,7 @@
   "devDependencies": {
     "@pnpm/package-bins": "link:",
     "@types/graceful-fs": "^4.1.3",
-    "@types/node": "^12.12.22",
+    "@types/node": "^12.12.24",
     "@types/tape": "^4.2.33",
     "rimraf": "^3.0.0"
   }

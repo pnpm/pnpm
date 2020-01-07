@@ -20,7 +20,7 @@
     "@pnpm/assert-project": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.0",
-    "@types/node": "12",
+    "@types/node": "^12.12.24",
     "rimraf": "3.0.0"
   },
   "directories": {
@@ -46,7 +46,7 @@
   "dependencies": {
     "@pnpm/assert-store": "workspace:1.0.0",
     "@pnpm/constants": "workspace:*",
-    "@pnpm/lockfile-types": "workspace:1.1.0",
+    "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/modules-yaml": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@types/mz": "^2.7.0",

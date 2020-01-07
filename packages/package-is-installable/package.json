@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,9 +30,9 @@
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "workspace:4.0.0",
+    "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/types": "workspace:4.0.0",
+    "@pnpm/types": "workspace:5.0.0",
     "semver": "7.1.1"
   },
   "devDependencies": {
