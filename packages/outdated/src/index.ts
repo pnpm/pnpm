@@ -11,10 +11,11 @@ import {
   PackageManifest,
   ProjectManifest,
 } from '@pnpm/types'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import semver = require('semver')
 
-export type GetLatestManifestFunction = (packageName: string) => Promise<PackageManifest | null>
+export type GetLatestManifestFunction = (packageName: string, rangeOrTag: string) => Promise<PackageManifest | null>
 
 export interface OutdatedPackage {
   alias: string,
@@ -27,6 +28,7 @@ export interface OutdatedPackage {
 
 export default async function outdated (
   opts: {
+    compatible?: boolean,
     currentLockfile: Lockfile | null,
     getLatestManifest: GetLatestManifestFunction,
     include?: IncludedDependencies,
@@ -38,6 +40,7 @@ export default async function outdated (
   },
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
+  const allDeps = getAllDependenciesFromPackage(opts.manifest)
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
   const currentLockfile = opts.currentLockfile || { importers: { [importerId]: {} } }
 
@@ -82,7 +85,7 @@ export default async function outdated (
           const currentRelative = currentRef && dp.refToRelative(currentRef, alias)
           const current = currentRelative && dp.parse(currentRelative).version || currentRef
           const wanted = dp.parse(relativeDepPath).version || ref
-          const packageName = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot).name
+          const { name: packageName } = nameVerFromPkgSnapshot(relativeDepPath, pkgSnapshot)
 
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
@@ -100,7 +103,11 @@ export default async function outdated (
             return
           }
 
-          const latestManifest = await opts.getLatestManifest(dp.parse(relativeDepPath).name || packageName)
+          const name = dp.parse(relativeDepPath).name ?? packageName
+          const latestManifest = await opts.getLatestManifest(
+            name,
+            opts.compatible ? (allDeps[name] ?? 'latest') : 'latest',
+          )
 
           if (!latestManifest) return
 

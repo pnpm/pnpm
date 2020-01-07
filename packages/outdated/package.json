@@ -43,6 +43,7 @@
     "@pnpm/lockfile-file": "workspace:3.0.1",
     "@pnpm/lockfile-utils": "workspace:2.0.5",
     "@pnpm/types": "workspace:4.0.0",
+    "@pnpm/utils": "workspace:0.12.2",
     "dependency-path": "workspace:4.0.2",
     "semver": "7.1.1"
   },
