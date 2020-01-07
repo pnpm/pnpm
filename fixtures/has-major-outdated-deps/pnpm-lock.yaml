@@ -1,0 +1,21 @@
+dependencies:
+  is-negative: 1.0.0
+devDependencies:
+  is-positive: 2.0.0
+lockfileVersion: 5.1
+packages:
+  /is-negative/1.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
+  /is-positive/2.0.0:
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-sU8GvS24EK5sixJ0HRNr+u8Nh70=
+specifiers:
+  is-negative: 1.0.0
+  is-positive: 2.0.0

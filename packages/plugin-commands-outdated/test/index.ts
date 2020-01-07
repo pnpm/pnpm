@@ -19,6 +19,7 @@ const fixtures = path.join(__dirname, '../../../fixtures')
 const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
 const hasOutdatedDepsFixtureAndExternalLockfile = path.join(fixtures, 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
 const hasNotOutdatedDepsFixture = path.join(fixtures, 'has-not-outdated-deps')
+const hasMajorOutdatedDepsFixture = path.join(fixtures, 'has-major-outdated-deps')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -264,5 +265,22 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
     err = _err
   }
   t.equal(err.code, 'ERR_PNPM_OUTDATED_NO_LOCKFILE')
+  t.end()
+})
+
+test('pnpm outdated: print only compatible versions', async (t) => {
+  const output = await outdated.handler([], {
+    ...OUTDATED_OPTIONS,
+    compatible: true,
+    dir: hasMajorOutdatedDepsFixture,
+  })
+
+  t.equal(stripAnsi(output), stripIndent`
+  ┌─────────────┬─────────┬────────┐
+  │ Package     │ Current │ Latest │
+  ├─────────────┼─────────┼────────┤
+  │ is-negative │ 1.0.0   │ 1.0.1  │
+  └─────────────┴─────────┴────────┘
+  ` + '\n')
   t.end()
 })
