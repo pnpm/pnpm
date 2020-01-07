@@ -610,7 +610,7 @@ importers:
       npm-run-all: 4.1.5
       read-yaml-file: 1.1.0
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: 8.0.4
       tape-promise: 4.0.0
       tempy: 0.3.0
     specifiers:
@@ -662,7 +662,7 @@ importers:
       ramda: 0.26.1
       read-yaml-file: 1.1.0
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: ^8.0.4
       tape-promise: 4.0.0
       tempy: 0.3.0
   packages/hoist:
@@ -751,7 +751,7 @@ importers:
       ncp: 2.0.0
       path-exists: 4.0.0
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: 8.0.4
       tempy: 0.3.0
     specifiers:
       '@pnpm/link-bins': 'link:'
@@ -779,7 +779,7 @@ importers:
       path-exists: ^4.0.0
       ramda: 0.26.1
       rimraf: ^3.0.0
-      sinon: 8.0.2
+      sinon: ^8.0.4
       tempy: ^0.3.0
   packages/list:
     dependencies:
@@ -1197,7 +1197,7 @@ importers:
       nock: 11.7.1
       normalize-path: 3.0.0
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: 8.0.4
       tempy: 0.3.0
     specifiers:
       '@pnpm/check-package': 3.0.1
@@ -1234,7 +1234,7 @@ importers:
       ramda: 0.26.1
       rename-overwrite: 2.0.2
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: ^8.0.4
       ssri: 6.0.1
       symlink-dir: 3.1.1
       tempy: 0.3.0
@@ -1273,7 +1273,7 @@ importers:
       '@types/sinon': 7.5.1
       proxyquire: 2.1.3
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: 8.0.4
       tempy: 0.3.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.0'
@@ -1306,7 +1306,7 @@ importers:
       ramda: 0.26.1
       rename-overwrite: 2.0.2
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: ^8.0.4
       tempy: 0.3.0
       write-json-file: 4.0.0
   packages/parse-cli-args:
@@ -1740,7 +1740,7 @@ importers:
       execa: 4.0.0
       path-exists: 4.0.0
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: 8.0.4
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.2.5'
@@ -1787,7 +1787,7 @@ importers:
       rimraf: 3.0.0
       run-groups: 2.0.1
       semver: 7.1.1
-      sinon: 8.0.2
+      sinon: ^8.0.4
       write-yaml-file: 3.0.1
   packages/plugin-commands-script-runners:
     dependencies:
@@ -1932,7 +1932,7 @@ importers:
       load-json-file: 6.2.0
       path-exists: 4.0.0
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: 8.0.4
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.0'
       '@pnpm/check-package': 3.0.1
@@ -1964,7 +1964,7 @@ importers:
       ramda: 0.26.1
       render-help: 0.0.0
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: ^8.0.4
   packages/pnpm:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -2532,7 +2532,7 @@ importers:
       read-yaml-file: 1.1.0
       resolve-link-target: 1.0.1
       rimraf: 3.0.0
-      sinon: 8.0.2
+      sinon: 8.0.4
       supi: 'link:'
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
@@ -2630,7 +2630,7 @@ importers:
       run-groups: 2.0.1
       semver: 7.1.1
       semver-utils: 1.1.4
-      sinon: 8.0.2
+      sinon: ^8.0.4
       supi: 'link:'
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
@@ -2853,12 +2853,12 @@ importers:
       '@commitlint/cli': 8.3.4
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.4
-      husky: 3.1.0
+      husky: 4.0.0
     specifiers:
       '@commitlint/cli': 8.3.4
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.4
-      husky: ^3.1.0
+      husky: ^4.0.0
   typings:
     specifiers: {}
   utils/tsconfig:
@@ -2884,6 +2884,12 @@ packages:
       js-tokens: 4.0.0
     resolution:
       integrity: sha512-7dV4eu9gBxoM0dAnj/BCFDW9LFU0zvTrkq0ugM7pnHEgguOEeOz1so2ZghEdzviYzQEED0r4EAgpsBChKy1TRQ==
+  /@babel/runtime/7.7.7:
+    dependencies:
+      regenerator-runtime: 0.13.3
+    dev: true
+    resolution:
+      integrity: sha512-uCnC2JEVAu8AKB5do1WRIsvrdJ0flYx/A/9f/6chdacnEZ7LmavjdsDXr5ksYBegxtuTPR5Va9/+13QF/kFkCA==
   /@commitlint/cli/8.3.4:
     dependencies:
       '@commitlint/format': 8.3.4
@@ -3241,7 +3247,6 @@ packages:
     resolution:
       integrity: sha512-5R2/MHILQLDCzTuhs1j4Qqq8AaKUf7Ma4KSSkCtc12+fMs47zfa34qhto9goxpyX00tQK1zxB885VCiawZ5Qhg==
   /@types/color-name/1.1.1:
-    dev: false
     resolution:
       integrity: sha512-rr+OQyAjxze7GgWrSaJwydHStIhHq2lvY3BOC2Mj7KnzI7XK0Uw1TOOdI9lDoajEbSWLiYgoo4f1R51erQfhPQ==
   /@types/common-tags/1.8.0:
@@ -3359,10 +3364,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
-  /@types/normalize-package-data/2.4.0:
-    dev: true
-    resolution:
-      integrity: sha512-f5j5b/Gf71L+dbqxIpQ4Z2WlmI/mPJ0fOkGGmFgtb6sAu97EPczzbS3/tJKxmcYDj55OX6ssqwDAWOHIYDRDGA==
   /@types/normalize-path/3.0.0:
     dev: true
     resolution:
@@ -4062,7 +4063,6 @@ packages:
     dependencies:
       '@types/color-name': 1.1.1
       color-convert: 2.0.1
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -4634,7 +4634,6 @@ packages:
     dependencies:
       ansi-styles: 4.2.1
       supports-color: 7.1.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -4795,7 +4794,6 @@ packages:
   /color-convert/2.0.1:
     dependencies:
       color-name: 1.1.4
-    dev: false
     engines:
       node: '>=7.0.0'
     resolution:
@@ -4804,7 +4802,6 @@ packages:
     resolution:
       integrity: sha1-p9BVi9icQveV3UIyj3QIMcpTvCU=
   /color-name/1.1.4:
-    dev: false
     resolution:
       integrity: sha512-dOy+3AuW3a2wNbZHIuMZpTcgjGuLU/uBL/ubcZF9OXbDo8ff4O8yVp5Bf0efS8uEoYo5q4Fx7dY9OgQGXgAsQA==
   /colors/0.6.2:
@@ -5017,6 +5014,18 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-H65gsXo1SKjf8zmrJ67eJk8aIRKV5ff2D4uKZIBZShbhGSpEmsQOPW/SKMKYhSTrqR7ufy6RP69rPogdaPh/kA==
+  /cosmiconfig/6.0.0:
+    dependencies:
+      '@types/parse-json': 4.0.0
+      import-fresh: 3.2.1
+      parse-json: 5.0.0
+      path-type: 4.0.0
+      yaml: 1.7.2
+    dev: true
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-xb3ZL6+L8b9JLLCx3ZdoZy4+2ECphCMo2PwqgP1tlfVq6M6YReyzBJtvWWtbDSpNr9hn96pkCiZqUcFEc+54Qg==
   /couleurs/5.0.0:
     dependencies:
       flat-colors: 3.0.0
@@ -5732,20 +5741,6 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-k5AR22vCt1DcfeiRixW46U5tMLtBg44ssdJM9PiXw3D8Bn5qyxFCSnKY/eR22y+ctFDGPqafpaXg2G4Emyua4A==
-  /execa/1.0.0:
-    dependencies:
-      cross-spawn: 6.0.5
-      get-stream: 4.1.0
-      is-stream: 1.1.0
-      npm-run-path: 2.0.2
-      p-finally: 1.0.0
-      signal-exit: 3.0.2
-      strip-eof: 1.0.0
-    dev: true
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-adbxcyWV46qiHyvSp50TKt05tB4tK3HcmF7/nxfAdhnox83seTDbwnaqKO4sXRy7roHAIFqJP/Rw/AuEbX61LA==
   /execa/4.0.0:
     dependencies:
       cross-spawn: 7.0.1
@@ -6611,26 +6606,24 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
-  /husky/3.1.0:
+  /husky/4.0.0:
     dependencies:
-      chalk: 2.4.2
+      chalk: 3.0.0
       ci-info: 2.0.0
-      cosmiconfig: 5.2.1
-      execa: 1.0.0
+      cosmiconfig: 6.0.0
       get-stdin: 7.0.0
       opencollective-postinstall: 2.0.2
       pkg-dir: 4.2.0
       please-upgrade-node: 3.2.0
-      read-pkg: 5.2.0
-      run-node: 1.0.0
       slash: 3.0.0
+      which-pm-runs: 1.0.0
     dev: true
     engines:
-      node: '>=8.6.0'
+      node: '>=10'
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-FJkPoHHB+6s4a+jwPqBudBDvYZsoQW5/HBuMSehC8qDiCe50kpcxeqFoDSlow+9I6wg47YxBoT3WxaURlrDIIQ==
+      integrity: sha512-h9kcWWpZgpGLrhlaBBtbMtA9Tsqu0yrfKSCU9ax6vulTvMSvVWEmFOsBehiLD38vJZVeFyrif5AcpcoiM0LJmw==
   /iconv-lite/0.4.24:
     dependencies:
       safer-buffer: 2.1.2
@@ -8946,6 +8939,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-T2ZUsdZFHgA3u4e5PfPbjd7HDDpxPnQb5jN0SrDsjNSuVXHJqtwTnWqG0B1jZrgmJ/7lj1EmVIByWt1gxGkWvg==
+  /path-type/4.0.0:
+    dev: true
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==
   /peek-stream/1.1.3:
     dependencies:
       buffer-from: 1.1.1
@@ -9403,17 +9402,6 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha1-ljYlN48+HE1IyFhytabsfV0JMjc=
-  /read-pkg/5.2.0:
-    dependencies:
-      '@types/normalize-package-data': 2.4.0
-      normalize-package-data: 2.5.0
-      parse-json: 5.0.0
-      type-fest: 0.6.0
-    dev: true
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-Ug69mNOpfvKDAc2Q8DRpMjjzdtrnv9HcSMX+4VsZxD1aZ6ZzrIE7rlzXBtWTyhULSMKg076AW6WR5iZpD0JiOg==
   /read-yaml-file/1.1.0:
     dependencies:
       graceful-fs: 4.2.3
@@ -9505,6 +9493,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-MguG95oij0fC3QV3URf4V2SDYGJhJnJGqvIIgdECeODCT98wSWDAJ94SSuVpYQUoTcGUIL6L4yNB7j1DFFHSBg==
+  /regenerator-runtime/0.13.3:
+    dev: true
+    resolution:
+      integrity: sha512-naKIZz2GQ8JWh///G7L3X6LaQUAMp2lvb1rvwwsURe/VXwD6VMfr+/1NuNw3ag8v2kY1aQ/go5SNn79O9JU7yw==
   /regex-escape/3.4.9:
     dev: false
     resolution:
@@ -9821,13 +9813,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-ZoZ+85ZTajhwpfehKwv5PMOMNgern4Sl3VbUXoJO+cmtI/ojmCjKqdHCIdEmy257Uxo74XvDqI8CAC5Kq4kwvw==
-  /run-node/1.0.0:
-    dev: true
-    engines:
-      node: '>=4'
-    hasBin: true
-    resolution:
-      integrity: sha512-kc120TBlQ3mih1LSzdAJXo4xn/GWS2ec0l3S+syHDXP9uRr0JAT8Qd3mdMuyjqCzeZktgP3try92cEgf9Nks8A==
   /run-parallel/1.1.9:
     dev: false
     resolution:
@@ -10010,7 +9995,7 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/8.0.2:
+  /sinon/8.0.4:
     dependencies:
       '@sinonjs/commons': 1.7.0
       '@sinonjs/formatio': 4.0.1
@@ -10021,7 +10006,7 @@ packages:
       supports-color: 7.1.0
     dev: true
     resolution:
-      integrity: sha512-8W1S7BnCyvk7SK+Xi15B1QAVLuS81G/NGmWefPb31+ly6xI3fXaug/g5oUdfc8+7ruC4Ay51AxuLlYm8diq6kA==
+      integrity: sha512-cFsmgmvsgFb87e7SV7IcekogITlHX2KmlplyI9Pda0FH1Z8Ms/kWbpLs25Idp0m6ZJ3HEEjhaYYXbcTtWWUn4w==
   /slash/2.0.0:
     dev: true
     engines:
@@ -11273,6 +11258,10 @@ packages:
   /which-module/2.0.0:
     resolution:
       integrity: sha1-2e8H3Od7mQK4o6j6SzHD4/fm6Ho=
+  /which-pm-runs/1.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-Zws6+8VS4LVd9rd4DKdGFfI60cs=
   /which/1.3.1:
     dependencies:
       isexe: 2.0.0
@@ -11510,6 +11499,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-u6spj+0znbYDahinSCXevONvrmo=
+  /yaml/1.7.2:
+    dependencies:
+      '@babel/runtime': 7.7.7
+    dev: true
+    engines:
+      node: '>= 6'
+    resolution:
+      integrity: sha512-qXROVp90sb83XtAoqE8bP9RwAkTTZbugRUTm5YeFCBfNRPEp2YzTeqWiz7m5OORHzEvrA/qcGS8hp/E+MMROYw==
   /yargs-parser/10.1.0:
     dependencies:
       camelcase: 4.1.0
