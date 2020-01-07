@@ -2,7 +2,6 @@ import createResolver, { ResolveFunction } from '@pnpm/default-resolver'
 import { DependencyManifest, Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/utils'
 import LRU = require('lru-cache')
-import mem = require('mem')
 
 export function createLatestManifestGetter (
   opts: {
@@ -34,7 +33,7 @@ export function createLatestManifestGetter (
       maxAge: 120 * 1000, // 2 minutes
     }) as any, // tslint:disable-line:no-any
   }))
-  return mem(getLatestManifest.bind(null, resolve, opts))
+  return getLatestManifest.bind(null, resolve, opts)
 }
 
 export async function getLatestManifest (

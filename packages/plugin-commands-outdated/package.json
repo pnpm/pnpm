@@ -65,7 +65,6 @@
     "chalk": "3.0.0",
     "common-tags": "1.8.0",
     "lru-cache": "5.1.1",
-    "mem": "6.0.1",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
     "table": "5.4.6",
