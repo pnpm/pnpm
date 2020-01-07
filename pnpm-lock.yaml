@@ -61,7 +61,7 @@ importers:
       '@pnpm/types': 'link:../types'
       graph-sequencer: 2.0.0
       ramda: 0.26.1
-      run-groups: 2.0.1
+      run-groups: 2.0.2
     devDependencies:
       '@pnpm/build-modules': 'link:'
       '@pnpm/logger': 3.1.0
@@ -81,7 +81,7 @@ importers:
       graph-sequencer: 2.0.0
       ramda: 0.26.1
       rimraf: 3.0.0
-      run-groups: 2.0.1
+      run-groups: 2.0.2
   packages/cli-utils:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -702,7 +702,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-lifecycle': 3.1.4
       path-exists: 4.0.0
-      run-groups: 2.0.1
+      run-groups: 2.0.2
     devDependencies:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 3.1.0
@@ -722,7 +722,7 @@ importers:
       load-json-file: 6.2.0
       path-exists: 4.0.0
       rimraf: 3.0.0
-      run-groups: 2.0.1
+      run-groups: 2.0.2
   packages/link-bins:
     dependencies:
       '@pnpm/package-bins': 'link:../package-bins'
@@ -1724,7 +1724,7 @@ importers:
       ramda: 0.26.1
       read-ini-file: 2.0.0
       render-help: 0.0.0
-      run-groups: 2.0.1
+      run-groups: 2.0.2
       semver: 7.1.1
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
@@ -1785,7 +1785,7 @@ importers:
       read-ini-file: 2.0.0
       render-help: 0.0.0
       rimraf: 3.0.0
-      run-groups: 2.0.1
+      run-groups: 2.0.2
       semver: 7.1.1
       sinon: ^8.0.4
       write-yaml-file: 3.0.1
@@ -2490,7 +2490,7 @@ importers:
       p-limit: 2.2.2
       path-absolute: 1.0.1
       ramda: 0.26.1
-      run-groups: 2.0.1
+      run-groups: 2.0.2
       semver: 7.1.1
       semver-utils: 1.1.4
       version-selector-type: 2.0.1
@@ -2627,7 +2627,7 @@ importers:
       read-yaml-file: 1.1.0
       resolve-link-target: 1.0.1
       rimraf: 3.0.0
-      run-groups: 2.0.1
+      run-groups: 2.0.2
       semver: 7.1.1
       semver-utils: 1.1.4
       sinon: ^8.0.4
@@ -8668,14 +8668,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-vvcXsLAJ9Dr5rQOPk7toZQZJApBl2K4J6dANSsEuh6QI41JYcsS/qhTGa9ErIUUgK3WNQoJYvylxvjqmiqEA9Q==
-  /p-limit/2.2.1:
-    dependencies:
-      p-try: 2.2.0
-    dev: false
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-85Tk+90UCVWvbDavCLKPOLC9vvY8OwEX/RtKF+/1OADJMVlFfEHOiMTPVyxg7mk/dKa+ipdHm0OUkTvCpMTuwg==
   /p-limit/2.2.2:
     dependencies:
       p-try: 2.2.0
@@ -9805,14 +9797,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yK1KXhEGYeQCp9IbUw4AnyX444k=
-  /run-groups/2.0.1:
+  /run-groups/2.0.2:
     dependencies:
-      p-limit: 2.2.1
+      p-limit: 2.2.2
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-ZoZ+85ZTajhwpfehKwv5PMOMNgern4Sl3VbUXoJO+cmtI/ojmCjKqdHCIdEmy257Uxo74XvDqI8CAC5Kq4kwvw==
+      integrity: sha512-h8HUidVzSLFaHgCFW4nRTKOBmTqxlfbzvpJe7jBNPuVto5QnLeP0H1zTzxUcu4vS8Bm9dvdRvWF/NI8Wdlc/jw==
   /run-parallel/1.1.9:
     dev: false
     resolution:

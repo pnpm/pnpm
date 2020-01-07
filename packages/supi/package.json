@@ -70,7 +70,7 @@
     "p-limit": "2.2.2",
     "path-absolute": "1.0.1",
     "ramda": "0.26.1",
-    "run-groups": "2.0.1",
+    "run-groups": "2.0.2",
     "semver": "7.1.1",
     "semver-utils": "1.1.4",
     "version-selector-type": "2.0.1"
