@@ -68,7 +68,7 @@ export function help () {
 
         list: [
           {
-            description: 'Print only versions that satisfy the available specs in the manifests',
+            description: 'Print only versions that satisfy specs in package.json',
             name: '--compatible',
           },
           {
