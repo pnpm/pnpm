@@ -4,7 +4,7 @@ importers:
       '@pnpm/registry-mock': 1.11.1
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
       '@types/tape': 4.2.33
       cross-env: 6.0.3
       npm: 4.6.1
@@ -266,7 +266,7 @@ importers:
       '@pnpm/git-resolver': 'workspace:4.0.5'
       '@pnpm/local-resolver': 'workspace:5.0.0'
       '@pnpm/logger': 3.1.0
-      '@pnpm/npm-resolver': 'workspace:7.0.0'
+      '@pnpm/npm-resolver': 'workspace:7.0.1'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/tarball-resolver': 'workspace:3.0.4'
       rimraf: 3.0.0
@@ -1404,14 +1404,14 @@ importers:
       '@pnpm/plugin-commands-import': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/read-project-manifest': 'workspace:1.0.0'
-      '@pnpm/store-connection-manager': 'workspace:0.2.6'
+      '@pnpm/store-connection-manager': 'workspace:0.2.7'
       '@types/ncp': 2.0.3
       '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
       ncp: 2.0.0
       render-help: 0.0.0
       rimraf: 3.0.0
-      supi: 'workspace:0.38.1'
+      supi: 'workspace:0.38.2'
       tempy: 0.3.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1472,13 +1472,13 @@ importers:
       '@pnpm/logger': ^3.1.0
       '@pnpm/package-store': 'workspace:8.0.0'
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.0'
+      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.1'
       '@pnpm/pnpmfile': 'workspace:0.1.1'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/sort-packages': 'workspace:1.0.0'
-      '@pnpm/store-connection-manager': 'workspace:0.2.6'
+      '@pnpm/store-connection-manager': 'workspace:0.2.7'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.12.3'
@@ -1500,7 +1500,7 @@ importers:
       read-yaml-file: 1.1.0
       render-help: 0.0.0
       rimraf: 3.0.0
-      supi: 'workspace:0.38.1'
+      supi: 'workspace:0.38.2'
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
   packages/plugin-commands-listing:
@@ -1596,7 +1596,7 @@ importers:
       '@pnpm/common-cli-options-help': 'workspace:0.1.3'
       '@pnpm/config': 'workspace:7.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
-      '@pnpm/default-resolver': 'workspace:7.0.0'
+      '@pnpm/default-resolver': 'workspace:7.0.1'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-workspace-packages': 'workspace:1.2.0'
       '@pnpm/lockfile-file': 'workspace:3.0.2'
@@ -1666,7 +1666,7 @@ importers:
       '@pnpm/config': 'workspace:7.0.0'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-workspace-packages': 'workspace:1.2.0'
-      '@pnpm/npm-resolver': 'workspace:7.0.0'
+      '@pnpm/npm-resolver': 'workspace:7.0.1'
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/read-project-manifest': 'workspace:1.0.0'
@@ -1762,7 +1762,7 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1
       '@pnpm/sort-packages': 'workspace:1.0.0'
-      '@pnpm/store-connection-manager': 'workspace:0.2.6'
+      '@pnpm/store-connection-manager': 'workspace:0.2.7'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
@@ -1879,7 +1879,7 @@ importers:
       '@pnpm/logger': ^3.1.0
       '@pnpm/plugin-commands-server': 'link:'
       '@pnpm/server': 'workspace:7.0.0'
-      '@pnpm/store-connection-manager': 'workspace:0.2.6'
+      '@pnpm/store-connection-manager': 'workspace:0.2.7'
       '@pnpm/store-path': 2.1.1
       '@types/common-tags': ^1.8.0
       '@types/is-windows': ^1.0.0
@@ -1944,7 +1944,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
-      '@pnpm/store-connection-manager': 'workspace:0.2.6'
+      '@pnpm/store-connection-manager': 'workspace:0.2.7'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
@@ -2070,15 +2070,15 @@ importers:
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/parse-cli-args': 'workspace:0.2.0'
       '@pnpm/plugin-commands-audit': 'workspace:0.2.0'
-      '@pnpm/plugin-commands-import': 'workspace:0.1.11'
-      '@pnpm/plugin-commands-installation': 'workspace:0.2.1'
-      '@pnpm/plugin-commands-listing': 'workspace:0.2.0'
-      '@pnpm/plugin-commands-outdated': 'workspace:0.2.0'
-      '@pnpm/plugin-commands-publishing': 'workspace:0.2.0'
-      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.0'
+      '@pnpm/plugin-commands-import': 'workspace:0.1.12'
+      '@pnpm/plugin-commands-installation': 'workspace:0.2.2'
+      '@pnpm/plugin-commands-listing': 'workspace:0.2.1'
+      '@pnpm/plugin-commands-outdated': 'workspace:0.2.1'
+      '@pnpm/plugin-commands-publishing': 'workspace:0.2.1'
+      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.1'
       '@pnpm/plugin-commands-script-runners': 'workspace:0.2.0'
-      '@pnpm/plugin-commands-server': 'workspace:0.1.0'
-      '@pnpm/plugin-commands-store': 'workspace:0.1.0'
+      '@pnpm/plugin-commands-server': 'workspace:0.1.1'
+      '@pnpm/plugin-commands-store': 'workspace:0.1.1'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-package-json': 'workspace:*'
       '@pnpm/read-project-manifest': 'workspace:1.0.0'
@@ -2290,7 +2290,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.6'
       '@pnpm/logger': 3.1.0
-      '@pnpm/npm-resolver': 'workspace:7.0.0'
+      '@pnpm/npm-resolver': 'workspace:7.0.1'
       '@pnpm/package-is-installable': 'workspace:4.0.2'
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 'workspace:7.0.0'
@@ -2410,7 +2410,7 @@ importers:
       '@pnpm/cli-utils': 'workspace:0.3.0'
       '@pnpm/config': 'workspace:7.0.0'
       '@pnpm/default-fetcher': 'workspace:5.1.8'
-      '@pnpm/default-resolver': 'workspace:7.0.0'
+      '@pnpm/default-resolver': 'workspace:7.0.1'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/package-store': 'workspace:8.0.0'
@@ -2570,7 +2570,7 @@ importers:
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.0.2'
       '@pnpm/read-project-manifest': 'workspace:1.0.0'
-      '@pnpm/resolve-dependencies': 'workspace:14.0.0'
+      '@pnpm/resolve-dependencies': 'workspace:14.0.1'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/store-path': 2.1.1
@@ -2853,12 +2853,12 @@ importers:
       '@commitlint/cli': 8.3.4
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.4
-      husky: 4.0.0
+      husky: 4.0.1
     specifiers:
       '@commitlint/cli': 8.3.4
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.4
-      husky: ^4.0.0
+      husky: ^4.0.1
   typings:
     specifiers: {}
   utils/tsconfig:
@@ -3238,7 +3238,7 @@ packages:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
@@ -3255,7 +3255,7 @@ packages:
       integrity: sha512-htRqZr5qn8EzMelhX/Xmx142z218lLyGaeZ3YR8jlze4TATRU9huKKvuBmAJEW4LCC4pnY1N6JAm6p85fMHjhg==
   /@types/cross-spawn/6.0.1:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-MtN1pDYdI6D6QFDzy39Q+6c9rl2o/xN7aWGe6oZuzqq5N6+YuwFsWiEAv3dNzvzN9YzU+itpN8lBzFpphQKLAw==
@@ -3264,13 +3264,13 @@ packages:
       integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
   /@types/fs-extra/5.1.0:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-AInn5+UBFIK9FK5xc9yP5e3TQSPNNgjHByqYcj9g5elVBnDQcQL7PlO1CIRy2gWlbwK7UPYqi7vRvFA44dCmYQ==
   /@types/fs-extra/8.0.1:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-J00cVDALmi/hJOYsunyT52Hva5TnJeKP5yd1r+mH/ZU0mbYZflR0Z5kw5kITtKTRYMhm1JMClOFYdHnQszEvqw==
@@ -3278,7 +3278,7 @@ packages:
     dependencies:
       '@types/events': 3.0.0
       '@types/minimatch': 3.0.3
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     resolution:
       integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==
   /@types/graceful-fs/4.1.3:
@@ -3293,7 +3293,7 @@ packages:
       integrity: sha512-OW/D8GqCyQtH8F7xDdDxzPJTBgknZeZhlCakUcBCya2rYPRN53F+0YJVwSPyiyAhrknnjkl3P9qVk0oBI4S1qw==
   /@types/http-proxy-agent/2.0.2:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-2S6IuBRhqUnH1/AUx9k8KWtY3Esg4eqri946MnxTG5HwehF1S5mqLln8fcyMiuQkY72p2gH3W+rIPqp5li0LyQ==
@@ -3335,18 +3335,18 @@ packages:
       integrity: sha512-U5icWpv7YnZYGsN4/cmh3WD2onMY0aJIiTE6+51TwJCttdHvtCYmkBNOobHlXwrJRL0nkH9jH4kD+1FAdMN4Tg==
   /@types/mz/2.7.0:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     resolution:
       integrity: sha512-Q5TZYMKnH0hdV5fNstmMWL2LLw5eRRtTd73KNtsZxoQ2gtCQyET5X79uERUEwGneuxPglg441I7OSY00+9CkSw==
   /@types/ncp/2.0.3:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-eZatZMWhPHUHY/1hUUqwGrWzBAE9deYR3L0QJMicpVkBUOrQslhWblw5Ye+rKuzvFG/UQ3jDolMcjhC2WKUQ5w==
   /@types/node-fetch/2.5.4:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-Oz6id++2qAOFuOlE1j0ouk1dzl3mmI1+qINPNBhi9nt/gVOz0G+13Ao6qjhdF0Ys+eOkhu6JnFmt38bR3H0POQ==
@@ -3357,9 +3357,9 @@ packages:
   /@types/node/12.12.24:
     resolution:
       integrity: sha512-1Ciqv9pqwVtW6FsIUKSZNB82E5Cu1I2bBTj1xuIHXLe/1zYLl3956Nbhg2MzSYHVfl9/rmanjbQIb7LibfCnug==
-  /@types/node/13.1.4:
+  /@types/node/13.1.5:
     resolution:
-      integrity: sha512-Lue/mlp2egZJoHXZr4LndxDAd7i/7SQYhV0EjWfb/a4/OZ6tuVwMCVPiwkU5nsEipxEf7hmkSU7Em5VQ8P5NGA==
+      integrity: sha512-wupvfmtbqRJzjCm1H2diy7wo31Gn1OzvqoxCfQuKM9eSecogzP0WTlrjdq7cf7jgSO2ZX6hxwgRPR8Wt7FA22g==
   /@types/nopt/3.0.29:
     dev: true
     resolution:
@@ -3403,7 +3403,7 @@ packages:
   /@types/rimraf/2.0.3:
     dependencies:
       '@types/glob': 7.1.1
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-dZfyfL/u9l/oi984hEXdmAjX3JHry7TLWw43u1HQ8HhPv6KtfxnrZ3T/bleJ0GEvnk9t5sM7eePkgMqz3yBcGg==
@@ -3440,7 +3440,7 @@ packages:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/touch/3.1.1:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-6qjr7Erk0b9FkZSu17wUJaWhmzUgGfQuec7eIwl9cP7V/YO/k9IcMnHSwAjxAeadC5guq9rwHcoij7PT1RkO1w==
@@ -3450,7 +3450,7 @@ packages:
       integrity: sha512-YV+ZcSIiv30GhLM7WwxI+bsbcW34d3Yhl2JSFBNFL6qtfsoI9++hogxz+jTqeS86ynKcMUE0AsnLWQynfJnsfA==
   /@types/uuid/3.4.6:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-cCdlC/1kGEZdEglzOieLDYBxHsvEOIg7kp/2FYyVR9Pxakq+Qf/inL3RKQ+PA8gOlI/NnL+fXmQH12nwcGzsHw==
@@ -3468,7 +3468,7 @@ packages:
       integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
   /@types/write-file-atomic/3.0.0:
     dependencies:
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
     dev: true
     resolution:
       integrity: sha512-XrvNv7CBEveBoWkGU4ZxuyeL7iaYVr609VjlNAe+VaS8N9stTvGwp5IZgFP+QDbiRQV/R7MmipPsgAhlf5LZzQ==
@@ -3531,13 +3531,13 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-Rbw+vm/KHgy5OQB+jSxxIXYvVFmG/fuFmBeH7F4fp2r5h7w1TP/mlQZI7PVlPPhLZtM6Xdrzf6H+NRCwRncwIg==
-  /@verdaccio/ui-theme/0.3.10:
+  /@verdaccio/ui-theme/0.3.11:
     dev: true
     engines:
       node: '>= 8'
       npm: '>=5'
     resolution:
-      integrity: sha512-AgCRXlheHfCHpkLpBL5b6dCxTrrNb6AxeYH6wbK5JiOUSa2UnHN/uB/mUbFHTMLQVh6fE9xmk1nZ/1r4o/kUig==
+      integrity: sha512-CbUkZQu0VqTxBc0FJ2zsEANsUlypAIPZ3uJD2uz4wH4DBaMXT5E8OXcr/kIhvyZpWUhw8p55OgMbBHbRxPe57Q==
   /@yarnpkg/lockfile/1.1.0:
     dev: true
     resolution:
@@ -3587,7 +3587,7 @@ packages:
     dependencies:
       byline: 5.0.0
       graceful-fs: 4.2.3
-      node-gyp: 6.0.1
+      node-gyp: 6.1.0
       resolve-from: 5.0.0
       slide: 1.1.6
       uid-number: 0.0.6
@@ -3609,7 +3609,7 @@ packages:
   /@zkochan/rimraf/1.0.0:
     dependencies:
       '@types/glob': 7.1.1
-      '@types/node': 13.1.4
+      '@types/node': 13.1.5
       rimraf: 3.0.0
     engines:
       node: '>=8.15'
@@ -6606,7 +6606,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
-  /husky/4.0.0:
+  /husky/4.0.1:
     dependencies:
       chalk: 3.0.0
       ci-info: 2.0.0
@@ -6623,7 +6623,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-h9kcWWpZgpGLrhlaBBtbMtA9Tsqu0yrfKSCU9ax6vulTvMSvVWEmFOsBehiLD38vJZVeFyrif5AcpcoiM0LJmw==
+      integrity: sha512-x2wzNz3mra5rSYBPb9w59Bg3d5HnJZ+DBAALbMl/1K15Yv8zhcAxhrS792nMyjkxLsoPZtNpmnX+RqLtIKxpDQ==
   /iconv-lite/0.4.24:
     dependencies:
       safer-buffer: 2.1.2
@@ -8183,7 +8183,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-dSq1xmcPDKPZ2EED2S6zw/b9NKsqzXRE6dVr8TVQnI3FJOTteUMuqF3Qqs6LZg+mLGYJWqQzMbIjMtJqTv87nQ==
-  /node-gyp/6.0.1:
+  /node-gyp/6.1.0:
     dependencies:
       env-paths: 2.2.0
       glob: 7.1.6
@@ -8201,7 +8201,7 @@ packages:
       node: '>= 6.0.0'
     hasBin: true
     resolution:
-      integrity: sha512-udHG4hGe3Ji97AYJbJhaRwuSOuQO7KHnE4ZPH3Sox3tjRZ+bkBsDvfZ7eYA1qwD8eLWr//193x806ss3HFTPRw==
+      integrity: sha512-h4A2zDlOujeeaaTx06r4Vy+8MZ1679lU+wbCKDS4ZtvY2A37DESo37oejIw0mtmR3+rvNwts5B6Kpt1KrNYdNw==
   /node-localstorage/0.6.0:
     dev: true
     engines:
@@ -11123,7 +11123,7 @@ packages:
       '@verdaccio/local-storage': 8.5.2
       '@verdaccio/readme': 8.5.2
       '@verdaccio/streams': 8.5.2
-      '@verdaccio/ui-theme': 0.3.10
+      '@verdaccio/ui-theme': 0.3.11
       JSONStream: 1.3.5
       async: 3.1.0
       body-parser: 1.19.0
