@@ -162,7 +162,7 @@ export default async function run (inputArgv: string[]) {
     const allProjects = await findWorkspacePackages(wsDir, config)
 
     if (!allProjects.length) {
-      console.log(`No packages found in "${wsDir}"`)
+      console.log(`No projects found in "${wsDir}"`)
       process.exit(0)
       return
     }
@@ -170,6 +170,11 @@ export default async function run (inputArgv: string[]) {
       prefix: process.cwd(),
       workspaceDir: wsDir,
     })
+    if (R.isEmpty(config.selectedProjectsGraph)) {
+      console.log(`No projects matched the filters in "${wsDir}"`)
+      process.exit(0)
+      return
+    }
     config.allProjects = allProjects
     config.workspaceDir = wsDir
   }
