@@ -85,6 +85,18 @@ export function help () {
             shortAlias: '-L',
           },
           {
+            description: 'Update packages only in "dependencies" and "optionalDependencies"',
+            name: '--production',
+          },
+          {
+            description: 'Update packages only in "devDependencies"',
+            name: '--dev',
+          },
+          {
+            description: `Don't update packages in "optionalDependencies"`,
+            name: '--no-optional',
+          },
+          {
             description:  oneLine`Tries to link all packages from the workspace.
               Versions are updated to match the versions of packages inside the workspace.
               If specific packages are updated, the command will fail if any of the updated
