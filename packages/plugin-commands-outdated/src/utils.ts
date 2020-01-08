@@ -10,6 +10,8 @@ export const DEFAULT_COMPARATORS = [
   sortBySemverChange,
   (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff) =>
     o1.packageName.localeCompare(o2.packageName),
+  (o1: OutdatedWithVersionDiff, o2: OutdatedWithVersionDiff) =>
+    (o1.current && o2.current && o1.current.localeCompare(o2.current)) || 0,
 ]
 
 export function sortBySemverChange (outdated1: OutdatedWithVersionDiff, outdated2: OutdatedWithVersionDiff) {

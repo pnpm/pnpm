@@ -23,6 +23,7 @@ test('pnpm recursive outdated', async (t) => {
 
       dependencies: {
         'is-negative': '1.0.0',
+        'is-positive': '2.0.0',
       },
     },
     {
@@ -66,6 +67,8 @@ test('pnpm recursive outdated', async (t) => {
     │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │
     ├───────────────────┼─────────┼────────┼──────────────────────┤
     │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
+    ├───────────────────┼─────────┼────────┼──────────────────────┤
+    │ is-positive       │ 2.0.0   │ 3.1.0  │ project-2            │
     └───────────────────┴─────────┴────────┴──────────────────────┘
     ` + '\n')
   }
@@ -108,6 +111,8 @@ test('pnpm recursive outdated', async (t) => {
     │ is-negative (dev) │ 1.0.0   │ 2.1.0  │ project-3            │ https://github.com/kevva/is-negative#readme │
     ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
     │ is-positive       │ 1.0.0   │ 3.1.0  │ project-1, project-3 │ https://github.com/kevva/is-positive#readme │
+    ├───────────────────┼─────────┼────────┼──────────────────────┼─────────────────────────────────────────────┤
+    │ is-positive       │ 2.0.0   │ 3.1.0  │ project-2            │ https://github.com/kevva/is-positive#readme │
     └───────────────────┴─────────┴────────┴──────────────────────┴─────────────────────────────────────────────┘
     ` + '\n')
   }
@@ -134,6 +139,10 @@ test('pnpm recursive outdated', async (t) => {
     is-positive
     1.0.0 => 3.1.0
     Dependents: project-1, project-3
+
+    is-positive
+    2.0.0 => 3.1.0
+    Dependent: project-2
     ` + '\n')
   }
 
@@ -163,6 +172,11 @@ test('pnpm recursive outdated', async (t) => {
     1.0.0 => 3.1.0
     Dependents: project-1, project-3
     https://github.com/kevva/is-positive#readme
+
+    is-positive
+    2.0.0 => 3.1.0
+    Dependent: project-2
+    https://github.com/kevva/is-positive#readme
     ` + '\n')
   }
 
@@ -180,6 +194,8 @@ test('pnpm recursive outdated', async (t) => {
     │ Package     │ Current │ Latest │ Dependents           │
     ├─────────────┼─────────┼────────┼──────────────────────┤
     │ is-positive │ 1.0.0   │ 3.1.0  │ project-1, project-3 │
+    ├─────────────┼─────────┼────────┼──────────────────────┤
+    │ is-positive │ 2.0.0   │ 3.1.0  │ project-2            │
     └─────────────┴─────────┴────────┴──────────────────────┘
     ` + '\n')
   }
