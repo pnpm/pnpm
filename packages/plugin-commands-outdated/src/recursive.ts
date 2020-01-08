@@ -48,16 +48,16 @@ export default async (
   args: string[],
   opts: OutdatedOptions & { include: IncludedDependencies },
 ) => {
-  const outdatedByNameAndType = {} as Record<string, OutdatedInWorkspace>
+  const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   if (opts.lockfileDir) {
     const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, args, opts)
     for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
       outdatedPackages.forEach((outdatedPkg) => {
-        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])
-        if (!outdatedByNameAndType[key]) {
-          outdatedByNameAndType[key] = { ...outdatedPkg, dependentPkgs: [] }
+        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
+        if (!outdatedMap[key]) {
+          outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
         }
-        outdatedByNameAndType[key].dependentPkgs.push({ location: prefix, manifest })
+        outdatedMap[key].dependentPkgs.push({ location: prefix, manifest })
       })
     }
   } else {
@@ -66,24 +66,24 @@ export default async (
         await outdatedDepsOfProjects([{ manifest, dir }], args, { ...opts, lockfileDir: dir })
       )[0]
       outdatedPackages.forEach((outdatedPkg) => {
-        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.belongsTo])
-        if (!outdatedByNameAndType[key]) {
-          outdatedByNameAndType[key] = { ...outdatedPkg, dependentPkgs: [] }
+        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
+        if (!outdatedMap[key]) {
+          outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
         }
-        outdatedByNameAndType[key].dependentPkgs.push({ location: getLockfileImporterId(opts.dir, dir), manifest })
+        outdatedMap[key].dependentPkgs.push({ location: getLockfileImporterId(opts.dir, dir), manifest })
       })
     }))
   }
 
-  if (R.isEmpty(outdatedByNameAndType)) return ''
+  if (R.isEmpty(outdatedMap)) return ''
 
   if (opts.table !== false) {
-    return renderOutdatedTable(outdatedByNameAndType, opts)
+    return renderOutdatedTable(outdatedMap, opts)
   }
-  return renderOutdatedList(outdatedByNameAndType, opts)
+  return renderOutdatedList(outdatedMap, opts)
 }
 
-function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+function renderOutdatedTable (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
   let columnNames = [
     'Package',
     'Current',
@@ -109,7 +109,7 @@ function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWo
 
   const data = [
     columnNames,
-    ...sortOutdatedPackages(Object.values(outdatedByNameAndType))
+    ...sortOutdatedPackages(Object.values(outdatedMap))
       .map((outdatedPkg) => columnFns.map((fn) => fn(outdatedPkg))),
   ]
   return table(data, {
@@ -125,8 +125,8 @@ function renderOutdatedTable (outdatedByNameAndType: Record<string, OutdatedInWo
   })
 }
 
-function renderOutdatedList (outdatedByNameAndType: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
-  return sortOutdatedPackages(Object.values(outdatedByNameAndType))
+function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, opts: { long?: boolean }) {
+  return sortOutdatedPackages(Object.values(outdatedMap))
     .map((outdatedPkg) => {
       let info = stripIndent`
         ${chalk.bold(renderPackageName(outdatedPkg))}
