@@ -1412,6 +1412,43 @@ test('workspace protocol: resolve from local package that has a pre-release vers
   t.end()
 })
 
+test("workspace protocol: don't resolve from local package that has a pre-release version that don't satisfy the range", async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const storeDir = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir,
+  })
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '2' }, {
+    projectDir: '/home/istvan/src',
+    registry,
+    workspacePackages: {
+      'is-positive': {
+        '3.0.0-alpha.1.2.3': {
+          dir: '/home/istvan/src/is-positive',
+          manifest: {
+            name: 'is-positive',
+            version: '3.0.0-alpha.1.2.3',
+          },
+        },
+      },
+    },
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'npm-registry')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/2.0.0')
+  t.ok(resolveResult!.latest)
+  t.ok(resolveResult!.manifest)
+  t.equal(resolveResult!.manifest!.name, 'is-positive')
+  t.equal(resolveResult!.manifest!.version, '2.0.0')
+
+  t.end()
+})
+
 test('workspace protocol: resolution fails if there is no matching local package', async t => {
   const storeDir = tempy.directory()
   const resolve = createResolveFromNpm({

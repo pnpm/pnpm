@@ -524,8 +524,10 @@ async function linkedPackagesAreUpToDate (
         : workspacePackages?.[depName]?.[importerDeps[depName]]?.dir
       if (!dir) continue
       const linkedPkg = workspacePackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
-      const availableVersion = pkgDeps[depName].startsWith('workspace:') ? pkgDeps[depName].substr(10) : pkgDeps[depName]
-      const localPackageSatisfiesRange = linkedPkg && semver.satisfies(linkedPkg.version, availableVersion)
+      const availableRange = pkgDeps[depName].startsWith('workspace:') ? pkgDeps[depName].substr(10) : pkgDeps[depName]
+      // This should pass the same options to semver as @pnpm/npm-resolver
+      const localPackageSatisfiesRange = availableRange === '*' ||
+        linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
       if (isLinked !== localPackageSatisfiesRange) return false
     }
   }

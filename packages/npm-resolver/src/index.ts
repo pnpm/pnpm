@@ -263,8 +263,12 @@ function pickMatchingLocalVersionOrNull (
     case 'version':
       return versions[spec.fetchSpec] ? spec.fetchSpec : null
     case 'range':
+      if (spec.fetchSpec === '*') {
+        return semver.maxSatisfying(localVersions, '*', {
+          includePrerelease: true,
+        })
+      }
       return semver.maxSatisfying(localVersions, spec.fetchSpec, {
-        includePrerelease: true,
         loose: true,
       })
     default:
