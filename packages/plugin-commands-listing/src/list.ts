@@ -77,12 +77,16 @@ export function help () {
             name: '--depth -1',
           },
           {
-            description: 'Display only the dependency tree for packages in \`dependencies\`',
+            description: 'Display only the dependency graph for packages in \`dependencies\` and \`optionalDependencies\`',
             name: '--prod, --production',
           },
           {
-            description: 'Display only the dependency tree for packages in \`devDependencies\`',
+            description: 'Display only the dependency graph for packages in \`devDependencies\`',
             name: '--dev',
+          },
+          {
+            description: "Don't display packages from `optionalDependencies`",
+            name: '--no-optional',
           },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
