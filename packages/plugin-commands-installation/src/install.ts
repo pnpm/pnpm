@@ -106,11 +106,15 @@ export function help () {
           OPTIONS.globalDir,
           {
             description: "Packages in \`devDependencies\` won't be installed",
-            name: '--production, --only prod[uction]',
+            name: '--production',
           },
           {
             description: 'Only \`devDependencies\` are installed regardless of the \`NODE_ENV\`',
-            name: '--only dev[elopment]',
+            name: '--dev',
+          },
+          {
+            description: '`optionalDependencies` are not installed',
+            name: '--no-optional',
           },
           {
             description: `Don't read or generate a \`${WANTED_LOCKFILE}\` file`,
