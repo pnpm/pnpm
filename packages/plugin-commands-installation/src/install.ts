@@ -106,7 +106,7 @@ export function help () {
           OPTIONS.globalDir,
           {
             description: "Packages in \`devDependencies\` won't be installed",
-            name: '--production',
+            name: '--prod',
           },
           {
             description: 'Only \`devDependencies\` are installed regardless of the \`NODE_ENV\`',

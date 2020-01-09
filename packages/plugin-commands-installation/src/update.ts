@@ -86,7 +86,7 @@ export function help () {
           },
           {
             description: 'Update packages only in "dependencies" and "optionalDependencies"',
-            name: '--production',
+            name: '--prod',
           },
           {
             description: 'Update packages only in "devDependencies"',

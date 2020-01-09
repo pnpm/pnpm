@@ -91,7 +91,7 @@ export function help () {
           },
           {
             description: 'Check only "dependencies" and "optionalDependencies"',
-            name: '--production',
+            name: '--prod',
           },
           {
             description: 'Check only "devDependencies"',

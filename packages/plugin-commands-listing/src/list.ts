@@ -78,7 +78,7 @@ export function help () {
           },
           {
             description: 'Display only the dependency graph for packages in \`dependencies\` and \`optionalDependencies\`',
-            name: '--prod, --production',
+            name: '--prod',
           },
           {
             description: 'Display only the dependency graph for packages in \`devDependencies\`',

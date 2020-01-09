@@ -60,12 +60,16 @@ export function help () {
             name: '--audit-level <severity>',
           },
           {
-            description: 'Only audit dev dependencies',
+            description: 'Only audit "devDependencies"',
             name: '--dev',
           },
           {
-            description: 'Only audit prod dependencies',
+            description: 'Only audit "dependencies" and "optionalDependencies"',
             name: '--prod',
+          },
+          {
+            description: `Don't audit "optionalDependencies"`,
+            name: '--no-optional',
           },
         ],
       },

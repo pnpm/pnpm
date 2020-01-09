@@ -26,14 +26,14 @@ export function help () {
         list: [
           {
             description: 'Remove the packages specified in \`devDependencies\`',
-            name: '--prod, --production',
+            name: '--prod',
           },
           ...UNIVERSAL_OPTIONS,
         ],
       },
     ],
     url: docsUrl('prune'),
-    usages: ['pnpm prune [--production]'],
+    usages: ['pnpm prune [--prod]'],
   })
 }
 
