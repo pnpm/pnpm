@@ -74,6 +74,7 @@ export function cliOptionsTypes () {
     'offline',
     'only',
     'optional',
+    'unsafe-perm',
     'use-running-store-server',
     'use-store-server',
     'verify-store-integrity',

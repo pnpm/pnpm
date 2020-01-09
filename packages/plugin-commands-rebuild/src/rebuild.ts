@@ -22,7 +22,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     ...R.pick([
-      'recursive',
+      'unsafe-perm',
     ], allTypes),
     'pending': Boolean,
   }

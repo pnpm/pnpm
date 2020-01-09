@@ -49,6 +49,7 @@ export function rcOptionsTypes () {
     'store',
     'store-dir',
     'strict-peer-dependencies',
+    'unsafe-perm',
     'offline',
     'only',
     'optional',

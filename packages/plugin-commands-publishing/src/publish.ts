@@ -21,6 +21,7 @@ export function cliOptionsTypes () {
     'access',
     'otp',
     'tag',
+    'unsafe-perm',
   ], allTypes)
 }
 
