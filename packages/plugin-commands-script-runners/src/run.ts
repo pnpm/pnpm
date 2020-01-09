@@ -24,7 +24,15 @@ export function rcOptionsTypes () {
 }
 
 export function cliOptionsTypes () {
-  return IF_PRESENT_OPTION
+  return {
+    ...R.pick([
+      'bail',
+      'sort',
+      'unsafe-perm',
+      'workspace-concurrency',
+    ], allTypes),
+    ...IF_PRESENT_OPTION,
+  }
 }
 
 export const commandNames = ['run', 'run-script']

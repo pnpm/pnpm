@@ -14,6 +14,7 @@ export const rcOptionsTypes = cliOptionsTypes
 export function cliOptionsTypes () {
   return R.pick([
     'bail',
+    'sort',
     'unsafe-perm',
     'workspace-concurrency',
   ], types)

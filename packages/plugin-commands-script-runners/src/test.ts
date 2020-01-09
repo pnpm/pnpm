@@ -12,7 +12,10 @@ export function rcOptionsTypes () {
 
 export function cliOptionsTypes () {
   return R.pick([
-    'recursive',
+    'bail',
+    'sort',
+    'unsafe-perm',
+    'workspace-concurrency',
   ], allTypes)
 }
 
