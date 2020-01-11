@@ -1,4 +1,8 @@
-import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
+import {
+  docsUrl,
+  getSaveType,
+  readProjectManifest,
+} from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
@@ -29,6 +33,9 @@ export function cliOptionsTypes () {
     'recursive',
     'reporter',
     'resolution-strategy',
+    'save-dev',
+    'save-optional',
+    'save-prod',
     'shared-workspace-lockfile',
     'store',
     'store-dir',
@@ -53,6 +60,21 @@ export function help () {
             `,
             name: '--recursive',
             shortAlias: '-r',
+          },
+          {
+            description: 'Remove the dependency only from "devDependencies"',
+            name: '--save-dev',
+            shortAlias: '-D',
+          },
+          {
+            description: 'Remove the dependency only from "optionalDependencies"',
+            name: '--save-optional',
+            shortAlias: '-O',
+          },
+          {
+            description: 'Remove the dependency only from "dependencies"',
+            name: '--save-prod',
+            shortAlias: '-P',
           },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
@@ -81,6 +103,9 @@ export async function handler (
     'pnpmfile' |
     'rawLocalConfig' |
     'registries' |
+    'saveDev' |
+    'saveOptional' |
+    'saveProd' |
     'selectedProjectsGraph' |
     'workspaceDir'
   > & {
@@ -111,6 +136,7 @@ export async function handler (
         manifest: currentManifest.manifest,
         mutation: 'uninstallSome',
         rootDir: opts.dir,
+        targetDependenciesField: getSaveType(opts),
       },
     ],
     removeOpts,
