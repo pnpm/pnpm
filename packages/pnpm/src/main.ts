@@ -34,7 +34,14 @@ import pnpmCmds, {
 import './logging/fileLogger'
 import initReporter, { ReporterType } from './reporter'
 
-const GLOBAL_OPTIONS = R.pick(['color', 'filter', 'help', 'dir', 'prefix'], allTypes)
+const GLOBAL_OPTIONS = R.pick([
+  'color',
+  'dir',
+  'filter',
+  'help',
+  'parseable',
+  'prefix',
+], allTypes)
 
 const RENAMED_OPTIONS = {
   'lockfile-directory': 'lockfile-dir',
