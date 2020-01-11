@@ -7,11 +7,11 @@ importers:
       '@types/node': 13.1.6
       '@types/tape': 4.2.33
       cross-env: 6.0.3
-      npm: 6.13.4
+      npm: 6.13.6
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
-      tape: 4.12.1
-      ts-node: 8.5.4_typescript@3.7.4
+      tape: 4.13.0
+      ts-node: 8.6.1_typescript@3.7.4
       tslint: 5.20.1_typescript@3.7.4
       typescript: 3.7.4
       verdaccio: 4.4.1
@@ -22,11 +22,11 @@ importers:
       '@types/node': '*'
       '@types/tape': ^4.2.33
       cross-env: 6.0.3
-      npm: 6.13.4
+      npm: 6.13.6
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
-      tape: 4.12.1
-      ts-node: 8.5.4
+      tape: 4.13.0
+      ts-node: 8.6.1
       tslint: 5.20.1
       typescript: 3.7.4
       verdaccio: 4.4.1
@@ -341,13 +341,13 @@ importers:
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
     devDependencies:
       fetch-from-npm-registry: 'link:'
-      nock: 11.7.1
+      nock: 11.7.2
       rimraf: 3.0.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.2'
       '@pnpm/npm-registry-agent': 'workspace:2.0.1'
       fetch-from-npm-registry: 'link:'
-      nock: 11.7.1
+      nock: 11.7.2
       rimraf: 3.0.0
   packages/fetcher-base:
     dependencies:
@@ -1060,7 +1060,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/semver': 6.2.0
       '@types/ssri': 6.0.1
-      nock: 11.7.1
+      nock: 11.7.2
       path-exists: 4.0.0
       rimraf: 3.0.0
       tempy: 0.3.0
@@ -1078,7 +1078,7 @@ importers:
       fetch-from-npm-registry: 'workspace:3.0.2'
       load-json-file: 6.2.0
       mem: 6.0.1
-      nock: 11.7.1
+      nock: 11.7.2
       normalize-path: 3.0.0
       p-limit: 2.2.2
       parse-npm-tarball-url: 3.0.0
@@ -1194,7 +1194,7 @@ importers:
       '@types/ssri': 6.0.1
       delay: 4.3.0
       ncp: 2.0.0
-      nock: 11.7.1
+      nock: 11.7.2
       normalize-path: 3.0.0
       rimraf: 3.0.0
       sinon: 8.0.4
@@ -1225,7 +1225,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       ncp: 2.0.0
-      nock: 11.7.1
+      nock: 11.7.2
       normalize-path: 3.0.0
       p-limit: 2.2.2
       p-queue: 6.2.1
@@ -2681,7 +2681,7 @@ importers:
       '@types/rimraf': 2.0.3
       '@types/ssri': 6.0.1
       cp-file: 7.0.0
-      nock: 11.7.1
+      nock: 11.7.2
       tempy: 0.3.0
     specifiers:
       '@pnpm/error': 'workspace:1.0.0'
@@ -2700,7 +2700,7 @@ importers:
       make-dir: 3.0.0
       mem: 6.0.1
       mz: 2.7.0
-      nock: 11.7.1
+      nock: 11.7.2
       path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 3.0.0
@@ -2853,12 +2853,12 @@ importers:
       '@commitlint/cli': 8.3.4
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.4
-      husky: 4.0.4
+      husky: 4.0.6
     specifiers:
       '@commitlint/cli': 8.3.4
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.4
-      husky: ^4.0.4
+      husky: ^4.0.6
   typings:
     specifiers: {}
   utils/tsconfig:
@@ -3434,7 +3434,7 @@ packages:
       integrity: sha512-Ek6EryyaAvP3Lm1aol660YfmhpDkf04TJHK6Vc+R68EQrecK8Qkbv7Ct5jvY2Yf0fkhmkeim4DOz3yDiEYEnNQ==
   /@types/tape/4.2.33:
     dependencies:
-      '@types/node': 12.12.24
+      '@types/node': 13.1.6
     dev: true
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
@@ -3759,7 +3759,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.1
+      graceful-fs: 4.2.3
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
@@ -5494,6 +5494,13 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-8sJ78ElpbDJBHNeBzUbUVLsqKdccaa/BXF1uPTw3GrvQTBgrQrtObr2mUrE38vzYd8cEv+m/JBfDLioYcfXoaw==
+  /dotignore/0.1.2:
+    dependencies:
+      minimatch: 3.0.4
+    dev: true
+    hasBin: true
+    resolution:
+      integrity: sha512-UGGGWfSauusaVJC+8fgV+NVvBXkCTmVv7sk6nojDZZvuOUNGUy0Zk4UpHQD6EDjS0jpBwcACvH4eofvyzBcRDw==
   /dtrace-provider/0.8.8:
     dependencies:
       nan: 2.14.0
@@ -6606,7 +6613,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
-  /husky/4.0.4:
+  /husky/4.0.6:
     dependencies:
       chalk: 3.0.0
       ci-info: 2.0.0
@@ -6623,7 +6630,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-AS9ZyA1nRpPGe85MJIhPw73eXeOWt18NJ7C9lu8EcoiHH7HOv2aYzou9m7fme+hesv/ISsomXfhbOrM6Il94bg==
+      integrity: sha512-OxsXXQXu/FYauV5GGhNpyN1yhQPQoDFUJwzHoshYc3wO//gC0PB9YNYLgBxKckfEce0FGEbzb498UecR3jNdZw==
   /iconv-lite/0.4.24:
     dependencies:
       safer-buffer: 2.1.2
@@ -8155,7 +8162,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-PC9UVvGgYMEvO27Kupun+rIMPU28PvJlHn3Xh+DQkbmvkQiVwtSTeRTVH1QU9PWLHERW/0ClHVVMo6oyUF60Sw==
-  /nock/11.7.1:
+  /nock/11.7.2:
     dependencies:
       debug: 4.1.1
       json-stringify-safe: 5.0.1
@@ -8166,7 +8173,7 @@ packages:
     engines:
       node: '>= 8.0'
     resolution:
-      integrity: sha512-fW+dlMyquAEvgtmGoRHftKrNnJ7yZcbINQDTW7OKRoTYa+11GA0u0UokWHuvCyZrG5TXkplnEv2jmj6R3vvImg==
+      integrity: sha512-7swr5bL1xBZ5FctyubjxEVySXOSebyqcL7Vy1bx1nS9IUqQWj81cmKjVKJLr8fHhtzI1MV8nyCdENA/cGcY1+Q==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:
@@ -8395,7 +8402,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-+Osa0A3FilUUNjtBylNCgX8L1kY=
-  /npm/6.13.4:
+  /npm/6.13.6:
     bundledDependencies:
       - abbrev
       - ansicolors
@@ -8523,7 +8530,7 @@ packages:
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-vTcUL4SCg3AzwInWTbqg1OIaOXlzKSS8Mb8kc5avwrJpcvevDA5J9BhYSuei+fNs3pwOp4lzA5x2FVDXACvoXA==
+      integrity: sha512-NomC08kv7HIl1FOyLOe9Hp89kYsOsvx52huVIJ7i8hFW8Xp65lDwe/8wTIrh9q9SaQhA8hTrfXPh3BEL3TmMpw==
   /npmlog/3.1.2:
     dependencies:
       are-we-there-yet: 1.1.5
@@ -10625,10 +10632,11 @@ packages:
     dev: true
     resolution:
       integrity: sha512-mNi5yhWAKDuNgZCfFKeZbsXvraVOf+I8UZG+lf+aoRrzX4+jd4mpNBjYh16/VcpEMUtS0iFndBgnfxxZbtyLFw==
-  /tape/4.12.1:
+  /tape/4.13.0:
     dependencies:
       deep-equal: 1.1.1
       defined: 1.0.0
+      dotignore: 0.1.2
       for-each: 0.3.3
       function-bind: 1.1.1
       glob: 7.1.6
@@ -10644,7 +10652,7 @@ packages:
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-xoK2ariLmdGxqyXhhxfIZlr0czNB8hNJeVQmHN4D7ZyBn30GUoa4q2oM4cX8jNhnj1mtILXn1ugbfxc0tTDKtA==
+      integrity: sha512-J/hvA+GJnuWJ0Sj8Z0dmu3JgMNU+MmusvkCT7+SN4/2TklW18FNCp/UuHIEhPZwHfy4sXfKYgC7kypKg4umbOw==
   /tar-fs/2.0.0:
     dependencies:
       chownr: 1.1.3
@@ -10876,22 +10884,22 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.5.4_typescript@3.7.4:
+  /ts-node/8.6.1_typescript@3.7.4:
     dependencies:
       arg: 4.1.2
       diff: 4.0.1
       make-error: 1.3.5
       source-map-support: 0.5.16
       typescript: 3.7.4
-      yn: 3.1.1
+      yn: 4.0.0
     dev: true
     engines:
-      node: '>=4.2.0'
+      node: '>=6.0.0'
     hasBin: true
     peerDependencies:
-      typescript: '>=2.0'
+      typescript: '>=2.7'
     resolution:
-      integrity: sha512-izbVCRV68EasEPQ8MSIGBNK9dc/4sYJJKYA+IarMQct1RtEot6Xp0bXuClsbUSnKpg50ho+aOAx8en5c+y4OFw==
+      integrity: sha512-KqPbO7/UuOPE4ANAOV9geZjk6tet6rK2K+DFeEJq6kIXUi0nLkrOMksozGkIlFopOorkStlwar3DdWYrdl7zCw==
   /ts-toolbelt/4.14.6:
     dev: true
     resolution:
@@ -11681,12 +11689,12 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-T39FNN1b6hCW4SOIk1XyTOWxtXdcen0t+XYrysQmChzSipvhBO8Bj0nK1ozAasdk24dNWuMZvr4k24nz+8HHLg==
-  /yn/3.1.1:
+  /yn/4.0.0:
     dev: true
     engines:
-      node: '>=6'
+      node: '>=10'
     resolution:
-      integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==
+      integrity: sha512-huWiiCS4TxKc4SfgmTwW1K7JmXPPAmuXWYy4j9qjQo4+27Kni8mGhAAi1cloRWmBe2EqcLgt3IGqQoRL/MtPgg==
   /zen-observable/0.8.15:
     dev: false
     resolution:
