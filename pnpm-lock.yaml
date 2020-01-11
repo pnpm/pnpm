@@ -14,7 +14,7 @@ importers:
       ts-node: 8.6.1_typescript@3.7.4
       tslint: 5.20.1_typescript@3.7.4
       typescript: 3.7.4
-      verdaccio: 4.4.1
+      verdaccio: 4.4.2
     specifiers:
       '@pnpm/registry-mock': 1.11.1
       '@pnpm/tsconfig': 'workspace:*'
@@ -29,7 +29,7 @@ importers:
       ts-node: 8.6.1
       tslint: 5.20.1
       typescript: 3.7.4
-      verdaccio: 4.4.1
+      verdaccio: 4.4.2
   packages/audit:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -3166,7 +3166,7 @@ packages:
       read-yaml-file: 1.1.0
       rimraf: 3.0.0
       tempy: 0.3.0
-      verdaccio: 4.4.1
+      verdaccio: 4.4.2
       write-yaml-file: 3.0.1
     dev: true
     engines:
@@ -3434,7 +3434,7 @@ packages:
       integrity: sha512-Ek6EryyaAvP3Lm1aol660YfmhpDkf04TJHK6Vc+R68EQrecK8Qkbv7Ct5jvY2Yf0fkhmkeim4DOz3yDiEYEnNQ==
   /@types/tape/4.2.33:
     dependencies:
-      '@types/node': 13.1.6
+      '@types/node': 12.12.24
     dev: true
     resolution:
       integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
@@ -3485,6 +3485,15 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-1+82Jph7UHSii3+uQc936IHLytyCIOfF3lbQSh/cGBCFJTWi6/1bJ7d/BB0O/zzPaHRQkfGr+JH2MOSMs4UiGQ==
+  /@verdaccio/commons-api/9.0.0:
+    dependencies:
+      http-errors: 1.7.3
+      http-status-codes: 1.4.0
+    dev: true
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-rX4ABMh80dXyWRo8gEppiyA04siVAGzmhCG+vvVu7fGN6hn3XU1pR4xYeKWMDq4ofWpyI777uMftcYzbZc9AtA==
   /@verdaccio/file-locking/1.0.0:
     dependencies:
       lockfile: 1.0.4
@@ -3494,19 +3503,19 @@ packages:
       npm: '>=2.15.9'
     resolution:
       integrity: sha512-FncTOEL01a8yd6xOcNX1TQgc3pRYxByAI2OaAJHjGu5xxcGoqTo6RrIDU3ILdW2ypjc9Ow/xJLarUkr6zDhyfQ==
-  /@verdaccio/file-locking/8.5.2:
+  /@verdaccio/file-locking/9.0.0:
     dependencies:
       lockfile: 1.0.4
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-fRtoUgCe8tAa9XU/uSnRVCn3vSt6cLrqwpxdLWtJyS4MFil9OqozcACk9dGxyEF4jbCVdBd9Q6q7dM6Astzlzw==
-  /@verdaccio/local-storage/8.5.2:
+      integrity: sha512-acxyAgoLHPQwCTJVao1ZWzTDZvTDNykfoHk/lSDGX7OolaB9g741WnNHB1a9z9jj2SW3AVe5iMAs08eP2tdvVA==
+  /@verdaccio/local-storage/9.0.0:
     dependencies:
-      '@verdaccio/commons-api': 8.5.0
-      '@verdaccio/file-locking': 8.5.2
-      '@verdaccio/streams': 8.5.2
+      '@verdaccio/commons-api': 9.0.0
+      '@verdaccio/file-locking': 9.0.0
+      '@verdaccio/streams': 9.0.0
       async: 3.1.0
       level: 5.0.1
       lodash: 4.17.15
@@ -3515,7 +3524,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-qU6ETcDq9YdxpC52KEVmS9hAQpcG+59v89nO0Re33N2q791Ft2tYmX5BmnE8hUVTK9cKkwqzIeAlEy2BrIFgdA==
+      integrity: sha512-1FYLGYigBtISDSF6euELTcUlJ5Gn4mLh4ptQ803nhCmpK5BzwBk1hrwKOrPGL0nrYLY12+pSHsMFc/HmlNv06A==
   /@verdaccio/readme/8.5.2:
     dependencies:
       dompurify: 2.0.7
@@ -3531,6 +3540,13 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-Rbw+vm/KHgy5OQB+jSxxIXYvVFmG/fuFmBeH7F4fp2r5h7w1TP/mlQZI7PVlPPhLZtM6Xdrzf6H+NRCwRncwIg==
+  /@verdaccio/streams/9.0.0:
+    dev: true
+    engines:
+      node: '>=8'
+      npm: '>=5'
+    resolution:
+      integrity: sha512-lmzIuxkG4fnJzhqiDm45OmizVPm73soKSlbswSKe4hlYsHXJVdpcY4m3/bYPFDMZYi7Bd5M3yqzhLrCn2Hh82w==
   /@verdaccio/ui-theme/0.3.12:
     dev: true
     engines:
@@ -3759,7 +3775,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.3
+      graceful-fs: 4.2.1
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
@@ -11254,10 +11270,10 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-3MIGCaJY6KgcBJ5LVsw2xHHOqKHdcY6SlpHcROu8b2lhlJ37+TUtVo0LceltvptCJcAiNZ5nxrMEc4wj2RJa4A==
-  /verdaccio/4.4.1:
+  /verdaccio/4.4.2:
     dependencies:
       '@verdaccio/commons-api': 8.5.0
-      '@verdaccio/local-storage': 8.5.2
+      '@verdaccio/local-storage': 9.0.0
       '@verdaccio/readme': 8.5.2
       '@verdaccio/streams': 8.5.2
       '@verdaccio/ui-theme': 0.3.12
@@ -11296,7 +11312,7 @@ packages:
       npm: '>=5'
     hasBin: true
     resolution:
-      integrity: sha512-HKfn0y9HBk9FkRsy0+VzUUWAK7r26P8HVMlC/olrzRXzH/5jAV1reu2rEeC3KcUlUsHdc1Sd9cagOiqcA0fVlA==
+      integrity: sha512-FW0dg0NtFnTWz0p4aSBYQgxLh7O8nPwnGIxgUcMqPhNWH4vWB0PxBdcxKRQPdubNsN/xsab10Ldhqbi7GoyrgQ==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
