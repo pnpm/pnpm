@@ -31,6 +31,13 @@ export default (pnpmFilePath: string, prefix: string) => {
       message: `Using hooks from: ${pnpmFilePath}`,
       prefix,
     })
+    if (typeof pnpmfile === 'undefined') {
+      logger.warn({
+        message: `Ignoring the pnpmfile at "${pnpmFilePath}". It exports "undefined".`,
+        prefix,
+      })
+      return undefined
+    }
     if (pnpmfile?.hooks?.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
       throw new TypeError('hooks.readPackage should be a function')
     }
