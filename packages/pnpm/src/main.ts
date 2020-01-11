@@ -162,7 +162,9 @@ export default async function run (inputArgv: string[]) {
     const allProjects = await findWorkspacePackages(wsDir, config)
 
     if (!allProjects.length) {
-      console.log(`No projects found in "${wsDir}"`)
+      if (!config['parseable']) {
+        console.log(`No projects found in "${wsDir}"`)
+      }
       process.exit(0)
       return
     }
@@ -171,7 +173,9 @@ export default async function run (inputArgv: string[]) {
       workspaceDir: wsDir,
     })
     if (R.isEmpty(config.selectedProjectsGraph)) {
-      console.log(`No projects matched the filters in "${wsDir}"`)
+      if (!config['parseable']) {
+        console.log(`No projects matched the filters in "${wsDir}"`)
+      }
       process.exit(0)
       return
     }
