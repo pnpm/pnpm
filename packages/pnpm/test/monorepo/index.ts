@@ -2,7 +2,11 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
-import prepare, { preparePackages, tempDir as makeTempDir } from '@pnpm/prepare'
+import prepare, {
+  prepareEmpty,
+  preparePackages,
+  tempDir as makeTempDir,
+} from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
@@ -15,9 +19,44 @@ import symlink from 'symlink-dir'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
-import { execPnpm, execPnpxSync } from '../utils'
+import { execPnpm, execPnpmSync, execPnpxSync } from '../utils'
 
 const test = promisifyTape(tape)
+
+test('no projects matched the filters', async (t) => {
+  preparePackages(t, [
+    {
+      name: 'project',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  {
+    const { stdout } = execPnpmSync('list', '--filter=not-exists')
+    t.ok(stdout.toString().startsWith('No projects matched the filters in'),
+      'print info message')
+  }
+  {
+    const { stdout } = execPnpmSync('list', '--filter=not-exists', '--parseable')
+    t.equal(stdout.toString(), '', "don't print anything if --parseable is used")
+  }
+})
+
+test('no projects found', async (t) => {
+  prepareEmpty(t)
+
+  {
+    const { stdout } = execPnpmSync('list', '-r')
+    t.ok(stdout.toString().startsWith('No projects found in'),
+      'print info message')
+  }
+  {
+    const { stdout } = execPnpmSync('list', '-r', '--parseable')
+    t.equal(stdout.toString(), '', "don't print anything if --parseable is used")
+  }
+})
 
 test('linking a package inside a monorepo', async (t: tape.Test) => {
   const projects = preparePackages(t, [
