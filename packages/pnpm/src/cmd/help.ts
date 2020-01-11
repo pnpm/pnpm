@@ -3,8 +3,15 @@ import renderHelp = require('render-help')
 
 export default function (helpByCommandName: Record<string, () => string>) {
   return function (input: string[]) {
-    const helpText = input.length === 0 ? getHelpText() : helpByCommandName[input[0]]()
-    console.log(`Version ${packageManager.version}\n${helpText}`)
+    let helpText!: string
+    if (input.length === 0) {
+      helpText = getHelpText()
+    } else if (helpByCommandName[input[0]]) {
+      helpText = helpByCommandName[input[0]]()
+    } else {
+      helpText = `No results for "${input[0]}"`
+    }
+    return `Version ${packageManager.version}\n${helpText}\n`
   }
 }
 

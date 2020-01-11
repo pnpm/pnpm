@@ -1,5 +1,6 @@
 ///<reference path="../../../typings/index.d.ts" />
 import './cli'
+import './help.spec'
 import './install'
 import './link'
 import './monorepo'
