@@ -14,8 +14,6 @@ export default async function (
   },
 ): Promise<ProjectManifest> {
   if (opts.saveType) {
-    packageManifest[opts.saveType] = packageManifest[opts.saveType]
-
     if (!packageManifest[opts.saveType]) return packageManifest
 
     removedPackages.forEach((dependency) => {
