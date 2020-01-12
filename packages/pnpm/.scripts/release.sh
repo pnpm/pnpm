@@ -3,5 +3,5 @@ set -e
 set -u
 
 pnpm run tsc
-npm cache clear
+npm cache clear --force
 publish-packed --tag next --prune
