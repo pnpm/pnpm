@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "4.7.1",
+  "version": "4.7.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -33,7 +33,7 @@
     "@pnpm/parse-cli-args": "workspace:0.2.0",
     "@pnpm/plugin-commands-audit": "workspace:0.2.1",
     "@pnpm/plugin-commands-import": "workspace:0.1.12",
-    "@pnpm/plugin-commands-installation": "workspace:0.2.3",
+    "@pnpm/plugin-commands-installation": "workspace:0.2.4",
     "@pnpm/plugin-commands-listing": "workspace:0.2.2",
     "@pnpm/plugin-commands-outdated": "workspace:0.2.2",
     "@pnpm/plugin-commands-publishing": "workspace:0.2.2",
