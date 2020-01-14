@@ -267,9 +267,11 @@ export type InstallCommandOptions = Pick<Config,
   'cliOptions' |
   'dev' |
   'engineStrict' |
+  'global' |
   'globalPnpmfile' |
   'ignorePnpmfile' |
   'ignoreScripts' |
+  'independentLeaves' |
   'linkWorkspacePackages' |
   'lockfileDir' |
   'pnpmfile' |
@@ -289,6 +291,7 @@ export type InstallCommandOptions = Pick<Config,
   'sideEffectsCacheReadonly' |
   'sort' |
   'sharedWorkspaceLockfile' |
+  'tag' |
   'optional' |
   'workspaceConcurrency' |
   'workspaceDir'

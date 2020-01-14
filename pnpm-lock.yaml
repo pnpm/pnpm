@@ -1440,15 +1440,18 @@ importers:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/package-store': 'link:../package-store'
+      '@pnpm/plugin-commands-outdated': 'link:../plugin-commands-outdated'
       '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       camelcase-keys: 6.1.1
       common-tags: 1.8.0
+      enquirer: 2.3.4
       is-subdir: 1.1.1
       mem: 6.0.1
       mz: 2.7.0
@@ -1488,6 +1491,7 @@ importers:
       '@pnpm/logger': ^3.1.0
       '@pnpm/package-store': 'workspace:8.0.0'
       '@pnpm/plugin-commands-installation': 'link:'
+      '@pnpm/plugin-commands-outdated': 'workspace:0.2.2'
       '@pnpm/plugin-commands-rebuild': 'workspace:0.1.2'
       '@pnpm/pnpmfile': 'workspace:0.1.2'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1495,6 +1499,7 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/sort-packages': 'workspace:1.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.7'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.12.3'
@@ -1503,6 +1508,7 @@ importers:
       '@types/ramda': ^0.26.39
       camelcase-keys: 6.1.1
       common-tags: 1.8.0
+      enquirer: 2.3.4
       is-subdir: 1.1.1
       make-dir: 3.0.0
       mem: 6.0.1
@@ -3949,6 +3955,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-csMd4qDZoszQysMMyYI+6y9kNLU=
+  /ansi-colors/3.2.4:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-hHUXGagefjN2iRrID63xckIvotOXOojhQKWIPUZ4mNUZ9nLZW+7FMNoE1lOkEhNWYsx/7ysGIuJYCiMAA9FnrA==
   /ansi-cyan/0.1.1:
     dependencies:
       ansi-wrap: 0.1.0
@@ -5630,6 +5642,14 @@ packages:
       once: 1.4.0
     resolution:
       integrity: sha512-+uw1inIHVPQoaVuHzRyXd21icM+cnt4CzD5rW+NC1wjOUSTOs+Te7FOv7AhN7vS9x/oIyhLP5PR1H+phQAHu5Q==
+  /enquirer/2.3.4:
+    dependencies:
+      ansi-colors: 3.2.4
+    dev: false
+    engines:
+      node: '>=8.6'
+    resolution:
+      integrity: sha512-pkYrrDZumL2VS6VBGDhqbajCM2xpkUNLuKfGPjfKaSIBKYopQbqEFyrOkRMIb2HDR/rO1kGhEt/5twBwtzKBXw==
   /env-paths/2.2.0:
     dev: false
     engines:

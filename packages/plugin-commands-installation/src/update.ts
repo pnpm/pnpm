@@ -1,7 +1,10 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
+import { outdatedDepsOfProjects } from '@pnpm/plugin-commands-outdated/lib/outdated'
 import { oneLine } from 'common-tags'
+import { prompt } from 'enquirer'
 import R = require('ramda')
 import renderHelp = require('render-help')
 import { handler as install, InstallCommandOptions } from './install'
@@ -50,6 +53,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
+    interactive: Boolean,
     latest: Boolean,
     workspace: Boolean,
   }
@@ -118,7 +122,39 @@ export function help () {
 
 export async function handler (
   input: string[],
-  opts: InstallCommandOptions,
+  opts: InstallCommandOptions & { interactive?: boolean },
 ) {
+  if (opts.interactive) {
+    if (opts.recursive) {
+      throw new PnpmError('NOT_IMPLEMENTED', 'Recursive interactive update was not implemented yet')
+    }
+    const include = {
+      dependencies: opts.production !== false,
+      devDependencies: opts.dev !== false,
+      optionalDependencies: opts.optional !== false,
+    }
+    const projects = [
+      {
+        dir: opts.dir,
+        manifest: await readProjectManifestOnly(opts.dir, opts),
+      },
+    ]
+    const [{ outdatedPackages }] = await outdatedDepsOfProjects(projects, input, {
+      ...opts,
+      include,
+    })
+    const { updateDependencies } = await prompt({
+      choices: outdatedPackages
+        .filter((outdatedPkg) => outdatedPkg.latestManifest?.version)
+        .map((outdatedPkg) => ({
+          message: `${outdatedPkg.packageName} ${outdatedPkg.current} => ${outdatedPkg.latestManifest?.version}`,
+          name: outdatedPkg.packageName,
+        })),
+      message: 'Which packages to update?',
+      name: 'updateDependencies',
+      type: 'multiselect',
+    })
+    return install(updateDependencies, { ...opts, update: true, allowNew: false })
+  }
   return install(input, { ...opts, update: true, allowNew: false })
 }
