@@ -3,6 +3,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
+import chalk = require('chalk')
 import { oneLine } from 'common-tags'
 import { prompt } from 'enquirer'
 import R = require('ramda')
@@ -143,14 +144,19 @@ export async function handler (
       ...opts,
       include,
     })
+    const outdatedPackagesByType = R.groupBy(R.prop('belongsTo'), outdatedPackages)
+    const choices = Object.entries(outdatedPackagesByType)
+      .map(([depType, outdatedPkgs]) => ({
+        choices: outdatedPkgs
+          .map((outdatedPkg) => ({
+            message: `${outdatedPkg.packageName} ${outdatedPkg.current} => ${outdatedPkg.latestManifest?.version}`,
+            name: outdatedPkg.packageName,
+          })),
+        name: depType,
+      }))
     const { updateDependencies } = await prompt({
-      choices: outdatedPackages
-        .filter((outdatedPkg) => outdatedPkg.latestManifest?.version)
-        .map((outdatedPkg) => ({
-          message: `${outdatedPkg.packageName} ${outdatedPkg.current} => ${outdatedPkg.latestManifest?.version}`,
-          name: outdatedPkg.packageName,
-        })),
-      message: 'Which packages to update?',
+      choices,
+      message: `Choose which packages to update (Press ${chalk.cyan('<space>')} to select)`,
       name: 'updateDependencies',
       type: 'multiselect',
     })

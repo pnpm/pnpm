@@ -1450,6 +1450,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       camelcase-keys: 6.1.1
+      chalk: 3.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
       is-subdir: 1.1.1
@@ -1507,6 +1508,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.39
       camelcase-keys: 6.1.1
+      chalk: 3.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
       is-subdir: 1.1.1
