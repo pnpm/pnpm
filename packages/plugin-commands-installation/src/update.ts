@@ -2,7 +2,7 @@ import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import { outdatedDepsOfProjects } from '@pnpm/plugin-commands-outdated/lib/outdated'
+import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import { oneLine } from 'common-tags'
 import { prompt } from 'enquirer'
 import R = require('ramda')
