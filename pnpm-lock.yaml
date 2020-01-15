@@ -1432,6 +1432,7 @@ importers:
   packages/plugin-commands-installation:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/colorize-semver-diff': 1.0.0
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
@@ -1444,6 +1445,7 @@ importers:
       '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
       '@pnpm/resolver-base': 'link:../resolver-base'
+      '@pnpm/semver-diff': 1.0.2
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-path': 2.1.1
@@ -1481,6 +1483,7 @@ importers:
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.0'
+      '@pnpm/colorize-semver-diff': 1.0.0
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:7.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
@@ -1498,6 +1501,7 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1
       '@pnpm/resolver-base': 'workspace:7.0.0'
+      '@pnpm/semver-diff': 1.0.2
       '@pnpm/sort-packages': 'workspace:1.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.7'
       '@pnpm/store-path': 2.1.1

@@ -1,8 +1,10 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
+import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
+import semverDiff from '@pnpm/semver-diff'
 import chalk = require('chalk')
 import { oneLine } from 'common-tags'
 import { prompt } from 'enquirer'
@@ -148,18 +150,26 @@ export async function handler (
     const choices = Object.entries(outdatedPackagesByType)
       .map(([depType, outdatedPkgs]) => ({
         choices: outdatedPkgs
-          .map((outdatedPkg) => ({
-            message: `${outdatedPkg.packageName} ${outdatedPkg.current} => ${outdatedPkg.latestManifest?.version}`,
-            name: outdatedPkg.packageName,
-          })),
+          .filter((outdatedPkg) => outdatedPkg.latestManifest)
+          .map((outdatedPkg) => {
+            const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
+            const nextVersion = sdiff.change === null
+              ? outdatedPkg.latestManifest!.version
+              : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
+            return {
+              message: `${outdatedPkg.packageName} ${outdatedPkg.current} => ${nextVersion}`,
+              name: outdatedPkg.packageName,
+            }
+          }),
         name: depType,
       }))
     const { updateDependencies } = await prompt({
       choices,
+      footer: '\nSpace to select. Enter to start updating. Control-C to cancel.',
       message: `Choose which packages to update (Press ${chalk.cyan('<space>')} to select)`,
       name: 'updateDependencies',
       type: 'multiselect',
-    })
+    } as any) // tslint:disable-line:no-any
     return install(updateDependencies, { ...opts, update: true, allowNew: false })
   }
   return install(input, { ...opts, update: true, allowNew: false })
