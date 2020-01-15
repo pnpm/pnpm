@@ -3,7 +3,8 @@ import path = require('path')
 import PATH = require('path-name')
 
 export default function runNpm (args: string[]) {
-  return runScriptSync('npm', args, {
+  const npm = process.env.PNPM_NPM_PATH || 'npm'
+  return runScriptSync(npm, args, {
     cwd: process.cwd(),
     stdio: 'inherit',
     userAgent: undefined,
