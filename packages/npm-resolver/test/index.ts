@@ -1498,3 +1498,18 @@ test('workspace protocol: resolution fails if there are no local packages', asyn
 
   t.end()
 })
+
+test('throws error when package name has "/" but not starts with @scope', async t => {
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir: tempy.directory(),
+  })
+  try {
+    await resolveFromNpm({ alias: 'regenerator/runtime' }, { registry })
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.equal(err.message, 'Package name regenerator/runtime is invalid, it should have a @scope')
+    t.end()
+  }
+})
