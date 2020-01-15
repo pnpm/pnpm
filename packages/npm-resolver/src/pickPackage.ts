@@ -207,6 +207,6 @@ function toUri (pkgName: string, registry: string) {
 
 function validatePackageName (pkgName: string) {
   if (pkgName.includes('/') && pkgName[0] !== '@') {
-    throw new Error(`Package name ${pkgName} is invalid, it should have a @scope`)
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Package name ${pkgName} is invalid, it should have a @scope`)
   }
 }

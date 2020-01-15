@@ -1510,6 +1510,7 @@ test('throws error when package name has "/" but not starts with @scope', async 
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.message, 'Package name regenerator/runtime is invalid, it should have a @scope')
+    t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_NAME')
     t.end()
   }
 })
