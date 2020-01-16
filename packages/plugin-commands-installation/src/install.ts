@@ -274,6 +274,7 @@ export type InstallCommandOptions = Pick<Config,
   'independentLeaves' |
   'linkWorkspacePackages' |
   'lockfileDir' |
+  'lockfileOnly' |
   'pnpmfile' |
   'production' |
   'rawLocalConfig' |

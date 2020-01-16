@@ -144,6 +144,7 @@ export async function handler (
     ]
     const [{ outdatedPackages }] = await outdatedDepsOfProjects(projects, input, {
       ...opts,
+      compatible: opts.latest !== true,
       include,
     })
     const outdatedPackagesByType = R.groupBy(R.prop('belongsTo'), outdatedPackages)
