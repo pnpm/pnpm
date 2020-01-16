@@ -46,7 +46,7 @@
     "load-json-file": "6.2.0",
     "path-exists": "4.0.0",
     "rimraf": "3.0.0",
-    "sinon": "^8.0.4"
+    "sinon": "8.1.0"
   },
   "dependencies": {
     "@pnpm/check-package": "3.0.1",
