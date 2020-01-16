@@ -113,6 +113,7 @@ export interface Config {
   useLockfile: boolean,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
   globalPnpmfile?: string,
+  npmPath?: string,
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,

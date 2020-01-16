@@ -1,7 +1,7 @@
 import { UniversalOptions } from '@pnpm/config'
-import runNpm from '@pnpm/run-npm'
 import renderHelp = require('render-help')
 import { fakeRegularManifest } from './publish'
+import runNpm from './runNpm'
 
 export const rcOptionsTypes = cliOptionsTypes
 

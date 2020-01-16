@@ -1,13 +1,13 @@
 import { Config, Project } from '@pnpm/config'
 import createResolver from '@pnpm/npm-resolver'
 import { ResolveFunction } from '@pnpm/resolver-base'
-import runNpm from '@pnpm/run-npm'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/utils'
 import LRU = require('lru-cache')
 import pFilter = require('p-filter')
 import { handler as publish } from './publish'
+import runNpm from './runNpm'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
   'cliOptions' |

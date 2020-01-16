@@ -2,7 +2,6 @@ import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
-import runNpm from '@pnpm/run-npm'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
@@ -13,6 +12,7 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
+import runNpm from './runNpm'
 
 export const rcOptionsTypes = cliOptionsTypes
 
