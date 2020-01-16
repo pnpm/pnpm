@@ -112,6 +112,11 @@ export function help () {
               dependencies is not found inside the workspace`,
             name: '--workspace',
           },
+          {
+            description: 'Show the outdated dependencies and allow to select which to update',
+            name: '--interactive',
+            shortAlias: '-i',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
