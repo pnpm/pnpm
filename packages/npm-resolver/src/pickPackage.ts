@@ -63,6 +63,8 @@ export default async (
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
 
+  validatePackageName(spec.name)
+
   const cachedMeta = ctx.metaCache.get(spec.name)
   if (cachedMeta) {
     return {
@@ -201,4 +203,10 @@ function toUri (pkgName: string, registry: string) {
   }
 
   return url.resolve(registry, encodedName)
+}
+
+function validatePackageName (pkgName: string) {
+  if (pkgName.includes('/') && pkgName[0] !== '@') {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Package name ${pkgName} is invalid, it should have a @scope`)
+  }
 }
