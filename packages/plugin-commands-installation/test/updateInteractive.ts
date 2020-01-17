@@ -1,6 +1,7 @@
 import { add } from '@pnpm/plugin-commands-installation'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import chalk = require('chalk')
 import path = require('path')
 import proxyquire = require('proxyquire')
 import sinon = require('sinon')
@@ -71,8 +72,27 @@ test('interactively update', async (t) => {
     linkWorkspacePackages: true,
   })
 
-  t.equal(prompt.args[0][0].choices.length, 1)
-  t.equal(prompt.args[0][0].choices[0].choices.length, 2)
+  t.deepEqual(prompt.args[0][0], {
+    choices: [
+      {
+        choices: [
+          {
+            message: 'is-negative 1.0.0 ❯ 1.0.1',
+            name: 'is-negative',
+          },
+          {
+            message: 'micromatch 3.0.0 ❯ 3.1.10',
+            name: 'micromatch',
+          },
+        ],
+        name: 'dependencies',
+      },
+    ],
+    footer: '\nSpace to select. Enter to start updating. Control-C to cancel.',
+    message: `Choose which packages to update (Press ${chalk.cyan('<space>')} to select)`,
+    name: 'updateDependencies',
+    type: 'multiselect',
+  })
 
   {
     const lockfile = await project.readLockfile()
@@ -91,8 +111,31 @@ test('interactively update', async (t) => {
     linkWorkspacePackages: true,
   })
 
-  t.equal(prompt.args[1][0].choices.length, 1)
-  t.equal(prompt.args[1][0].choices[0].choices.length, 3)
+  t.deepEqual(prompt.args[1][0], {
+    choices: [
+      {
+        choices: [
+          {
+            message: 'is-negative 1.0.1 ❯ 2.1.0',
+            name: 'is-negative',
+          },
+          {
+            message: 'is-positive 2.0.0 ❯ 3.1.0',
+            name: 'is-positive',
+          },
+          {
+            message: 'micromatch 3.0.0 ❯ 4.0.2',
+            name: 'micromatch',
+          },
+        ],
+        name: 'dependencies',
+      },
+    ],
+    footer: '\nSpace to select. Enter to start updating. Control-C to cancel.',
+    message: `Choose which packages to update (Press ${chalk.cyan('<space>')} to select)`,
+    name: 'updateDependencies',
+    type: 'multiselect',
+  })
 
   {
     const lockfile = await project.readLockfile()

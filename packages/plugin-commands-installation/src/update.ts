@@ -163,7 +163,7 @@ export async function handler (
               ? outdatedPkg.latestManifest!.version
               : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
             return {
-              message: `${outdatedPkg.packageName} ${outdatedPkg.current} => ${nextVersion}`,
+              message: `${outdatedPkg.packageName} ${outdatedPkg.current} ❯ ${nextVersion}`,
               name: outdatedPkg.packageName,
             }
           }),
