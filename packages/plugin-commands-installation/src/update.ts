@@ -134,7 +134,7 @@ export async function handler (
 ) {
   if (opts.interactive) {
     if (opts.recursive) {
-      throw new PnpmError('NOT_IMPLEMENTED', 'Recursive interactive update was not implemented yet')
+      throw new PnpmError('NOT_IMPLEMENTED', 'Recursive interactive update is not yet implemented')
     }
     const include = {
       dependencies: opts.production !== false,
