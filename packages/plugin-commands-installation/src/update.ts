@@ -171,10 +171,19 @@ export async function handler (
       }))
     const { updateDependencies } = await prompt({
       choices,
-      footer: '\nSpace to select. Enter to start updating. Control-C to cancel.',
-      message: `Choose which packages to update (Press ${chalk.cyan('<space>')} to select)`,
+      footer: '\nEnter to start updating. Ctrl-c to cancel.',
+      message: `Choose which packages to update ` +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)`,
       name: 'updateDependencies',
       type: 'multiselect',
+      validate (value: string[]) {
+        if (value.length === 0) {
+          return 'You must choose at least one package.'
+        }
+        return true
+      },
     } as any) // tslint:disable-line:no-any
     return install(updateDependencies, { ...opts, update: true, allowNew: false })
   }

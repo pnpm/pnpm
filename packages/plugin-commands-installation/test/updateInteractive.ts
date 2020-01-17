@@ -4,6 +4,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import chalk = require('chalk')
 import path = require('path')
 import proxyquire = require('proxyquire')
+import R = require('ramda')
 import sinon = require('sinon')
 import test = require('tape')
 
@@ -72,7 +73,7 @@ test('interactively update', async (t) => {
     linkWorkspacePackages: true,
   })
 
-  t.deepEqual(prompt.args[0][0], {
+  t.ok(prompt.calledWithMatch({
     choices: [
       {
         choices: [
@@ -88,11 +89,14 @@ test('interactively update', async (t) => {
         name: 'dependencies',
       },
     ],
-    footer: '\nSpace to select. Enter to start updating. Control-C to cancel.',
-    message: `Choose which packages to update (Press ${chalk.cyan('<space>')} to select)`,
+    footer: '\nEnter to start updating. Ctrl-c to cancel.',
+    message: `Choose which packages to update ` +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)`,
     name: 'updateDependencies',
     type: 'multiselect',
-  })
+  }))
 
   {
     const lockfile = await project.readLockfile()
@@ -111,7 +115,7 @@ test('interactively update', async (t) => {
     linkWorkspacePackages: true,
   })
 
-  t.deepEqual(prompt.args[1][0], {
+  t.ok(prompt.calledWithMatch({
     choices: [
       {
         choices: [
@@ -131,11 +135,14 @@ test('interactively update', async (t) => {
         name: 'dependencies',
       },
     ],
-    footer: '\nSpace to select. Enter to start updating. Control-C to cancel.',
-    message: `Choose which packages to update (Press ${chalk.cyan('<space>')} to select)`,
+    footer: '\nEnter to start updating. Ctrl-c to cancel.',
+    message: `Choose which packages to update ` +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)`,
     name: 'updateDependencies',
     type: 'multiselect',
-  })
+  }))
 
   {
     const lockfile = await project.readLockfile()
