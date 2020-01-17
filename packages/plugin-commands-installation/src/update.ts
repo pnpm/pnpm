@@ -152,6 +152,12 @@ export async function handler (
       compatible: opts.latest !== true,
       include,
     })
+    if (outdatedPackages.length === 0) {
+      if (opts.latest) {
+        return 'All of your dependencies are already up-to-date'
+      }
+      return 'All of your dependencies are already up-to-date inside the specified ranges. Use the --latest option to update the ranges in package.json'
+    }
     const outdatedPackagesByType = R.groupBy(R.prop('belongsTo'), outdatedPackages)
     const choices = Object.entries(outdatedPackagesByType)
       .map(([depType, outdatedPkgs]) => ({
