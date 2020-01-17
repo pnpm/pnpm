@@ -113,7 +113,7 @@ export function help () {
             name: '--workspace',
           },
           {
-            description: 'Show the outdated dependencies and allow to select which to update',
+            description: 'Show outdated dependencies and select which ones to update',
             name: '--interactive',
             shortAlias: '-i',
           },
