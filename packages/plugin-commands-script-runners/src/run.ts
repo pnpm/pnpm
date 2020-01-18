@@ -20,7 +20,11 @@ export const IF_PRESENT_OPTION_HELP = {
 }
 
 export function rcOptionsTypes () {
-  return {}
+  return {
+    ...R.pick([
+      'npm-path',
+    ], allTypes),
+  }
 }
 
 export function cliOptionsTypes () {

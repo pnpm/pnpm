@@ -27,6 +27,7 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'npmPath',
     'package-import-method',
     'pnpmfile',
     'prefer-offline',

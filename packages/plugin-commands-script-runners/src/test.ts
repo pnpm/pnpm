@@ -7,7 +7,11 @@ import renderHelp = require('render-help')
 import { handler as run, RunOpts } from './run'
 
 export function rcOptionsTypes () {
-  return {}
+  return {
+    ...R.pick([
+      'npm-path',
+    ], allTypes),
+  }
 }
 
 export function cliOptionsTypes () {

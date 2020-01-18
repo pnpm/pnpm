@@ -14,7 +14,14 @@ import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return {
+    ...cliOptionsTypes(),
+    ...R.pick([
+      'npm-path',
+    ], allTypes),
+  }
+}
 
 export function cliOptionsTypes () {
   return R.pick([
@@ -55,7 +62,7 @@ export async function handler (
     return
   }
   if (args.length && args[0].endsWith('.tgz')) {
-    await runNpm(['publish', ...args])
+    await runNpm(opts.npmPath, ['publish', ...args])
     return
   }
   const dir = args.length && args[0] || process.cwd()
@@ -68,7 +75,7 @@ export async function handler (
       workspaceDir: opts.workspaceDir || dir,
     },
     async () => {
-      const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
+      const { status } = await runNpm(opts.npmPath, ['publish', ...opts.argv.original.slice(1)])
       _status = status!
     },
   )

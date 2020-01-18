@@ -1,9 +1,17 @@
-import { UniversalOptions } from '@pnpm/config'
+import { types as allTypes, UniversalOptions } from '@pnpm/config'
 import runNpm from '@pnpm/run-npm'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import { fakeRegularManifest } from './publish'
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return {
+    ...cliOptionsTypes(),
+    ...R.pick([
+      'npm-path',
+    ], allTypes),
+  }
+}
 
 export function cliOptionsTypes () {
   return {}
@@ -25,6 +33,7 @@ export async function handler (
       original: string[],
     },
     engineStrict?: boolean,
+    npmPath?: string,
     workspaceDir?: string,
   },
 ) {
@@ -34,7 +43,7 @@ export async function handler (
     engineStrict: opts.engineStrict,
     workspaceDir: opts.workspaceDir || opts.dir,
   }, async () => {
-    const { status } = await runNpm(['pack', ...opts.argv.original.slice(1)])
+    const { status } = await runNpm(opts.npmPath, ['pack', ...opts.argv.original.slice(1)])
     _status = status!
   })
   if (_status !== 0) {

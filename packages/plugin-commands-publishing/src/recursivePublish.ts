@@ -28,6 +28,7 @@ Partial<Pick<Config,
   'key' |
   'localAddress' |
   'lockfileDir' |
+  'npmPath' |
   'offline' |
   'proxy' |
   'storeDir' |
@@ -83,7 +84,7 @@ export default async function (
   }
   const tag = opts.tag || 'latest'
   for (const pkg of pkgsToPublish) {
-    await runNpm([
+    await runNpm(opts.npmPath, [
       'dist-tag',
       'add',
       `${pkg.manifest.name}@${pkg.manifest.version}`,
