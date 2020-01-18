@@ -1,15 +1,13 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
-import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
-import { outdatedDepsOfProjects, OutdatedPackage } from '@pnpm/outdated'
-import semverDiff from '@pnpm/semver-diff'
+import { outdatedDepsOfProjects } from '@pnpm/outdated'
 import chalk = require('chalk')
 import { oneLine } from 'common-tags'
 import { prompt } from 'enquirer'
 import R = require('ramda')
 import renderHelp = require('render-help')
+import getUpdateChoices from './getUpdateChoices'
 import { handler as install, InstallCommandOptions } from './install'
 
 export function rcOptionsTypes () {
@@ -151,53 +149,13 @@ export async function handler (
       compatible: opts.latest !== true,
       include,
     })
-    const allOutdatedPkgs: Record<string, OutdatedPackage> = {}
-    outdatedPkgsOfProjects
-      .map(({ outdatedPackages }) => outdatedPackages)
-      .flat()
-      .forEach((outdatedPkg) => {
-        const key = JSON.stringify([
-          outdatedPkg.packageName,
-          outdatedPkg.latestManifest?.version,
-          outdatedPkg.current,
-        ])
-        if (!allOutdatedPkgs[key]) {
-          allOutdatedPkgs[key] = outdatedPkg
-          return
-        }
-        if (allOutdatedPkgs[key].belongsTo === 'dependencies') return
-        if (outdatedPkg.belongsTo !== 'devDependencies') {
-          allOutdatedPkgs[key].belongsTo = outdatedPkg.belongsTo
-        }
-      })
-    const outdatedPackages = Object.values(allOutdatedPkgs)
-
-    if (outdatedPackages.length === 0) {
+    const choices = getUpdateChoices(outdatedPkgsOfProjects)
+    if (choices.length === 0) {
       if (opts.latest) {
         return 'All of your dependencies are already up-to-date'
       }
       return 'All of your dependencies are already up-to-date inside the specified ranges. Use the --latest option to update the ranges in package.json'
     }
-    const outdatedPackagesByType = R.groupBy(R.prop('belongsTo'), outdatedPackages)
-    const choices = Object.entries(outdatedPackagesByType)
-      .map(([depType, outdatedPkgs]) => ({
-        choices: Object.entries(R.groupBy(R.prop('packageName'), outdatedPkgs))
-          .map(([packageName, outdatedPkgs]) => {
-            const message = outdatedPkgs
-              .map((outdatedPkg) => {
-                const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
-                const nextVersion = sdiff.change === null
-                  ? outdatedPkg.latestManifest!.version
-                  : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
-                return `${outdatedPkg.packageName} ${outdatedPkg.current} ❯ ${nextVersion}`
-              }).join('\n    ')
-            return {
-              message,
-              name: packageName,
-            }
-          }),
-        name: depType,
-      }))
     const { updateDependencies } = await prompt({
       choices,
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
