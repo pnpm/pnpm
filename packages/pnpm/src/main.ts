@@ -87,6 +87,7 @@ export default async function run (inputArgv: string[]) {
     'frozen-shrinkwrap': ['--frozen-lockfile'],
     'prefer-frozen-shrinkwrap': ['--prefer-frozen-lockfile'],
     'W': ['--ignore-workspace-root-check'],
+    'i': ['--interactive'],
   }
   // tslint:enable
   const { argv, cliArgs, cliConf, cmd, subCmd, unknownOptions, workspaceDir } = await parseCliArgs({
