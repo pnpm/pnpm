@@ -10,60 +10,86 @@ export default function (outdatedPkgsOfProjects: Array<{
   outdatedPackages: OutdatedPackage[],
   prefix: string,
 }>) {
-  const allOutdatedPkgs: Record<string, Record<string, OutdatedPackage>> = {}
-  R.unnest(
-    outdatedPkgsOfProjects.map(({ outdatedPackages }) => outdatedPackages),
+  const allOutdatedPkgs = mergeOutdatedPkgs(
+    R.unnest(
+      outdatedPkgsOfProjects.map(({ outdatedPackages }) => outdatedPackages),
+    ),
   )
-    .forEach((outdatedPkg) => {
-      if (!allOutdatedPkgs[outdatedPkg.packageName]) {
-        allOutdatedPkgs[outdatedPkg.packageName] = {}
-      }
-      const key = JSON.stringify([
-        outdatedPkg.latestManifest?.version,
-        outdatedPkg.current,
-      ])
-      if (!allOutdatedPkgs[outdatedPkg.packageName][key]) {
-        allOutdatedPkgs[outdatedPkg.packageName][key] = outdatedPkg
-        return
-      }
-      if (allOutdatedPkgs[outdatedPkg.packageName][key].belongsTo === 'dependencies') return
-      if (outdatedPkg.belongsTo !== 'devDependencies') {
-        allOutdatedPkgs[outdatedPkg.packageName][key].belongsTo = outdatedPkg.belongsTo
-      }
-    })
 
   if (R.isEmpty(allOutdatedPkgs)) {
     return []
   }
-  const rows = Object.entries(allOutdatedPkgs)
+  const rowsGroupedByPkgs = Object.entries(allOutdatedPkgs)
     .sort(([pkgName1], [pkgName2]) => pkgName1.localeCompare(pkgName2))
-    .map(([packageName, outdatedPkgs]) => {
-      const columns = Object.values(outdatedPkgs)
-        .map((outdatedPkg) => {
-          const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
-          const nextVersion = sdiff.change === null
-            ? outdatedPkg.latestManifest!.version
-            : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
-          let label = outdatedPkg.packageName
-          switch (outdatedPkg.belongsTo) {
-            case 'devDependencies': {
-              label += ' (dev)'
-              break
-            }
-            case 'optionalDependencies': {
-              label += ' (optional)'
-              break
-            }
-          }
-          return [label, outdatedPkg.current, '❯', nextVersion]
-        })
-      return {
-        columns,
-        name: packageName,
-      }
+    .map(([pkgName, outdatedPkgs]) => ({
+      pkgName,
+      rows: outdatedPkgsRows(Object.values(outdatedPkgs)),
+    }))
+  const renderedTable = alignColumns(
+    R.unnest(rowsGroupedByPkgs.map(({ rows }) => rows)),
+  )
+
+  const choices = []
+  let i = 0
+  for (let { pkgName, rows } of rowsGroupedByPkgs) {
+    choices.push({
+      message: renderedTable
+        .slice(i, i + rows.length)
+        .join('\n    '),
+      name: pkgName,
     })
-  const renderedTable = table(
-    R.unnest(rows.map(({ columns }) => columns)),
+    i += rows.length
+  }
+  return choices
+}
+
+function mergeOutdatedPkgs (outdatedPkgs: OutdatedPackage[]) {
+  const allOutdatedPkgs: Record<string, Record<string, OutdatedPackage>> = {}
+  for (const outdatedPkg of outdatedPkgs) {
+    if (!allOutdatedPkgs[outdatedPkg.packageName]) {
+      allOutdatedPkgs[outdatedPkg.packageName] = {}
+    }
+    const key = JSON.stringify([
+      outdatedPkg.latestManifest?.version,
+      outdatedPkg.current,
+    ])
+    if (!allOutdatedPkgs[outdatedPkg.packageName][key]) {
+      allOutdatedPkgs[outdatedPkg.packageName][key] = outdatedPkg
+      continue
+    }
+    if (allOutdatedPkgs[outdatedPkg.packageName][key].belongsTo === 'dependencies') continue
+    if (outdatedPkg.belongsTo !== 'devDependencies') {
+      allOutdatedPkgs[outdatedPkg.packageName][key].belongsTo = outdatedPkg.belongsTo
+    }
+  }
+  return allOutdatedPkgs
+}
+
+function outdatedPkgsRows (outdatedPkgs: OutdatedPackage[]) {
+  return outdatedPkgs
+    .map((outdatedPkg) => {
+      const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
+      const nextVersion = sdiff.change === null
+        ? outdatedPkg.latestManifest!.version
+        : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
+      let label = outdatedPkg.packageName
+      switch (outdatedPkg.belongsTo) {
+        case 'devDependencies': {
+          label += ' (dev)'
+          break
+        }
+        case 'optionalDependencies': {
+          label += ' (optional)'
+          break
+        }
+      }
+      return [label, outdatedPkg.current, '❯', nextVersion]
+    })
+}
+
+function alignColumns (rows: string[][]) {
+  return table(
+    rows,
     {
       border: getBorderCharacters('void'),
       columnDefault: {
@@ -73,22 +99,7 @@ export default function (outdatedPkgsOfProjects: Array<{
       columns: {
         1: { alignment: 'right' },
       },
-      drawHorizontalLine: () => {
-          return false
-      },
+      drawHorizontalLine: () => false,
     },
   ).split('\n')
-
-  const choices = []
-  let i = 0
-  for (let row of rows) {
-    choices.push({
-      message: renderedTable
-        .slice(i, i + row.columns.length)
-        .join('\n    '),
-      name: row.name,
-    })
-    i += row.columns.length
-  }
-  return choices
 }

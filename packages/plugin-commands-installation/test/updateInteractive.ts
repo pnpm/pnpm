@@ -38,7 +38,7 @@ const DEFAULT_OPTIONS = {
   workspaceConcurrency: 1,
 }
 
-test.only('interactively update', async (t) => {
+test('interactively update', async (t) => {
   const project = prepare(t, {
     dependencies: {
       // has 1.0.0 and 1.0.1 that satisfy this range
