@@ -16,7 +16,11 @@ import {
 import recursive from './recursive'
 
 export function rcOptionsTypes () {
-  return {}
+  return {
+    ...R.pick([
+      'npm-path',
+    ], allTypes),
+  }
 }
 
 export function cliOptionsTypes () {

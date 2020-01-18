@@ -2,6 +2,7 @@ import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
+import runNpm from '@pnpm/run-npm'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
@@ -12,9 +13,15 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
-import runNpm from './runNpm'
 
-export const rcOptionsTypes = cliOptionsTypes
+export function rcOptionsTypes () {
+  return {
+    ...cliOptionsTypes(),
+    ...R.pick([
+      'npm-path',
+    ], allTypes),
+  }
+}
 
 export function cliOptionsTypes () {
   return R.pick([
@@ -55,7 +62,7 @@ export async function handler (
     return
   }
   if (args.length && args[0].endsWith('.tgz')) {
-    await runNpm(['publish', ...args])
+    await runNpm(opts.npmPath, ['publish', ...args])
     return
   }
   const dir = args.length && args[0] || process.cwd()
@@ -68,7 +75,7 @@ export async function handler (
       workspaceDir: opts.workspaceDir || dir,
     },
     async () => {
-      const { status } = await runNpm(['publish', ...opts.argv.original.slice(1)])
+      const { status } = await runNpm(opts.npmPath, ['publish', ...opts.argv.original.slice(1)])
       _status = status!
     },
   )

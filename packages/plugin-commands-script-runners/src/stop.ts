@@ -1,4 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
+import { types as allTypes } from '@pnpm/config'
+import R = require('ramda')
 import renderHelp = require('render-help')
 import {
   handler as run,
@@ -8,7 +10,11 @@ import {
 } from './run'
 
 export function rcOptionsTypes () {
-  return {}
+  return {
+    ...R.pick([
+      'npm-path',
+    ], allTypes),
+  }
 }
 
 export function cliOptionsTypes () {
