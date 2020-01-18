@@ -11,7 +11,6 @@ import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import { promisify } from 'util'
-import './getLatestManifest.spec'
 import './recursive'
 
 const copyFile = promisify(fs.copyFile)

@@ -1,8 +1,8 @@
 import { ResolveFunction } from '@pnpm/default-resolver'
 import test = require('tape')
-import { getLatestManifest } from '../lib/createLatestManifestGetter'
+import { getManifest } from '../lib/createManifestGetter'
 
-test('getLatestManifest()', async (t) => {
+test('getManifest()', async (t) => {
   t.plan(4)
 
   const opts = {
@@ -29,7 +29,7 @@ test('getLatestManifest()', async (t) => {
         resolvedVia: 'npm-registry',
       }
     }
-    t.deepEqual(await getLatestManifest(resolve, opts, 'foo', 'latest'), {
+    t.deepEqual(await getManifest(resolve, opts, 'foo', 'latest'), {
       name: 'foo',
       version: '1.0.0',
     })
@@ -50,7 +50,7 @@ test('getLatestManifest()', async (t) => {
         resolvedVia: 'npm-registry',
       }
     }
-    t.deepEqual(await getLatestManifest(resolve, opts, '@scope/foo', 'latest'), {
+    t.deepEqual(await getManifest(resolve, opts, '@scope/foo', 'latest'), {
       name: 'foo',
       version: '2.0.0',
     })

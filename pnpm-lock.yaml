@@ -1091,28 +1091,44 @@ importers:
       write-json-file: 4.0.0
   packages/outdated:
     dependencies:
+      '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
+      '@pnpm/default-resolver': 'link:../default-resolver'
+      '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/matcher': 'link:../matcher'
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
+      lru-cache: 5.1.1
       semver: 7.1.1
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/outdated': 'link:'
+      '@types/lru-cache': 5.1.0
       '@types/semver': 6.2.0
       npm-run-all: 4.1.5
     specifiers:
+      '@pnpm/config': 'workspace:7.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
+      '@pnpm/default-resolver': 'workspace:7.0.1'
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/lockfile-file': 'workspace:3.0.2'
       '@pnpm/lockfile-utils': 'workspace:2.0.6'
       '@pnpm/logger': 3.1.0
+      '@pnpm/matcher': 'workspace:1.0.0'
+      '@pnpm/modules-yaml': 'workspace:5.0.1'
       '@pnpm/outdated': 'link:'
+      '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.12.3'
+      '@types/lru-cache': ^5.1.0
       '@types/semver': ^6.2.0
       dependency-path: 'workspace:4.0.3'
+      lru-cache: 5.1.1
       npm-run-all: 4.1.5
       semver: 7.1.1
   packages/package-bins:
@@ -1556,6 +1572,7 @@ importers:
   packages/plugin-commands-outdated:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/colorize-semver-diff': 1.0.0
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
       '@pnpm/default-resolver': 'link:../default-resolver'
@@ -1593,6 +1610,7 @@ importers:
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.0'
+      '@pnpm/colorize-semver-diff': 1.0.0
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:7.0.0'
       '@pnpm/constants': 'workspace:3.0.0'
@@ -3123,6 +3141,14 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-+m1O/rFyR0h60IrfoOKVuzwsZCYx4vYF5NFTMFzDNJ34D4EH8Y+nT/EIncAHQ6Awavz2I5FlhRbiYvWA2DZFbw==
+  /@pnpm/colorize-semver-diff/1.0.0:
+    dependencies:
+      chalk: 3.0.0
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-GTsO3rA0vKVx9w3IrB6rrxFfhguAqJxSl0Bg0DG/GxlzKYEe9YlSBImZgR/UxTrSDQICodpCJ/lYC1Vo4+K3eA==
   /@pnpm/file-reporter/0.1.0:
     dependencies:
       graceful-fs: 4.2.1
@@ -3770,6 +3796,15 @@ packages:
       uri-js: 4.2.2
     resolution:
       integrity: sha512-TXtUUEYHuaTEbLZWIKUr5pmBuhDLy+8KYtPYdcV8qC+pOZL+NKqYwvWSRrVXHn+ZmRRAu8vJTAznH7Oag6RVRw==
+  /ajv/6.11.0:
+    dependencies:
+      fast-deep-equal: 3.1.1
+      fast-json-stable-stringify: 2.1.0
+      json-schema-traverse: 0.4.1
+      uri-js: 4.2.2
+    dev: false
+    resolution:
+      integrity: sha512-nCprB/0syFYy9fVYU1ox1l2KN8S9I+tziH8D4zdZuLT3N6RMlGSGt5FSTpAiHB/Whv8Qs1cWHma1aMKZyaHRKA==
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
@@ -10629,7 +10664,7 @@ packages:
       integrity: sha512-i8+cBpaAFDWIlNT8qkpH1QPBCTEFhIPnA2w/pfndTebe4E2YysMg4XNfdaVM+qf5iyYfyHk/JY4PHmxZ00OmRA==
   /table/5.4.6:
     dependencies:
-      ajv: 6.10.2
+      ajv: 6.11.0
       lodash: 4.17.15
       slice-ansi: 2.1.0
       string-width: 3.1.0

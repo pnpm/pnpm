@@ -1,31 +1,19 @@
 import { docsUrl, readProjectManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
 import {
-  getLockfileImporterId,
-  readCurrentLockfile,
-  readWantedLockfile,
-} from '@pnpm/lockfile-file'
-import matcher from '@pnpm/matcher'
-import { read as readModulesManifest } from '@pnpm/modules-yaml'
-import outdated, { OutdatedPackage } from '@pnpm/outdated'
+  outdatedDepsOfProjects,
+  OutdatedPackage,
+} from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import storePath from '@pnpm/store-path'
-import {
-  IncludedDependencies,
-  ProjectManifest,
-  Registries,
-} from '@pnpm/types'
 import chalk = require('chalk')
 import { oneLine, stripIndent } from 'common-tags'
-import path = require('path')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
-import { createLatestManifestGetter } from './createLatestManifestGetter'
 import outdatedRecursive from './recursive'
 import {
   DEFAULT_COMPARATORS,
@@ -112,44 +100,45 @@ export function help () {
   })
 }
 
-export type OutdatedOptions = {
-  alwaysAuth: boolean
-  ca?: string
-  cert?: string
+export type OutdatedCommandOptions = {
   compatible?: boolean,
-  engineStrict?: boolean
-  fetchRetries: number
-  fetchRetryFactor: number
-  fetchRetryMaxtimeout: number
-  fetchRetryMintimeout: number
-  global: boolean
-  httpsProxy?: string
-  independentLeaves: boolean
-  key?: string
-  localAddress?: string
   long?: boolean
-  networkConcurrency: number
-  offline: boolean
-  dir: string
-  proxy?: string
-  rawConfig: object
   recursive?: boolean,
-  registries: Registries
-  lockfileDir?: string
-  store?: string
-  strictSsl: boolean
-  table?: boolean
-  tag: string
-  userAgent: string,
+  table?: boolean,
 } & Pick<Config, 'allProjects' |
+  'alwaysAuth' |
+  'ca' |
+  'cert' |
   'dev' |
+  'dir' |
+  'engineStrict' |
+  'fetchRetries' |
+  'fetchRetryFactor' |
+  'fetchRetryMaxtimeout' |
+  'fetchRetryMintimeout' |
+  'global' |
+  'httpsProxy' |
+  'independentLeaves' |
+  'key' |
+  'localAddress' |
+  'lockfileDir' |
+  'networkConcurrency' |
+  'offline' |
   'optional' |
   'production' |
-  'selectedProjectsGraph'>
+  'proxy' |
+  'rawConfig' |
+  'registries' |
+  'selectedProjectsGraph' |
+  'storeDir' |
+  'strictSsl' |
+  'tag' |
+  'userAgent'
+>
 
 export async function handler (
   args: string[],
-  opts: OutdatedOptions,
+  opts: OutdatedCommandOptions,
 ) {
   const include = {
     dependencies: opts.production !== false,
@@ -271,11 +260,6 @@ export function renderCurrent ({ current, wanted }: OutdatedPackage) {
   return `${output} (wanted ${wanted})`
 }
 
-const DIFF_COLORS = {
-  feature: chalk.yellowBright.bold,
-  fix: chalk.greenBright.bold,
-}
-
 export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
   const { latestManifest, change, diff } = outdatedPkg
   if (!latestManifest) return ''
@@ -285,27 +269,7 @@ export function renderLatest (outdatedPkg: OutdatedWithVersionDiff): string {
       : latestManifest.version
   }
 
-  const highlight = DIFF_COLORS[change] || chalk.redBright.bold
-  const same = joinVersionTuples(diff[0], 0)
-  const other = highlight(joinVersionTuples(diff[1], diff[0].length))
-  if (!same) return other
-  if (!other) {
-    // Happens when current is 1.0.0-rc.0 and latest is 1.0.0
-    return same
-  }
-  return diff[0].length === 3 ? `${same}-${other}` : `${same}.${other}`
-}
-
-function joinVersionTuples (versionTuples: string[], startIndex: number) {
-  const neededForSemver = 3 - startIndex
-  if (versionTuples.length <= neededForSemver || neededForSemver === 0) {
-    return versionTuples.join('.')
-  }
-  return `${
-    versionTuples.slice(0, neededForSemver).join('.')
-   }-${
-     versionTuples.slice(neededForSemver).join('.')
-   }`
+  return colorizeSemverDiff({ change, diff })
 }
 
 export function renderDetails ({ latestManifest }: OutdatedPackage) {
@@ -318,43 +282,4 @@ export function renderDetails ({ latestManifest }: OutdatedPackage) {
     outputs.push(chalk.underline(latestManifest.homepage))
   }
   return outputs.join('\n')
-}
-
-export async function outdatedDepsOfProjects (
-  pkgs: Array<{dir: string, manifest: ProjectManifest}>,
-  args: string[],
-  opts: OutdatedOptions & { include: IncludedDependencies },
-) {
-  const lockfileDir = opts.lockfileDir || opts.dir
-  const modules = await readModulesManifest(path.join(lockfileDir, 'node_modules'))
-  const virtualStoreDir = modules?.virtualStoreDir || path.join(lockfileDir, 'node_modules/.pnpm')
-  const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
-  const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) || currentLockfile
-  if (!wantedLockfile) {
-    throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
-  }
-  const storeDir = await storePath(opts.dir, opts.store)
-  const getLatestManifest = createLatestManifestGetter({
-    ...opts,
-    lockfileDir,
-    storeDir,
-  })
-  return Promise.all(pkgs.map(async ({ dir, manifest }) => {
-    let match = args.length && matcher(args) || undefined
-    return {
-      manifest,
-      outdatedPackages: await outdated({
-        compatible: opts.compatible,
-        currentLockfile,
-        getLatestManifest,
-        include: opts.include,
-        lockfileDir,
-        manifest,
-        match,
-        prefix: dir,
-        wantedLockfile,
-      }),
-      prefix: getLockfileImporterId(lockfileDir, dir),
-    }
-  }))
 }

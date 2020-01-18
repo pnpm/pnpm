@@ -1,6 +1,9 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
-import { OutdatedPackage } from '@pnpm/outdated'
+import {
+  outdatedDepsOfProjects,
+  OutdatedPackage,
+} from '@pnpm/outdated'
 import {
   DependenciesField,
   IncludedDependencies,
@@ -12,8 +15,7 @@ import R = require('ramda')
 import { table } from 'table'
 import {
   getCellWidth,
-  outdatedDepsOfProjects,
-  OutdatedOptions,
+  OutdatedCommandOptions,
   renderCurrent,
   renderDetails,
   renderLatest,
@@ -46,7 +48,7 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 export default async (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   args: string[],
-  opts: OutdatedOptions & { include: IncludedDependencies },
+  opts: OutdatedCommandOptions & { include: IncludedDependencies },
 ) => {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   if (opts.lockfileDir) {
