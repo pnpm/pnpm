@@ -37,7 +37,7 @@
   "devDependencies": {
     "@pnpm/package-bins": "link:",
     "@types/graceful-fs": "^4.1.3",
-    "@types/node": "^12.12.24",
+    "@types/node": "^12.12.25",
     "@types/tape": "^4.2.33",
     "rimraf": "^3.0.0"
   }

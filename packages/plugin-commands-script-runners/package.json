@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:1.2.1",
+    "@pnpm/filter-workspace-packages": "workspace:1.2.2",
     "@pnpm/logger": "^3.1.0",
     "@pnpm/plugin-commands-script-runners": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
@@ -46,12 +46,12 @@
     "write-yaml-file": "3.0.1"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.3.0",
+    "@pnpm/cli-utils": "workspace:0.3.1",
     "@pnpm/common-cli-options-help": "workspace:0.1.4",
-    "@pnpm/config": "workspace:7.0.0",
+    "@pnpm/config": "workspace:7.1.0",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lifecycle": "workspace:8.0.2",
-    "@pnpm/sort-packages": "workspace:1.0.0",
+    "@pnpm/sort-packages": "workspace:1.0.1",
     "@pnpm/types": "workspace:5.0.0",
     "@pnpm/utils": "workspace:0.12.3",
     "common-tags": "1.8.0",

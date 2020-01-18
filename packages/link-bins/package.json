@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "5.0.2",
+  "version": "5.1.0-0",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -48,7 +48,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.0",
     "@types/ncp": "^2.0.3",
-    "@types/node": "^12.12.24",
+    "@types/node": "^12.12.25",
     "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.26.39",
     "@types/sinon": "^7.5.1",
