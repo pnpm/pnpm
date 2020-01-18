@@ -33,6 +33,7 @@ export async function handler (
       original: string[],
     },
     engineStrict?: boolean,
+    npmPath?: string,
     workspaceDir?: string,
   },
 ) {
