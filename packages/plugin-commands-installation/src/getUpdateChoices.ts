@@ -1,63 +1,94 @@
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { DependenciesField, ProjectManifest } from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
 import R = require('ramda')
-
-const DEPS_PRIORITY: Record<DependenciesField, number> = {
-  'dependencies': 0,
-  'devDependencies': 2,
-  'optionalDependencies': 1,
-}
+import { getBorderCharacters, table } from 'table'
 
 export default function (outdatedPkgsOfProjects: Array<{
   manifest: ProjectManifest,
   outdatedPackages: OutdatedPackage[],
   prefix: string,
 }>) {
-  const allOutdatedPkgs: Record<string, OutdatedPackage> = {}
-  R.flatten(
+  const allOutdatedPkgs: Record<string, Record<string, OutdatedPackage>> = {}
+  R.unnest(
     outdatedPkgsOfProjects.map(({ outdatedPackages }) => outdatedPackages),
   )
     .forEach((outdatedPkg) => {
+      if (!allOutdatedPkgs[outdatedPkg.packageName]) {
+        allOutdatedPkgs[outdatedPkg.packageName] = {}
+      }
       const key = JSON.stringify([
-        outdatedPkg.packageName,
         outdatedPkg.latestManifest?.version,
         outdatedPkg.current,
       ])
-      if (!allOutdatedPkgs[key]) {
-        allOutdatedPkgs[key] = outdatedPkg
+      if (!allOutdatedPkgs[outdatedPkg.packageName][key]) {
+        allOutdatedPkgs[outdatedPkg.packageName][key] = outdatedPkg
         return
       }
-      if (allOutdatedPkgs[key].belongsTo === 'dependencies') return
+      if (allOutdatedPkgs[outdatedPkg.packageName][key].belongsTo === 'dependencies') return
       if (outdatedPkg.belongsTo !== 'devDependencies') {
-        allOutdatedPkgs[key].belongsTo = outdatedPkg.belongsTo
+        allOutdatedPkgs[outdatedPkg.packageName][key].belongsTo = outdatedPkg.belongsTo
       }
     })
-  const outdatedPackages = Object.values(allOutdatedPkgs)
 
-  if (outdatedPackages.length === 0) {
+  if (R.isEmpty(allOutdatedPkgs)) {
     return []
   }
-  const outdatedPackagesByType = R.groupBy(R.prop('belongsTo'), outdatedPackages)
-  return Object.entries(outdatedPackagesByType)
-    .sort(([depType1], [depType2]) => DEPS_PRIORITY[depType1] - DEPS_PRIORITY[depType2])
-    .map(([depType, outdatedPkgs]) => ({
-      choices: Object.entries(R.groupBy(R.prop('packageName'), outdatedPkgs))
-        .map(([packageName, outdatedPkgs]) => {
-          const message = outdatedPkgs
-            .map((outdatedPkg) => {
-              const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
-              const nextVersion = sdiff.change === null
-                ? outdatedPkg.latestManifest!.version
-                : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
-              return `${outdatedPkg.packageName} ${outdatedPkg.current} ❯ ${nextVersion}`
-            }).join('\n    ')
-          return {
-            message,
-            name: packageName,
+  const rows = Object.entries(allOutdatedPkgs)
+    .sort(([pkgName1], [pkgName2]) => pkgName1.localeCompare(pkgName2))
+    .map(([packageName, outdatedPkgs]) => {
+      const columns = Object.values(outdatedPkgs)
+        .map((outdatedPkg) => {
+          const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
+          const nextVersion = sdiff.change === null
+            ? outdatedPkg.latestManifest!.version
+            : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
+          let label = outdatedPkg.packageName
+          switch (outdatedPkg.belongsTo) {
+            case 'devDependencies': {
+              label += ' (dev)'
+              break
+            }
+            case 'optionalDependencies': {
+              label += ' (optional)'
+              break
+            }
           }
-        }),
-      name: depType,
-    }))
+          return [label, outdatedPkg.current, '❯', nextVersion]
+        })
+      return {
+        columns,
+        name: packageName,
+      }
+    })
+  const renderedTable = table(
+    R.unnest(rows.map(({ columns }) => columns)),
+    {
+      border: getBorderCharacters('void'),
+      columnDefault: {
+        paddingLeft: 0,
+        paddingRight: 1,
+      },
+      columns: {
+        1: { alignment: 'right' },
+      },
+      drawHorizontalLine: () => {
+          return false
+      },
+    },
+  ).split('\n')
+
+  const choices = []
+  let i = 0
+  for (let row of rows) {
+    choices.push({
+      message: renderedTable
+        .slice(i, i + row.columns.length)
+        .join('\n    '),
+      name: row.name,
+    })
+    i += row.columns.length
+  }
+  return choices
 }

@@ -38,7 +38,7 @@ const DEFAULT_OPTIONS = {
   workspaceConcurrency: 1,
 }
 
-test('interactively update', async (t) => {
+test.only('interactively update', async (t) => {
   const project = prepare(t, {
     dependencies: {
       // has 1.0.0 and 1.0.1 that satisfy this range
@@ -76,17 +76,12 @@ test('interactively update', async (t) => {
   t.ok(prompt.calledWithMatch({
     choices: [
       {
-        choices: [
-          {
-            message: 'is-negative 1.0.0 ❯ 1.0.1',
-            name: 'is-negative',
-          },
-          {
-            message: 'micromatch 3.0.0 ❯ 3.1.10',
-            name: 'micromatch',
-          },
-        ],
-        name: 'dependencies',
+        message: 'is-negative 1.0.0 ❯ 1.0.1  ',
+        name: 'is-negative',
+      },
+      {
+        message: 'micromatch  3.0.0 ❯ 3.1.10 ',
+        name: 'micromatch',
       },
     ],
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
@@ -118,21 +113,16 @@ test('interactively update', async (t) => {
   t.ok(prompt.calledWithMatch({
     choices: [
       {
-        choices: [
-          {
-            message: 'is-negative 1.0.1 ❯ 2.1.0',
-            name: 'is-negative',
-          },
-          {
-            message: 'is-positive 2.0.0 ❯ 3.1.0',
-            name: 'is-positive',
-          },
-          {
-            message: 'micromatch 3.0.0 ❯ 4.0.2',
-            name: 'micromatch',
-          },
-        ],
-        name: 'dependencies',
+        message: 'is-negative 1.0.1 ❯ 2.1.0 ',
+        name: 'is-negative',
+      },
+      {
+        message: 'is-positive 2.0.0 ❯ 3.1.0 ',
+        name: 'is-positive',
+      },
+      {
+        message: 'micromatch  3.0.0 ❯ 4.0.2 ',
+        name: 'micromatch',
       },
     ],
     footer: '\nEnter to start updating. Ctrl-c to cancel.',

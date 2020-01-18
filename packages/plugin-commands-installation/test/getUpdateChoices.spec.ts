@@ -42,14 +42,14 @@ test('getUpdateChoices()', (t) => {
         manifest: {},
         outdatedPackages: [
           {
-            alias: 'foo',
+            alias: 'qar',
             belongsTo: 'devDependencies' as const,
             current: '1.0.0',
             latestManifest: {
-              name: 'foo',
+              name: 'qar',
               version: '1.2.0',
             },
-            packageName: 'foo',
+            packageName: 'qar',
             wanted: '1.0.0',
           },
         ],
@@ -59,14 +59,14 @@ test('getUpdateChoices()', (t) => {
         manifest: {},
         outdatedPackages: [
           {
-            alias: 'foo',
+            alias: 'zoo',
             belongsTo: 'devDependencies' as const,
             current: '1.1.0',
             latestManifest: {
-              name: 'foo',
+              name: 'zoo',
               version: '1.2.0',
             },
-            packageName: 'foo',
+            packageName: 'zoo',
             wanted: '1.1.0',
           },
         ],
@@ -76,14 +76,14 @@ test('getUpdateChoices()', (t) => {
         manifest: {},
         outdatedPackages: [
           {
-            alias: 'foo',
+            alias: 'qaz',
             belongsTo: 'optionalDependencies' as const,
             current: '1.0.1',
             latestManifest: {
-              name: 'foo',
+              name: 'qaz',
               version: '1.2.0',
             },
-            packageName: 'foo',
+            packageName: 'qaz',
             wanted: '1.0.1',
           },
         ],
@@ -93,11 +93,11 @@ test('getUpdateChoices()', (t) => {
         manifest: {},
         outdatedPackages: [
           {
-            alias: 'foo',
+            alias: 'qaz',
             belongsTo: 'devDependencies' as const,
             current: '1.0.1',
             latestManifest: {
-              name: 'foo',
+              name: 'qaz',
               version: '1.2.0',
             },
             packageName: 'foo',
@@ -109,31 +109,20 @@ test('getUpdateChoices()', (t) => {
     ]),
     [
       {
-        choices: [
-          {
-            message: 'foo 1.0.0 ❯ 2.0.0',
-            name: 'foo',
-          },
-        ],
-        name: 'dependencies',
+        message: 'foo            1.0.0 ❯ 2.0.0 \n    foo (dev)      1.0.1 ❯ 1.2.0 ',
+        name: 'foo',
       },
       {
-        choices: [
-          {
-            message: 'foo 1.0.1 ❯ 1.2.0',
-            name: 'foo',
-          },
-        ],
-        name: 'optionalDependencies',
+        message: 'qar (dev)      1.0.0 ❯ 1.2.0 ',
+        name: 'qar',
       },
       {
-        choices: [
-          {
-            message: 'foo 1.0.0 ❯ 1.2.0\n    foo 1.1.0 ❯ 1.2.0',
-            name: 'foo',
-          },
-        ],
-        name: 'devDependencies',
+        message: 'qaz (optional) 1.0.1 ❯ 1.2.0 ',
+        name: 'qaz',
+      },
+      {
+        message: 'zoo (dev)      1.1.0 ❯ 1.2.0 ',
+        name: 'zoo',
       },
     ],
   )

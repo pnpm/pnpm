@@ -159,11 +159,16 @@ export async function handler (
     const { updateDependencies } = await prompt({
       choices,
       footer: '\nEnter to start updating. Ctrl-c to cancel.',
+      indicator (state: any, choice: any) { // tslint:disable-line:no-any
+        return ` ${choice.enabled ? chalk.green('●') : chalk.grey('◯')}`
+      },
       message: `Choose which packages to update ` +
         `(Press ${chalk.cyan('<space>')} to select, ` +
         `${chalk.cyan('<a>')} to toggle all, ` +
         `${chalk.cyan('<i>')} to invert selection)`,
       name: 'updateDependencies',
+      pointer: '❯',
+      styles: { em: chalk.bgBlack },
       type: 'multiselect',
       validate (value: string[]) {
         if (value.length === 0) {
