@@ -3,7 +3,7 @@ import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import { outdatedDepsOfProjects } from '@pnpm/outdated'
+import { outdatedDepsOfProjects, OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
 import chalk = require('chalk')
 import { oneLine } from 'common-tags'
@@ -133,25 +133,45 @@ export async function handler (
   opts: InstallCommandOptions & { interactive?: boolean },
 ) {
   if (opts.interactive) {
-    if (opts.recursive) {
-      throw new PnpmError('NOT_IMPLEMENTED', 'Recursive interactive update is not yet implemented')
-    }
     const include = {
       dependencies: opts.production !== false,
       devDependencies: opts.dev !== false,
       optionalDependencies: opts.optional !== false,
     }
-    const projects = [
-      {
-        dir: opts.dir,
-        manifest: await readProjectManifestOnly(opts.dir, opts),
-      },
-    ]
-    const [{ outdatedPackages }] = await outdatedDepsOfProjects(projects, input, {
+    const projects = opts.selectedProjectsGraph
+      ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
+      : [
+        {
+          dir: opts.dir,
+          manifest: await readProjectManifestOnly(opts.dir, opts),
+        },
+      ]
+    const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
       ...opts,
       compatible: opts.latest !== true,
       include,
     })
+    const allOutdatedPkgs: Record<string, OutdatedPackage> = {}
+    outdatedPkgsOfProjects
+      .map(({ outdatedPackages }) => outdatedPackages)
+      .flat()
+      .forEach((outdatedPkg) => {
+        const key = JSON.stringify([
+          outdatedPkg.packageName,
+          outdatedPkg.latestManifest?.version,
+          outdatedPkg.current,
+        ])
+        if (!allOutdatedPkgs[key]) {
+          allOutdatedPkgs[key] = outdatedPkg
+          return
+        }
+        if (allOutdatedPkgs[key].belongsTo === 'dependencies') return
+        if (outdatedPkg.belongsTo !== 'devDependencies') {
+          allOutdatedPkgs[key].belongsTo = outdatedPkg.belongsTo
+        }
+      })
+    const outdatedPackages = Object.values(allOutdatedPkgs)
+
     if (outdatedPackages.length === 0) {
       if (opts.latest) {
         return 'All of your dependencies are already up-to-date'
@@ -161,16 +181,19 @@ export async function handler (
     const outdatedPackagesByType = R.groupBy(R.prop('belongsTo'), outdatedPackages)
     const choices = Object.entries(outdatedPackagesByType)
       .map(([depType, outdatedPkgs]) => ({
-        choices: outdatedPkgs
-          .filter((outdatedPkg) => outdatedPkg.latestManifest)
-          .map((outdatedPkg) => {
-            const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
-            const nextVersion = sdiff.change === null
-              ? outdatedPkg.latestManifest!.version
-              : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
+        choices: Object.entries(R.groupBy(R.prop('packageName'), outdatedPkgs))
+          .map(([packageName, outdatedPkgs]) => {
+            const message = outdatedPkgs
+              .map((outdatedPkg) => {
+                const sdiff = semverDiff(outdatedPkg.wanted, outdatedPkg.latestManifest!.version)
+                const nextVersion = sdiff.change === null
+                  ? outdatedPkg.latestManifest!.version
+                  : colorizeSemverDiff(sdiff as any) // tslint:disable-line:no-any
+                return `${outdatedPkg.packageName} ${outdatedPkg.current} ❯ ${nextVersion}`
+              }).join('\n    ')
             return {
-              message: `${outdatedPkg.packageName} ${outdatedPkg.current} ❯ ${nextVersion}`,
-              name: outdatedPkg.packageName,
+              message,
+              name: packageName,
             }
           }),
         name: depType,
