@@ -131,53 +131,67 @@ export async function handler (
   opts: InstallCommandOptions & { interactive?: boolean },
 ) {
   if (opts.interactive) {
-    const include = {
-      dependencies: opts.production !== false,
-      devDependencies: opts.dev !== false,
-      optionalDependencies: opts.optional !== false,
-    }
-    const projects = opts.selectedProjectsGraph
-      ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-      : [
-        {
-          dir: opts.dir,
-          manifest: await readProjectManifestOnly(opts.dir, opts),
-        },
-      ]
-    const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
-      ...opts,
-      compatible: opts.latest !== true,
-      include,
-    })
-    const choices = getUpdateChoices(outdatedPkgsOfProjects)
-    if (choices.length === 0) {
-      if (opts.latest) {
-        return 'All of your dependencies are already up-to-date'
-      }
-      return 'All of your dependencies are already up-to-date inside the specified ranges. Use the --latest option to update the ranges in package.json'
-    }
-    const { updateDependencies } = await prompt({
-      choices,
-      footer: '\nEnter to start updating. Ctrl-c to cancel.',
-      indicator (state: any, choice: any) { // tslint:disable-line:no-any
-        return ` ${choice.enabled ? chalk.green('●') : chalk.grey('◯')}`
-      },
-      message: `Choose which packages to update ` +
-        `(Press ${chalk.cyan('<space>')} to select, ` +
-        `${chalk.cyan('<a>')} to toggle all, ` +
-        `${chalk.cyan('<i>')} to invert selection)`,
-      name: 'updateDependencies',
-      pointer: '❯',
-      styles: { em: chalk.bgBlack },
-      type: 'multiselect',
-      validate (value: string[]) {
-        if (value.length === 0) {
-          return 'You must choose at least one package.'
-        }
-        return true
-      },
-    } as any) // tslint:disable-line:no-any
-    return install(updateDependencies, { ...opts, update: true, allowNew: false })
+    return interactiveUpdate(input, opts)
   }
-  return install(input, { ...opts, update: true, allowNew: false })
+  return update(input, opts)
+}
+
+async function interactiveUpdate (
+  input: string[],
+  opts: InstallCommandOptions,
+) {
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  const projects = opts.selectedProjectsGraph
+    ? Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
+    : [
+      {
+        dir: opts.dir,
+        manifest: await readProjectManifestOnly(opts.dir, opts),
+      },
+    ]
+  const outdatedPkgsOfProjects = await outdatedDepsOfProjects(projects, input, {
+    ...opts,
+    compatible: opts.latest !== true,
+    include,
+  })
+  const choices = getUpdateChoices(outdatedPkgsOfProjects)
+  if (choices.length === 0) {
+    if (opts.latest) {
+      return 'All of your dependencies are already up-to-date'
+    }
+    return 'All of your dependencies are already up-to-date inside the specified ranges. Use the --latest option to update the ranges in package.json'
+  }
+  const { updateDependencies } = await prompt({
+    choices,
+    footer: '\nEnter to start updating. Ctrl-c to cancel.',
+    indicator (state: any, choice: any) { // tslint:disable-line:no-any
+      return ` ${choice.enabled ? chalk.green('●') : chalk.grey('◯')}`
+    },
+    message: `Choose which packages to update ` +
+      `(Press ${chalk.cyan('<space>')} to select, ` +
+      `${chalk.cyan('<a>')} to toggle all, ` +
+      `${chalk.cyan('<i>')} to invert selection)`,
+    name: 'updateDependencies',
+    pointer: '❯',
+    styles: { em: chalk.bgBlack },
+    type: 'multiselect',
+    validate (value: string[]) {
+      if (value.length === 0) {
+        return 'You must choose at least one package.'
+      }
+      return true
+    },
+  } as any) // tslint:disable-line:no-any
+  return update(updateDependencies, opts)
+}
+
+async function update (
+  dependencies: string[],
+  opts: InstallCommandOptions,
+) {
+  return install(dependencies, { ...opts, update: true, allowNew: false })
 }
