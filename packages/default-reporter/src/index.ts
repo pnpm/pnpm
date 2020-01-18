@@ -8,12 +8,6 @@ import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
 import reporterForServer from './reporterForServer'
 
-let lastChar: string = ''
-
-process.on('exit', () => {
-  if (lastChar && lastChar !== EOL) process.stdout.write(EOL)
-})
-
 export default function (
   opts: {
     streamParser: object,
@@ -55,7 +49,7 @@ export default function (
       next: logUpdate,
     })
   function logUpdate (view: string) {
-    lastChar = view[view.length - 1]
+    if (!view.endsWith(EOL)) view += EOL
     process.stdout.write(diff.update(view))
   }
 }

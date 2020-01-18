@@ -169,7 +169,7 @@ async function interactiveUpdate (
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
     indicator (state: any, choice: any) { // tslint:disable-line:no-any
-      return ` ${choice.enabled ? chalk.green('●') : chalk.grey('◯')}`
+      return ` ${choice.enabled ? '●' : '◯'}`
     },
     message: `Choose which packages to update ` +
       `(Press ${chalk.cyan('<space>')} to select, ` +
@@ -177,7 +177,11 @@ async function interactiveUpdate (
       `${chalk.cyan('<i>')} to invert selection)`,
     name: 'updateDependencies',
     pointer: '❯',
-    styles: { em: chalk.bgBlack },
+    styles: {
+      dark: chalk.white,
+      em: chalk.bgBlack.whiteBright,
+      success: chalk.white,
+    },
     type: 'multiselect',
     validate (value: string[]) {
       if (value.length === 0) {
