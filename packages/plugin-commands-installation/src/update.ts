@@ -169,7 +169,7 @@ async function interactiveUpdate (
     choices,
     footer: '\nEnter to start updating. Ctrl-c to cancel.',
     indicator (state: any, choice: any) { // tslint:disable-line:no-any
-      return ` ${choice.enabled ? '●' : '◯'}`
+      return ` ${choice.enabled ? '●' : '○'}`
     },
     message: `Choose which packages to update ` +
       `(Press ${chalk.cyan('<space>')} to select, ` +
