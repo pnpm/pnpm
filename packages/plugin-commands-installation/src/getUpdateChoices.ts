@@ -1,8 +1,14 @@
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { ProjectManifest } from '@pnpm/types'
+import { DependenciesField, ProjectManifest } from '@pnpm/types'
 import R = require('ramda')
+
+const DEPS_PRIORITY: Record<DependenciesField, number> = {
+  'dependencies': 0,
+  'devDependencies': 2,
+  'optionalDependencies': 1,
+}
 
 export default function (outdatedPkgsOfProjects: Array<{
   manifest: ProjectManifest,
@@ -35,6 +41,7 @@ export default function (outdatedPkgsOfProjects: Array<{
   }
   const outdatedPackagesByType = R.groupBy(R.prop('belongsTo'), outdatedPackages)
   return Object.entries(outdatedPackagesByType)
+    .sort(([depType1], [depType2]) => DEPS_PRIORITY[depType1] - DEPS_PRIORITY[depType2])
     .map(([depType, outdatedPkgs]) => ({
       choices: Object.entries(R.groupBy(R.prop('packageName'), outdatedPkgs))
         .map(([packageName, outdatedPkgs]) => {
