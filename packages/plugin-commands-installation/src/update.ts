@@ -190,6 +190,7 @@ async function interactiveUpdate (
       return true
     },
 
+    // For Vim users (related: https://github.com/enquirer/enquirer/pull/163)
     j () { return this.down() },
     k () { return this.up() },
   } as any) // tslint:disable-line:no-any
