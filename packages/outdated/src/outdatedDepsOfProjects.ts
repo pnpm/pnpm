@@ -13,8 +13,9 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import path = require('path')
+import R = require('ramda')
 import { createManifestGetter, ManifestGetterOptions } from './createManifestGetter'
-import outdated from './outdated'
+import outdated, { OutdatedPackage } from './outdated'
 
 export default async function outdatedDepsOfProjects (
   pkgs: Array<{dir: string, manifest: ProjectManifest}>,
@@ -23,7 +24,14 @@ export default async function outdatedDepsOfProjects (
     compatible?: boolean,
     include: IncludedDependencies,
   } & Partial<Pick<ManifestGetterOptions, 'storeDir' | 'lockfileDir'>>,
-) {
+): Promise<Array<{ manifest: ProjectManifest, outdatedPackages: OutdatedPackage[], prefix: string }>> {
+  if (!opts.lockfileDir) {
+    return R.unnest(await Promise.all(
+      pkgs.map((pkg) =>
+        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.dir }),
+      ),
+    ))
+  }
   const lockfileDir = opts.lockfileDir ?? opts.dir
   const modules = await readModulesManifest(path.join(lockfileDir, 'node_modules'))
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm')

@@ -51,30 +51,15 @@ export default async (
   opts: OutdatedCommandOptions & { include: IncludedDependencies },
 ) => {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
-  if (opts.lockfileDir) {
-    const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, args, opts)
-    for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
-      outdatedPackages.forEach((outdatedPkg) => {
-        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
-        if (!outdatedMap[key]) {
-          outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
-        }
-        outdatedMap[key].dependentPkgs.push({ location: prefix, manifest })
-      })
-    }
-  } else {
-    await Promise.all(pkgs.map(async ({ dir, manifest }) => {
-      const { outdatedPackages } = (
-        await outdatedDepsOfProjects([{ manifest, dir }], args, { ...opts, lockfileDir: dir })
-      )[0]
-      outdatedPackages.forEach((outdatedPkg) => {
-        const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
-        if (!outdatedMap[key]) {
-          outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
-        }
-        outdatedMap[key].dependentPkgs.push({ location: getLockfileImporterId(opts.dir, dir), manifest })
-      })
-    }))
+  const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, args, opts)
+  for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
+    outdatedPackages.forEach((outdatedPkg) => {
+      const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
+      if (!outdatedMap[key]) {
+        outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
+      }
+      outdatedMap[key].dependentPkgs.push({ location: prefix, manifest })
+    })
   }
 
   if (R.isEmpty(outdatedMap)) return ''

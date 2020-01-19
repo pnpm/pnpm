@@ -1104,11 +1104,13 @@ importers:
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
       lru-cache: 5.1.1
+      ramda: 0.26.1
       semver: 7.1.1
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/outdated': 'link:'
       '@types/lru-cache': 5.1.0
+      '@types/ramda': 0.26.39
       '@types/semver': 6.2.0
       npm-run-all: 4.1.5
     specifiers:
@@ -1126,10 +1128,12 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.12.3'
       '@types/lru-cache': ^5.1.0
+      '@types/ramda': ^0.26.39
       '@types/semver': ^6.2.0
       dependency-path: 'workspace:4.0.3'
       lru-cache: 5.1.1
       npm-run-all: 4.1.5
+      ramda: 0.26.1
       semver: 7.1.1
   packages/package-bins:
     dependencies:
