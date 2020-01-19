@@ -53,11 +53,11 @@ export default (pnpmFilePath: string, prefix: string) => {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
         const dependencies = ['dependencies', 'optionalDependencies', 'peerDependencies']
-        dependencies.forEach(dep => {
+        for (let dep of dependencies) {
           if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
             throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
           }
-        })
+        }
         return newPkg
       }
     }
