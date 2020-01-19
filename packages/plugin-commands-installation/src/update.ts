@@ -189,6 +189,9 @@ async function interactiveUpdate (
       }
       return true
     },
+
+    j () { return this.down() },
+    k () { return this.up() },
   } as any) // tslint:disable-line:no-any
   return update(updateDependencies, opts)
 }
