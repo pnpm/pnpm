@@ -76,11 +76,11 @@ test('interactively update', async (t) => {
   t.ok(prompt.calledWithMatch({
     choices: [
       {
-        message: 'is-negative 1.0.0 ❯ 1.0.1  ',
+        message: chalk`is-negative 1.0.0 ❯ 1.0.{greenBright.bold 1}  `,
         name: 'is-negative',
       },
       {
-        message: 'micromatch  3.0.0 ❯ 3.1.10 ',
+        message: chalk`micromatch  3.0.0 ❯ 3.{yellowBright.bold 1.10} `,
         name: 'micromatch',
       },
     ],
@@ -113,15 +113,15 @@ test('interactively update', async (t) => {
   t.ok(prompt.calledWithMatch({
     choices: [
       {
-        message: 'is-negative 1.0.1 ❯ 2.1.0 ',
+        message: chalk`is-negative 1.0.1 ❯ {redBright.bold 2.1.0} `,
         name: 'is-negative',
       },
       {
-        message: 'is-positive 2.0.0 ❯ 3.1.0 ',
+        message: chalk`is-positive 2.0.0 ❯ {redBright.bold 3.1.0} `,
         name: 'is-positive',
       },
       {
-        message: 'micromatch  3.0.0 ❯ 4.0.2 ',
+        message: chalk`micromatch  3.0.0 ❯ {redBright.bold 4.0.2} `,
         name: 'micromatch',
       },
     ],

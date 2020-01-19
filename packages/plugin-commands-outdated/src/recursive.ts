@@ -52,13 +52,14 @@ export default async (
 ) => {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, args, opts)
-  for (let { prefix, outdatedPackages, manifest } of outdatedPackagesByProject) {
-    outdatedPackages.forEach((outdatedPkg) => {
+  for (let i = 0; i < outdatedPackagesByProject.length; i++) {
+    const { dir, manifest } = pkgs[i]
+    outdatedPackagesByProject[i].forEach((outdatedPkg) => {
       const key = JSON.stringify([outdatedPkg.packageName, outdatedPkg.current, outdatedPkg.belongsTo])
       if (!outdatedMap[key]) {
         outdatedMap[key] = { ...outdatedPkg, dependentPkgs: [] }
       }
-      outdatedMap[key].dependentPkgs.push({ location: prefix, manifest })
+      outdatedMap[key].dependentPkgs.push({ location: dir, manifest })
     })
   }
 

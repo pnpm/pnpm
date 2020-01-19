@@ -1,21 +1,11 @@
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
 import { OutdatedPackage } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import { ProjectManifest } from '@pnpm/types'
 import R = require('ramda')
 import { getBorderCharacters, table } from 'table'
 
-export default function (outdatedPkgsOfProjects: Array<{
-  manifest: ProjectManifest,
-  outdatedPackages: OutdatedPackage[],
-  prefix: string,
-}>) {
-  const allOutdatedPkgs = mergeOutdatedPkgs(
-    R.unnest(
-      outdatedPkgsOfProjects.map(({ outdatedPackages }) => outdatedPackages),
-    ),
-  )
-
+export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
+  const allOutdatedPkgs = mergeOutdatedPkgs(outdatedPkgsOfProjects)
   if (R.isEmpty(allOutdatedPkgs)) {
     return []
   }

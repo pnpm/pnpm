@@ -1,7 +1,5 @@
-import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import {
-  getLockfileImporterId,
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile-file'
@@ -24,7 +22,7 @@ export default async function outdatedDepsOfProjects (
     compatible?: boolean,
     include: IncludedDependencies,
   } & Partial<Pick<ManifestGetterOptions, 'storeDir' | 'lockfileDir'>>,
-): Promise<Array<{ manifest: ProjectManifest, outdatedPackages: OutdatedPackage[], prefix: string }>> {
+): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
     return R.unnest(await Promise.all(
       pkgs.map((pkg) =>
@@ -48,20 +46,16 @@ export default async function outdatedDepsOfProjects (
   })
   return Promise.all(pkgs.map(async ({ dir, manifest }) => {
     let match = args.length && matcher(args) || undefined
-    return {
+    return outdated({
+      compatible: opts.compatible,
+      currentLockfile,
+      getLatestManifest,
+      include: opts.include,
+      lockfileDir,
       manifest,
-      outdatedPackages: await outdated({
-        compatible: opts.compatible,
-        currentLockfile,
-        getLatestManifest,
-        include: opts.include,
-        lockfileDir,
-        manifest,
-        match,
-        prefix: dir,
-        wantedLockfile,
-      }),
-      prefix: getLockfileImporterId(lockfileDir, dir),
-    }
+      match,
+      prefix: dir,
+      wantedLockfile,
+    })
   }))
 }

@@ -158,7 +158,7 @@ async function interactiveUpdate (
     compatible: opts.latest !== true,
     include,
   })
-  const choices = getUpdateChoices(outdatedPkgsOfProjects)
+  const choices = getUpdateChoices(R.unnest(outdatedPkgsOfProjects))
   if (choices.length === 0) {
     if (opts.latest) {
       return 'All of your dependencies are already up-to-date'
