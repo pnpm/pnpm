@@ -5,7 +5,7 @@ import { preparePackages } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import readYamlFile from 'read-yaml-file'
 import test = require('tape')
-import { DEFAULT_OPTS } from './utils'
+import { DEFAULT_OPTS } from '../utils'
 
 test('recursive update', async (t) => {
   const projects = preparePackages(t, [

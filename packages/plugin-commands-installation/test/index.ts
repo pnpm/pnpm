@@ -1,9 +1,9 @@
 ///<reference path="../../../typings/index.d.ts" />
 import './add'
-import './getUpdateChoices.spec'
 import './linkRecursive'
 import './miscRecursive'
 import './prune'
-import './updateInteractive'
-import './updateRecursive'
-import './updateWorkspaceDependencies.spec'
+import './update/getUpdateChoices.test'
+import './update/interactive'
+import './update/recursive'
+import './updateWorkspaceDependencies.test'

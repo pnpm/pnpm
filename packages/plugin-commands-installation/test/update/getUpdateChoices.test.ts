@@ -1,5 +1,5 @@
 import test = require('tape')
-import getUpdateChoices from '../lib/getUpdateChoices'
+import getUpdateChoices from '../../lib/update/getUpdateChoices'
 
 test('getUpdateChoices()', (t) => {
   t.deepEqual(

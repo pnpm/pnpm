@@ -10,7 +10,7 @@ import test = require('tape')
 
 const prompt = sinon.stub()
 
-const update = proxyquire('../lib/update', {
+const update = proxyquire('../../lib/update', {
   'enquirer': { prompt },
 })
 

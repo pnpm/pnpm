@@ -7,8 +7,8 @@ import { oneLine } from 'common-tags'
 import { prompt } from 'enquirer'
 import R = require('ramda')
 import renderHelp = require('render-help')
+import { handler as install, InstallCommandOptions } from '../install'
 import getUpdateChoices from './getUpdateChoices'
-import { handler as install, InstallCommandOptions } from './install'
 
 export function rcOptionsTypes () {
   return R.pick([
