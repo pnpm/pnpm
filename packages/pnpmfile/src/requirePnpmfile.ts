@@ -52,9 +52,12 @@ export default (pnpmFilePath: string, prefix: string) => {
         if (!newPkg) {
           throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
         }
-        if (typeof newPkg.dependencies !== 'object') {
-          throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook returned package manifest object\'s property \'dependecies\' must be an object.')
-        }
+        const dependencies = ['dependencies', 'optionalDependencies', 'peerDependencies']
+        dependencies.forEach(dep => {
+          if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
+            throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
+          }
+        })
         return newPkg
       }
     }

@@ -3,6 +3,6 @@ module.exports = {
 }
 
 function readPackage(pkg) {
-  pkg.dependencies = ''
+  pkg.dependencies = '@oclif/errors'
   return pkg
 }
