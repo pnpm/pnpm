@@ -49,6 +49,9 @@ export default function (
       next: logUpdate,
     })
   function logUpdate (view: string) {
+    // A new line should always be appended in case a prompt needs to appear.
+    // Without a new line the prompt will be joined with the previous output.
+    // An example of such prompt may be seen by running: pnpm update --interactive
     if (!view.endsWith(EOL)) view += EOL
     process.stdout.write(diff.update(view))
   }
