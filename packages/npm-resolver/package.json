@@ -42,6 +42,7 @@
     "mem": "6.0.1",
     "normalize-path": "3.0.0",
     "p-limit": "2.2.2",
+    "p-memoize": "3.1.0",
     "parse-npm-tarball-url": "3.0.0",
     "semver": "7.1.1",
     "ssri": "6.0.1",

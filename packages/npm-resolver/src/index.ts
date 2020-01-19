@@ -10,10 +10,12 @@ import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
 import normalize = require('normalize-path')
+import pMemoize = require('p-memoize')
 import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
 import createPkgId from './createNpmPkgId'
+import fromRegistry from './fetch'
 import parsePref, {
   RegistryPackageSpec,
 } from './parsePref'
@@ -80,7 +82,7 @@ export default function createResolver (
   if (typeof opts.storeDir !== 'string') { // tslint:disable-line
     throw new TypeError('`opts.storeDir` is required and needs to be a string')
   }
-  const fetch = createRegFetcher({
+  const fetch = pMemoize(fromRegistry.bind(null, createRegFetcher({
     ca: opts.ca,
     cert: opts.cert,
     fullMetadata: opts.fullMetadata,
@@ -95,7 +97,10 @@ export default function createResolver (
     },
     strictSSL: opts.strictSsl,
     userAgent: opts.userAgent,
-  }) as (url: string, opts: {auth?: object}) => Promise<object>
+  }) as (url: string, opts: {auth?: object}) => Promise<object>), {
+    cacheKey: (...args) => JSON.stringify(args),
+    maxAge: 1000 * 20, // 20 seconds
+  })
   return resolveNpm.bind(null, {
     getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawConfig)),
     pickPackage: pickPackage.bind(null, {

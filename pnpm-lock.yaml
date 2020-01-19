@@ -1049,6 +1049,7 @@ importers:
       mem: 6.0.1
       normalize-path: 3.0.0
       p-limit: 2.2.2
+      p-memoize: 3.1.0
       parse-npm-tarball-url: 3.0.0
       semver: 7.1.1
       ssri: 6.0.1
@@ -1081,6 +1082,7 @@ importers:
       nock: 11.7.2
       normalize-path: 3.0.0
       p-limit: 2.2.2
+      p-memoize: 3.1.0
       parse-npm-tarball-url: 3.0.0
       path-exists: 4.0.0
       rimraf: 3.0.0
@@ -7873,6 +7875,16 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-hxDXrwqmJvj/+hzgAWhUUmMlV0g=
+  /mem/4.3.0:
+    dependencies:
+      map-age-cleaner: 0.1.3
+      mimic-fn: 2.1.0
+      p-is-promise: 2.1.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-qX2bG48pTqYRVmDB37rn/6PT7LcR8T7oAX3bf99u1Tt1nzxYfxkgqDwUwolPlXweM0XzBOBFzSx4kfp7KP1s/w==
   /mem/6.0.1:
     dependencies:
       map-age-cleaner: 0.1.3
@@ -8864,6 +8876,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-P7z7FbiZpEEjs0ttzBi3JDNqLK4=
+  /p-is-promise/2.1.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-Y3W0wlRPK8ZMRbNq97l4M5otioeA5lm1z7bkNkxCka8HSPjR0xRWmpCmc9utiaLP9Jb1eD8BgeIxTW4AIF45Pg==
   /p-limit/1.3.0:
     dependencies:
       p-try: 1.0.0
@@ -8907,6 +8925,15 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-y3b8Kpd8OAN444hxfBbFfj1FY/RjtTd8tzYwhUqNYXx0fXx2iX4maP4Qr6qhIKbQXI02wTLAda4fYUbDagTUFw==
+  /p-memoize/3.1.0:
+    dependencies:
+      mem: 4.3.0
+      mimic-fn: 2.1.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-e5tIvrsr7ydUUnxb534iQWtXxWgk/86IsH+H+nV4FHouIggBt4coXboKBt26o4lTu7JbEnGSeXdEsYR8BhAHFA==
   /p-queue/6.2.1:
     dependencies:
       eventemitter3: 4.0.0
