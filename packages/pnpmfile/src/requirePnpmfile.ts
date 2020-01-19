@@ -7,8 +7,8 @@ import fs = require('fs')
 class BadReadPackageHookError extends PnpmError {
   public readonly pnpmfile: string
 
-  constructor (pnpmfile: string) {
-    super('BAD_READ_PACKAGE_HOOK_RESULT', `readPackage hook did not return a package manifest object. Hook imported via ${pnpmfile}`)
+  constructor (pnpmfile: string, message: string) {
+    super('BAD_READ_PACKAGE_HOOK_RESULT', `${message} Hook imported via ${pnpmfile}`)
     this.pnpmfile = pnpmfile
   }
 }
@@ -50,7 +50,13 @@ export default (pnpmFilePath: string, prefix: string) => {
         pkg.peerDependencies = pkg.peerDependencies || {}
         const newPkg = readPackage(pkg, ...args)
         if (!newPkg) {
-          throw new BadReadPackageHookError(pnpmFilePath)
+          throw new BadReadPackageHookError(pnpmFilePath, 'readPackage hook did not return a package manifest object.')
+        }
+        const dependencies = ['dependencies', 'optionalDependencies', 'peerDependencies']
+        for (let dep of dependencies) {
+          if (newPkg[dep] && typeof newPkg[dep] !== 'object') {
+            throw new BadReadPackageHookError(pnpmFilePath, `readPackage hook returned package manifest object's property '${dep}' must be an object.`)
+          }
         }
         return newPkg
       }
