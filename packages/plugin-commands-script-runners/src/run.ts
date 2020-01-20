@@ -1,4 +1,5 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
+import { CompletionFunc } from '@pnpm/command'
 import { FILTERING } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -37,6 +38,14 @@ export function cliOptionsTypes () {
     ], allTypes),
     ...IF_PRESENT_OPTION,
   }
+}
+
+export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
+  if (args.length > 1) {
+    return []
+  }
+  const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? process.cwd(), cliOpts)
+  return Object.keys(manifest.scripts ?? {}).map((name) => ({ name }))
 }
 
 export const commandNames = ['run', 'run-script']

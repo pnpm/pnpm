@@ -1,3 +1,4 @@
+import { CompletionFunc } from '@pnpm/command'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { importCommand } from '@pnpm/plugin-commands-import'
 import { add, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
@@ -16,6 +17,7 @@ import {
 import { server } from '@pnpm/plugin-commands-server'
 import { store } from '@pnpm/plugin-commands-store'
 import { PnpmOptions } from '../types'
+import createCompletion from './completion'
 import createHelp from './help'
 import * as installTest from './installTest'
 import * as recursive from './recursive'
@@ -33,6 +35,7 @@ const commands: Array<{
   help: () => string,
   cliOptionsTypes: () => Object,
   rcOptionsTypes: () => Record<string, unknown>,
+  completion?: CompletionFunc,
 }> = [
   add,
   audit,
@@ -67,11 +70,13 @@ const helpByCommandName: Record<string, () => string> = {}
 const cliOptionsTypesByCommandName: Record<string, () => Object> = {}
 const rcOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
 const aliasToFullName: Map<string, string> = new Map()
+const completionByCommandName: Record<string, CompletionFunc> = {}
 
 for (let i = 0; i < commands.length; i++) {
   const {
     cliOptionsTypes,
     commandNames,
+    completion,
     handler,
     help,
     rcOptionsTypes,
@@ -84,6 +89,9 @@ for (let i = 0; i < commands.length; i++) {
     helpByCommandName[commandName] = help
     cliOptionsTypesByCommandName[commandName] = cliOptionsTypes
     rcOptionsTypesByCommandName[commandName] = rcOptionsTypes
+    if (completion) {
+      completionByCommandName[commandName] = completion
+    }
   }
   if (commandNames.length > 1) {
     const fullName = commandNames[0]
@@ -94,6 +102,7 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 handlerByCommandName.help = createHelp(helpByCommandName)
+handlerByCommandName.completion = createCompletion(completionByCommandName)
 
 export default handlerByCommandName
 

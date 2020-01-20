@@ -1,3 +1,8 @@
+declare module 'tabtab' {
+  const anything: any;
+  export = anything;
+}
+
 declare module '@zeit/fetch-retry' {
   const anything: any;
   export = anything;

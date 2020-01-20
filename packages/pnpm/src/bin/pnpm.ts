@@ -12,6 +12,16 @@ const argv = process.argv.slice(2)
       const pkg = (await import('@pnpm/cli-utils')).packageManager
       console.log(pkg.version)
       break
+    case 'install-completion': {
+      const { install: installCompletion } = await import('tabtab')
+      await installCompletion({ name: 'pnpm', completer: 'pnpm' })
+      return
+    }
+    case 'uninstall-completion': {
+      const { uninstall: uninstallCompletion } = await import('tabtab')
+      await uninstallCompletion({ name: 'pnpm' })
+      return
+    }
     // commands that are passed through to npm:
     case 'access':
     case 'adduser':
