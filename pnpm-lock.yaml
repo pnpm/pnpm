@@ -30,6 +30,8 @@ importers:
       tslint: 5.20.1
       typescript: 3.7.5
       verdaccio: 4.4.2
+  ../../../.nvs/node/12.14.1/x64/pnpm-global:
+    specifiers: {}
   packages/audit:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -84,6 +86,7 @@ importers:
       run-groups: 2.0.2
   packages/cli-utils:
     dependencies:
+      '@pnpm/command': 'link:../command'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
@@ -102,6 +105,7 @@ importers:
       rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'link:'
+      '@pnpm/command': 'workspace:0.0.0'
       '@pnpm/config': 'workspace:7.1.0'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': ^3.1.0
@@ -1443,6 +1447,7 @@ importers:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/colorize-semver-diff': 1.0.0
+      '@pnpm/command': 'link:../command'
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
       '@pnpm/constants': 'link:../constants'
@@ -1499,6 +1504,7 @@ importers:
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.1'
       '@pnpm/colorize-semver-diff': 1.0.0
+      '@pnpm/command': 'workspace:0.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:7.1.0'
       '@pnpm/constants': 'workspace:3.0.0'

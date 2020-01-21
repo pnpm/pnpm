@@ -5,6 +5,7 @@ import packageManager from './pnpmPkgJson'
 export { getConfig, getSaveType, packageManager }
 
 export * from './getPinnedVersion'
+export * from './optionTypesToCompletions'
 export * from './packageIsInstallable'
 export * from './readProjectManifest'
 export * from './recursiveSummary'

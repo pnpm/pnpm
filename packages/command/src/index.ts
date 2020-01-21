@@ -8,10 +8,12 @@ export type CompletionCtx = {
   words: number,
 }
 
+export type Completion = { name: string, description?: string }
+
 export type CompletionFunc = {
   (
     ctx: CompletionCtx,
     args: string[],
     cliOpts: Record<string, unknown>,
-  ): Promise<Array<{ name: string, description?: string }>>,
+  ): Promise<Completion[]>,
 }

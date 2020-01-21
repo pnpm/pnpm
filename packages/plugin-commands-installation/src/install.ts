@@ -3,10 +3,12 @@ import {
   docsUrl,
   getPinnedVersion,
   getSaveType,
+  optionTypesToCompletions,
   readProjectManifestOnly,
   tryReadProjectManifest,
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
+import { Completion, CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
@@ -83,6 +85,10 @@ export function cliOptionsTypes () {
 }
 
 export const commandNames = ['install', 'i']
+
+export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
+  return optionTypesToCompletions(cliOptionsTypes())
+}
 
 export function help () {
   return renderHelp({
