@@ -1,4 +1,5 @@
-import { docsUrl } from '@pnpm/cli-utils'
+import { docsUrl, optionTypesToCompletions } from '@pnpm/cli-utils'
+import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -67,6 +68,10 @@ export function cliOptionsTypes () {
     save: Boolean,
     workspace: Boolean,
   }
+}
+
+export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
+  return optionTypesToCompletions(cliOptionsTypes())
 }
 
 export const commandNames = ['add']

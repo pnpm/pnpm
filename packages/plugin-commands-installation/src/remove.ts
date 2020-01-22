@@ -1,13 +1,16 @@
 import {
   docsUrl,
   getSaveType,
+  optionTypesToCompletions,
   readProjectManifest,
 } from '@pnpm/cli-utils'
+import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -88,6 +91,17 @@ export function help () {
 }
 
 export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
+
+export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
+  const { manifest } = await readProjectManifest(cliOpts.dir as string ?? process.cwd(), cliOpts)
+  const allDeps = Object.keys(
+    getAllDependenciesFromPackage(manifest),
+  ).map((name) => ({ name }))
+  return [
+    ...allDeps,
+    ...optionTypesToCompletions(cliOptionsTypes()),
+  ]
+}
 
 export async function handler (
   input: string[],
