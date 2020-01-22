@@ -1,5 +1,12 @@
-import { docsUrl, readProjectManifestOnly, TABLE_OPTIONS } from '@pnpm/cli-utils'
+import {
+  docsUrl,
+  optionTypesToCompletions,
+  readDepNameCompletions,
+  readProjectManifestOnly,
+  TABLE_OPTIONS,
+} from '@pnpm/cli-utils'
 import colorizeSemverDiff from '@pnpm/colorize-semver-diff'
+import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import {
@@ -98,6 +105,13 @@ export function help () {
     url: docsUrl('outdated'),
     usages: ['pnpm outdated [<pkg> ...]'],
   })
+}
+
+export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
+  return [
+    ...await readDepNameCompletions(cliOpts.dir as string),
+    ...optionTypesToCompletions(cliOptionsTypes()),
+  ]
 }
 
 export type OutdatedCommandOptions = {

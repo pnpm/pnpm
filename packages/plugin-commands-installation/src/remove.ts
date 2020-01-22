@@ -2,6 +2,7 @@ import {
   docsUrl,
   getSaveType,
   optionTypesToCompletions,
+  readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
@@ -93,12 +94,8 @@ export function help () {
 export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
 
 export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
-  const { manifest } = await readProjectManifest(cliOpts.dir as string ?? process.cwd(), cliOpts)
-  const allDeps = Object.keys(
-    getAllDependenciesFromPackage(manifest),
-  ).map((name) => ({ name }))
   return [
-    ...allDeps,
+    ...await readDepNameCompletions(cliOpts.dir as string),
     ...optionTypesToCompletions(cliOptionsTypes()),
   ]
 }

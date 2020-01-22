@@ -1,4 +1,10 @@
-import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
+import {
+  docsUrl,
+  optionTypesToCompletions,
+  readDepNameCompletions,
+  readProjectManifestOnly,
+} from '@pnpm/cli-utils'
+import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { types as allTypes } from '@pnpm/config'
 import { outdatedDepsOfProjects } from '@pnpm/outdated'
@@ -61,6 +67,13 @@ export function cliOptionsTypes () {
 }
 
 export const commandNames = ['update', 'up', 'upgrade']
+
+export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
+  return [
+    ...await readDepNameCompletions(cliOpts.dir as string),
+    ...optionTypesToCompletions(cliOptionsTypes()),
+  ]
+}
 
 export function help () {
   return renderHelp({

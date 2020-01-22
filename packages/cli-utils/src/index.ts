@@ -7,6 +7,7 @@ export { getConfig, getSaveType, packageManager }
 export * from './getPinnedVersion'
 export * from './optionTypesToCompletions'
 export * from './packageIsInstallable'
+export * from './readDepNameCompletions'
 export * from './readProjectManifest'
 export * from './recursiveSummary'
 export * from './style'
