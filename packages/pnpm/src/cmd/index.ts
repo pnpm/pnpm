@@ -102,7 +102,10 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 handlerByCommandName.help = createHelp(helpByCommandName)
-handlerByCommandName.completion = createCompletion(completionByCommandName)
+handlerByCommandName.completion = createCompletion(
+  completionByCommandName,
+  cliOptionsTypesByCommandName,
+)
 
 export default handlerByCommandName
 
