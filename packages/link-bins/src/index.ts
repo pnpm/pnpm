@@ -120,6 +120,10 @@ async function getPackageBins (
     return []
   }
 
+  if (typeof pkg.bin === 'string' && !pkg.name) {
+    throw new Error(`Package in ${target} must have a name to get bin linked.`)
+  }
+
   return getPackageBinsFromPackageJson(pkg, target)
 }
 

@@ -259,6 +259,23 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
   }
 })
 
+test('throws error is package name is not defined', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  await writeJsonFile('../is-positive/package.json', { version: '1.0.0' })
+
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
+
+  try {
+    await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
+    t.fail()
+  } catch (err) {
+    t.equal(err.message, 'Package in ../is-positive must have a name field to be linked')
+    t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_NAME')
+  }
+
+})
+
 // test.skip('relative link when an external lockfile is used', async (t: tape.Test) => {
 //   const projects = prepare(t, [
 //     {

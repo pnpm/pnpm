@@ -21,6 +21,7 @@ const simpleFixture = path.join(fixtures, 'simple-fixture')
 const binNameConflictsFixture = path.join(fixtures, 'bin-name-conflicts')
 const foobarFixture = path.join(fixtures, 'foobar')
 const exoticManifestFixture = path.join(fixtures, 'exotic-manifest')
+const noNameFixture = path.join(fixtures, 'no-name')
 
 const POWER_SHELL_IS_SUPPORTED = isWindows()
 const IS_WINDOWS = isWindows()
@@ -224,4 +225,22 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
   }
 
   t.end()
+})
+
+test('linkBins() would throw error if package has no name field', async (t) => {
+  const binTarget = tempy.directory()
+  t.comment(`linking bins to ${binTarget}`)
+  const warn = sinon.spy()
+
+  try {
+    await linkBins(path.join(noNameFixture, 'node_modules'), binTarget, {
+      allowExoticManifests: true,
+      warn,
+    })
+    t.fail()
+  } catch (err) {
+    t.equal(err.message, `Package in ${path.join(noNameFixture, 'node_modules/simple')} must have a name to get bin linked.`)
+    t.notOk(warn.called)
+    t.end()
+  }
 })
