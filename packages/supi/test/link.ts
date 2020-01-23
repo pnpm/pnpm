@@ -268,7 +268,7 @@ test('throws error is package name is not defined', async (t: tape.Test) => {
 
   try {
     await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
-    t.fail()
+    t.fail('link package should fail')
   } catch (err) {
     t.equal(err.message, 'Package in ../is-positive must have a name field to be linked')
     t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_NAME')
