@@ -51,7 +51,7 @@ const RENAMED_OPTIONS = {
 }
 
 // tslint:disable
-const shortHands = {
+export const shortHands = {
   's': ['--reporter', 'silent'],
   'd': ['--loglevel', 'info'],
   'dd': ['--loglevel', 'verbose'],

@@ -32,6 +32,7 @@
     "@pnpm/cli-utils": "link:",
     "@pnpm/logger": "^3.1.0",
     "@pnpm/types": "workspace:5.0.0",
+    "@types/nopt": "^3.0.29",
     "@types/ramda": "^0.26.39",
     "pnpm": "link:../pnpm",
     "rimraf": "3.0.0"
@@ -45,6 +46,7 @@
     "@pnpm/utils": "workspace:0.12.3",
     "chalk": "3.0.0",
     "load-json-file": "6.2.0",
+    "nopt": "4.0.1",
     "ramda": "0.26.1",
     "version-selector-type": "2.0.1"
   },
