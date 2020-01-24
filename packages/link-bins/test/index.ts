@@ -241,7 +241,8 @@ test('linkBins() would throw error if package has no name field', async (t) => {
     })
     t.fail('linkBins should fail when package has no name')
   } catch (err) {
-    t.equal(err.message, normalizePath(`Package in ${path.join(noNameFixture, 'node_modules/simple')} must have a name to get bin linked.`))
+    const packagePath = normalizePath(path.join(noNameFixture, 'node_modules/simple'))
+    t.equal(err.message, `Package in ${packagePath} must have a name to get bin linked.`)
     t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_NAME')
     t.notOk(warn.called)
     t.end()
@@ -260,7 +261,8 @@ test('linkBins() would throw error if package has no bin field', async (t) => {
     })
     t.fail('linkBins should fail when package has no bin')
   } catch (err) {
-    t.equal(err.message, normalizePath(`Package in ${path.join(noBinFixture, 'node_modules/simple')} must have a non-empty bin field to get bin linked.`))
+    const packagePath = normalizePath(path.join(noBinFixture, 'node_modules/simple'))
+    t.equal(err.message, `Package in ${packagePath} must have a non-empty bin field to get bin linked.`)
     t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_BIN')
     t.notOk(warn.called)
     t.end()
