@@ -50,3 +50,8 @@ function isOption (word: string) {
   return word.startsWith('--') && word.length >= 3 ||
     word.startsWith('-') && word.length >= 2
 }
+
+export function currentTypedWordType (completionCtx: CompletionCtx) {
+  if (completionCtx.partial.endsWith(' ')) return null
+  return completionCtx.lastPartial.startsWith('-') ? 'option' : 'value'
+}

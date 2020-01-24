@@ -1,4 +1,5 @@
 import {
+  currentTypedWordType,
   getLastOption,
   getOptionCompletions,
   optionTypesToCompletions,
@@ -18,17 +19,22 @@ export default function (
     if (!env.complete) return
 
     const inputArgv = splitCmd(env.line).slice(1)
-    const { argv, cliArgs, cliConf, cmd, subCmd, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
+    const { cliArgs, cliConf, cmd } = await parseCliArgs(inputArgv)
     const optionTypes = cliOptionsTypesByCommandName[cmd]?.()
-    const option = getLastOption(env)
-    if (optionTypes && (env.partial.endsWith(' ') || !env.lastPartial.startsWith('-')) && option) {
-      const optionCompletions = getOptionCompletions(
-        optionTypes as any, // tslint:disable-line
-        shortHands,
-        option,
-      )
-      if (optionCompletions !== undefined) {
-        return tabtab.log(optionCompletions)
+    const currTypedWordType = currentTypedWordType(env)
+
+    // Autocompleting option values
+    if (optionTypes && currTypedWordType !== 'option') {
+      const option = getLastOption(env)
+      if (option) {
+        const optionCompletions = getOptionCompletions(
+          optionTypes as any, // tslint:disable-line
+          shortHands,
+          option,
+        )
+        if (optionCompletions !== undefined) {
+          return tabtab.log(optionCompletions)
+        }
       }
     }
     if (completionByCommandName[cmd]) {
@@ -38,6 +44,7 @@ export default function (
     }
 
     if (optionTypes) {
+      if (currTypedWordType !== 'value') return tabtab.log([])
       return tabtab.log(
         optionTypesToCompletions(optionTypes as any), // tslint:disable-line
       )

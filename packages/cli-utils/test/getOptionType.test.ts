@@ -1,4 +1,8 @@
-import { getLastOption, getOptionCompletions } from '@pnpm/cli-utils'
+import {
+  currentTypedWordType,
+  getLastOption,
+  getOptionCompletions,
+} from '@pnpm/cli-utils'
 import test = require('tape')
 
 const TYPES = {
@@ -39,7 +43,7 @@ test('getLastOption()', t => {
   t.equal(
     getLastOption({
       last: '',
-      lastPartial: 'f',
+      lastPartial: '',
       line: 'pnpm i --resolution-strategy ',
       partial: 'pnpm i --resolution-strategy ',
       point: 28,
@@ -48,5 +52,45 @@ test('getLastOption()', t => {
     }),
     '--resolution-strategy',
   )
+  t.end()
+})
+
+test('currentTypedWordType()', t => {
+  t.equal(currentTypedWordType({
+    last: '',
+    lastPartial: '',
+    line: 'pnpm i --resolution-strategy ',
+    partial: 'pnpm i --resolution-strategy ',
+    point: 29,
+    prev: '--resolution-strategy',
+    words: 3,
+  }), null, 'pnpm i --resolution-strategy |')
+  t.equal(currentTypedWordType({
+    last: '',
+    lastPartial: 'f',
+    line: 'pnpm i --resolution-strategy f ',
+    partial: 'pnpm i --resolution-strategy f',
+    point: 30,
+    prev: 'f',
+    words: 4,
+  }), 'value', 'pnpm i --resolution-strategy f|')
+  t.equal(currentTypedWordType({
+    last: '',
+    lastPartial: 'ex',
+    line: 'pnpm add ex --save-dev ',
+    partial: 'pnpm add ex',
+    point: 11,
+    prev: '--save-dev',
+    words: 4,
+  }), 'value', 'pnpm add ex| --save-dev')
+  t.equal(currentTypedWordType({
+    last: '',
+    lastPartial: '--res',
+    line: 'pnpm i --res foo ',
+    partial: 'pnpm i --res',
+    point: 12,
+    prev: 'foo',
+    words: 4,
+  }), 'option', 'pnpm i --res| foo')
   t.end()
 })
