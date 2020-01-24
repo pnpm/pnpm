@@ -31,11 +31,11 @@ declare module 'semver-utils' {
   }>
 }
 
-declare namespace NodeJS.Module {
-  function _nodeModulePaths(from: string): string[]
-}
-
 declare module 'split-cmd' {
   export function split (cmd: string): string[]
   export function splitToObject (cmd: string): { command: string, args: string[] }
+}
+
+declare namespace NodeJS.Module {
+  function _nodeModulePaths(from: string): string[]
 }
