@@ -5,6 +5,7 @@ import linkBins, {
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import ncpcb = require('ncp')
+import normalizePath = require('normalize-path')
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
@@ -240,7 +241,7 @@ test('linkBins() would throw error if package has no name field', async (t) => {
     })
     t.fail('linkBins should fail when package has no name')
   } catch (err) {
-    t.equal(err.message, `Package in ${path.join(noNameFixture, 'node_modules/simple')} must have a name to get bin linked.`)
+    t.equal(err.message, normalizePath(`Package in ${path.join(noNameFixture, 'node_modules/simple')} must have a name to get bin linked.`))
     t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_NAME')
     t.notOk(warn.called)
     t.end()
@@ -259,7 +260,7 @@ test('linkBins() would throw error if package has no bin field', async (t) => {
     })
     t.fail('linkBins should fail when package has no bin')
   } catch (err) {
-    t.equal(err.message, `Package in ${path.join(noBinFixture, 'node_modules/simple')} must have a non-empty bin field to get bin linked.`)
+    t.equal(err.message, normalizePath(`Package in ${path.join(noBinFixture, 'node_modules/simple')} must have a non-empty bin field to get bin linked.`))
     t.equal(err.code, 'ERR_PNPM_INVALID_PACKAGE_BIN')
     t.notOk(warn.called)
     t.end()
