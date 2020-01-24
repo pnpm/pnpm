@@ -30,8 +30,6 @@ importers:
       tslint: 5.20.1
       typescript: 3.7.5
       verdaccio: 4.4.2
-  ../../../.nvs/node/12.14.1/x64/pnpm-global:
-    specifiers: {}
   packages/audit:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -1028,7 +1026,7 @@ importers:
   packages/npm-registry-agent:
     dependencies:
       agentkeepalive: 4.0.0
-      http-proxy-agent: 3.0.0
+      http-proxy-agent: 4.0.0
       https-proxy-agent: 3.0.1
       lru-cache: 5.1.1
       socks-proxy-agent: 4.0.2
@@ -1043,7 +1041,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/proxyquire': 1.3.28
       agentkeepalive: 4.0.0
-      http-proxy-agent: 3.0.0
+      http-proxy-agent: 4.0.0
       https-proxy-agent: 3.0.1
       lru-cache: 5.1.1
       proxyquire: 2.1.3
@@ -3806,12 +3804,14 @@ packages:
       node: '>= 4.0.0'
     resolution:
       integrity: sha512-salcGninV0nPrwpGNn4VTXBb1SOuXQBiqbrNXoeizJsHrsL6ERFM2Ne3JUSBWRE6aeNJI2ROP/WEEIDUiDe3cg==
-  /agent-base/5.1.1:
+  /agent-base/6.0.0:
+    dependencies:
+      debug: 4.1.1
     dev: false
     engines:
       node: '>= 6.0.0'
     resolution:
-      integrity: sha512-TMeqbNl2fMW0nMjTEPOwe3J/PRFP4vqeoNuQMG0HlMrtm5QxKqdvAkZ1pRBQ/ulIyDD5Yq0nJ7YbdD8ey0TO3g==
+      integrity: sha512-j1Q7cSCqN+AwrmDd+pzgqc0/NpC655x2bUf5ZjRIO77DcNBFmh+OgRNzF6OKdCC9RSCb19fGd99+bhXFdkRNqw==
   /agentkeepalive/4.0.0:
     dependencies:
       debug: 4.1.1
@@ -6723,15 +6723,15 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha512-ZTTX0MWrsQ2ZAhA1cejAwDLycFsd7I7nVtnkT3Ol0aqodaKW+0CTZDQ1uBv5whptCnc8e8HeRRJxRs0kmm/Qfw==
-  /http-proxy-agent/3.0.0:
+  /http-proxy-agent/4.0.0:
     dependencies:
-      agent-base: 5.1.1
+      agent-base: 6.0.0
       debug: 4.1.1
     dev: false
     engines:
       node: '>= 6'
     resolution:
-      integrity: sha512-uGuJaBWQWDQCJI5ip0d/VTYZW0nRrlLWXA4A7P1jrsa+f77rW2yXz315oBt6zGCF6l8C2tlMxY7ffULCj+5FhA==
+      integrity: sha512-GX0FA6+IcDf4Oxc/FBWgYj4zKgo/DnZrksaG9jyuQLExs6xlX+uI5lcA8ymM3JaZTRrF/4s2UX19wJolyo7OBA==
   /http-signature/1.2.0:
     dependencies:
       assert-plus: 1.0.0
