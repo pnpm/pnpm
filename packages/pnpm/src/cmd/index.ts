@@ -1,4 +1,5 @@
 import { CompletionFunc } from '@pnpm/command'
+import { types as allTypes } from '@pnpm/config'
 import { audit } from '@pnpm/plugin-commands-audit'
 import { importCommand } from '@pnpm/plugin-commands-import'
 import { add, install, link, prune, remove, unlink, update } from '@pnpm/plugin-commands-installation'
@@ -16,12 +17,22 @@ import {
 } from '@pnpm/plugin-commands-script-runners'
 import { server } from '@pnpm/plugin-commands-server'
 import { store } from '@pnpm/plugin-commands-store'
+import R = require('ramda')
 import { PnpmOptions } from '../types'
 import createCompletion from './completion'
 import createHelp from './help'
 import * as installTest from './installTest'
 import * as recursive from './recursive'
 import * as root from './root'
+
+export const GLOBAL_OPTIONS = R.pick([
+  'color',
+  'dir',
+  'filter',
+  'help',
+  'parseable',
+  'prefix',
+], allTypes)
 
 export type Command = (
   args: string[],
@@ -105,6 +116,7 @@ handlerByCommandName.help = createHelp(helpByCommandName)
 handlerByCommandName.completion = createCompletion(
   completionByCommandName,
   cliOptionsTypesByCommandName,
+  GLOBAL_OPTIONS,
 )
 
 export default handlerByCommandName

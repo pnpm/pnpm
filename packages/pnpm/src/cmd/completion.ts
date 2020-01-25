@@ -13,6 +13,7 @@ import { parseCliArgs, shortHands } from '../main'
 export default function (
   completionByCommandName: Record<string, CompletionFunc>,
   cliOptionsTypesByCommandName: Record<string, () => Object>,
+  globalOptionTypes: Record<string, Object>,
 ) {
   return async () => {
     const env = tabtab.parseEnv(process.env)
@@ -20,11 +21,14 @@ export default function (
 
     const inputArgv = splitCmd(env.line).slice(1)
     const { cliArgs, cliConf, cmd } = await parseCliArgs(inputArgv)
-    const optionTypes = cliOptionsTypesByCommandName[cmd]?.()
+    const optionTypes = {
+      ...globalOptionTypes,
+      ...(cliOptionsTypesByCommandName[cmd]?.() ?? {}),
+    }
     const currTypedWordType = currentTypedWordType(env)
 
     // Autocompleting option values
-    if (optionTypes && currTypedWordType !== 'option') {
+    if (currTypedWordType !== 'option') {
       const option = getLastOption(env)
       if (option) {
         const optionCompletions = getOptionCompletions(
@@ -46,15 +50,16 @@ export default function (
       }
     }
     if (currTypedWordType !== 'value') {
-      if (optionTypes) {
+      if (!cmd) {
+        completions = [
+          ...completions,
+          ...optionTypesToCompletions(optionTypes),
+          { name: '--version' },
+        ]
+      } else {
         completions = [
           ...completions,
           ...optionTypesToCompletions(optionTypes as any), // tslint:disable-line
-        ]
-      } else if (!cmd) {
-        completions = [
-          ...completions,
-          { name: '--version' },
         ]
       }
     }

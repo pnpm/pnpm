@@ -10,7 +10,7 @@ export default async function parseCliArgs (
     globalOptionsTypes: Record<string, unknown>,
     isKnownCommand: (commandName: string) => boolean,
     renamedOptions?: Record<string, string>,
-    shortHands: Record<string, string[]>,
+    shortHands: Record<string, string>,
   },
   inputArgv: string[],
 ) {
@@ -24,7 +24,7 @@ export default async function parseCliArgs (
       ...opts.getTypesByCommandName('install'),
     },
     {
-      'r': ['--recursive'],
+      'r': '--recursive',
       ...opts.shortHands,
     },
     inputArgv,
