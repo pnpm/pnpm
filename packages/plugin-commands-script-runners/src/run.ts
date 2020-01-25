@@ -40,7 +40,7 @@ export function cliOptionsTypes () {
   }
 }
 
-export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
+export const completion: CompletionFunc = async (args, cliOpts) => {
   if (args.length > 1) {
     return []
   }

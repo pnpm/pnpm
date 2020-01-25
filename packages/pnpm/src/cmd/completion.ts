@@ -39,7 +39,7 @@ export default function (
     }
     let completions: Completion[] = []
     if (currTypedWordType !== 'option') {
-      if (!cmd) {
+      if (!cmd || currTypedWordType === 'value' && !completionByCommandName[cmd]) {
         completions = defaultCompletions()
       } else if (completionByCommandName[cmd]) {
         completions = await completionByCommandName[cmd](cliArgs, cliConf)
