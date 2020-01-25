@@ -121,7 +121,7 @@ async function getPackageBins (
     return []
   }
 
-  if (R.isEmpty(pkg.bin) || !pkg.bin) {
+  if (R.isEmpty(pkg.bin)) {
     throw new PnpmError('INVALID_PACKAGE_BIN', `Package in ${target} must have a non-empty bin field to get bin linked.`)
   }
 
