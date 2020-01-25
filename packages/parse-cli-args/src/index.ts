@@ -67,8 +67,8 @@ export default async function parseCliArgs (
     }
   }
 
-  let cmd = opts.getCommandLongName(argv.remain[0]) ?? 'help'
-  if (!opts.isKnownCommand(cmd) && !RECURSIVE_CMDS.has(cmd)) {
+  let cmd = opts.getCommandLongName(argv.remain[0])
+  if (cmd && !opts.isKnownCommand(cmd) && !RECURSIVE_CMDS.has(cmd)) {
     cmd = 'help'
   }
 

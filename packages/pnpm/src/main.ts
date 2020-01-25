@@ -208,7 +208,7 @@ export default async function run (inputArgv: string[]) {
       })
 
       try {
-        const result = pnpmCmds[cmd](
+        const result = pnpmCmds[cmd || 'help'](
           cliArgs,
           // TypeScript doesn't currently infer that the type of config
           // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement

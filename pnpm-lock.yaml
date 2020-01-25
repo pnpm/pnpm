@@ -30,6 +30,8 @@ importers:
       tslint: 5.20.1
       typescript: 3.7.5
       verdaccio: 4.4.2
+  ../../../.nvs/node/12.14.1/x64/pnpm-global:
+    specifiers: {}
   packages/audit:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'

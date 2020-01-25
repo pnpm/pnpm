@@ -68,11 +68,8 @@ export function cliOptionsTypes () {
 
 export const commandNames = ['update', 'up', 'upgrade']
 
-export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
-  return [
-    ...await readDepNameCompletions(cliOpts.dir as string),
-    ...optionTypesToCompletions(cliOptionsTypes()),
-  ]
+export const completion: CompletionFunc = (args, cliOpts) => {
+  return readDepNameCompletions(cliOpts.dir as string)
 }
 
 export function help () {

@@ -1,6 +1,15 @@
-import { CompletionCtx } from '@pnpm/command'
 import nopt = require('nopt')
 import R = require('ramda')
+
+export type CompletionCtx = {
+  last: string,
+  lastPartial: string,
+  line: string,
+  partial: string,
+  point: number,
+  prev: string,
+  words: number,
+}
 
 export function getOptionCompletions (
   optionTypes: Record<string, Object>,

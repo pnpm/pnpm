@@ -93,11 +93,8 @@ export function help () {
 
 export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
 
-export const completion: CompletionFunc = async (ctx, args, cliOpts) => {
-  return [
-    ...await readDepNameCompletions(cliOpts.dir as string),
-    ...optionTypesToCompletions(cliOptionsTypes()),
-  ]
+export const completion: CompletionFunc = (args, cliOpts) => {
+  return readDepNameCompletions(cliOpts.dir as string)
 }
 
 export async function handler (

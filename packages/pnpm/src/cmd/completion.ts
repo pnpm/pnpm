@@ -4,7 +4,7 @@ import {
   getOptionCompletions,
   optionTypesToCompletions,
 } from '@pnpm/cli-utils'
-import { CompletionFunc } from '@pnpm/command'
+import { Completion, CompletionFunc } from '@pnpm/command'
 import { split as splitCmd } from 'split-cmd'
 import tabtab = require('tabtab')
 import handlerByCommandName from '.'
@@ -37,22 +37,32 @@ export default function (
         }
       }
     }
-    if (completionByCommandName[cmd]) {
-      return tabtab.log(
-        await completionByCommandName[cmd](env, cliArgs, cliConf),
-      )
+    let completions: Completion[] = []
+    if (currTypedWordType !== 'option') {
+      if (!cmd) {
+        completions = defaultCompletions()
+      } else if (completionByCommandName[cmd]) {
+        completions = await completionByCommandName[cmd](cliArgs, cliConf)
+      }
+    }
+    if (currTypedWordType !== 'value') {
+      if (optionTypes) {
+        completions = [
+          ...completions,
+          ...optionTypesToCompletions(optionTypes as any), // tslint:disable-line
+        ]
+      } else if (!cmd) {
+        completions = [
+          ...completions,
+          { name: '--version' },
+        ]
+      }
     }
 
-    if (optionTypes) {
-      if (currTypedWordType !== 'value') return tabtab.log([])
-      return tabtab.log(
-        optionTypesToCompletions(optionTypes as any), // tslint:disable-line
-      )
-    }
+    return tabtab.log(completions)
+  }
 
-    return tabtab.log([
-      '--version',
-      ...Object.keys(handlerByCommandName),
-    ])
+  function defaultCompletions () {
+    return Object.keys(handlerByCommandName).map((name) => ({ name }))
   }
 }

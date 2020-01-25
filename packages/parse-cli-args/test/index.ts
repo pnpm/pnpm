@@ -164,3 +164,11 @@ test('if a help option is used, set cmd to "help"', async (t) => {
   t.equal(cmd, 'help')
   t.end()
 })
+
+test('no command', async (t) => {
+  const { cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, ['--version'])
+  t.equal(cmd, undefined)
+  t.end()
+})
