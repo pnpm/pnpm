@@ -1,6 +1,7 @@
 import {
   summaryLogger,
 } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import {
@@ -65,6 +66,10 @@ export default async function link (
       linkFromAlias = linkFrom.alias
     }
     const { manifest } = await readProjectManifest(linkFromPath) as { manifest: DependencyManifest }
+    if (typeof linkFrom === 'string' && manifest.name === undefined) {
+      throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${linkFromPath} must have a name field to be linked`)
+    }
+
     specsToUpsert.push({
       alias: manifest.name,
       pref: getPref(manifest.name, manifest.name, manifest.version, {

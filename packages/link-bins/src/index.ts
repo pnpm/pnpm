@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -118,6 +119,14 @@ async function getPackageBins (
     // There's a directory in node_modules without package.json: ${target}.
     // This used to be a warning but it didn't really cause any issues.
     return []
+  }
+
+  if (R.isEmpty(pkg.bin)) {
+    throw new PnpmError('INVALID_PACKAGE_BIN', `Package in ${target} must have a non-empty bin field to get bin linked.`)
+  }
+
+  if (typeof pkg.bin === 'string' && !pkg.name) {
+    throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${target} must have a name to get bin linked.`)
   }
 
   return getPackageBinsFromPackageJson(pkg, target)
