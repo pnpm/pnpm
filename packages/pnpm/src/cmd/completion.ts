@@ -19,7 +19,9 @@ export default function (
     const env = tabtab.parseEnv(process.env)
     if (!env.complete) return
 
-    const inputArgv = splitCmd(env.line).slice(1)
+    const inputArgv = splitCmd(
+      env.partial.substr(0, env.partial.length - env.lastPartial.length),
+    ).slice(1)
     const { cliArgs, cliConf, cmd } = await parseCliArgs(inputArgv)
     const optionTypes = {
       ...globalOptionTypes,

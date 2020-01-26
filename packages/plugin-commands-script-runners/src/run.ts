@@ -41,7 +41,7 @@ export function cliOptionsTypes () {
 }
 
 export const completion: CompletionFunc = async (args, cliOpts) => {
-  if (args.length > 1) {
+  if (args.length > 0) {
     return []
   }
   const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? process.cwd(), cliOpts)
