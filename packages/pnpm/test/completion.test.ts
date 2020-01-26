@@ -21,7 +21,10 @@ test('complete an option value', async (t) => {
       options: {},
     },
   )
-  t.deepEqual(completions, ['fast', 'fewer-dependencies'])
+  t.deepEqual(completions, [
+    { name: 'fast' },
+    { name: 'fewer-dependencies' },
+  ])
   t.end()
 })
 

@@ -42,7 +42,7 @@ export default async function complete (
         input.lastOption,
       )
       if (optionCompletions !== undefined) {
-        return optionCompletions
+        return optionCompletions.map((name) => ({ name }))
       }
     }
   }
