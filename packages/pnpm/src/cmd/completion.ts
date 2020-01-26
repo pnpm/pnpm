@@ -5,6 +5,8 @@ import {
   optionTypesToCompletions,
 } from '@pnpm/cli-utils'
 import { Completion, CompletionFunc } from '@pnpm/command'
+import findWorkspaceDir from '@pnpm/find-workspace-dir'
+import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { split as splitCmd } from 'split-cmd'
 import tabtab = require('tabtab')
 import handlerByCommandName from '.'
@@ -33,7 +35,15 @@ export default function (
     // Autocompleting option values
     if (currTypedWordType !== 'option') {
       const option = getLastOption(env)
-      if (option) {
+      if (option === '--filter') {
+        const workspaceDir = await findWorkspaceDir(process.cwd()) ?? process.cwd()
+        const allProjects = await findWorkspacePackages(workspaceDir, {})
+        return tabtab.log(
+          allProjects
+            .filter(({ manifest }) => manifest.name)
+            .map(({ manifest }) => ({ name: manifest.name })),
+        )
+      } else if (option) {
         const optionCompletions = getOptionCompletions(
           optionTypes as any, // tslint:disable-line
           shortHands,
