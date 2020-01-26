@@ -16,71 +16,18 @@ loudRejection()
 import { getConfig, packageManager } from '@pnpm/cli-utils'
 import {
   Config,
-  types as allTypes,
 } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { filterPackages } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
-import parseCliArgsLib from '@pnpm/parse-cli-args'
 import isCI = require('is-ci')
 import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
-import pnpmCmds, {
-  getCliOptionsTypes,
-  getCommandFullName,
-  getRCOptionsTypes,
-  GLOBAL_OPTIONS,
-} from './cmd'
+import pnpmCmds, { getRCOptionsTypes } from './cmd'
 import './logging/fileLogger'
+import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
-
-const RENAMED_OPTIONS = {
-  'lockfile-directory': 'lockfile-dir',
-  'prefix': 'dir',
-  'shrinkwrap-directory': 'lockfile-dir',
-  'store': 'store-dir',
-}
-
-// tslint:disable
-export const shortHands = {
-  's': '--reporter=silent',
-  'd': '--loglevel=info',
-  'dd': '--loglevel=verbose',
-  'ddd': '--loglevel=silly',
-  'L': '--latest',
-  'r': '--recursive',
-  'silent': '--reporter=silent',
-  'verbose': '--loglevel=verbose',
-  'quiet': '--loglevel=warn',
-  'q': '--loglevel=warn',
-  'h': '--help',
-  'H': '--help',
-  '?': '--help',
-  'usage': '--help',
-  'v': '--version',
-  'f': '--force',
-  'local': '--no-global',
-  'l': '--long',
-  'p': '--parseable',
-  'porcelain': '--parseable',
-  'prod': '--production',
-  'development': '--dev',
-  'g': '--global',
-  'S': '--save',
-  'D': '--save-dev',
-  'P': '--save-prod',
-  'E': '--save-exact',
-  'O': '--save-optional',
-  'C': '--dir',
-  'shrinkwrap-only': '--lockfile-only',
-  'shared-workspace-shrinkwrap': '--shared-workspace-lockfile',
-  'frozen-shrinkwrap': '--frozen-lockfile',
-  'prefer-frozen-shrinkwrap': '--prefer-frozen-lockfile',
-  'W': '--ignore-workspace-root-check',
-  'i': '--interactive',
-}
-// tslint:enable
 
 export default async function run (inputArgv: string[]) {
   const { argv, cliArgs, cliConf, cmd, subCmd, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
@@ -226,15 +173,4 @@ export default async function run (inputArgv: string[]) {
       }
     }, 0)
   })
-}
-
-export function parseCliArgs (inputArgv: string[]) {
-  return parseCliArgsLib({
-    getCommandLongName: getCommandFullName,
-    getTypesByCommandName: getCliOptionsTypes,
-    globalOptionsTypes: GLOBAL_OPTIONS,
-    isKnownCommand: (commandName) => typeof pnpmCmds[commandName] !== 'undefined',
-    renamedOptions: RENAMED_OPTIONS,
-    shortHands,
-  }, inputArgv)
 }

@@ -113,11 +113,16 @@ for (let i = 0; i < commands.length; i++) {
 }
 
 handlerByCommandName.help = createHelp(helpByCommandName)
-handlerByCommandName.completion = createCompletion(
-  completionByCommandName,
+handlerByCommandName.completion = createCompletion({
   cliOptionsTypesByCommandName,
-  GLOBAL_OPTIONS,
-)
+  completionByCommandName,
+  globalOptionTypes: GLOBAL_OPTIONS,
+  initialCompletion,
+})
+
+function initialCompletion () {
+  return Object.keys(handlerByCommandName).map((name) => ({ name }))
+}
 
 export default handlerByCommandName
 
