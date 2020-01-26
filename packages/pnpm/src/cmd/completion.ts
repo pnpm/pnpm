@@ -19,9 +19,10 @@ export default function (
     const env = tabtab.parseEnv(process.env)
     if (!env.complete) return
 
-    const inputArgv = splitCmd(
-      env.partial.substr(0, env.partial.length - env.lastPartial.length),
-    ).slice(1)
+    // Parse only words that are before the pointer and finished.
+    // Finished means that there's at least one space between the word and pointer
+    const finishedArgv = env.partial.substr(0, env.partial.length - env.lastPartial.length)
+    const inputArgv = splitCmd(finishedArgv).slice(1)
     const { cliArgs, cliConf, cmd } = await parseCliArgs(inputArgv)
     const optionTypes = {
       ...globalOptionTypes,
