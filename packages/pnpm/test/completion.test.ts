@@ -35,7 +35,9 @@ test('complete a command', async (t) => {
     completionByCommandName: {
       run: async () => [{ name: 'test' }],
     },
-    globalOptionTypes: {},
+    globalOptionTypes: {
+      filter: String,
+    },
     initialCompletion: () => [],
   }
   t.deepEqual(
@@ -60,7 +62,12 @@ test('complete a command', async (t) => {
         options: {},
       },
     ),
-    [{ name: 'test' }, { name: '--if-present' }, { name: '--no-if-present' }],
+    [
+      { name: 'test' },
+      { name: '--filter' },
+      { name: '--if-present' },
+      { name: '--no-if-present' },
+    ],
   )
   t.deepEqual(
     await complete(ctx,
@@ -72,7 +79,70 @@ test('complete a command', async (t) => {
         options: {},
       },
     ),
-    [{ name: '--if-present' }, { name: '--no-if-present' }],
+    [
+      { name: '--filter' },
+      { name: '--if-present' },
+      { name: '--no-if-present' },
+    ],
+  )
+  t.end()
+})
+
+test('initial completion', async (t) => {
+  const ctx = {
+    cliOptionsTypesByCommandName: {},
+    completionByCommandName: {},
+    globalOptionTypes: {
+      filter: String,
+    },
+    initialCompletion: () => [
+      { name: 'add' },
+      { name: 'install' },
+    ],
+  }
+  t.deepEqual(
+    await complete(ctx,
+      {
+        args: [],
+        cmd: null,
+        currentTypedWordType: null,
+        lastOption: null,
+        options: {},
+      },
+    ), [
+      { name: 'add' },
+      { name: 'install' },
+      { name: '--filter' },
+      { name: '--version' },
+    ],
+  )
+  t.deepEqual(
+    await complete(ctx,
+      {
+        args: [],
+        cmd: 'ad',
+        currentTypedWordType: 'value',
+        lastOption: null,
+        options: {},
+      },
+    ), [
+      { name: 'add' },
+      { name: 'install' },
+    ],
+  )
+  t.deepEqual(
+    await complete(ctx,
+      {
+        args: [],
+        cmd: null,
+        currentTypedWordType: 'option',
+        lastOption: null,
+        options: {},
+      },
+    ), [
+      { name: '--filter' },
+      { name: '--version' },
+    ],
   )
   t.end()
 })
