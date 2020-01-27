@@ -1,3 +1,4 @@
+///<reference path="../../../typings/index.d.ts" />
 import {
   restart,
   run,
@@ -12,6 +13,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
 import './exec'
+import './runCompletion'
 import './runRecursive'
 import './testRecursive'
 

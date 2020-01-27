@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.3.1",
+    "@pnpm/command": "workspace:0.0.0",
     "@pnpm/common-cli-options-help": "workspace:0.1.4",
     "@pnpm/config": "workspace:7.1.0",
     "@pnpm/error": "workspace:1.0.0",

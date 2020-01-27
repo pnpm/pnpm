@@ -26,7 +26,7 @@ test('a command is recursive if -r option is used', async (t) => {
   const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     globalOptionsTypes: { recursive: Boolean },
-    shortHands: { 'r': ['--recursive'] },
+    shortHands: { 'r': '--recursive' },
   }, ['-r', 'update'])
   t.equal(cmd, 'update')
   t.ok(cliConf['recursive'])
@@ -149,8 +149,8 @@ test('do not incorrectly change "install" command to "add"', async (t) => {
     },
     isKnownCommand: (commandName) => commandName === 'install',
     shortHands: {
-      'C': ['--prefix'],
-      'r': ['--recursive'],
+      'C': '--prefix',
+      'r': '--recursive',
     },
   }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
   t.equal(cmd, 'install')
@@ -162,5 +162,13 @@ test('if a help option is used, set cmd to "help"', async (t) => {
     ...DEFAULT_OPTS,
   }, ['install', '--help'])
   t.equal(cmd, 'help')
+  t.end()
+})
+
+test('no command', async (t) => {
+  const { cmd } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+  }, ['--version'])
+  t.equal(cmd, undefined)
   t.end()
 })
