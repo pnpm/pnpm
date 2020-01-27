@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/command",
-  "version": "0.0.0",
+  "version": "0.1.0-0",
   "description": "Types and utils for pnpm commands",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -25,9 +25,5 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
-  "devDependencies": {
-  },
-  "dependencies": {
-  }
+  "homepage": "https://pnpm.js.org"
 }
