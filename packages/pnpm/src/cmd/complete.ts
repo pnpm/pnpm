@@ -22,6 +22,7 @@ export default async function complete (
     options: Record<string, unknown>,
   },
 ) {
+  if (input.options.version) return []
   const optionTypes = {
     ...ctx.globalOptionTypes,
     ...((input.cmd && ctx.cliOptionsTypesByCommandName[input.cmd]?.()) ?? {}),

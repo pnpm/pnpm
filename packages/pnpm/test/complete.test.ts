@@ -149,3 +149,27 @@ test('initial completion', async (t) => {
   )
   t.end()
 })
+
+test('suggest no completions for after --version', async (t) => {
+  t.deepEqual(
+    await complete(
+      {
+        cliOptionsTypesByCommandName: {},
+        completionByCommandName: {},
+        globalOptionTypes: {},
+        initialCompletion: () => [
+          { name: 'add' },
+          { name: 'install' },
+        ],
+      },
+      {
+        args: [],
+        cmd: null,
+        currentTypedWordType: null,
+        lastOption: null,
+        options: { version: true },
+      },
+    ), [],
+  )
+  t.end()
+})

@@ -1,6 +1,6 @@
 ///<reference path="../../../typings/index.d.ts" />
 import './cli'
-import './completion.test'
+import './complete.test'
 import './help.spec'
 import './install'
 import './link'
