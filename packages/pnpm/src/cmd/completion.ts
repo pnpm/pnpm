@@ -24,6 +24,8 @@ export default function (
     // Finished means that there's at least one space between the word and pointer
     const finishedArgv = env.partial.substr(0, env.partial.length - env.lastPartial.length)
     const inputArgv = splitCmd(finishedArgv).slice(1)
+    // We cannot autocomplete what a user types after "pnpm test --"
+    if (inputArgv.includes('--')) return
     const { cliArgs, cliConf, cmd } = await parseCliArgs(inputArgv)
     return tabtab.log(
       await complete(
