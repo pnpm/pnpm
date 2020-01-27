@@ -91,6 +91,32 @@ test('complete a command', async (t) => {
   t.end()
 })
 
+test('if command completion fails, return empty array', async (t) => {
+  t.deepEqual(
+    await complete(
+      {
+        cliOptionsTypesByCommandName: {},
+        completionByCommandName: {
+          run: async () => { throw new Error('error') },
+        },
+        globalOptionTypes: {
+          filter: String,
+        },
+        initialCompletion: () => [],
+      },
+      {
+        args: [],
+        cmd: 'run',
+        currentTypedWordType: 'value',
+        lastOption: null,
+        options: {},
+      },
+    ),
+    [],
+  )
+  t.end()
+})
+
 test('initial completion', async (t) => {
   const ctx = {
     cliOptionsTypesByCommandName: {},

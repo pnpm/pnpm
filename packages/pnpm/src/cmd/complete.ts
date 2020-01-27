@@ -52,7 +52,11 @@ export default async function complete (
     if (!input.cmd || input.currentTypedWordType === 'value' && !ctx.completionByCommandName[input.cmd]) {
       completions = ctx.initialCompletion()
     } else if (ctx.completionByCommandName[input.cmd]) {
-      completions = await ctx.completionByCommandName[input.cmd](input.args, input.options)
+      try {
+        completions = await ctx.completionByCommandName[input.cmd](input.args, input.options)
+      } catch (err) {
+        // Ignore
+      }
     }
   }
   if (input.currentTypedWordType === 'value') {
