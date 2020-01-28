@@ -884,7 +884,7 @@ importers:
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/types': 'workspace:5.0.0'
-      '@types/js-yaml': ^3.12.1
+      '@types/js-yaml': ^3.12.2
       '@types/normalize-path': 3.0.0
       '@types/ramda': ^0.26.40
       '@types/write-file-atomic': 3.0.0
@@ -922,7 +922,7 @@ importers:
       '@pnpm/lockfile-utils': 'link:'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
-      '@types/js-yaml': ^3.12.1
+      '@types/js-yaml': ^3.12.2
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.3'
       get-npm-tarball-url: 2.0.1
