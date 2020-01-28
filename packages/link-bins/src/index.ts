@@ -1,5 +1,4 @@
 import PnpmError from '@pnpm/error'
-import logger from '@pnpm/logger'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -112,6 +111,7 @@ async function getPackageBins (
   target: string,
   opts: {
     allowExoticManifests: boolean,
+    warn: (msg: string) => void,
   },
 ) {
   const pkg = opts.allowExoticManifests ? await safeReadProjectManifestOnly(target) : await safeReadPkg(target)
@@ -123,10 +123,7 @@ async function getPackageBins (
   }
 
   if (R.isEmpty(pkg.bin)) {
-    logger.warn({
-      message: `Package must have a non-empty bin field to get bin linked.`,
-      prefix: target,
-    })
+    opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`)
   }
 
   if (typeof pkg.bin === 'string' && !pkg.name) {

@@ -248,3 +248,18 @@ test('linkBins() would throw error if package has no name field', async (t) => {
     t.end()
   }
 })
+
+test('linkBins() would gives warning if package has no bin field', async (t) => {
+  const binTarget = tempy.directory()
+  t.comment(`linking bins to ${binTarget}`)
+  const warn = sinon.spy()
+
+  await linkBins(path.join(noBinFixture, 'node_modules'), binTarget, {
+    allowExoticManifests: true,
+    warn,
+  })
+
+  const packagePath = normalizePath(path.join(noBinFixture, 'node_modules/simple'))
+  t.ok(warn.calledWith(`Package in ${packagePath} must have a non-empty bin field to get bin linked.`))
+  t.end()
+})
