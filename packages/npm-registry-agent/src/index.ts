@@ -1,5 +1,5 @@
 import HttpAgent = require('agentkeepalive')
-import HttpProxyAgent = require('http-proxy-agent')
+import createHttpProxyAgent = require('http-proxy-agent')
 import HttpsProxyAgent = require('https-proxy-agent')
 import LRU = require('lru-cache')
 import SocksProxyAgent = require('socks-proxy-agent')
@@ -150,7 +150,7 @@ function getProxy (
 
   if (proxyUrl.protocol === 'http:' || proxyUrl.protocol === 'https:') {
     if (!isHttps) {
-      return new HttpProxyAgent(popts)
+      return createHttpProxyAgent(popts)
     } else {
       return new HttpsProxyAgent(popts)
     }

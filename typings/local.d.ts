@@ -133,6 +133,11 @@ declare module 'stacktracey' {
   export = anything;
 }
 
+declare module 'tabtab' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'yaml-tag' {
   const anything: any;
   export = anything;

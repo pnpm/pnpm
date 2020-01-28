@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "12.1.0",
+  "version": "12.1.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -29,7 +29,7 @@
     "@pnpm/store-path": "2.1.1",
     "@types/fs-extra": "^8.0.1",
     "@types/mz": "^2.7.0",
-    "@types/ramda": "^0.26.39",
+    "@types/ramda": "^0.26.40",
     "@types/rimraf": "^2.0.3",
     "@types/sinon": "^7.5.1",
     "@types/tape-promise": "4.0.0",
@@ -76,14 +76,14 @@
     "prepareFixtures": "registry-mock prepare && run-p -r registry-mock runPrepareFixtures"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:4.1.0",
+    "@pnpm/build-modules": "workspace:4.1.1",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/filter-lockfile": "workspace:3.0.5",
-    "@pnpm/hoist": "workspace:2.1.0",
+    "@pnpm/hoist": "workspace:2.1.1",
     "@pnpm/lifecycle": "workspace:8.0.2",
-    "@pnpm/link-bins": "workspace:5.1.0",
+    "@pnpm/link-bins": "workspace:5.1.1",
     "@pnpm/lockfile-file": "workspace:3.0.2",
     "@pnpm/lockfile-utils": "workspace:2.0.6",
     "@pnpm/matcher": "workspace:1.0.0",

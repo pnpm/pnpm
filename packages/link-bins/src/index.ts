@@ -111,6 +111,7 @@ async function getPackageBins (
   target: string,
   opts: {
     allowExoticManifests: boolean,
+    warn: (msg: string) => void,
   },
 ) {
   const pkg = opts.allowExoticManifests ? await safeReadProjectManifestOnly(target) : await safeReadPkg(target)
@@ -122,7 +123,7 @@ async function getPackageBins (
   }
 
   if (R.isEmpty(pkg.bin)) {
-    throw new PnpmError('INVALID_PACKAGE_BIN', `Package in ${target} must have a non-empty bin field to get bin linked.`)
+    opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`)
   }
 
   if (typeof pkg.bin === 'string' && !pkg.name) {

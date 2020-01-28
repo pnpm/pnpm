@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-registry-agent",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "HTTP agent for fetching from npm registry",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "agentkeepalive": "4.0.0",
-    "http-proxy-agent": "3.0.0",
+    "http-proxy-agent": "4.0.0",
     "https-proxy-agent": "3.0.1",
     "lru-cache": "5.1.1",
     "socks-proxy-agent": "4.0.2"

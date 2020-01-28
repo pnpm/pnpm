@@ -16,88 +16,21 @@ loudRejection()
 import { getConfig, packageManager } from '@pnpm/cli-utils'
 import {
   Config,
-  types as allTypes,
 } from '@pnpm/config'
 import { scopeLogger } from '@pnpm/core-loggers'
 import { filterPackages } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
-import parseCliArgs from '@pnpm/parse-cli-args'
 import isCI = require('is-ci')
 import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
-import pnpmCmds, {
-  getCliOptionsTypes,
-  getCommandFullName,
-  getRCOptionsTypes,
-} from './cmd'
+import pnpmCmds, { getRCOptionsTypes } from './cmd'
 import './logging/fileLogger'
+import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 
-const GLOBAL_OPTIONS = R.pick([
-  'color',
-  'dir',
-  'filter',
-  'help',
-  'parseable',
-  'prefix',
-], allTypes)
-
-const RENAMED_OPTIONS = {
-  'lockfile-directory': 'lockfile-dir',
-  'prefix': 'dir',
-  'shrinkwrap-directory': 'lockfile-dir',
-  'store': 'store-dir',
-}
-
 export default async function run (inputArgv: string[]) {
-  // tslint:disable
-  const shortHands = {
-    's': ['--reporter', 'silent'],
-    'd': ['--loglevel', 'info'],
-    'dd': ['--loglevel', 'verbose'],
-    'ddd': ['--loglevel', 'silly'],
-    'L': ['--latest'],
-    'r': ['--recursive'],
-    'silent': ['--reporter', 'silent'],
-    'verbose': ['--loglevel', 'verbose'],
-    'quiet': ['--loglevel', 'warn'],
-    'q': ['--loglevel', 'warn'],
-    'h': ['--help'],
-    'H': ['--help'],
-    '?': ['--help'],
-    'usage': ['--help'],
-    'v': ['--version'],
-    'f': ['--force'],
-    'local': ['--no-global'],
-    'l': ['--long'],
-    'p': ['--parseable'],
-    'porcelain': ['--parseable'],
-    'prod': ['--production'],
-    'development': ['--dev'],
-    'g': ['--global'],
-    'S': ['--save'],
-    'D': ['--save-dev'],
-    'P': ['--save-prod'],
-    'E': ['--save-exact'],
-    'O': ['--save-optional'],
-    'C': ['--dir'],
-    'shrinkwrap-only': ['--lockfile-only'],
-    'shared-workspace-shrinkwrap': ['--shared-workspace-lockfile'],
-    'frozen-shrinkwrap': ['--frozen-lockfile'],
-    'prefer-frozen-shrinkwrap': ['--prefer-frozen-lockfile'],
-    'W': ['--ignore-workspace-root-check'],
-    'i': ['--interactive'],
-  }
-  // tslint:enable
-  const { argv, cliArgs, cliConf, cmd, subCmd, unknownOptions, workspaceDir } = await parseCliArgs({
-    getCommandLongName: getCommandFullName,
-    getTypesByCommandName: getCliOptionsTypes,
-    globalOptionsTypes: GLOBAL_OPTIONS,
-    isKnownCommand: (commandName) => typeof pnpmCmds[commandName] !== 'undefined',
-    renamedOptions: RENAMED_OPTIONS,
-    shortHands,
-  }, inputArgv)
+  const { argv, cliArgs, cliConf, cmd, subCmd, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
   if (unknownOptions.length > 0) {
     let errorMsg = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
     if (unknownOptions.length === 1) {
@@ -214,7 +147,7 @@ export default async function run (inputArgv: string[]) {
       })
 
       try {
-        const result = pnpmCmds[cmd](
+        const result = pnpmCmds[cmd || 'help'](
           cliArgs,
           // TypeScript doesn't currently infer that the type of config
           // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
