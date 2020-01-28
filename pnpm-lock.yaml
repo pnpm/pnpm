@@ -734,6 +734,7 @@ importers:
   packages/link-bins:
     dependencies:
       '@pnpm/error': 'link:../error'
+      '@pnpm/logger': 3.1.0
       '@pnpm/package-bins': 'link:../package-bins'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 'link:../read-package-json'
@@ -765,6 +766,7 @@ importers:
     specifiers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/link-bins': 'link:'
+      '@pnpm/logger': ^3.1.0
       '@pnpm/package-bins': 'workspace:4.0.2'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.0.2'

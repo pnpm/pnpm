@@ -1,4 +1,5 @@
 import PnpmError from '@pnpm/error'
+import logger from '@pnpm/logger'
 import binify, { Command } from '@pnpm/package-bins'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -122,7 +123,10 @@ async function getPackageBins (
   }
 
   if (R.isEmpty(pkg.bin)) {
-    throw new PnpmError('INVALID_PACKAGE_BIN', `Package in ${target} must have a non-empty bin field to get bin linked.`)
+    logger.warn({
+      message: `Package must have a non-empty bin field to get bin linked.`,
+      prefix: target,
+    })
   }
 
   if (typeof pkg.bin === 'string' && !pkg.name) {
