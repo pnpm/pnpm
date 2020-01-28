@@ -13,6 +13,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { filterPkgsBySelectorObjects } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import matcher from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
@@ -23,7 +24,7 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import recursive from './recursive'
+import recursive, { getScopedInput } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -389,6 +390,10 @@ export async function handler (
       throw new PnpmError('NO_IMPORTER_MANIFEST', 'No package.json found')
     }
     manifest = {}
+  }
+
+  if (opts.update && input) {
+    input = getScopedInput(input, manifest, include)
   }
 
   if (opts.update && opts.latest) {

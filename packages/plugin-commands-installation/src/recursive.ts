@@ -9,6 +9,7 @@ import {
 import { Config, Project, ProjectsGraph } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
+import matcher from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
@@ -180,6 +181,10 @@ export default async function recursive (
       const localConfig = await memReadLocalConfig(rootDir)
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...input]
+      if (cmdFullName === 'update' && currentInput) {
+        currentInput = getScopedInput(input, manifest, include)
+      }
+
       if (updateToLatest) {
         if (!currentInput || !currentInput.length) {
           currentInput = updateToLatestSpecsFromManifest(manifest, include)
@@ -263,6 +268,9 @@ export default async function recursive (
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
+        if (cmdFullName === 'update' && currentInput) {
+          currentInput = getScopedInput(input, manifest, include)
+        }
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
             currentInput = updateToLatestSpecsFromManifest(manifest, include)
@@ -404,4 +412,25 @@ async function readLocalConfig (prefix: string) {
     if (err.code !== 'ENOENT') throw err
     return {}
   }
+}
+
+export function getScopedInput (input: string[], manifest: ProjectManifest, include: IncludedDependencies) {
+  let scopedInput = input.filter(i => i.includes('*'))
+  if (scopedInput.length === 0) {
+    return input
+  }
+  const match = matcher(scopedInput)
+  let allDependencies: string[] = []
+  if (include.dependencies) {
+    allDependencies = allDependencies.concat(Object.keys(manifest.dependencies || {}))
+  }
+  if (include.devDependencies) {
+    allDependencies = allDependencies.concat(Object.keys(manifest.devDependencies || {}))
+  }
+  if (include.optionalDependencies) {
+    allDependencies = allDependencies.concat(Object.keys(manifest.optionalDependencies || {}))
+  }
+  scopedInput = allDependencies.filter(match)
+  input = input.filter(i => !i.includes('*')).concat(scopedInput)
+  return input
 }
