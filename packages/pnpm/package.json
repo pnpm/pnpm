@@ -43,6 +43,7 @@
     "@pnpm/plugin-commands-server": "workspace:0.1.5-0",
     "@pnpm/plugin-commands-store": "workspace:0.1.4-0",
     "@pnpm/run-npm": "workspace:2.0.0",
+    "@pnpm/tabtab": "0.0.0",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/libnpx": "11.0.3",
     "chalk": "3.0.0",
@@ -54,7 +55,6 @@
     "ramda": "0.26.1",
     "render-help": "0.0.0",
     "split-cmd": "1.0.0",
-    "tabtab": "3.0.2",
     "update-notifier": "4.0.0"
   },
   "devDependencies": {
