@@ -432,5 +432,8 @@ export function matchDependencies (
   if (include.optionalDependencies) {
     allDependencies = allDependencies.concat(Object.keys(manifest.optionalDependencies || {}))
   }
-  return input.concat(allDependencies.filter(match))
+  return [
+    ...input,
+    ...allDependencies.filter(match),
+  ]
 }
