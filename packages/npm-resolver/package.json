@@ -53,7 +53,7 @@
     "@pnpm/logger": "3.1.0",
     "@pnpm/npm-resolver": "link:",
     "@types/normalize-path": "^3.0.0",
-    "@types/semver": "^6.2.0",
+    "@types/semver": "^6.2.1",
     "@types/ssri": "^6.0.1",
     "nock": "11.7.2",
     "path-exists": "4.0.0",

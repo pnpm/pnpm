@@ -50,7 +50,7 @@
     "@pnpm/logger": "3.1.0",
     "@pnpm/resolve-dependencies": "link:",
     "@types/ramda": "^0.26.40",
-    "@types/semver": "^6.2.0",
+    "@types/semver": "^6.2.1",
     "rimraf": "3.0.0"
   }
 }

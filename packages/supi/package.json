@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.38.4",
+  "version": "0.38.5",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -19,7 +19,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:4.1.1",
+    "@pnpm/build-modules": "workspace:4.1.2",
     "@pnpm/check-package": "3.0.1",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/core-loggers": "workspace:4.0.1",
@@ -27,10 +27,10 @@
     "@pnpm/filter-lockfile": "workspace:3.0.5",
     "@pnpm/fs-locker": "3.0.1",
     "@pnpm/get-context": "workspace:1.0.0",
-    "@pnpm/headless": "workspace:12.1.1",
-    "@pnpm/hoist": "workspace:2.1.1",
+    "@pnpm/headless": "workspace:12.1.2",
+    "@pnpm/hoist": "workspace:2.1.2",
     "@pnpm/lifecycle": "workspace:8.0.2",
-    "@pnpm/link-bins": "workspace:5.1.1",
+    "@pnpm/link-bins": "workspace:5.1.2",
     "@pnpm/lockfile-file": "workspace:3.0.2",
     "@pnpm/lockfile-utils": "workspace:2.0.6",
     "@pnpm/lockfile-walker": "workspace:1.0.2",
@@ -94,7 +94,7 @@
     "@types/ncp": "2.0.3",
     "@types/normalize-path": "3.0.0",
     "@types/ramda": "^0.26.40",
-    "@types/semver": "^6.2.0",
+    "@types/semver": "^6.2.1",
     "@types/sinon": "^7.5.1",
     "@types/tape-promise": "4.0.0",
     "anonymous-npm-registry-client": "0.1.2",

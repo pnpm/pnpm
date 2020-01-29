@@ -47,7 +47,7 @@
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/modules-cleaner": "link:",
-    "@types/ramda": "^0.26.39",
+    "@types/ramda": "^0.26.40",
     "rimraf": "3.0.0"
   }
 }
