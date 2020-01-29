@@ -164,6 +164,9 @@ export default async function recursive (
     delete opts.include
   }
 
+  const patternedInput = input.filter(i => i.includes('*'))
+  const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
+
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
     if (opts.hoistPattern) {
@@ -177,8 +180,6 @@ export default async function recursive (
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
-    const patternedInput = input.filter(i => i.includes('*'))
-    const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
@@ -259,8 +260,6 @@ export default async function recursive (
     : Object.keys(opts.selectedProjectsGraph).sort()
 
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
-  const patternedInput = input.filter(i => i.includes('*'))
-  const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
   await Promise.all(pkgPaths.map((rootDir: string) =>
     limitInstallation(async () => {
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
