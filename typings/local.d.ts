@@ -1,3 +1,8 @@
+declare module '@pnpm/tabtab' {
+  const anything: any;
+  export = anything;
+}
+
 declare module '@zeit/fetch-retry' {
   const anything: any;
   export = anything;
@@ -129,11 +134,6 @@ declare module 'socks-proxy-agent' {
 }
 
 declare module 'stacktracey' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'tabtab' {
   const anything: any;
   export = anything;
 }

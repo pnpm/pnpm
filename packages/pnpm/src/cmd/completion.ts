@@ -3,8 +3,8 @@ import {
   getLastOption,
 } from '@pnpm/cli-utils'
 import { Completion, CompletionFunc } from '@pnpm/command'
+import tabtab = require('@pnpm/tabtab')
 import { split as splitCmd } from 'split-cmd'
-import tabtab = require('tabtab')
 import parseCliArgs from '../parseCliArgs'
 import complete from './complete'
 
