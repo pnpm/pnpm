@@ -9,6 +9,7 @@ import {
 import { Config, Project, ProjectsGraph } from '@pnpm/config'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
+import matcher from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
 import sortPackages from '@pnpm/sort-packages'
@@ -163,6 +164,9 @@ export default async function recursive (
     delete opts.include
   }
 
+  const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
+  const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
+
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
     if (opts.hoistPattern) {
@@ -180,6 +184,12 @@ export default async function recursive (
       const localConfig = await memReadLocalConfig(rootDir)
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...input]
+      if (updateMatch) {
+        currentInput = [
+          ...unpatternedInput,
+          ...matchDependencies(updateMatch, manifest, include),
+        ]
+      }
       if (updateToLatest) {
         if (!currentInput || !currentInput.length) {
           currentInput = updateToLatestSpecsFromManifest(manifest, include)
@@ -263,6 +273,12 @@ export default async function recursive (
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
+        if (updateMatch) {
+          currentInput = [
+            ...unpatternedInput,
+            ...matchDependencies(updateMatch, manifest, include),
+          ]
+        }
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
             currentInput = updateToLatestSpecsFromManifest(manifest, include)
@@ -404,4 +420,22 @@ async function readLocalConfig (prefix: string) {
     if (err.code !== 'ENOENT') throw err
     return {}
   }
+}
+
+export function matchDependencies (
+  match: (input: string) => boolean,
+  manifest: ProjectManifest,
+  include: IncludedDependencies,
+) {
+  let allDependencies: string[] = []
+  if (include.dependencies) {
+    allDependencies = allDependencies.concat(Object.keys(manifest.dependencies || {}))
+  }
+  if (include.devDependencies) {
+    allDependencies = allDependencies.concat(Object.keys(manifest.devDependencies || {}))
+  }
+  if (include.optionalDependencies) {
+    allDependencies = allDependencies.concat(Object.keys(manifest.optionalDependencies || {}))
+  }
+  return allDependencies.filter(match)
 }

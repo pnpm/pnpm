@@ -1486,6 +1486,7 @@ importers:
     devDependencies:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/logger': 3.1.0
+      '@pnpm/matcher': 'link:../matcher'
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/registry-mock': 1.11.1
@@ -1516,6 +1517,7 @@ importers:
       '@pnpm/find-workspace-packages': 'workspace:2.1.2-0'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/logger': ^3.1.0
+      '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/outdated': 'workspace:7.0.1'
       '@pnpm/package-store': 'workspace:8.0.0'
       '@pnpm/plugin-commands-installation': 'link:'

@@ -51,6 +51,115 @@ test('recursive update', async (t) => {
   t.end()
 })
 
+test('recursive update with pattern', async (t) => {
+  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
+
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'peer-a': '1.0.0',
+        'pnpm-foo': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'peer-c': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler([], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await update.handler(['peer-*'], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    latest: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  t.equal(projects['project-1'].requireModule('peer-a/package.json').version, '1.0.1')
+  t.equal(projects['project-1'].requireModule('pnpm-foo/package.json').version, '1.0.0')
+  t.equal(projects['project-2'].requireModule('peer-c/package.json').version, '2.0.0')
+  t.end()
+})
+
+test('recursive update with pattern and name in project', async (t) => {
+  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+  await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'pnpm-foo', version: '2.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'print-version', version: '2.0.0', distTag: 'latest' })
+
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'peer-a': '1.0.0',
+        'pnpm-foo': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'peer-c': '1.0.0',
+        'print-version': '1.0.0',
+      },
+    },
+  ])
+
+  const lockfileDir = process.cwd()
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler([], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await update.handler(['peer-*', 'print-version'], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    latest: true,
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  t.equal(projects['project-1'].requireModule('peer-a/package.json').version, '1.0.1')
+  t.equal(projects['project-1'].requireModule('pnpm-foo/package.json').version, '1.0.0')
+  t.equal(projects['project-2'].requireModule('peer-c/package.json').version, '2.0.0')
+  t.equal(projects['project-2'].requireModule('print-version/package.json').version, '2.0.0')
+  t.end()
+})
+
 test('recursive update --latest foo should only update projects that have foo', async (t) => {
   await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
