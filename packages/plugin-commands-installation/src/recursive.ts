@@ -177,14 +177,15 @@ export default async function recursive (
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
+    const patternedInput = input.filter(i => i.includes('*'))
+    const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...input]
-      if (cmdFullName === 'update' && currentInput) {
-        currentInput = getScopedInput(input, manifest, include)
+      if (updateMatch) {
+        currentInput = matchDependencies(updateMatch, input, manifest, include)
       }
-
       if (updateToLatest) {
         if (!currentInput || !currentInput.length) {
           currentInput = updateToLatestSpecsFromManifest(manifest, include)
@@ -258,6 +259,8 @@ export default async function recursive (
     : Object.keys(opts.selectedProjectsGraph).sort()
 
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
+  const patternedInput = input.filter(i => i.includes('*'))
+  const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
   await Promise.all(pkgPaths.map((rootDir: string) =>
     limitInstallation(async () => {
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(rootDir, opts)
@@ -268,8 +271,8 @@ export default async function recursive (
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
-        if (cmdFullName === 'update' && currentInput) {
-          currentInput = getScopedInput(input, manifest, include)
+        if (updateMatch) {
+          currentInput = matchDependencies(updateMatch, input, manifest, include)
         }
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -414,12 +417,12 @@ async function readLocalConfig (prefix: string) {
   }
 }
 
-export function getScopedInput (input: string[], manifest: ProjectManifest, include: IncludedDependencies) {
-  let scopedInput = input.filter(i => i.includes('*'))
-  if (scopedInput.length === 0) {
-    return input
-  }
-  const match = matcher(scopedInput)
+export function matchDependencies (
+  match: (input: string) => boolean,
+  input: string[],
+  manifest: ProjectManifest,
+  include: IncludedDependencies,
+) {
   let allDependencies: string[] = []
   if (include.dependencies) {
     allDependencies = allDependencies.concat(Object.keys(manifest.dependencies || {}))
@@ -430,7 +433,5 @@ export function getScopedInput (input: string[], manifest: ProjectManifest, incl
   if (include.optionalDependencies) {
     allDependencies = allDependencies.concat(Object.keys(manifest.optionalDependencies || {}))
   }
-  scopedInput = allDependencies.filter(match)
-  input = input.filter(i => !i.includes('*')).concat(scopedInput)
-  return input
+  return input.filter(i => !i.includes('*')).concat(allDependencies.filter(match))
 }

@@ -24,7 +24,7 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import recursive, { getScopedInput } from './recursive'
+import recursive, { matchDependencies } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -392,8 +392,10 @@ export async function handler (
     manifest = {}
   }
 
-  if (opts.update && input) {
-    input = getScopedInput(input, manifest, include)
+  const patternedInput = input.filter(i => i.includes('*'))
+  const updateMatch = opts.update && patternedInput.length ? matcher(patternedInput) : null
+  if (updateMatch) {
+    input = matchDependencies(updateMatch, input, manifest, include)
   }
 
   if (opts.update && opts.latest) {

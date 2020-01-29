@@ -75,6 +75,7 @@ export const completion: CompletionFunc = (args, cliOpts) => {
 export function help () {
   return renderHelp({
     aliases: ['up', 'upgrade'],
+    description: 'Updates packages to their latest version based on the specified range. You can use "*" in package name to update all packages with the same pattern.',
     descriptionLists: [
       {
         title: 'Options',
