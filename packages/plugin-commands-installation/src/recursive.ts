@@ -185,7 +185,10 @@ export default async function recursive (
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...input]
       if (updateMatch) {
-        currentInput = matchDependencies(updateMatch, unpatternedInput, manifest, include)
+        currentInput = [
+          ...unpatternedInput,
+          ...matchDependencies(updateMatch, manifest, include),
+        ]
       }
       if (updateToLatest) {
         if (!currentInput || !currentInput.length) {
