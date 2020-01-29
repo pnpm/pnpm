@@ -2053,7 +2053,7 @@ importers:
       '@pnpm/plugin-commands-server': 'link:../plugin-commands-server'
       '@pnpm/plugin-commands-store': 'link:../plugin-commands-store'
       '@pnpm/run-npm': 'link:../run-npm'
-      '@pnpm/tabtab': 0.0.0
+      '@pnpm/tabtab': 0.0.1
       '@pnpm/types': 'link:../types'
       '@zkochan/libnpx': 11.0.3
       chalk: 3.0.0
@@ -2151,7 +2151,7 @@ importers:
       '@pnpm/read-package-json': 'workspace:*'
       '@pnpm/read-project-manifest': 'workspace:1.0.0'
       '@pnpm/run-npm': 'workspace:2.0.0'
-      '@pnpm/tabtab': 0.0.0
+      '@pnpm/tabtab': 0.0.1
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/write-project-manifest': 'workspace:*'
       '@types/byline': 4.2.31
@@ -3269,7 +3269,7 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-KBcGPWLkkiOsqk3rSegE4pUMHPKnL9xJ8F6Yi0Z5Q4MDyEXZeeZQSegHK3fKU+HGkkmKuC3jVz9apGEgbafZBQ==
-  /@pnpm/tabtab/0.0.0:
+  /@pnpm/tabtab/0.0.1:
     dependencies:
       debug: 4.1.1
       enquirer: 2.3.4
@@ -3280,7 +3280,7 @@ packages:
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-Rlv8YMLVA42T7e1weczY4H+jfnAnxvPLT1nbvUougM2+pzE2IyG8P1tXq8NjgKnmDM2+d/sTCZ4MFixHVP8V2Q==
+      integrity: sha512-XLx1tSzrLxvmsNdh6AjiYy6lhMq/Sw08ELFDjlPmbdPYJ9E3l6RtSX4bxXoJt7dZHKskNypF5ksx1rt5oqPsDg==
   /@sindresorhus/is/0.14.0:
     dev: false
     engines:
