@@ -392,10 +392,10 @@ export async function handler (
     manifest = {}
   }
 
-  const patternedInput = input.filter(i => i.includes('*'))
+  const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
   const updateMatch = opts.update && patternedInput.length ? matcher(patternedInput) : null
   if (updateMatch) {
-    input = matchDependencies(updateMatch, input, manifest, include)
+    input = matchDependencies(updateMatch, unpatternedInput, manifest, include)
   }
 
   if (opts.update && opts.latest) {

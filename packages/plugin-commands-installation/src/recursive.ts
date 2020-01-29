@@ -164,7 +164,7 @@ export default async function recursive (
     delete opts.include
   }
 
-  const patternedInput = input.filter(i => i.includes('*'))
+  const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
   const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
 
   // For a workspace with shared lockfile
@@ -185,7 +185,7 @@ export default async function recursive (
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...input]
       if (updateMatch) {
-        currentInput = matchDependencies(updateMatch, input, manifest, include)
+        currentInput = matchDependencies(updateMatch, unpatternedInput, manifest, include)
       }
       if (updateToLatest) {
         if (!currentInput || !currentInput.length) {
@@ -271,7 +271,7 @@ export default async function recursive (
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
         if (updateMatch) {
-          currentInput = matchDependencies(updateMatch, input, manifest, include)
+          currentInput = matchDependencies(updateMatch, unpatternedInput, manifest, include)
         }
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -432,5 +432,5 @@ export function matchDependencies (
   if (include.optionalDependencies) {
     allDependencies = allDependencies.concat(Object.keys(manifest.optionalDependencies || {}))
   }
-  return input.filter(i => !i.includes('*')).concat(allDependencies.filter(match))
+  return input.concat(allDependencies.filter(match))
 }
