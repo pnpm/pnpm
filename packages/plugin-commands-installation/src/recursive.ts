@@ -274,7 +274,10 @@ export default async function recursive (
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
         if (updateMatch) {
-          currentInput = matchDependencies(updateMatch, unpatternedInput, manifest, include)
+          currentInput = [
+            ...unpatternedInput,
+            ...matchDependencies(updateMatch, manifest, include),
+          ]
         }
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
@@ -421,7 +424,6 @@ async function readLocalConfig (prefix: string) {
 
 export function matchDependencies (
   match: (input: string) => boolean,
-  input: string[],
   manifest: ProjectManifest,
   include: IncludedDependencies,
 ) {
@@ -435,8 +437,5 @@ export function matchDependencies (
   if (include.optionalDependencies) {
     allDependencies = allDependencies.concat(Object.keys(manifest.optionalDependencies || {}))
   }
-  return [
-    ...input,
-    ...allDependencies.filter(match),
-  ]
+  return allDependencies.filter(match)
 }
