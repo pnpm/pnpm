@@ -26,8 +26,7 @@
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
     "@pnpm/run-npm": "link:",
-    "@types/cross-spawn": "^6.0.1",
-    "rimraf": "3.0.0"
+    "@types/cross-spawn": "^6.0.1"
   },
   "dependencies": {
     "cross-spawn": "7.0.1",

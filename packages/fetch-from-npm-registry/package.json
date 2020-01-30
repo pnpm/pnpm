@@ -33,7 +33,6 @@
   },
   "devDependencies": {
     "fetch-from-npm-registry": "link:",
-    "nock": "11.7.2",
-    "rimraf": "3.0.0"
+    "nock": "11.7.2"
   }
 }

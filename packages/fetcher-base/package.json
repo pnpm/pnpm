@@ -31,8 +31,5 @@
   "dependencies": {
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@types/ssri": "6.0.1"
-  },
-  "devDependencies": {
-    "rimraf": "3.0.0"
   }
 }

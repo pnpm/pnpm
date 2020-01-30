@@ -19,8 +19,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.1.0",
-    "rimraf": "3.0.0"
+    "@pnpm/logger": "3.1.0"
   },
   "directories": {
     "test": "test"

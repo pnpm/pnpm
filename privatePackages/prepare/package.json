@@ -16,7 +16,6 @@
   },
   "devDependencies": {
     "@types/node": "^12.12.26",
-    "rimraf": "3.0.0",
     "tslint-config-standard": "9.0.0",
     "tslint-eslint-rules": "5.4.0"
   },

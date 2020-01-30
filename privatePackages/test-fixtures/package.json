@@ -17,8 +17,7 @@
     "lib/"
   ],
   "devDependencies": {
-    "@types/ncp": "^2.0.3",
-    "rimraf": "3.0.0"
+    "@types/ncp": "^2.0.3"
   },
   "directories": {
     "test": "test"

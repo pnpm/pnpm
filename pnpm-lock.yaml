@@ -7,9 +7,10 @@ importers:
       '@types/node': 13.5.2
       '@types/tape': 4.2.33
       cross-env: 7.0.0
-      npm: 6.13.6
+      npm: 6.13.7
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
+      rimraf: 3.0.1
       tape: 4.13.0
       ts-node: 8.6.2_typescript@3.7.5
       tslint: 5.20.1_typescript@3.7.5
@@ -22,9 +23,10 @@ importers:
       '@types/node': '*'
       '@types/tape': ^4.2.33
       cross-env: 7.0.0
-      npm: 6.13.6
+      npm: 6.13.7
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
+      rimraf: 3.0.1
       tape: 4.13.0
       ts-node: 8.6.2
       tslint: 5.20.1
@@ -40,7 +42,6 @@ importers:
     devDependencies:
       '@pnpm/audit': 'link:'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/audit': 'link:'
       '@pnpm/fetch': 'workspace:1.0.2'
@@ -49,7 +50,6 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.6'
       '@pnpm/lockfile-walker': 'workspace:1.0.2'
       '@pnpm/types': 'workspace:5.0.0'
-      rimraf: 3.0.0
   packages/build-modules:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -66,7 +66,6 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/logger': 3.1.0
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:3.0.0'
@@ -80,7 +79,6 @@ importers:
       '@types/ramda': ^0.26.40
       graph-sequencer: 2.0.0
       ramda: 0.26.1
-      rimraf: 3.0.0
       run-groups: 2.0.2
   packages/cli-utils:
     dependencies:
@@ -101,7 +99,6 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/nopt': 3.0.29
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'link:'
       '@pnpm/command': 'workspace:0.1.0-0'
@@ -118,15 +115,11 @@ importers:
       load-json-file: 6.2.0
       nopt: 4.0.1
       ramda: 0.26.1
-      rimraf: 3.0.0
       version-selector-type: 2.0.1
   packages/command:
     specifiers: {}
   packages/common-cli-options-help:
-    devDependencies:
-      rimraf: 3.0.0
-    specifiers:
-      rimraf: 3.0.0
+    specifiers: {}
   packages/config:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -143,7 +136,6 @@ importers:
       '@types/ramda': 0.26.36
       '@types/which': 1.3.2
       mz: 2.7.0
-      rimraf: 3.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/config': 'link:'
@@ -158,24 +150,18 @@ importers:
       is-subdir: 1.1.1
       mz: 2.7.0
       ramda: 0.26.1
-      rimraf: 3.0.0
       tempy: 0.3.0
       which: 2.0.2
   packages/constants:
-    devDependencies:
-      rimraf: 3.0.0
-    specifiers:
-      rimraf: 3.0.0
+    specifiers: {}
   packages/core-loggers:
     dependencies:
       '@pnpm/types': 'link:../types'
     devDependencies:
       '@pnpm/logger': 3.1.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/logger': 3.1.0
       '@pnpm/types': 'workspace:^5.0.0'
-      rimraf: 3.0.0
   packages/default-fetcher:
     dependencies:
       '@pnpm/git-fetcher': 'link:../git-fetcher'
@@ -184,14 +170,12 @@ importers:
     devDependencies:
       '@pnpm/default-fetcher': 'link:'
       '@pnpm/logger': 3.1.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/default-fetcher': 'link:'
       '@pnpm/git-fetcher': 'workspace:2.0.10'
       '@pnpm/logger': 3.1.0
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/tarball-fetcher': 'workspace:5.1.6'
-      rimraf: 3.0.0
   packages/default-reporter:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -224,7 +208,6 @@ importers:
       ghooks: 2.0.4
       load-json-file: 6.2.0
       normalize-newline: 3.0.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/config': 'workspace:7.1.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
@@ -251,7 +234,6 @@ importers:
       pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
-      rimraf: 3.0.0
       semver: 7.1.1
       stacktracey: 1.2.122
       string-length: 3.1.0
@@ -266,7 +248,6 @@ importers:
     devDependencies:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/logger': 3.1.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/git-resolver': 'workspace:4.0.5'
@@ -275,7 +256,6 @@ importers:
       '@pnpm/npm-resolver': 'workspace:7.2.1'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/tarball-resolver': 'workspace:3.0.4'
-      rimraf: 3.0.0
   packages/dependencies-hierarchy:
     dependencies:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
@@ -321,10 +301,7 @@ importers:
       encode-registry: 2.0.2
       semver: 7.1.1
   packages/error:
-    devDependencies:
-      rimraf: 3.0.0
-    specifiers:
-      rimraf: 3.0.0
+    specifiers: {}
   packages/fetch:
     dependencies:
       '@zeit/fetch-retry': 4.1.0_node-fetch@2.6.0
@@ -333,14 +310,12 @@ importers:
     devDependencies:
       '@types/node-fetch': 2.5.4
       cpy-cli: 3.0.0
-      rimraf: 3.0.0
     specifiers:
       '@types/node-fetch': ^2.5.4
       '@zeit/fetch-retry': 4.1.0
       cpy-cli: 3.0.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
-      rimraf: 3.0.0
   packages/fetch-from-npm-registry:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -348,23 +323,18 @@ importers:
     devDependencies:
       fetch-from-npm-registry: 'link:'
       nock: 11.7.2
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.2'
       '@pnpm/npm-registry-agent': 'workspace:2.0.2'
       fetch-from-npm-registry: 'link:'
       nock: 11.7.2
-      rimraf: 3.0.0
   packages/fetcher-base:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@types/ssri': 6.0.1
-    devDependencies:
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@types/ssri': 6.0.1
-      rimraf: 3.0.0
   packages/filter-lockfile:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -380,7 +350,6 @@ importers:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 3.1.0
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -397,7 +366,6 @@ importers:
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.3'
       ramda: 0.26.1
-      rimraf: 3.0.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -419,7 +387,6 @@ importers:
       '@types/touch': 3.1.1
       is-ci: 2.0.0
       is-windows: 1.0.2
-      rimraf: 3.0.0
       tempy: 0.3.0
       touch: 3.1.0
     specifiers:
@@ -438,7 +405,6 @@ importers:
       is-windows: 1.0.2
       pkgs-graph: 'workspace:5.1.0'
       ramda: 0.26.1
-      rimraf: 3.0.0
       tempy: 0.3.0
       touch: 3.1.0
   packages/find-packages:
@@ -458,11 +424,8 @@ importers:
   packages/find-workspace-dir:
     dependencies:
       find-up: 4.1.0
-    devDependencies:
-      rimraf: 3.0.0
     specifiers:
       find-up: 4.1.0
-      rimraf: 3.0.0
   packages/find-workspace-packages:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -473,7 +436,6 @@ importers:
       read-yaml-file: 1.1.0
     devDependencies:
       '@pnpm/find-workspace-packages': 'link:'
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.2-0'
       '@pnpm/config': 'workspace:7.1.0'
@@ -482,7 +444,6 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       find-packages: 'workspace:7.0.2'
       read-yaml-file: 1.1.0
-      rimraf: 3.0.0
   packages/get-context:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -502,7 +463,6 @@ importers:
       '@pnpm/logger': 3.1.0
       '@types/is-ci': 2.0.0
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
@@ -520,7 +480,6 @@ importers:
       make-dir: 3.0.0
       path-absolute: 1.0.1
       ramda: 0.26.1
-      rimraf: 3.0.0
   packages/git-fetcher:
     dependencies:
       '@zkochan/rimraf': 1.0.0
@@ -529,7 +488,6 @@ importers:
       path-temp: 2.0.0
     devDependencies:
       '@pnpm/git-fetcher': 'link:'
-      rimraf: 3.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/git-fetcher': 'link:'
@@ -537,7 +495,6 @@ importers:
       dint: 4.0.0
       execa: 4.0.0
       path-temp: 2.0.0
-      rimraf: 3.0.0
       tempy: 0.3.0
   packages/git-resolver:
     dependencies:
@@ -552,7 +509,6 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/semver': 6.2.1
       is-windows: 1.0.2
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.2'
       '@pnpm/git-resolver': 'link:'
@@ -563,7 +519,6 @@ importers:
       graceful-git: 3.0.1
       hosted-git-info: 3.0.2
       is-windows: 1.0.2
-      rimraf: 3.0.0
       semver: 7.1.1
   packages/headless:
     dependencies:
@@ -615,7 +570,6 @@ importers:
       mz: 2.7.0
       npm-run-all: 4.1.5
       read-yaml-file: 1.1.0
-      rimraf: 3.0.0
       sinon: 8.1.1
       tape-promise: 4.0.0
       tempy: 0.3.0
@@ -667,7 +621,6 @@ importers:
       path-exists: 4.0.0
       ramda: 0.26.1
       read-yaml-file: 1.1.0
-      rimraf: 3.0.0
       sinon: 8.1.1
       tape-promise: 4.0.0
       tempy: 0.3.0
@@ -686,7 +639,6 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/link-bins': 'workspace:5.1.2'
@@ -700,7 +652,6 @@ importers:
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.3'
       ramda: 0.26.1
-      rimraf: 3.0.0
   packages/lifecycle:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -715,7 +666,6 @@ importers:
       '@types/rimraf': 2.0.3
       json-append: 1.1.1
       load-json-file: 6.2.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/lifecycle': 'link:'
@@ -727,7 +677,6 @@ importers:
       json-append: 1.1.1
       load-json-file: 6.2.0
       path-exists: 4.0.0
-      rimraf: 3.0.0
       run-groups: 2.0.2
   packages/link-bins:
     dependencies:
@@ -757,7 +706,6 @@ importers:
       '@types/tape': 4.2.33
       ncp: 2.0.0
       path-exists: 4.0.0
-      rimraf: 3.0.1
       sinon: 8.1.1
       tempy: 0.3.0
     specifiers:
@@ -786,7 +734,6 @@ importers:
       p-settle: 3.1.0
       path-exists: ^4.0.0
       ramda: 0.26.1
-      rimraf: ^3.0.1
       sinon: 8.1.1
       tempy: ^0.3.0
   packages/list:
@@ -811,7 +758,6 @@ importers:
       '@types/ramda': 0.26.40
       '@types/semver': 6.2.1
       common-tags: 1.8.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 3.1.0
@@ -831,7 +777,6 @@ importers:
       dependencies-hierarchy: 'workspace:8.0.7'
       p-limit: 2.2.2
       ramda: 0.26.1
-      rimraf: 3.0.0
       semver: 7.1.1
   packages/local-resolver:
     dependencies:
@@ -879,7 +824,6 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.26.40
       '@types/write-file-atomic': 3.0.0
-      rimraf: 3.0.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -900,7 +844,6 @@ importers:
       normalize-path: 3.0.0
       ramda: 0.26.1
       read-yaml-file: 1.1.0
-      rimraf: 3.0.0
       tempy: 0.3.0
       write-file-atomic: 2.4.3
       write-yaml-file: 3.0.1
@@ -919,7 +862,6 @@ importers:
       '@pnpm/lockfile-utils': 'link:'
       '@types/js-yaml': 3.12.2
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -933,7 +875,6 @@ importers:
       dependency-path: 'workspace:4.0.3'
       get-npm-tarball-url: 2.0.1
       ramda: 0.26.1
-      rimraf: 3.0.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -946,7 +887,6 @@ importers:
     devDependencies:
       '@pnpm/lockfile-walker': 'link:'
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/lockfile-types': 'workspace:2.0.0'
@@ -955,18 +895,15 @@ importers:
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.3'
       ramda: 0.26.1
-      rimraf: 3.0.0
       tempy: 0.3.0
   packages/matcher:
     dependencies:
       escape-string-regexp: 2.0.0
     devDependencies:
       '@pnpm/matcher': 'link:'
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/matcher': 'link:'
       escape-string-regexp: 2.0.0
-      rimraf: 3.0.0
   packages/modules-cleaner:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -986,7 +923,6 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-cleaner': 'link:'
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/filter-lockfile': 'workspace:3.0.5'
@@ -1004,7 +940,6 @@ importers:
       dependency-path: 'workspace:4.0.3'
       fs-vacuum: 1.2.10
       ramda: 0.26.1
-      rimraf: 3.0.0
   packages/modules-yaml:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -1012,13 +947,11 @@ importers:
       write-yaml-file: 3.0.1
     devDependencies:
       '@pnpm/modules-yaml': 'link:'
-      rimraf: 3.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/modules-yaml': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       read-yaml-file: 1.1.0
-      rimraf: 3.0.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
   packages/npm-registry-agent:
@@ -1033,7 +966,6 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/proxyquire': 1.3.28
       proxyquire: 2.1.3
-      rimraf: 3.0.0
     specifiers:
       '@types/http-proxy-agent': ^2.0.2
       '@types/lru-cache': 5.1.0
@@ -1043,7 +975,6 @@ importers:
       https-proxy-agent: 3.0.1
       lru-cache: 5.1.1
       proxyquire: 2.1.3
-      rimraf: 3.0.0
       socks-proxy-agent: 4.0.2
   packages/npm-resolver:
     dependencies:
@@ -1071,7 +1002,6 @@ importers:
       '@types/ssri': 6.0.1
       nock: 11.7.2
       path-exists: 4.0.0
-      rimraf: 3.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/error': 'workspace:1.0.0'
@@ -1093,7 +1023,6 @@ importers:
       p-memoize: 3.1.0
       parse-npm-tarball-url: 3.0.0
       path-exists: 4.0.0
-      rimraf: 3.0.0
       semver: 7.1.1
       ssri: 6.0.1
       tempy: ^0.3.0
@@ -1156,7 +1085,6 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/node': 12.12.26
       '@types/tape': 4.2.33
-      rimraf: 3.0.1
     specifiers:
       '@pnpm/package-bins': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
@@ -1166,7 +1094,6 @@ importers:
       graceful-fs: 4.2.3
       is-subdir: 1.1.1
       p-filter: 2.1.0
-      rimraf: ^3.0.1
   packages/package-is-installable:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1177,7 +1104,6 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/package-is-installable': 'link:'
       '@types/semver': 6.2.1
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
@@ -1185,7 +1111,6 @@ importers:
       '@pnpm/package-is-installable': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/semver': ^6.2.1
-      rimraf: 3.0.0
       semver: 7.1.1
   packages/package-requester:
     dependencies:
@@ -1226,7 +1151,6 @@ importers:
       ncp: 2.0.0
       nock: 11.7.2
       normalize-path: 3.0.0
-      rimraf: 3.0.0
       sinon: 8.1.1
       tempy: 0.3.0
     specifiers:
@@ -1263,7 +1187,6 @@ importers:
       promise-share: 1.0.0
       ramda: 0.26.1
       rename-overwrite: 2.0.2
-      rimraf: 3.0.0
       sinon: 8.1.1
       ssri: 6.0.1
       symlink-dir: 3.1.1
@@ -1302,7 +1225,6 @@ importers:
       '@types/ramda': 0.26.40
       '@types/sinon': 7.5.1
       proxyquire: 2.1.3
-      rimraf: 3.0.0
       sinon: 8.1.1
       tempy: 0.3.0
     specifiers:
@@ -1335,7 +1257,6 @@ importers:
       proxyquire: 2.1.3
       ramda: 0.26.1
       rename-overwrite: 2.0.2
-      rimraf: 3.0.0
       sinon: 8.1.1
       tempy: 0.3.0
       write-json-file: 4.0.0
@@ -1346,13 +1267,11 @@ importers:
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
       nopt: 4.0.1
-      rimraf: 3.0.0
   packages/pkgs-graph:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
@@ -1388,7 +1307,6 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/ramda': 0.26.40
       '@types/table': 4.0.7
-      rimraf: 3.0.0
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/audit': 'workspace:1.0.4'
@@ -1404,7 +1322,6 @@ importers:
       chalk: 3.0.0
       ramda: 0.26.1
       render-help: 0.0.0
-      rimraf: 3.0.0
       strip-ansi: 6.0.0
       table: 5.4.6
   packages/plugin-commands-import:
@@ -1424,7 +1341,6 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/ncp': 2.0.3
       ncp: 2.0.0
-      rimraf: 3.0.0
       tempy: 0.3.0
     specifiers:
       '@pnpm/assert-project': 'workspace:2.0.0'
@@ -1440,7 +1356,6 @@ importers:
       load-json-file: 6.2.0
       ncp: 2.0.0
       render-help: 0.0.0
-      rimraf: 3.0.0
       supi: 'workspace:0.38.5'
       tempy: 0.3.0
   packages/plugin-commands-installation:
@@ -1498,7 +1413,6 @@ importers:
       make-dir: 3.0.0
       proxyquire: 2.1.3
       read-yaml-file: 1.1.0
-      rimraf: 3.0.0
       sinon: 8.1.1
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
@@ -1553,7 +1467,6 @@ importers:
       read-ini-file: 2.0.0
       read-yaml-file: 1.1.0
       render-help: 0.0.0
-      rimraf: 3.0.0
       sinon: 8.1.1
       supi: 'workspace:0.38.5'
       table: 5.4.6
@@ -1582,7 +1495,6 @@ importers:
       '@types/ramda': 0.26.40
       execa: 4.0.0
       mz: 2.7.0
-      rimraf: 3.0.0
       strip-ansi: 6.0.0
       write-yaml-file: 3.0.1
     specifiers:
@@ -1606,7 +1518,6 @@ importers:
       mz: 2.7.0
       ramda: 0.26.1
       render-help: 0.0.0
-      rimraf: 3.0.0
       strip-ansi: 6.0.0
       write-yaml-file: 3.0.1
   packages/plugin-commands-outdated:
@@ -1647,7 +1558,6 @@ importers:
       '@types/wrap-ansi': 3.0.0
       make-dir: 3.0.0
       mz: 2.7.0
-      rimraf: 3.0.0
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.2-0'
@@ -1683,7 +1593,6 @@ importers:
       mz: 2.7.0
       ramda: 0.26.1
       render-help: 0.0.0
-      rimraf: 3.0.0
       strip-ansi: 6.0.0
       table: 5.4.6
       wrap-ansi: 6.2.0
@@ -1719,7 +1628,6 @@ importers:
       cross-spawn: 7.0.1
       execa: 4.0.0
       path-exists: 4.0.0
-      rimraf: 3.0.0
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.2-0'
@@ -1750,7 +1658,6 @@ importers:
       path-exists: 4.0.0
       ramda: 0.26.1
       render-help: 0.0.0
-      rimraf: 3.0.0
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
   packages/plugin-commands-rebuild:
@@ -1799,7 +1706,6 @@ importers:
       '@types/sinon': 7.5.1
       execa: 4.0.0
       path-exists: 4.0.0
-      rimraf: 3.0.0
       sinon: 8.1.1
       write-yaml-file: 3.0.1
     specifiers:
@@ -1844,7 +1750,6 @@ importers:
       ramda: 0.26.1
       read-ini-file: 2.0.0
       render-help: 0.0.0
-      rimraf: 3.0.0
       run-groups: 2.0.2
       semver: 7.1.1
       sinon: 8.1.1
@@ -1875,7 +1780,6 @@ importers:
       '@zkochan/rimraf': 1.0.0
       execa: 4.0.0
       mz: 2.7.0
-      rimraf: 3.0.0
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.2-0'
@@ -1901,7 +1805,6 @@ importers:
       p-limit: 2.2.2
       ramda: 0.26.1
       render-help: 0.0.0
-      rimraf: 3.0.0
       write-yaml-file: 3.0.1
   packages/plugin-commands-server:
     dependencies:
@@ -1932,7 +1835,6 @@ importers:
       '@types/mz': 2.7.0
       '@types/ramda': 0.26.40
       '@types/signal-exit': 3.0.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.2-0'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
@@ -1958,7 +1860,6 @@ importers:
       process-exists: 4.0.0
       ramda: 0.26.1
       render-help: 0.0.0
-      rimraf: 3.0.0
       signal-exit: 3.0.2
       tree-kill: 1.2.2
   packages/plugin-commands-store:
@@ -1993,7 +1894,6 @@ importers:
       execa: 4.0.0
       load-json-file: 6.2.0
       path-exists: 4.0.0
-      rimraf: 3.0.0
       sinon: 8.1.1
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.0'
@@ -2025,7 +1925,6 @@ importers:
       path-exists: 4.0.0
       ramda: 0.26.1
       render-help: 0.0.0
-      rimraf: 3.0.0
       sinon: 8.1.1
   packages/pnpm:
     dependencies:
@@ -2110,7 +2009,6 @@ importers:
       pnpm: 'link:'
       read-yaml-file: 1.1.0
       retry: 0.12.0
-      rimraf: 3.0.0
       semver: 7.1.1
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
@@ -2197,7 +2095,6 @@ importers:
       read-yaml-file: 1.1.0
       render-help: 0.0.0
       retry: 0.12.0
-      rimraf: 3.0.0
       semver: 7.1.1
       split-cmd: 1.0.0
       symlink-dir: 3.1.1
@@ -2219,7 +2116,6 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/pnpmfile': 'link:'
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
@@ -2230,7 +2126,6 @@ importers:
       chalk: 3.0.0
       path-absolute: 1.0.1
       ramda: 0.26.1
-      rimraf: 3.0.0
   packages/prune-lockfile:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -2241,7 +2136,6 @@ importers:
     devDependencies:
       '@pnpm/prune-lockfile': 'link:'
       '@types/ramda': 0.26.40
-      rimraf: 3.0.0
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
@@ -2251,18 +2145,15 @@ importers:
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.3'
       ramda: 0.26.1
-      rimraf: 3.0.0
       yaml-tag: 1.1.0
   packages/read-modules-dir:
     dependencies:
       mz: 2.7.0
     devDependencies:
       '@types/mz': 2.7.0
-      rimraf: 3.0.0
     specifiers:
       '@types/mz': ^2.7.0
       mz: 2.7.0
-      rimraf: 3.0.0
   packages/read-package-json:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -2321,14 +2212,12 @@ importers:
       '@pnpm/utils': 'link:../utils'
     devDependencies:
       '@pnpm/logger': 3.1.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/lockfile-file': 'workspace:3.0.2'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:5.0.1'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.12.3'
-      rimraf: 3.0.0
   packages/resolve-dependencies:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -2351,7 +2240,6 @@ importers:
       '@pnpm/resolve-dependencies': 'link:'
       '@types/ramda': 0.26.40
       '@types/semver': 6.2.1
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
@@ -2371,16 +2259,12 @@ importers:
       path-exists: 4.0.0
       ramda: 0.26.1
       replace-string: 3.0.0
-      rimraf: 3.0.0
       semver: 7.1.1
   packages/resolver-base:
     dependencies:
       '@pnpm/types': 'link:../types'
-    devDependencies:
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/types': 'workspace:5.0.0'
-      rimraf: 3.0.0
   packages/run-npm:
     dependencies:
       cross-spawn: 7.0.1
@@ -2388,13 +2272,11 @@ importers:
     devDependencies:
       '@pnpm/run-npm': 'link:'
       '@types/cross-spawn': 6.0.1
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/run-npm': 'link:'
       '@types/cross-spawn': ^6.0.1
       cross-spawn: 7.0.1
       path-name: 1.0.0
-      rimraf: 3.0.0
   packages/server:
     dependencies:
       '@pnpm/fetch': 'link:../fetch'
@@ -2417,7 +2299,6 @@ importers:
       is-port-reachable: 3.0.0
       mz: 2.7.0
       node-fetch: 2.6.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.2'
       '@pnpm/logger': 3.1.0
@@ -2437,7 +2318,6 @@ importers:
       node-fetch: 2.6.0
       p-limit: 2.2.2
       promise-share: 1.0.0
-      rimraf: 3.0.0
       uuid: 3.4.0
   packages/sort-packages:
     dependencies:
@@ -2445,12 +2325,10 @@ importers:
       graph-sequencer: 2.0.0
     devDependencies:
       '@pnpm/sort-packages': 'link:'
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/config': 'workspace:7.1.0'
       '@pnpm/sort-packages': 'link:'
       graph-sequencer: 2.0.0
-      rimraf: 3.0.0
   packages/store-connection-manager:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -2472,7 +2350,6 @@ importers:
       '@pnpm/store-connection-manager': 'link:'
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.2-0'
       '@pnpm/config': 'workspace:7.1.0'
@@ -2492,17 +2369,13 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mz: 2.7.0
-      rimraf: 3.0.0
   packages/store-controller-types:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
-    devDependencies:
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
-      rimraf: 3.0.0
   packages/supi:
     dependencies:
       '@pnpm/build-modules': 'link:../build-modules'
@@ -2597,7 +2470,6 @@ importers:
       path-name: 1.0.0
       read-yaml-file: 1.1.0
       resolve-link-target: 1.0.1
-      rimraf: 3.0.0
       sinon: 8.1.1
       supi: 'link:'
       symlink-dir: 3.1.1
@@ -2692,7 +2564,6 @@ importers:
       ramda: 0.26.1
       read-yaml-file: 1.1.0
       resolve-link-target: 1.0.1
-      rimraf: 3.0.0
       run-groups: 2.0.2
       semver: 7.1.1
       semver-utils: 1.1.4
@@ -2713,7 +2584,6 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@types/mz': 2.7.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/logger': 3.1.0
@@ -2721,7 +2591,6 @@ importers:
       '@types/mz': ^2.7.0
       make-dir: 3.0.0
       mz: 2.7.0
-      rimraf: 3.0.0
       symlink-dir: 3.1.1
   packages/tarball-fetcher:
     dependencies:
@@ -2778,16 +2647,11 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
     devDependencies:
       '@pnpm/tarball-resolver': 'link:'
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/tarball-resolver': 'link:'
-      rimraf: 3.0.0
   packages/types:
-    devDependencies:
-      rimraf: 3.0.0
-    specifiers:
-      rimraf: 3.0.0
+    specifiers: {}
   packages/utils:
     dependencies:
       '@pnpm/read-package-json': 'link:../read-package-json'
@@ -2800,7 +2664,6 @@ importers:
       '@pnpm/utils': 'link:'
       '@types/mz': 2.7.0
       '@types/validate-npm-package-name': 3.0.0
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.2'
@@ -2810,7 +2673,6 @@ importers:
       '@types/validate-npm-package-name': 3.0.0
       mz: 2.7.0
       normalize-registry-url: 1.0.0
-      rimraf: 3.0.0
       validate-npm-package-name: 3.0.0
   packages/write-project-manifest:
     dependencies:
@@ -2847,7 +2709,6 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/isexe': 2.0.0
       '@types/node': 12.12.26
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': 'workspace:1.0.0'
@@ -2864,18 +2725,14 @@ importers:
       mz: 2.7.0
       path-exists: 4.0.0
       read-yaml-file: 1.1.0
-      rimraf: 3.0.0
       write-pkg: 4.0.0
   privatePackages/assert-store:
     dependencies:
       '@pnpm/assert-store': 'link:'
       path-exists: 4.0.0
-    devDependencies:
-      rimraf: 3.0.0
     specifiers:
       '@pnpm/assert-store': 'link:'
       path-exists: 4.0.0
-      rimraf: 3.0.0
   privatePackages/prepare:
     dependencies:
       '@pnpm/assert-project': 'link:../assert-project'
@@ -2888,7 +2745,6 @@ importers:
       write-yaml-file: 3.0.1
     devDependencies:
       '@types/node': 12.12.26
-      rimraf: 3.0.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
     specifiers:
@@ -2897,7 +2753,6 @@ importers:
       '@types/mkdirp': 0.5.2
       '@types/node': ^12.12.26
       make-dir: 3.0.0
-      rimraf: 3.0.0
       tempy: 0.3.0
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
@@ -2909,11 +2764,9 @@ importers:
       ncp: 2.0.0
     devDependencies:
       '@types/ncp': 2.0.3
-      rimraf: 3.0.0
     specifiers:
       '@types/ncp': ^2.0.3
       ncp: 2.0.0
-      rimraf: 3.0.0
   tools:
     devDependencies:
       '@commitlint/cli': 8.3.5
@@ -8537,7 +8390,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-+Osa0A3FilUUNjtBylNCgX8L1kY=
-  /npm/6.13.6:
+  /npm/6.13.7:
     bundledDependencies:
       - abbrev
       - ansicolors
@@ -8665,7 +8518,7 @@ packages:
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-NomC08kv7HIl1FOyLOe9Hp89kYsOsvx52huVIJ7i8hFW8Xp65lDwe/8wTIrh9q9SaQhA8hTrfXPh3BEL3TmMpw==
+      integrity: sha512-X967EKTT407CvgrWFjXusnPh0VLERcmR9hZFSVgkEquOomZkvpwLJ5zrQ3qrG9SpPLKJE4bPLUu76exKQ4a3Cg==
   /npmlog/3.1.2:
     dependencies:
       are-we-there-yet: 1.1.5

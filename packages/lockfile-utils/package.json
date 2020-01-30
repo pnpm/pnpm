@@ -36,7 +36,6 @@
     "@pnpm/lockfile-utils": "link:",
     "@types/js-yaml": "^3.12.2",
     "@types/ramda": "^0.26.40",
-    "rimraf": "3.0.0",
     "tempy": "0.3.0",
     "write-yaml-file": "3.0.1",
     "yaml-tag": "1.1.0"

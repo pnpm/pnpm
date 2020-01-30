@@ -36,7 +36,6 @@
     "@pnpm/utils": "workspace:0.12.3"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.1.0",
-    "rimraf": "3.0.0"
+    "@pnpm/logger": "3.1.0"
   }
 }

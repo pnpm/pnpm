@@ -41,7 +41,6 @@
     "@types/hosted-git-info": "2.7.0",
     "@types/is-windows": "^1.0.0",
     "@types/semver": "^6.2.1",
-    "is-windows": "1.0.2",
-    "rimraf": "3.0.0"
+    "is-windows": "1.0.2"
   }
 }

@@ -32,7 +32,6 @@
     "@pnpm/types": "workspace:5.0.0",
     "@types/ramda": "^0.26.40",
     "@types/table": "^4.0.7",
-    "rimraf": "3.0.0",
     "strip-ansi": "6.0.0"
   },
   "dependencies": {

@@ -25,8 +25,5 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/constants#readme",
-  "devDependencies": {
-    "rimraf": "3.0.0"
-  }
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/constants#readme"
 }

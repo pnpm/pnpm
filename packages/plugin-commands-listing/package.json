@@ -42,7 +42,6 @@
     "@types/ramda": "^0.26.40",
     "execa": "4.0.0",
     "mz": "2.7.0",
-    "rimraf": "3.0.0",
     "strip-ansi": "6.0.0",
     "write-yaml-file": "3.0.1"
   },

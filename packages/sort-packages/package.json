@@ -27,8 +27,7 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
-    "@pnpm/sort-packages": "link:",
-    "rimraf": "3.0.0"
+    "@pnpm/sort-packages": "link:"
   },
   "dependencies": {
     "@pnpm/config": "workspace:7.1.0",

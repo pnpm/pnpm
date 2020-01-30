@@ -27,8 +27,7 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
-    "@pnpm/find-workspace-packages": "link:",
-    "rimraf": "3.0.0"
+    "@pnpm/find-workspace-packages": "link:"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.3.2-0",

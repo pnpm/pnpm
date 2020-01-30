@@ -57,7 +57,6 @@
     "@types/ssri": "^6.0.1",
     "nock": "11.7.2",
     "path-exists": "4.0.0",
-    "rimraf": "3.0.0",
     "tempy": "^0.3.0"
   }
 }

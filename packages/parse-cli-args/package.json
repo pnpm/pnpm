@@ -28,8 +28,7 @@
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
     "@pnpm/parse-cli-args": "link:",
-    "@types/nopt": "3.0.29",
-    "rimraf": "3.0.0"
+    "@types/nopt": "3.0.29"
   },
   "dependencies": {
     "@pnpm/find-workspace-dir": "workspace:1.0.0",

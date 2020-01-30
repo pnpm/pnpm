@@ -26,9 +26,6 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "homepage": "https://pnpm.js.org",
-  "devDependencies": {
-    "rimraf": "3.0.0"
-  },
   "dependencies": {
     "find-up": "4.1.0"
   }

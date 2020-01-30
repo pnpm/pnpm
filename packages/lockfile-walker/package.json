@@ -35,7 +35,6 @@
   "devDependencies": {
     "@pnpm/lockfile-walker": "link:",
     "@types/ramda": "^0.26.40",
-    "rimraf": "3.0.0",
     "tempy": "0.3.0"
   },
   "dependencies": {

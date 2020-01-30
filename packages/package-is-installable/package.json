@@ -38,7 +38,6 @@
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/package-is-installable": "link:",
-    "@types/semver": "^6.2.1",
-    "rimraf": "3.0.0"
+    "@types/semver": "^6.2.1"
   }
 }

@@ -34,8 +34,7 @@
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.0",
     "@types/ramda": "^0.26.40",
-    "@types/signal-exit": "^3.0.0",
-    "rimraf": "3.0.0"
+    "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.3.2-0",

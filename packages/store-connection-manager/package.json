@@ -31,8 +31,7 @@
     "@pnpm/logger": "3.1.0",
     "@pnpm/store-connection-manager": "link:",
     "@types/lru-cache": "5.1.0",
-    "@types/mz": "^2.7.0",
-    "rimraf": "3.0.0"
+    "@types/mz": "^2.7.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.3.2-0",

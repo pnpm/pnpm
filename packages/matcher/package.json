@@ -34,8 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/matcher#readme",
   "devDependencies": {
-    "@pnpm/matcher": "link:",
-    "rimraf": "3.0.0"
+    "@pnpm/matcher": "link:"
   },
   "dependencies": {
     "escape-string-regexp": "2.0.0"

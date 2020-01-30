@@ -27,8 +27,5 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolver-base#readme",
   "dependencies": {
     "@pnpm/types": "workspace:5.0.0"
-  },
-  "devDependencies": {
-    "rimraf": "3.0.0"
   }
 }

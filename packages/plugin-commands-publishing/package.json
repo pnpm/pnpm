@@ -43,7 +43,6 @@
     "cross-spawn": "7.0.1",
     "execa": "4.0.0",
     "path-exists": "4.0.0",
-    "rimraf": "3.0.0",
     "write-yaml-file": "3.0.1"
   },
   "dependencies": {

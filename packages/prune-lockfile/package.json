@@ -35,7 +35,6 @@
   "devDependencies": {
     "@pnpm/prune-lockfile": "link:",
     "@types/ramda": "^0.26.40",
-    "rimraf": "3.0.0",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {

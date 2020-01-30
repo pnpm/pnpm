@@ -33,8 +33,7 @@
     "@pnpm/logger": "^3.1.0",
     "@pnpm/types": "workspace:5.0.0",
     "@types/nopt": "^3.0.29",
-    "@types/ramda": "^0.26.40",
-    "rimraf": "3.0.0"
+    "@types/ramda": "^0.26.40"
   },
   "dependencies": {
     "@pnpm/command": "workspace:0.1.0-0",

@@ -29,8 +29,7 @@
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
     "@pnpm/audit": "link:",
-    "@pnpm/lockfile-file": "workspace:3.0.2",
-    "rimraf": "3.0.0"
+    "@pnpm/lockfile-file": "workspace:3.0.2"
   },
   "dependencies": {
     "@pnpm/fetch": "workspace:1.0.2",

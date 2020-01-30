@@ -22,8 +22,7 @@
     "@pnpm/logger": "3.1.0",
     "@pnpm/utils": "link:",
     "@types/mz": "^2.7.0",
-    "@types/validate-npm-package-name": "3.0.0",
-    "rimraf": "3.0.0"
+    "@types/validate-npm-package-name": "3.0.0"
   },
   "directories": {
     "test": "test"

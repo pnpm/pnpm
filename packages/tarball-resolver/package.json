@@ -28,7 +28,6 @@
     "@pnpm/resolver-base": "workspace:7.0.0"
   },
   "devDependencies": {
-    "@pnpm/tarball-resolver": "link:",
-    "rimraf": "3.0.0"
+    "@pnpm/tarball-resolver": "link:"
   }
 }
