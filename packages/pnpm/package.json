@@ -54,7 +54,7 @@
     "pkgs-graph": "workspace:5.1.0",
     "ramda": "0.26.1",
     "render-help": "0.0.0",
-    "split-cmd": "1.0.0",
+    "split-cmd": "1.0.1",
     "update-notifier": "4.0.0"
   },
   "devDependencies": {
