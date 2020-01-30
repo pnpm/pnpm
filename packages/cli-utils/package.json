@@ -11,7 +11,6 @@
     "node": ">=10"
   },
   "scripts": {
-    "prepare": "rimraf node_modules/.bin/pnpm node_modules/.bin/pnpm.cmd node_modules/.bin/pnpm.ps1 node_modules/.bin/pnpm.sh",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "pretest": "rimraf node_modules/.bin/pnpm",
