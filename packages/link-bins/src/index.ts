@@ -129,7 +129,7 @@ async function getPackageBins (
 
   const fromModules = await isFromModules(target)
 
-  if (R.isEmpty(pkg.bin) && !fromModules) {
+  if (R.isEmpty(pkg.bin) && !await isFromModules(target)) {
     opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`)
   }
 
