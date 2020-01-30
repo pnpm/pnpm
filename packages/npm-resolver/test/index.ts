@@ -720,6 +720,30 @@ test('error is thrown when package is not found in the registry', async t => {
   }
 })
 
+test('extra info is shown if package has valid semver appended', async t => {
+  const notExistingPackage = 'foo1.0.0'
+
+  nock(registry)
+    .get(`/${notExistingPackage}`)
+    .reply(404, {})
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    rawConfig: { registry },
+    storeDir: tempy.directory(),
+  })
+  try {
+    await resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry })
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.equal(err.message, `404 Not Found: ${notExistingPackage} (via https://registry.npmjs.org/foo1.0.0) Did you mean foo?`)
+    t.equal(err['package'], notExistingPackage)
+    t.equal(err['code'], 'ERR_PNPM_REGISTRY_META_RESPONSE_404')
+    t.equal(err['uri'], `${registry}${notExistingPackage}`)
+    t.end()
+  }
+})
+
 test('error is thrown when there is no package found for the requested version', async t => {
   nock(registry)
     .get('/is-positive')
