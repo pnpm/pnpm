@@ -32,7 +32,6 @@
     "@pnpm/store-connection-manager": "link:",
     "@types/lru-cache": "5.1.0",
     "@types/mz": "^2.7.0",
-    "pnpm": "link:../pnpm",
     "rimraf": "3.0.0"
   },
   "dependencies": {
@@ -52,7 +51,6 @@
     "mz": "2.7.0"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0",
-    "pnpm": "*"
+    "@pnpm/logger": "^3.1.0"
   }
 }

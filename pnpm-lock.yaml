@@ -101,7 +101,6 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/nopt': 3.0.29
       '@types/ramda': 0.26.40
-      pnpm: 'link:../pnpm'
       rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'link:'
@@ -118,7 +117,6 @@ importers:
       chalk: 3.0.0
       load-json-file: 6.2.0
       nopt: 4.0.1
-      pnpm: 'link:../pnpm'
       ramda: 0.26.1
       rimraf: 3.0.0
       version-selector-type: 2.0.1
@@ -2474,7 +2472,6 @@ importers:
       '@pnpm/store-connection-manager': 'link:'
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
-      pnpm: 'link:../pnpm'
       rimraf: 3.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.2-0'
@@ -2495,7 +2492,6 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mz: 2.7.0
-      pnpm: 'link:../pnpm'
       rimraf: 3.0.0
   packages/store-controller-types:
     dependencies:

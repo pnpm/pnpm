@@ -34,7 +34,6 @@
     "@pnpm/types": "workspace:5.0.0",
     "@types/nopt": "^3.0.29",
     "@types/ramda": "^0.26.40",
-    "pnpm": "link:../pnpm",
     "rimraf": "3.0.0"
   },
   "dependencies": {
@@ -51,7 +50,6 @@
     "version-selector-type": "2.0.1"
   },
   "peerDependencies": {
-    "@pnpm/logger": "^3.1.0",
-    "pnpm": "*"
+    "@pnpm/logger": "^3.1.0"
   }
 }
