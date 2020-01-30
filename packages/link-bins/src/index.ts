@@ -122,7 +122,7 @@ async function getPackageBins (
     return []
   }
 
-  if (R.isEmpty(pkg.bin)) {
+  if (R.isEmpty(pkg.bin) && !target.includes('node_modules')) {
     opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`)
   }
 

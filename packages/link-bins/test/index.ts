@@ -254,12 +254,12 @@ test('linkBins() would gives warning if package has no bin field', async (t) => 
   t.comment(`linking bins to ${binTarget}`)
   const warn = sinon.spy()
 
-  await linkBins(path.join(noBinFixture, 'node_modules'), binTarget, {
+  await linkBins(path.join(noBinFixture, 'packages'), binTarget, {
     allowExoticManifests: true,
     warn,
   })
 
-  const packagePath = normalizePath(path.join(noBinFixture, 'node_modules/simple'))
+  const packagePath = normalizePath(path.join(noBinFixture, 'packages/simple'))
   t.ok(warn.calledWith(`Package in ${packagePath} must have a non-empty bin field to get bin linked.`))
   t.end()
 })
