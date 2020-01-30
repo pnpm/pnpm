@@ -107,6 +107,11 @@ async function linkBins (
   }
 }
 
+async function isFromModules (filename: string) {
+  const real = await fs.realpath(filename)
+  return normalizePath(real).includes('/node_modules/')
+}
+
 async function getPackageBins (
   target: string,
   opts: {
@@ -122,7 +127,9 @@ async function getPackageBins (
     return []
   }
 
-  if (R.isEmpty(pkg.bin) && !target.includes('node_modules')) {
+  const fromModules = await isFromModules(target)
+
+  if (R.isEmpty(pkg.bin) && !fromModules) {
     opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`)
   }
 
