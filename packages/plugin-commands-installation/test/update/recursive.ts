@@ -51,6 +51,55 @@ test('recursive update', async (t) => {
   t.end()
 })
 
+test('recursive update prod dependencies only', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      devDependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler([], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await update.handler([], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dev: false,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    optional: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  t.equal(projects['project-1'].requireModule('is-positive/package.json').version, '2.0.0')
+  projects['project-2'].hasNot('is-positive')
+  t.end()
+})
+
 test('recursive update with pattern', async (t) => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })

@@ -160,7 +160,7 @@ export default async function recursive (
     devDependencies: true,
     optionalDependencies: true,
   }
-  if (updateToLatest) {
+  if (opts.update) {
     delete opts.include
   }
 
