@@ -1,7 +1,10 @@
 import { DependencyManifest } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
+import path = require('path')
 
-const pkgJson = loadJsonFile.sync<DependencyManifest>(require.resolve('pnpm/package.json', { paths: [__dirname] }))
+const pkgJson = loadJsonFile.sync<DependencyManifest>(
+  path.join(path.dirname(require.main!.filename), '../package.json'),
+)
 const packageManager = {
   name: pkgJson.name,
   // Never a prerelease version
