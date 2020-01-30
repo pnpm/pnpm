@@ -8,6 +8,9 @@ type RegistryResponse = {
   json: () => Promise<PackageMeta>,
 }
 
+// https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+const semvarRegex = new RegExp(/(.*)(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/)
+
 class RegistryResponseError extends PnpmError {
   public readonly package: string
   public readonly response: RegistryResponse
@@ -18,9 +21,14 @@ class RegistryResponseError extends PnpmError {
     response: RegistryResponse,
     uri: string,
   }) {
+    let info = ''
+    const matched = opts.package.match(semvarRegex)
+    if (matched) {
+      info = ` Did you mean ${matched[1]}?`
+    }
     super(
       `REGISTRY_META_RESPONSE_${opts.response.status}`,
-      `${opts.response.status} ${opts.response.statusText}: ${opts.package} (via ${opts.uri})`)
+      `${opts.response.status} ${opts.response.statusText}: ${opts.package} (via ${opts.uri})${info}`)
     this.package = opts.package
     this.response = opts.response
     this.uri = opts.uri
