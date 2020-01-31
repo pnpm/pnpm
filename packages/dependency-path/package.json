@@ -1,6 +1,6 @@
 {
   "name": "dependency-path",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "description": "Utilities for working with symlinked node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -38,7 +38,7 @@
     "semver": "7.1.2"
   },
   "devDependencies": {
-    "@types/semver": "^7.0.0",
+    "@types/semver": "^7.1.0",
     "dependency-path": "link:"
   }
 }

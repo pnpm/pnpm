@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/list",
-  "version": "4.0.13",
+  "version": "4.0.14",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -44,7 +44,7 @@
     "archy": "1.0.0",
     "chalk": "3.0.0",
     "cli-columns": "3.1.2",
-    "dependencies-hierarchy": "workspace:8.0.7",
+    "dependencies-hierarchy": "workspace:8.0.8",
     "p-limit": "2.2.2",
     "ramda": "0.26.1",
     "semver": "7.1.2"
@@ -55,7 +55,7 @@
     "@types/archy": "0.0.31",
     "@types/common-tags": "1.8.0",
     "@types/ramda": "^0.26.40",
-    "@types/semver": "^7.0.0",
+    "@types/semver": "^7.1.0",
     "common-tags": "1.8.0"
   }
 }

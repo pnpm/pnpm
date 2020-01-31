@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -38,6 +38,6 @@
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/package-is-installable": "link:",
-    "@types/semver": "^7.0.0"
+    "@types/semver": "^7.1.0"
   }
 }
