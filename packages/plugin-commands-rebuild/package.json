@@ -40,7 +40,7 @@
     "@pnpm/test-fixtures": "workspace:0.0.0",
     "@types/common-tags": "^1.8.0",
     "@types/ramda": "^0.26.40",
-    "@types/semver": "^6.2.1",
+    "@types/semver": "^7.0.0",
     "@types/sinon": "^7.5.1",
     "execa": "4.0.0",
     "path-exists": "4.0.0",
@@ -78,7 +78,7 @@
     "read-ini-file": "2.0.0",
     "render-help": "0.0.0",
     "run-groups": "2.0.2",
-    "semver": "7.1.1"
+    "semver": "7.1.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"

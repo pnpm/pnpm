@@ -44,7 +44,7 @@
     "p-limit": "2.2.2",
     "p-memoize": "3.1.0",
     "parse-npm-tarball-url": "3.0.0",
-    "semver": "7.1.1",
+    "semver": "7.1.2",
     "ssri": "6.0.1",
     "version-selector-type": "2.0.1",
     "write-json-file": "4.0.0"
@@ -53,7 +53,7 @@
     "@pnpm/logger": "3.1.0",
     "@pnpm/npm-resolver": "link:",
     "@types/normalize-path": "^3.0.0",
-    "@types/semver": "^6.2.1",
+    "@types/semver": "^7.0.0",
     "@types/ssri": "^6.0.1",
     "nock": "11.7.2",
     "path-exists": "4.0.0",

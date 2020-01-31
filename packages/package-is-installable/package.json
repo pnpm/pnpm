@@ -33,11 +33,11 @@
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "semver": "7.1.1"
+    "semver": "7.1.2"
   },
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/package-is-installable": "link:",
-    "@types/semver": "^6.2.1"
+    "@types/semver": "^7.0.0"
   }
 }
