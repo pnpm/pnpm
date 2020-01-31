@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-resolver",
-  "version": "7.2.1",
+  "version": "7.3.0",
   "description": "pnpm's default package resolver",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,7 +31,7 @@
   "dependencies": {
     "@pnpm/git-resolver": "workspace:4.0.5",
     "@pnpm/local-resolver": "workspace:5.0.0",
-    "@pnpm/npm-resolver": "workspace:7.2.1",
+    "@pnpm/npm-resolver": "workspace:7.3.0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/tarball-resolver": "workspace:3.0.4"
   },
