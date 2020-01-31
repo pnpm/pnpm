@@ -34,13 +34,13 @@
     "@pnpm/resolver-base": "workspace:7.0.0",
     "graceful-git": "3.0.1",
     "hosted-git-info": "3.0.2",
-    "semver": "7.1.1"
+    "semver": "7.1.2"
   },
   "devDependencies": {
     "@pnpm/git-resolver": "link:",
     "@types/hosted-git-info": "2.7.0",
     "@types/is-windows": "^1.0.0",
-    "@types/semver": "^6.2.1",
+    "@types/semver": "^7.0.0",
     "is-windows": "1.0.2"
   }
 }

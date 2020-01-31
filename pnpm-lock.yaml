@@ -192,7 +192,7 @@ importers:
       pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
-      semver: 7.1.1
+      semver: 7.1.2
       stacktracey: 1.2.123
       string-length: 3.1.0
       strip-ansi: 6.0.0
@@ -203,7 +203,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/pretty-time': 1.1.0
       '@types/ramda': 0.26.40
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       delay: 4.3.0
       ghooks: 2.0.4
       load-json-file: 6.2.0
@@ -219,7 +219,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/pretty-time': 1.1.0
       '@types/ramda': ^0.26.40
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
       chalk: 3.0.0
@@ -234,7 +234,7 @@ importers:
       pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
-      semver: 7.1.1
+      semver: 7.1.2
       stacktracey: 1.2.123
       string-length: 3.1.0
       strip-ansi: 6.0.0
@@ -290,16 +290,16 @@ importers:
     dependencies:
       '@pnpm/types': 'link:../types'
       encode-registry: 2.0.2
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       dependency-path: 'link:'
     specifiers:
       '@pnpm/types': 'workspace:5.0.0'
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       dependency-path: 'link:'
       encode-registry: 2.0.2
-      semver: 7.1.1
+      semver: 7.1.2
   packages/error:
     specifiers: {}
   packages/fetch:
@@ -502,12 +502,12 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       graceful-git: 3.0.1
       hosted-git-info: 3.0.2
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
       '@pnpm/git-resolver': 'link:'
       '@types/hosted-git-info': 2.7.0
       '@types/is-windows': 1.0.0
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       is-windows: 1.0.2
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.2'
@@ -515,11 +515,11 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@types/hosted-git-info': 2.7.0
       '@types/is-windows': ^1.0.0
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       graceful-git: 3.0.1
       hosted-git-info: 3.0.2
       is-windows: 1.0.2
-      semver: 7.1.1
+      semver: 7.1.2
   packages/headless:
     dependencies:
       '@pnpm/build-modules': 'link:../build-modules'
@@ -749,14 +749,14 @@ importers:
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
       p-limit: 2.2.2
       ramda: 0.26.1
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
       '@pnpm/list': 'link:'
       '@pnpm/logger': 3.1.0
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.40
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       common-tags: 1.8.0
     specifiers:
       '@pnpm/list': 'link:'
@@ -768,7 +768,7 @@ importers:
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
       '@types/ramda': ^0.26.40
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
       chalk: 3.0.0
@@ -777,7 +777,7 @@ importers:
       dependencies-hierarchy: 'workspace:8.0.7'
       p-limit: 2.2.2
       ramda: 0.26.1
-      semver: 7.1.1
+      semver: 7.1.2
   packages/local-resolver:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -990,7 +990,7 @@ importers:
       p-limit: 2.2.2
       p-memoize: 3.1.0
       parse-npm-tarball-url: 3.0.0
-      semver: 7.1.1
+      semver: 7.1.2
       ssri: 6.0.1
       version-selector-type: 2.0.1
       write-json-file: 4.0.0
@@ -998,7 +998,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'link:'
       '@types/normalize-path': 3.0.0
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       '@types/ssri': 6.0.1
       nock: 11.7.2
       path-exists: 4.0.0
@@ -1010,7 +1010,7 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/normalize-path': ^3.0.0
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       '@types/ssri': ^6.0.1
       credentials-by-uri: 1.0.0
       encode-registry: 2.0.2
@@ -1023,7 +1023,7 @@ importers:
       p-memoize: 3.1.0
       parse-npm-tarball-url: 3.0.0
       path-exists: 4.0.0
-      semver: 7.1.1
+      semver: 7.1.2
       ssri: 6.0.1
       tempy: ^0.3.0
       version-selector-type: 2.0.1
@@ -1044,13 +1044,13 @@ importers:
       dependency-path: 'link:../dependency-path'
       lru-cache: 5.1.1
       ramda: 0.26.1
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/outdated': 'link:'
       '@types/lru-cache': 5.1.0
       '@types/ramda': 0.26.40
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       npm-run-all: 4.1.5
     specifiers:
       '@pnpm/config': 'workspace:7.1.0'
@@ -1068,12 +1068,12 @@ importers:
       '@pnpm/utils': 'workspace:0.12.3'
       '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.26.40
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       dependency-path: 'workspace:4.0.3'
       lru-cache: 5.1.1
       npm-run-all: 4.1.5
       ramda: 0.26.1
-      semver: 7.1.1
+      semver: 7.1.2
   packages/package-bins:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -1099,19 +1099,19 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/package-is-installable': 'link:'
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/package-is-installable': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
-      '@types/semver': ^6.2.1
-      semver: 7.1.1
+      '@types/semver': ^7.1.0
+      semver: 7.1.2
   packages/package-requester:
     dependencies:
       '@pnpm/check-package': 3.0.1
@@ -1276,20 +1276,20 @@ importers:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
       ramda: 0.26.1
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
       '@types/ramda': 0.26.40
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
     specifiers:
       '@types/ramda': ^0.26.40
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       '@zkochan/npm-package-arg': ^1.0.2
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
       ramda: ^0.26.1
-      semver: 7.1.1
+      semver: 7.1.2
   packages/plugin-commands-audit:
     dependencies:
       '@pnpm/audit': 'link:../audit'
@@ -1692,7 +1692,7 @@ importers:
       read-ini-file: 2.0.0
       render-help: 0.0.0
       run-groups: 2.0.2
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/logger': 3.1.0
@@ -1702,7 +1702,7 @@ importers:
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.40
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       '@types/sinon': 7.5.1
       execa: 4.0.0
       path-exists: 4.0.0
@@ -1735,7 +1735,7 @@ importers:
       '@pnpm/utils': 'workspace:0.12.3'
       '@types/common-tags': ^1.8.0
       '@types/ramda': ^0.26.40
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       '@types/sinon': ^7.5.1
       '@zkochan/npm-package-arg': 1.0.2
       camelcase-keys: 6.1.2
@@ -1751,7 +1751,7 @@ importers:
       read-ini-file: 2.0.0
       render-help: 0.0.0
       run-groups: 2.0.2
-      semver: 7.1.1
+      semver: 7.1.2
       sinon: 8.1.1
       write-yaml-file: 3.0.1
   packages/plugin-commands-script-runners:
@@ -1984,7 +1984,7 @@ importers:
       '@types/ncp': 2.0.3
       '@types/ramda': 0.26.40
       '@types/retry': 0.12.0
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       '@types/table': 4.0.7
       '@types/tape-promise': 4.0.0
       '@types/update-notifier': 2.5.0
@@ -2009,7 +2009,7 @@ importers:
       pnpm: 'link:'
       read-yaml-file: 1.1.0
       retry: 0.12.0
-      semver: 7.1.1
+      semver: 7.1.2
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
       tree-kill: 1.2.2
@@ -2061,7 +2061,7 @@ importers:
       '@types/ncp': 2.0.3
       '@types/ramda': ^0.26.40
       '@types/retry': 0.12.0
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       '@types/table': ^4.0.7
       '@types/tape-promise': 4.0.0
       '@types/update-notifier': 2.5.0
@@ -2095,7 +2095,7 @@ importers:
       read-yaml-file: 1.1.0
       render-help: 0.0.0
       retry: 0.12.0
-      semver: 7.1.1
+      semver: 7.1.2
       split-cmd: 1.0.1
       symlink-dir: 3.1.1
       tape-promise: 4.0.0
@@ -2234,12 +2234,12 @@ importers:
       path-exists: 4.0.0
       ramda: 0.26.1
       replace-string: 3.0.0
-      semver: 7.1.1
+      semver: 7.1.2
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/resolve-dependencies': 'link:'
       '@types/ramda': 0.26.40
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.0.0'
@@ -2254,12 +2254,12 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.12.3'
       '@types/ramda': ^0.26.40
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       dependency-path: 'workspace:4.0.3'
       path-exists: 4.0.0
       ramda: 0.26.1
       replace-string: 3.0.0
-      semver: 7.1.1
+      semver: 7.1.2
   packages/resolver-base:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -2429,7 +2429,7 @@ importers:
       path-absolute: 1.0.1
       ramda: 0.26.1
       run-groups: 2.0.2
-      semver: 7.1.1
+      semver: 7.1.2
       semver-utils: 1.1.4
       version-selector-type: 2.0.1
     devDependencies:
@@ -2452,7 +2452,7 @@ importers:
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.26.40
-      '@types/semver': 6.2.1
+      '@types/semver': 7.1.0
       '@types/sinon': 7.5.1
       '@types/tape-promise': 4.0.0
       anonymous-npm-registry-client: 0.1.2
@@ -2526,7 +2526,7 @@ importers:
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
       '@types/ramda': ^0.26.40
-      '@types/semver': ^6.2.1
+      '@types/semver': ^7.1.0
       '@types/sinon': ^7.5.1
       '@types/tape-promise': 4.0.0
       '@zkochan/npm-package-arg': 1.0.2
@@ -2565,7 +2565,7 @@ importers:
       read-yaml-file: 1.1.0
       resolve-link-target: 1.0.1
       run-groups: 2.0.2
-      semver: 7.1.1
+      semver: 7.1.2
       semver-utils: 1.1.4
       sinon: 8.1.1
       supi: 'link:'
@@ -3344,10 +3344,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-dZfyfL/u9l/oi984hEXdmAjX3JHry7TLWw43u1HQ8HhPv6KtfxnrZ3T/bleJ0GEvnk9t5sM7eePkgMqz3yBcGg==
-  /@types/semver/6.2.1:
+  /@types/semver/7.1.0:
+    dependencies:
+      '@types/node': 13.5.3
     dev: true
     resolution:
-      integrity: sha512-+beqKQOh9PYxuHvijhVl+tIHvT6tuwOrE9m14zd+MT2A38KoKZhh7pYJ0SNleLtwDsiIxHDsIk9bv01oOxvSvA==
+      integrity: sha512-pOKLaubrAEMUItGNpgwl0HMFPrSAFic8oSVIvfu1UwcgGNmNyK9gyhBHKmBnUTwwVvpZfkzUC0GaMgnL6P86uA==
   /@types/signal-exit/3.0.0:
     dev: true
     resolution:
@@ -10016,11 +10018,18 @@ packages:
     resolution:
       integrity: sha512-b39TBaTSfV6yBrapU89p5fKekE2m/NwnDocOVruQFS1/veMgdzuPcnOM34M6CwxW8jH/lxEa5rBoDeUwu5HHTw==
   /semver/7.1.1:
+    dev: true
     engines:
       node: '>=10'
     hasBin: true
     resolution:
       integrity: sha512-WfuG+fl6eh3eZ2qAf6goB7nhiCd7NPXhmyFxigB/TOkQyeLP8w8GsVehvtGNtnNmyboz4TgeK40B1Kbql/8c5A==
+  /semver/7.1.2:
+    engines:
+      node: '>=10'
+    hasBin: true
+    resolution:
+      integrity: sha512-BJs9T/H8sEVHbeigqzIEo57Iu/3DG6c4QoqTfbQB3BPA4zgzAomh/Fk9E7QtjWQ8mx2dgA9YCfSF4y9k9bHNpQ==
   /send/0.17.1:
     dependencies:
       debug: 2.6.9
