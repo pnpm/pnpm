@@ -61,6 +61,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'tag'
 > & {
   include?: IncludedDependencies,
+  includeDirect?: IncludedDependencies,
   latest?: boolean,
   pending?: boolean,
   workspace?: boolean,
@@ -155,13 +156,10 @@ export default async function recursive (
   }
 
   const updateToLatest = opts.update && opts.latest
-  const include = opts.include ?? {
+  const includeDirect = opts.includeDirect ?? {
     dependencies: true,
     devDependencies: true,
     optionalDependencies: true,
-  }
-  if (opts.update) {
-    delete opts.include
   }
 
   const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
@@ -187,12 +185,12 @@ export default async function recursive (
       if (updateMatch) {
         currentInput = [
           ...unpatternedInput,
-          ...matchDependencies(updateMatch, manifest, include),
+          ...matchDependencies(updateMatch, manifest, includeDirect),
         ]
       }
       if (updateToLatest) {
         if (!currentInput || !currentInput.length) {
-          currentInput = updateToLatestSpecsFromManifest(manifest, include)
+          currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
           if (!currentInput.length) {
@@ -203,7 +201,7 @@ export default async function recursive (
       }
       if (opts.workspace) {
         if (!currentInput || !currentInput.length) {
-          currentInput = updateToWorkspacePackagesFromManifest(manifest, include, workspacePackages!)
+          currentInput = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages!)
         } else {
           currentInput = createWorkspaceSpecs(currentInput, workspacePackages!)
         }
@@ -276,12 +274,12 @@ export default async function recursive (
         if (updateMatch) {
           currentInput = [
             ...unpatternedInput,
-            ...matchDependencies(updateMatch, manifest, include),
+            ...matchDependencies(updateMatch, manifest, includeDirect),
           ]
         }
         if (updateToLatest) {
           if (!currentInput || !currentInput.length) {
-            currentInput = updateToLatestSpecsFromManifest(manifest, include)
+            currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
             if (!currentInput.length) return
@@ -427,15 +425,16 @@ export function matchDependencies (
   manifest: ProjectManifest,
   include: IncludedDependencies,
 ) {
-  let allDependencies: string[] = []
-  if (include.dependencies) {
-    allDependencies = allDependencies.concat(Object.keys(manifest.dependencies || {}))
+  return Object.keys(filterDependenciesByType(manifest, include)).filter(match)
+}
+
+function filterDependenciesByType (
+  manifest: ProjectManifest,
+  include: IncludedDependencies,
+) {
+  return {
+    ...(include.dependencies && manifest.dependencies || {}),
+    ...(include.devDependencies && manifest.devDependencies || {}),
+    ...(include.optionalDependencies && manifest.optionalDependencies || {}),
   }
-  if (include.devDependencies) {
-    allDependencies = allDependencies.concat(Object.keys(manifest.devDependencies || {}))
-  }
-  if (include.optionalDependencies) {
-    allDependencies = allDependencies.concat(Object.keys(manifest.optionalDependencies || {}))
-  }
-  return allDependencies.filter(match)
 }

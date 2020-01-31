@@ -14,6 +14,7 @@ import matcher from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild/lib/implementation'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { IncludedDependencies } from '@pnpm/types'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import {
@@ -69,6 +70,8 @@ export type InstallDepsOptions = Pick<Config,
     original: string[],
   },
   allowNew?: boolean,
+  include?: IncludedDependencies,
+  includeDirect?: IncludedDependencies,
   latest?: boolean,
   update?: boolean,
   useBetaCli?: boolean,
@@ -99,17 +102,16 @@ export default async function handler (
     }
     opts['preserveWorkspaceProtocol'] = !opts.linkWorkspacePackages
   }
-  const include = {
-    dependencies: opts.production !== false,
-    devDependencies: opts.dev !== false,
-    optionalDependencies: opts.optional !== false,
+  const includeDirect = opts.includeDirect ?? {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
   }
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
     await recursive(opts.allProjects,
       input,
       {
         ...opts,
-        include,
         selectedProjectsGraph: opts.selectedProjectsGraph!,
         workspaceDir: opts.workspaceDir!,
       },
@@ -136,7 +138,6 @@ export default async function handler (
     // The dependencies should be built first,
     // so ignoring scripts for now
     ignoreScripts: !!workspacePackages || opts.ignoreScripts,
-    include,
     sideEffectsCacheRead: opts.sideEffectsCache || opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,
@@ -164,21 +165,20 @@ export default async function handler (
   if (updateMatch) {
     input = [
       ...unpatternedInput,
-      ...matchDependencies(updateMatch, manifest, include),
+      ...matchDependencies(updateMatch, manifest, includeDirect),
     ]
   }
 
   if (opts.update && opts.latest) {
     if (!input || !input.length) {
-      input = updateToLatestSpecsFromManifest(manifest, include)
+      input = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
       input = createLatestSpecs(input, manifest)
     }
-    delete installOpts.include
   }
   if (opts.workspace) {
     if (!input || !input.length) {
-      input = updateToWorkspacePackagesFromManifest(manifest, include, workspacePackages!)
+      input = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages!)
     } else {
       input = createWorkspaceSpecs(input, workspacePackages!)
     }
@@ -221,7 +221,6 @@ export default async function handler (
     await recursive(allProjects, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
-      include,
       selectedProjectsGraph,
       workspaceDir: opts.workspaceDir, // Otherwise TypeScript doesn't understant that is is not undefined
     }, 'install')

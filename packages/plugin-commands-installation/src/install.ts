@@ -288,5 +288,14 @@ export function handler (
   input: string[],
   opts: InstallCommandOptions,
 ) {
-  return installDeps(input, opts)
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  return installDeps(input, {
+    ...opts,
+    include,
+    includeDirect: include,
+  })
 }

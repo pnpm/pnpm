@@ -218,5 +218,15 @@ async function update (
   dependencies: string[],
   opts: UpdateCommandOptions,
 ) {
-  return installDeps(dependencies, { ...opts, update: true, allowNew: false })
+  const includeDirect = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  return installDeps(dependencies, {
+    ...opts,
+    allowNew: false,
+    includeDirect,
+    update: true,
+  })
 }

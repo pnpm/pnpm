@@ -52,13 +52,16 @@ test('recursive update', async (t) => {
 })
 
 test('recursive update prod dependencies only', async (t) => {
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+
   const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
 
       dependencies: {
-        'is-positive': '1.0.0',
+        'foo': '^100.0.0',
       },
     },
     {
@@ -66,7 +69,7 @@ test('recursive update prod dependencies only', async (t) => {
       version: '1.0.0',
 
       devDependencies: {
-        'is-negative': '1.0.0',
+        'bar': '^100.0.0',
       },
     },
   ])
@@ -82,6 +85,9 @@ test('recursive update prod dependencies only', async (t) => {
     workspaceDir: process.cwd(),
   })
 
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+
   await update.handler([], {
     ...DEFAULT_OPTS,
     allProjects,
@@ -95,8 +101,11 @@ test('recursive update prod dependencies only', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  t.equal(projects['project-1'].requireModule('is-positive/package.json').version, '2.0.0')
-  projects['project-2'].hasNot('is-positive')
+  const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  t.deepEqual(
+    Object.keys(lockfile.packages || {}),
+    ['/bar/100.0.0', '/foo/100.1.0'],
+  )
   t.end()
 })
 
