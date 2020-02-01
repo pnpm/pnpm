@@ -48,6 +48,7 @@ export interface StrictInstallOptions {
   sideEffectsCacheWrite: boolean,
   strictPeerDependencies: boolean,
   include: IncludedDependencies,
+  includeDirect: IncludedDependencies,
   ignoreCurrentPrefs: boolean,
   ignoreScripts: boolean,
   childConcurrency: number,
@@ -94,6 +95,11 @@ const defaults = async (opts: InstallOptions) => {
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
     include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    includeDirect: {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,

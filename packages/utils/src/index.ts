@@ -18,4 +18,5 @@ export {
   safeReadPackageFromDir,
 }
 
+export * from './filterDependenciesByType'
 export * from './nodeIdUtils'

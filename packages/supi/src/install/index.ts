@@ -347,7 +347,10 @@ export async function mutateModules (
     }
 
     async function installCase (project: any) { // tslint:disable-line:no-any
-      const wantedDependencies = getWantedDependencies(project.manifest, { updateWorkspaceDependencies: opts.update })
+      const wantedDependencies = getWantedDependencies(project.manifest, {
+        includeDirect: opts.includeDirect,
+        updateWorkspaceDependencies: opts.update,
+      })
         .map((wantedDependency) => ({ ...wantedDependency, updateSpec: true }))
 
       if (ctx.wantedLockfile?.importers) {

@@ -1,5 +1,9 @@
-import { Dependencies, ProjectManifest } from '@pnpm/types'
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
+import {
+  Dependencies,
+  IncludedDependencies,
+  ProjectManifest,
+} from '@pnpm/types'
+import { filterDependenciesByType } from '@pnpm/utils'
 import guessPinnedVersionFromExistingSpec from '../guessPinnedVersionFromExistingSpec'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'
@@ -16,10 +20,16 @@ export interface WantedDependency {
 export default function getWantedDependencies (
   pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
   opts?: {
+    includeDirect?: IncludedDependencies,
     updateWorkspaceDependencies?: boolean,
   },
 ): WantedDependency[] {
-  const depsToInstall = getAllDependenciesFromPackage(pkg)
+  const depsToInstall = filterDependenciesByType(pkg,
+    opts?.includeDirect ?? {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    })
   return getWantedDependenciesFromGivenSet(depsToInstall, {
     devDependencies: pkg.devDependencies || {},
     optionalDependencies: pkg.optionalDependencies || {},

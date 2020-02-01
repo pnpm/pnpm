@@ -19,6 +19,7 @@ import {
   PackageManifest,
   ProjectManifest,
 } from '@pnpm/types'
+import { filterDependenciesByType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import isSubdir = require('is-subdir')
 import mem = require('mem')
@@ -426,15 +427,4 @@ export function matchDependencies (
   include: IncludedDependencies,
 ) {
   return Object.keys(filterDependenciesByType(manifest, include)).filter(match)
-}
-
-function filterDependenciesByType (
-  manifest: ProjectManifest,
-  include: IncludedDependencies,
-) {
-  return {
-    ...(include.dependencies && manifest.dependencies || {}),
-    ...(include.devDependencies && manifest.devDependencies || {}),
-    ...(include.optionalDependencies && manifest.optionalDependencies || {}),
-  }
 }
