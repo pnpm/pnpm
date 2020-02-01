@@ -261,6 +261,8 @@ export default async function recursive (
     ? chunks[0]
     : Object.keys(opts.selectedProjectsGraph).sort()
 
+  installOpts['targetDependenciesField'] = getSaveType(opts)
+
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map((rootDir: string) =>
     limitInstallation(async () => {
