@@ -31,7 +31,7 @@ export async function updateProjectManifest (
       specsToUpsert.push({
         alias: pkgToInstall.alias,
         peer: importer['peer'],
-        saveType: importer['targetDependenciesField'] ?? (importer['peer'] ? 'devDependencies' : undefined),
+        saveType: importer['targetDependenciesField'],
       })
     }
   }
