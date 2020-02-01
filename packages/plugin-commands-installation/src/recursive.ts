@@ -123,6 +123,7 @@ export default async function recursive (
       && pkgs.length === allProjects.length,
     storeController,
     storeDir: store.dir,
+    targetDependenciesField: getSaveType(opts) ?? (opts.savePeer ? 'devDependencies' : undefined),
     workspacePackages,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
@@ -260,8 +261,6 @@ export default async function recursive (
   let pkgPaths = chunks.length === 0
     ? chunks[0]
     : Object.keys(opts.selectedProjectsGraph).sort()
-
-  installOpts['targetDependenciesField'] = getSaveType(opts)
 
   const limitInstallation = pLimit(opts.workspaceConcurrency ?? 4)
   await Promise.all(pkgPaths.map((rootDir: string) =>
