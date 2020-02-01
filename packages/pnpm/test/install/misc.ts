@@ -266,45 +266,6 @@ test('create a package.json if there is none', async (t: tape.Test) => {
   }, 'package.json created')
 })
 
-test('pnpm install --save-peer', async (t) => {
-  const project = prepare(t)
-
-  await execPnpm('add', 'is-positive@1.0.0', '--save-peer')
-
-  {
-    const manifest = await loadJsonFile('package.json')
-
-    t.deepEqual(
-      manifest,
-      {
-        name: 'project',
-        version: '0.0.0',
-
-        devDependencies: { 'is-positive': '1.0.0' },
-        peerDependencies: { 'is-positive': '1.0.0' },
-      },
-    )
-  }
-
-  await project.has('is-positive')
-
-  await execPnpm('uninstall', 'is-positive')
-
-  await project.hasNot('is-positive')
-
-  {
-    const manifest = await loadJsonFile('package.json')
-
-    t.deepEqual(
-      manifest,
-      {
-        name: 'project',
-        version: '0.0.0',
-      },
-    )
-  }
-})
-
 test('`pnpm add` should fail if no package name was provided', (t: tape.Test) => {
   prepare(t)
 

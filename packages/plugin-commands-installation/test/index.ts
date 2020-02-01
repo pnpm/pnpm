@@ -1,5 +1,6 @@
 ///<reference path="../../../typings/index.d.ts" />
 import './add'
+import './addRecursive'
 import './linkRecursive'
 import './miscRecursive'
 import './prune'

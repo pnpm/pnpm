@@ -1410,6 +1410,7 @@ importers:
       '@types/ramda': 0.26.40
       '@types/sinon': 7.5.1
       '@types/table': 4.0.7
+      load-json-file: 6.2.0
       make-dir: 3.0.0
       proxyquire: 2.1.3
       read-yaml-file: 1.1.0
@@ -1455,6 +1456,7 @@ importers:
       common-tags: 1.8.0
       enquirer: 2.3.4
       is-subdir: 1.1.1
+      load-json-file: 6.2.0
       make-dir: 3.0.0
       mem: 6.0.1
       mz: 2.7.0

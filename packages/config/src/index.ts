@@ -280,7 +280,6 @@ export default async (
       throw new PnpmError('CONFIG_CONFLICT_PEER_CANNOT_BE_OPTIONAL_DEP',
         'A package cannot be a peer dependency and an optional dependency at the same time')
     }
-    pnpmConfig.saveDev = true
   }
   if (pnpmConfig.sharedWorkspaceLockfile && !pnpmConfig.lockfileDir && pnpmConfig.workspaceDir) {
     pnpmConfig.lockfileDir = pnpmConfig.workspaceDir
