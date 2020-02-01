@@ -1,7 +1,8 @@
 import PnpmError from '@pnpm/error'
-import { add } from '@pnpm/plugin-commands-installation'
-import { preparePackages } from '@pnpm/prepare'
+import { add, remove } from '@pnpm/plugin-commands-installation'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import test = require('tape')
 
@@ -197,5 +198,55 @@ test('add: fail when --no-save option is used', async (t) => {
   }
   t.equal(err.code, 'ERR_PNPM_OPTION_NOT_SUPPORTED')
   t.equal(err.message, 'The "add" command currently does not support the no-save option')
+  t.end()
+})
+
+test('pnpm add --save-peer', async (t) => {
+  const project = prepare(t)
+
+  await add.handler(['is-positive@1.0.0'], {
+    ...DEFAULT_OPTIONS,
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+    savePeer: true,
+  })
+
+  {
+    const manifest = await loadJsonFile(path.resolve('package.json'))
+
+    t.deepEqual(
+      manifest,
+      {
+        name: 'project',
+        version: '0.0.0',
+
+        devDependencies: { 'is-positive': '1.0.0' },
+        peerDependencies: { 'is-positive': '1.0.0' },
+      },
+    )
+  }
+
+  await project.has('is-positive')
+
+  await remove.handler(['is-positive'], {
+    ...DEFAULT_OPTIONS,
+    dir: process.cwd(),
+    linkWorkspacePackages: false,
+  })
+
+  await project.hasNot('is-positive')
+
+  {
+    const manifest = await loadJsonFile(path.resolve('package.json'))
+
+    t.deepEqual(
+      manifest,
+      {
+        name: 'project',
+        version: '0.0.0',
+      },
+    )
+  }
+
   t.end()
 })
