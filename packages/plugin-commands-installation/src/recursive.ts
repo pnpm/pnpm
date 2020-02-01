@@ -116,6 +116,7 @@ export default async function recursive (
   const workspacePackages = cmdFullName !== 'unlink'
     ? arrayOfWorkspacePackagesToMap(allProjects)
     : {}
+  const targetDependenciesField = getSaveType(opts)
   const installOpts = Object.assign(opts, {
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
@@ -123,7 +124,7 @@ export default async function recursive (
       && pkgs.length === allProjects.length,
     storeController,
     storeDir: store.dir,
-    targetDependenciesField: getSaveType(opts) ?? (opts.savePeer ? 'devDependencies' : undefined),
+    targetDependenciesField,
     workspacePackages,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
@@ -216,7 +217,7 @@ export default async function recursive (
             manifest,
             mutation,
             rootDir,
-            targetDependenciesField: getSaveType(opts),
+            targetDependenciesField,
           } as MutatedProject)
           return
         case 'installSome':
@@ -231,7 +232,7 @@ export default async function recursive (
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
             rootDir,
-            targetDependenciesField: getSaveType(opts) ?? (opts.savePeer ? 'devDependencies' : undefined),
+            targetDependenciesField,
           } as MutatedProject)
           return
         case 'install':
