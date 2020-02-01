@@ -231,7 +231,7 @@ export default async function recursive (
               savePrefix: typeof localConfig.savePrefix === 'string' ? localConfig.savePrefix : opts.savePrefix,
             }),
             rootDir,
-            targetDependenciesField: getSaveType(opts),
+            targetDependenciesField: getSaveType(opts) ?? (opts.savePeer ? 'devDependencies' : undefined),
           } as MutatedProject)
           return
         case 'install':
