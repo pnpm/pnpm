@@ -51,6 +51,64 @@ test('recursive update', async (t) => {
   t.end()
 })
 
+test('recursive update prod dependencies only', async (t) => {
+  await addDistTag({ package: 'foo', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'bar', version: '100.0.0', distTag: 'latest' })
+
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'foo': '^100.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      devDependencies: {
+        'bar': '^100.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler([], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
+
+  await update.handler([], {
+    ...DEFAULT_OPTS,
+    allProjects,
+    dev: false,
+    dir: process.cwd(),
+    lockfileDir: process.cwd(),
+    optional: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
+  t.deepEqual(
+    Object.keys(lockfile.packages || {}),
+    ['/bar/100.0.0', '/foo/100.1.0'],
+  )
+  t.end()
+})
+
 test('recursive update with pattern', async (t) => {
   await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
   await addDistTag({ package: 'peer-c', version: '2.0.0', distTag: 'latest' })

@@ -88,37 +88,6 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   t.end()
 })
 
-test('add: fail when both "latest" and "workspace" are true', async (t) => {
-  const projects = preparePackages(t, [
-    {
-      name: 'project-1',
-      version: '1.0.0',
-    },
-    {
-      name: 'project-2',
-      version: '2.0.0',
-    },
-  ])
-
-  let err!: PnpmError
-  try {
-    await add.handler(['project-2'], {
-      ...DEFAULT_OPTIONS,
-      dir: path.resolve('project-1'),
-      latest: true,
-      linkWorkspacePackages: false,
-      saveWorkspaceProtocol: false,
-      workspace: true,
-      workspaceDir: process.cwd(),
-    })
-  } catch (_err) {
-    err = _err
-  }
-  t.equal(err.code, 'ERR_PNPM_BAD_OPTIONS')
-  t.equal(err.message, 'Cannot use --latest with --workspace simultaneously')
-  t.end()
-})
-
 test('add: fail when "workspace" option is true but the command runs not in a workspace', async (t) => {
   const projects = preparePackages(t, [
     {

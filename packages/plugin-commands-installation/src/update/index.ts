@@ -13,7 +13,8 @@ import { oneLine } from 'common-tags'
 import { prompt } from 'enquirer'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { handler as install, InstallCommandOptions } from '../install'
+import { InstallCommandOptions } from '../install'
+import installDeps from '../installDeps'
 import getUpdateChoices from './getUpdateChoices'
 
 export function rcOptionsTypes () {
@@ -137,9 +138,14 @@ export function help () {
   })
 }
 
+export type UpdateCommandOptions = InstallCommandOptions & {
+  interactive?: boolean,
+  latest?: boolean,
+}
+
 export async function handler (
   input: string[],
-  opts: InstallCommandOptions & { interactive?: boolean },
+  opts: UpdateCommandOptions,
 ) {
   if (opts.interactive) {
     return interactiveUpdate(input, opts)
@@ -149,7 +155,7 @@ export async function handler (
 
 async function interactiveUpdate (
   input: string[],
-  opts: InstallCommandOptions,
+  opts: UpdateCommandOptions,
 ) {
   const include = {
     dependencies: opts.production !== false,
@@ -210,7 +216,17 @@ async function interactiveUpdate (
 
 async function update (
   dependencies: string[],
-  opts: InstallCommandOptions,
+  opts: UpdateCommandOptions,
 ) {
-  return install(dependencies, { ...opts, update: true, allowNew: false })
+  const includeDirect = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  return installDeps(dependencies, {
+    ...opts,
+    allowNew: false,
+    includeDirect,
+    update: true,
+  })
 }
