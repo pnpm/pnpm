@@ -63,11 +63,12 @@ export default function (
       : true,
     userAgent: opts.userAgent,
   })
+  const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
   return {
     tarball: fetchFromTarball.bind(null, {
       fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
         download,
-        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawConfig)),
+        getCredentialsByURI: mem((registry: string) => getCreds(registry)),
         ignoreFile: opts.ignoreFile,
         offline: opts.offline,
       }),

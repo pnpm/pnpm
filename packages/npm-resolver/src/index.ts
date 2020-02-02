@@ -101,8 +101,9 @@ export default function createResolver (
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
+  const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
   const getAuthHeaderValueByURI = mem(
-    (registry: string) => getCredentialsByURI(registry, opts.rawConfig).authHeaderValue,
+    (registry: string) => getCreds(registry).authHeaderValue,
   )
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,

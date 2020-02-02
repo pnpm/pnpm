@@ -981,7 +981,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
-      credentials-by-uri: 2.0.0-0
+      credentials-by-uri: 2.0.0
       encode-registry: 2.0.2
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       load-json-file: 6.2.0
@@ -1012,7 +1012,7 @@ importers:
       '@types/normalize-path': ^3.0.0
       '@types/semver': ^7.1.0
       '@types/ssri': ^6.0.1
-      credentials-by-uri: 2.0.0-0
+      credentials-by-uri: 2.0.0
       encode-registry: 2.0.2
       fetch-from-npm-registry: 'workspace:3.0.3'
       load-json-file: 6.2.0
@@ -2598,7 +2598,7 @@ importers:
     dependencies:
       '@pnpm/error': 'link:../error'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
-      credentials-by-uri: 2.0.0-0
+      credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       graceful-fs: 4.2.1
       make-dir: 3.0.0
@@ -2631,7 +2631,7 @@ importers:
       '@types/rimraf': ^2.0.3
       '@types/ssri': ^6.0.1
       cp-file: 7.0.0
-      credentials-by-uri: 2.0.0-0
+      credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'workspace:3.0.3'
       graceful-fs: 4.2.1
       make-dir: 3.0.0
@@ -5054,14 +5054,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-iTjLUqtVr45e17GFAyxA0lqFinbGMblMCTtAqrPzT/IETNtDuyyhDDk8weEZ08MiCc6EcuyNq2KtGH5J2BIAoQ==
-  /credentials-by-uri/2.0.0-0:
+  /credentials-by-uri/2.0.0:
     dependencies:
       nerf-dart: 1.0.0
     dev: false
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-MJ99yVTiglfqWCoZZkNTLwqMAeatVvKlQPnDMi0xZDd+1XTSVGKJ7fLPsguVlizgKNBa3tKNM5i9A+ni1zZKFQ==
+      integrity: sha512-HptfRWLKfaeewvzKPybPFsR8TRbLSsu5MvHQLc6FWqvIS1CqFHze+IteKQlpLXzx4KwSteZa0MdsN/jEYESVXA==
   /cross-env/7.0.0:
     dependencies:
       cross-spawn: 7.0.1
