@@ -108,7 +108,7 @@ export type ListCommandOptions = Pick<Config,
   'optional' |
   'production' |
   'selectedProjectsGraph'
-> & {
+> & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean,
   depth?: number,
   lockfileDir?: string,
@@ -126,12 +126,14 @@ export function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
+  const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, args, { ...opts, include })
+    return listRecursive(pkgs, args, { ...opts, depth, include })
   }
   return render([opts.dir], args, {
     ...opts,
+    depth,
     include,
     lockfileDir: opts.lockfileDir || opts.dir,
   })

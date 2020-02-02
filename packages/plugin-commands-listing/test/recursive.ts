@@ -114,7 +114,7 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
   const output = await list.handler([], {
     ...DEFAULT_OPTS,
     allProjects,
-    depth: 2,
+    cliOptions: { depth: 2 },
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
