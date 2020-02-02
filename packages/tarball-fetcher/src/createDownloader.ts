@@ -58,13 +58,8 @@ export interface HttpResponse {
 
 export type DownloadFunction = (url: string, saveto: string, opts: {
   auth?: {
-    scope: string,
-    token: string | undefined,
-    password: string | undefined,
-    username: string | undefined,
-    email: string | undefined,
-    auth: string | undefined,
-    alwaysAuth: string | undefined,
+    authHeaderValue: string | undefined,
+    alwaysAuth: boolean | undefined,
   },
   unpackTo: string,
   registry?: string,
@@ -116,13 +111,8 @@ export default (
 
   return async function download (url: string, saveto: string, opts: {
     auth?: {
-      scope: string,
-      token: string | undefined,
-      password: string | undefined,
-      username: string | undefined,
-      email: string | undefined,
-      auth: string | undefined,
-      alwaysAuth: string | undefined,
+      authHeaderValue: string | undefined,
+      alwaysAuth: boolean | undefined,
     },
     unpackTo: string,
     registry?: string,
@@ -164,7 +154,9 @@ export default (
 
     async function fetch (currentAttempt: number): Promise<FetchResult> {
       try {
-        const res = await fetchFromNpmRegistry(url, {auth: shouldAuth && opts.auth as any || undefined}) // tslint:disable-line
+        const res = await fetchFromNpmRegistry(url, {
+          authHeaderValue: shouldAuth ? opts.auth?.authHeaderValue : undefined,
+        })
 
         if (res.status !== 200) {
           throw new TarballFetchError(url, res)

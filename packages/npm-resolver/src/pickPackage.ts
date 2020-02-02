@@ -42,7 +42,7 @@ const metafileOperationLimits = {} as {
 }
 
 export type PickPackageOptions = {
-  auth: object,
+  authHeaderValue?: string,
   preferredVersionSelectors: VersionSelectors | undefined,
   registry: string,
   dryRun: boolean,
@@ -50,7 +50,7 @@ export type PickPackageOptions = {
 
 export default async (
   ctx: {
-    fetch: (pkgName: string, registry: string, auth?: object) => Promise<PackageMeta>,
+    fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>,
     metaFileName: string,
     metaCache: PackageMetaCache,
     storeDir: string,
@@ -113,7 +113,7 @@ export default async (
   }
 
   try {
-    const meta = await ctx.fetch(spec.name, opts.registry, opts.auth)
+    const meta = await ctx.fetch(spec.name, opts.registry, opts.authHeaderValue)
     meta.cachedAt = Date.now()
     // only save meta to cache, when it is fresh
     ctx.metaCache.set(spec.name, meta)

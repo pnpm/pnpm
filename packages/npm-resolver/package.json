@@ -35,7 +35,7 @@
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "credentials-by-uri": "1.0.0",
+    "credentials-by-uri": "2.0.0-0",
     "encode-registry": "2.0.2",
     "fetch-from-npm-registry": "workspace:3.0.3",
     "load-json-file": "6.2.0",

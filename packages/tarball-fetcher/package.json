@@ -34,7 +34,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/fetcher-base": "workspace:6.0.0",
-    "credentials-by-uri": "1.0.0",
+    "credentials-by-uri": "2.0.0-0",
     "fetch-from-npm-registry": "workspace:3.0.3",
     "graceful-fs": "4.2.1",
     "make-dir": "3.0.0",
