@@ -161,6 +161,53 @@ test('a scoped package that need authentication specific to scope', async (t: ta
   await project.has('@private/foo')
 })
 
+test('a scoped package that need legacy authentication specific to scope', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  const client = new RegClient()
+
+  const data = await new Promise((resolve, reject) => {
+    client.adduser(`http://localhost:${REGISTRY_MOCK_PORT}`, {
+      auth: {
+        email: 'foo@bar.com',
+        password: 'bar',
+        username: 'foo',
+      },
+    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
+  })
+
+  const rawConfig = {
+    [`//localhost:${REGISTRY_MOCK_PORT}/:_auth`]: 'Zm9vOmJhcg==', // base64 encoded foo:bar
+    [`//localhost:${REGISTRY_MOCK_PORT}/:always-auth`]: true,
+    '@private:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    'registry': 'https://registry.npmjs.org/',
+  }
+  let opts = await testDefaults({}, {
+    rawConfig,
+    registry: 'https://registry.npmjs.org/',
+  }, {
+    rawConfig,
+  })
+  const manifest = await addDependenciesToPackage({}, ['@private/foo'], opts)
+
+  await project.has('@private/foo')
+
+  // should work when a lockfile is available
+  await rimraf('node_modules')
+  await rimraf(path.join('..', '.store'))
+
+  // Recreating options to have a new storeController with clean cache
+  opts = await testDefaults({}, {
+    rawConfig,
+    registry: 'https://registry.npmjs.org/',
+  }, {
+    rawConfig,
+  })
+  await addDependenciesToPackage(manifest, ['@private/foo'], opts)
+
+  await project.has('@private/foo')
+})
+
 test('a package that need authentication reuses authorization tokens for tarball fetching', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 

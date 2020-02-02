@@ -8,16 +8,7 @@ const CORGI_DOC = 'application/vnd.npm.install-v1+json; q=1.0, application/json;
 const JSON_DOC = 'application/json'
 const MAX_FOLLOWED_REDIRECTS = 20
 
-export type Auth = (
-  {token: string} |
-  {username: string, password: string} |
-  {_auth: string}
-) & {
-  token?: string,
-  username?: string,
-  password?: string,
-  _auth?: string,
-}
+export type FetchFromRegistry = (url: string, opts?: { authHeaderValue?: string }) => Promise<Response>
 
 export default function (
   defaultOpts: {
@@ -40,12 +31,12 @@ export default function (
     },
     userAgent?: string,
   },
-) {
-  return async (url: string, opts?: {auth?: Auth}): Promise<Response> => {
+): FetchFromRegistry {
+  return async (url, opts): Promise<Response> => {
     const headers = {
       'user-agent': USER_AGENT,
       ...getHeaders({
-        auth: opts?.auth,
+        auth: opts?.authHeaderValue,
         fullMetadata: defaultOpts.fullMetadata,
         userAgent: defaultOpts.userAgent,
       }),
@@ -85,7 +76,7 @@ export default function (
 
 function getHeaders (
   opts: {
-    auth?: Auth,
+    auth?: string,
     fullMetadata?: boolean,
     userAgent?: string,
   },
@@ -94,29 +85,10 @@ function getHeaders (
     accept: opts.fullMetadata === true ? JSON_DOC : CORGI_DOC,
   }
   if (opts.auth) {
-    const authorization = authObjectToHeaderValue(opts.auth)
-    if (authorization) {
-      headers['authorization'] = authorization // tslint:disable-line
-    }
+    headers['authorization'] = opts.auth // tslint:disable-line
   }
   if (opts.userAgent) {
     headers['user-agent'] = opts.userAgent
   }
   return headers
-}
-
-function authObjectToHeaderValue (auth: Auth) {
-  if (auth.token) {
-    return `Bearer ${auth.token}`
-  }
-  if (auth.username && auth.password) {
-    const encoded = Buffer.from(
-      `${auth.username}:${auth.password}`, 'utf8',
-    ).toString('base64')
-    return `Basic ${encoded}`
-  }
-  if (auth._auth) {
-    return `Basic ${auth._auth}`
-  }
-  return undefined
 }

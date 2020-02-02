@@ -63,11 +63,12 @@ export default function (
       : true,
     userAgent: opts.userAgent,
   })
+  const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
   return {
     tarball: fetchFromTarball.bind(null, {
       fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
         download,
-        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawConfig)),
+        getCredentialsByURI: mem((registry: string) => getCreds(registry)),
         ignoreFile: opts.ignoreFile,
         offline: opts.offline,
       }),
@@ -113,13 +114,8 @@ async function fetchFromRemoteTarball (
     download: DownloadFunction,
     ignoreFile?: IgnoreFunction,
     getCredentialsByURI: (registry: string) => {
-      scope: string,
-      token: string | undefined,
-      password: string | undefined,
-      username: string | undefined,
-      email: string | undefined,
-      auth: string | undefined,
-      alwaysAuth: string | undefined,
+      authHeaderValue: string | undefined,
+      alwaysAuth: boolean | undefined,
     },
   },
   unpackTo: string,
