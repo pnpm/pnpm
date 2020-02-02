@@ -101,8 +101,11 @@ export default function createResolver (
     cacheKey: (...args) => JSON.stringify(args),
     maxAge: 1000 * 20, // 20 seconds
   })
+  const getAuthHeaderValueByURI = mem(
+    (registry: string) => getCredentialsByURI(registry, opts.rawConfig).authHeaderValue,
+  )
   return resolveNpm.bind(null, {
-    getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawConfig).authHeaderValue),
+    getAuthHeaderValueByURI,
     pickPackage: pickPackage.bind(null, {
       fetch,
       metaCache: opts.metaCache,
@@ -131,7 +134,7 @@ export type ResolveFromNpmOptions = {
 async function resolveNpm (
   ctx: {
     pickPackage: (spec: RegistryPackageSpec, opts: PickPackageOptions) => ReturnType<typeof pickPackage>,
-    getCredentialsByURI: (registry: string) => string | undefined,
+    getAuthHeaderValueByURI: (registry: string) => string | undefined,
   },
   wantedDependency: WantedDependency,
   opts: ResolveFromNpmOptions,
@@ -152,7 +155,7 @@ async function resolveNpm (
     : defaultTagForAlias(wantedDependency.alias!, defaultTag)
   if (!spec) return null
 
-  const authHeaderValue = ctx.getCredentialsByURI(opts.registry)
+  const authHeaderValue = ctx.getAuthHeaderValueByURI(opts.registry)
   let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
   try {
     pickResult = await ctx.pickPackage(spec, {
