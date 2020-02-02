@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
-  "version": "12.1.4",
+  "version": "12.1.5",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -86,7 +86,7 @@
     "@pnpm/lockfile-file": "workspace:3.0.2",
     "@pnpm/lockfile-utils": "workspace:2.0.7",
     "@pnpm/matcher": "workspace:1.0.0",
-    "@pnpm/modules-cleaner": "workspace:8.0.4",
+    "@pnpm/modules-cleaner": "workspace:8.0.5",
     "@pnpm/modules-yaml": "workspace:5.0.1",
     "@pnpm/package-requester": "workspace:11.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
@@ -95,7 +95,7 @@
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/symlink-dependency": "workspace:3.0.1",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.12.3",
+    "@pnpm/utils": "workspace:0.12.4",
     "dependency-path": "workspace:4.0.4",
     "p-limit": "2.2.2",
     "path-absolute": "1.0.1",
