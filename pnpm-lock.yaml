@@ -60,7 +60,7 @@ importers:
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       graph-sequencer: 2.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       run-groups: 2.0.2
     devDependencies:
       '@pnpm/build-modules': 'link:'
@@ -78,7 +78,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.26.40
       graph-sequencer: 2.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       run-groups: 2.0.2
   packages/cli-utils:
     dependencies:
@@ -91,7 +91,7 @@ importers:
       chalk: 3.0.0
       load-json-file: 6.2.0
       nopt: 4.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
       version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/cli-utils': 'link:'
@@ -114,7 +114,7 @@ importers:
       chalk: 3.0.0
       load-json-file: 6.2.0
       nopt: 4.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
       version-selector-type: 2.0.1
   packages/command:
     specifiers: {}
@@ -128,7 +128,7 @@ importers:
       '@zkochan/npm-conf': 1.2.4
       camelcase: 5.3.1
       is-subdir: 1.1.1
-      ramda: 0.26.1
+      ramda: 0.27.0
       which: 2.0.2
     devDependencies:
       '@pnpm/config': 'link:'
@@ -149,7 +149,7 @@ importers:
       camelcase: 5.3.1
       is-subdir: 1.1.1
       mz: 2.7.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       tempy: 0.3.0
       which: 2.0.2
   packages/constants:
@@ -190,7 +190,7 @@ importers:
       normalize-path: 3.0.0
       pretty-bytes: 5.3.0
       pretty-time: 1.1.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       right-pad: 1.0.1
       semver: 7.1.2
       stacktracey: 1.2.123
@@ -232,7 +232,7 @@ importers:
       normalize-path: 3.0.0
       pretty-bytes: 5.3.0
       pretty-time: 1.1.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       right-pad: 1.0.1
       semver: 7.1.2
       stacktracey: 1.2.123
@@ -345,7 +345,7 @@ importers:
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/filter-lockfile': 'link:'
       '@pnpm/logger': 3.1.0
@@ -365,7 +365,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.4'
-      ramda: 0.26.1
+      ramda: 0.27.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -378,7 +378,7 @@ importers:
       find-up: 4.1.0
       is-subdir: 1.1.1
       pkgs-graph: 'link:../pkgs-graph'
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:'
       '@types/is-ci': 2.0.0
@@ -404,7 +404,7 @@ importers:
       is-subdir: 1.1.1
       is-windows: 1.0.2
       pkgs-graph: 'workspace:5.1.1'
-      ramda: 0.26.1
+      ramda: 0.27.0
       tempy: 0.3.0
       touch: 3.1.0
   packages/find-packages:
@@ -457,7 +457,7 @@ importers:
       is-ci: 2.0.0
       make-dir: 3.0.0
       path-absolute: 1.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/get-context': 'link:'
       '@pnpm/logger': 3.1.0
@@ -479,7 +479,7 @@ importers:
       is-ci: 2.0.0
       make-dir: 3.0.0
       path-absolute: 1.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
   packages/git-fetcher:
     dependencies:
       '@zkochan/rimraf': 1.0.0
@@ -547,7 +547,7 @@ importers:
       p-limit: 2.2.2
       path-absolute: 1.0.1
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
@@ -619,7 +619,7 @@ importers:
       p-limit: 2.2.2
       path-absolute: 1.0.1
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-yaml-file: 1.1.0
       sinon: 8.1.1
       tape-promise: 4.0.0
@@ -635,7 +635,7 @@ importers:
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@types/ramda': 0.26.40
@@ -651,7 +651,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.4'
-      ramda: 0.26.1
+      ramda: 0.27.0
   packages/lifecycle:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -693,7 +693,7 @@ importers:
       mz: 2.7.0
       normalize-path: 3.0.0
       p-settle: 3.1.0
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/link-bins': 'link:'
       '@types/is-windows': 1.0.0
@@ -733,7 +733,7 @@ importers:
       normalize-path: 3.0.0
       p-settle: 3.1.0
       path-exists: ^4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       sinon: 8.1.1
       tempy: ^0.3.0
   packages/list:
@@ -748,7 +748,7 @@ importers:
       cli-columns: 3.1.2
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
       p-limit: 2.2.2
-      ramda: 0.26.1
+      ramda: 0.27.0
       semver: 7.1.2
     devDependencies:
       '@pnpm/list': 'link:'
@@ -776,7 +776,7 @@ importers:
       common-tags: 1.8.0
       dependencies-hierarchy: 'workspace:8.0.9'
       p-limit: 2.2.2
-      ramda: 0.26.1
+      ramda: 0.27.0
       semver: 7.1.2
   packages/local-resolver:
     dependencies:
@@ -814,7 +814,7 @@ importers:
       js-yaml: 3.13.1
       make-dir: 3.0.0
       normalize-path: 3.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-yaml-file: 1.1.0
       write-file-atomic: 2.4.3
     devDependencies:
@@ -842,7 +842,7 @@ importers:
       js-yaml: 3.13.1
       make-dir: 3.0.0
       normalize-path: 3.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-yaml-file: 1.1.0
       tempy: 0.3.0
       write-file-atomic: 2.4.3
@@ -857,7 +857,7 @@ importers:
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
       get-npm-tarball-url: 2.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/lockfile-utils': 'link:'
       '@types/js-yaml': 3.12.2
@@ -874,7 +874,7 @@ importers:
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.4'
       get-npm-tarball-url: 2.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
       tempy: 0.3.0
       write-yaml-file: 3.0.1
       yaml-tag: 1.1.0
@@ -883,7 +883,7 @@ importers:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/lockfile-walker': 'link:'
       '@types/ramda': 0.26.40
@@ -894,7 +894,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.4'
-      ramda: 0.26.1
+      ramda: 0.27.0
       tempy: 0.3.0
   packages/matcher:
     dependencies:
@@ -918,7 +918,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'link:../dependency-path'
       fs-vacuum: 1.2.10
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-cleaner': 'link:'
@@ -939,7 +939,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:4.0.4'
       fs-vacuum: 1.2.10
-      ramda: 0.26.1
+      ramda: 0.27.0
   packages/modules-yaml:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -1043,7 +1043,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
       lru-cache: 5.1.1
-      ramda: 0.26.1
+      ramda: 0.27.0
       semver: 7.1.2
     devDependencies:
       '@pnpm/logger': 3.1.0
@@ -1072,7 +1072,7 @@ importers:
       dependency-path: 'workspace:4.0.4'
       lru-cache: 5.1.1
       npm-run-all: 4.1.5
-      ramda: 0.26.1
+      ramda: 0.27.0
       semver: 7.1.2
   packages/package-bins:
     dependencies:
@@ -1130,7 +1130,7 @@ importers:
       p-queue: 6.2.1
       path-exists: 4.0.0
       promise-share: 1.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       rename-overwrite: 2.0.2
       ssri: 6.0.1
       symlink-dir: 3.1.1
@@ -1185,7 +1185,7 @@ importers:
       p-queue: 6.2.1
       path-exists: 4.0.0
       promise-share: 1.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       rename-overwrite: 2.0.2
       sinon: 8.1.1
       ssri: 6.0.1
@@ -1211,7 +1211,7 @@ importers:
       p-limit: 2.2.2
       path-exists: 4.0.0
       path-temp: 2.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       rename-overwrite: 2.0.2
       write-json-file: 4.0.0
     devDependencies:
@@ -1255,7 +1255,7 @@ importers:
       path-exists: 4.0.0
       path-temp: 2.0.0
       proxyquire: 2.1.3
-      ramda: 0.26.1
+      ramda: 0.27.0
       rename-overwrite: 2.0.2
       sinon: 8.1.1
       tempy: 0.3.0
@@ -1275,7 +1275,7 @@ importers:
   packages/pkgs-graph:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
-      ramda: 0.26.1
+      ramda: 0.27.0
       semver: 7.1.2
     devDependencies:
       '@types/ramda': 0.26.40
@@ -1288,7 +1288,7 @@ importers:
       '@zkochan/npm-package-arg': ^1.0.2
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
-      ramda: ^0.26.1
+      ramda: ^0.27.0
       semver: 7.1.2
   packages/plugin-commands-audit:
     dependencies:
@@ -1299,7 +1299,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       chalk: 3.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       table: 5.4.6
     devDependencies:
@@ -1320,7 +1320,7 @@ importers:
       '@types/ramda': ^0.26.40
       '@types/table': ^4.0.7
       chalk: 3.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       strip-ansi: 6.0.0
       table: 5.4.6
@@ -1391,7 +1391,7 @@ importers:
       p-limit: 2.2.2
       path-absolute: 1.0.1
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-ini-file: 2.0.0
       render-help: 0.0.0
       supi: 'link:../supi'
@@ -1465,7 +1465,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       proxyquire: 2.1.3
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-ini-file: 2.0.0
       read-yaml-file: 1.1.0
       render-help: 0.0.0
@@ -1483,7 +1483,7 @@ importers:
       '@pnpm/list': 'link:../list'
       '@pnpm/types': 'link:../types'
       common-tags: 1.8.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
     devDependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1518,7 +1518,7 @@ importers:
       common-tags: 1.8.0
       execa: 4.0.0
       mz: 2.7.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       strip-ansi: 6.0.0
       write-yaml-file: 3.0.1
@@ -1541,7 +1541,7 @@ importers:
       chalk: 3.0.0
       common-tags: 1.8.0
       lru-cache: 5.1.1
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       table: 5.4.6
       wrap-ansi: 6.2.0
@@ -1593,7 +1593,7 @@ importers:
       lru-cache: 5.1.1
       make-dir: 3.0.0
       mz: 2.7.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       strip-ansi: 6.0.0
       table: 5.4.6
@@ -1616,7 +1616,7 @@ importers:
       lru-cache: 5.1.1
       mz: 2.7.0
       p-filter: 2.1.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       write-json-file: 4.2.1
     devDependencies:
@@ -1658,7 +1658,7 @@ importers:
       mz: 2.7.0
       p-filter: 2.1.0
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
@@ -1690,7 +1690,7 @@ importers:
       load-json-file: 6.2.0
       mem: 6.0.1
       p-limit: 2.2.2
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-ini-file: 2.0.0
       render-help: 0.0.0
       run-groups: 2.0.2
@@ -1749,7 +1749,7 @@ importers:
       mem: 6.0.1
       p-limit: 2.2.2
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-ini-file: 2.0.0
       render-help: 0.0.0
       run-groups: 2.0.2
@@ -1769,7 +1769,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       common-tags: 1.8.0
       p-limit: 2.2.2
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
@@ -1805,7 +1805,7 @@ importers:
       execa: 4.0.0
       mz: 2.7.0
       p-limit: 2.2.2
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       write-yaml-file: 3.0.1
   packages/plugin-commands-server:
@@ -1825,7 +1825,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       process-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       signal-exit: 3.0.2
       tree-kill: 1.2.2
@@ -1860,7 +1860,7 @@ importers:
       make-dir: 3.0.0
       mz: 2.7.0
       process-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       signal-exit: 3.0.2
       tree-kill: 1.2.2
@@ -1880,7 +1880,7 @@ importers:
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
       p-filter: 2.1.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
     devDependencies:
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
@@ -1925,7 +1925,7 @@ importers:
       load-json-file: 6.2.0
       p-filter: 2.1.0
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       sinon: 8.1.1
   packages/pnpm:
@@ -1961,7 +1961,7 @@ importers:
       is-ci: 2.0.0
       loud-rejection: 2.2.0
       pkgs-graph: 'link:../pkgs-graph'
-      ramda: 0.26.1
+      ramda: 0.27.0
       render-help: 0.0.0
       split-cmd: 1.0.1
       update-notifier: 4.0.0
@@ -2093,7 +2093,7 @@ importers:
       path-exists: 4.0.0
       pkgs-graph: 'workspace:5.1.1'
       pnpm: 'link:'
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-yaml-file: 1.1.0
       render-help: 0.0.0
       retry: 0.12.0
@@ -2113,7 +2113,7 @@ importers:
       '@pnpm/types': 'link:../types'
       chalk: 3.0.0
       path-absolute: 1.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/pnpmfile': 'link:'
@@ -2127,14 +2127,14 @@ importers:
       '@types/ramda': ^0.26.40
       chalk: 3.0.0
       path-absolute: 1.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
   packages/prune-lockfile:
     dependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
-      ramda: 0.26.1
+      ramda: 0.27.0
     devDependencies:
       '@pnpm/prune-lockfile': 'link:'
       '@types/ramda': 0.26.40
@@ -2146,7 +2146,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.26.40
       dependency-path: 'workspace:4.0.4'
-      ramda: 0.26.1
+      ramda: 0.27.0
       yaml-tag: 1.1.0
   packages/read-modules-dir:
     dependencies:
@@ -2234,7 +2234,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       replace-string: 3.0.0
       semver: 7.1.2
     devDependencies:
@@ -2259,7 +2259,7 @@ importers:
       '@types/semver': ^7.1.0
       dependency-path: 'workspace:4.0.4'
       path-exists: 4.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       replace-string: 3.0.0
       semver: 7.1.2
   packages/resolver-base:
@@ -2429,7 +2429,7 @@ importers:
       p-filter: 2.1.0
       p-limit: 2.2.2
       path-absolute: 1.0.1
-      ramda: 0.26.1
+      ramda: 0.27.0
       run-groups: 2.0.2
       semver: 7.1.2
       semver-utils: 1.1.4
@@ -2563,7 +2563,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       path-name: 1.0.0
-      ramda: 0.26.1
+      ramda: 0.27.0
       read-yaml-file: 1.1.0
       resolve-link-target: 1.0.1
       run-groups: 2.0.2
@@ -9438,10 +9438,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-eqm/xQSFY21S3XbWqOYxspB5muE=
-  /ramda/0.26.1:
+  /ramda/0.27.0:
     dev: false
     resolution:
-      integrity: sha512-hLWjpy7EnsDBb0p+Z3B7rPi3GDeRG5ZtiI33kJhTt+ORCd38AbAIjB/9zRIUoeTbE/AVX5ZkU7m6bznsvrf8eQ==
+      integrity: sha512-pVzZdDpWwWqEVVLshWUHjNwuVP7SfcmPraYuqocJp1yo2U1R7P+5QAfDhdItkuoGqIBnBYrtPp7rEPqDn9HlZA==
   /range-parser/1.2.1:
     dev: true
     engines:

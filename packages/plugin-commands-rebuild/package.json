@@ -74,7 +74,7 @@
     "load-json-file": "6.2.0",
     "mem": "6.0.1",
     "p-limit": "2.2.2",
-    "ramda": "0.26.1",
+    "ramda": "0.27.0",
     "read-ini-file": "2.0.0",
     "render-help": "0.0.0",
     "run-groups": "2.0.2",

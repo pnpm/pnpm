@@ -56,7 +56,7 @@
     "@pnpm/utils": "workspace:0.12.4",
     "common-tags": "1.8.0",
     "p-limit": "2.2.2",
-    "ramda": "0.26.1",
+    "ramda": "0.27.0",
     "render-help": "0.0.0"
   },
   "peerDependencies": {

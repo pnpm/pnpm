@@ -62,7 +62,7 @@
     "lru-cache": "5.1.1",
     "mz": "2.7.0",
     "p-filter": "2.1.0",
-    "ramda": "0.26.1",
+    "ramda": "0.27.0",
     "render-help": "0.0.0",
     "write-json-file": "4.2.1"
   }
