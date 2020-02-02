@@ -42,7 +42,7 @@
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lockfile-file": "workspace:3.0.2",
     "chalk": "3.0.0",
-    "ramda": "0.26.1",
+    "ramda": "0.27.0",
     "render-help": "0.0.0",
     "table": "5.4.6"
   }

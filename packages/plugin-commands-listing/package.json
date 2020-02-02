@@ -53,7 +53,7 @@
     "@pnpm/list": "workspace:4.0.15",
     "@pnpm/types": "workspace:5.0.0",
     "common-tags": "1.8.0",
-    "ramda": "0.26.1",
+    "ramda": "0.27.0",
     "render-help": "0.0.0"
   },
   "peerDependencies": {

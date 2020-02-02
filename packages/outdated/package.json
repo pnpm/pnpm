@@ -52,7 +52,7 @@
     "@pnpm/utils": "workspace:0.12.4",
     "dependency-path": "workspace:4.0.4",
     "lru-cache": "5.1.1",
-    "ramda": "0.26.1",
+    "ramda": "0.27.0",
     "semver": "7.1.2"
   },
   "devDependencies": {

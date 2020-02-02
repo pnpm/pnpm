@@ -41,6 +41,6 @@
     "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/types": "workspace:5.0.0",
     "dependency-path": "workspace:4.0.4",
-    "ramda": "0.26.1"
+    "ramda": "0.27.0"
   }
 }

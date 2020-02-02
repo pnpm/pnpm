@@ -55,7 +55,7 @@
     "js-yaml": "3.13.1",
     "make-dir": "3.0.0",
     "normalize-path": "3.0.0",
-    "ramda": "0.26.1",
+    "ramda": "0.27.0",
     "read-yaml-file": "1.1.0",
     "write-file-atomic": "2.4.3"
   }
