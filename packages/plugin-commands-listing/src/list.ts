@@ -1,7 +1,6 @@
 import { docsUrl } from '@pnpm/cli-utils'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
-import PnpmError from '@pnpm/error'
 import list, { forPackages as listForPackages } from '@pnpm/list'
 import { IncludedDependencies } from '@pnpm/types'
 import { oneLine } from 'common-tags'
@@ -135,7 +134,7 @@ export function handler (
     ...opts,
     depth,
     include,
-    lockfileDir: opts.lockfileDir || opts.dir,
+    lockfileDir: opts.lockfileDir ?? opts.dir,
   })
 }
 

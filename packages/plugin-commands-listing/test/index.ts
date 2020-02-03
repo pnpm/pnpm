@@ -1,6 +1,5 @@
 ///<reference path="../../../typings/index.d.ts" />
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
 import { list, why } from '@pnpm/plugin-commands-listing'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { stripIndent } from 'common-tags'
@@ -10,7 +9,9 @@ import path = require('path')
 import stripAnsi = require('strip-ansi')
 import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
+
 import './recursive'
+import './why'
 
 test('listing packages', async (t) => {
   prepare(t, {
@@ -204,22 +205,5 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
       └── not-compatible-with-any-os 1.0.0 skipped
     `)
   }
-  t.end()
-})
-
-test('`pnpm why` should fail if no package name was provided', async (t) => {
-  prepare(t)
-
-  let err!: PnpmError
-  try {
-    const output = await why.handler([], {
-      dir: process.cwd(),
-    })
-  } catch (_err) {
-    err = _err
-  }
-
-  t.equal(err.code, 'ERR_PNPM_MISSING_PACKAGE_NAME')
-  t.ok(err.message.includes('`pnpm why` requires the package name'))
   t.end()
 })

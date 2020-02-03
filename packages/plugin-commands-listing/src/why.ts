@@ -92,5 +92,11 @@ export function handler (
   if (!args.length) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
   }
-  return list(args, { ...opts, depth: Infinity })
+  return list(args, {
+    ...opts,
+    cliOptions: {
+      ...(opts.cliOptions ?? {}),
+      depth: Infinity,
+    },
+  })
 }
