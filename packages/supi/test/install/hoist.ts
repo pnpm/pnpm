@@ -311,7 +311,7 @@ test('should uninstall correctly peer dependencies', async (t) => {
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
 })
 
-test('hoist-pattern: only hoists the dependencies of the root workspace package', async (t) => {
+test('hoist-pattern: hoist all dependencies to the virtual store node_modules', async (t) => {
   const workspaceRootManifest = {
     name: 'root',
 
@@ -355,6 +355,9 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
 
   await projects['root'].has('pkg-with-1-dep')
   await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/foobar')
+  await projects['root'].has('.pnpm/node_modules/foo')
+  await projects['root'].has('.pnpm/node_modules/bar')
   await projects['root'].hasNot('foobar')
   await projects['root'].hasNot('foo')
   await projects['root'].hasNot('bar')
@@ -370,6 +373,9 @@ test('hoist-pattern: only hoists the dependencies of the root workspace package'
 
   await projects['root'].has('pkg-with-1-dep')
   await projects['root'].has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  await projects['root'].has('.pnpm/node_modules/foobar')
+  await projects['root'].has('.pnpm/node_modules/foo')
+  await projects['root'].has('.pnpm/node_modules/bar')
   await projects['root'].hasNot('foobar')
   await projects['root'].hasNot('foo')
   await projects['root'].hasNot('bar')
