@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-workspace-packages",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Filters packages in a workspace",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -28,12 +28,12 @@
   "homepage": "https://pnpm.js.org",
   "dependencies": {
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/find-workspace-packages": "workspace:2.1.4",
+    "@pnpm/find-workspace-packages": "workspace:2.1.5",
     "@pnpm/matcher": "workspace:1.0.0",
     "execa": "4.0.0",
     "find-up": "4.1.0",
     "is-subdir": "1.1.1",
-    "pkgs-graph": "workspace:5.1.1",
+    "pkgs-graph": "workspace:5.1.2",
     "ramda": "0.27.0"
   },
   "devDependencies": {

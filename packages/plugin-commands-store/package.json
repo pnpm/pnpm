@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-store",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Commands for controlling the store",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
     "@pnpm/assert-store": "workspace:1.0.0",
-    "@pnpm/lockfile-file": "workspace:3.0.2",
+    "@pnpm/lockfile-file": "workspace:3.0.3",
     "@pnpm/logger": "3.1.0",
     "@pnpm/plugin-commands-store": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
@@ -49,11 +49,11 @@
   },
   "dependencies": {
     "@pnpm/check-package": "3.0.1",
-    "@pnpm/cli-utils": "workspace:0.3.4",
-    "@pnpm/config": "workspace:8.0.0",
+    "@pnpm/cli-utils": "workspace:0.3.5",
+    "@pnpm/config": "workspace:8.0.1",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/get-context": "workspace:1.0.1",
-    "@pnpm/store-connection-manager": "workspace:0.2.12",
+    "@pnpm/get-context": "workspace:1.0.2",
+    "@pnpm/store-connection-manager": "workspace:0.2.13",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/types": "workspace:5.0.0",
