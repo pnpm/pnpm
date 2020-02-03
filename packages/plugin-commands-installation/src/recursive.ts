@@ -170,9 +170,6 @@ export default async function recursive (
 
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
-    if (opts.hoistPattern) {
-      logger.info({ message: 'Only the root workspace package is going to have hoisted dependencies in node_modules', prefix: opts.lockfileDir })
-    }
     let importers = await getImporters()
     const isFromWorkspace = isSubdir.bind(null, opts.lockfileDir)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
