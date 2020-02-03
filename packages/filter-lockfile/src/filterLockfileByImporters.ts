@@ -33,7 +33,7 @@ export default function filterByImporters (
         lockfile,
         importerIds,
         { include: opts.include, skipped: opts.skipped },
-      ),
+      ).step,
       packages,
       {
         failOnMissingDependencies: opts.failOnMissingDependencies,

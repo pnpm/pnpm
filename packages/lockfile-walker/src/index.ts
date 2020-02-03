@@ -55,6 +55,7 @@ export default function lockfileWalker (
 ) {
   const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
   const entryNodes = [] as string[]
+  const directDeps = [] as Array<{ alias: string, relDepPath: string }>
 
   importerIds.forEach((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
@@ -63,17 +64,21 @@ export default function lockfileWalker (
       ...(opts?.include?.dependencies === false ? {} : projectSnapshot.dependencies),
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
-    .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
-    .filter((nodeId) => nodeId !== null)
-    .forEach((relDepPath) => {
+    .forEach(([ pkgName, reference ]) => {
+      const relDepPath = dp.refToRelative(reference, pkgName)
+      if (relDepPath === null) return
       entryNodes.push(relDepPath as string)
+      directDeps.push({ alias: pkgName, relDepPath })
     })
   })
-  return step({
-    includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
-    lockfile,
-    walked,
-  }, entryNodes)
+  return {
+    directDeps,
+    step: step({
+      includeOptionalDependencies: opts?.include?.optionalDependencies !== false,
+      lockfile,
+      walked,
+    }, entryNodes),
+  }
 }
 
 function step (

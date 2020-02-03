@@ -245,7 +245,7 @@ async function _rebuild (
           optionalDependencies: opts.optional,
         },
       },
-    ),
+    ).step,
     nodesToBuildAndTransitive,
     { pkgsToRebuild: ctx.pkgsToRebuild },
   )
