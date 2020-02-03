@@ -27,19 +27,33 @@ export default async function hoistByLockfile (
 ) {
   if (!opts.lockfile.packages) return {}
 
-  const deps = await getDependencies(
-    lockfileWalker(
-      opts.lockfile,
-      Object.keys(opts.lockfile.importers),
-    ),
-    0,
-    {
-      getIndependentPackageLocation: opts.getIndependentPackageLocation,
-      lockfileDir: opts.lockfileDir,
-      registries: opts.registries,
-      virtualStoreDir: opts.virtualStoreDir,
-    },
+  const { directDeps, step } = lockfileWalker(
+    opts.lockfile,
+    Object.keys(opts.lockfile.importers),
   )
+  const deps = [
+    {
+      absolutePath: '',
+      children: directDeps
+        .reduce((acc, dep) => {
+          if (acc[dep.alias]) return acc
+          acc[dep.alias] = dp.resolve(opts.registries, dep.relDepPath)
+          return acc
+        }, {}),
+      depth: -1,
+      location: '',
+    },
+    ...await getDependencies(
+      step,
+      0,
+      {
+        getIndependentPackageLocation: opts.getIndependentPackageLocation,
+        lockfileDir: opts.lockfileDir,
+        registries: opts.registries,
+        virtualStoreDir: opts.virtualStoreDir,
+      },
+    ),
+  ]
 
   const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.'].specifiers, {
     dryRun: false,
@@ -92,7 +106,6 @@ async function getDependencies (
       location: !independent
         ? path.join(modules, pkgName)
         : await opts.getIndependentPackageLocation!(pkgSnapshot.id || absolutePath, pkgName),
-      name: pkgName,
     })
 
     nextSteps.push(next())
@@ -112,7 +125,6 @@ async function getDependencies (
 }
 
 export interface Dependency {
-  name: string,
   location: string,
   children: {[alias: string]: string},
   depth: number,
@@ -135,7 +147,7 @@ async function hoistGraph (
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? a.name.localeCompare(b.name) : depthDiff
+      return depthDiff === 0 ? a.absolutePath.localeCompare(b.absolutePath) : depthDiff
     })
     // build the alias map and the id map
     .map((depNode) => {
