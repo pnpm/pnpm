@@ -5,13 +5,14 @@ const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
 export interface ParsedCliArgs {
   argv: {
-    remain: string[]
-    cooked: string[]
-    original: string[]
+    remain: string[],
+    cooked: string[],
+    original: string[],
   }
   cliArgs: string[]
   cliConf: {
-    [option: string]: any
+    // tslint:disable-next-line: no-any
+    [option: string]: any,
   }
   cmd: string | null
   subCmd: string | null
@@ -53,8 +54,8 @@ export default async function parseCliArgs (
       cliArgs: noptExploratoryResults.argv.remain,
       cliConf: {},
       cmd: 'help',
-      subCmd: null,
       isKnownCommand: true,
+      subCmd: null,
       unknownOptions: [] as string[],
     }
   }
@@ -137,8 +138,8 @@ export default async function parseCliArgs (
     cliArgs,
     cliConf,
     cmd,
-    subCmd,
     isKnownCommand,
+    subCmd,
     unknownOptions,
     workspaceDir,
   }
