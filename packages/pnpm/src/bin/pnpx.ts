@@ -2,7 +2,7 @@ import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import npx = require('@zkochan/libnpx/index')
 import path = require('path')
 
-const PNPM_PATH = path.join(__dirname, 'pnpm.js')
+const PNPM_PATH = path.join(__dirname, '../../bin/pnpm.js')
 
 // tslint:disable-next-line: no-floating-promises
 ; (async () => {

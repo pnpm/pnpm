@@ -8,6 +8,7 @@ import promisifyTape from 'tape-promise'
 import {
   execPnpm,
   execPnpmSync,
+  execPnpxSync,
 } from './utils'
 
 const test = promisifyTape(tape)
@@ -107,4 +108,13 @@ test('adding new dep does not fail if node_modules was created with --hoist-patt
   t.equal(execPnpmSync('add', 'is-negative').status, 0)
 
   await project.has('is-negative')
+})
+
+test('pnpx works', t => {
+  const result = execPnpxSync('hello-world-js-bin')
+
+  t.equal(result.status, 0)
+  t.ok(result.stdout.toString().includes('Hello world!'))
+
+  t.end()
 })
