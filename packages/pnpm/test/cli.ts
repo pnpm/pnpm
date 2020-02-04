@@ -77,6 +77,15 @@ test('pnpm fails when an unsupported command is used', async (t) => {
   t.ok(stderr.toString().includes("Unknown command 'unsupported-command'"))
 })
 
+test('pnpm fails when no command is specified', async (t) => {
+  const project = prepare(t)
+
+  const { status, stdout } = execPnpmSync()
+
+  t.equal(status, 1, 'command failed')
+  t.ok(stdout.toString().includes('Usage:'))
+})
+
 test('command fails when an unsupported flag is used', async (t) => {
   const project = prepare(t)
 
