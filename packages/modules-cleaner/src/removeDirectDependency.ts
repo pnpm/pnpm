@@ -6,6 +6,7 @@ import binify from '@pnpm/package-bins'
 import { DependenciesField, DependencyManifest } from '@pnpm/types'
 import { safeReadPackageFromDir } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
+import isWindows = require('is-windows')
 import path = require('path')
 
 export default async function removeDirectDependency (
@@ -42,6 +43,22 @@ export default async function removeDirectDependency (
   }
 }
 
+async function removeOnWin (cmd: string) {
+  removalLogger.debug(cmd)
+  await Promise.all([
+    rimraf(cmd),
+    rimraf(`${cmd}.ps1`),
+    rimraf(`${cmd}.cmd`),
+  ])
+}
+
+function removeOnNonWin (p: string) {
+  removalLogger.debug(p)
+  return rimraf(p)
+}
+
+const remove = isWindows() ? removeOnWin : removeOnNonWin
+
 async function removeBins (
   uninstalledPkg: string,
   opts: {
@@ -57,7 +74,6 @@ async function removeBins (
   const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)
 
   if (!opts.dryRun) {
-    // TODO: what about the .cmd bin files on Windows?
     await Promise.all(
       cmds
         .map((cmd) => path.join(opts.binsDir, cmd.name))
@@ -66,9 +82,4 @@ async function removeBins (
   }
 
   return uninstalledPkgJson
-}
-
-function remove (p: string) {
-  removalLogger.debug(p)
-  return rimraf(p)
 }
