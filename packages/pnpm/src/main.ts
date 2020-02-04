@@ -188,4 +188,7 @@ export default async function run (inputArgv: string[]) {
       }
     }, 0)
   })
+  if (!cmd) {
+    process.exit(1)
+  }
 }
