@@ -30,7 +30,13 @@ import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 
 export default async function run (inputArgv: string[]) {
-  const { argv, cliArgs, cliConf, cmd, subCmd, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
+  const { argv, cliArgs, cliConf, cmd, subCmd, isKnownCommand, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
+  if (!isKnownCommand) {
+    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown command '${cmd}'`)}`)
+    console.log(`For help, run: pnpm help`)
+    process.exit(1)
+  }
+
   if (unknownOptions.length > 0) {
     let errorMsg = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
     if (unknownOptions.length === 1) {
@@ -39,7 +45,7 @@ export default async function run (inputArgv: string[]) {
       errorMsg += ` ${chalk.red(`Unknown options ${unknownOptions.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
     }
     console.error(errorMsg)
-    console.log(`For help, run: pnpm help ${cmd}`)
+    console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
     process.exit(1)
   }
   process.env['npm_config_argv'] = JSON.stringify(argv)
@@ -59,7 +65,7 @@ export default async function run (inputArgv: string[]) {
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(err.message)}`)
-    console.log(`For help, run: pnpm help ${cmd}`)
+    console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
     process.exit(1)
     return
   }

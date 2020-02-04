@@ -85,13 +85,14 @@ test('when runnning a global command inside a workspace, the workspace should be
   t.end()
 })
 
-test('help is returned when an unknown command is used', async (t) => {
-  const { cmd } = await parseCliArgs({
+test('isKnownCommand is false when an unknown command is used', async (t) => {
+  const { cmd, isKnownCommand } = await parseCliArgs({
     ...DEFAULT_OPTS,
     globalOptionsTypes: {},
     isKnownCommand: () => false,
   }, ['foo'])
-  t.equal(cmd, 'help')
+  t.false(isKnownCommand)
+  t.equal(cmd, 'foo')
   t.end()
 })
 
@@ -166,9 +167,10 @@ test('if a help option is used, set cmd to "help"', async (t) => {
 })
 
 test('no command', async (t) => {
-  const { cmd } = await parseCliArgs({
+  const { cmd, isKnownCommand } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['--version'])
-  t.equal(cmd, undefined)
+  t.equal(cmd, null)
+  t.true(isKnownCommand)
   t.end()
 })

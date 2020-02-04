@@ -130,8 +130,8 @@ export function getCliOptionsTypes (commandName: string) {
   return cliOptionsTypesByCommandName[commandName]?.() || {}
 }
 
-export function getRCOptionsTypes (commandName: string) {
-  return rcOptionsTypesByCommandName[commandName]?.() || {}
+export function getRCOptionsTypes (commandName: string | null) {
+  return (commandName && rcOptionsTypesByCommandName[commandName]?.()) || {}
 }
 
 export function getCommandFullName (commandName: string) {

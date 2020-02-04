@@ -3,9 +3,26 @@ import nopt = require('nopt')
 
 const RECURSIVE_CMDS = new Set(['recursive', 'multi', 'm'])
 
+export interface ParsedCliArgs {
+  argv: {
+    remain: string[]
+    cooked: string[]
+    original: string[]
+  }
+  cliArgs: string[]
+  cliConf: {
+    [option: string]: any
+  }
+  cmd: string | null
+  subCmd: string | null
+  isKnownCommand: boolean
+  unknownOptions: string[]
+  workspaceDir?: string
+}
+
 export default async function parseCliArgs (
   opts: {
-    getCommandLongName: (commandName: string) => string,
+    getCommandLongName: (commandName: string) => string | null,
     getTypesByCommandName: (commandName: string) => object,
     globalOptionsTypes: Record<string, unknown>,
     isKnownCommand: (commandName: string) => boolean,
@@ -13,7 +30,7 @@ export default async function parseCliArgs (
     shortHands: Record<string, string>,
   },
   inputArgv: string[],
-) {
+): Promise<ParsedCliArgs> {
   const noptExploratoryResults = nopt(
     {
       filter: [String],
@@ -36,8 +53,8 @@ export default async function parseCliArgs (
       cliArgs: noptExploratoryResults.argv.remain,
       cliConf: {},
       cmd: 'help',
-      dir: process.cwd(),
       subCmd: null,
+      isKnownCommand: true,
       unknownOptions: [] as string[],
     }
   }
@@ -67,9 +84,10 @@ export default async function parseCliArgs (
     }
   }
 
-  let cmd = opts.getCommandLongName(argv.remain[0])
+  let cmd = argv.remain.length > 0 ? opts.getCommandLongName(argv.remain[0]) : null
+  let isKnownCommand = true
   if (cmd && !opts.isKnownCommand(cmd) && !RECURSIVE_CMDS.has(cmd)) {
-    cmd = 'help'
+    isKnownCommand = false
   }
 
   let subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
@@ -77,9 +95,9 @@ export default async function parseCliArgs (
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = argv.remain.slice(1).filter(Boolean)
 
-  if (cliConf['recursive'] !== true && (cliConf['filter'] || RECURSIVE_CMDS.has(cmd))) {
+  if (cliConf['recursive'] !== true && (cliConf['filter'] || RECURSIVE_CMDS.has(cmd!))) {
     cliConf['recursive'] = true
-    if (subCmd && RECURSIVE_CMDS.has(cmd)) {
+    if (subCmd && RECURSIVE_CMDS.has(cmd!)) {
       cliArgs.shift()
       argv.remain.shift()
       cmd = subCmd
@@ -120,6 +138,7 @@ export default async function parseCliArgs (
     cliConf,
     cmd,
     subCmd,
+    isKnownCommand,
     unknownOptions,
     workspaceDir,
   }
