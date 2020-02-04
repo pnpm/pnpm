@@ -42,11 +42,13 @@
     "@zkochan/rimraf": "1.0.0",
     "dependency-path": "workspace:4.0.4",
     "fs-vacuum": "1.2.10",
+    "is-windows": "1.0.2",
     "ramda": "0.27.0"
   },
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/modules-cleaner": "link:",
+    "@types/is-windows": "^1.0.0",
     "@types/ramda": "^0.26.40"
   }
 }

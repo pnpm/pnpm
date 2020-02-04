@@ -918,10 +918,12 @@ importers:
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'link:../dependency-path'
       fs-vacuum: 1.2.10
+      is-windows: 1.0.2
       ramda: 0.27.0
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-cleaner': 'link:'
+      '@types/is-windows': 1.0.0
       '@types/ramda': 0.26.40
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
@@ -935,10 +937,12 @@ importers:
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.12.4'
+      '@types/is-windows': ^1.0.0
       '@types/ramda': ^0.26.40
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:4.0.4'
       fs-vacuum: 1.2.10
+      is-windows: 1.0.2
       ramda: 0.27.0
   packages/modules-yaml:
     dependencies:
