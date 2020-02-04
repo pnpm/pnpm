@@ -8,7 +8,7 @@ export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 export default (
   reporterType: ReporterType,
   opts: {
-    cmd: string,
+    cmd: string | null,
     subCmd: string | null,
     config: Config,
   },
@@ -17,7 +17,7 @@ export default (
     case 'default':
       defaultReporter({
         context: {
-          argv: opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd],
+          argv: opts.cmd ? opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd] : [],
           config: opts.config,
         },
         reportingOptions: {
@@ -30,7 +30,7 @@ export default (
     case 'append-only':
       defaultReporter({
         context: {
-          argv: opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd],
+          argv: opts.cmd ? opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd] : [],
           config: opts.config,
         },
         reportingOptions: {
