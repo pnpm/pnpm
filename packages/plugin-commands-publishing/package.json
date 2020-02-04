@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   },
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:1.2.6",
+    "@pnpm/filter-workspace-packages": "workspace:1.2.7",
     "@pnpm/plugin-commands-publishing": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
     "@types/cross-spawn": "^6.0.1",
@@ -46,7 +46,7 @@
     "write-yaml-file": "3.0.1"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.3.5",
+    "@pnpm/cli-utils": "workspace:0.3.6",
     "@pnpm/config": "workspace:8.0.1",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/npm-resolver": "workspace:7.3.2",
