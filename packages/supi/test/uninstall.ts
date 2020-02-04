@@ -198,8 +198,9 @@ test('uninstall package with its bin files', async (t) => {
   let stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
   t.notOk(stat, 'sh-hello-world is removed from .bin')
 
-  stat = await exists(path.resolve('node_modules', '.bin', 'sh-hello-world'))
-  t.notOk(stat, 'sh-hello-world is removed from .bin')
+  t.notOk(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world')), 'sh-hello-world is removed from .bin')
+  t.notOk(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world.cmd')), 'sh-hello-world.cmd is removed from .bin')
+  t.notOk(await exists(path.resolve('node_modules', '.bin', 'sh-hello-world.ps1')), 'sh-hello-world.ps1 is removed from .bin')
 })
 
 test('relative link is uninstalled', async (t: tape.Test) => {
