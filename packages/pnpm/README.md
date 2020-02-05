@@ -52,6 +52,13 @@ Using a [standalone script](https://github.com/pnpm/self-installer#readme):
 curl -L https://unpkg.com/@pnpm/self-installer | node
 ```
 
+On Windows (PowerShell):
+
+```powershell
+(Invoke-WebRequest 'https://unpkg.com/@pnpm/self-installer').Content | node
+```
+
+
 Via npm:
 
 ```
