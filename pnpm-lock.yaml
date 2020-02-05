@@ -85,6 +85,7 @@ importers:
       '@pnpm/command': 'link:../command'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
+      '@pnpm/logger': 3.1.0
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/utils': 'link:../utils'
@@ -95,7 +96,6 @@ importers:
       version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/cli-utils': 'link:'
-      '@pnpm/logger': 3.1.0
       '@pnpm/types': 'link:../types'
       '@types/nopt': 3.0.29
       '@types/ramda': 0.26.40

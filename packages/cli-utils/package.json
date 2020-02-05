@@ -29,7 +29,6 @@
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
     "@pnpm/cli-utils": "link:",
-    "@pnpm/logger": "^3.1.0",
     "@pnpm/types": "workspace:5.0.0",
     "@types/nopt": "^3.0.29",
     "@types/ramda": "^0.26.40"
@@ -38,6 +37,7 @@
     "@pnpm/command": "workspace:0.1.0-0",
     "@pnpm/config": "workspace:8.0.1",
     "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/logger": "^3.1.0",
     "@pnpm/package-is-installable": "workspace:4.0.3",
     "@pnpm/read-project-manifest": "workspace:1.0.0",
     "@pnpm/utils": "workspace:0.12.4",
