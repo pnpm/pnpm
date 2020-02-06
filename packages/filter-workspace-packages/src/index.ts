@@ -94,6 +94,15 @@ export default async function filterGraph<T> (
       throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
     }
 
+    if (entryPackages.length === 0) {
+      if (selector.namePattern) {
+        console.log(`No projects matched the filter ${selector.namePattern} in "${opts.workspaceDir}"`)
+      }
+      if (selector.parentDir) {
+        console.log(`No projects matched the filter ${selector.parentDir} in "${opts.workspaceDir}"`)
+      }
+    }
+
     if (selector.includeDependencies) {
       pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !selector.excludeSelf })
     }
