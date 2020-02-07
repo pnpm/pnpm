@@ -144,9 +144,7 @@ export async function handler (
     optionalDependencies: true,
   }
   for (let i of input) {
-    console.log('before', i)
     i = i.indexOf('@', 1) !== -1 ? i.substr(0, i.indexOf('@', 1)) : i
-    console.log('after', i)
     if (!matchDependencies(matcher(i), currentManifest.manifest, include).length) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${i} package found in dependencies of the project`)
     }
