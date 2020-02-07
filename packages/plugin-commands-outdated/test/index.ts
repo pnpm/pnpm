@@ -296,3 +296,26 @@ test('pnpm outdated: print only compatible versions', async (t) => {
   ` + '\n')
   t.end()
 })
+
+test('pnpm outdated: throw error when package not in dependencies', async (t) => {
+  tempDir(t)
+
+  await makeDir(path.resolve('node_modules/.pnpm'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'node_modules/.pnpm/lock.yaml'), path.resolve('node_modules/.pnpm/lock.yaml'))
+  await copyFile(path.join(hasOutdatedDepsFixture, 'package.json'), path.resolve('package.json'))
+
+  let err!: PnpmError
+  try {
+    await outdated.handler(['random-package'], {
+      ...OUTDATED_OPTIONS,
+      dir: process.cwd(),
+      long: true,
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
+  t.equal(err.message, 'No random-package package found in dependencies of the project')
+  t.end()
+})

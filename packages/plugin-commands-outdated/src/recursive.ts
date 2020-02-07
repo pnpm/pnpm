@@ -1,5 +1,7 @@
 import { TABLE_OPTIONS } from '@pnpm/cli-utils'
+import PnpmError from '@pnpm/error'
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
+import matcher from '@pnpm/matcher'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
@@ -9,6 +11,7 @@ import {
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
+import { filterDependenciesByType } from '@pnpm/utils'
 import chalk = require('chalk')
 import { stripIndent } from 'common-tags'
 import R = require('ramda')
@@ -50,6 +53,16 @@ export default async (
   args: string[],
   opts: OutdatedCommandOptions & { include: IncludedDependencies },
 ) => {
+  for (let input of args) {
+    input = input.indexOf('@', 1) !== -1 ? input.substr(0, input.indexOf('@', 1)) : input
+    let dependencies: string[] = []
+    for (const { manifest } of pkgs) {
+      dependencies = [...matchDependencies(matcher(input), manifest, opts.include), ...dependencies]
+    }
+    if (dependencies.length === 0) {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+    }
+  }
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, args, opts)
   for (let i = 0; i < outdatedPackagesByProject.length; i++) {
@@ -155,4 +168,24 @@ function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedInWorkspa
     COMPARATORS,
     outdatedPackages.map(toOutdatedWithVersionDiff),
   )
+}
+
+export function matchDependencies (
+  match: (input: string) => boolean,
+  manifest: ProjectManifest,
+  include: IncludedDependencies,
+) {
+  return Object.keys(filterDependenciesByType(manifest, include)).filter(match)
+}
+
+export function checkInputInDependencies (
+  inputs: string[],
+  manifest: ProjectManifest,
+  include: IncludedDependencies,
+) {
+  for (const input of inputs) {
+    if (!matchDependencies(matcher(inputs), manifest, include).length) {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+    }
+  }
 }

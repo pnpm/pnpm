@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { install, update } from '@pnpm/plugin-commands-installation'
@@ -351,13 +352,20 @@ test('recursive update in workspace should not add new dependencies', async (t) 
     },
   ])
 
-  await update.handler(['is-positive'], {
-    ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
-    dir: process.cwd(),
-    recursive: true,
-    workspaceDir: process.cwd(),
-  })
+  let err!: PnpmError
+  try {
+    await update.handler(['is-positive'], {
+      ...DEFAULT_OPTS,
+      ...await readProjects(process.cwd(), []),
+      dir: process.cwd(),
+      recursive: true,
+      workspaceDir: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
+  t.equal(err.message, 'No is-positive package found in dependencies of the project')
 
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].hasNot('is-positive')
@@ -376,13 +384,20 @@ test('recursive update should not add new dependencies', async (t) => {
     },
   ])
 
-  await update.handler(['is-positive'], {
-    ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
-    dir: process.cwd(),
-    recursive: true,
-    workspaceDir: process.cwd(),
-  })
+  let err!: PnpmError
+  try {
+    await update.handler(['is-positive'], {
+      ...DEFAULT_OPTS,
+      ...await readProjects(process.cwd(), []),
+      dir: process.cwd(),
+      recursive: true,
+      workspaceDir: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
+  t.equal(err.message, 'No is-positive package found in dependencies of the project')
 
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].hasNot('is-positive')

@@ -7,6 +7,7 @@ import {
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { Config, Project, ProjectsGraph } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import matcher from '@pnpm/matcher'
@@ -166,6 +167,18 @@ export default async function recursive (
   }
 
   const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
+  if (cmdFullName === 'update' || cmdFullName === 'remove') {
+    for (let input of unpatternedInput) {
+      input = input.indexOf('@', 1) !== -1 ? input.substr(0, input.indexOf('@', 1)) : input
+      let dependencies: string[] = []
+      for (const { manifest } of pkgs) {
+        dependencies = [...matchDependencies(matcher(input), manifest, includeDirect), ...dependencies]
+      }
+      if (dependencies.length === 0) {
+        throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+      }
+    }
+  }
   const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
 
   // For a workspace with shared lockfile

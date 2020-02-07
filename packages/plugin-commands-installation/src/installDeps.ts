@@ -161,6 +161,14 @@ export default async function handler (
   }
 
   const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
+  if (opts.update) {
+    for (let input of unpatternedInput) {
+      input = input.indexOf('@', 1) !== -1 ? input.substr(0, input.indexOf('@', 1)) : input
+      if (!matchDependencies(matcher(input), manifest, includeDirect).length) {
+        throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+      }
+    }
+  }
   const updateMatch = opts.update && patternedInput.length ? matcher(patternedInput) : null
   if (updateMatch) {
     input = [

@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { install } from '@pnpm/plugin-commands-installation'
 import { outdated } from '@pnpm/plugin-commands-outdated'
@@ -199,6 +200,25 @@ test('pnpm recursive outdated', async (t) => {
     └─────────────┴─────────┴────────┴──────────────────────┘
     ` + '\n')
   }
+
+  {
+    let err!: PnpmError
+    try {
+      await outdated.handler(['is-not'], {
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+      })
+    } catch (_err) {
+      err = _err
+    }
+
+    t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
+    t.equal(err.message, 'No is-not package found in dependencies of the project')
+  }
+
   t.end()
 })
 
@@ -301,5 +321,24 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
     └─────────────┴─────────┴────────┴──────────────────────┘
     ` + '\n')
   }
+
+  {
+    let err!: PnpmError
+    try {
+      await outdated.handler(['is-not'], {
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+      })
+    } catch (_err) {
+      err = _err
+    }
+
+    t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
+    t.equal(err.message, 'No is-not package found in dependencies of the project')
+  }
+
   t.end()
 })

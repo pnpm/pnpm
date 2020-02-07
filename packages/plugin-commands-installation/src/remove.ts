@@ -8,7 +8,9 @@ import {
 import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import matcher from '@pnpm/matcher'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
@@ -18,7 +20,7 @@ import renderHelp = require('render-help')
 import {
   mutateModules,
 } from 'supi'
-import recursive from './recursive'
+import recursive, { matchDependencies } from './recursive'
 
 export const rcOptionsTypes = cliOptionsTypes
 
@@ -136,6 +138,19 @@ export async function handler (
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined
   const currentManifest = await readProjectManifest(opts.dir, opts)
+  const include = {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
+  }
+  for (let i of input) {
+    console.log('before', i)
+    i = i.indexOf('@', 1) !== -1 ? i.substr(0, i.indexOf('@', 1)) : i
+    console.log('after', i)
+    if (!matchDependencies(matcher(i), currentManifest.manifest, include).length) {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${i} package found in dependencies of the project`)
+    }
+  }
   const [mutationResult] = await mutateModules(
     [
       {
