@@ -177,15 +177,3 @@ export function matchDependencies (
 ) {
   return Object.keys(filterDependenciesByType(manifest, include)).filter(match)
 }
-
-export function checkInputInDependencies (
-  inputs: string[],
-  manifest: ProjectManifest,
-  include: IncludedDependencies,
-) {
-  for (const input of inputs) {
-    if (!matchDependencies(matcher(inputs), manifest, include).length) {
-      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
-    }
-  }
-}
