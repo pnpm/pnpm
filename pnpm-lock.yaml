@@ -961,7 +961,7 @@ importers:
   packages/npm-registry-agent:
     dependencies:
       agentkeepalive: 4.0.0
-      http-proxy-agent: 4.0.0
+      http-proxy-agent: 4.0.1
       https-proxy-agent: 3.0.1
       lru-cache: 5.1.1
       socks-proxy-agent: 5.0.0
@@ -975,7 +975,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/proxyquire': 1.3.28
       agentkeepalive: 4.0.0
-      http-proxy-agent: 4.0.0
+      http-proxy-agent: 4.0.1
       https-proxy-agent: 3.0.1
       lru-cache: 5.1.1
       proxyquire: 2.1.3
@@ -3175,6 +3175,12 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-XIB2XbzHTN6ieIjfIMV9hlVcfPU26s2vafYWQcZHWXHOxiaRZYEDKEwdl129Zyg50+foYV2jCgtrqSA6qNuNSA==
+  /@tootallnate/once/1.0.0:
+    dev: false
+    engines:
+      node: '>= 6'
+    resolution:
+      integrity: sha512-KYyTT/T6ALPkIRd2Ge080X/BsXvy9O0hcWTtMWkPvwAwF99+vn6Dv4GzrFT/Nn1LePr+FFDbRXXlqmsy9lw2zA==
   /@types/archy/0.0.31:
     dev: true
     resolution:
@@ -6544,15 +6550,16 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha512-ZTTX0MWrsQ2ZAhA1cejAwDLycFsd7I7nVtnkT3Ol0aqodaKW+0CTZDQ1uBv5whptCnc8e8HeRRJxRs0kmm/Qfw==
-  /http-proxy-agent/4.0.0:
+  /http-proxy-agent/4.0.1:
     dependencies:
+      '@tootallnate/once': 1.0.0
       agent-base: 6.0.0
       debug: 4.1.1
     dev: false
     engines:
       node: '>= 6'
     resolution:
-      integrity: sha512-GX0FA6+IcDf4Oxc/FBWgYj4zKgo/DnZrksaG9jyuQLExs6xlX+uI5lcA8ymM3JaZTRrF/4s2UX19wJolyo7OBA==
+      integrity: sha512-k0zdNgqWTGA6aeIRVpvfVob4fL52dTfaehylg0Y4UvSySvOq/Y+BOyPrgpUrA7HylqvU8vIZGsRuXmspskV0Tg==
   /http-signature/1.2.0:
     dependencies:
       assert-plus: 1.0.0
