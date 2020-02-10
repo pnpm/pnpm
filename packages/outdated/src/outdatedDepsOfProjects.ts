@@ -21,6 +21,7 @@ export default async function outdatedDepsOfProjects (
   opts: Omit<ManifestGetterOptions, 'storeDir' | 'lockfileDir'> & {
     compatible?: boolean,
     include: IncludedDependencies,
+    recursive?: boolean,
   } & Partial<Pick<ManifestGetterOptions, 'storeDir' | 'lockfileDir'>>,
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
@@ -36,7 +37,11 @@ export default async function outdatedDepsOfProjects (
   const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) || currentLockfile
   if (!wantedLockfile) {
-    throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
+    if (opts.recursive) {
+      console.log(`No lockfile in directory ${opts.dir}. Run \`pnpm install\` to generate one.`)
+    } else {
+      throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
+    }
   }
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const getLatestManifest = createManifestGetter({
