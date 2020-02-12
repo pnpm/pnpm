@@ -124,13 +124,21 @@ export default async function run (inputArgv: string[]) {
       process.exit(0)
       return
     }
-    config.selectedProjectsGraph = await filterPackages(allProjects, config.filter ?? [], {
+    const filterResults = await filterPackages(allProjects, config.filter ?? [], {
       prefix: process.cwd(),
       workspaceDir: wsDir,
     })
+    config.selectedProjectsGraph = filterResults.selectedProjectsGraph
     if (R.isEmpty(config.selectedProjectsGraph)) {
       if (!config['parseable']) {
         console.log(`No projects matched the filters in "${wsDir}"`)
+      }
+      process.exit(0)
+      return
+    }
+    if (filterResults.unmatchedFilters.length !== 0) {
+      if (!config['parseable']) {
+        console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
       }
       process.exit(0)
       return

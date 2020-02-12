@@ -21,7 +21,7 @@ export async function readProjects (
   pkgSelectors: PackageSelector[],
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {})
-  const selectedProjectsGraph = await filterPkgsBySelectorObjects(
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     pkgSelectors,
     {
@@ -38,7 +38,10 @@ export async function filterPackages<T> (
     prefix: string,
     workspaceDir: string,
   },
-): Promise<PackageGraph<T>> {
+): Promise<{
+  selectedProjectsGraph: PackageGraph<T>,
+  unmatchedFilters: string[],
+}> {
   const packageSelectors = filter.
     map((f) => parsePackageSelector(f, opts.prefix))
 
@@ -51,14 +54,17 @@ export async function filterPkgsBySelectorObjects<T> (
   opts: {
     workspaceDir: string,
   },
-): Promise<PackageGraph<T>> {
+): Promise<{
+  selectedProjectsGraph: PackageGraph<T>,
+  unmatchedFilters: string[],
+}> {
   const { graph } = createPkgGraph<T>(pkgs)
   if (packageSelectors && packageSelectors.length) {
     return filterGraph(graph, packageSelectors, {
       workspaceDir: opts.workspaceDir,
     })
   } else {
-    return graph
+    return { selectedProjectsGraph: graph, unmatchedFilters: [] }
   }
 }
 
@@ -68,11 +74,15 @@ export default async function filterGraph<T> (
   opts: {
     workspaceDir: string,
   },
-): Promise<PackageGraph<T>> {
+): Promise<{
+  selectedProjectsGraph: PackageGraph<T>,
+  unmatchedFilters: string[],
+}> {
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
+  const unmatchedFilters = [] as string[]
   let reversedGraph: Graph | undefined
   for (const selector of packageSelectors) {
     let entryPackages: string[] | null = null
@@ -94,6 +104,15 @@ export default async function filterGraph<T> (
       throw new Error(`Unsupported package selector: ${JSON.stringify(selector)}`)
     }
 
+    if (entryPackages.length === 0) {
+      if (selector.namePattern) {
+        unmatchedFilters.push(selector.namePattern)
+      }
+      if (selector.parentDir) {
+        unmatchedFilters.push(selector.parentDir)
+      }
+    }
+
     if (selector.includeDependencies) {
       pickSubgraph(graph, entryPackages, walkedDependencies, { includeRoot: !selector.excludeSelf })
     }
@@ -109,7 +128,10 @@ export default async function filterGraph<T> (
   }
   const walked = new Set([...walkedDependencies, ...walkedDependents])
   cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
-  return R.pick(Array.from(walked), pkgGraph)
+  return {
+    selectedProjectsGraph: R.pick(Array.from(walked), pkgGraph),
+    unmatchedFilters,
+  }
 }
 
 function pkgGraphToGraph<T> (pkgGraph: PackageGraph<T>): Graph {

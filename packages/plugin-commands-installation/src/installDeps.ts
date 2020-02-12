@@ -209,7 +209,7 @@ export default async function handler (
 
   if (opts.linkWorkspacePackages && opts.workspaceDir) {
     allProjects = allProjects ?? await findWorkspacePackages(opts.workspaceDir, opts)
-    const selectedProjectsGraph = await filterPkgsBySelectorObjects(allProjects, [
+    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(allProjects, [
       {
         excludeSelf: true,
         includeDependencies: true,
