@@ -270,16 +270,17 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }],
+    { workspaceDir: process.cwd() },
+  )
   await run.handler(['this-command-does-not-exist'], {
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedProjectsGraph: await filterPkgsBySelectorObjects(
-      allProjects,
-      [{ namePattern: 'project-1' }],
-      { workspaceDir: process.cwd() },
-    ),
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
   t.end()
