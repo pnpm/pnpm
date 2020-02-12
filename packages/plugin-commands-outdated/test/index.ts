@@ -19,6 +19,7 @@ const hasOutdatedDepsFixture = path.join(fixtures, 'has-outdated-deps')
 const hasOutdatedDepsFixtureAndExternalLockfile = path.join(fixtures, 'has-outdated-deps-and-external-shrinkwrap', 'pkg')
 const hasNotOutdatedDepsFixture = path.join(fixtures, 'has-not-outdated-deps')
 const hasMajorOutdatedDepsFixture = path.join(fixtures, 'has-major-outdated-deps')
+const hasNoLockfileFixture = path.join(fixtures, 'has-no-lockfile')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -252,7 +253,7 @@ test('pnpm outdated with external lockfile', async (t) => {
 })
 
 test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the root of the project`, async (t) => {
-  prepare(t)
+  process.chdir(hasNoLockfileFixture)
 
   let err!: PnpmError
   try {
@@ -264,6 +265,18 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
     err = _err
   }
   t.equal(err.code, 'ERR_PNPM_OUTDATED_NO_LOCKFILE')
+  t.end()
+})
+
+test(`pnpm outdated should return empty when there is no lockfile and no dependencies`, async (t) => {
+  prepare(t)
+
+  const output = await outdated.handler([], {
+    ...OUTDATED_OPTIONS,
+    dir: process.cwd(),
+  })
+
+  t.equal(output, '')
   t.end()
 })
 

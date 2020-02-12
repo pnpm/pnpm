@@ -1,4 +1,3 @@
-import PnpmError from '@pnpm/error'
 import {
   readCurrentLockfile,
   readWantedLockfile,
@@ -35,9 +34,6 @@ export default async function outdatedDepsOfProjects (
   const virtualStoreDir = modules?.virtualStoreDir ?? path.join(lockfileDir, 'node_modules/.pnpm')
   const currentLockfile = await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const wantedLockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false }) || currentLockfile
-  if (!wantedLockfile) {
-    throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
-  }
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const getLatestManifest = createManifestGetter({
     ...opts,

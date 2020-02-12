@@ -495,3 +495,21 @@ test('a dependency is not outdated if it is newer than the latest version', asyn
   t.deepEqual(outdatedPkgs, [])
   t.end()
 })
+
+test('outdated() should [] when there is no dependency', async (t) => {
+  const outdatedPkgs = await outdated({
+    currentLockfile: null,
+    getLatestManifest: async () => {
+      return null
+    },
+    lockfileDir: 'project',
+    manifest: {
+      name: 'pkg',
+      version: '1.0.0',
+    },
+    prefix: 'project',
+    wantedLockfile: null,
+  })
+  t.deepEqual(outdatedPkgs, [])
+  t.end()
+})

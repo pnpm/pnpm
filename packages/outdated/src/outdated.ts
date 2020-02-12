@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import {
   getLockfileImporterId,
   Lockfile,
@@ -38,10 +39,13 @@ export default async function outdated (
     manifest: ProjectManifest,
     match?: (dependencyName: string) => boolean,
     prefix: string,
-    wantedLockfile: Lockfile,
+    wantedLockfile: Lockfile | null,
   },
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
+  if (!opts.wantedLockfile) {
+    throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
+  }
   const allDeps = getAllDependenciesFromPackage(opts.manifest)
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
   const currentLockfile = opts.currentLockfile || { importers: { [importerId]: {} } }
@@ -52,10 +56,10 @@ export default async function outdated (
     DEPENDENCIES_FIELDS.map(async (depType) => {
       if (
         opts.include?.[depType] === false ||
-        !opts.wantedLockfile.importers[importerId][depType]
+        !opts.wantedLockfile!.importers[importerId][depType]
       ) return
 
-      let pkgs = Object.keys(opts.wantedLockfile.importers[importerId][depType]!)
+      let pkgs = Object.keys(opts.wantedLockfile!.importers[importerId][depType]!)
 
       if (opts.match) {
         pkgs = pkgs.filter((pkgName) => opts.match!(pkgName))
@@ -63,7 +67,7 @@ export default async function outdated (
 
       await Promise.all(
         pkgs.map(async (alias) => {
-          const ref = opts.wantedLockfile.importers[importerId][depType]![alias]
+          const ref = opts.wantedLockfile!.importers[importerId][depType]![alias]
 
           // ignoring linked packages. (For backward compatibility)
           if (ref.startsWith('file:')) {
@@ -75,7 +79,7 @@ export default async function outdated (
           // ignoring linked packages
           if (relativeDepPath === null) return
 
-          const pkgSnapshot = opts.wantedLockfile.packages?.[relativeDepPath]
+          const pkgSnapshot = opts.wantedLockfile!.packages?.[relativeDepPath]
 
           if (!pkgSnapshot) {
             throw new Error(`Invalid ${WANTED_LOCKFILE} file. ${relativeDepPath} not found in packages field`)
