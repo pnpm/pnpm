@@ -223,22 +223,38 @@ function getAllDirectDependencies (projectSnapshot: ProjectSnapshot) {
   }
 }
 
+type GetTreeOpts = {
+  currentDepth: number,
+  maxDepth: number,
+  modulesDir: string,
+  includeOptionalDependencies: boolean,
+  search?: SearchFunction,
+  skipped: Set<string>,
+  registries: Registries,
+  currentPackages: PackageSnapshots,
+  wantedPackages: PackageSnapshots,
+}
+
+type DependencyInfo = { circular?: true, dependencies: PackageNode[] }
+
 function getTree (
-  opts: {
-    currentDepth: number,
-    maxDepth: number,
-    modulesDir: string,
-    includeOptionalDependencies: boolean,
-    search?: SearchFunction,
-    skipped: Set<string>,
-    registries: Registries,
-    currentPackages: PackageSnapshots,
-    wantedPackages: PackageSnapshots,
-  },
+  opts: GetTreeOpts,
   keypath: string[],
   parentId: string,
 ): PackageNode[] {
-  if (opts.currentDepth > opts.maxDepth || !opts.currentPackages || !opts.currentPackages[parentId]) return []
+  const dependenciesCache = new Map<string, PackageNode[]>()
+
+  return getTreeHelper(dependenciesCache, opts, keypath, parentId).dependencies
+}
+
+function getTreeHelper (
+  dependenciesCache: Map<string, PackageNode[]>,
+  opts: GetTreeOpts,
+  keypath: string[],
+  parentId: string,
+): DependencyInfo {
+  const result: DependencyInfo = { dependencies: [] }
+  if (opts.currentDepth > opts.maxDepth || !opts.currentPackages || !opts.currentPackages[parentId]) return result
 
   const deps = opts.includeOptionalDependencies === false
     ? opts.currentPackages[parentId].dependencies
@@ -247,15 +263,15 @@ function getTree (
       ...opts.currentPackages[parentId].optionalDependencies,
     }
 
-  if (!deps) return []
+  if (!deps) return result
 
-  const getChildrenTree = getTree.bind(null, {
+  const getChildrenTree = getTreeHelper.bind(null, dependenciesCache, {
     ...opts,
     currentDepth: opts.currentDepth + 1,
   })
 
   const peers = new Set(Object.keys(opts.currentPackages[parentId].peerDependencies || {}))
-  const result: PackageNode[] = []
+
   Object.keys(deps).forEach((alias) => {
     const { packageInfo, packageAbsolutePath } = getPkgInfo({
       alias,
@@ -274,9 +290,27 @@ function getTree (
       circular = false
       newEntry = packageInfo
     } else {
+      let dependencies: PackageNode[] | undefined
+
       const relativeId = refToRelative(deps[alias], alias) as string // we know for sure that relative is not null if pkgPath is not null
       circular = keypath.includes(relativeId)
-      const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
+
+      if (circular) {
+        dependencies = []
+      } else {
+        dependencies = dependenciesCache.get(packageAbsolutePath)
+
+        if (!dependencies) {
+          const children = getChildrenTree(keypath.concat([relativeId]), relativeId)
+          dependencies = children.dependencies
+
+          if (children.circular) {
+            result.circular = true
+          } else {
+            dependenciesCache.set(packageAbsolutePath, dependencies)
+          }
+        }
+      }
 
       if (dependencies.length) {
         newEntry = {
@@ -290,13 +324,15 @@ function getTree (
     if (newEntry) {
       if (circular) {
         newEntry.circular = true
+        result.circular = true
       }
       if (matchedSearched) {
         newEntry.searched = true
       }
-      result.push(newEntry)
+      result.dependencies.push(newEntry)
     }
   })
+
   return result
 }
 
