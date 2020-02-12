@@ -141,6 +141,7 @@ export default async function run (inputArgv: string[]) {
         console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
       }
       process.exit(0)
+      return
     }
     config.allProjects = allProjects
     config.workspaceDir = wsDir

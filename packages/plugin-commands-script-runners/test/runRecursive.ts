@@ -403,6 +403,11 @@ test('pnpm recursive run with filtering', async (t) => {
   ])
 
   const { allProjects } = await readProjects(process.cwd(), [])
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }],
+    { workspaceDir: process.cwd() },
+  )
   await execa('pnpm', [
     'install',
     '-r',
@@ -416,11 +421,7 @@ test('pnpm recursive run with filtering', async (t) => {
     allProjects,
     dir: process.cwd(),
     recursive: true,
-    selectedProjectsGraph: await filterPkgsBySelectorObjects(
-      allProjects,
-      [{ namePattern: 'project-1' }],
-      { workspaceDir: process.cwd() },
-    ),
+    selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
 
