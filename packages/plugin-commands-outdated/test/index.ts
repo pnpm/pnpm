@@ -261,7 +261,6 @@ test(`pnpm outdated should fail when there is no ${WANTED_LOCKFILE} file in the 
       ...OUTDATED_OPTIONS,
       dir: process.cwd(),
     })
-    console.log(output)
   } catch (_err) {
     err = _err
   }
