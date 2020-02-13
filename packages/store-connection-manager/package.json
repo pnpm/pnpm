@@ -46,7 +46,7 @@
     "diable": "4.0.2",
     "dir-is-case-sensitive": "1.0.2",
     "lru-cache": "5.1.1",
-    "make-dir": "3.0.0",
+    "make-dir": "3.0.2",
     "mz": "2.7.0"
   },
   "peerDependencies": {

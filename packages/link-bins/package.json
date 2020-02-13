@@ -38,7 +38,7 @@
     "@zkochan/cmd-shim": "4.2.1",
     "is-subdir": "1.1.1",
     "is-windows": "1.0.2",
-    "make-dir": "3.0.0",
+    "make-dir": "3.0.2",
     "mz": "2.7.0",
     "normalize-path": "3.0.0",
     "p-settle": "3.1.0",
@@ -57,6 +57,6 @@
     "ncp": "^2.0.0",
     "path-exists": "^4.0.0",
     "sinon": "8.1.1",
-    "tempy": "^0.3.0"
+    "tempy": "0.4.0"
   }
 }

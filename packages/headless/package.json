@@ -42,7 +42,7 @@
     "read-yaml-file": "1.1.0",
     "sinon": "8.1.1",
     "tape-promise": "4.0.0",
-    "tempy": "0.3.0"
+    "tempy": "0.4.0"
   },
   "directories": {
     "test": "test"

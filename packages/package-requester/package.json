@@ -43,7 +43,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
-    "make-dir": "3.0.0",
+    "make-dir": "3.0.2",
     "mz": "2.7.0",
     "p-limit": "2.2.2",
     "p-queue": "6.2.1",
@@ -69,9 +69,9 @@
     "@types/ssri": "6.0.1",
     "delay": "4.3.0",
     "ncp": "2.0.0",
-    "nock": "11.7.2",
+    "nock": "11.9.0",
     "normalize-path": "3.0.0",
     "sinon": "8.1.1",
-    "tempy": "0.3.0"
+    "tempy": "0.4.0"
   }
 }

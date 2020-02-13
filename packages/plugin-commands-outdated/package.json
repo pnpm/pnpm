@@ -44,7 +44,7 @@
     "@types/ramda": "^0.26.40",
     "@types/table": "^4.0.7",
     "@types/wrap-ansi": "3.0.0",
-    "make-dir": "3.0.0",
+    "make-dir": "3.0.2",
     "mz": "2.7.0",
     "strip-ansi": "6.0.0"
   },
