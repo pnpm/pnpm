@@ -58,7 +58,7 @@
     "@pnpm/utils": "workspace:0.12.4",
     "@zkochan/rimraf": "1.0.0",
     "cp-file": "7.0.0",
-    "fast-glob": "3.1.1",
+    "fast-glob": "3.2.0",
     "lru-cache": "5.1.1",
     "mz": "2.7.0",
     "p-filter": "2.1.0",
