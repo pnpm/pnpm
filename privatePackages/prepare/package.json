@@ -7,7 +7,7 @@
   "dependencies": {
     "@pnpm/assert-project": "workspace:*",
     "@pnpm/types": "workspace:*",
-    "@types/mkdirp": "0.5.2",
+    "@types/mkdirp": "1.0.0",
     "make-dir": "3.0.2",
     "tempy": "0.4.0",
     "write-json5-file": "2.1.2",
