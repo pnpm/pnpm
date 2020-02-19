@@ -33,6 +33,6 @@
   },
   "devDependencies": {
     "fetch-from-npm-registry": "link:",
-    "nock": "11.9.0"
+    "nock": "12.0.1"
   }
 }

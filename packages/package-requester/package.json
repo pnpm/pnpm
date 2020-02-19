@@ -69,7 +69,7 @@
     "@types/ssri": "6.0.1",
     "delay": "4.3.0",
     "ncp": "2.0.0",
-    "nock": "11.9.0",
+    "nock": "12.0.1",
     "normalize-path": "3.0.0",
     "sinon": "8.1.1",
     "tempy": "0.4.0"

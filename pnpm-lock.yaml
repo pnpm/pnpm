@@ -322,12 +322,12 @@ importers:
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
     devDependencies:
       fetch-from-npm-registry: 'link:'
-      nock: 11.9.0
+      nock: 12.0.1
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.2'
       '@pnpm/npm-registry-agent': 'workspace:2.0.3'
       fetch-from-npm-registry: 'link:'
-      nock: 11.9.0
+      nock: 12.0.1
   packages/fetcher-base:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -1004,7 +1004,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/semver': 7.1.0
       '@types/ssri': 6.0.1
-      nock: 11.9.0
+      nock: 12.0.1
       path-exists: 4.0.0
       tempy: 0.4.0
     specifiers:
@@ -1021,7 +1021,7 @@ importers:
       fetch-from-npm-registry: 'workspace:4.0.1'
       load-json-file: 6.2.0
       mem: 6.0.1
-      nock: 11.9.0
+      nock: 12.0.1
       normalize-path: 3.0.0
       p-limit: 2.2.2
       p-memoize: 3.1.0
@@ -1153,7 +1153,7 @@ importers:
       '@types/ssri': 6.0.1
       delay: 4.3.0
       ncp: 2.0.0
-      nock: 11.9.0
+      nock: 12.0.1
       normalize-path: 3.0.0
       sinon: 8.1.1
       tempy: 0.4.0
@@ -1183,7 +1183,7 @@ importers:
       make-dir: 3.0.2
       mz: 2.7.0
       ncp: 2.0.0
-      nock: 11.9.0
+      nock: 12.0.1
       normalize-path: 3.0.0
       p-limit: 2.2.2
       p-queue: 6.2.1
@@ -2622,7 +2622,7 @@ importers:
       '@types/rimraf': 2.0.3
       '@types/ssri': 6.0.1
       cp-file: 7.0.0
-      nock: 11.9.0
+      nock: 12.0.1
       tempy: 0.4.0
     specifiers:
       '@pnpm/error': 'workspace:1.0.0'
@@ -2641,7 +2641,7 @@ importers:
       make-dir: 3.0.2
       mem: 6.0.1
       mz: 2.7.0
-      nock: 11.9.0
+      nock: 12.0.1
       path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 3.0.2
@@ -8189,19 +8189,18 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-PC9UVvGgYMEvO27Kupun+rIMPU28PvJlHn3Xh+DQkbmvkQiVwtSTeRTVH1QU9PWLHERW/0ClHVVMo6oyUF60Sw==
-  /nock/11.9.0:
+  /nock/12.0.1:
     dependencies:
       debug: 4.1.1
       json-stringify-safe: 5.0.1
       lodash: 4.17.15
       mkdirp: 1.0.3
       propagate: 2.0.1
-    deprecated: nock@11.9.0 included accidental breaking changes. Please update to nock@11.9.1 or above
     dev: true
     engines:
       node: '>= 10.13'
     resolution:
-      integrity: sha512-2ml3A1pqTLapa4US4sv5n5XtIuaTNMd0hQNDG4EtTUY38TQroIf3EIEl8aA6mvY9Dtt8gofCtJZElRLfhW7/Hg==
+      integrity: sha512-f5u5k7O5D2YXH2WEFQVLLPa36D5C0dxU9Lrg6KOuaFCMDt7yd1W4S3hbZClCMczxc4EZ0k1bEhPeMWSewrxYNw==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:
