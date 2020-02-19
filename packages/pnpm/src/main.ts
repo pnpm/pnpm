@@ -136,10 +136,8 @@ export default async function run (inputArgv: string[]) {
       process.exit(0)
       return
     }
-    if (filterResults.unmatchedFilters.length !== 0) {
-      if (!config['parseable']) {
-        console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
-      }
+    if (filterResults.unmatchedFilters.length !== 0 && !config['parseable']) {
+      console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
     }
     config.allProjects = allProjects
     config.workspaceDir = wsDir
