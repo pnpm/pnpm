@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/pnpmfile",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Reading a pnpmfile.js",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -29,7 +29,7 @@
   "devDependencies": {
     "@pnpm/logger": "^3.1.0",
     "@pnpm/pnpmfile": "link:",
-    "@types/ramda": "^0.26.40"
+    "@types/ramda": "^0.26.41"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-utils",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/lockfile-utils": "link:",
     "@types/js-yaml": "^3.12.2",
-    "@types/ramda": "^0.26.40",
+    "@types/ramda": "^0.26.41",
     "tempy": "0.4.0",
     "write-yaml-file": "3.0.1",
     "yaml-tag": "1.1.0"
@@ -44,7 +44,7 @@
     "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "dependency-path": "workspace:4.0.4",
+    "dependency-path": "workspace:4.0.5",
     "get-npm-tarball-url": "2.0.1",
     "ramda": "0.27.0"
   }

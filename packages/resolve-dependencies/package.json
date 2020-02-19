@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "14.2.5",
+  "version": "14.2.6",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -33,14 +33,14 @@
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lockfile-types": "workspace:2.0.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.8",
-    "@pnpm/npm-resolver": "workspace:7.3.2",
-    "@pnpm/package-is-installable": "workspace:4.0.3",
+    "@pnpm/lockfile-utils": "workspace:2.0.9",
+    "@pnpm/npm-resolver": "workspace:7.3.3",
+    "@pnpm/package-is-installable": "workspace:4.0.4",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
     "@pnpm/utils": "workspace:0.12.4",
-    "dependency-path": "workspace:4.0.4",
+    "dependency-path": "workspace:4.0.5",
     "path-exists": "4.0.0",
     "ramda": "0.27.0",
     "replace-string": "3.0.0",
@@ -49,7 +49,7 @@
   "devDependencies": {
     "@pnpm/logger": "3.1.0",
     "@pnpm/resolve-dependencies": "link:",
-    "@types/ramda": "^0.26.40",
+    "@types/ramda": "^0.26.41",
     "@types/semver": "^7.1.0"
   }
 }
