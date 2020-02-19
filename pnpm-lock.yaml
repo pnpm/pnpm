@@ -2612,7 +2612,7 @@ importers:
       retry: 0.12.0
       rimraf: 3.0.2
       ssri: 6.0.1
-      unpack-stream: 6.0.1
+      unpack-stream: 6.0.0
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/tarball-fetcher': 'link:'
@@ -2647,7 +2647,7 @@ importers:
       rimraf: 3.0.2
       ssri: 6.0.1
       tempy: 0.4.0
-      unpack-stream: 6.0.1
+      unpack-stream: 6.0.0
   packages/tarball-resolver:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -7997,14 +7997,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-wxfUjg9WebH+CUDX/CdbRlh5SmfZiy/hpkxaRI16Y9W56Pa75sWgd/rvFilSgrauD9NyFymP/+JFV3KwzIsJeg==
-  /minipass/3.1.1:
-    dependencies:
-      yallist: 4.0.0
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-UFqVihv6PQgwj8/yTGvl9kPz7xIAY+R5z6XYjRInD3Gk3qx6QGSD6zEcpeG4Dy/lQnv1J6zv8ejV90hyYIKf3w==
   /minizlib/1.3.3:
     dependencies:
       minipass: 2.9.0
@@ -10445,15 +10437,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==
-  /ssri/7.1.0:
-    dependencies:
-      figgy-pudding: 3.5.1
-      minipass: 3.1.1
-    dev: false
-    engines:
-      node: '>= 8'
-    resolution:
-      integrity: sha512-77/WrDZUWocK0mvA5NTRQyveUf+wsrIc6vyrxpS8tVvYBcX215QbafrJR3KtkpskIzoFLqqNuuYQvxaMjXJ/0g==
   /stacktracey/1.2.123:
     dependencies:
       as-table: 1.0.55
@@ -11265,17 +11248,17 @@ packages:
     dev: true
     resolution:
       integrity: sha512-8rMeVYWSIyccIJscb9NdCfZKSRBKYTeVnwmiRYT2ulE3qd1RaDQ0xQDP+rI3ccIWbhu/zuo5cgN8z73belNZgw==
-  /unpack-stream/6.0.1:
+  /unpack-stream/6.0.0:
     dependencies:
       '@types/ssri': 6.0.1
       decompress-maybe: 1.0.0
-      ssri: 7.1.0
+      ssri: 6.0.1
       tar-fs: 2.0.0
     dev: false
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-mq7+Lb62Gt9+dYGiLrcggDL5V7qvY8FUb8TKTyRd3/Mg6hOt0un34yRh/V7Zm6aZ99K0M855boE+UjqykyaLCw==
+      integrity: sha512-BJVLP4Vo+BE5r3mZdcioGFA1XHFUI1wmhy7ytlCicItn815lWZXGj4uxip3H7ou1UWBLFUDFBnX6t4ScvOVSEA==
   /unpipe/1.0.0:
     dev: true
     engines:
@@ -11812,10 +11795,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==
-  /yallist/4.0.0:
-    dev: false
-    resolution:
-      integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
   /yaml-tag/1.1.0:
     dependencies:
       js-yaml: 3.13.1
