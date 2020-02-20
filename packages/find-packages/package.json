@@ -37,7 +37,7 @@
   "dependencies": {
     "@pnpm/read-project-manifest": "workspace:1.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "fast-glob": "^3.1.1",
+    "fast-glob": "3.2.1",
     "p-filter": "^2.1.0"
   }
 }
