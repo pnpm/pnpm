@@ -194,7 +194,7 @@ importers:
       right-pad: 1.0.1
       semver: 7.1.3
       stacktracey: 1.2.123
-      string-length: 3.1.0
+      string-length: 4.0.0
       strip-ansi: 6.0.0
     devDependencies:
       '@pnpm/default-reporter': 'link:'
@@ -236,7 +236,7 @@ importers:
       right-pad: 1.0.1
       semver: 7.1.3
       stacktracey: 1.2.123
-      string-length: 3.1.0
+      string-length: 4.0.0
       strip-ansi: 6.0.0
   packages/default-resolver:
     dependencies:
@@ -4608,6 +4608,12 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-4D3B6Wf41KOYRFdszmDqMCGq5VV/uMAB273JILmO+3jAlh8X4qDtdtgCR3fxtbLEMzSx22QdhnDcJvu2u1fVwg==
+  /char-regex/1.0.2:
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-kWWXztvZ5SBQV+eRgKFeh8q5sLuZY2+8WUIzlxWVTg+oGwY14qylx1KbKzHd8P6ZYkAg0xyIDU9JMHhyJMZ1jw==
   /choices-separator/2.0.0:
     dependencies:
       ansi-dim: 0.1.1
@@ -10441,15 +10447,15 @@ packages:
     dev: false
     resolution:
       integrity: sha512-AiisoFqQ0vbGcZgQPY1cdP2I76glaVA/RauYR4G4thNFgkTqr90yXTo4LYX60Jl+sIlPNHHdGSwo01AvbKUSVQ==
-  /string-length/3.1.0:
+  /string-length/4.0.0:
     dependencies:
-      astral-regex: 1.0.0
-      strip-ansi: 5.2.0
+      char-regex: 1.0.2
+      strip-ansi: 6.0.0
     dev: false
     engines:
-      node: '>=8'
+      node: '>=10'
     resolution:
-      integrity: sha512-Ttp5YvkGm5v9Ijagtaz1BnN+k9ObpvS0eIBblPMp2YWL8FBmi9qblQ9fexc2k/CXFgrTIteU3jAw3payCnwSTA==
+      integrity: sha512-GWDgJDQvvIwP4e5IEu0tuOyRUs/bVvQNNdh0HhMnZwo0Kuo4NKmjI/as/9I34+GHYWKkuS0nUrHubgRTs4O4fw==
   /string-to-stream/3.0.1:
     dependencies:
       readable-stream: 3.6.0
