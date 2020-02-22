@@ -107,6 +107,7 @@ export default async function run (inputArgv: string[]) {
     config,
     subCmd,
   })
+  global['reporterInitialized'] = true
   delete config.reporter // This is a silly workaround because supi expects a function as config.reporter
 
   if (selfUpdate) {
