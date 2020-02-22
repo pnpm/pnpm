@@ -86,7 +86,7 @@
     "path-exists": "4.0.0",
     "ramda": "0.27.0",
     "read-ini-file": "2.0.0",
-    "render-help": "0.0.0",
+    "render-help": "1.0.0",
     "supi": "workspace:0.38.11",
     "table": "5.4.6"
   },

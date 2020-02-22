@@ -719,7 +719,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.0
       '@types/ncp': ^2.0.3
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.26.41
       '@types/sinon': ^7.5.1
@@ -1093,7 +1093,7 @@ importers:
       '@pnpm/package-bins': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/graceful-fs': ^4.1.3
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       '@types/tape': ^4.2.34
       graceful-fs: 4.2.3
       is-subdir: 1.1.1
@@ -1304,7 +1304,7 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       chalk: 3.0.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       table: 5.4.6
     devDependencies:
       '@pnpm/plugin-commands-audit': 'link:'
@@ -1325,7 +1325,7 @@ importers:
       '@types/table': ^4.0.7
       chalk: 3.0.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       strip-ansi: 6.0.0
       table: 5.4.6
   packages/plugin-commands-import:
@@ -1337,7 +1337,7 @@ importers:
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       supi: 'link:../supi'
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
@@ -1359,7 +1359,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
       ncp: 2.0.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       supi: 'workspace:0.38.11'
       tempy: 0.4.0
   packages/plugin-commands-installation:
@@ -1397,7 +1397,7 @@ importers:
       path-exists: 4.0.0
       ramda: 0.27.0
       read-ini-file: 2.0.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       supi: 'link:../supi'
       table: 5.4.6
     devDependencies:
@@ -1472,7 +1472,7 @@ importers:
       ramda: 0.27.0
       read-ini-file: 2.0.0
       read-yaml-file: 1.1.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       sinon: 9.0.0
       supi: 'workspace:0.38.11'
       table: 5.4.6
@@ -1488,7 +1488,7 @@ importers:
       '@pnpm/types': 'link:../types'
       common-tags: 1.8.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
     devDependencies:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
@@ -1523,7 +1523,7 @@ importers:
       execa: 4.0.0
       mz: 2.7.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       strip-ansi: 6.0.0
       write-yaml-file: 3.0.1
   packages/plugin-commands-outdated:
@@ -1546,7 +1546,7 @@ importers:
       common-tags: 1.8.0
       lru-cache: 5.1.1
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       table: 5.4.6
       wrap-ansi: 6.2.0
     devDependencies:
@@ -1598,7 +1598,7 @@ importers:
       make-dir: 3.0.2
       mz: 2.7.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       strip-ansi: 6.0.0
       table: 5.4.6
       wrap-ansi: 6.2.0
@@ -1621,7 +1621,7 @@ importers:
       mz: 2.7.0
       p-filter: 2.1.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       write-json-file: 4.2.1
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
@@ -1663,7 +1663,7 @@ importers:
       p-filter: 2.1.0
       path-exists: 4.0.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
   packages/plugin-commands-rebuild:
@@ -1696,7 +1696,7 @@ importers:
       p-limit: 2.2.2
       ramda: 0.27.0
       read-ini-file: 2.0.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       run-groups: 2.0.2
       semver: 7.1.3
     devDependencies:
@@ -1755,7 +1755,7 @@ importers:
       path-exists: 4.0.0
       ramda: 0.27.0
       read-ini-file: 2.0.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       run-groups: 2.0.2
       semver: 7.1.3
       sinon: 9.0.0
@@ -1774,7 +1774,7 @@ importers:
       common-tags: 1.8.0
       p-limit: 2.2.2
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
     devDependencies:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/logger': 3.1.0
@@ -1810,7 +1810,7 @@ importers:
       mz: 2.7.0
       p-limit: 2.2.2
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       write-yaml-file: 3.0.1
   packages/plugin-commands-server:
     dependencies:
@@ -1830,7 +1830,7 @@ importers:
       mz: 2.7.0
       process-exists: 4.0.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       signal-exit: 3.0.2
       tree-kill: 1.2.2
     devDependencies:
@@ -1865,7 +1865,7 @@ importers:
       mz: 2.7.0
       process-exists: 4.0.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       signal-exit: 3.0.2
       tree-kill: 1.2.2
   packages/plugin-commands-store:
@@ -1885,7 +1885,7 @@ importers:
       dependency-path: 'link:../dependency-path'
       p-filter: 2.1.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
     devDependencies:
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
@@ -1930,7 +1930,7 @@ importers:
       p-filter: 2.1.0
       path-exists: 4.0.0
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       sinon: 9.0.0
   packages/pnpm:
     dependencies:
@@ -1966,7 +1966,7 @@ importers:
       loud-rejection: 2.2.0
       pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.27.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       split-cmd: 1.0.1
       update-notifier: 4.1.0
     devDependencies:
@@ -2099,7 +2099,7 @@ importers:
       pnpm: 'link:'
       ramda: 0.27.0
       read-yaml-file: 1.1.0
-      render-help: 0.0.0
+      render-help: 1.0.0
       retry: 0.12.0
       semver: 7.1.3
       split-cmd: 1.0.1
@@ -2725,7 +2725,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
       '@types/mz': ^2.7.0
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2757,7 +2757,7 @@ importers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
       '@types/mkdirp': 1.0.0
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       make-dir: 3.0.2
       tempy: 0.4.0
       tslint-config-standard: 9.0.0
@@ -9704,14 +9704,14 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-XodkUmbg11ZzZoAkYfJYEmj8FscfeRL2KHGALeDSB76ia8A1zqQq0+WkcepXm7QkuzmW0CE3uiFUBr/UJfin+w==
-  /render-help/0.0.0:
+  /render-help/1.0.0:
     dependencies:
       table: 5.4.6
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10'
     resolution:
-      integrity: sha512-ciOIIDKRJpY6+Gdpap9KsfwkYxICvIQ/ULzcavZlyKkPhIGFsSM0EGFAMTQdG6JRioyDZC+b/JVCNomYjydP5A==
+      integrity: sha512-guyG8QWDU7XQjmRMg+7kdQkE0734OKm8CQjq8ycYS1/x7qyFGjSFg0ZCFQa8Fk63o9qd4q8HP4k6LRhge3psEw==
   /repeat-element/1.1.3:
     dev: true
     engines:

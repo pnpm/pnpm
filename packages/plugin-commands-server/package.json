@@ -53,7 +53,7 @@
     "mz": "2.7.0",
     "process-exists": "4.0.0",
     "ramda": "0.27.0",
-    "render-help": "0.0.0",
+    "render-help": "1.0.0",
     "signal-exit": "3.0.2",
     "tree-kill": "1.2.2"
   },
