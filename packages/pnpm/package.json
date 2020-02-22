@@ -81,7 +81,7 @@
     "@types/semver": "^7.1.0",
     "@types/table": "^4.0.7",
     "@types/tape-promise": "4.0.0",
-    "@types/update-notifier": "2.5.0",
+    "@types/update-notifier": "2.5.1",
     "@zkochan/rimraf": "1.0.0",
     "anonymous-npm-registry-client": "0.1.2",
     "byline": "5.0.0",
