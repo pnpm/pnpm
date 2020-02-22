@@ -4,6 +4,7 @@ import {
   RootLog,
   StatsLog,
 } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -378,4 +379,31 @@ test('uninstall remove modules that is not in package.json', async (t) => {
   )
 
   await project.hasNot('foo')
+})
+
+test('uninstall package not in dependency would throw error in strict mode', async (t) => {
+  const project = prepareEmpty(t)
+
+  let err!: PnpmError
+  try {
+    await mutateModules(
+      [
+        {
+          dependencyNames: ['is-positive'],
+          manifest: {},
+          mutation: 'uninstallSome',
+          rootDir: process.cwd(),
+        },
+      ],
+      await testDefaults({
+        strict: true,
+      }),
+    )
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
+  t.equal(err.message, 'No is-positive package found in dependencies of the project')
+
+  t.end()
 })

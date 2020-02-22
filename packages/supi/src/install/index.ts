@@ -38,6 +38,7 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
+  Dependencies,
   DEPENDENCIES_FIELDS,
   DependenciesField,
   DependencyManifest,
@@ -136,6 +137,7 @@ export async function mutateModules (
   projects: MutatedProject[],
   maybeOpts: InstallOptions & {
     preferredVersions?: PreferredVersions,
+    strict?: boolean,
   },
 ) {
   const reporter = maybeOpts?.reporter
@@ -401,6 +403,41 @@ export async function mutateModules (
       })
     }
 
+    if (maybeOpts.strict) {
+      const project = projectsToInstall[0]
+      let dependenciesList: string[] = []
+      switch (project.mutation) {
+        case 'installSome': {
+          if (project.allowNew === false) {
+            for (const p of projectsToInstall) {
+              dependenciesList = [...p.wantedDependencies.map(wantedDependency => wantedDependency.raw), ...dependenciesList]
+            }
+            for (const input of project.dependencySelectors) {
+              if (!dependenciesList.includes(input)) {
+                throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+              }
+            }
+          }
+          break
+        }
+        case 'uninstallSome': {
+          for (const p of projectsToInstall) {
+            DEPENDENCIES_FIELDS
+              .filter((depField) => p.manifest[depField])
+              .forEach((depField) => {
+                dependenciesList = [...Object.keys(p.manifest[depField] as Dependencies), ...dependenciesList]
+              })
+          }
+          for (const input of project.dependencyNames) {
+            if (!dependenciesList.includes(input)) {
+              throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+            }
+          }
+          break
+        }
+      }
+    }
+
     const equalLockfiles = lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
     const currentLockfileIsUpToDate = !ctx.existsWantedLockfile || equalLockfiles
     // Unfortunately, the private lockfile may differ from the public one.
@@ -567,6 +604,7 @@ export async function addDependenciesToPackage (
     peer?: boolean,
     pinnedVersion?: 'major' | 'minor' | 'patch',
     targetDependenciesField?: DependenciesField,
+    strict?: boolean,
   },
 ) {
   const projects = await mutateModules(

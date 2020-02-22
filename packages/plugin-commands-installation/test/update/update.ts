@@ -72,7 +72,7 @@ test('update: fail when both "latest" and "workspace" are true', async (t) => {
 })
 
 test('update: fail when package not in dependencies', async (t) => {
-  const project = prepare(t, {
+  prepare(t, {
     dependencies: {
       'peer-a': '1.0.0',
       'peer-c': '1.0.0',
@@ -90,7 +90,7 @@ test('update: fail when package not in dependencies', async (t) => {
     await update.handler(['peer-b'], {
       ...DEFAULT_OPTS,
       dir: process.cwd(),
-      latest: true,
+      sharedWorkspaceLockfile: true,
       workspaceDir: process.cwd(),
     })
   } catch (_err) {

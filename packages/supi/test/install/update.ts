@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty } from '@pnpm/prepare'
 import path = require('path')
@@ -68,6 +69,25 @@ test('update does not install the package if it is not present in package.json',
   }))
 
   await project.hasNot('is-positive')
+})
+
+test('throws error if it is not present in package.json in strict mode', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  let err!: PnpmError
+  try {
+    await addDependenciesToPackage({}, ['is-positive'], await testDefaults({
+      allowNew: false,
+      strict: true,
+      update: true,
+    }))
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
+  t.equal(err.message, 'No is-positive package found in dependencies of the project')
+
+  t.end()
 })
 
 test('update dependency when external lockfile directory is used', async (t: tape.Test) => {
