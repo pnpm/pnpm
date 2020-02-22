@@ -2010,7 +2010,7 @@ importers:
       ncp: 2.0.0
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
-      p-any: 2.1.0
+      p-any: 3.0.0
       path-exists: 4.0.0
       pnpm: 'link:'
       read-yaml-file: 1.1.0
@@ -2093,7 +2093,7 @@ importers:
       ncp: 2.0.0
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
-      p-any: 2.1.0
+      p-any: 3.0.0
       path-exists: 4.0.0
       pkgs-graph: 'workspace:5.1.3'
       pnpm: 'link:'
@@ -8745,16 +8745,15 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-HbZxz5FONzz/z2gJfk6bFca0BCiSRF8jU3yCsWOen/vR6lZjfPOu/e7L3uFzTW1i0H8TlC3vqQstEJPQL4/uLA==
-  /p-any/2.1.0:
+  /p-any/3.0.0:
     dependencies:
       p-cancelable: 2.0.0
-      p-some: 4.1.0
-      type-fest: 0.3.1
+      p-some: 5.0.0
     dev: true
     engines:
-      node: '>=8'
+      node: '>=10'
     resolution:
-      integrity: sha512-JAERcaMBLYKMq+voYw36+x5Dgh47+/o7yuv2oQYuSSUml4YeqJEFznBrY2UeEkoSHqBua6hz518n/PsowTYLLg==
+      integrity: sha512-5rqbqfsRWNb0sukt0awwgJMlaep+8jV45S15SKKB34z4UuzjcofIfnriCBhWjZP2jbVtjt9yRl7buB6RlKsu9w==
   /p-cancelable/1.1.0:
     dev: false
     engines:
@@ -8877,15 +8876,15 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-gkN3UDlyofG81IRhxLnonSIi8BBrwcPlKMJS6tcJRubofyekqQPMdB5LXPrmCkeu/m/YKx5PzkUVQLezda5/JQ==
-  /p-some/4.1.0:
+  /p-some/5.0.0:
     dependencies:
       aggregate-error: 3.0.1
       p-cancelable: 2.0.0
     dev: true
     engines:
-      node: '>=8'
+      node: '>=10'
     resolution:
-      integrity: sha512-MF/HIbq6GeBqTrTIl5OJubzkGU+qfFhAFi0gnTAK6rgEIJIknEiABHOTtQu4e6JiXjIwuMPMUFQzyHh5QjCl1g==
+      integrity: sha512-Js5XZxo6vHjB9NOYAzWDYAIyyiPvva0DWESAIWIK7uhSpGsyg5FwUPxipU/SOQx5x9EqhOh545d1jo6cVkitig==
   /p-timeout/2.0.1:
     dependencies:
       p-finally: 1.0.0
