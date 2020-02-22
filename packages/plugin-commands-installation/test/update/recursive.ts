@@ -1,4 +1,3 @@
-import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { install, update } from '@pnpm/plugin-commands-installation'
