@@ -455,3 +455,24 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
   t.ok(await exists('.pnpm/lock.yaml'))
   t.ok(await exists('.pnpm/node_modules/once/package.json'))
 })
+
+// This is an integration test only because it is hard to mock is-ci
+test('installing in a CI environment', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: { 'rimraf': '2.5.1' },
+  })
+
+  await execPnpm(['install'], { env: { CI: 'true' } })
+
+  await project.writePackageJson({
+    dependencies: { 'rimraf': '1' },
+  })
+
+  let err!: Error
+  try {
+    await execPnpm(['install'], { env: { CI: 'true' } })
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err, 'installation fails with out-of-date lockfile')
+})
