@@ -120,8 +120,9 @@ handlerByCommandName.help = createHelp(helpByCommandName)
 handlerByCommandName.completion = createCompletion({
   cliOptionsTypesByCommandName,
   completionByCommandName,
-  globalOptionTypes: GLOBAL_OPTIONS,
   initialCompletion,
+  shorthandsByCommandName,
+  universalOptionsTypes: GLOBAL_OPTIONS,
 })
 
 function initialCompletion () {
