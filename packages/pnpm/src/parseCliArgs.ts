@@ -3,8 +3,9 @@ import pnpmCmds, {
   getCliOptionsTypes,
   getCommandFullName,
   GLOBAL_OPTIONS,
+  shorthandsByCommandName,
 } from './cmd'
-import shortHands from './shortHands'
+import universalShorthands from './shorthands'
 
 const RENAMED_OPTIONS = {
   'lockfile-directory': 'lockfile-dir',
@@ -17,9 +18,10 @@ export default function parseCliArgs (inputArgv: string[]) {
   return parseCliArgsLib({
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getCliOptionsTypes,
-    globalOptionsTypes: GLOBAL_OPTIONS,
     isKnownCommand: (commandName) => typeof pnpmCmds[commandName] !== 'undefined',
     renamedOptions: RENAMED_OPTIONS,
-    shortHands,
+    shorthandsByCommandName,
+    universalOptionsTypes: GLOBAL_OPTIONS,
+    universalShorthands,
   }, inputArgv)
 }

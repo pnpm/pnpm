@@ -46,6 +46,11 @@ export function cliOptionsTypes () {
   }
 }
 
+export const shorthands = {
+  'D': '--dev',
+  'P': '--production',
+}
+
 export const commandNames = ['outdated']
 
 export function help () {
@@ -87,10 +92,12 @@ export function help () {
           {
             description: 'Check only "dependencies" and "optionalDependencies"',
             name: '--prod',
+            shortAlias: '-P',
           },
           {
             description: 'Check only "devDependencies"',
             name: '--dev',
+            shortAlias: '-D',
           },
           {
             description: `Don't check "optionalDependencies"`,

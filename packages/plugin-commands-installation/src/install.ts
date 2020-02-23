@@ -61,6 +61,11 @@ export function cliOptionsTypes () {
   ], allTypes)
 }
 
+export const shorthands = {
+  'D': '--dev',
+  'P': '--production',
+}
+
 export const commandNames = ['install', 'i']
 
 export function help () {
@@ -87,10 +92,12 @@ export function help () {
           {
             description: "Packages in \`devDependencies\` won't be installed",
             name: '--prod',
+            shortAlias: '-P',
           },
           {
             description: 'Only \`devDependencies\` are installed regardless of the \`NODE_ENV\`',
             name: '--dev',
+            shortAlias: '-D',
           },
           {
             description: '`optionalDependencies` are not installed',

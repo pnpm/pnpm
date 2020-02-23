@@ -67,6 +67,11 @@ export function cliOptionsTypes () {
   }
 }
 
+export const shorthands = {
+  'D': '--dev',
+  'P': '--production',
+}
+
 export const commandNames = ['update', 'up', 'upgrade']
 
 export const completion: CompletionFunc = (args, cliOpts) => {
@@ -106,10 +111,12 @@ export function help () {
           {
             description: 'Update packages only in "dependencies" and "optionalDependencies"',
             name: '--prod',
+            shortAlias: '-P',
           },
           {
             description: 'Update packages only in "devDependencies"',
             name: '--dev',
+            shortAlias: '-D',
           },
           {
             description: `Don't update packages in "optionalDependencies"`,

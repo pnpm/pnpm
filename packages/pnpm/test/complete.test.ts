@@ -10,8 +10,9 @@ test('complete an option value', async (t) => {
         }),
       },
       completionByCommandName: {},
-      globalOptionTypes: {},
       initialCompletion: () => [],
+      shorthandsByCommandName: {},
+      universalOptionsTypes: {},
     },
     {
       args: [],
@@ -38,10 +39,11 @@ test('complete a command', async (t) => {
     completionByCommandName: {
       run: async () => [{ name: 'test' }],
     },
-    globalOptionTypes: {
+    initialCompletion: () => [],
+    shorthandsByCommandName: {},
+    universalOptionsTypes: {
       filter: String,
     },
-    initialCompletion: () => [],
   }
   t.deepEqual(
     await complete(ctx,
@@ -99,10 +101,11 @@ test('if command completion fails, return empty array', async (t) => {
         completionByCommandName: {
           run: async () => { throw new Error('error') },
         },
-        globalOptionTypes: {
+        initialCompletion: () => [],
+        shorthandsByCommandName: {},
+        universalOptionsTypes: {
           filter: String,
         },
-        initialCompletion: () => [],
       },
       {
         args: [],
@@ -121,13 +124,14 @@ test('initial completion', async (t) => {
   const ctx = {
     cliOptionsTypesByCommandName: {},
     completionByCommandName: {},
-    globalOptionTypes: {
-      filter: String,
-    },
     initialCompletion: () => [
       { name: 'add' },
       { name: 'install' },
     ],
+    shorthandsByCommandName: {},
+    universalOptionsTypes: {
+      filter: String,
+    },
   }
   t.deepEqual(
     await complete(ctx,
@@ -182,11 +186,12 @@ test('suggest no completions for after --version', async (t) => {
       {
         cliOptionsTypesByCommandName: {},
         completionByCommandName: {},
-        globalOptionTypes: {},
         initialCompletion: () => [
           { name: 'add' },
           { name: 'install' },
         ],
+        shorthandsByCommandName: {},
+        universalOptionsTypes: {},
       },
       {
         args: [],

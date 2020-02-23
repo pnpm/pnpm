@@ -13,10 +13,10 @@ export type CompletionCtx = {
 
 export function getOptionCompletions (
   optionTypes: Record<string, Object>,
-  shortHands: Record<string, string | string[]>,
+  shorthands: Record<string, string | string[]>,
   option: string,
 ) {
-  const optionType = getOptionType(optionTypes, shortHands, option)
+  const optionType = getOptionType(optionTypes, shorthands, option)
   return optionTypeToCompletion(optionType)
 }
 
@@ -38,11 +38,11 @@ function optionTypeToCompletion (optionType: Object): undefined | string[] {
 
 function getOptionType (
   optionTypes: Record<string, Object>,
-  shortHands: Record<string, string | string[]>,
+  shorthands: Record<string, string | string[]>,
   option: string,
 ) {
   const allBools = R.fromPairs(Object.entries(optionTypes).map(([optionName]) => [optionName, Boolean]))
-  const result = nopt(allBools, shortHands, [option], 0)
+  const result = nopt(allBools, shorthands, [option], 0)
   delete result.argv
   return optionTypes[Object.entries(result)[0]?.[0]]
 }

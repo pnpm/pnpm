@@ -5,14 +5,15 @@ import {
 import { Completion, CompletionFunc } from '@pnpm/command'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
-import shortHands from '../shortHands'
+import universalShorthands from '../shorthands'
 
 export default async function complete (
   ctx: {
     cliOptionsTypesByCommandName: Record<string, () => Object>,
     completionByCommandName: Record<string, CompletionFunc>,
-    globalOptionTypes: Record<string, Object>,
     initialCompletion: () => Completion[],
+    shorthandsByCommandName: Record<string, Record<string, string>>,
+    universalOptionsTypes: Record<string, Object>,
   },
   input: {
     args: string[],
@@ -24,7 +25,7 @@ export default async function complete (
 ) {
   if (input.options.version) return []
   const optionTypes = {
-    ...ctx.globalOptionTypes,
+    ...ctx.universalOptionsTypes,
     ...((input.cmd && ctx.cliOptionsTypesByCommandName[input.cmd]?.()) ?? {}),
   }
 
@@ -39,7 +40,10 @@ export default async function complete (
     } else if (input.lastOption) {
       const optionCompletions = getOptionCompletions(
         optionTypes as any, // tslint:disable-line
-        shortHands,
+        {
+          ...universalShorthands,
+          ...(input.cmd && ctx.shorthandsByCommandName[input.cmd] || {}),
+        },
         input.lastOption,
       )
       if (optionCompletions !== undefined) {
