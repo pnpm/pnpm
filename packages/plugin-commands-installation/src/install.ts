@@ -6,6 +6,7 @@ import { Config, types as allTypes } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { oneLine } from 'common-tags'
+import isCI = require('is-ci')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import installDeps from './installDeps'
@@ -302,6 +303,7 @@ export function handler (
   }
   return installDeps(input, {
     ...opts,
+    frozenLockfileIfExists: isCI,
     include,
     includeDirect: include,
   })
