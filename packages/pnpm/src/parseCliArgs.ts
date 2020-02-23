@@ -17,9 +17,9 @@ export default function parseCliArgs (inputArgv: string[]) {
   return parseCliArgsLib({
     getCommandLongName: getCommandFullName,
     getTypesByCommandName: getCliOptionsTypes,
-    globalOptionsTypes: GLOBAL_OPTIONS,
     isKnownCommand: (commandName) => typeof pnpmCmds[commandName] !== 'undefined',
     renamedOptions: RENAMED_OPTIONS,
     shortHands,
+    universalOptionsTypes: GLOBAL_OPTIONS,
   }, inputArgv)
 }

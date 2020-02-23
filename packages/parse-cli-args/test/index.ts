@@ -6,16 +6,16 @@ import test = require('tape')
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
   getTypesByCommandName: (commandName: string) => ({}),
-  globalOptionsTypes: {},
   isKnownCommand: (commandName: string) => true,
   renamedOptions: { 'prefix': 'dir' },
   shortHands: {},
+  universalOptionsTypes: {},
 }
 
 test('a command is recursive if it has a --filter option', async (t) => {
   const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: { filter: [String, Array] },
+    universalOptionsTypes: { filter: [String, Array] },
   }, ['--filter', 'foo', 'update'])
   t.equal(cmd, 'update')
   t.ok(cliConf['recursive'])
@@ -25,8 +25,8 @@ test('a command is recursive if it has a --filter option', async (t) => {
 test('a command is recursive if -r option is used', async (t) => {
   const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: { recursive: Boolean },
     shortHands: { 'r': '--recursive' },
+    universalOptionsTypes: { recursive: Boolean },
   }, ['-r', 'update'])
   t.equal(cmd, 'update')
   t.ok(cliConf['recursive'])
@@ -36,7 +36,7 @@ test('a command is recursive if -r option is used', async (t) => {
 test('a command is recursive if --recursive option is used', async (t) => {
   const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: { recursive: Boolean },
+    universalOptionsTypes: { recursive: Boolean },
   }, ['-r', 'update'])
   t.equal(cmd, 'update')
   t.ok(cliConf['recursive'])
@@ -46,7 +46,7 @@ test('a command is recursive if --recursive option is used', async (t) => {
 test('the install command is recursive when executed in a subdir of a workspace', async (t) => {
   const { cliConf, cmd, workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: { dir: String },
+    universalOptionsTypes: { dir: String },
   }, ['--dir', __dirname, 'install'])
   t.equal(cmd, 'install')
   t.ok(cliConf['recursive'])
@@ -58,7 +58,7 @@ test('the install command is recursive when executed in the root of a workspace'
   const expectedWorkspaceDir = path.join(__dirname, '../../..')
   const { cliConf, cmd, workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: { dir: String },
+    universalOptionsTypes: { dir: String },
   }, ['--dir', expectedWorkspaceDir, 'install'])
   t.equal(cmd, 'install')
   t.ok(cliConf['recursive'])
@@ -69,7 +69,7 @@ test('the install command is recursive when executed in the root of a workspace'
 test('recursive is returned as the command name if no subcommand passed', async (t) => {
   const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: { filter: [String, Array] },
+    universalOptionsTypes: { filter: [String, Array] },
   }, ['recursive'])
   t.equal(cmd, 'recursive')
   t.ok(cliConf['recursive'])
@@ -79,7 +79,7 @@ test('recursive is returned as the command name if no subcommand passed', async 
 test('when runnning a global command inside a workspace, the workspace should be ignored', async (t) => {
   const { workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: { global: Boolean },
+    universalOptionsTypes: { global: Boolean },
   }, ['--global', 'add', 'foo'])
   t.notOk(workspaceDir)
   t.end()
@@ -88,8 +88,8 @@ test('when runnning a global command inside a workspace, the workspace should be
 test('isKnownCommand is false when an unknown command is used', async (t) => {
   const { cmd, isKnownCommand } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    globalOptionsTypes: {},
     isKnownCommand: () => false,
+    universalOptionsTypes: {},
   }, ['foo'])
   t.false(isKnownCommand)
   t.equal(cmd, 'foo')
@@ -129,8 +129,8 @@ test('detect unknown options', async (t) => {
       }
       return {}
     },
-    globalOptionsTypes: { filter: [String, Array] },
     isKnownCommand: (commandName) => commandName === 'install',
+    universalOptionsTypes: { filter: [String, Array] },
   }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
   t.deepEqual(unknownOptions, ['save-dev', 'qar'])
   t.end()
@@ -145,13 +145,13 @@ test('do not incorrectly change "install" command to "add"', async (t) => {
         default: return {}
       }
     },
-    globalOptionsTypes: {
-      prefix: String,
-    },
     isKnownCommand: (commandName) => commandName === 'install',
     shortHands: {
       'C': '--prefix',
       'r': '--recursive',
+    },
+    universalOptionsTypes: {
+      prefix: String,
     },
   }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
   t.equal(cmd, 'install')

@@ -25,10 +25,10 @@ export default async function parseCliArgs (
   opts: {
     getCommandLongName: (commandName: string) => string | null,
     getTypesByCommandName: (commandName: string) => object,
-    globalOptionsTypes: Record<string, unknown>,
     isKnownCommand: (commandName: string) => boolean,
     renamedOptions?: Record<string, string>,
     shortHands: Record<string, string>,
+    universalOptionsTypes: Record<string, unknown>,
   },
   inputArgv: string[],
 ): Promise<ParsedCliArgs> {
@@ -37,7 +37,7 @@ export default async function parseCliArgs (
       filter: [String],
       help: Boolean,
       recursive: Boolean,
-      ...opts.globalOptionsTypes,
+      ...opts.universalOptionsTypes,
       ...opts.getTypesByCommandName('add'),
       ...opts.getTypesByCommandName('install'),
     },
@@ -62,7 +62,7 @@ export default async function parseCliArgs (
 
   const types = {
     'recursive': Boolean,
-    ...opts.globalOptionsTypes,
+    ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(getCommandName(noptExploratoryResults.argv.remain)),
   } as any // tslint:disable-line:no-any
 
