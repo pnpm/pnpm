@@ -41,6 +41,11 @@ export function cliOptionsTypes () {
   }
 }
 
+export const shorthands = {
+  'D': '--dev',
+  'P': '--production',
+}
+
 export const commandNames = ['audit']
 
 export function help () {
@@ -62,10 +67,12 @@ export function help () {
           {
             description: 'Only audit "devDependencies"',
             name: '--dev',
+            shortAlias: '-D',
           },
           {
             description: 'Only audit "dependencies" and "optionalDependencies"',
             name: '--prod',
+            shortAlias: '-P',
           },
           {
             description: `Don't audit "optionalDependencies"`,

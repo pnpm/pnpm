@@ -26,6 +26,11 @@ export function cliOptionsTypes () {
   ], allTypes)
 }
 
+export const shorthands = {
+  'D': '--dev',
+  'P': '--production',
+}
+
 export const commandNames = ['list', 'ls']
 
 export function help () {
@@ -78,10 +83,12 @@ export function help () {
           {
             description: 'Display only the dependency graph for packages in \`dependencies\` and \`optionalDependencies\`',
             name: '--prod',
+            shortAlias: '-P',
           },
           {
             description: 'Display only the dependency graph for packages in \`devDependencies\`',
             name: '--dev',
+            shortAlias: '-D',
           },
           {
             description: "Don't display packages from `optionalDependencies`",

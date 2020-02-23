@@ -92,10 +92,12 @@ export function help () {
           {
             description: 'Check only "dependencies" and "optionalDependencies"',
             name: '--prod',
+            shortAlias: '-P',
           },
           {
             description: 'Check only "devDependencies"',
             name: '--dev',
+            shortAlias: '-D',
           },
           {
             description: `Don't check "optionalDependencies"`,
