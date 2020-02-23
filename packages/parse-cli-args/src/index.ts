@@ -27,8 +27,8 @@ export default async function parseCliArgs (
     getTypesByCommandName: (commandName: string) => object,
     isKnownCommand: (commandName: string) => boolean,
     renamedOptions?: Record<string, string>,
-    shortHands: Record<string, string>,
     universalOptionsTypes: Record<string, unknown>,
+    universalShorthands: Record<string, string>,
   },
   inputArgv: string[],
 ): Promise<ParsedCliArgs> {
@@ -43,7 +43,7 @@ export default async function parseCliArgs (
     },
     {
       'r': '--recursive',
-      ...opts.shortHands,
+      ...opts.universalShorthands,
     },
     inputArgv,
     0,
@@ -74,7 +74,7 @@ export default async function parseCliArgs (
     return 'add'
   }
 
-  const { argv, ...cliConf } = nopt(types, opts.shortHands, inputArgv, 0)
+  const { argv, ...cliConf } = nopt(types, opts.universalShorthands, inputArgv, 0)
 
   if (opts.renamedOptions) {
     for (const cliOption of Object.keys(cliConf)) {

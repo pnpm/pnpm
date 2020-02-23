@@ -5,7 +5,7 @@ import {
 import { Completion, CompletionFunc } from '@pnpm/command'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
-import shortHands from '../shortHands'
+import shortHands from '../shorthands'
 
 export default async function complete (
   ctx: {

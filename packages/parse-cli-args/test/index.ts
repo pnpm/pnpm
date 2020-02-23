@@ -8,8 +8,8 @@ const DEFAULT_OPTS = {
   getTypesByCommandName: (commandName: string) => ({}),
   isKnownCommand: (commandName: string) => true,
   renamedOptions: { 'prefix': 'dir' },
-  shortHands: {},
   universalOptionsTypes: {},
+  universalShorthands: {},
 }
 
 test('a command is recursive if it has a --filter option', async (t) => {
@@ -25,8 +25,8 @@ test('a command is recursive if it has a --filter option', async (t) => {
 test('a command is recursive if -r option is used', async (t) => {
   const { cliConf, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    shortHands: { 'r': '--recursive' },
     universalOptionsTypes: { recursive: Boolean },
+    universalShorthands: { 'r': '--recursive' },
   }, ['-r', 'update'])
   t.equal(cmd, 'update')
   t.ok(cliConf['recursive'])
@@ -146,12 +146,12 @@ test('do not incorrectly change "install" command to "add"', async (t) => {
       }
     },
     isKnownCommand: (commandName) => commandName === 'install',
-    shortHands: {
-      'C': '--prefix',
-      'r': '--recursive',
-    },
     universalOptionsTypes: {
       prefix: String,
+    },
+    universalShorthands: {
+      'C': '--prefix',
+      'r': '--recursive',
     },
   }, ['install', '-C', os.homedir(), '--network-concurrency', '1'])
   t.equal(cmd, 'install')
