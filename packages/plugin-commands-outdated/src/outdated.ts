@@ -46,6 +46,11 @@ export function cliOptionsTypes () {
   }
 }
 
+export const shorthands = {
+  'D': '--dev',
+  'P': '--production',
+}
+
 export const commandNames = ['outdated']
 
 export function help () {

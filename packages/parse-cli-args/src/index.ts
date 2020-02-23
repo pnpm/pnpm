@@ -27,6 +27,7 @@ export default async function parseCliArgs (
     getTypesByCommandName: (commandName: string) => object,
     isKnownCommand: (commandName: string) => boolean,
     renamedOptions?: Record<string, string>,
+    shorthandsByCommandName: Record<string, Record<string, string>>,
     universalOptionsTypes: Record<string, unknown>,
     universalShorthands: Record<string, string>,
   },
@@ -60,10 +61,11 @@ export default async function parseCliArgs (
     }
   }
 
+  const commandName = getCommandName(noptExploratoryResults.argv.remain)
   const types = {
     'recursive': Boolean,
     ...opts.universalOptionsTypes,
-    ...opts.getTypesByCommandName(getCommandName(noptExploratoryResults.argv.remain)),
+    ...opts.getTypesByCommandName(commandName),
   } as any // tslint:disable-line:no-any
 
   function getCommandName (cliArgs: string[]) {
@@ -74,7 +76,15 @@ export default async function parseCliArgs (
     return 'add'
   }
 
-  const { argv, ...cliConf } = nopt(types, opts.universalShorthands, inputArgv, 0)
+  const { argv, ...cliConf } = nopt(
+    types,
+    {
+      ...opts.universalShorthands,
+      ...opts.shorthandsByCommandName[commandName],
+    },
+    inputArgv,
+    0,
+  )
 
   if (opts.renamedOptions) {
     for (const cliOption of Object.keys(cliConf)) {

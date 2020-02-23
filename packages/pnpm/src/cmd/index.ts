@@ -41,12 +41,13 @@ export type Command = (
 ) => string | void | Promise<string | void>
 
 const commands: Array<{
+  cliOptionsTypes: () => Object,
   commandNames: string[],
+  completion?: CompletionFunc,
   handler: Function,
   help: () => string,
-  cliOptionsTypes: () => Object,
   rcOptionsTypes: () => Record<string, unknown>,
-  completion?: CompletionFunc,
+  shorthands?: Record<string, string>,
 }> = [
   add,
   audit,
@@ -82,6 +83,7 @@ const cliOptionsTypesByCommandName: Record<string, () => Object> = {}
 const rcOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
 const aliasToFullName: Map<string, string> = new Map()
 const completionByCommandName: Record<string, CompletionFunc> = {}
+const shorthandsByCommandName: Record<string, Record<string, string>> = {}
 
 for (let i = 0; i < commands.length; i++) {
   const {
@@ -91,6 +93,7 @@ for (let i = 0; i < commands.length; i++) {
     handler,
     help,
     rcOptionsTypes,
+    shorthands,
   } = commands[i]
   if (!commandNames || commandNames.length === 0) {
     throw new Error('The command at index ' + i + " doesn't have command names")
@@ -100,6 +103,7 @@ for (let i = 0; i < commands.length; i++) {
     helpByCommandName[commandName] = help
     cliOptionsTypesByCommandName[commandName] = cliOptionsTypes
     rcOptionsTypesByCommandName[commandName] = rcOptionsTypes
+    shorthandsByCommandName[commandName] = shorthands ?? {}
     if (completion) {
       completionByCommandName[commandName] = completion
     }
@@ -137,3 +141,5 @@ export function getRCOptionsTypes (commandName: string | null) {
 export function getCommandFullName (commandName: string) {
   return aliasToFullName.get(commandName) || commandName
 }
+
+export { shorthandsByCommandName }

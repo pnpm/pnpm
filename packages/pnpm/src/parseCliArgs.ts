@@ -3,6 +3,7 @@ import pnpmCmds, {
   getCliOptionsTypes,
   getCommandFullName,
   GLOBAL_OPTIONS,
+  shorthandsByCommandName,
 } from './cmd'
 import universalShorthands from './shorthands'
 
@@ -19,6 +20,7 @@ export default function parseCliArgs (inputArgv: string[]) {
     getTypesByCommandName: getCliOptionsTypes,
     isKnownCommand: (commandName) => typeof pnpmCmds[commandName] !== 'undefined',
     renamedOptions: RENAMED_OPTIONS,
+    shorthandsByCommandName,
     universalOptionsTypes: GLOBAL_OPTIONS,
     universalShorthands,
   }, inputArgv)

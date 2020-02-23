@@ -8,6 +8,7 @@ const DEFAULT_OPTS = {
   getTypesByCommandName: (commandName: string) => ({}),
   isKnownCommand: (commandName: string) => true,
   renamedOptions: { 'prefix': 'dir' },
+  shorthandsByCommandName: {},
   universalOptionsTypes: {},
   universalShorthands: {},
 }
@@ -172,5 +173,25 @@ test('no command', async (t) => {
   }, ['--version'])
   t.equal(cmd, null)
   t.true(isKnownCommand)
+  t.end()
+})
+
+test('use command-specific shorthands', async (t) => {
+  const { cliConf } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    getTypesByCommandName: (commandName: string) => {
+      if (commandName === 'install') {
+        return {
+          'dev': Boolean,
+        }
+      }
+      return {}
+    },
+    isKnownCommand: (commandName) => commandName === 'install',
+    shorthandsByCommandName: {
+      install: { D: '--dev' },
+    },
+  }, ['install', '-D'])
+  t.ok(cliConf['dev'])
   t.end()
 })
