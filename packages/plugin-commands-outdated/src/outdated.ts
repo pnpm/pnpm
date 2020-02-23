@@ -10,12 +10,16 @@ import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import matcher from '@pnpm/matcher'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
+import {
+  Dependencies,
+  DEPENDENCIES_FIELDS,
+  ProjectManifest,
+} from '@pnpm/types'
 import chalk = require('chalk')
 import { oneLine, stripIndent } from 'common-tags'
 import R = require('ramda')
@@ -23,7 +27,7 @@ import renderHelp = require('render-help')
 import stripAnsi = require('strip-ansi')
 import { table } from 'table'
 import wrapAnsi = require('wrap-ansi')
-import outdatedRecursive, { matchDependencies } from './recursive'
+import outdatedRecursive from './recursive'
 import {
   DEFAULT_COMPARATORS,
   OutdatedWithVersionDiff,
@@ -167,6 +171,7 @@ export async function handler (
   }
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
+    checkPkgInDependencies(pkgs, args)
     return outdatedRecursive(pkgs, args, { ...opts, include })
   }
   const packages = [
@@ -175,12 +180,7 @@ export async function handler (
       manifest: await readProjectManifestOnly(opts.dir, opts),
     },
   ]
-  for (let input of args) {
-    input = input.indexOf('@', 1) !== -1 ? input.substr(0, input.indexOf('@', 1)) : input
-    if (!matchDependencies(matcher(input), packages[0].manifest, include).length) {
-      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
-    }
-  }
+  checkPkgInDependencies(packages, args)
   const [ outdatedPackages ] = (await outdatedDepsOfProjects(packages, args, { ...opts, include }))
 
   if (!outdatedPackages.length) return ''
@@ -189,6 +189,22 @@ export async function handler (
     return renderOutdatedTable(outdatedPackages, opts)
   } else {
     return renderOutdatedList(outdatedPackages, opts)
+  }
+}
+
+function checkPkgInDependencies (pkgs: Array<{manifest: ProjectManifest}>, args: string[]) {
+  let dependenciesList: string[] = []
+  for (const p of pkgs) {
+    DEPENDENCIES_FIELDS
+      .filter((depField) => p.manifest[depField])
+      .forEach((depField) => {
+        dependenciesList = [...Object.keys(p.manifest[depField] as Dependencies), ...dependenciesList]
+      })
+  }
+  for (const input of args) {
+    if (!dependenciesList.includes(input)) {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+    }
   }
 }
 

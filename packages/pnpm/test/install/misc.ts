@@ -204,7 +204,7 @@ test('support installing and uninstalling from the same store simultaneously', a
       await delay(500) // to be sure that lock was created
 
       await project.storeHasNot('pkg-that-installs-slowly')
-      await execPnpm(['uninstall', 'rimraf@2.5.1'])
+      await execPnpm(['uninstall', 'rimraf@2.5.1', '--no-shared-workspace-lockfile'])
 
       await project.has('pkg-that-installs-slowly')
       await project.hasNot('rimraf')

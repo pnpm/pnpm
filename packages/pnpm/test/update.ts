@@ -140,7 +140,7 @@ test('recursive update --no-shared-workspace-lockfile', async function (t: tape.
 test('update should not install the dependency if it is not present already', async function (t: tape.Test) {
   const project = prepare(t)
 
-  await execPnpm(['update', 'is-positive'])
+  await execPnpm(['update', 'is-positive', '--no-shared-workspace-lockfile'])
 
   project.hasNot('is-positive')
 })
