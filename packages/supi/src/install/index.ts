@@ -413,7 +413,7 @@ export async function mutateModules (
       if (noneDependencyfoundInputs.length) {
         if (noneDependencyfoundInputs.length === inputs.length) {
           throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', 'None of the specified packages were found in the dependencies.')
-        } else  {
+        } else {
           logger.info({
             message: `No ${noneDependencyfoundInputs.join(',')} package found in dependencies of the project`,
             prefix: rootDir,
