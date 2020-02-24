@@ -10,6 +10,7 @@ import { CompletionFunc } from '@pnpm/command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import logger from '@pnpm/logger'
 import {
   outdatedDepsOfProjects,
   OutdatedPackage,
@@ -171,7 +172,7 @@ export async function handler (
   }
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    checkPkgInDependencies(pkgs, args)
+    checkPkgInDependencies(pkgs, args, opts.dir)
     return outdatedRecursive(pkgs, args, { ...opts, include })
   }
   const packages = [
@@ -180,7 +181,7 @@ export async function handler (
       manifest: await readProjectManifestOnly(opts.dir, opts),
     },
   ]
-  checkPkgInDependencies(packages, args)
+  checkPkgInDependencies(packages, args, opts.dir)
   const [ outdatedPackages ] = (await outdatedDepsOfProjects(packages, args, { ...opts, include }))
 
   if (!outdatedPackages.length) return ''
@@ -192,12 +193,9 @@ export async function handler (
   }
 }
 
-function checkPkgInDependencies (pkgs: Array<{manifest: ProjectManifest}>, args: string[]) {
-  if (!args.length) {
-    return
-  }
+function checkPkgInDependencies (pkgs: Array<{manifest: ProjectManifest}>, args: string[], dir: string) {
   let dependencySet: Set<string> = new Set()
-  let noneDependencyfound = true
+  let noneDependencyfoundInputs: string[] = []
   for (const p of pkgs) {
     DEPENDENCIES_FIELDS
       .filter((depField) => p.manifest[depField])
@@ -207,13 +205,18 @@ function checkPkgInDependencies (pkgs: Array<{manifest: ProjectManifest}>, args:
   }
   for (const input of args) {
     if (!dependencySet.has(input)) {
-      console.log(`No ${input} package found in dependencies of the project`)
-    } else {
-      noneDependencyfound = false
+      noneDependencyfoundInputs.push(input)
     }
   }
-  if (noneDependencyfound) {
-    throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No package found in dependencies of the project`)
+  if (noneDependencyfoundInputs.length) {
+    if (noneDependencyfoundInputs.length === args.length) {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', 'None of the specified packages were found in the dependencies.')
+    } else  {
+      logger.info({
+        message: `No ${noneDependencyfoundInputs.join(',')} package found in dependencies of the project`,
+        prefix: dir,
+      })
+    }
   }
 }
 

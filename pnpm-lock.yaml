@@ -719,7 +719,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.0
       '@types/ncp': ^2.0.3
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.26.41
       '@types/sinon': ^7.5.1
@@ -1093,7 +1093,7 @@ importers:
       '@pnpm/package-bins': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/graceful-fs': ^4.1.3
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       '@types/tape': ^4.2.34
       graceful-fs: 4.2.3
       is-subdir: 1.1.1
@@ -1536,6 +1536,7 @@ importers:
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
+      '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/outdated': 'link:../outdated'
@@ -1576,6 +1577,7 @@ importers:
       '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/filter-workspace-packages': 'workspace:2.0.1'
       '@pnpm/lockfile-file': 'workspace:3.0.4'
+      '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-yaml': 'workspace:5.0.1'
       '@pnpm/outdated': 'workspace:7.0.7'
@@ -2725,7 +2727,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
       '@types/mz': ^2.7.0
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2757,7 +2759,7 @@ importers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
       '@types/mkdirp': 1.0.0
-      '@types/node': ^12.12.28
+      '@types/node': ^12.12.27
       make-dir: 3.0.2
       tempy: 0.4.0
       tslint-config-standard: 9.0.0

@@ -403,17 +403,22 @@ export async function mutateModules (
       })
     }
 
-    function checkDependencyInPackage (dependencySet: Set<string>, inputs: string[]) {
-      let noneDependencyfound = true
+    function checkDependencyInPackage (dependencySet: Set<string>, inputs: string[], rootDir: string) {
+      let noneDependencyfoundInputs: string[] = []
       for (const input of inputs) {
         if (!dependencySet.has(input)) {
-          console.log(`No ${input} package found in dependencies of the project`)
-        } else {
-          noneDependencyfound = false
+          noneDependencyfoundInputs.push(input)
         }
       }
-      if (noneDependencyfound) {
-        throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No package found in dependencies of the project`)
+      if (noneDependencyfoundInputs.length) {
+        if (noneDependencyfoundInputs.length === inputs.length) {
+          throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', 'None of the specified packages were found in the dependencies.')
+        } else  {
+          logger.info({
+            message: `No ${noneDependencyfoundInputs.join(',')} package found in dependencies of the project`,
+            prefix: rootDir,
+          })
+        }
       }
     }
 
@@ -428,7 +433,7 @@ export async function mutateModules (
                 dependencySet.add(wantedDependency.raw)
               })
             }
-            checkDependencyInPackage(dependencySet, project.dependencySelectors)
+            checkDependencyInPackage(dependencySet, project.dependencySelectors, project.rootDir)
           }
           break
         }
@@ -440,7 +445,7 @@ export async function mutateModules (
                 Object.keys(p.manifest[depField] as Dependencies).forEach(dependency => dependencySet.add(dependency))
               })
           }
-          checkDependencyInPackage(dependencySet, project.dependencyNames)
+          checkDependencyInPackage(dependencySet, project.dependencyNames, project.rootDir)
           break
         }
       }

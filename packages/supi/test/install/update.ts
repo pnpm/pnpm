@@ -85,7 +85,7 @@ test('throws error if it is not present in package.json in strict mode', async (
     err = _err
   }
   t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
-  t.equal(err.message, 'No package found in dependencies of the project')
+  t.equal(err.message, 'None of the specified packages were found in the dependencies.')
 
   t.end()
 })
