@@ -193,18 +193,27 @@ export async function handler (
 }
 
 function checkPkgInDependencies (pkgs: Array<{manifest: ProjectManifest}>, args: string[]) {
-  let dependenciesList: string[] = []
+  if (!args.length) {
+    return
+  }
+  let dependencySet: Set<string> = new Set()
+  let noneDependencyfound = true
   for (const p of pkgs) {
     DEPENDENCIES_FIELDS
       .filter((depField) => p.manifest[depField])
       .forEach((depField) => {
-        dependenciesList = [...Object.keys(p.manifest[depField] as Dependencies), ...dependenciesList]
+        Object.keys(p.manifest[depField] as Dependencies).forEach(dependency => dependencySet.add(dependency))
       })
   }
   for (const input of args) {
-    if (!dependenciesList.includes(input)) {
-      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
+    if (!dependencySet.has(input)) {
+      console.log(`No ${input} package found in dependencies of the project`)
+    } else {
+      noneDependencyfound = false
     }
+  }
+  if (noneDependencyfound) {
+    throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No package found in dependencies of the project`)
   }
 }
 

@@ -316,6 +316,6 @@ test('pnpm outdated: throw error when package not in dependencies', async (t) =>
   }
 
   t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
-  t.equal(err.message, 'No random-package package found in dependencies of the project')
+  t.equal(err.message, 'No package found in dependencies of the project')
   t.end()
 })

@@ -216,7 +216,7 @@ test('pnpm recursive outdated', async (t) => {
     }
 
     t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
-    t.equal(err.message, 'No is-not package found in dependencies of the project')
+    t.equal(err.message, 'No package found in dependencies of the project')
   }
 
   t.end()
@@ -337,7 +337,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
     }
 
     t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCY')
-    t.equal(err.message, 'No is-not package found in dependencies of the project')
+    t.equal(err.message, 'No package found in dependencies of the project')
   }
 
   t.end()

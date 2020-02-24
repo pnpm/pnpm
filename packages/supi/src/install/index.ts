@@ -403,20 +403,32 @@ export async function mutateModules (
       })
     }
 
+    function checkDependencyInPackage (dependencySet: Set<string>, inputs: string[]) {
+      let noneDependencyfound = true
+      for (const input of inputs) {
+        if (!dependencySet.has(input)) {
+          console.log(`No ${input} package found in dependencies of the project`)
+        } else {
+          noneDependencyfound = false
+        }
+      }
+      if (noneDependencyfound) {
+        throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No package found in dependencies of the project`)
+      }
+    }
+
     if (maybeOpts.strict) {
       const project = projectsToInstall[0]
-      let dependenciesList: string[] = []
+      let dependencySet: Set<string> = new Set()
       switch (project.mutation) {
         case 'installSome': {
           if (project.allowNew === false) {
             for (const p of projectsToInstall) {
-              dependenciesList = [...p.wantedDependencies.map(wantedDependency => wantedDependency.raw), ...dependenciesList]
+              p.wantedDependencies.forEach(wantedDependency => {
+                dependencySet.add(wantedDependency.raw)
+              })
             }
-            for (const input of project.dependencySelectors) {
-              if (!dependenciesList.includes(input)) {
-                throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
-              }
-            }
+            checkDependencyInPackage(dependencySet, project.dependencySelectors)
           }
           break
         }
@@ -425,14 +437,10 @@ export async function mutateModules (
             DEPENDENCIES_FIELDS
               .filter((depField) => p.manifest[depField])
               .forEach((depField) => {
-                dependenciesList = [...Object.keys(p.manifest[depField] as Dependencies), ...dependenciesList]
+                Object.keys(p.manifest[depField] as Dependencies).forEach(dependency => dependencySet.add(dependency))
               })
           }
-          for (const input of project.dependencyNames) {
-            if (!dependenciesList.includes(input)) {
-              throw new PnpmError('NO_PACKAGE_IN_DEPENDENCY', `No ${input} package found in dependencies of the project`)
-            }
-          }
+          checkDependencyInPackage(dependencySet, project.dependencyNames)
           break
         }
       }
