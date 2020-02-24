@@ -1,6 +1,6 @@
 {
   "name": "find-packages",
-  "version": "7.0.2",
+  "version": "7.0.3",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
