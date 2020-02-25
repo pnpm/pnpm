@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.29.6",
+  "version": "0.29.6-draft1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -15,9 +15,6 @@
   "files": [
     "lib/"
   ],
-  "peerDependencies": {
-    "@pnpm/logger": "^2.1.0"
-  },
   "dependencies": {
     "@pnpm/check-package": "2.0.0",
     "@pnpm/core-loggers": "2.0.0",
@@ -26,6 +23,7 @@
     "@pnpm/headless": "5.0.3",
     "@pnpm/lifecycle": "4.2.0",
     "@pnpm/link-bins": "3.0.3",
+    "@pnpm/logger": "2.1.0",
     "@pnpm/modules-cleaner": "2.0.6",
     "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/package-requester": "6.1.0",
@@ -92,7 +90,6 @@
     "@pnpm/assert-store": "link:../../privatePackages/assert-store",
     "@pnpm/default-fetcher": "2.0.8",
     "@pnpm/default-resolver": "2.1.0",
-    "@pnpm/logger": "2.1.0",
     "@pnpm/package-store": "3.1.0",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/store-path": "1.0.4",

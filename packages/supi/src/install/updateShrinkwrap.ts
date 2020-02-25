@@ -245,7 +245,7 @@ function removeProtocol (url: string) {
 
 function relativeTarball (tarball: string, registry: string) {
   if (tarball.substr(0, registry.length) === registry) {
-    return tarball.substr(registry.length - 1)
+    return tarball.substr(registry.length)
   }
   return tarball
 }
