@@ -39,7 +39,7 @@ test('recursive installation with package-specific .npmrc', async t => {
 
   await fs.writeFile('project-2/.npmrc', 'hoist = false', 'utf8')
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
@@ -83,7 +83,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   await fs.writeFile('project-2/.npmrc', 'hoist=false', 'utf8')
 
   process.chdir('project-1')
-  await execPnpm('install', '--store-dir', storeDir, '--filter', '.')
+  await execPnpm(['install', '--store-dir', storeDir, '--filter', '.'])
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
@@ -93,7 +93,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
   process.chdir('..')
   process.chdir('project-2')
 
-  await execPnpm('install', '--store-dir', storeDir, '--filter', '.')
+  await execPnpm(['install', '--store-dir', storeDir, '--filter', '.'])
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
@@ -129,12 +129,12 @@ test('recursive installation using server', async (t: tape.Test) => {
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  await execPnpm('server', 'stop', '--store-dir', storeDir)
+  await execPnpm(['server', 'stop', '--store-dir', storeDir])
 })
 
 test('recursive installation of packages with hooks', async t => {
@@ -175,7 +175,7 @@ test('recursive installation of packages with hooks', async t => {
 
   process.chdir('..')
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
   const lockfile1 = await projects['project-1'].readLockfile()
   t.ok(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
@@ -232,7 +232,7 @@ test('recursive installation of packages in workspace ignores hooks in packages'
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1', 'project-2'] })
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
   // tslint:disable: no-unnecessary-type-assertion
@@ -279,7 +279,7 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
 
   process.chdir('..')
 
-  await execPnpm('recursive', 'install', '--ignore-pnpmfile')
+  await execPnpm(['recursive', 'install', '--ignore-pnpmfile'])
 
   const lockfile1 = await projects['project-1'].readLockfile()
   t.notOk(lockfile1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
@@ -318,7 +318,7 @@ test('recursive command with filter from config', async (t: tape.Test) => {
   ])
 
   await fs.writeFile('.npmrc', 'filter=project-1 project-2', 'utf8')
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
@@ -357,7 +357,7 @@ test('non-recursive install ignores filter from config', async (t: tape.Test) =>
   ])
 
   await fs.writeFile('.npmrc', 'filter=project-2', 'utf8')
-  await execPnpm('install')
+  await execPnpm(['install'])
 
   projects['project-1'].has('is-positive')
   projects['project-2'].hasNot('is-negative')
@@ -370,7 +370,7 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
   await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   {
-    const { status, stdout } = execPnpmSync('add', 'is-positive')
+    const { status, stdout } = execPnpmSync(['add', 'is-positive'])
 
     t.equal(status, 1)
 
@@ -384,14 +384,14 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
   }
 
   {
-    const { status } = execPnpmSync('add', 'is-positive', '--ignore-workspace-root-check')
+    const { status } = execPnpmSync(['add', 'is-positive', '--ignore-workspace-root-check'])
 
     t.equal(status, 0)
     await project.has('is-positive')
   }
 
   {
-    const { status } = execPnpmSync('add', 'is-negative', '-W')
+    const { status } = execPnpmSync(['add', 'is-negative', '-W'])
 
     t.equal(status, 0)
     await project.has('is-negative')

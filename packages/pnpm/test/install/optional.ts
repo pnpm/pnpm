@@ -16,7 +16,7 @@ test('installing optional dependencies when --no-optional is not used', async (t
     },
   })
 
-  await execPnpm('install')
+  await execPnpm(['install'])
 
   await project.has('is-positive')
   await project.has('pkg-with-good-optional')
@@ -35,7 +35,7 @@ test('not installing optional dependencies when --no-optional is used', async (t
     },
   })
 
-  await execPnpm('install', '--no-optional')
+  await execPnpm(['install', '--no-optional'])
 
   await project.hasNot('is-positive')
   await project.has('pkg-with-good-optional')

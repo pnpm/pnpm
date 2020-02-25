@@ -19,11 +19,11 @@ test('global installation', async (t: tape.Test) => {
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  await execPnpm('install', '--global', 'is-positive')
+  await execPnpm(['install', '--global', 'is-positive'])
 
   // there was an issue when subsequent installations were removing everything installed prior
   // https://github.com/pnpm/pnpm/issues/808
-  await execPnpm('install', '--global', 'is-negative')
+  await execPnpm(['install', '--global', 'is-negative'])
 
   const globalPrefix = isWindows()
     ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
@@ -39,7 +39,7 @@ test('global installation', async (t: tape.Test) => {
 test('global installation to custom directory with --global-dir', async (t: tape.Test) => {
   prepare(t)
 
-  await execPnpm('add', '--global', '--global-dir=../global', 'is-positive')
+  await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'])
 
   const isPositive = require(path.resolve('../global/3/node_modules/is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
@@ -54,8 +54,8 @@ test('always install latest when doing global installation without spec', async 
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  await execPnpm('install', '-g', 'peer-c@1')
-  await execPnpm('install', '-g', 'peer-c')
+  await execPnpm(['install', '-g', 'peer-c@1'])
+  await execPnpm(['install', '-g', 'peer-c'])
 
   const globalPrefix = isWindows()
     ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
@@ -78,7 +78,7 @@ test('run lifecycle events of global packages in correct working directory', asy
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  await execPnpm('install', '-g', 'postinstall-calls-pnpm@1.0.0')
+  await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'])
 
   t.ok(await exists(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`)))
 })

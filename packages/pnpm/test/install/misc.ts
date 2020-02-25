@@ -34,7 +34,7 @@ test('bin files are found by lifecycle scripts', t => {
     },
   })
 
-  const result = execPnpmSync('install')
+  const result = execPnpmSync(['install'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().includes('Hello world!'), 'postinstall script was executed')
@@ -45,7 +45,7 @@ test('bin files are found by lifecycle scripts', t => {
 test('create a pnpm-debug.log file when the command fails', async function (t) {
   const project = prepare(t)
 
-  const result = execPnpmSync('install', '@zkochan/i-do-not-exist')
+  const result = execPnpmSync(['install', '@zkochan/i-do-not-exist'])
 
   t.equal(result.status, 1, 'install failed')
 
@@ -57,7 +57,7 @@ test('create a pnpm-debug.log file when the command fails', async function (t) {
 test('install --lockfile-only', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'rimraf@2.5.1', '--lockfile-only')
+  await execPnpm(['install', 'rimraf@2.5.1', '--lockfile-only'])
 
   await project.hasNot('rimraf')
 
@@ -68,7 +68,7 @@ test('install --lockfile-only', async (t: tape.Test) => {
 test('install --no-lockfile', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive', '--no-lockfile')
+  await execPnpm(['install', 'is-positive', '--no-lockfile'])
 
   await project.has('is-positive')
 
@@ -80,7 +80,7 @@ test('install with package-lock=false in .npmrc', async (t: tape.Test) => {
 
   await fs.writeFile('.npmrc', 'package-lock=false', 'utf8')
 
-  await execPnpm('add', 'is-positive')
+  await execPnpm(['add', 'is-positive'])
 
   await project.has('is-positive')
 
@@ -96,7 +96,7 @@ test('install from any location via the --prefix flag', async (t: tape.Test) => 
 
   process.chdir('..')
 
-  await execPnpm('install', '--prefix', 'project')
+  await execPnpm(['install', '--prefix', 'project'])
 
   await project.has('rimraf')
   await project.isExecutable('.bin/rimraf')
@@ -105,7 +105,7 @@ test('install from any location via the --prefix flag', async (t: tape.Test) => 
 test('install with external lockfile directory', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive', '--lockfile-directory', path.resolve('..'))
+  await execPnpm(['install', 'is-positive', '--lockfile-directory', path.resolve('..')])
 
   await project.has('is-positive')
 
@@ -117,7 +117,7 @@ test('install with external lockfile directory', async (t: tape.Test) => {
 test('install --save-exact', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive@3.1.0', '--save-exact', '--save-dev')
+  await execPnpm(['install', 'is-positive@3.1.0', '--save-exact', '--save-dev'])
 
   await project.has('is-positive')
 
@@ -131,7 +131,7 @@ test('install to a project that uses package.yaml', async (t: tape.Test) => {
 
   await writeProjectManifest(path.resolve('package.yaml'), { name: 'foo', version: '1.0.0' })
 
-  await execPnpm('install', 'is-positive@3.1.0', '--save-exact', '--save-dev')
+  await execPnpm(['install', 'is-positive@3.1.0', '--save-exact', '--save-dev'])
 
   await project.has('is-positive')
 
@@ -143,7 +143,7 @@ test('install to a project that uses package.yaml', async (t: tape.Test) => {
 test('install save new dep with the specified spec', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'is-positive@~3.1.0')
+  await execPnpm(['install', 'is-positive@~3.1.0'])
 
   await project.has('is-positive')
 
@@ -156,7 +156,7 @@ test('install save new dep with the specified spec', async (t: tape.Test) => {
 test("don't fail on case insensitive filesystems when package has 2 files with same name", async (t) => {
   const project = prepare(t)
 
-  await execPnpm('install', 'with-same-file-in-different-cases')
+  await execPnpm(['install', 'with-same-file-in-different-cases'])
 
   await project.has('with-same-file-in-different-cases')
 
@@ -178,7 +178,7 @@ test('lockfile compatibility', async (t: tape.Test) => {
   }
   prepare(t, { dependencies: { rimraf: '*' } })
 
-  await execPnpm('install', 'rimraf@2.5.1')
+  await execPnpm(['install', 'rimraf@2.5.1'])
 
   return new Promise((resolve, reject) => {
     const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
@@ -199,12 +199,12 @@ test('support installing and uninstalling from the same store simultaneously', a
   const project = prepare(t)
 
   await Promise.all([
-    execPnpm('install', 'pkg-that-installs-slowly'),
+    execPnpm(['install', 'pkg-that-installs-slowly']),
     (async () => {
       await delay(500) // to be sure that lock was created
 
       await project.storeHasNot('pkg-that-installs-slowly')
-      await execPnpm('uninstall', 'rimraf@2.5.1')
+      await execPnpm(['uninstall', 'rimraf@2.5.1'])
 
       await project.has('pkg-that-installs-slowly')
       await project.hasNot('rimraf')
@@ -219,7 +219,7 @@ test('top-level packages should find the plugins they use', async (t: tape.Test)
     },
   })
 
-  await execPnpm('install', 'pkg-that-uses-plugins', 'plugin-example')
+  await execPnpm(['install', 'pkg-that-uses-plugins', 'plugin-example'])
 
   const result = crossSpawn.sync('npm', ['test'])
   t.ok(result.stdout.toString().includes('My plugin is plugin-example'), 'package executable have found its plugin')
@@ -234,7 +234,7 @@ test('not top-level packages should find the plugins they use', async (t: tape.T
     },
   })
 
-  await execPnpm('install', 'standard@8.6.0')
+  await execPnpm(['install', 'standard@8.6.0'])
 
   const result = crossSpawn.sync('npm', ['test'])
   t.equal(result.status, 0, 'standard exited with success')
@@ -247,7 +247,7 @@ test('run js bin file', async (t: tape.Test) => {
     },
   })
 
-  await execPnpm('install', 'hello-world-js-bin')
+  await execPnpm(['install', 'hello-world-js-bin'])
 
   const result = crossSpawn.sync('npm', ['test'])
   t.ok(result.stdout.toString().includes('Hello world!'), 'package executable printed its message')
@@ -257,7 +257,7 @@ test('run js bin file', async (t: tape.Test) => {
 test('create a package.json if there is none', async (t: tape.Test) => {
   prepareEmpty(t)
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.1.0')
+  await execPnpm(['install', 'dep-of-pkg-with-1-dep@100.1.0'])
 
   t.deepEqual(await import(path.resolve('package.json')), {
     dependencies: {
@@ -269,7 +269,7 @@ test('create a package.json if there is none', async (t: tape.Test) => {
 test('`pnpm add` should fail if no package name was provided', (t: tape.Test) => {
   prepare(t)
 
-  const { status, stdout } = execPnpmSync('add')
+  const { status, stdout } = execPnpmSync(['add'])
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('`pnpm add` requires the package name'))
@@ -280,7 +280,7 @@ test('`pnpm add` should fail if no package name was provided', (t: tape.Test) =>
 test('`pnpm recursive add` should fail if no package name was provided', (t: tape.Test) => {
   prepare(t)
 
-  const { status, stdout } = execPnpmSync('recursive', 'add')
+  const { status, stdout } = execPnpmSync(['recursive', 'add'])
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('`pnpm add` requires the package name'))
@@ -298,7 +298,7 @@ test('install should fail if the used pnpm version does not satisfy the pnpm ver
     },
   })
 
-  const { status, stdout } = execPnpmSync('install')
+  const { status, stdout } = execPnpmSync(['install'])
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('Your pnpm version is incompatible with'))
@@ -314,7 +314,7 @@ test('engine-strict=false: install should not fail if the used Node version does
     },
   })
 
-  const { status, stdout } = execPnpmSync('install')
+  const { status, stdout } = execPnpmSync(['install'])
 
   t.equal(status, 0)
   t.ok(stdout.toString().includes('Unsupported engine'))
@@ -330,7 +330,7 @@ test('engine-strict=true: install should fail if the used Node version does not 
     },
   })
 
-  const { status, stdout } = execPnpmSync('install', '--engine-strict')
+  const { status, stdout } = execPnpmSync(['install', '--engine-strict'])
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('Your Node version is incompatible with'))
@@ -363,7 +363,7 @@ test('recursive install should fail if the used pnpm version does not satisfy th
 
   process.chdir('project-1')
 
-  const { status, stdout } = execPnpmSync('recursive', 'install')
+  const { status, stdout } = execPnpmSync(['recursive', 'install'])
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('Your pnpm version is incompatible with'))
@@ -396,7 +396,7 @@ test('engine-strict=true: recursive install should fail if the used Node version
 
   process.chdir('project-1')
 
-  const { status, stdout } = execPnpmSync('recursive', 'install', '--engine-strict')
+  const { status, stdout } = execPnpmSync(['recursive', 'install', '--engine-strict'])
 
   t.equal(status, 1)
   t.ok(stdout.toString().includes('Your Node version is incompatible with'))
@@ -429,7 +429,7 @@ test('engine-strict=false: recursive install should not fail if the used Node ve
 
   process.chdir('project-1')
 
-  const { status, stdout } = execPnpmSync('recursive', 'install')
+  const { status, stdout } = execPnpmSync(['recursive', 'install'])
 
   t.equal(status, 0)
   t.ok(stdout.toString().includes('Unsupported engine'))
@@ -440,7 +440,7 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
     dependencies: { 'rimraf': '2.5.1' },
   })
 
-  await execPnpm('install', '--virtual-store-dir=.pnpm')
+  await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
   t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1/node_modules/rimraf/package.json`))
   t.ok(await exists('.pnpm/lock.yaml'))
@@ -449,7 +449,7 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
   await rimraf('node_modules')
   await rimraf('.pnpm')
 
-  await execPnpm('install', '--virtual-store-dir=.pnpm', '--frozen-lockfile')
+  await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
   t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1/node_modules/rimraf/package.json`))
   t.ok(await exists('.pnpm/lock.yaml'))

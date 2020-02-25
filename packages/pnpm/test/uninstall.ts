@@ -11,15 +11,15 @@ const test = promisifyTape(tape)
 
 test('uninstall package and remove from appropriate property', async function (t: tape.Test) {
   const project = prepare(t)
-  await execPnpm('install', '--save-optional', 'is-positive@3.1.0')
+  await execPnpm(['install', '--save-optional', 'is-positive@3.1.0'])
 
   // testing the CLI directly as there was an issue where `npm.config` started to set save = true by default
   // npm@5 introduced --save-prod that bahaves the way --save worked in pre 5 versions
-  await execPnpm('uninstall', 'is-positive')
+  await execPnpm(['uninstall', 'is-positive'])
 
   await project.storeHas('is-positive', '3.1.0')
 
-  await execPnpm('store', 'prune')
+  await execPnpm(['store', 'prune'])
 
   await project.storeHasNot('is-positive', '3.1.0')
 
@@ -39,12 +39,12 @@ test('uninstall global package with its bin files', async (t: tape.Test) => {
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  await execPnpm('add', '-g', 'sh-hello-world@1.0.1')
+  await execPnpm(['add', '-g', 'sh-hello-world@1.0.1'])
 
   let stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
   t.ok(stat, 'sh-hello-world is in .bin')
 
-  await execPnpm('uninstall', '-g', 'sh-hello-world')
+  await execPnpm(['uninstall', '-g', 'sh-hello-world'])
 
   stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
   t.notOk(stat, 'sh-hello-world is removed from .bin')

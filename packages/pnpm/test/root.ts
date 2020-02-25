@@ -10,7 +10,7 @@ const test = promisifyTape(tape)
 test('pnpm root', async (t: tape.Test) => {
   tempDir(t)
 
-  const result = execPnpmSync('root')
+  const result = execPnpmSync(['root'])
 
   t.equal(result.status, 0)
 
@@ -25,7 +25,7 @@ test('pnpm root -g', async (t: tape.Test) => {
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  const result = execPnpmSync('root', '-g')
+  const result = execPnpmSync(['root', '-g'])
 
   t.equal(result.status, 0)
 

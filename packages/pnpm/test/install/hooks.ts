@@ -34,7 +34,7 @@ test('readPackage hook', async (t: tape.Test) => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('install', 'pkg-with-1-dep')
+  await execPnpm(['install', 'pkg-with-1-dep'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -51,7 +51,7 @@ test('readPackage hook makes installation fail if it does not return the modifie
     }
   `, 'utf8')
 
-  const result = await execPnpmSync('install', 'pkg-with-1-dep')
+  const result = await execPnpmSync(['install', 'pkg-with-1-dep'])
 
   t.equal(result.status, 1, 'installation failed')
 })
@@ -76,7 +76,7 @@ test('readPackage hook from custom location', async (t: tape.Test) => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('install', 'pkg-with-1-dep', '--pnpmfile', 'pnpm.js')
+  await execPnpm(['install', 'pkg-with-1-dep', '--pnpmfile', 'pnpm.js'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -101,7 +101,7 @@ test('readPackage hook from global pnpmfile', async (t: tape.Test) => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'))
+  await execPnpm(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js')])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -141,7 +141,7 @@ test('readPackage hook from global pnpmfile and local pnpmfile', async (t: tape.
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'))
+  await execPnpm(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js')])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
@@ -173,11 +173,11 @@ test('readPackage hook from pnpmfile at root of workspace', async (t: tape.Test)
 
   const storeDir = path.resolve('store')
 
-  await execPnpm('recursive', 'install', '--store-dir', storeDir)
+  await execPnpm(['recursive', 'install', '--store-dir', storeDir])
 
   process.chdir('project-1')
 
-  await execPnpm('install', 'is-negative@1.0.0', '--store-dir', storeDir)
+  await execPnpm(['install', 'is-negative@1.0.0', '--store-dir', storeDir])
 
   await projects['project-1'].has('is-negative')
   await projects['project-1'].has('is-positive')
@@ -219,7 +219,7 @@ test('readPackage hook during update', async (t: tape.Test) => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('update')
+  await execPnpm(['update'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -229,7 +229,7 @@ test('prints meaningful error when there is syntax error in pnpmfile.js', async 
 
   await fs.writeFile('pnpmfile.js', '/boom', 'utf8')
 
-  const proc = execPnpmSync('install', 'pkg-with-1-dep')
+  const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
   t.ok(proc.stderr.toString().includes('SyntaxError: Invalid regular expression: missing /'))
   t.equal(proc.status, 1)
@@ -240,7 +240,7 @@ test('fails when pnpmfile.js requires a non-existend module', async (t: tape.Tes
 
   await fs.writeFile('pnpmfile.js', 'module.exports = require("./this-does-node-exist")', 'utf8')
 
-  const proc = execPnpmSync('install', 'pkg-with-1-dep')
+  const proc = execPnpmSync(['install', 'pkg-with-1-dep'])
 
   t.ok(proc.stdout.toString().includes('Error during pnpmfile execution'))
   t.equal(proc.status, 1)
@@ -265,7 +265,7 @@ test('ignore pnpmfile.js when --ignore-pnpmfile is used', async (t: tape.Test) =
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('install', 'pkg-with-1-dep', '--ignore-pnpmfile')
+  await execPnpm(['install', 'pkg-with-1-dep', '--ignore-pnpmfile'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
@@ -293,7 +293,7 @@ test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async (t
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('update', '--ignore-pnpmfile')
+  await execPnpm(['update', '--ignore-pnpmfile'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
@@ -319,7 +319,7 @@ test('pnpmfile: pass log function to readPackage hook', async (t: tape.Test) => 
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  const proc = execPnpmSync('install', 'pkg-with-1-dep', '--reporter', 'ndjson')
+  const proc = execPnpmSync(['install', 'pkg-with-1-dep', '--reporter', 'ndjson'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -373,7 +373,7 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  const proc = execPnpmSync('install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'), '--reporter', 'ndjson')
+  const proc = execPnpmSync(['install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'), '--reporter', 'ndjson'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
   await project.storeHas('is-positive', '1.0.0')
@@ -415,7 +415,7 @@ test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
     }
   `, 'utf8')
 
-  const proc = execPnpmSync('install', 'pkg-with-1-dep', '--reporter', 'ndjson')
+  const proc = execPnpmSync(['install', 'pkg-with-1-dep', '--reporter', 'ndjson'])
 
   const outputs = proc.stdout.toString().split(/\r?\n/)
 
@@ -450,7 +450,7 @@ test('readPackage hook normalizes the package manifest', async (t: tape.Test) =>
     }
   `, 'utf8')
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep')
+  await execPnpm(['install', 'dep-of-pkg-with-1-dep'])
 
   t.pass('code in pnpmfile did not fail')
 })
@@ -476,7 +476,7 @@ test('readPackage hook overrides project package', async (t: tape.Test) => {
     }
   `, 'utf8')
 
-  await execPnpm('install')
+  await execPnpm(['install'])
 
   await project.has('is-positive')
 
@@ -517,8 +517,8 @@ test('readPackage hook is used during removal inside a workspace', async (t: tap
   `, 'utf8')
 
   process.chdir('project')
-  await execPnpm('install')
-  await execPnpm('uninstall', 'is-positive')
+  await execPnpm(['install'])
+  await execPnpm(['uninstall', 'is-positive'])
 
   process.chdir('..')
   const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')

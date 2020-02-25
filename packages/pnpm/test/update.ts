@@ -17,11 +17,11 @@ test('update <dep>', async function (t: tape.Test) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest')
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0')
+  await execPnpm(['install', 'dep-of-pkg-with-1-dep@100.0.0'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await execPnpm('update', 'dep-of-pkg-with-1-dep@latest')
+  await execPnpm(['update', 'dep-of-pkg-with-1-dep@latest'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
 
@@ -40,7 +40,7 @@ test('update --no-save', async function (t: tape.Test) {
     },
   })
 
-  await execPnpm('update', '--no-save')
+  await execPnpm(['update', '--no-save'])
 
   const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/foo/100.1.0'])
@@ -57,7 +57,7 @@ test('update', async function (t: tape.Test) {
     },
   })
 
-  await execPnpm('update')
+  await execPnpm(['update'])
 
   const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/foo/100.1.0'])
@@ -80,7 +80,7 @@ test('recursive update --no-save', async function (t: tape.Test) {
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await execPnpm('recursive', 'update', '--no-save')
+  await execPnpm(['recursive', 'update', '--no-save'])
 
   const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // tslint:disable-line
   t.ok(lockfile.packages['/foo/100.1.0'])
@@ -103,7 +103,7 @@ test('recursive update', async function (t: tape.Test) {
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await execPnpm('recursive', 'update')
+  await execPnpm(['recursive', 'update'])
 
   const lockfile = await readYamlFile<any>('pnpm-lock.yaml') // tslint:disable-line
   t.ok(lockfile.packages['/foo/100.1.0'])
@@ -128,7 +128,7 @@ test('recursive update --no-shared-workspace-lockfile', async function (t: tape.
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await execPnpm('recursive', 'update', '--no-shared-workspace-lockfile')
+  await execPnpm(['recursive', 'update', '--no-shared-workspace-lockfile'])
 
   const lockfile = await projects['project'].readLockfile()
   t.ok(lockfile.packages['/foo/100.1.0'])
@@ -140,7 +140,7 @@ test('recursive update --no-shared-workspace-lockfile', async function (t: tape.
 test('update should not install the dependency if it is not present already', async function (t: tape.Test) {
   const project = prepare(t)
 
-  await execPnpm('update', 'is-positive')
+  await execPnpm(['update', 'is-positive'])
 
   project.hasNot('is-positive')
 })
@@ -154,9 +154,9 @@ test('update --latest', async function (t: tape.Test) {
     addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative')
+  await execPnpm(['install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative'])
 
-  await execPnpm('update', '--latest')
+  await execPnpm(['update', '--latest'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
 
@@ -181,9 +181,9 @@ test('update --latest --save-exact', async function (t: tape.Test) {
     addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative')
+  await execPnpm(['install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative'])
 
-  await execPnpm('update', '--latest', '--save-exact')
+  await execPnpm(['update', '--latest', '--save-exact'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
 
@@ -209,9 +209,9 @@ test('update --latest specific dependency', async function (t: tape.Test) {
     addDistTag('qar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'foo@100.1.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative')
+  await execPnpm(['install', 'dep-of-pkg-with-1-dep@100.0.0', 'bar@100.0.0', 'foo@100.1.0', 'alias@npm:qar@100.0.0', 'kevva/is-negative'])
 
-  await execPnpm('update', '-L', 'bar', 'foo@100.0.0', 'alias', 'is-negative')
+  await execPnpm(['update', '-L', 'bar', 'foo@100.0.0', 'alias', 'is-negative'])
 
   const lockfile = await project.readLockfile()
   t.equal(lockfile.dependencies['dep-of-pkg-with-1-dep'], '100.0.0')
@@ -235,10 +235,10 @@ test('update --latest --prod', async function (t: tape.Test) {
     addDistTag('bar', '100.1.0', 'latest'),
   ])
 
-  await execPnpm('install', '-D', 'dep-of-pkg-with-1-dep@100.0.0')
-  await execPnpm('install', '-P', 'bar@100.0.0')
+  await execPnpm(['install', '-D', 'dep-of-pkg-with-1-dep@100.0.0'])
+  await execPnpm(['install', '-P', 'bar@100.0.0'])
 
-  await execPnpm('update', '--latest', '--prod')
+  await execPnpm(['update', '--latest', '--prod'])
 
   const lockfile = await project.readLockfile()
   t.equal(lockfile.devDependencies['dep-of-pkg-with-1-dep'], '100.0.0')
@@ -279,9 +279,9 @@ test('recursive update --latest on projects that do not share a lockfile', async
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
-  await execPnpm('recursive', 'update', '--latest')
+  await execPnpm(['recursive', 'update', '--latest'])
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
@@ -336,9 +336,9 @@ test('recursive update --latest --prod on projects that do not share a lockfile'
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
-  await execPnpm('recursive', 'update', '--latest', '--prod')
+  await execPnpm(['recursive', 'update', '--latest', '--prod'])
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
@@ -401,9 +401,9 @@ test('recursive update --latest specific dependency on projects that do not shar
     },
   ])
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
-  await execPnpm('recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0', 'alias')
+  await execPnpm(['recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0', 'alias'])
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
@@ -457,9 +457,9 @@ test('recursive update --latest on projects with a shared a lockfile', async (t:
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
-  await execPnpm('recursive', 'update', '--latest')
+  await execPnpm(['recursive', 'update', '--latest'])
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
@@ -513,9 +513,9 @@ test('recursive update --latest --prod on projects with a shared a lockfile', as
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
-  await execPnpm('recursive', 'update', '--latest', '--prod')
+  await execPnpm(['recursive', 'update', '--latest', '--prod'])
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
@@ -576,9 +576,9 @@ test('recursive update --latest specific dependency on projects with a shared a 
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
-  await execPnpm('recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0', 'alias')
+  await execPnpm(['recursive', 'update', '--latest', 'foo', 'dep-of-pkg-with-1-dep@100.0.0', 'alias'])
 
   const manifest1 = await readPackage(path.resolve('project-1'))
   t.deepEqual(manifest1.dependencies, {
@@ -606,13 +606,13 @@ test('deep update', async function (t: tape.Test) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await execPnpm('add', 'pkg-with-1-dep')
+  await execPnpm(['add', 'pkg-with-1-dep'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('update', '--depth', '1')
+  await execPnpm(['update', '--depth', '1'])
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })

@@ -10,13 +10,13 @@ const test = promisifyTape(tape)
 test('hoist the dependency graph', async function (t) {
   const project = prepare(t)
 
-  await execPnpm('install', 'express@4.16.2')
+  await execPnpm(['install', 'express@4.16.2'])
 
   await project.has('express')
   await project.has('.pnpm/node_modules/debug')
   await project.has('.pnpm/node_modules/cookie')
 
-  await execPnpm('uninstall', 'express')
+  await execPnpm(['uninstall', 'express'])
 
   await project.hasNot('express')
   await project.hasNot('.pnpm/node_modules/debug')
@@ -26,13 +26,13 @@ test('hoist the dependency graph', async function (t) {
 test('shamefully hoist the dependency graph', async function (t) {
   const project = prepare(t)
 
-  await execPnpm('add', '--shamefully-hoist', 'express@4.16.2')
+  await execPnpm(['add', '--shamefully-hoist', 'express@4.16.2'])
 
   await project.has('express')
   await project.has('debug')
   await project.has('cookie')
 
-  await execPnpm('remove', 'express')
+  await execPnpm(['remove', 'express'])
 
   await project.hasNot('express')
   await project.hasNot('debug')
@@ -64,7 +64,7 @@ test('shamefully-hoist: applied to all the workspace projects when set to true i
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('.npmrc', 'shamefully-hoist', 'utf8')
 
-  await execPnpm('recursive', 'install')
+  await execPnpm(['recursive', 'install'])
 
   await projects['root'].has('dep-of-pkg-with-1-dep')
   await projects['root'].has('foo')

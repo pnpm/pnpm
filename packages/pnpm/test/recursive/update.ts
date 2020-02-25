@@ -50,7 +50,7 @@ test('recursive update --latest should update deps with correct specs', async (t
     'utf8',
   )
 
-  await execPnpm('recursive', 'update', '--latest')
+  await execPnpm(['recursive', 'update', '--latest'])
 
   t.deepEqual((await import(path.resolve('project-1/package.json'))).dependencies, { foo: '^100.1.0' })
   t.deepEqual((await import(path.resolve('project-2/package.json'))).dependencies, { foo: '100.1.0' })

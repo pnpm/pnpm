@@ -31,12 +31,12 @@ test('linking multiple packages', async (t: tape.Test) => {
   process.chdir('linked-foo')
 
   t.comment('linking linked-foo to global package')
-  await execPnpm('link')
+  await execPnpm(['link'])
 
   process.chdir('..')
   process.chdir('project')
 
-  await execPnpm('link', 'linked-foo', '../linked-bar')
+  await execPnpm(['link', 'linked-foo', '../linked-bar'])
 
   project.has('linked-foo')
   project.has('linked-bar')
@@ -58,7 +58,7 @@ test('link global bin', async function (t: tape.Test) {
 
   process.chdir('package-with-bin')
 
-  await execPnpm('link')
+  await execPnpm(['link'])
 
   const globalBin = isWindows() ? path.join(global, 'npm') : path.join(global, 'bin')
   await isExecutable(t, path.join(globalBin, 'package-with-bin'))
@@ -75,7 +75,7 @@ test('relative link', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await execPnpm('link', `../${linkedPkgName}`)
+  await execPnpm(['link', `../${linkedPkgName}`])
 
   await project.isExecutable('.bin/hello-world-js-bin')
 
@@ -120,8 +120,8 @@ test('link --production', async (t: tape.Test) => {
 
   process.chdir('target')
 
-  await execPnpm('install')
-  await execPnpm('link', '--production', '../source')
+  await execPnpm(['install'])
+  await execPnpm(['link', '--production', '../source'])
 
   await projects['source'].has('is-positive')
   await projects['source'].hasNot('is-negative')

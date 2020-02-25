@@ -21,7 +21,7 @@ test('run -r: pass the args to the command that is specfied in the build script'
   await fs.writeFile('project/args.json', '[]', 'utf8')
   await fs.writeFile('project/recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await execPnpm('run', '-r', 'foo', 'arg', '--', '--flag=true')
+  await execPnpm(['run', '-r', 'foo', 'arg', '--', '--flag=true'])
 
   const args = await import(path.resolve('project/args.json'))
   t.deepEqual(args, [
@@ -39,7 +39,7 @@ test('test -r: pass the args to the command that is specfied in the build script
     },
   }])
 
-  const result = execPnpmSync('test', '-r', 'arg', '--', '--flag=true')
+  const result = execPnpmSync(['test', '-r', 'arg', '--', '--flag=true'])
 
   t.ok((result.stdout as Buffer).toString('utf8').match(/ts-node test "arg" "--flag=true"/), 'command was successful')
 })
@@ -49,7 +49,7 @@ test('start: run "node server.js" by default', async (t: tape.Test) => {
 
   await fs.writeFile('server.js', 'console.log("Hello world!")', 'utf8')
 
-  const result = execPnpmSync('start')
+  const result = execPnpmSync(['start'])
 
   t.ok((result.stdout as Buffer).toString('utf8').match(/Hello world!/), 'command was successful')
 })
@@ -66,7 +66,7 @@ test('install-test: install dependencies and runs tests', async (t: tape.Test) =
     },
   }, { manifestFormat: 'JSON5' })
 
-  await execPnpm('install-test')
+  await execPnpm(['install-test'])
 
   const scriptsRan = await import(path.resolve('output.json'))
   t.deepEqual(scriptsRan, [

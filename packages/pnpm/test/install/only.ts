@@ -12,7 +12,7 @@ const test = promisifyTape(tape)
 test('production install (with --production flag)', async (t: tape.Test) => {
   const project = prepare(t, basicPackageManifest)
 
-  await execPnpm('install', '--production')
+  await execPnpm(['install', '--production'])
 
   await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
   await project.has('rimraf')
@@ -24,7 +24,7 @@ test('production install (with production NODE_ENV)', async (t: tape.Test) => {
   process.env.NODE_ENV = 'production'
   const project = prepare(t, basicPackageManifest)
 
-  await execPnpm('install')
+  await execPnpm(['install'])
 
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv
@@ -48,7 +48,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   const originalNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
 
-  await execPnpm('install', '--only', 'dev')
+  await execPnpm(['install', '--only', 'dev'])
 
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv

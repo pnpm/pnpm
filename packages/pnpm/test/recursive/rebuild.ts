@@ -31,14 +31,14 @@ test('`pnpm recursive rebuild` specific dependencies', async (t: tape.Test) => {
     },
   ])
 
-  await execPnpm('recursive', 'install', '--ignore-scripts')
+  await execPnpm(['recursive', 'install', '--ignore-scripts'])
 
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  await execPnpm('recursive', 'rebuild', 'install-scripts-example-for-pnpm')
+  await execPnpm(['recursive', 'rebuild', 'install-scripts-example-for-pnpm'])
 
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-1'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')

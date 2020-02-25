@@ -18,7 +18,7 @@ test('installation fails if lifecycle script fails', t => {
     },
   })
 
-  const result = execPnpmSync('install')
+  const result = execPnpmSync(['install'])
 
   t.equal(result.status, 1, 'installation failed')
 
@@ -32,7 +32,7 @@ test('lifecycle script runs with the correct user agent', t => {
     },
   })
 
-  const result = execPnpmSync('install')
+  const result = execPnpmSync(['install'])
 
   t.equal(result.status, 0, 'installation was successfull')
   const expectedUserAgentPrefix = `${pnpmPkg.name}/${pnpmPkg.version} `
@@ -48,7 +48,7 @@ test('preinstall is executed before general installation', t => {
     },
   })
 
-  const result = execPnpmSync('install')
+  const result = execPnpmSync(['install'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().includes('Hello world!'), 'preinstall script was executed')
@@ -63,7 +63,7 @@ test('postinstall is executed after general installation', t => {
     },
   })
 
-  const result = execPnpmSync('install')
+  const result = execPnpmSync(['install'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().includes('Hello world!'), 'postinstall script was executed')
@@ -78,7 +78,7 @@ test('postinstall is not executed after named installation', t => {
     },
   })
 
-  const result = execPnpmSync('install', 'is-negative')
+  const result = execPnpmSync(['install', 'is-negative'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(!result.stdout.toString().includes('Hello world!'), 'postinstall script was not executed')
@@ -93,7 +93,7 @@ test('prepare is not executed after installation with arguments', t => {
     },
   })
 
-  const result = execPnpmSync('install', 'is-negative')
+  const result = execPnpmSync(['install', 'is-negative'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(!result.stdout.toString().includes('Hello world!'), 'prepare script was not executed')
@@ -108,7 +108,7 @@ test('prepare is executed after argumentless installation', t => {
     },
   })
 
-  const result = execPnpmSync('install')
+  const result = execPnpmSync(['install'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().includes('Hello world!'), 'prepare script was executed')
@@ -126,7 +126,7 @@ test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
     },
   })
 
-  execPnpmSync('install')
+  execPnpmSync(['install'])
 
   const lifecycleEnv = await loadJsonFile<object>('env.json')
 
@@ -140,7 +140,7 @@ test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
 test('dependency should not be added to package.json and lockfile if it was not built successfully', async (t: tape.Test) => {
   const project = prepare(t, { name: 'foo', version: '1.0.0' })
 
-  const result = execPnpmSync('install', 'package-that-cannot-be-installed@0.0.0')
+  const result = execPnpmSync(['install', 'package-that-cannot-be-installed@0.0.0'])
 
   t.equal(result.status, 1)
 

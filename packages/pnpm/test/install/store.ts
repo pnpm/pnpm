@@ -15,7 +15,7 @@ const ncp = promisify(ncpCB)
 test('corrupted tarball should be redownloaded to the store', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm('store', 'add', 'is-positive@1.0.0', 'is-positive@2.0.0')
+  await execPnpm(['store', 'add', 'is-positive@1.0.0', 'is-positive@2.0.0'])
 
   await rimraf(path.resolve(`../store/2/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0`))
   await makeDir(path.resolve(`../store/2/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0`))
@@ -24,7 +24,7 @@ test('corrupted tarball should be redownloaded to the store', async (t: tape.Tes
     path.resolve(`../store/2/localhost+${REGISTRY_MOCK_PORT}/is-positive/2.0.0/packed.tgz`),
   )
 
-  await execPnpm('add', 'is-positive@2.0.0')
+  await execPnpm(['add', 'is-positive@2.0.0'])
 
   await project.has('is-positive')
 
