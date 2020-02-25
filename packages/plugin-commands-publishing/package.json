@@ -57,7 +57,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "@pnpm/utils": "workspace:0.12.4",
     "@zkochan/rimraf": "1.0.0",
-    "cp-file": "7.0.0",
+    "cp-file": "8.0.1",
     "fast-glob": "3.2.2",
     "lru-cache": "5.1.1",
     "mz": "2.7.0",

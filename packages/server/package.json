@@ -39,7 +39,7 @@
     "@pnpm/tarball-fetcher": "workspace:*",
     "@types/mz": "^2.7.0",
     "@types/node-fetch": "^2.5.4",
-    "@types/uuid": "^3.4.7",
+    "@types/uuid": "7.0.0",
     "@zkochan/rimraf": "1.0.0",
     "is-port-reachable": "3.0.0",
     "mz": "2.7.0",
@@ -51,6 +51,6 @@
     "@pnpm/types": "workspace:5.0.0",
     "p-limit": "2.2.2",
     "promise-share": "1.0.0",
-    "uuid": "3.4.0"
+    "uuid": "7.0.0"
   }
 }
