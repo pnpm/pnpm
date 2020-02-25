@@ -22,7 +22,8 @@ test('linking multiple packages', async (t: tape.Test) => {
   const project = prepare(t)
 
   process.chdir('..')
-  process.env.NPM_CONFIG_PREFIX = path.resolve('global')
+
+  const env = { NPM_CONFIG_PREFIX: path.resolve('global') }
 
   await writePkg('linked-foo', { name: 'linked-foo', version: '1.0.0' })
   await writePkg('linked-bar', { name: 'linked-bar', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } })
@@ -31,12 +32,12 @@ test('linking multiple packages', async (t: tape.Test) => {
   process.chdir('linked-foo')
 
   t.comment('linking linked-foo to global package')
-  await execPnpm(['link'])
+  await execPnpm(['link'], { env })
 
   process.chdir('..')
   process.chdir('project')
 
-  await execPnpm(['link', 'linked-foo', '../linked-bar'])
+  await execPnpm(['link', 'linked-foo', '../linked-bar'], { env })
 
   project.has('linked-foo')
   project.has('linked-bar')
@@ -50,15 +51,15 @@ test('link global bin', async function (t: tape.Test) {
   process.chdir('..')
 
   const global = path.resolve('global')
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
+  const env = { NPM_CONFIG_PREFIX: global }
+  if (process.env.APPDATA) env['APPDATA'] = global
 
   await writePkg('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
   await fs.writeFile('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   process.chdir('package-with-bin')
 
-  await execPnpm(['link'])
+  await execPnpm(['link'], { env })
 
   const globalBin = isWindows() ? path.join(global, 'npm') : path.join(global, 'bin')
   await isExecutable(t, path.join(globalBin, 'package-with-bin'))

@@ -22,10 +22,10 @@ test('pnpm root -g', async (t: tape.Test) => {
 
   const global = path.resolve('global')
 
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
+  const env = { NPM_CONFIG_PREFIX: global }
+  if (process.env.APPDATA) env['APPDATA'] = global
 
-  const result = execPnpmSync(['root', '-g'])
+  const result = execPnpmSync(['root', '-g'], { env })
 
   t.equal(result.status, 0)
 

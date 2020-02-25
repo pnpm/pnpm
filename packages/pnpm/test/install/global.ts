@@ -16,14 +16,14 @@ test('global installation', async (t: tape.Test) => {
   prepare(t)
   const global = path.resolve('..', 'global')
 
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
+  const env = { NPM_CONFIG_PREFIX: global }
+  if (process.env.APPDATA) env['APPDATA'] = global
 
-  await execPnpm(['install', '--global', 'is-positive'])
+  await execPnpm(['install', '--global', 'is-positive'], { env })
 
   // there was an issue when subsequent installations were removing everything installed prior
   // https://github.com/pnpm/pnpm/issues/808
-  await execPnpm(['install', '--global', 'is-negative'])
+  await execPnpm(['install', '--global', 'is-negative'], { env })
 
   const globalPrefix = isWindows()
     ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
@@ -51,11 +51,12 @@ test('always install latest when doing global installation without spec', async 
 
   const global = path.resolve('..', 'global')
 
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
+  const env = { NPM_CONFIG_PREFIX: global }
 
-  await execPnpm(['install', '-g', 'peer-c@1'])
-  await execPnpm(['install', '-g', 'peer-c'])
+  if (process.env.APPDATA) env['APPDATA'] = global
+
+  await execPnpm(['install', '-g', 'peer-c@1'], { env })
+  await execPnpm(['install', '-g', 'peer-c'], { env })
 
   const globalPrefix = isWindows()
     ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
@@ -75,10 +76,10 @@ test('run lifecycle events of global packages in correct working directory', asy
   prepare(t)
   const global = path.resolve('..', 'global')
 
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
+  const env = { NPM_CONFIG_PREFIX: global }
+  if (process.env.APPDATA) env['APPDATA'] = global
 
-  await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'])
+  await execPnpm(['install', '-g', 'postinstall-calls-pnpm@1.0.0'], { env })
 
   t.ok(await exists(path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules/postinstall-calls-pnpm/created-by-postinstall`)))
 })

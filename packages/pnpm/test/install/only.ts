@@ -20,14 +20,9 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 })
 
 test('production install (with production NODE_ENV)', async (t: tape.Test) => {
-  const originalNodeEnv = process.env.NODE_ENV
-  process.env.NODE_ENV = 'production'
   const project = prepare(t, basicPackageManifest)
 
-  await execPnpm(['install'])
-
-  // reset NODE_ENV
-  process.env.NODE_ENV = originalNodeEnv
+  await execPnpm(['install'], { env: { NODE_ENV: 'production' } })
 
   await project.hasNot(Object.keys(basicPackageManifest.devDependencies!)[0])
   await project.has('rimraf')

@@ -36,15 +36,15 @@ test('uninstall global package with its bin files', async (t: tape.Test) => {
   const global = path.resolve('global')
   const globalBin = isWindows() ? path.join(global, 'npm') : path.join(global, 'bin')
 
-  if (process.env.APPDATA) process.env.APPDATA = global
-  process.env.NPM_CONFIG_PREFIX = global
+  const env = { NPM_CONFIG_PREFIX: global }
+  if (process.env.APPDATA) env['APPDATA'] = global
 
-  await execPnpm(['add', '-g', 'sh-hello-world@1.0.1'])
+  await execPnpm(['add', '-g', 'sh-hello-world@1.0.1'], { env })
 
   let stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
   t.ok(stat, 'sh-hello-world is in .bin')
 
-  await execPnpm(['uninstall', '-g', 'sh-hello-world'])
+  await execPnpm(['uninstall', '-g', 'sh-hello-world'], { env })
 
   stat = await exists(path.resolve(globalBin, 'sh-hello-world'))
   t.notOk(stat, 'sh-hello-world is removed from .bin')
