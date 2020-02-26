@@ -430,7 +430,7 @@ export async function mutateModules (
           if (project.allowNew === false) {
             for (const { wantedDependencies } of projectsToInstall) {
               wantedDependencies.forEach(wantedDependency => {
-                dependencySet.add(wantedDependency.raw)
+                dependencySet.add(wantedDependency.alias)
               })
             }
             checkDependencyInPackage(dependencySet, project.dependencySelectors, project.rootDir)
