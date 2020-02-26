@@ -2290,7 +2290,7 @@ importers:
       '@pnpm/types': 'link:../types'
       p-limit: 2.2.2
       promise-share: 1.0.0
-      uuid: 7.0.0
+      uuid: 7.0.1
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -2324,7 +2324,7 @@ importers:
       node-fetch: 2.6.0
       p-limit: 2.2.2
       promise-share: 1.0.0
-      uuid: 7.0.0
+      uuid: 7.0.1
   packages/sort-packages:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -11339,11 +11339,11 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==
-  /uuid/7.0.0:
+  /uuid/7.0.1:
     dev: false
     hasBin: true
     resolution:
-      integrity: sha512-LNUrNsXdI/fUsypJbWM8Jt4DgQdFAZh41p9C7WE9Cn+CULOEkoG2lgQyH68v3wnIy5K3fN4jdSt270K6IFA3MQ==
+      integrity: sha512-yqjRXZzSJm9Dbl84H2VDHpM3zMjzSJQ+hn6C4zqd5ilW+7P4ZmLEEqwho9LjP+tGuZlF4xrHQXT0h9QZUS/pWA==
   /validate-npm-package-license/3.0.4:
     dependencies:
       spdx-correct: 3.1.0
