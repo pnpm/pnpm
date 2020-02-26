@@ -1360,7 +1360,7 @@ importers:
       load-json-file: 6.2.0
       ncp: 2.0.0
       render-help: 1.0.0
-      supi: 'workspace:0.38.13'
+      supi: 'workspace:0.38.14'
       tempy: 0.4.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1478,7 +1478,7 @@ importers:
       read-yaml-file: 1.1.0
       render-help: 1.0.0
       sinon: 9.0.0
-      supi: 'workspace:0.38.13'
+      supi: 'workspace:0.38.14'
       table: 5.4.6
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
@@ -2044,8 +2044,8 @@ importers:
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/parse-cli-args': 'workspace:0.4.0'
       '@pnpm/plugin-commands-audit': 'workspace:0.2.9'
-      '@pnpm/plugin-commands-import': 'workspace:0.1.20'
-      '@pnpm/plugin-commands-installation': 'workspace:0.2.13'
+      '@pnpm/plugin-commands-import': 'workspace:0.1.21'
+      '@pnpm/plugin-commands-installation': 'workspace:0.2.14'
       '@pnpm/plugin-commands-listing': 'workspace:0.2.10'
       '@pnpm/plugin-commands-outdated': 'workspace:0.2.11'
       '@pnpm/plugin-commands-publishing': 'workspace:0.2.12'
@@ -3101,7 +3101,7 @@ packages:
       read-yaml-file: 1.1.0
       rimraf: 3.0.2
       tempy: 0.3.0
-      verdaccio: 4.4.3
+      verdaccio: 4.4.4
       write-yaml-file: 3.0.1
     dev: true
     engines:
@@ -10103,6 +10103,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-WfuG+fl6eh3eZ2qAf6goB7nhiCd7NPXhmyFxigB/TOkQyeLP8w8GsVehvtGNtnNmyboz4TgeK40B1Kbql/8c5A==
+  /semver/7.1.2:
+    dev: true
+    engines:
+      node: '>=10'
+    hasBin: true
+    resolution:
+      integrity: sha512-BJs9T/H8sEVHbeigqzIEo57Iu/3DG6c4QoqTfbQB3BPA4zgzAomh/Fk9E7QtjWQ8mx2dgA9YCfSF4y9k9bHNpQ==
   /semver/7.1.3:
     engines:
       node: '>=10'
@@ -11441,6 +11448,49 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-DiwF3mvlv6tvvYpycoqRGfjRBHrQKL5NXxHrW50wAPBmMXKxVXT3OKi0n4N+EqSOq+XE0d8skHpOSNHO8KmuRA==
+  /verdaccio/4.4.4:
+    dependencies:
+      '@verdaccio/commons-api': 8.5.0
+      '@verdaccio/local-storage': 9.3.1
+      '@verdaccio/readme': 8.5.2
+      '@verdaccio/streams': 8.5.2
+      '@verdaccio/ui-theme': 0.3.13
+      JSONStream: 1.3.5
+      async: 3.1.1
+      body-parser: 1.19.0
+      bunyan: 1.8.12
+      commander: 3.0.2
+      compression: 1.7.4
+      cookies: 0.8.0
+      cors: 2.8.5
+      dayjs: 1.8.19
+      envinfo: 7.5.0
+      express: 4.17.1
+      handlebars: 4.7.2
+      http-errors: 1.7.3
+      js-yaml: 3.13.1
+      jsonwebtoken: 8.5.1
+      kleur: 3.0.3
+      lockfile-lint: 2.2.0
+      lodash: 4.17.15
+      lunr-mutable-indexes: 2.3.2
+      marked: 0.8.0
+      mime: 2.4.4
+      minimatch: 3.0.4
+      mkdirp: 0.5.1
+      mv: 2.1.1
+      pkginfo: 0.4.1
+      request: 2.87.0
+      semver: 7.1.2
+      verdaccio-audit: 8.5.2
+      verdaccio-htpasswd: 8.5.2
+    dev: true
+    engines:
+      node: '>=8'
+      npm: '>=5'
+    hasBin: true
+    resolution:
+      integrity: sha512-f126ip+zj+TqXC0NufjUpi11khEtGVTSSZKtAETHooYNHwIyvqNqArziXgDKGv+CUWWhO3Xnn3mZDlfodiHvxQ==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
