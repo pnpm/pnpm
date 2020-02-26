@@ -95,7 +95,7 @@ function createEnv (opts?: {storeDir?: string}): NodeJS.ProcessEnv {
     npm_config_verify_store_integrity: 'true',
   }
   for (let [key, value] of Object.entries(process.env)) {
-    if (key.toLowerCase() === 'path' || key === 'COLORTERM') {
+    if (key.toLowerCase() === 'path' || key === 'COLORTERM' || key === 'APPDATA') {
       env[key] = value
     }
   }
