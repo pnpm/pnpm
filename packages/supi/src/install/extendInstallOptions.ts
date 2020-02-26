@@ -17,6 +17,7 @@ export interface StrictInstallOptions {
   linkWorkspacePackages?: boolean,
   forceSharedLockfile: boolean,
   frozenLockfile: boolean,
+  frozenLockfileIfExists: boolean,
   extraBinPaths: string[],
   useLockfile: boolean,
   lockfileOnly: boolean,
