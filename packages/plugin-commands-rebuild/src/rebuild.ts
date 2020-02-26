@@ -26,6 +26,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     ...R.pick([
+      'reporter',
       'unsafe-perm',
     ], allTypes),
     'pending': Boolean,
