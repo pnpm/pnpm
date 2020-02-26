@@ -16,11 +16,8 @@ import {
   OutdatedPackage,
 } from '@pnpm/outdated'
 import semverDiff from '@pnpm/semver-diff'
-import {
-  Dependencies,
-  DEPENDENCIES_FIELDS,
-  ProjectManifest,
-} from '@pnpm/types'
+import { ProjectManifest } from '@pnpm/types'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import chalk = require('chalk')
 import { oneLine, stripIndent } from 'common-tags'
 import R = require('ramda')
@@ -194,14 +191,11 @@ export async function handler (
 }
 
 function checkPkgInDependencies (pkgs: Array<{manifest: ProjectManifest}>, args: string[], dir: string) {
-  let dependencySet: Set<string> = new Set()
-  let noneDependencyfoundInputs: string[] = []
-  for (const p of pkgs) {
-    DEPENDENCIES_FIELDS
-      .filter((depField) => p.manifest[depField])
-      .forEach((depField) => {
-        Object.keys(p.manifest[depField] as Dependencies).forEach(dependency => dependencySet.add(dependency))
-      })
+  const dependencySet: Set<string> = new Set()
+  const noneDependencyfoundInputs: string[] = []
+  for (const { manifest } of pkgs) {
+    Object.keys(getAllDependenciesFromPackage(manifest))
+      .forEach(dependency => dependencySet.add(dependency))
   }
   for (const input of args) {
     if (!dependencySet.has(input)) {

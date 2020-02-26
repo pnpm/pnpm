@@ -424,12 +424,12 @@ export async function mutateModules (
 
     if (maybeOpts.strict) {
       const project = projectsToInstall[0]
-      let dependencySet: Set<string> = new Set()
+      const dependencySet: Set<string> = new Set()
       switch (project.mutation) {
         case 'installSome': {
           if (project.allowNew === false) {
-            for (const p of projectsToInstall) {
-              p.wantedDependencies.forEach(wantedDependency => {
+            for (const { wantedDependencies } of projectsToInstall) {
+              wantedDependencies.forEach(wantedDependency => {
                 dependencySet.add(wantedDependency.raw)
               })
             }
@@ -438,12 +438,9 @@ export async function mutateModules (
           break
         }
         case 'uninstallSome': {
-          for (const p of projectsToInstall) {
-            DEPENDENCIES_FIELDS
-              .filter((depField) => p.manifest[depField])
-              .forEach((depField) => {
-                Object.keys(p.manifest[depField] as Dependencies).forEach(dependency => dependencySet.add(dependency))
-              })
+          for (const { manifest } of projectsToInstall) {
+            Object.keys(getAllDependenciesFromPackage(manifest))
+              .forEach(dependency => dependencySet.add(dependency))
           }
           checkDependencyInPackage(dependencySet, project.dependencyNames, project.rootDir)
           break
