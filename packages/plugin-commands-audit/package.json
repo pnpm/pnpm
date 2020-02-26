@@ -30,7 +30,7 @@
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "link:",
     "@pnpm/types": "workspace:5.0.0",
-    "@types/ramda": "^0.26.41",
+    "@types/ramda": "^0.26.42",
     "@types/table": "^4.0.7",
     "strip-ansi": "6.0.0"
   },

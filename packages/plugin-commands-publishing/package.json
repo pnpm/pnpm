@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@types/cross-spawn": "^6.0.1",
     "@types/lru-cache": "^5.1.0",
     "@types/mz": "^2.7.0",
-    "@types/ramda": "^0.26.41",
+    "@types/ramda": "^0.26.42",
     "cross-spawn": "7.0.1",
     "execa": "4.0.0",
     "path-exists": "4.0.0",

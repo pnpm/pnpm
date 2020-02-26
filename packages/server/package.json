@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "7.0.1",
+  "version": "7.0.2",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -38,7 +38,7 @@
     "@pnpm/server": "link:",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@types/mz": "^2.7.0",
-    "@types/node-fetch": "^2.5.4",
+    "@types/node-fetch": "^2.5.5",
     "@types/uuid": "7.0.0",
     "@zkochan/rimraf": "1.0.0",
     "is-port-reachable": "3.0.0",

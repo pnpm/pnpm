@@ -38,7 +38,7 @@
     "@pnpm/prepare": "workspace:0.0.0",
     "@types/common-tags": "^1.8.0",
     "@types/mz": "^2.7.0",
-    "@types/ramda": "^0.26.41",
+    "@types/ramda": "^0.26.42",
     "@zkochan/rimraf": "1.0.0",
     "execa": "4.0.0",
     "mz": "2.7.0",

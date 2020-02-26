@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-server",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Commands for controlling the store server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
     "@types/common-tags": "^1.8.0",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.0",
-    "@types/ramda": "^0.26.41",
+    "@types/ramda": "^0.26.42",
     "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {
@@ -41,8 +41,8 @@
     "@pnpm/common-cli-options-help": "workspace:0.1.4",
     "@pnpm/config": "workspace:8.0.1",
     "@pnpm/error": "workspace:1.0.0",
-    "@pnpm/server": "workspace:7.0.1",
-    "@pnpm/store-connection-manager": "workspace:0.2.16",
+    "@pnpm/server": "workspace:7.0.2",
+    "@pnpm/store-connection-manager": "workspace:0.2.17",
     "@pnpm/store-path": "2.1.1",
     "common-tags": "1.8.0",
     "delay": "4.3.0",
