@@ -187,6 +187,7 @@ export async function mutateModules (
       installsOnly &&
       (
         opts.frozenLockfile ||
+        opts.frozenLockfileIfExists && ctx.existsWantedLockfile ||
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
