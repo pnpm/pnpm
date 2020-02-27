@@ -35,7 +35,7 @@ test('publish: fails git check if branch is not on master', async (t) => {
     err = _err
   }
   t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_CHECK_FAILED')
+  t.equal(err.code, 'ERR_PNPM_GIT_NOT_MASTER')
   t.equal(err.message, "Branch is not on 'master'.")
 
   t.end()
@@ -64,7 +64,7 @@ test('publish: fails git check if branch is not clean', async (t) => {
     err = _err
   }
   t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_CHECK_FAILED')
+  t.equal(err.code, 'ERR_PNPM_GIT_NOT_UNCLEAN')
   t.equal(err.message, 'Unclean working tree. Commit or stash changes first.')
 
   t.end()
@@ -98,7 +98,7 @@ test('publish: fails git check if branch is not update to date', async (t) => {
     err = _err
   }
   t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_CHECK_FAILED')
+  t.equal(err.code, 'ERR_PNPM_GIT_NOT_LATEST')
   t.equal(err.message, 'Remote history differs. Please pull changes.')
 
   t.end()

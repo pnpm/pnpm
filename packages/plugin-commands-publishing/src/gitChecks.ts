@@ -5,13 +5,13 @@ import execa = require('execa')
 
 export async function gitChecks () {
   if (await getCurrentBranch() !== 'master') {
-    throw new PnpmError('GIT_CHECK_FAILED', "Branch is not on 'master'.")
+    throw new PnpmError('GIT_NOT_MASTER', "Branch is not on 'master'.")
   }
   if (!(await isWorkingTreeClean())) {
-    throw new PnpmError('GIT_CHECK_FAILED', 'Unclean working tree. Commit or stash changes first.')
+    throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
   }
   if (!(await isRemoteHistoryClean())) {
-    throw new PnpmError('GIT_CHECK_FAILED', 'Remote history differs. Please pull changes.')
+    throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
   }
 }
 
