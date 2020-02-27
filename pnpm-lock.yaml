@@ -1638,6 +1638,7 @@ importers:
       cross-spawn: 7.0.1
       execa: 4.0.0
       path-exists: 4.0.0
+      tempy: 0.4.0
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.7'
@@ -1668,6 +1669,7 @@ importers:
       path-exists: 4.0.0
       ramda: 0.27.0
       render-help: 1.0.0
+      tempy: 0.4.0
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
   packages/plugin-commands-rebuild:
