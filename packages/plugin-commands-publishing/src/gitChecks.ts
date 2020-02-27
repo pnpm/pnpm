@@ -1,6 +1,8 @@
 import PnpmError from '@pnpm/error'
 import execa = require('execa')
 
+// git checks logic is from https://github.com/sindresorhus/np/blob/master/source/git-tasks.js
+
 export async function gitChecks () {
   if (await getCurrentBranch() !== 'master') {
     throw new PnpmError('GIT_CHECK_FAILED', "Branch is not on 'master'.")
