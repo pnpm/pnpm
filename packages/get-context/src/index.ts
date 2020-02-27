@@ -199,13 +199,13 @@ async function validateNodeModules (
       throw new PnpmError(
         'SHAMEFULLY_HOIST_WANTED',
         'This "node_modules" folder was created using the --shamefully-hoist option.'
-        + ' You must add that option, or else run "pnpm install --force" to recreate the "node_modules" folder.',
+        + ' You must add that option, or else run "pnpm install" to recreate the "node_modules" folder.',
       )
     }
     throw new PnpmError(
       'SHAMEFULLY_HOIST_NOT_WANTED',
       'This "node_modules" folder was created without the --shamefully-hoist option.'
-      + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
+      + ' You must remove that option, or else "pnpm install" to recreate the "node_modules" folder.',
     )
   }
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
@@ -218,13 +218,13 @@ async function validateNodeModules (
       throw new PnpmError(
         'INDEPENDENT_LEAVES_WANTED',
         'This "node_modules" folder was created using the --independent-leaves option.'
-        + ' You must add that option, or else run "pnpm install --force" to recreate the "node_modules" folder.',
+        + ' You must add that option, or else run "pnpm install" to recreate the "node_modules" folder.',
       )
     }
     throw new PnpmError(
       'INDEPENDENT_LEAVES_NOT_WANTED',
       'This "node_modules" folder was created without the --independent-leaves option.'
-      + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
+      + ' You must remove that option, or else "pnpm install" to recreate the "node_modules" folder.',
     )
   }
   if (opts.forceHoistPattern && rootProject) {
@@ -240,7 +240,7 @@ async function validateNodeModules (
         throw new PnpmError(
           'HOISTING_NOT_WANTED',
           'This "node_modules" folder was created without the --hoist-pattern option.'
-          + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
+          + ' You must remove that option, or else run "pnpm install" to recreate the "node_modules" folder.',
         )
       }
     } catch (err) {
@@ -275,7 +275,7 @@ async function validateNodeModules (
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       return
     }
-    throw new PnpmError('REGISTRIES_MISMATCH', `This "node_modules" directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate "node_modules" using the new settings, run "pnpm install --force".`)
+    throw new PnpmError('REGISTRIES_MISMATCH', `This "node_modules" directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate "node_modules" using the new settings, run "pnpm install".`)
   }
 }
 
