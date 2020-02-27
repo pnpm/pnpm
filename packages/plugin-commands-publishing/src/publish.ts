@@ -12,7 +12,7 @@ import path = require('path')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
-import { gitChecks } from './gitChecks'
+import { gitChecks, isGitRepo } from './gitChecks'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 
 export function rcOptionsTypes () {
@@ -55,7 +55,7 @@ export async function handler (
     skipGitChecks?: boolean,
   } & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>,
 ) {
-  if (!opts.skipGitChecks) {
+  if (!opts.skipGitChecks && await isGitRepo()) {
     await gitChecks()
   }
   if (opts.recursive && opts.selectedProjectsGraph) {

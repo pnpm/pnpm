@@ -71,7 +71,6 @@ test('recursive publish', async (t) => {
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
-    skipGitChecks: true,
   })
 
   {
@@ -90,7 +89,6 @@ test('recursive publish', async (t) => {
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
-    skipGitChecks: true,
     tag: 'next',
   })
 

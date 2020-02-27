@@ -27,7 +27,6 @@ test('publish: package with package.json', async (t) => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
   })
   t.end()
 })
@@ -42,7 +41,6 @@ test('publish: package with package.yaml', async (t) => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
   })
 
   t.ok(await exists('package.yaml'))
@@ -60,7 +58,6 @@ test('publish: package with package.json5', async (t) => {
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
   })
 
   t.ok(await exists('package.json5'))
@@ -80,7 +77,6 @@ test('publish: package with package.json5 running publish from different folder'
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS, 'project'] },
     dir: process.cwd(),
-    skipGitChecks: true,
   })
 
   t.ok(await exists('project/package.json5'))
@@ -154,7 +150,6 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
     workspaceDir,
   })
 
@@ -163,7 +158,6 @@ test('publish packages with workspace LICENSE if no own LICENSE is present', asy
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
     workspaceDir,
   })
 
@@ -218,7 +212,6 @@ test('publish: package with all possible fields in publishConfig', async (t) => 
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
   })
 
   const originalManifests = await import(path.resolve('package.json'))
@@ -328,7 +321,6 @@ test.skip('publish package that calls executable from the workspace .bin folder 
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
     workspaceDir,
   })
 
@@ -401,7 +393,6 @@ test('convert specs with workspace protocols to regular version ranges', async (
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
-      skipGitChecks: true,
     })
   } catch (_err) {
     err = _err
@@ -421,7 +412,6 @@ test('convert specs with workspace protocols to regular version ranges', async (
     ...DEFAULT_OPTS,
     argv: { original: ['publish', ...CREDENTIALS] },
     dir: process.cwd(),
-    skipGitChecks: true,
   })
 
   process.chdir('../target')

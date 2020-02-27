@@ -15,6 +15,15 @@ export async function gitChecks () {
   }
 }
 
+export async function isGitRepo () {
+  try {
+    await execa('git', ['rev-parse', '--git-dir'])
+  } catch (_) {
+    return false
+  }
+  return true
+}
+
 async function getCurrentBranch () {
   const { stdout } = await execa('git', ['symbolic-ref', '--short', 'HEAD'])
   return stdout
