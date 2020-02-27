@@ -27,6 +27,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return R.pick([
     'access',
+    'git-checks',
     'otp',
     'tag',
     'unsafe-perm',
@@ -38,8 +39,20 @@ export const commandNames = ['publish']
 export function help () {
   return renderHelp({
     description: 'Publishes a package to the npm registry.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Check if current branch is master branch, clean and update to date',
+            name: '--git-checks',
+          },
+        ],
+      },
+    ],
     url: docsUrl('publish'),
-    usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>]'],
+    usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]'],
   })
 }
 
@@ -52,10 +65,9 @@ export async function handler (
     engineStrict?: boolean,
     recursive?: boolean,
     workspaceDir?: string,
-    skipGitChecks?: boolean,
-  } & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>,
+  } & Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'gitChecks'>,
 ) {
-  if (!opts.skipGitChecks && await isGitRepo()) {
+  if (opts.gitChecks && await isGitRepo()) {
     await gitChecks()
   }
   if (opts.recursive && opts.selectedProjectsGraph) {

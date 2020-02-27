@@ -36,6 +36,7 @@ export const types = Object.assign({
   'filter': [String, Array],
   'frozen-lockfile': Boolean,
   'frozen-shrinkwrap': Boolean,
+  'git-checks': Boolean,
   'global-dir': String,
   'global-path': String,
   'global-pnpmfile': String,

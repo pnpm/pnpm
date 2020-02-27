@@ -30,6 +30,7 @@ test('publish: fails git check if branch is not on master', async (t) => {
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
+      gitChecks: true,
     })
   } catch (_err) {
     err = _err
@@ -59,6 +60,7 @@ test('publish: fails git check if branch is not clean', async (t) => {
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
+      gitChecks: true,
     })
   } catch (_err) {
     err = _err
@@ -93,6 +95,7 @@ test('publish: fails git check if branch is not update to date', async (t) => {
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
+      gitChecks: true,
     })
   } catch (_err) {
     err = _err

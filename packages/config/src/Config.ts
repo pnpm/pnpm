@@ -114,6 +114,7 @@ export interface Config {
   resolutionStrategy: 'fast' | 'fewer-dependencies',
   globalPnpmfile?: string,
   npmPath?: string,
+  gitChecks?: boolean,
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,
