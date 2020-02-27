@@ -37,7 +37,9 @@ async function isRemoteHistoryClean () {
   try { // Gracefully handle no remote set up.
     const { stdout } = await execa('git', ['rev-list', '--count', '--left-only', '@{u}...HEAD'])
     history = stdout
-  } catch (_) {}
+  } catch (_) {
+    history = null
+  }
   if (history && history !== '0') {
     return false
   }
