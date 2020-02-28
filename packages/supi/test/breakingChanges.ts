@@ -1,4 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
+import PnpmError from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
 import isCI = require('is-ci')
@@ -61,11 +62,20 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
 
 test('do not fail on non-compatible node_modules when forced with a named installation', async (t: tape.Test) => {
   prepareEmpty(t)
-  const opts = await testDefaults({ force: true })
+  const opts = await testDefaults()
 
   await saveModulesYaml('0.50.0', opts.storeDir)
 
-  await addDependenciesToPackage({}, ['is-negative'], opts)
+  let err!: PnpmError
+  try {
+    await addDependenciesToPackage({}, ['is-negative'], opts)
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_MODULES_BREAKING_CHANGE')
+
+  await install({}, opts)
 })
 
 test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
@@ -81,11 +91,20 @@ test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
 
 test('do not fail on non-compatible store when forced during named installation', async (t: tape.Test) => {
   prepareEmpty(t)
-  const opts = await testDefaults({ force: true })
+  const opts = await testDefaults()
 
   await saveModulesYaml('0.32.0', opts.storeDir)
 
-  await addDependenciesToPackage({}, ['is-negative'], opts)
+  let err!: PnpmError
+  try {
+    await addDependenciesToPackage({}, ['is-negative'], opts)
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_MODULES_BREAKING_CHANGE')
+
+  await install({}, opts)
 })
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
