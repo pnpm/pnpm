@@ -2,7 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import fs = require('mz/fs')
 import path = require('path')
-import { install } from 'supi'
+import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -101,16 +101,17 @@ test('fail if installing different types of dependencies in a project that uses 
   await project.hasNot('once')
 
   let err!: Error & { code: string }
+  const newOpts = await testDefaults({
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+    lockfileDir,
+  })
 
   try {
-    await install(manifest, await testDefaults({
-      include: {
-        dependencies: true,
-        devDependencies: true,
-        optionalDependencies: true,
-      },
-      lockfileDir,
-    }))
+    await addDependenciesToPackage(manifest, ['is-negative'], newOpts)
   } catch (_) {
     err = _
   }
@@ -118,4 +119,6 @@ test('fail if installing different types of dependencies in a project that uses 
   t.ok(err, 'installation failed')
   t.equal(err.code, 'ERR_PNPM_INCLUDED_DEPS_CONFLICT', 'error has correct error code')
   t.ok(err.message.includes('was installed with devDependencies. Current install wants optionalDependencies, dependencies, devDependencies.'), 'correct error message')
+
+  await install(manifest, newOpts)
 })

@@ -86,7 +86,7 @@ function reportUnexpectedStore (err: Error, msg: object) {
 
     pnpm now wants to use the store at "${msg['actualStorePath']}" to link dependencies.
 
-    If you want to use the new store location, reinstall your dependencies with "pnpm install --force".
+    If you want to use the new store location, reinstall your dependencies with "pnpm install".
 
     You may change the global store location by running "pnpm config set store-dir <dir>".
       (This error may happen if the node_modules was installed with a different major version of pnpm)
@@ -101,7 +101,7 @@ function reportUnexpectedVirtualStoreDir (err: Error, msg: object) {
 
     pnpm now wants to use the virtual store at "${msg['actual']}" to link dependencies from the store.
 
-    If you want to use the new virtual store location, reinstall your dependencies with "pnpm install --force".
+    If you want to use the new virtual store location, reinstall your dependencies with "pnpm install".
 
     You may change the virtual store location by changing the value of the virtual-store-dir config.
     `
@@ -112,7 +112,7 @@ function reportStoreBreakingChange (msg: object) {
     ${formatErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)}
     Store path: ${colorPath(msg['storePath'])}
 
-    Try running the same command with the ${highlight('--force')} parameter.
+    Run "pnpm install" to recreate node_modules.
   `
 
   if (msg['additionalInformation']) {
@@ -128,7 +128,7 @@ function reportModulesBreakingChange (msg: object) {
     ${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
     node_modules path: ${colorPath(msg['modulesPath'])}
 
-    Run ${highlight('pnpm install --force')} to recreate node_modules.
+    Run ${highlight('pnpm install')} to recreate node_modules.
   `
 
   if (msg['additionalInformation']) {

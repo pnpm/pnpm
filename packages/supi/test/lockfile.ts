@@ -1,5 +1,6 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { RootLog } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import { Lockfile, TarballResolution } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
@@ -1051,4 +1052,38 @@ test('existing dependencies are preserved when updating a lockfile to a newer fo
   const updatedLockfile = await project.readLockfile()
 
   t.deepEqual(initialLockfile.packages, updatedLockfile.packages, 'dependency versions preserved')
+})
+
+test('lockfile is not getting broken if the used registry changes', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  const manifest = await addDependenciesToPackage({}, ['is-positive@1'], await testDefaults())
+
+  const newOpts = await testDefaults({ registries: { default: 'https://registry.npmjs.org/' } })
+  let err!: PnpmError
+  try {
+    await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_REGISTRIES_MISMATCH')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], newOpts)
+  await addDependenciesToPackage(manifest, ['is-negative@1'], newOpts)
+
+  t.deepEqual(
+    Object.keys((await project.readLockfile()).packages),
+    [
+      '/is-negative/1.0.1',
+      '/is-positive/1.0.0',
+    ],
+  )
 })

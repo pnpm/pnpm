@@ -149,6 +149,8 @@ export async function mutateModules (
     throw new PnpmError('OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
+  const installsOnly = projects.every((project) => project.mutation === 'install')
+  opts['forceNewNodeModules'] = installsOnly
   const ctx = await getContext(projects, opts)
 
   for (const { manifest, rootDir } of ctx.projects) {
@@ -180,7 +182,6 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
-    const installsOnly = projects.every((project) => project.mutation === 'install')
     if (
       !opts.lockfileOnly &&
       !opts.update &&
