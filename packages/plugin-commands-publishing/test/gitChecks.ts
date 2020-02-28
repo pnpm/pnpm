@@ -47,7 +47,7 @@ test('publish: fails git check if branch is not on master', async (t) => {
     err = _err
   }
   t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_GIT_NOT_MASTER')
+  t.equal(err.code, 'ERR_PNPM_GIT_NOT_CORRECT_BRANCH')
   t.equal(err.message, "Branch is not on 'master'.")
 
   t.end()

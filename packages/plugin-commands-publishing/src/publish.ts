@@ -30,6 +30,7 @@ export function cliOptionsTypes () {
     'access',
     'git-checks',
     'otp',
+    'publish-branch',
     'tag',
     'unsafe-perm',
   ], allTypes)
@@ -46,8 +47,12 @@ export function help () {
 
         list: [
           {
-            description: 'Check if current branch is master branch, clean and update to date',
+            description: 'Checks if current branch is your publish branch, clean and update to date',
             name: '--git-checks',
+          },
+          {
+            description: 'Sets branch name to publish. Default is master',
+            name: '--publish-branch',
           },
         ],
       },
@@ -66,18 +71,19 @@ export async function handler (
     engineStrict?: boolean,
     recursive?: boolean,
     workspaceDir?: string,
-  } & Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'gitChecks'>,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'publishBranch' | 'selectedProjectsGraph' >,
 ) {
   if (opts.gitChecks && await isGitRepo()) {
-    if (await getCurrentBranch() !== 'master') {
+    const branch = opts.publishBranch ?? 'master'
+    if (await getCurrentBranch() !== branch) {
       const { confirm } = await prompt({
-        message: 'You are not on master branch, do you want to continue?',
+        message: `You are not on ${branch} branch, do you want to continue?`,
         name: 'confirm',
         type: 'confirm',
       } as any)// tslint:disable-line:no-any
 
       if (!confirm) {
-        throw new PnpmError('GIT_NOT_MASTER', "Branch is not on 'master'.")
+        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branch}'.`)
       }
     }
     if (!(await isWorkingTreeClean())) {

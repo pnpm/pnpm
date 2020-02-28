@@ -115,6 +115,7 @@ export interface Config {
   globalPnpmfile?: string,
   npmPath?: string,
   gitChecks?: boolean,
+  publishBranch?: string,
 
   registries: Registries,
   ignoreWorkspaceRootCheck: boolean,

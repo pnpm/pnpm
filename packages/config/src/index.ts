@@ -61,6 +61,7 @@ export const types = Object.assign({
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
   'production': [null, true],
+  'publish-branch': String,
   'reporter': String,
   'resolution-strategy': ['fast', 'fewer-dependencies'],
   'save-peer': Boolean,
