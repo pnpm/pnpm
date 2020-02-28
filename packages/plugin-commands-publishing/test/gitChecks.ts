@@ -1,12 +1,19 @@
 import PnpmError from '@pnpm/error'
-import { publish } from '@pnpm/plugin-commands-publishing'
 import prepare from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import execa = require('execa')
 import fs = require('mz/fs')
+import proxyquire = require('proxyquire')
+import sinon = require('sinon')
 import test = require('tape')
 import tempy = require('tempy')
 import { DEFAULT_OPTS } from './utils'
+
+const prompt = sinon.stub()
+
+const publish = proxyquire('../lib/publish', {
+  'enquirer': { prompt },
+})
 
 const CREDENTIALS = [
   `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
@@ -23,6 +30,10 @@ test('publish: fails git check if branch is not on master', async (t) => {
 
   await execa('git', ['init'])
   await execa('git', ['checkout', '-b', 'test'])
+
+  prompt.returns({
+    confirm: false,
+  })
 
   let err!: PnpmError
   try {

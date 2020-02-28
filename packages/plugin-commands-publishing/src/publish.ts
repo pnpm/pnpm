@@ -6,13 +6,14 @@ import runNpm from '@pnpm/run-npm'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
+import { prompt } from 'enquirer'
 import fg = require('fast-glob')
 import fs = require('mz/fs')
 import path = require('path')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
-import { gitChecks, isGitRepo } from './gitChecks'
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 
 export function rcOptionsTypes () {
@@ -68,7 +69,23 @@ export async function handler (
   } & Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'gitChecks'>,
 ) {
   if (opts.gitChecks && await isGitRepo()) {
-    await gitChecks()
+    if (await getCurrentBranch() !== 'master') {
+      const { confirm } = await prompt({
+        message: 'You are not on master branch, do you want to continue?',
+        name: 'confirm',
+        type: 'confirm',
+      } as any)// tslint:disable-line:no-any
+
+      if (!confirm) {
+        throw new PnpmError('GIT_NOT_MASTER', "Branch is not on 'master'.")
+      }
+    }
+    if (!(await isWorkingTreeClean())) {
+      throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+    }
+    if (!(await isRemoteHistoryClean())) {
+      throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
+    }
   }
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
