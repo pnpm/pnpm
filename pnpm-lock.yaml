@@ -1620,6 +1620,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       '@zkochan/rimraf': 1.0.0
       cp-file: 8.0.1
+      enquirer: 2.3.4
       fast-glob: 3.2.2
       lru-cache: 5.1.1
       mz: 2.7.0
@@ -1634,10 +1635,15 @@ importers:
       '@types/cross-spawn': 6.0.1
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
+      '@types/proxyquire': 1.3.28
       '@types/ramda': 0.26.42
+      '@types/sinon': 7.5.2
       cross-spawn: 7.0.1
       execa: 4.0.0
       path-exists: 4.0.0
+      proxyquire: 2.1.3
+      sinon: 9.0.0
+      tempy: 0.4.0
       write-yaml-file: 3.0.1
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.7'
@@ -1656,18 +1662,24 @@ importers:
       '@types/cross-spawn': ^6.0.1
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.0
+      '@types/proxyquire': 1.3.28
       '@types/ramda': ^0.26.42
+      '@types/sinon': 7.5.2
       '@zkochan/rimraf': 1.0.0
       cp-file: 8.0.1
       cross-spawn: 7.0.1
+      enquirer: 2.3.4
       execa: 4.0.0
       fast-glob: 3.2.2
       lru-cache: 5.1.1
       mz: 2.7.0
       p-filter: 2.1.0
       path-exists: 4.0.0
+      proxyquire: 2.1.3
       ramda: 0.27.0
       render-help: 1.0.0
+      sinon: 9.0.0
+      tempy: 0.4.0
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
   packages/plugin-commands-rebuild:

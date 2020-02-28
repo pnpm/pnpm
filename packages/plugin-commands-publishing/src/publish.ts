@@ -6,12 +6,14 @@ import runNpm from '@pnpm/run-npm'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
+import { prompt } from 'enquirer'
 import fg = require('fast-glob')
 import fs = require('mz/fs')
 import path = require('path')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 
 export function rcOptionsTypes () {
@@ -26,7 +28,9 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return R.pick([
     'access',
+    'git-checks',
     'otp',
+    'publish-branch',
     'tag',
     'unsafe-perm',
   ], allTypes)
@@ -37,8 +41,24 @@ export const commandNames = ['publish']
 export function help () {
   return renderHelp({
     description: 'Publishes a package to the npm registry.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: 'Checks if current branch is your publish branch, clean and update to date',
+            name: '--git-checks',
+          },
+          {
+            description: 'Sets branch name to publish. Default is master',
+            name: '--publish-branch',
+          },
+        ],
+      },
+    ],
     url: docsUrl('publish'),
-    usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>]'],
+    usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]'],
   })
 }
 
@@ -51,8 +71,28 @@ export async function handler (
     engineStrict?: boolean,
     recursive?: boolean,
     workspaceDir?: string,
-  } & Pick<Config, 'allProjects' | 'selectedProjectsGraph'>,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'publishBranch' | 'selectedProjectsGraph' >,
 ) {
+  if (opts.gitChecks && await isGitRepo()) {
+    const branch = opts.publishBranch ?? 'master'
+    if (await getCurrentBranch() !== branch) {
+      const { confirm } = await prompt({
+        message: `You are not on ${branch} branch, do you want to continue?`,
+        name: 'confirm',
+        type: 'confirm',
+      } as any)// tslint:disable-line:no-any
+
+      if (!confirm) {
+        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branch}'.`)
+      }
+    }
+    if (!(await isWorkingTreeClean())) {
+      throw new PnpmError('GIT_NOT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.')
+    }
+    if (!(await isRemoteHistoryClean())) {
+      throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.')
+    }
+  }
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
     await recursivePublish(pkgs, {
