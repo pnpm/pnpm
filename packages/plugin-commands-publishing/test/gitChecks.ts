@@ -53,6 +53,38 @@ test('publish: fails git check if branch is not on master', async (t) => {
   t.end()
 })
 
+test('publish: fails git check if branch is not on specified branch', async (t) => {
+  prepare(t, {
+    name: 'test-publish-package.json',
+    version: '0.0.0',
+  })
+
+  await execa('git', ['init'])
+  await execa('git', ['checkout', '-b', 'master'])
+
+  prompt.returns({
+    confirm: false,
+  })
+
+  let err!: PnpmError
+  try {
+    await publish.handler([], {
+      ...DEFAULT_OPTS,
+      argv: { original: ['publish', ...CREDENTIALS] },
+      dir: process.cwd(),
+      gitChecks: true,
+      publishBranch: 'latest'
+    })
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_GIT_NOT_CORRECT_BRANCH')
+  t.equal(err.message, "Branch is not on 'latest'.")
+
+  t.end()
+})
+
 test('publish: fails git check if branch is not clean', async (t) => {
   prepare(t, {
     name: 'test-publish-package.json',
