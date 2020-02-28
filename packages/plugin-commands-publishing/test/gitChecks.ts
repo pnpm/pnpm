@@ -73,7 +73,7 @@ test('publish: fails git check if branch is not on specified branch', async (t) 
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
       gitChecks: true,
-      publishBranch: 'latest'
+      publishBranch: 'latest',
     })
   } catch (_err) {
     err = _err
