@@ -501,7 +501,7 @@ importers:
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/resolver-base': 'link:../resolver-base'
       graceful-git: 3.0.1
-      hosted-git-info: 3.0.3
+      hosted-git-info: 3.0.4
       semver: 7.1.3
     devDependencies:
       '@pnpm/git-resolver': 'link:'
@@ -517,7 +517,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/semver': ^7.1.0
       graceful-git: 3.0.1
-      hosted-git-info: 3.0.3
+      hosted-git-info: 3.0.4
       is-windows: 1.0.2
       semver: 7.1.3
   packages/headless:
@@ -6579,12 +6579,12 @@ packages:
   /hosted-git-info/2.8.6:
     resolution:
       integrity: sha512-Kp6rShEsCHhF5dD3EWKdkgVA8ix90oSUJ0VY4g9goxxa0+f4lx63muTftn0mlJ/+8IESGWyKnP//V2D7S4ZbIQ==
-  /hosted-git-info/3.0.3:
+  /hosted-git-info/3.0.4:
     dependencies:
       lru-cache: 5.1.1
     dev: false
     resolution:
-      integrity: sha512-1ZStA49Bj7WGT+GF2ee50gWMkltL+04v+FgXs20OQbe/usWm9Vh6El9UViiGvD/CEYvsej3AMzABmKmd9DYwnw==
+      integrity: sha512-4oT62d2jwSDBbLLFLZE+1vPuQ1h8p9wjrJ8Mqx5TjsyWmBMV5B13eJqn8pvluqubLf3cJPTfiYCIwNwDNmzScQ==
   /html-encoding-sniffer/1.0.2:
     dependencies:
       whatwg-encoding: 1.0.5
