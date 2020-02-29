@@ -31,6 +31,7 @@ export function cliOptionsTypes () {
     'git-checks',
     'otp',
     'publish-branch',
+    'registry',
     'tag',
     'unsafe-perm',
   ], allTypes)
@@ -102,7 +103,7 @@ export async function handler (
     return
   }
   if (args.length && args[0].endsWith('.tgz')) {
-    await runNpm(opts.npmPath, ['publish', ...args])
+    runNpm(opts.npmPath, ['publish', ...args])
     return
   }
   const dir = args.length && args[0] || process.cwd()
@@ -115,7 +116,7 @@ export async function handler (
       workspaceDir: opts.workspaceDir || dir,
     },
     async () => {
-      const { status } = await runNpm(opts.npmPath, ['publish', ...opts.argv.original.slice(1)])
+      const { status } = runNpm(opts.npmPath, ['publish', ...opts.argv.original.slice(1)])
       _status = status!
     },
   )
