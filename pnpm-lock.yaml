@@ -12,9 +12,9 @@ importers:
       publish-packed: 2.1.1
       rimraf: 3.0.2
       tape: 4.13.0
-      ts-node: 8.6.2_typescript@3.8.2
-      tslint: 5.20.1_typescript@3.8.2
-      typescript: 3.8.2
+      ts-node: 8.6.2_typescript@3.8.3
+      tslint: 5.20.1_typescript@3.8.3
+      typescript: 3.8.3
       verdaccio: 4.4.4
     specifiers:
       '@pnpm/registry-mock': 1.11.1
@@ -30,7 +30,7 @@ importers:
       tape: 4.13.0
       ts-node: 8.6.2
       tslint: 5.20.1
-      typescript: 3.8.2
+      typescript: 3.8.3
       verdaccio: 4.4.4
   packages/audit:
     dependencies:
@@ -11018,13 +11018,13 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.6.2_typescript@3.8.2:
+  /ts-node/8.6.2_typescript@3.8.3:
     dependencies:
       arg: 4.1.3
       diff: 4.0.2
       make-error: 1.3.6
       source-map-support: 0.5.16
-      typescript: 3.8.2
+      typescript: 3.8.3
       yn: 3.1.1
     dev: true
     engines:
@@ -11038,10 +11038,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-Xvh/gvBBCRU1qGeholaN8kgiwBH4neyun6VIDDsJf/jNwz4PXyR8ZY/5qdpB1DuMBrWMG2oTT1oWcOzGPOnluQ==
-  /tslib/1.11.1:
-    dev: true
-    resolution:
-      integrity: sha512-aZW88SY8kQbU7gpV19lN24LtXh/yD4ZZg6qieAJDDg+YBsJcSmLGK9QpnUjAKVG/xefmvJGd1WUmfpT/g6AJGA==
   /tslib/1.9.0:
     resolution:
       integrity: sha512-f/qGG2tUkrISBlQZEjEqoZ3B2+npJjIf04H1wuAv9iA8i04Icp+61KRXxFdha22670NJopsZCIjhC3SnjPRKrQ==
@@ -11060,7 +11056,7 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/5.20.1_typescript@3.8.2:
+  /tslint/5.20.1_typescript@3.8.3:
     dependencies:
       '@babel/code-frame': 7.8.3
       builtin-modules: 1.1.1
@@ -11073,9 +11069,9 @@ packages:
       mkdirp: 0.5.1
       resolve: 1.15.1
       semver: 5.7.1
-      tslib: 1.11.1
-      tsutils: 2.29.0_typescript@3.8.2
-      typescript: 3.8.2
+      tslib: 1.9.0
+      tsutils: 2.29.0_typescript@3.8.3
+      typescript: 3.8.3
     dev: true
     engines:
       node: '>=4.8.0'
@@ -11090,10 +11086,10 @@ packages:
       node: '>=0.6.x'
     resolution:
       integrity: sha512-LxhtAkPDTkVCMQjt2h6eBVY28KCjikZqZfMcC15YBeNjkgUpdCfBu5HoiOTDu86v6smE8yOjyEktJ8hlbANHQA==
-  /tsutils/2.29.0_typescript@3.8.2:
+  /tsutils/2.29.0_typescript@3.8.3:
     dependencies:
-      tslib: 1.11.1
-      typescript: 3.8.2
+      tslib: 1.9.0
+      typescript: 3.8.3
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
@@ -11175,13 +11171,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.8.2:
+  /typescript/3.8.3:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-EgOVgL/4xfVrCMbhYKUQTdF37SQn4Iw73H5BgCrF1Abdun7Kwy/QZsE/ssAy0y4LxBbvua3PIbFsbRczWWnDdQ==
+      integrity: sha512-MYlEfn5VrLNsgudQTVJeNaQFUAI7DkhnOjdpAp4T+ku1TfQClewlbSuTVHiA+8skNBgaf02TL/kLOvig4y3G8w==
   /typpy/2.0.0:
     dev: false
     resolution:

@@ -22,7 +22,7 @@
     "tape": "4.13.0",
     "ts-node": "8.6.2",
     "tslint": "5.20.1",
-    "typescript": "3.8.2",
+    "typescript": "3.8.3",
     "verdaccio": "4.4.4"
   },
   "engines": {
