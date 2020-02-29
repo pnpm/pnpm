@@ -17,7 +17,7 @@ test('remove unreferenced packages', async (t) => {
   const storeDir = path.resolve('store')
 
   await execa('pnpm', ['add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
-  await execa('pnpm', ['remove', 'is-negative', '--store-dir', storeDir])
+  await execa('pnpm', ['remove', 'is-negative', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
 
   await project.storeHas('is-negative', '2.1.0')
 
@@ -96,7 +96,7 @@ test('keep dependencies used by others', async (t) => {
   const storeDir = path.resolve('store')
   await execa('pnpm', ['add', 'camelcase-keys@3.0.0', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('pnpm', ['add', 'hastscript@3.0.0', '--save-dev', '--store-dir', storeDir, '--registry', REGISTRY])
-  await execa('pnpm', ['remove', 'camelcase-keys', '--store-dir', storeDir])
+  await execa('pnpm', ['remove', 'camelcase-keys', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
 
   await project.storeHas('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')
@@ -132,7 +132,7 @@ test('keep dependency used by package', async (t) => {
   const project = prepare(t)
   const storeDir = path.resolve('store')
   await execa('pnpm', ['add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
-  await execa('pnpm', ['remove', 'is-not-positive', '--store-dir', storeDir])
+  await execa('pnpm', ['remove', 'is-not-positive', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
 
   await store.handler(['prune'], {
     dir: process.cwd(),
