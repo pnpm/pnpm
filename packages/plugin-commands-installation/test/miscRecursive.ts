@@ -448,7 +448,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
 
   {
     const pkg = await import(path.resolve('project-1/package.json'))
-    t.deepEqual(pkg && pkg.dependencies, { 'project-2': 'workspace:^2.0.0' })
+    t.deepEqual(pkg && pkg.dependencies, { 'project-2': 'workspace:2.0.0' })
   }
   {
     const pkg = await import(path.resolve('project-2/package.json'))
