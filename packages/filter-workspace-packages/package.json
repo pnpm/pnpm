@@ -40,7 +40,7 @@
     "@pnpm/filter-workspace-packages": "link:",
     "@types/is-ci": "^2.0.0",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "^0.26.42",
+    "@types/ramda": "^0.26.43",
     "@types/touch": "^3.1.1",
     "is-ci": "2.0.0",
     "is-windows": "1.0.2",

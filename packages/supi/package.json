@@ -93,7 +93,7 @@
     "@types/mz": "^2.7.0",
     "@types/ncp": "2.0.3",
     "@types/normalize-path": "3.0.0",
-    "@types/ramda": "^0.26.42",
+    "@types/ramda": "^0.26.43",
     "@types/semver": "^7.1.0",
     "@types/sinon": "^7.5.2",
     "@types/tape-promise": "4.0.0",

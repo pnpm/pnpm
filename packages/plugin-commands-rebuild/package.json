@@ -39,7 +39,7 @@
     "@pnpm/registry-mock": "1.11.1",
     "@pnpm/test-fixtures": "workspace:0.0.0",
     "@types/common-tags": "^1.8.0",
-    "@types/ramda": "^0.26.42",
+    "@types/ramda": "^0.26.43",
     "@types/semver": "^7.1.0",
     "@types/sinon": "^7.5.2",
     "execa": "4.0.0",
