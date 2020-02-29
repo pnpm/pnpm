@@ -47,7 +47,7 @@ export function help () {
 
         list: [
           {
-            description: 'Checks if current branch is your publish branch, clean and update to date',
+            description: 'Checks if current branch is your publish branch, clean, and up-to-date',
             name: '--git-checks',
           },
           {

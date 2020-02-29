@@ -115,7 +115,7 @@ test('publish: fails git check if branch is not clean', async (t) => {
   t.end()
 })
 
-test('publish: fails git check if branch is not update to date', async (t) => {
+test('publish: fails git check if branch is not up-to-date', async (t) => {
   const remote = tempy.directory()
 
   prepare(t, {
