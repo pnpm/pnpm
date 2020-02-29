@@ -125,7 +125,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
-      '@zkochan/npm-conf': 1.2.4
+      '@zkochan/npm-conf': 2.0.0
       camelcase: 5.3.1
       is-subdir: 1.1.1
       ramda: 0.27.0
@@ -145,7 +145,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.42
       '@types/which': 1.3.2
-      '@zkochan/npm-conf': 1.2.4
+      '@zkochan/npm-conf': 2.0.0
       camelcase: 5.3.1
       is-subdir: 1.1.1
       mz: 2.7.0
@@ -3564,14 +3564,14 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-pkwTuA8Cd301zhg0Gz35nJ2sxKhGr5lFKFI6UT9ISEedGSYzxATsFlCF41+i/0kZcnZTG1nNlR5XknkZBGryuw==
-  /@zkochan/npm-conf/1.2.4:
+  /@zkochan/npm-conf/2.0.0:
     dependencies:
       config-chain: 1.1.12
     dev: false
     engines:
-      node: '>=6'
+      node: '>=10'
     resolution:
-      integrity: sha512-3pethcY7yXeLS6Pm0dyedoK8H1G8Fahu8P9HRm7/BL8kngiVARY/Km9tkLr6AQylPNkDpII3v3wYtHdLM67HiQ==
+      integrity: sha512-RMFanFCfD7KSqokE8DZV9Vx/WCqxp5Zfvco2oIBPv9PPa01Z61Gy6VwFxTNmszUWQpaeNvdZBJFdjtFcXUq8GA==
   /@zkochan/npm-lifecycle/3.1.4:
     dependencies:
       byline: 5.0.0

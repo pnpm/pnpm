@@ -33,7 +33,7 @@
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "@zkochan/npm-conf": "1.2.4",
+    "@zkochan/npm-conf": "2.0.0",
     "camelcase": "5.3.1",
     "is-subdir": "1.1.1",
     "ramda": "0.27.0",
