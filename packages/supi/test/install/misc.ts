@@ -336,9 +336,10 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async (t) => {
 
   await project.storeHas('is-positive', '3.0.0')
 
-  await addDependenciesToPackage(manifest, ['is-positive@latest'], await testDefaults({ save: true }))
+  const updatedManifest = await addDependenciesToPackage(manifest, ['is-positive@latest'], await testDefaults({ save: true }))
 
   await project.storeHas('is-positive', '3.1.0')
+  t.equal(updatedManifest.dependencies?.['is-positive'], '3.1.0')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2188

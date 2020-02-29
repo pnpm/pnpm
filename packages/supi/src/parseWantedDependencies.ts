@@ -29,9 +29,11 @@ export default function parseWantedDependencies (
       if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
         return null
       }
-      if (!pref && alias && opts.currentPrefs[alias]) {
-        pref = (opts.currentPrefs[alias].startsWith('workspace:') && opts.updateWorkspaceDependencies === true)
-          ? 'workspace:*' : opts.currentPrefs[alias]
+      if (alias && opts.currentPrefs[alias]) {
+        if (!pref) {
+          pref = (opts.currentPrefs[alias].startsWith('workspace:') && opts.updateWorkspaceDependencies === true)
+            ? 'workspace:*' : opts.currentPrefs[alias]
+        }
         pinnedVersion = guessPinnedVersionFromExistingSpec(opts.currentPrefs[alias])
       }
       return {
