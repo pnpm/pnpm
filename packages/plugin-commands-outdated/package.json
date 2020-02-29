@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-outdated",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "The outdated command of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   "homepage": "https://pnpm.js.org",
   "devDependencies": {
     "@pnpm/constants": "workspace:3.0.0",
-    "@pnpm/filter-workspace-packages": "workspace:2.0.1",
+    "@pnpm/filter-workspace-packages": "workspace:2.0.2",
     "@pnpm/plugin-commands-installation": "workspace:*",
     "@pnpm/plugin-commands-outdated": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
@@ -49,17 +49,17 @@
     "strip-ansi": "6.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.3.7",
+    "@pnpm/cli-utils": "workspace:0.3.8",
     "@pnpm/colorize-semver-diff": "1.0.0",
     "@pnpm/command": "workspace:0.1.0-0",
     "@pnpm/common-cli-options-help": "workspace:0.1.4",
-    "@pnpm/config": "workspace:8.0.1",
-    "@pnpm/default-resolver": "workspace:7.3.5",
+    "@pnpm/config": "workspace:8.1.0",
+    "@pnpm/default-resolver": "workspace:7.3.6",
     "@pnpm/error": "workspace:1.0.0",
     "@pnpm/lockfile-file": "workspace:3.0.4",
     "@pnpm/matcher": "workspace:1.0.0",
     "@pnpm/modules-yaml": "workspace:5.0.1",
-    "@pnpm/outdated": "workspace:7.0.8",
+    "@pnpm/outdated": "workspace:7.0.9",
     "@pnpm/semver-diff": "1.0.2",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/utils": "workspace:0.12.4",
