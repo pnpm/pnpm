@@ -328,13 +328,13 @@ test('recursive update --latest foo should only update packages that have foo', 
   {
     const lockfile = await projects['project-1'].readLockfile()
 
-    t.deepEqual(Object.keys(lockfile.packages || {}), ['/foo/100.1.0', '/qar/100.1.0'])
+    t.deepEqual(Object.keys(lockfile.packages ?? {}), ['/foo/100.1.0', '/qar/100.1.0'])
   }
 
   {
     const lockfile = await projects['project-2'].readLockfile()
 
-    t.deepEqual(Object.keys(lockfile.packages || {}), ['/bar/100.0.0'])
+    t.deepEqual(Object.keys(lockfile.packages ?? {}), ['/bar/100.0.0'])
   }
   t.end()
 })

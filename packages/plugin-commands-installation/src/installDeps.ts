@@ -21,7 +21,7 @@ import {
   install,
   mutateModules,
 } from 'supi'
-import recursive, { matchDependencies } from './recursive'
+import recursive, { createMatcher, matchDependencies } from './recursive'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -161,13 +161,13 @@ export default async function handler (
     manifest = {}
   }
 
-  const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
-  const updateMatch = opts.update && patternedInput.length ? matcher(patternedInput) : null
+  const updateMatch = opts.update && input.length ? createMatcher(input) : null
   if (updateMatch) {
-    input = [
-      ...unpatternedInput,
-      ...matchDependencies(updateMatch, manifest, includeDirect),
-    ]
+    input = matchDependencies(updateMatch, manifest, includeDirect)
+    if (!input.length) {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+        'None of the specified packages were found in the dependencies.')
+    }
   }
 
   if (opts.update && opts.latest) {

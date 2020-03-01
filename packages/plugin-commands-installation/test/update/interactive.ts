@@ -1,10 +1,13 @@
-import { add } from '@pnpm/plugin-commands-installation'
-import prepare from '@pnpm/prepare'
+import { readProjects } from '@pnpm/filter-workspace-packages'
+import { Lockfile } from '@pnpm/lockfile-types'
+import { add, install } from '@pnpm/plugin-commands-installation'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import chalk = require('chalk')
 import path = require('path')
 import proxyquire = require('proxyquire')
 import R = require('ramda')
+import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import test = require('tape')
 
@@ -141,6 +144,65 @@ test('interactively update', async (t) => {
     t.ok(lockfile.packages['/is-negative/2.1.0'])
     t.ok(lockfile.packages['/is-positive/2.0.0'])
   }
+
+  t.end()
+})
+
+test('interactive update of dev dependencies only', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project1',
+
+      dependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+    {
+      name: 'project2',
+
+      devDependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+  ])
+
+  prompt.returns({
+    updateDependencies: ['is-negative'],
+  })
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler([], {
+    ...DEFAULT_OPTIONS,
+    allProjects,
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+  await update.handler([], {
+    ...DEFAULT_OPTIONS,
+    allProjects,
+    dev: true,
+    dir: process.cwd(),
+    interactive: true,
+    latest: true,
+    linkWorkspacePackages: true,
+    lockfileDir: process.cwd(),
+    optional: false,
+    production: false,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = await readYamlFile<Lockfile>('pnpm-lock.yaml')
+
+  t.deepEqual(
+    Object.keys(lockfile.packages || {}),
+    ['/is-negative/1.0.1', '/is-negative/2.1.0'],
+  )
 
   t.end()
 })

@@ -165,8 +165,7 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  const [patternedInput, unpatternedInput] = R.partition(R.includes('*'), input)
-  const updateMatch = cmdFullName === 'update' && patternedInput.length ? matcher(patternedInput) : null
+  const updateMatch = cmdFullName === 'update' ? createMatcher(input) : null
 
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
@@ -183,13 +182,10 @@ export default async function recursive (
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...input]
       if (updateMatch) {
-        currentInput = [
-          ...unpatternedInput,
-          ...matchDependencies(updateMatch, manifest, includeDirect),
-        ]
+        currentInput = matchDependencies(updateMatch, manifest, includeDirect)
       }
       if (updateToLatest) {
-        if (!currentInput || !currentInput.length) {
+        if (!input || !input.length) {
           currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
@@ -272,13 +268,10 @@ export default async function recursive (
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
         let currentInput = [...input]
         if (updateMatch) {
-          currentInput = [
-            ...unpatternedInput,
-            ...matchDependencies(updateMatch, manifest, includeDirect),
-          ]
+          currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         }
         if (updateToLatest) {
-          if (!currentInput || !currentInput.length) {
+          if (!input || !input.length) {
             currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
@@ -421,9 +414,41 @@ async function readLocalConfig (prefix: string) {
 }
 
 export function matchDependencies (
-  match: (input: string) => boolean,
+  match: (input: string) => string | null,
   manifest: ProjectManifest,
   include: IncludedDependencies,
 ) {
-  return Object.keys(filterDependenciesByType(manifest, include)).filter(match)
+  const deps = Object.keys(filterDependenciesByType(manifest, include))
+  const matchedDeps = []
+  for (const dep of deps) {
+    const spec = match(dep)
+    if (spec === null) continue
+    matchedDeps.push(spec ? `${dep}@${spec}` : dep)
+  }
+  return matchedDeps
+}
+
+export function createMatcher (inputs: string[]) {
+  const matchers = inputs.map((input) => {
+    const atIndex = input.indexOf('@', 1)
+    let pattern!: string
+    let spec!: string
+    if (atIndex === -1) {
+      pattern = input
+      spec = ''
+    } else {
+      pattern = input.substr(0, atIndex)
+      spec = input.substr(atIndex + 1)
+    }
+    return {
+      match: matcher(pattern),
+      spec,
+    }
+  })
+  return (depName: string) => {
+    for (const { spec, match } of matchers) {
+      if (match(depName)) return spec
+    }
+    return null
+  }
 }
