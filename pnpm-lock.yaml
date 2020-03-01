@@ -2057,7 +2057,7 @@ importers:
       '@pnpm/parse-cli-args': 'workspace:0.4.0'
       '@pnpm/plugin-commands-audit': 'workspace:0.2.10'
       '@pnpm/plugin-commands-import': 'workspace:0.1.23'
-      '@pnpm/plugin-commands-installation': 'workspace:0.2.16'
+      '@pnpm/plugin-commands-installation': 'workspace:0.2.17'
       '@pnpm/plugin-commands-listing': 'workspace:0.2.11'
       '@pnpm/plugin-commands-outdated': 'workspace:0.2.12'
       '@pnpm/plugin-commands-publishing': 'workspace:0.2.14'
@@ -3557,7 +3557,7 @@ packages:
       safe-buffer: 5.2.0
       which: 2.0.2
       y18n: 4.0.0
-      yargs: 15.2.0
+      yargs: 15.1.0
     dev: false
     engines:
       node: '>=8.15'
@@ -11803,15 +11803,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-oVAVsHz6uFrg3XQheFII8ESO2ssAf9luWuAd6Wexsu4F3OtIW0o8IribPXYrD4WC24LWtPrJlGy87y5udK+dxQ==
-  /yargs-parser/17.1.0:
+  /yargs-parser/16.1.0:
     dependencies:
       camelcase: 5.3.1
       decamelize: 1.2.0
     dev: false
-    engines:
-      node: '>=6'
     resolution:
-      integrity: sha512-67zLl4/kWtp9eyVuxX+fHZ2Ey4ySWh0awDJlk/EtT0vzspsXbzrFsh76WjYSP3L++zhSwHQRUE3MCBe754RuEg==
+      integrity: sha512-H/V41UNZQPkUMIT5h5hiwg4QKIY1RPvoBV4XcjUbRM8Bk2oKqqyZ0DIEbTFZB0XjbtSPG8SAa/0DxCQmiRgzKg==
   /yargs/13.3.0:
     dependencies:
       cliui: 5.0.0
@@ -11827,7 +11825,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2eehun/8ALW8TLoIl7MVaRUrg+yCnenu8B4kBlRxj3GJGDKU1Og7sMXPNm1BYyM1DOJmTZ4YeN/Nwxv+8XJsUA==
-  /yargs/15.2.0:
+  /yargs/15.1.0:
     dependencies:
       cliui: 6.0.0
       decamelize: 1.2.0
@@ -11839,12 +11837,12 @@ packages:
       string-width: 4.2.0
       which-module: 2.0.0
       y18n: 4.0.0
-      yargs-parser: 17.1.0
+      yargs-parser: 16.1.0
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-E+o8C37U+M7N15rBJVxr0MoInp+O7XNhMqveSGWA5uhddqs8qtkZ+uvT9FI32QML0SKidXdDONr40Xe3tDO9FA==
+      integrity: sha512-T39FNN1b6hCW4SOIk1XyTOWxtXdcen0t+XYrysQmChzSipvhBO8Bj0nK1ozAasdk24dNWuMZvr4k24nz+8HHLg==
   /yn/3.1.1:
     dev: true
     engines:
