@@ -185,7 +185,7 @@ export default async function recursive (
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
       }
       if (updateToLatest) {
-        if (!currentInput || !currentInput.length) {
+        if (!input || !input.length) {
           currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
@@ -271,7 +271,7 @@ export default async function recursive (
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         }
         if (updateToLatest) {
-          if (!currentInput || !currentInput.length) {
+          if (!input || !input.length) {
             currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
@@ -418,9 +418,9 @@ export function matchDependencies (
   manifest: ProjectManifest,
   include: IncludedDependencies,
 ) {
-  const allDeps = Object.keys(filterDependenciesByType(manifest, include))
+  const deps = Object.keys(filterDependenciesByType(manifest, include))
   const matchedDeps = []
-  for (const dep of allDeps) {
+  for (const dep of deps) {
     const spec = match(dep)
     if (spec === null) continue
     matchedDeps.push(spec ? `${dep}@${spec}` : dep)
