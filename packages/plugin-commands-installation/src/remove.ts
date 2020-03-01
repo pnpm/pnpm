@@ -1,7 +1,6 @@
 import {
   docsUrl,
   getSaveType,
-  optionTypesToCompletions,
   readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli-utils'
@@ -11,7 +10,6 @@ import { Config, types as allTypes } from '@pnpm/config'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')

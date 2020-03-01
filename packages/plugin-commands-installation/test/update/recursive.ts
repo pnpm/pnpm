@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { install, update } from '@pnpm/plugin-commands-installation'
@@ -200,6 +201,24 @@ test('recursive update with pattern and name in project', async (t) => {
     workspaceDir: process.cwd(),
   })
 
+  let err!: PnpmError
+  try {
+    await update.handler(['this-does-not-exist'], {
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      latest: true,
+      lockfileDir,
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES', 'recursive update fails if no dependency matched')
+
   await update.handler(['peer-*', 'print-version'], {
     ...DEFAULT_OPTS,
     allProjects,
@@ -351,38 +370,20 @@ test('recursive update in workspace should not add new dependencies', async (t) 
     },
   ])
 
-  await update.handler(['is-positive'], {
-    ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
-    dir: process.cwd(),
-    recursive: true,
-    workspaceDir: process.cwd(),
-  })
-
-  projects['project-1'].hasNot('is-positive')
-  projects['project-2'].hasNot('is-positive')
-  t.end()
-})
-
-test('recursive update should not add new dependencies', async (t) => {
-  const projects = preparePackages(t, [
-    {
-      name: 'project-1',
-      version: '1.0.0',
-    },
-    {
-      name: 'project-2',
-      version: '1.0.0',
-    },
-  ])
-
-  await update.handler(['is-positive'], {
-    ...DEFAULT_OPTS,
-    ...await readProjects(process.cwd(), []),
-    dir: process.cwd(),
-    recursive: true,
-    workspaceDir: process.cwd(),
-  })
+  let err!: PnpmError
+  try {
+    await update.handler(['is-positive'], {
+      ...DEFAULT_OPTS,
+      ...await readProjects(process.cwd(), []),
+      dir: process.cwd(),
+      recursive: true,
+      workspaceDir: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
 
   projects['project-1'].hasNot('is-positive')
   projects['project-2'].hasNot('is-positive')

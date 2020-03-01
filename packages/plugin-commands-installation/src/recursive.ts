@@ -7,6 +7,7 @@ import {
   updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { Config, Project, ProjectsGraph } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import matcher from '@pnpm/matcher'
@@ -165,7 +166,7 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  const updateMatch = cmdFullName === 'update' ? createMatcher(input) : null
+  const updateMatch = cmdFullName === 'update' && input.length ? createMatcher(input) : null
 
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
@@ -183,6 +184,10 @@ export default async function recursive (
       let currentInput = [...input]
       if (updateMatch) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+        if (!currentInput.length) {
+          installOpts.pruneLockfileImporters = false
+          return
+        }
       }
       if (updateToLatest) {
         if (!input || !input.length) {
@@ -238,6 +243,10 @@ export default async function recursive (
           return
       }
     }))
+    if (!mutatedImporters.length && cmdFullName === 'update') {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+        'None of the specified packages were found in the dependencies of any of the projects.')
+    }
     const mutatedPkgs = await mutateModules(mutatedImporters, {
       ...installOpts,
       hooks,
@@ -269,6 +278,7 @@ export default async function recursive (
         let currentInput = [...input]
         if (updateMatch) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
+          if (!currentInput.length) return
         }
         if (updateToLatest) {
           if (!input || !input.length) {
@@ -364,6 +374,11 @@ export default async function recursive (
   }
 
   throwOnFail(result)
+
+  if (!result.passes && cmdFullName === 'update') {
+    throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+      'None of the specified packages were found in the dependencies of any of the projects.')
+  }
 
   return true
 }
