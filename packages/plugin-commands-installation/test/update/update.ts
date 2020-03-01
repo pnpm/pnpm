@@ -70,3 +70,33 @@ test('update: fail when both "latest" and "workspace" are true', async (t) => {
   t.equal(err.message, 'Cannot use --latest with --workspace simultaneously')
   t.end()
 })
+
+test('update: fail when package not in dependencies', async (t) => {
+  prepare(t, {
+    dependencies: {
+      'peer-a': '1.0.0',
+      'peer-c': '1.0.0',
+    },
+  })
+
+  await install.handler([], {
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    workspaceDir: process.cwd(),
+  })
+
+  let err!: PnpmError
+  try {
+    await update.handler(['peer-b'], {
+      ...DEFAULT_OPTS,
+      dir: process.cwd(),
+      sharedWorkspaceLockfile: true,
+      workspaceDir: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES')
+  t.equal(err.message, 'None of the specified packages were found in the dependencies.')
+  t.end()
+})

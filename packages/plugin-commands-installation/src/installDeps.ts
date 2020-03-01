@@ -161,9 +161,13 @@ export default async function handler (
     manifest = {}
   }
 
-  const updateMatch = opts.update ? createMatcher(input) : null
+  const updateMatch = opts.update && input.length ? createMatcher(input) : null
   if (updateMatch) {
     input = matchDependencies(updateMatch, manifest, includeDirect)
+    if (!input.length) {
+      throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
+        'None of the specified packages were found in the dependencies.')
+    }
   }
 
   if (opts.update && opts.latest) {
