@@ -1360,7 +1360,7 @@ importers:
       load-json-file: 6.2.0
       ncp: 2.0.0
       render-help: 1.0.0
-      supi: 'workspace:0.38.15'
+      supi: 'workspace:0.38.16'
       tempy: 0.4.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1478,7 +1478,7 @@ importers:
       read-yaml-file: 1.1.0
       render-help: 1.0.0
       sinon: 9.0.0
-      supi: 'workspace:0.38.15'
+      supi: 'workspace:0.38.16'
       table: 5.4.6
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
@@ -2056,11 +2056,11 @@ importers:
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/parse-cli-args': 'workspace:0.4.0'
       '@pnpm/plugin-commands-audit': 'workspace:0.2.10'
-      '@pnpm/plugin-commands-import': 'workspace:0.1.22'
-      '@pnpm/plugin-commands-installation': 'workspace:0.2.15'
+      '@pnpm/plugin-commands-import': 'workspace:0.1.23'
+      '@pnpm/plugin-commands-installation': 'workspace:0.2.16'
       '@pnpm/plugin-commands-listing': 'workspace:0.2.11'
       '@pnpm/plugin-commands-outdated': 'workspace:0.2.12'
-      '@pnpm/plugin-commands-publishing': 'workspace:0.2.13'
+      '@pnpm/plugin-commands-publishing': 'workspace:0.2.14'
       '@pnpm/plugin-commands-rebuild': 'workspace:0.1.12'
       '@pnpm/plugin-commands-script-runners': 'workspace:0.2.10'
       '@pnpm/plugin-commands-server': 'workspace:0.1.13'
@@ -3557,7 +3557,7 @@ packages:
       safe-buffer: 5.2.0
       which: 2.0.2
       y18n: 4.0.0
-      yargs: 15.1.0
+      yargs: 15.2.0
     dev: false
     engines:
       node: '>=8.15'
@@ -3588,7 +3588,7 @@ packages:
       integrity: sha512-s+Uk93fCpRRNWmiG5RDH7N81TIgQEsokCChy7e/Wcq0fB593eUreIo2U+DkKnMRBqJh8NLJxsJ7HNPw5HMyw2A==
   /@zkochan/npm-package-arg/1.0.2:
     dependencies:
-      hosted-git-info: 2.8.7
+      hosted-git-info: 2.8.8
       semver: 6.3.0
       validate-npm-package-name: 3.0.0
     dev: false
@@ -3675,13 +3675,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-gac8OEcQ2Li1dxIEWGZzsp2BitJxwkwcOm0zHAJLcPJaVvm58FRnk6RkuLRpU1EujipU2ZFODv2P9DLMfnV8mw==
-  /acorn/7.1.0:
+  /acorn/7.1.1:
     dev: true
     engines:
       node: '>=0.4.0'
     hasBin: true
     resolution:
-      integrity: sha512-kL5CuoXA/dgxlBbVrflsflzQ3PAas7RYZB52NOm/6839iVYJgKMJ3cQJD+t2i5+qFa8h3MDpEOJiS64E8JLnSQ==
+      integrity: sha512-add7dgA5ppRPxCFJoAGfMDi7PIBXq1RtGo7BhbLaxwrXPOmw8gq48Y9ozT01hUKy9byMjlR20EJhu5zlkErEkg==
   /add-subtract-date/1.0.14:
     dev: false
     resolution:
@@ -6575,9 +6575,9 @@ packages:
       node: '>= 0.4.0'
     resolution:
       integrity: sha512-f2dvO0VU6Oej7RkWJGrehjbzMAjFp5/VKPp5tTpWIV4JHHZK1/BxbFRtf/siA2SWTe09caDmVtYYzWEIbBS4zw==
-  /hosted-git-info/2.8.7:
+  /hosted-git-info/2.8.8:
     resolution:
-      integrity: sha512-ChkjQtKJ3GI6SsI4O5jwr8q8EPrWCnxuc4Tbx+vRI5x6mDOpjKKltNo1lRlszw3xwgTOSns1ZRBiMmmwpcvLxg==
+      integrity: sha512-f/wzC2QaWBs7t9IYqB4T3sR1xviIViXJRJTWBlx2Gf3g0Xi5vI7Yy4koXQ1c9OYDGHN9sBy1DQ2AB8fqZBWhUg==
   /hosted-git-info/3.0.4:
     dependencies:
       lru-cache: 5.1.1
@@ -7186,7 +7186,7 @@ packages:
   /jsdom/15.2.1:
     dependencies:
       abab: 2.0.3
-      acorn: 7.1.0
+      acorn: 7.1.1
       acorn-globals: 4.3.4
       array-equal: 1.0.0
       cssom: 0.4.4
@@ -8185,17 +8185,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
-  /nise/4.0.2:
+  /nise/4.0.3:
     dependencies:
       '@sinonjs/commons': 1.7.1
       '@sinonjs/fake-timers': 6.0.0
-      '@sinonjs/formatio': 5.0.1
       '@sinonjs/text-encoding': 0.7.1
       just-extend: 4.1.0
       path-to-regexp: 1.8.0
     dev: true
     resolution:
-      integrity: sha512-ALDnm0pTTyeGdbg5FCpWGd58Nmp3qO8d8x+dU2Fw8lApeJTEBSjkBZZM4S8t6GpKh+czxkfM/TKxpRMroZzwOg==
+      integrity: sha512-EGlhjm7/4KvmmE6B/UFsKh7eHykRl9VH+au8dduHLCyWUO/hr7+N+WtTvDUwc9zHuM1IaIJs/0lQ6Ag1jDkQSg==
   /nm-prune/4.0.0:
     dependencies:
       find-root: 1.1.0
@@ -8289,7 +8288,7 @@ packages:
       integrity: sha1-HL6oBKukNgAfg5OKsh7AOdaa6dM=
   /normalize-package-data/2.5.0:
     dependencies:
-      hosted-git-info: 2.8.7
+      hosted-git-info: 2.8.8
       resolve: 1.15.1
       semver: 5.7.1
       validate-npm-package-license: 3.0.4
@@ -8316,7 +8315,7 @@ packages:
       integrity: sha512-EPfafl6JL5/rU+ot6P3gRSCpPDW5VmIzX959Ob1+ySFUuuYHWHekXpwdUZcKP5C+DS4GEtdJluwBjnsNDl+fSA==
   /npm-package-arg/4.2.1:
     dependencies:
-      hosted-git-info: 2.8.7
+      hosted-git-info: 2.8.8
       semver: 5.7.1
     dev: true
     resolution:
@@ -10243,7 +10242,7 @@ packages:
       '@sinonjs/formatio': 5.0.1
       '@sinonjs/samsam': 5.0.3
       diff: 4.0.2
-      nise: 4.0.2
+      nise: 4.0.3
       supports-color: 7.1.0
     dev: true
     resolution:
@@ -11038,6 +11037,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-Xvh/gvBBCRU1qGeholaN8kgiwBH4neyun6VIDDsJf/jNwz4PXyR8ZY/5qdpB1DuMBrWMG2oTT1oWcOzGPOnluQ==
+  /tslib/1.11.1:
+    dev: true
+    resolution:
+      integrity: sha512-aZW88SY8kQbU7gpV19lN24LtXh/yD4ZZg6qieAJDDg+YBsJcSmLGK9QpnUjAKVG/xefmvJGd1WUmfpT/g6AJGA==
   /tslib/1.9.0:
     resolution:
       integrity: sha512-f/qGG2tUkrISBlQZEjEqoZ3B2+npJjIf04H1wuAv9iA8i04Icp+61KRXxFdha22670NJopsZCIjhC3SnjPRKrQ==
@@ -11069,7 +11072,7 @@ packages:
       mkdirp: 0.5.1
       resolve: 1.15.1
       semver: 5.7.1
-      tslib: 1.9.0
+      tslib: 1.11.1
       tsutils: 2.29.0_typescript@3.8.3
       typescript: 3.8.3
     dev: true
@@ -11088,7 +11091,7 @@ packages:
       integrity: sha512-LxhtAkPDTkVCMQjt2h6eBVY28KCjikZqZfMcC15YBeNjkgUpdCfBu5HoiOTDu86v6smE8yOjyEktJ8hlbANHQA==
   /tsutils/2.29.0_typescript@3.8.3:
     dependencies:
-      tslib: 1.9.0
+      tslib: 1.11.1
       typescript: 3.8.3
     dev: true
     peerDependencies:
@@ -11800,13 +11803,15 @@ packages:
     dev: true
     resolution:
       integrity: sha512-oVAVsHz6uFrg3XQheFII8ESO2ssAf9luWuAd6Wexsu4F3OtIW0o8IribPXYrD4WC24LWtPrJlGy87y5udK+dxQ==
-  /yargs-parser/16.1.0:
+  /yargs-parser/17.1.0:
     dependencies:
       camelcase: 5.3.1
       decamelize: 1.2.0
     dev: false
+    engines:
+      node: '>=6'
     resolution:
-      integrity: sha512-H/V41UNZQPkUMIT5h5hiwg4QKIY1RPvoBV4XcjUbRM8Bk2oKqqyZ0DIEbTFZB0XjbtSPG8SAa/0DxCQmiRgzKg==
+      integrity: sha512-67zLl4/kWtp9eyVuxX+fHZ2Ey4ySWh0awDJlk/EtT0vzspsXbzrFsh76WjYSP3L++zhSwHQRUE3MCBe754RuEg==
   /yargs/13.3.0:
     dependencies:
       cliui: 5.0.0
@@ -11822,7 +11827,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2eehun/8ALW8TLoIl7MVaRUrg+yCnenu8B4kBlRxj3GJGDKU1Og7sMXPNm1BYyM1DOJmTZ4YeN/Nwxv+8XJsUA==
-  /yargs/15.1.0:
+  /yargs/15.2.0:
     dependencies:
       cliui: 6.0.0
       decamelize: 1.2.0
@@ -11834,12 +11839,12 @@ packages:
       string-width: 4.2.0
       which-module: 2.0.0
       y18n: 4.0.0
-      yargs-parser: 16.1.0
+      yargs-parser: 17.1.0
     dev: false
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-T39FNN1b6hCW4SOIk1XyTOWxtXdcen0t+XYrysQmChzSipvhBO8Bj0nK1ozAasdk24dNWuMZvr4k24nz+8HHLg==
+      integrity: sha512-E+o8C37U+M7N15rBJVxr0MoInp+O7XNhMqveSGWA5uhddqs8qtkZ+uvT9FI32QML0SKidXdDONr40Xe3tDO9FA==
   /yn/3.1.1:
     dev: true
     engines:

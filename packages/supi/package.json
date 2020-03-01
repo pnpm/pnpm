@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.38.15",
+  "version": "0.38.16",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
