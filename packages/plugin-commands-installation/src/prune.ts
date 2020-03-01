@@ -37,7 +37,10 @@ export function help () {
   })
 }
 
-export async function handler (input: string[], opts: Pick<Config, 'engineStrict'> & CreateStoreControllerOptions) {
+export async function handler (
+  input: string[],
+  opts: Pick<Config, 'dev' | 'engineStrict' | 'optional' | 'production'> & CreateStoreControllerOptions,
+) {
   const store = await createOrConnectStoreController(opts)
   return mutateModules([
     {
@@ -49,6 +52,11 @@ export async function handler (input: string[], opts: Pick<Config, 'engineStrict
     },
   ], {
     ...opts,
+    include: {
+      dependencies: opts.production !== false,
+      devDependencies: opts.dev !== false,
+      optionalDependencies: opts.optional !== false,
+    },
     pruneStore: true,
     storeController: store.ctrl,
     storeDir: store.dir,
