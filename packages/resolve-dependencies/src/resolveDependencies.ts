@@ -549,6 +549,7 @@ async function resolveDependency (
       })
       return null
     }
+    err.pkgsStack = nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.resolvedPackagesByPackageId)
     throw err
   }
 

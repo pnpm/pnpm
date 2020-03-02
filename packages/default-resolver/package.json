@@ -29,6 +29,7 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
+    "@pnpm/error": "workspace:1.0.0",
     "@pnpm/git-resolver": "workspace:4.0.9",
     "@pnpm/local-resolver": "workspace:5.0.0",
     "@pnpm/npm-resolver": "workspace:7.3.4",

@@ -48,12 +48,22 @@ export default function reportError (logObj: Log) {
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code?.startsWith?.('ERR_PNPM_')) {
-          return formatErrorSummary(err.message)
+          return formatErrorSummary(err.message) + (logObj['message']['pkgsStack']
+            ? EOL + formatPkgsStack(logObj['message']['pkgsStack'])
+            : '')
         }
         return formatGenericError(err.message || logObj['message'], err.stack)
     }
   }
   return formatErrorSummary(logObj['message'])
+}
+
+function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {
+  let result = `This error happened while installing the dependencies of ${pkgsStack[0].name}@${pkgsStack[0].version}`
+  for (let i = 1; i < pkgsStack.length; i++) {
+    result += ` at ${pkgsStack[i].name}@${pkgsStack[i].version}`
+  }
+  return result
 }
 
 function formatNoMatchingVersion (err: Error, msg: object) {

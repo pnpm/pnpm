@@ -240,6 +240,7 @@ importers:
       strip-ansi: 6.0.0
   packages/default-resolver:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/git-resolver': 'link:../git-resolver'
       '@pnpm/local-resolver': 'link:../local-resolver'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -250,6 +251,7 @@ importers:
       '@pnpm/logger': 3.1.0
     specifiers:
       '@pnpm/default-resolver': 'link:'
+      '@pnpm/error': 'workspace:1.0.0'
       '@pnpm/git-resolver': 'workspace:4.0.9'
       '@pnpm/local-resolver': 'workspace:5.0.0'
       '@pnpm/logger': 3.1.0
