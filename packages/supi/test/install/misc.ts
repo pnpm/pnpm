@@ -6,6 +6,7 @@ import {
   StageLog,
   StatsLog,
 } from '@pnpm/core-loggers'
+import PnpmError from '@pnpm/error'
 import UnexpectedVirtualStoreDirError from '@pnpm/get-context/lib/checkCompatibility/UnexpectedVirtualStoreDirError'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -1126,4 +1127,38 @@ test("store metadata is always saved, even if there's a fatal error", async (t: 
   }
   t.ok(err)
   t.ok(saveStateSpy.calledOnce)
+})
+
+test('fail if none of the available resolvers support a version spec', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  let err!: PnpmError
+  try {
+    await mutateModules([
+      {
+        buildIndex: 0,
+        manifest: {
+          dependencies: {
+            '@types/plotly.js': '1.44.29',
+          },
+        },
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ], await testDefaults())
+  } catch (_err) {
+    err = _err
+  }
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
+  t.deepEqual(
+    err.pkgsStack,
+    [
+      {
+        id: 'localhost+4873/@types/plotly.js/1.44.29',
+        name: '@types/plotly.js',
+        version: '1.44.29',
+      },
+    ],
+  )
 })
