@@ -46,14 +46,24 @@ export default function reportError (logObj: Log) {
       case 'ERR_PNPM_UNSUPPORTED_ENGINE':
         return reportEngineError(err, logObj['message'])
       default:
-        // Errors with known error codes are printed w/o stack trace
-        if (err.code?.startsWith?.('ERR_PNPM_')) {
-          return formatErrorSummary(err.message)
+        // Errors with unknown error codes are printed with stack trace
+        if (!err.code?.startsWith?.('ERR_PNPM_')) {
+          return formatGenericError(err.message ?? logObj['message'], err.stack)
         }
-        return formatGenericError(err.message || logObj['message'], err.stack)
+        const errorSummary = formatErrorSummary(err.message)
+        if (!logObj['message']['pkgsStack']) {
+          return errorSummary
+        }
+        return `${errorSummary}${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
     }
   }
   return formatErrorSummary(logObj['message'])
+}
+
+function formatPkgsStack (pkgsStack: Array<{ id: string, name: string, version: string }>) {
+  return 'This error happened while installing the dependencies of ' +
+    `${pkgsStack[0].name}@${pkgsStack[0].version}` +
+    pkgsStack.slice(1).map(({ name, version }) => `${EOL} at ${name}@${version}`)
 }
 
 function formatNoMatchingVersion (err: Error, msg: object) {

@@ -331,3 +331,69 @@ test('prints unsupported pnpm and Node versions error', async (t) => {
   err['current'] = { pnpm: '3.0.0', node: '10.0.0' }
   logger.error(err, err)
 })
+
+test('prints error with packages stacktrace - depth 1', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const err = new PnpmError('SOME_ERROR', 'some error')
+  err.pkgsStack = [
+    {
+      id: 'registry.npmjs.org/foo/1.0.0',
+      name: 'foo',
+      version: '1.0.0',
+    },
+  ]
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, ERROR + ' ' + stripIndents`
+        ${chalk.red('some error')}
+        This error happened while installing the dependencies of foo@1.0.0
+      `)
+    },
+  })
+})
+
+test('prints error with packages stacktrace - depth 2', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const err = new PnpmError('SOME_ERROR', 'some error')
+  err.pkgsStack = [
+    {
+      id: 'registry.npmjs.org/foo/1.0.0',
+      name: 'foo',
+      version: '1.0.0',
+    },
+    {
+      id: 'registry.npmjs.org/bar/1.0.0',
+      name: 'bar',
+      version: '1.0.0',
+    },
+  ]
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, ERROR + ' ' + stripIndent`
+        ${chalk.red('some error')}
+        This error happened while installing the dependencies of foo@1.0.0
+         at bar@1.0.0
+      `)
+    },
+  })
+})

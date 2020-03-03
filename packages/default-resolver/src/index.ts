@@ -1,3 +1,4 @@
+import PnpmError from '@pnpm/error'
 import createResolveFromGit from '@pnpm/git-resolver'
 import resolveFromLocal from '@pnpm/local-resolver'
 import createResolveFromNpm, {
@@ -29,7 +30,9 @@ export default function createResolver (
         || await resolveFromLocal(wantedDependency as {pref: string}, opts)
       )
     if (!resolution) {
-      throw new Error(`Cannot resolve ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref} packages not supported`)
+      throw new PnpmError(
+        'SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER',
+        `${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref} isn't supported by any available resolver.`)
     }
     return resolution
   }
