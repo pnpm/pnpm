@@ -354,8 +354,8 @@ test('prints error with packages stacktrace - depth 1', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        ${ERROR} ${chalk.red('some error')}
+      t.equal(output, ERROR + ' ' + stripIndents`
+        ${chalk.red('some error')}
         This error happened while installing the dependencies of foo@1.0.0
       `)
     },
@@ -389,8 +389,8 @@ test('prints error with packages stacktrace - depth 2', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('some error')}
+      t.equal(output, ERROR + ' ' + stripIndent`
+        ${chalk.red('some error')}
         This error happened while installing the dependencies of foo@1.0.0
          at bar@1.0.0
       `)
