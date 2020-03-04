@@ -60,7 +60,6 @@ import R = require('ramda')
 import semver = require('semver')
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import lock from '../lock'
-import lockfilesEqual from '../lockfilesEqual'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
@@ -74,6 +73,7 @@ import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
 } from './getWantedDependencies'
+import isCurrentLockfileUpToDate from './isCurrentLockfilesUpToDate'
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -403,19 +403,24 @@ export async function mutateModules (
       })
     }
 
-    const equalLockfiles = lockfilesEqual(ctx.currentLockfile, ctx.wantedLockfile)
-    const currentLockfileIsUpToDate = !ctx.existsWantedLockfile || equalLockfiles
+    const currentLockfileIsUpToDate = isCurrentLockfileUpToDate(
+      ctx.currentLockfile,
+      {
+        skippedPkgIds: Array.from(ctx.skipped),
+        wantedLockfile: ctx.wantedLockfile,
+      },
+    )
     // Unfortunately, the private lockfile may differ from the public one.
     // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
     const makePartialCurrentLockfile = !installsOnly && (
       ctx.existsWantedLockfile && !ctx.existsCurrentLockfile ||
       // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
       // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-      !equalLockfiles
+      !currentLockfileIsUpToDate
     )
     const result = await installInContext(projectsToInstall, ctx, {
       ...opts,
-      currentLockfileIsUpToDate,
+      currentLockfileIsUpToDate: !ctx.existsWantedLockfile || currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,
