@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-project-manifest",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Read a project manifest (called package.json in most cases)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-importer-manifest#readme",
   "dependencies": {
-    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/error": "workspace:1.1.0",
     "@pnpm/types": "workspace:^5.0.0",
     "@pnpm/write-project-manifest": "workspace:1.0.0",
     "detect-indent": "6.0.0",

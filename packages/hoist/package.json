@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
-  "version": "2.1.7",
+  "version": "2.1.8",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -43,7 +43,7 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:3.0.0",
-    "@pnpm/link-bins": "workspace:5.1.5",
+    "@pnpm/link-bins": "workspace:5.1.6",
     "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/lockfile-utils": "workspace:2.0.9",
     "@pnpm/lockfile-walker": "workspace:2.0.1",

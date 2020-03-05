@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "7.3.4",
+  "version": "7.3.5",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/error": "workspace:1.1.0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
     "credentials-by-uri": "2.0.0",

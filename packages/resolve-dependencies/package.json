@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "14.2.7",
+  "version": "14.3.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -31,11 +31,11 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",
-    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/error": "workspace:1.1.0",
     "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/lockfile-utils": "workspace:2.0.9",
-    "@pnpm/npm-resolver": "workspace:7.3.4",
-    "@pnpm/package-is-installable": "workspace:4.0.4",
+    "@pnpm/npm-resolver": "workspace:7.3.5",
+    "@pnpm/package-is-installable": "workspace:4.0.5",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",

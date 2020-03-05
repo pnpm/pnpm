@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "5.1.10",
+  "version": "5.1.11",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:1.0.0",
+    "@pnpm/error": "workspace:1.1.0",
     "@pnpm/fetcher-base": "workspace:6.0.0",
     "credentials-by-uri": "2.0.0",
     "fetch-from-npm-registry": "workspace:4.0.1",
