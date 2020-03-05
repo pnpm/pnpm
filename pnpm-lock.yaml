@@ -6,12 +6,12 @@ importers:
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': 13.7.7
       '@types/tape': 4.2.34
-      cross-env: 7.0.0
-      npm: 6.13.7
+      cross-env: 7.0.1
+      npm: 6.14.2
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
       rimraf: 3.0.2
-      tape: 4.13.0
+      tape: 4.13.2
       ts-node: 8.6.2_typescript@3.8.3
       tslint: 5.20.1_typescript@3.8.3
       typescript: 3.8.3
@@ -22,12 +22,12 @@ importers:
       '@pnpm/tslint-config': 'workspace:*'
       '@types/node': '*'
       '@types/tape': ^4.2.34
-      cross-env: 7.0.0
-      npm: 6.13.7
+      cross-env: 7.0.1
+      npm: 6.14.2
       npm-run-all: 4.1.5
       publish-packed: 2.1.1
       rimraf: 3.0.2
-      tape: 4.13.0
+      tape: 4.13.2
       ts-node: 8.6.2
       tslint: 5.20.1
       typescript: 3.8.3
@@ -324,12 +324,12 @@ importers:
       '@pnpm/npm-registry-agent': 'link:../npm-registry-agent'
     devDependencies:
       fetch-from-npm-registry: 'link:'
-      nock: 12.0.1
+      nock: 12.0.2
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.2'
       '@pnpm/npm-registry-agent': 'workspace:2.0.3'
       fetch-from-npm-registry: 'link:'
-      nock: 12.0.1
+      nock: 12.0.2
   packages/fetcher-base:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -1006,7 +1006,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/semver': 7.1.0
       '@types/ssri': 6.0.1
-      nock: 12.0.1
+      nock: 12.0.2
       path-exists: 4.0.0
       tempy: 0.4.0
     specifiers:
@@ -1023,7 +1023,7 @@ importers:
       fetch-from-npm-registry: 'workspace:4.0.1'
       load-json-file: 6.2.0
       mem: 6.0.1
-      nock: 12.0.1
+      nock: 12.0.2
       normalize-path: 3.0.0
       p-limit: 2.2.2
       p-memoize: 4.0.0
@@ -1155,7 +1155,7 @@ importers:
       '@types/ssri': 6.0.1
       delay: 4.3.0
       ncp: 2.0.0
-      nock: 12.0.1
+      nock: 12.0.2
       normalize-path: 3.0.0
       sinon: 9.0.0
       tempy: 0.4.0
@@ -1185,7 +1185,7 @@ importers:
       make-dir: 3.0.2
       mz: 2.7.0
       ncp: 2.0.0
-      nock: 12.0.1
+      nock: 12.0.2
       normalize-path: 3.0.0
       p-limit: 2.2.2
       p-queue: 6.3.0
@@ -2640,7 +2640,7 @@ importers:
       '@types/rimraf': 2.0.3
       '@types/ssri': 6.0.1
       cp-file: 9.0.0
-      nock: 12.0.1
+      nock: 12.0.2
       tempy: 0.4.0
     specifiers:
       '@pnpm/error': 'workspace:1.1.0'
@@ -2659,7 +2659,7 @@ importers:
       make-dir: 3.0.2
       mem: 6.0.1
       mz: 2.7.0
-      nock: 12.0.1
+      nock: 12.0.2
       path-temp: 2.0.0
       retry: 0.12.0
       rimraf: 3.0.2
@@ -5110,7 +5110,7 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-HptfRWLKfaeewvzKPybPFsR8TRbLSsu5MvHQLc6FWqvIS1CqFHze+IteKQlpLXzx4KwSteZa0MdsN/jEYESVXA==
-  /cross-env/7.0.0:
+  /cross-env/7.0.1:
     dependencies:
       cross-spawn: 7.0.1
     dev: true
@@ -5120,7 +5120,7 @@ packages:
       yarn: '>=1'
     hasBin: true
     resolution:
-      integrity: sha512-rV6M9ldNgmwP7bx5u6rZsTbYidzwvrwIYZnT08hSGLcQCcggofgFW+sNe7IhA1SRauPS0QuLbbX+wdNtpqE5CQ==
+      integrity: sha512-1+DmLosu38kC4s1H4HzNkcolwdANifu9+5bE6uKQCV4L6jvVdV9qdRAk8vV3GoWRe0x4z+K2fFhgoDMqwNsPqQ==
   /cross-spawn/6.0.5:
     dependencies:
       nice-try: 1.0.5
@@ -8055,6 +8055,7 @@ packages:
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
   /mkdirp/1.0.3:
+    dev: false
     engines:
       node: '>=10'
     hasBin: true
@@ -8211,18 +8212,17 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-PC9UVvGgYMEvO27Kupun+rIMPU28PvJlHn3Xh+DQkbmvkQiVwtSTeRTVH1QU9PWLHERW/0ClHVVMo6oyUF60Sw==
-  /nock/12.0.1:
+  /nock/12.0.2:
     dependencies:
       debug: 4.1.1
       json-stringify-safe: 5.0.1
       lodash: 4.17.15
-      mkdirp: 1.0.3
       propagate: 2.0.1
     dev: true
     engines:
       node: '>= 10.13'
     resolution:
-      integrity: sha512-f5u5k7O5D2YXH2WEFQVLLPa36D5C0dxU9Lrg6KOuaFCMDt7yd1W4S3hbZClCMczxc4EZ0k1bEhPeMWSewrxYNw==
+      integrity: sha512-pTckyfP8QHvwXP/oX+zQuSIL3S/mWTd84ba4pOGZlS/FgRZyljv4C3ZyOjgMilvkydSaERML/aJEF13EBUuDTQ==
   /node-fetch-unix/2.3.0:
     dev: false
     engines:
@@ -8451,7 +8451,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-+Osa0A3FilUUNjtBylNCgX8L1kY=
-  /npm/6.13.7:
+  /npm/6.14.2:
     bundledDependencies:
       - abbrev
       - ansicolors
@@ -8577,9 +8577,11 @@ packages:
       - worker-farm
       - write-file-atomic
     dev: true
+    engines:
+      node: 6 >=6.2.0 || 8 || >=9.3.0
     hasBin: true
     resolution:
-      integrity: sha512-X967EKTT407CvgrWFjXusnPh0VLERcmR9hZFSVgkEquOomZkvpwLJ5zrQ3qrG9SpPLKJE4bPLUu76exKQ4a3Cg==
+      integrity: sha512-eBVjzvGJ9v2/jRJZFtIkvUVKmJ0sCJNNwc9Z1gI6llwaT7EBYWJe5o61Ipc1QR0FaDCKM3l1GizI09Ro3STJEw==
   /npmlog/3.1.2:
     dependencies:
       are-we-there-yet: 1.1.5
@@ -9932,12 +9934,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-LGN/53yJOv0qZj/iGqkIAGjiBSo=
-  /resolve/1.14.2:
-    dependencies:
-      path-parse: 1.0.6
-    dev: true
-    resolution:
-      integrity: sha512-EjlOBLBO1kxsUxsKjLt7TAECyKW6fOh1VRkykQkKGzcBbjjPIxBqGh0jf7GJ3k/f5mxMqW3htMD3WdTUVtW8HQ==
   /resolve/1.15.1:
     dependencies:
       path-parse: 1.0.6
@@ -10751,7 +10747,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-mNi5yhWAKDuNgZCfFKeZbsXvraVOf+I8UZG+lf+aoRrzX4+jd4mpNBjYh16/VcpEMUtS0iFndBgnfxxZbtyLFw==
-  /tape/4.13.0:
+  /tape/4.13.2:
     dependencies:
       deep-equal: 1.1.1
       defined: 1.0.0
@@ -10764,14 +10760,14 @@ packages:
       is-regex: 1.0.5
       minimist: 1.2.0
       object-inspect: 1.7.0
-      resolve: 1.14.2
+      resolve: 1.15.1
       resumer: 0.0.0
       string.prototype.trim: 1.2.1
       through: 2.3.8
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-J/hvA+GJnuWJ0Sj8Z0dmu3JgMNU+MmusvkCT7+SN4/2TklW18FNCp/UuHIEhPZwHfy4sXfKYgC7kypKg4umbOw==
+      integrity: sha512-waWwC/OqYVE9TS6r1IynlP2sEdk4Lfo6jazlgkuNkPTHIbuG2BTABIaKdlQWwPeB6Oo4ksZ1j33Yt0NTOAlYMQ==
   /tar-fs/2.0.0:
     dependencies:
       chownr: 1.1.4
