@@ -93,7 +93,7 @@ async function linkBins (
   const results2 = await pSettle(cmdsWithOtherNames.map((cmd: Command & {pkgName: string}) => {
     if (usedNames[cmd.name]) {
       opts.warn(`Cannot link bin "${cmd.name}" of "${cmd.pkgName}" to "${binPath}". A package called "${usedNames[cmd.name]}" already has its bin linked.`)
-      return
+      return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
     return linkBin(cmd, binPath)
