@@ -51,6 +51,6 @@
     "@pnpm/types": "workspace:5.0.0",
     "p-limit": "2.2.2",
     "promise-share": "1.0.0",
-    "uuid": "7.0.1"
+    "uuid": "7.0.2"
   }
 }

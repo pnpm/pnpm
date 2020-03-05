@@ -306,7 +306,7 @@ importers:
     specifiers: {}
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 4.1.0_node-fetch@2.6.0
+      '@zeit/fetch-retry': 5.0.0_node-fetch@2.6.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
     devDependencies:
@@ -314,7 +314,7 @@ importers:
       cpy-cli: 3.1.0
     specifiers:
       '@types/node-fetch': ^2.5.5
-      '@zeit/fetch-retry': 4.1.0
+      '@zeit/fetch-retry': 5.0.0
       cpy-cli: 3.1.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
@@ -694,7 +694,7 @@ importers:
       make-dir: 3.0.2
       mz: 2.7.0
       normalize-path: 3.0.0
-      p-settle: 3.1.0
+      p-settle: 4.0.0
       ramda: 0.27.0
     devDependencies:
       '@pnpm/link-bins': 'link:'
@@ -733,7 +733,7 @@ importers:
       mz: 2.7.0
       ncp: ^2.0.0
       normalize-path: 3.0.0
-      p-settle: 3.1.0
+      p-settle: 4.0.0
       path-exists: ^4.0.0
       ramda: 0.27.0
       sinon: 9.0.0
@@ -1386,7 +1386,7 @@ importers:
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
-      camelcase-keys: 6.1.2
+      camelcase-keys: 6.2.0
       chalk: 3.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
@@ -1460,7 +1460,7 @@ importers:
       '@types/ramda': ^0.26.43
       '@types/sinon': ^7.5.2
       '@types/table': ^4.0.7
-      camelcase-keys: 6.1.2
+      camelcase-keys: 6.2.0
       chalk: 3.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
@@ -1621,7 +1621,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@zkochan/rimraf': 1.0.0
-      cp-file: 8.0.1
+      cp-file: 9.0.0
       enquirer: 2.3.4
       fast-glob: 3.2.2
       lru-cache: 5.1.1
@@ -1668,7 +1668,7 @@ importers:
       '@types/ramda': ^0.26.43
       '@types/sinon': 7.5.2
       '@zkochan/rimraf': 1.0.0
-      cp-file: 8.0.1
+      cp-file: 9.0.0
       cross-spawn: 7.0.1
       enquirer: 2.3.4
       execa: 4.0.0
@@ -1705,7 +1705,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@zkochan/npm-package-arg': 1.0.2
-      camelcase-keys: 6.1.2
+      camelcase-keys: 6.2.0
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
       graph-sequencer: 2.0.0
@@ -1762,7 +1762,7 @@ importers:
       '@types/semver': ^7.1.0
       '@types/sinon': ^7.5.2
       '@zkochan/npm-package-arg': 1.0.2
-      camelcase-keys: 6.1.2
+      camelcase-keys: 6.2.0
       common-tags: 1.8.0
       dependency-path: 'workspace:4.0.5'
       execa: 4.0.0
@@ -2308,7 +2308,7 @@ importers:
       '@pnpm/types': 'link:../types'
       p-limit: 2.2.2
       promise-share: 1.0.0
-      uuid: 7.0.1
+      uuid: 7.0.2
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -2342,7 +2342,7 @@ importers:
       node-fetch: 2.6.0
       p-limit: 2.2.2
       promise-share: 1.0.0
-      uuid: 7.0.1
+      uuid: 7.0.2
   packages/sort-packages:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -2639,7 +2639,7 @@ importers:
       '@types/retry': 0.12.0
       '@types/rimraf': 2.0.3
       '@types/ssri': 6.0.1
-      cp-file: 8.0.1
+      cp-file: 9.0.0
       nock: 12.0.1
       tempy: 0.4.0
     specifiers:
@@ -2652,7 +2652,7 @@ importers:
       '@types/retry': ^0.12.0
       '@types/rimraf': ^2.0.3
       '@types/ssri': ^6.0.1
-      cp-file: 8.0.1
+      cp-file: 9.0.0
       credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'workspace:4.0.1'
       graceful-fs: 4.2.1
@@ -3532,7 +3532,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==
-  /@zeit/fetch-retry/4.1.0_node-fetch@2.6.0:
+  /@zeit/fetch-retry/5.0.0_node-fetch@2.6.0:
     dependencies:
       async-retry: 1.3.1
       debug: 3.2.6
@@ -3541,7 +3541,7 @@ packages:
     peerDependencies:
       node-fetch: '*'
     resolution:
-      integrity: sha512-2/vtTzIs3/Bp5tNOmCpICCRooa+v0wL4e+3Afl4etyqZrjOmCMfKshWPSHTxLe20qfsn010qXy/hK6yqD4t0zg==
+      integrity: sha512-48tgGYYNX4AGyR8LZa5nMGdr3j4VXYxAA7BX6RWSKIWZkdh1bbkUB6M9ZLfmxsED0CEGpJmP7svN8qnolwZ45w==
   /@zkochan/cmd-shim/4.2.1:
     dependencies:
       is-windows: 1.0.2
@@ -4566,7 +4566,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-oqpfsa9oh1glnDLBQUJteJI7m3c=
-  /camelcase-keys/6.1.2:
+  /camelcase-keys/6.2.0:
     dependencies:
       camelcase: 5.3.1
       map-obj: 4.1.0
@@ -4575,7 +4575,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-QfFrU0CIw2oltVvpndW32kuJ/9YOJwUnmWrjlXt1nnJZHCaS9i6bfOpg9R4Lw8aZjStkJWM+jc0cdXjWBgVJSw==
+      integrity: sha512-bwHzjmUuw92j16zHWIV1YjpDk9S4sq/gB0x4upHcNrdV/U5RU0NCg3bxo6Ymu0+kjhT5L0KTfqCMaMkP2RrXnQ==
   /camelcase/2.1.1:
     dev: true
     engines:
@@ -5058,7 +5058,7 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-0Cbj7gyvFVApzpK/uhCtQ/9kE9UnYpxMzaq5nQQC/Dh4iaj5fxp7iEFIullrYwzj8nf0qnsI1Qsx34hAeAebvw==
-  /cp-file/8.0.1:
+  /cp-file/9.0.0:
     dependencies:
       graceful-fs: 4.2.1
       make-dir: 3.0.2
@@ -5067,7 +5067,7 @@ packages:
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-P3iYQyJegjYEoerocg071Cubh0yoebHv0ojmy499yc0YOUxatb1X5jeb9w2FmGtq7yqa1Pfq0cxmaqEzk0vMew==
+      integrity: sha512-hNEM3AuZz84zOPgL8ozJ057+DjuD6LpwyYNiyTsLDU71Ke2E3KV909xhGYLK7WQ0srJRwzs/1+bSE1pk/HRC6w==
   /cpr/3.0.1:
     dependencies:
       graceful-fs: 4.2.3
@@ -8911,15 +8911,15 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-paHV8NUz8zDHu5lhr/ngGWQiW067DK/+IbJ+RfZ4k+s8y4EKyYCz8pGYWjxCg35eHztpJAt+NUgvN4L+GCbPlg==
-  /p-settle/3.1.0:
+  /p-settle/4.0.0:
     dependencies:
       p-limit: 2.2.2
       p-reflect: 2.1.0
     dev: false
     engines:
-      node: '>=8'
+      node: '>=10'
     resolution:
-      integrity: sha512-gkN3UDlyofG81IRhxLnonSIi8BBrwcPlKMJS6tcJRubofyekqQPMdB5LXPrmCkeu/m/YKx5PzkUVQLezda5/JQ==
+      integrity: sha512-MK1FEHO70HHo4uCjM2DP/2gOpLGjEes8czFH7bP9RzJS6mAEp7dFINcUUuuQXa+ZFztzKTdF3zl0IiBH1BCkrQ==
   /p-some/5.0.0:
     dependencies:
       aggregate-error: 3.0.1
@@ -11366,11 +11366,11 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==
-  /uuid/7.0.1:
+  /uuid/7.0.2:
     dev: false
     hasBin: true
     resolution:
-      integrity: sha512-yqjRXZzSJm9Dbl84H2VDHpM3zMjzSJQ+hn6C4zqd5ilW+7P4ZmLEEqwho9LjP+tGuZlF4xrHQXT0h9QZUS/pWA==
+      integrity: sha512-vy9V/+pKG+5ZTYKf+VcphF5Oc6EFiu3W8Nv3P3zIh0EqVI80ZxOzuPfe9EHjkFNvf8+xuTHVeei4Drydlx4zjw==
   /validate-npm-package-license/3.0.4:
     dependencies:
       spdx-correct: 3.1.0

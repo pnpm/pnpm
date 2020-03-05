@@ -62,7 +62,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "@pnpm/utils": "workspace:0.12.4",
     "@zkochan/rimraf": "1.0.0",
-    "cp-file": "8.0.1",
+    "cp-file": "9.0.0",
     "enquirer": "2.3.4",
     "fast-glob": "3.2.2",
     "lru-cache": "5.1.1",

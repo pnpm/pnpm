@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetch#readme",
   "dependencies": {
-    "@zeit/fetch-retry": "4.1.0",
+    "@zeit/fetch-retry": "5.0.0",
     "node-fetch": "2.6.0",
     "node-fetch-unix": "2.3.0"
   },
