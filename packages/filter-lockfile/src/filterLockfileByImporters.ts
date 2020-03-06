@@ -9,7 +9,6 @@ import pnpmLogger from '@pnpm/logger'
 import { DependenciesField, Registries } from '@pnpm/types'
 import R = require('ramda')
 import filterImporter from './filterImporter'
-import filterLockfile from './filterLockfile'
 
 const logger = pnpmLogger('lockfile')
 
@@ -23,9 +22,6 @@ export default function filterByImporters (
     failOnMissingDependencies: boolean,
   },
 ): Lockfile {
-  if (R.equals(importerIds.sort(), R.keys(lockfile.importers).sort())) {
-    return filterLockfile(lockfile, opts)
-  }
   const packages = {} as PackageSnapshots
   if (lockfile.packages) {
     pkgAllDeps(

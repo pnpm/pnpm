@@ -271,18 +271,11 @@ export default async function linkPackages (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
-    const filteredCurrentLockfile = allImportersIncluded || !opts.pruneLockfileImporters
-      ? opts.currentLockfile
-      : filterLockfileByImporters(
-        opts.currentLockfile,
-        Object.keys(newWantedLockfile.importers)
-          .filter((projectId) => !projectIds.includes(projectId) && opts.currentLockfile.importers[projectId]),
-        {
-          ...filterOpts,
-          failOnMissingDependencies: false,
-        },
-      )
-    const packages = filteredCurrentLockfile.packages || {}
+    const filteredCurrentImporters = allImportersIncluded || !opts.pruneLockfileImporters
+      ? opts.currentLockfile.importers
+      : R.pick(Object.keys(newWantedLockfile.importers)
+          .filter((projectId) => !projectIds.includes(projectId) && opts.currentLockfile.importers[projectId]), newWantedLockfile.importers)
+    const packages = opts.currentLockfile.packages || {}
     if (newWantedLockfile.packages) {
       for (const relDepPath in newWantedLockfile.packages) { // tslint:disable-line:forin
         const depPath = dp.resolve(opts.registries, relDepPath)
@@ -292,13 +285,23 @@ export default async function linkPackages (
       }
     }
     const projects = {
-      ...(opts.pruneLockfileImporters ? {} : filteredCurrentLockfile.importers),
+      ...(opts.pruneLockfileImporters ? {} : filteredCurrentImporters),
       ...projectIds.reduce((acc, projectId) => {
         acc[projectId] = newWantedLockfile.importers[projectId]
         return acc
       }, opts.currentLockfile.importers),
     }
-    currentLockfile = { ...newWantedLockfile, packages, importers: projects }
+    currentLockfile = filterLockfileByImporters(
+      {
+        ...newWantedLockfile,
+        importers: projects,
+        packages,
+      },
+      Object.keys(projects), {
+        ...filterOpts,
+        failOnMissingDependencies: false,
+      },
+    )
   } else if (
     opts.include.dependencies &&
     opts.include.devDependencies &&

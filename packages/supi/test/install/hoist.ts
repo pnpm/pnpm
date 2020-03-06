@@ -387,6 +387,8 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
 })
 
 test('hoist when updating in one of the workspace projects', async (t) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
   const workspaceRootManifest = {
     name: 'root',
 
