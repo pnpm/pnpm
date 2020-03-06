@@ -1386,7 +1386,7 @@ importers:
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
-      camelcase-keys: 6.2.0
+      camelcase-keys: 6.2.1
       chalk: 3.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
@@ -1460,7 +1460,7 @@ importers:
       '@types/ramda': ^0.26.43
       '@types/sinon': ^7.5.2
       '@types/table': ^4.0.7
-      camelcase-keys: 6.2.0
+      camelcase-keys: 6.2.1
       chalk: 3.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
@@ -1705,7 +1705,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@zkochan/npm-package-arg': 1.0.2
-      camelcase-keys: 6.2.0
+      camelcase-keys: 6.2.1
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
       graph-sequencer: 2.0.0
@@ -1762,7 +1762,7 @@ importers:
       '@types/semver': ^7.1.0
       '@types/sinon': ^7.5.2
       '@zkochan/npm-package-arg': 1.0.2
-      camelcase-keys: 6.2.0
+      camelcase-keys: 6.2.1
       common-tags: 1.8.0
       dependency-path: 'workspace:4.0.5'
       execa: 4.0.0
@@ -4566,7 +4566,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-oqpfsa9oh1glnDLBQUJteJI7m3c=
-  /camelcase-keys/6.2.0:
+  /camelcase-keys/6.2.1:
     dependencies:
       camelcase: 5.3.1
       map-obj: 4.1.0
@@ -4575,7 +4575,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-bwHzjmUuw92j16zHWIV1YjpDk9S4sq/gB0x4upHcNrdV/U5RU0NCg3bxo6Ymu0+kjhT5L0KTfqCMaMkP2RrXnQ==
+      integrity: sha512-BPCNVH56RVIxQQIXskp5tLQXUNGQ6sXr7iCv1FHDt81xBOQ/1r6H8SPxf19InVP6DexWar4s87q9thfuk8X9HA==
   /camelcase/2.1.1:
     dev: true
     engines:
