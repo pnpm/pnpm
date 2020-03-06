@@ -837,8 +837,16 @@ async function installInContext (
       })
     }
 
-    if (!opts.lockfileOnly) {
-      await Promise.all(projectsToLink.map(linkBinsOfImporter))
+    const binNames = (await Promise.all(projectsToLink.map(linkBinsOfImporter))).flat()
+    if (opts.global) {
+      const installPackages = projects
+        .map(project => project.wantedDependencies.reduce((acc: string[], wantedDependency) => [...acc, wantedDependency.alias], []))
+        .flat()
+      for (const name of installPackages) {
+        if (!binNames.includes(name)) {
+          logger.warn({ message: `The globally installed package ${name} has no bins.`, prefix: opts.lockfileDir })
+        }
+      }
     }
   }
 

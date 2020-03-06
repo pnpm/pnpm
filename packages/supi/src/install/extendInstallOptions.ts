@@ -74,6 +74,8 @@ export interface StrictInstallOptions {
 
   independentLeaves: boolean,
   forceIndependentLeaves: boolean,
+
+  global: boolean,
 }
 
 export type InstallOptions = Partial<StrictInstallOptions> &
