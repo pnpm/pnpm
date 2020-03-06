@@ -69,6 +69,7 @@ export default async function linkPackages (
     lockfileDir: string,
     makePartialCurrentLockfile: boolean,
     outdatedDependencies: {[pkgId: string]: string},
+    pruneLockfileImporters: boolean,
     pruneStore: boolean,
     registries: Registries,
     sideEffectsCacheRead: boolean,
@@ -270,7 +271,7 @@ export default async function linkPackages (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
-    const filteredCurrentLockfile = allImportersIncluded
+    const filteredCurrentLockfile = allImportersIncluded || !opts.pruneLockfileImporters
       ? opts.currentLockfile
       : filterLockfileByImporters(
         opts.currentLockfile,
@@ -290,10 +291,13 @@ export default async function linkPackages (
         }
       }
     }
-    const projects = projectIds.reduce((acc, projectId) => {
-      acc[projectId] = newWantedLockfile.importers[projectId]
-      return acc
-    }, opts.currentLockfile.importers)
+    const projects = {
+      ...(opts.pruneLockfileImporters ? {} : filteredCurrentLockfile.importers),
+      ...projectIds.reduce((acc, projectId) => {
+        acc[projectId] = newWantedLockfile.importers[projectId]
+        return acc
+      }, opts.currentLockfile.importers),
+    }
     currentLockfile = { ...newWantedLockfile, packages, importers: projects }
   } else if (
     opts.include.dependencies &&
@@ -306,7 +310,7 @@ export default async function linkPackages (
     currentLockfile = newCurrentLockfile
   }
 
-  let newHoistedAliases: {[depPath: string]: string[]} = {}
+  let newHoistedAliases: Record<string, string[]> = {}
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
     const rootImporterWithFlatModules = opts.hoistPattern && projects.find(({ id }) => id === '.')
     if (rootImporterWithFlatModules) {
