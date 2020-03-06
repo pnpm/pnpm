@@ -14,7 +14,7 @@
     "@pnpm/tslint-config": "workspace:*",
     "@types/node": "*",
     "@types/tape": "^4.2.34",
-    "cross-env": "7.0.1",
+    "cross-env": "7.0.2",
     "npm": "6.14.2",
     "npm-run-all": "4.1.5",
     "publish-packed": "2.1.1",
