@@ -837,17 +837,17 @@ async function installInContext (
       })
     }
 
-    const binNames = (await Promise.all(projectsToLink.map(linkBinsOfImporter))).flat()
-    if (opts.global) {
-      const installPackages = projects
-        .map(project => project.wantedDependencies.reduce((acc: string[], wantedDependency) => [...acc, wantedDependency.alias], []))
-        .flat()
-      for (const name of installPackages) {
-        if (!binNames.includes(name)) {
-          logger.warn({ message: `The globally installed package ${name} has no bins.`, prefix: opts.lockfileDir })
-        }
+    await Promise.all(projectsToLink.map(async (project, index) => {
+      const projectToInstall = projects[index]
+      if (opts.global && projectToInstall.mutation === 'installSome') {
+        const linkedPackegs = await linkBinsOfImporter(project)
+        projectToInstall.dependencySelectors.forEach(pkg => {
+          if (!linkedPackegs?.includes(pkg)) {
+            logger.warn({ message: `The globally installed package ${pkg} has no bins.`, prefix: opts.lockfileDir })
+          }
+        })
       }
-    }
+    }))
   }
 
   // waiting till the skipped packages are downloaded to the store
