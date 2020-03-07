@@ -7,7 +7,7 @@
     "test-pkgs-branch": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm test --filter=...[origin/master]",
     "verdaccio": "verdaccio --config ./verdaccio.yaml --listen 7348",
     "build": "pnpm run -r tsc",
-    "coveralls": "lcov-result-merger packages/*/coverage/lcov.info | coveralls"
+    "coveralls": "lcov-result-merger \"packages/*/coverage/lcov.info\" | coveralls"
   },
   "devDependencies": {
     "@pnpm/registry-mock": "1.11.1",
