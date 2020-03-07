@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "test": "ts-node test --type-check",
+    "test": "c8 --reporter lcov ts-node test --type-check",
     "prepublishOnly": "pnpm run tsc",
     "fix": "tslint -c tslint.json --project . --fix"
   },
