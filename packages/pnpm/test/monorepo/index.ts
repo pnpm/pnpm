@@ -15,7 +15,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
-import symlink from 'symlink-dir'
+import symlink = require('symlink-dir')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
