@@ -840,7 +840,7 @@ async function installInContext (
     await Promise.all(projectsToLink.map(async (project, index) => {
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation === 'installSome') {
-        const linkedPackegs = await linkBinsOfImporter(project)
+        const linkedPackages = await linkBinsOfImporter(project)
         projectToInstall.dependencySelectors.forEach(pkg => {
           if (!linkedPackegs?.includes(pkg)) {
             logger.warn({ message: `The globally installed package ${pkg} has no bins.`, prefix: opts.lockfileDir })
