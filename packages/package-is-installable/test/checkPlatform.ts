@@ -1,5 +1,5 @@
 import test = require('tape')
-import checkPlatform from '../src/checkPlatform'
+import checkPlatform from '../lib/checkPlatform'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 
