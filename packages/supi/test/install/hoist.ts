@@ -1,3 +1,4 @@
+import assertProject from '@pnpm/assert-project'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
@@ -383,4 +384,85 @@ test('hoist-pattern: hoist all dependencies to the virtual store node_modules', 
   await projects['package'].has('foobar')
   await projects['package'].hasNot('foo')
   await projects['package'].hasNot('bar')
+})
+
+test('hoist when updating in one of the workspace projects', async (t) => {
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  const workspaceRootManifest = {
+    name: 'root',
+
+    dependencies: {
+      'pkg-with-1-dep': '100.0.0',
+    },
+  }
+  const workspacePackageManifest = {
+    name: 'package',
+
+    dependencies: {
+      'foo': '100.0.0',
+    },
+  }
+  const projects = preparePackages(t, [
+    {
+      location: '.',
+      package: workspaceRootManifest,
+    },
+    {
+      location: 'package',
+      package: workspacePackageManifest,
+    },
+  ])
+
+  const mutatedProjects: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: workspaceRootManifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+    {
+      buildIndex: 0,
+      manifest: workspacePackageManifest,
+      mutation: 'install',
+      rootDir: path.resolve('package'),
+    },
+  ]
+  await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
+
+  const rootNodeModules = assertProject(t, process.cwd())
+  {
+    const modulesManifest = await rootNodeModules.readModulesManifest()
+    t.deepEqual(modulesManifest?.hoistedAliases, {
+      'localhost+4873/dep-of-pkg-with-1-dep/100.0.0': ['dep-of-pkg-with-1-dep'],
+      'localhost+4873/foo/100.0.0': ['foo'],
+    })
+  }
+
+  await mutateModules([
+    {
+      ...mutatedProjects[0],
+      dependencySelectors: ['foo@100.1.0'],
+      mutation: 'installSome',
+    },
+  ], await testDefaults({ hoistPattern: '*', pruneLockfileImporters: false }))
+
+  const lockfile = await rootNodeModules.readCurrentLockfile()
+
+  t.deepEqual(
+    Object.keys(lockfile.packages),
+    [
+      '/dep-of-pkg-with-1-dep/100.0.0',
+      '/foo/100.0.0',
+      '/foo/100.1.0',
+      '/pkg-with-1-dep/100.0.0',
+    ],
+  )
+
+  {
+    const modulesManifest = await rootNodeModules.readModulesManifest()
+    t.deepEqual(modulesManifest?.hoistedAliases, {
+      'localhost+4873/dep-of-pkg-with-1-dep/100.0.0': ['dep-of-pkg-with-1-dep'],
+    })
+  }
 })

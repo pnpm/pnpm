@@ -361,3 +361,100 @@ test('filterByImporters(): do not include skipped packages', (t) => {
   })
   t.end()
 })
+
+test('filterByImporters(): exclude orphan packages', (t) => {
+  const filteredLockfile = filterLockfileByImporters(
+    {
+      importers: {
+        'project-1': {
+          dependencies: {
+            'prod-dep': '1.0.0',
+          },
+          specifiers: {
+            'prod-dep': '^1.0.0',
+          },
+        },
+        'project-2': {
+          dependencies: {
+            'project-2-prod-dep': '1.0.0',
+          },
+          specifiers: {
+            'project-2-prod-dep': '^1.0.0',
+          },
+        },
+      },
+      lockfileVersion: 5.1,
+      packages: {
+        '/orphan/1.0.0': {
+          resolution: { integrity: '' },
+        },
+        '/prod-dep-dep/1.0.0': {
+          resolution: { integrity: '' },
+        },
+        '/prod-dep/1.0.0': {
+          dependencies: {
+            'prod-dep-dep': '1.0.0',
+          },
+          resolution: { integrity: '' },
+        },
+        '/project-2-prod-dep/1.0.0': {
+          resolution: { integrity: '' },
+        },
+      },
+    },
+    ['project-1', 'project-2'],
+    {
+      failOnMissingDependencies: true,
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      registries: {
+        default: 'https://registry.npmjs.org/',
+      },
+      skipped: new Set<string>(),
+    },
+  )
+
+  t.deepEqual(filteredLockfile, {
+    importers: {
+      'project-1': {
+        dependencies: {
+          'prod-dep': '1.0.0',
+        },
+        devDependencies: {},
+        optionalDependencies: {},
+        specifiers: {
+          'prod-dep': '^1.0.0',
+        },
+      },
+      'project-2': {
+        dependencies: {
+          'project-2-prod-dep': '1.0.0',
+        },
+        devDependencies: {},
+        optionalDependencies: {},
+        specifiers: {
+          'project-2-prod-dep': '^1.0.0',
+        },
+      },
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/prod-dep-dep/1.0.0': {
+        resolution: { integrity: '' },
+      },
+      '/prod-dep/1.0.0': {
+        dependencies: {
+          'prod-dep-dep': '1.0.0',
+        },
+        resolution: { integrity: '' },
+      },
+      '/project-2-prod-dep/1.0.0': {
+        resolution: { integrity: '' },
+      },
+    },
+  })
+  t.end()
+})

@@ -55,7 +55,7 @@ export default async function hoistByLockfile (
     ),
   ]
 
-  const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.'].specifiers, {
+  const aliasesByDependencyPath = await hoistGraph(deps, opts.lockfile.importers['.']?.specifiers ?? {}, {
     dryRun: false,
     match,
     modulesDir: opts.modulesDir,

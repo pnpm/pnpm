@@ -270,18 +270,7 @@ export default async function linkPackages (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
-    const filteredCurrentLockfile = allImportersIncluded
-      ? opts.currentLockfile
-      : filterLockfileByImporters(
-        opts.currentLockfile,
-        Object.keys(newWantedLockfile.importers)
-          .filter((projectId) => !projectIds.includes(projectId) && opts.currentLockfile.importers[projectId]),
-        {
-          ...filterOpts,
-          failOnMissingDependencies: false,
-        },
-      )
-    const packages = filteredCurrentLockfile.packages || {}
+    const packages = opts.currentLockfile.packages || {}
     if (newWantedLockfile.packages) {
       for (const relDepPath in newWantedLockfile.packages) { // tslint:disable-line:forin
         const depPath = dp.resolve(opts.registries, relDepPath)
@@ -294,7 +283,17 @@ export default async function linkPackages (
       acc[projectId] = newWantedLockfile.importers[projectId]
       return acc
     }, opts.currentLockfile.importers)
-    currentLockfile = { ...newWantedLockfile, packages, importers: projects }
+    currentLockfile = filterLockfileByImporters(
+      {
+        ...newWantedLockfile,
+        importers: projects,
+        packages,
+      },
+      Object.keys(projects), {
+        ...filterOpts,
+        failOnMissingDependencies: false,
+      },
+    )
   } else if (
     opts.include.dependencies &&
     opts.include.devDependencies &&
@@ -306,27 +305,24 @@ export default async function linkPackages (
     currentLockfile = newCurrentLockfile
   }
 
-  let newHoistedAliases: {[depPath: string]: string[]} = {}
-  if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    const rootImporterWithFlatModules = opts.hoistPattern && projects.find(({ id }) => id === '.')
-    if (rootImporterWithFlatModules) {
-      newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
-        getIndependentPackageLocation: opts.independentLeaves
-          ? async (packageId: string, packageName: string) => {
-            const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
-              lockfileDir: opts.lockfileDir,
-              targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
-            })
-            return dir
-          }
-          : undefined,
-        lockfile: currentLockfile,
-        lockfileDir: opts.lockfileDir,
-        modulesDir: opts.hoistedModulesDir,
-        registries: opts.registries,
-        virtualStoreDir: opts.virtualStoreDir,
-      })
-    }
+  let newHoistedAliases: Record<string, string[]> = {}
+  if (opts.hoistPattern && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
+    newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
+      getIndependentPackageLocation: opts.independentLeaves
+        ? async (packageId: string, packageName: string) => {
+          const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
+            lockfileDir: opts.lockfileDir,
+            targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+          })
+          return dir
+        }
+        : undefined,
+      lockfile: currentLockfile,
+      lockfileDir: opts.lockfileDir,
+      modulesDir: opts.hoistedModulesDir,
+      registries: opts.registries,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
   }
 
   if (!opts.dryRun) {
