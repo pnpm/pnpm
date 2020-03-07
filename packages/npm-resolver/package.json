@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "7.3.5",
+  "version": "7.3.6",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,7 +37,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "credentials-by-uri": "2.0.0",
     "encode-registry": "2.0.2",
-    "fetch-from-npm-registry": "workspace:4.0.1",
+    "fetch-from-npm-registry": "workspace:4.0.2",
     "load-json-file": "6.2.0",
     "mem": "6.0.1",
     "normalize-path": "3.0.0",
