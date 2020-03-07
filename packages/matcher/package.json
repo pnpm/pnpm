@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc && ts-node test --type-check",
+    "test": "pnpm run tsc && cd ../.. && c8 --reporter lcov --reports-dir packages/matcher/coverage ts-node packages/matcher/test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },

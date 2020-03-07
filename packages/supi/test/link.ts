@@ -16,7 +16,7 @@ import {
   linkFromGlobal,
   linkToGlobal,
 } from 'supi'
-import symlink from 'symlink-dir'
+import symlink = require('symlink-dir')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { promisify } from 'util'

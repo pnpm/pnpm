@@ -1,5 +1,5 @@
 import test = require('tape')
-import checkEngine from '../src/checkEngine'
+import checkEngine from '../lib/checkEngine'
 
 const packageId = 'registry.npmjs.org/foo/1.0.0'
 

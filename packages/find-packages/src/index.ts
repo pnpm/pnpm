@@ -26,7 +26,7 @@ declare namespace findPkgs {
   }
 }
 
-async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.Project[]> {
+export default async function findPkgs (root: string, opts?: findPkgs.Options): Promise<findPkgs.Project[]> {
   opts = opts || {}
   const globOpts = { ...opts, cwd: root, includeRoot: undefined }
   globOpts.ignore = opts.ignore || DEFAULT_IGNORE
@@ -87,8 +87,3 @@ function normalizePatterns (patterns: readonly string[]) {
   }
   return normalizedPatterns
 }
-
-// for backward compatibility
-findPkgs['default'] = findPkgs // tslint:disable-line
-
-export = findPkgs

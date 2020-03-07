@@ -64,7 +64,7 @@
     "commitmsg": "commitlint -e",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
-    "test:tap": "ts-node test",
+    "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/headless/coverage ts-node packages/headless/test",
     "test:e2e": "run-p -r registry-mock test:tap",
     "pretest:e2e": "rimraf ../.tmp/ && registry-mock prepare && ts-node test/pretest",
     "test-with-preview": "pnpm run test:e2e",

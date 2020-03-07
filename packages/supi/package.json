@@ -157,7 +157,7 @@
     "commitmsg": "commitlint -e",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
-    "test:tap": "ts-node test",
+    "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/supi/coverage ts-node packages/supi/test",
     "test:e2e": "run-p -r registry-mock test:tap",
     "pretest": "registry-mock prepare",
     "test-with-preview": "preview && pnpm run test:e2e",

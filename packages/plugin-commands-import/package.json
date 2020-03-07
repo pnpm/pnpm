@@ -14,7 +14,7 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "registry-mock": "registry-mock",
-    "test:tap": "ts-node test --type-check",
+    "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/plugin-commands-import/coverage ts-node packages/plugin-commands-import/test --type-check",
     "pretest:e2e": "registry-mock prepare",
     "test:e2e": "run-p -r registry-mock test:tap",
     "test": "pnpm run tsc && cross-env PNPM_REGISTRY_MOCK_PORT=7776 pnpm run test:e2e",

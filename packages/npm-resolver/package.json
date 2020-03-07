@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
-    "test": "rimraf .store && pnpm run tsc && ts-node test --type-check",
+    "test": "rimraf .store && pnpm run tsc && cd ../.. && c8 --reporter lcov --reports-dir packages/npm-resolver/coverage ts-node packages/npm-resolver/test --type-check",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/npm-resolver",

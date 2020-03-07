@@ -16,7 +16,7 @@
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc",
     "registry-mock": "registry-mock",
-    "test:tap": "ts-node test --type-check",
+    "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/outdated/coverage ts-node packages/outdated/test --type-check",
     "test:e2e": "run-p -r registry-mock test:tap"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/outdated",

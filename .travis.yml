@@ -23,6 +23,8 @@ script:
   - if [ "$TRAVIS_BRANCH" = "master" ]; then pnpm run test-master; fi
   - if [ "$TRAVIS_BRANCH" != "master" ]; then pnpm run test-branch; fi
   - set +e
+after_success:
+  - if [ "$TRAVIS_NODE_VERSION" = "12" ]; then pnpm run coveralls; fi;
 cache:
   directories:
     - storage
