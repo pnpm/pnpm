@@ -838,12 +838,12 @@ async function installInContext (
     }
 
     await Promise.all(projectsToLink.map(async (project, index) => {
+      const linkedPackages = await linkBinsOfImporter(project)
       const projectToInstall = projects[index]
       if (opts.global && projectToInstall.mutation === 'installSome') {
-        const linkedPackages = await linkBinsOfImporter(project)
-        projectToInstall.dependencySelectors.forEach(pkg => {
-          if (!linkedPackages?.includes(pkg)) {
-            logger.warn({ message: `${pkg} has no binaries`, prefix: opts.lockfileDir })
+        projectToInstall.wantedDependencies.forEach(pkg => {
+          if (!linkedPackages?.includes(pkg.alias)) {
+            logger.warn({ message: `${pkg.alias} has no binaries`, prefix: opts.lockfileDir })
           }
         })
       }
