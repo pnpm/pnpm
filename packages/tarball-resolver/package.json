@@ -14,7 +14,7 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "tsc": "rimraf lib && tsc",
-    "test": "pnpm run tsc && cd ../.. && c8 --reporter lcov --reports-dir packages/tarball-resolver/coverage ts-node packages/tarball-resolver/test --type-check",
+    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/tarball-resolver/coverage ts-node packages/tarball-resolver/test --type-check",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/tarball-resolver",

@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc",
+    "test": "pnpm run tsc -- --sourceMap",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },

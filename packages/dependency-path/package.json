@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc && pnpm link . && cd ../.. && c8 --reporter lcov --reports-dir packages/dependency-path/coverage ts-node packages/dependency-path/test",
+    "test": "pnpm run tsc -- --sourceMap && pnpm link . && cd ../.. && c8 --reporter lcov --reports-dir packages/dependency-path/coverage ts-node packages/dependency-path/test",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },

@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "tsc",
-    "test": "pnpm run tsc && cd ../.. && c8 --reporter lcov --reports-dir packages/local-resolver/coverage ts-node packages/local-resolver/test --ts-node",
+    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/local-resolver/coverage ts-node packages/local-resolver/test --ts-node",
     "prepublishOnly": "pnpm run tsc",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix"
   },

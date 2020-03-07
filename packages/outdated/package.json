@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "pretest": "registry-mock prepare",
-    "test": "pnpm run tsc && pnpm run test:e2e",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run test:e2e",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc",
     "registry-mock": "registry-mock",

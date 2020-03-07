@@ -13,7 +13,7 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "test-with-preview": "ts-node test",
     "pretest": "npm config rm fetch-retry-maxtimeout",
-    "test": "pnpm run tsc && cd ../.. && c8 --reporter lcov --reports-dir packages/config/coverage ts-node packages/config/test"
+    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/config/coverage ts-node packages/config/test"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/config",
   "keywords": [

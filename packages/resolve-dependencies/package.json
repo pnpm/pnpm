@@ -24,7 +24,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/resolve-dependencies#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc",
+    "test": "pnpm run tsc -- --sourceMap",
     "lint": "tslint -c ../../tslint.json --project .",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"

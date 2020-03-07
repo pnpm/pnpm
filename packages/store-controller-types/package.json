@@ -11,7 +11,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "pnpm run tsc",
+    "test": "pnpm run tsc -- --sourceMap",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },
