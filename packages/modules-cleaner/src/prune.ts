@@ -100,8 +100,8 @@ export default async function prune (
   // In case installation is done on a subset of importers,
   // we may only prune dependencies that are used only by that subset of importers.
   // Otherwise, we would break the node_modules.
-  const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.currentLockfile.importers))
-    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages || {})
+  const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
+    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages ?? {})
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
   const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages || {})
 
