@@ -2329,6 +2329,7 @@ importers:
       is-port-reachable: 3.0.0
       mz: 2.7.0
       node-fetch: 2.6.0
+      tempy: 0.4.0
     specifiers:
       '@pnpm/fetch': 'workspace:1.0.3'
       '@pnpm/logger': 3.1.0
@@ -2348,6 +2349,7 @@ importers:
       node-fetch: 2.6.0
       p-limit: 2.2.2
       promise-share: 1.0.0
+      tempy: 0.4.0
       uuid: 7.0.2
   packages/sort-packages:
     dependencies:

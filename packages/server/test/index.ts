@@ -10,10 +10,11 @@ import fs = require('mz/fs')
 import fetch from 'node-fetch'
 import path = require('path')
 import test = require('tape')
+import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
 
-const storeDir = '.store'
+const storeDir = tempy.directory()
 
 async function createStoreController () {
   const rawConfig = { registry }
@@ -187,7 +188,7 @@ test('server upload', async t => {
     packageId: fakePkgId,
   })
 
-  const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
+  const cachePath = path.join(storeDir, fakePkgId, 'side_effects', fakeEngine, 'package')
   t.ok(await fs.exists(cachePath), 'cache directory created')
   t.deepEqual(await fs.readdir(cachePath), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
 
