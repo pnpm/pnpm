@@ -271,10 +271,6 @@ export default async function linkPackages (
     opts.makePartialCurrentLockfile ||
     !allImportersIncluded
   ) {
-    const filteredCurrentImporters = allImportersIncluded || !opts.pruneLockfileImporters
-      ? opts.currentLockfile.importers
-      : R.pick(Object.keys(newWantedLockfile.importers)
-          .filter((projectId) => !projectIds.includes(projectId) && opts.currentLockfile.importers[projectId]), newWantedLockfile.importers)
     const packages = opts.currentLockfile.packages || {}
     if (newWantedLockfile.packages) {
       for (const relDepPath in newWantedLockfile.packages) { // tslint:disable-line:forin
@@ -284,6 +280,10 @@ export default async function linkPackages (
         }
       }
     }
+    const filteredCurrentImporters = allImportersIncluded || !opts.pruneLockfileImporters
+      ? opts.currentLockfile.importers
+      : R.pick(Object.keys(newWantedLockfile.importers)
+          .filter((projectId) => !projectIds.includes(projectId) && opts.currentLockfile.importers[projectId]), newWantedLockfile.importers)
     const projects = {
       ...(opts.pruneLockfileImporters ? {} : filteredCurrentImporters),
       ...projectIds.reduce((acc, projectId) => {
@@ -314,26 +314,23 @@ export default async function linkPackages (
   }
 
   let newHoistedAliases: Record<string, string[]> = {}
-  if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    const rootImporterWithFlatModules = opts.hoistPattern && projects.find(({ id }) => id === '.')
-    if (rootImporterWithFlatModules) {
-      newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
-        getIndependentPackageLocation: opts.independentLeaves
-          ? async (packageId: string, packageName: string) => {
-            const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
-              lockfileDir: opts.lockfileDir,
-              targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
-            })
-            return dir
-          }
-          : undefined,
-        lockfile: currentLockfile,
-        lockfileDir: opts.lockfileDir,
-        modulesDir: opts.hoistedModulesDir,
-        registries: opts.registries,
-        virtualStoreDir: opts.virtualStoreDir,
-      })
-    }
+  if (opts.hoistPattern && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
+    newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
+      getIndependentPackageLocation: opts.independentLeaves
+        ? async (packageId: string, packageName: string) => {
+          const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
+            lockfileDir: opts.lockfileDir,
+            targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+          })
+          return dir
+        }
+        : undefined,
+      lockfile: currentLockfile,
+      lockfileDir: opts.lockfileDir,
+      modulesDir: opts.hoistedModulesDir,
+      registries: opts.registries,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
   }
 
   if (!opts.dryRun) {

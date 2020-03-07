@@ -70,6 +70,80 @@ test('install only the dependencies of the specified importer', async (t) => {
   await rootNodeModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`)
 })
 
+test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async (t) => {
+  preparePackages(t, [
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+    {
+      location: 'project-3',
+      package: { name: 'project-3' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-3',
+        version: '1.0.0',
+
+        dependencies: {
+          'foobar': '100.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-3'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults({ hoistPattern: '*' }))
+  await mutateModules(importers.slice(0, 2), await testDefaults({ lockfileOnly: true, pruneLockfileImporters: true }))
+
+  await mutateModules([
+    {
+      ...importers[0],
+      dependencySelectors: ['pkg-with-1-dep'],
+      mutation: 'installSome',
+    },
+  ], await testDefaults({ hoistPattern: '*' }))
+
+  const rootNodeModules = assertProject(t, process.cwd())
+  const currentLockfile = await rootNodeModules.readCurrentLockfile()
+  t.ok(currentLockfile.importers['project-3'])
+  t.ok(currentLockfile.packages['/foobar/100.0.0'])
+})
+
 test('dependencies of other importers are not pruned when installing for a subset of importers', async (t) => {
   const projects = preparePackages(t, [
     {
