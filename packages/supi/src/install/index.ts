@@ -843,7 +843,7 @@ async function installInContext (
         const linkedPackages = await linkBinsOfImporter(project)
         projectToInstall.dependencySelectors.forEach(pkg => {
           if (!linkedPackages?.includes(pkg)) {
-            logger.warn({ message: `The globally installed package ${pkg} has no bins.`, prefix: opts.lockfileDir })
+            logger.warn({ message: `${pkg} has no binaries`, prefix: opts.lockfileDir })
           }
         })
       }
