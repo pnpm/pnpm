@@ -782,7 +782,6 @@ async function installInContext (
       lockfileDir: opts.lockfileDir,
       makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
       outdatedDependencies,
-      pruneLockfileImporters: opts.pruneLockfileImporters,
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,

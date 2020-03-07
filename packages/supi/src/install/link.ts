@@ -69,7 +69,6 @@ export default async function linkPackages (
     lockfileDir: string,
     makePartialCurrentLockfile: boolean,
     outdatedDependencies: {[pkgId: string]: string},
-    pruneLockfileImporters: boolean,
     pruneStore: boolean,
     registries: Registries,
     sideEffectsCacheRead: boolean,
@@ -280,17 +279,10 @@ export default async function linkPackages (
         }
       }
     }
-    const filteredCurrentImporters = allImportersIncluded || !opts.pruneLockfileImporters
-      ? opts.currentLockfile.importers
-      : R.pick(Object.keys(newWantedLockfile.importers)
-          .filter((projectId) => !projectIds.includes(projectId) && opts.currentLockfile.importers[projectId]), newWantedLockfile.importers)
-    const projects = {
-      ...(opts.pruneLockfileImporters ? {} : filteredCurrentImporters),
-      ...projectIds.reduce((acc, projectId) => {
-        acc[projectId] = newWantedLockfile.importers[projectId]
-        return acc
-      }, opts.currentLockfile.importers),
-    }
+    const projects = projectIds.reduce((acc, projectId) => {
+      acc[projectId] = newWantedLockfile.importers[projectId]
+      return acc
+    }, opts.currentLockfile.importers)
     currentLockfile = filterLockfileByImporters(
       {
         ...newWantedLockfile,
