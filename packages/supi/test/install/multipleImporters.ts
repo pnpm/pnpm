@@ -773,3 +773,73 @@ test('update workspace range', async (t) => {
   t.deepEqual(updatedImporters[0].manifest.dependencies, expected)
   t.deepEqual(updatedImporters[1].manifest.dependencies, expected)
 })
+
+test('remove dependencies of a project that was removed from the workspace (during non-headless install)', async (t) => {
+  preparePackages(t, [
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+    {
+      location: 'project-2',
+      package: { name: 'project-2' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project-2'),
+    },
+  ]
+  await mutateModules(importers, await testDefaults())
+
+  await mutateModules(importers.slice(0, 1), await testDefaults({ lockfileOnly: true, pruneLockfileImporters: true }))
+
+  const project = assertProject(t, process.cwd())
+
+  {
+    const wantedLockfile = await project.readLockfile()
+    t.deepEqual(Object.keys(wantedLockfile.importers), ['project-1'])
+    t.deepEqual(Object.keys(wantedLockfile.packages), ['/is-positive/1.0.0'])
+
+    const currentLockfile = await project.readCurrentLockfile()
+    t.deepEqual(Object.keys(currentLockfile.importers), ['project-1', 'project-2'])
+    t.deepEqual(Object.keys(currentLockfile.packages), ['/is-negative/1.0.0', '/is-positive/1.0.0'])
+
+    await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+    await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`)
+  }
+
+  await mutateModules(importers.slice(0, 1), await testDefaults({ preferFrozenLockfile: false }))
+  {
+    const currentLockfile = await project.readCurrentLockfile()
+    t.deepEqual(Object.keys(currentLockfile.importers), ['project-1'])
+    t.deepEqual(Object.keys(currentLockfile.packages), ['/is-positive/1.0.0'])
+
+    await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0`)
+    await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`)
+  }
+})
