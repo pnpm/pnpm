@@ -260,6 +260,7 @@ export type InstallCommandOptions = Pick<Config,
   'ignoreScripts' |
   'independentLeaves' |
   'linkWorkspacePackages' |
+  'rawLocalConfig' |
   'lockfileDir' |
   'lockfileOnly' |
   'pnpmfile' |
@@ -303,7 +304,9 @@ export function handler (
   }
   return installDeps(input, {
     ...opts,
-    frozenLockfileIfExists: isCI,
+    frozenLockfileIfExists: isCI &&
+      typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
+      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
     include,
     includeDirect: include,
   })

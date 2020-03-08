@@ -475,4 +475,6 @@ test('installing in a CI environment', async (t: tape.Test) => {
     err = _err
   }
   t.ok(err, 'installation fails with out-of-date lockfile')
+
+  await execPnpm(['install', '--no-frozen-lockfile'], { env: { CI: 'true' } })
 })
