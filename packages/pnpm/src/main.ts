@@ -31,7 +31,7 @@ import initReporter, { ReporterType } from './reporter'
 
 export default async function run (inputArgv: string[]) {
   const { argv, cliArgs, cliConf, cmd, subCmd, isKnownCommand, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
-  if (!isKnownCommand) {
+  if (!isKnownCommand && cmd !== null) {
     console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown command '${cmd}'`)}`)
     console.log(`For help, run: pnpm help`)
     process.exit(1)

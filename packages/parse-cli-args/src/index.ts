@@ -61,7 +61,9 @@ export default async function parseCliArgs (
     }
   }
 
+  const recursiveCommandUsed = RECURSIVE_CMDS.has(noptExploratoryResults.argv.remain[0])
   const commandName = getCommandName(noptExploratoryResults.argv.remain)
+  let cmd = commandName ? opts.getCommandLongName(commandName) : null
   const types = {
     'recursive': Boolean,
     ...opts.universalOptionsTypes,
@@ -69,10 +71,12 @@ export default async function parseCliArgs (
   } as any // tslint:disable-line:no-any
 
   function getCommandName (cliArgs: string[]) {
-    if (RECURSIVE_CMDS.has(cliArgs[0])) {
+    if (recursiveCommandUsed) {
       cliArgs = cliArgs.slice(1)
     }
-    if (opts.getCommandLongName(cliArgs[0]) !== 'install' || cliArgs.length === 1) return cliArgs[0]
+    if (opts.getCommandLongName(cliArgs[0]) !== 'install' || cliArgs.length === 1) {
+      return cliArgs[0]
+    }
     return 'add'
   }
 
@@ -95,20 +99,14 @@ export default async function parseCliArgs (
     }
   }
 
-  let cmd = argv.remain.length > 0 ? opts.getCommandLongName(argv.remain[0]) : null
-  let isKnownCommand = true
-  if (cmd && !opts.isKnownCommand(cmd) && !RECURSIVE_CMDS.has(cmd)) {
-    isKnownCommand = false
-  }
-
   let subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
 
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = argv.remain.slice(1).filter(Boolean)
 
-  if (cliConf['recursive'] !== true && (cliConf['filter'] || RECURSIVE_CMDS.has(cmd!))) {
+  if (cliConf['recursive'] !== true && (cliConf['filter'] || recursiveCommandUsed)) {
     cliConf['recursive'] = true
-    if (subCmd && RECURSIVE_CMDS.has(cmd!)) {
+    if (subCmd && recursiveCommandUsed) {
       cliArgs.shift()
       argv.remain.shift()
       cmd = subCmd
@@ -135,6 +133,9 @@ export default async function parseCliArgs (
   } else if (subCmd === 'install' && cliArgs.length > 1) {
     cmd = 'add'
   }
+  if (!cmd && cliConf['recursive']) {
+    cmd = 'recursive'
+  }
 
   const allowedOptions = new Set(Object.keys(types))
   const unknownOptions = [] as string[]
@@ -148,7 +149,7 @@ export default async function parseCliArgs (
     cliArgs,
     cliConf,
     cmd,
-    isKnownCommand,
+    isKnownCommand: opts.isKnownCommand(commandName),
     subCmd,
     unknownOptions,
     workspaceDir,
