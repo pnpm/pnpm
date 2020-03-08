@@ -96,7 +96,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       chalk: 3.0.0
       load-json-file: 6.2.0
-      nopt: 4.0.1
+      nopt: 4.0.3
       ramda: 0.27.0
       version-selector-type: 2.0.1
     devDependencies:
@@ -119,7 +119,7 @@ importers:
       '@types/ramda': ^0.26.43
       chalk: 3.0.0
       load-json-file: 6.2.0
-      nopt: 4.0.1
+      nopt: 4.0.3
       ramda: 0.27.0
       version-selector-type: 2.0.1
   packages/command:
@@ -1275,7 +1275,7 @@ importers:
   packages/parse-cli-args:
     dependencies:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
-      nopt: 4.0.1
+      nopt: 4.0.3
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
@@ -1283,7 +1283,7 @@ importers:
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
-      nopt: 4.0.1
+      nopt: 4.0.3
   packages/pkgs-graph:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
@@ -8537,6 +8537,14 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-0NRoWv1UFRk8jHUFYC0NF81kR00=
+  /nopt/4.0.3:
+    dependencies:
+      abbrev: 1.1.1
+      osenv: 0.1.5
+    dev: false
+    hasBin: true
+    resolution:
+      integrity: sha512-CvaGwVMztSMJLOeXPrez7fyfObdZqNUK1cPAEzLHrTybIua9pMdmmPR5YwtfNftIOMv3DPUhFaxsZMNTQO20Kg==
   /normalize-newline/3.0.0:
     dev: true
     engines:
