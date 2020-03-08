@@ -388,7 +388,7 @@ test('prints summary correctly when the same package is specified both in option
 
 test('prints summary when some packages fail', async (t) => {
   const output$ = toOutput$({
-    context: { argv: ['recursive'] },
+    context: { argv: ['run'], config: { recursive: true } as Config },
     streamParser: createStreamParser(),
   })
 
@@ -695,8 +695,8 @@ test('prints added/removed stats and warnings during recursive installation', t 
   const rootPrefix = '/home/jane/repo'
   const output$ = toOutput$({
     context: {
-      argv: ['recursive'],
-      config: { dir: rootPrefix } as Config,
+      argv: ['install'],
+      config: { dir: rootPrefix, recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -860,8 +860,8 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
 test('recursive uninstall: prints removed packages number', t => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'remove'],
-      config: { dir: '/home/jane/repo' } as Config,
+      argv: ['remove'],
+      config: { dir: '/home/jane/repo', recursive: true } as Config,
     },
     reportingOptions: { outputMaxWidth: 62 },
     streamParser: createStreamParser(),

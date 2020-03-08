@@ -6,7 +6,6 @@ import test = require('tape')
 const DEFAULT_OPTS = {
   getCommandLongName: (commandName: string) => commandName,
   getTypesByCommandName: (commandName: string) => ({}),
-  isKnownCommand: (commandName: string) => true,
   renamedOptions: { 'prefix': 'dir' },
   shorthandsByCommandName: {},
   universalOptionsTypes: {},
@@ -86,32 +85,19 @@ test('when runnning a global command inside a workspace, the workspace should be
   t.end()
 })
 
-test('isKnownCommand is false when an unknown command is used', async (t) => {
-  const { cmd, isKnownCommand } = await parseCliArgs({
+test('command is used recursively', async (t) => {
+  const { cmd, cliConf } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    isKnownCommand: () => false,
-    universalOptionsTypes: {},
-  }, ['foo'])
-  t.false(isKnownCommand)
-  t.equal(cmd, 'foo')
-  t.end()
-})
-
-test('isKnownCommand is false when an unknown command is used recursively', async (t) => {
-  const { cmd, isKnownCommand } = await parseCliArgs({
-    ...DEFAULT_OPTS,
-    isKnownCommand: () => false,
     universalOptionsTypes: {},
   }, ['recursive', 'foo'])
-  t.false(isKnownCommand)
   t.equal(cmd, 'foo')
+  t.equal(cliConf.recursive, true)
   t.end()
 })
 
 test('the install command is converted to add when called with args', async (t) => {
   const { cliArgs, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
-    isKnownCommand: (commandName) => commandName === 'install',
   }, ['install', 'rimraf@1'])
   t.equal(cmd, 'add')
   t.deepEqual(cliArgs, ['rimraf@1'])
@@ -122,7 +108,6 @@ test('the "i" command is converted to add when called with args', async (t) => {
   const { cliArgs, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getCommandLongName: (commandName) => commandName === 'i' ? 'install' : commandName,
-    isKnownCommand: (commandName) => commandName === 'install',
   }, ['i', 'rimraf@1'])
   t.equal(cmd, 'add')
   t.deepEqual(cliArgs, ['rimraf@1'])
@@ -141,7 +126,6 @@ test('detect unknown options', async (t) => {
       }
       return {}
     },
-    isKnownCommand: (commandName) => commandName === 'install',
     universalOptionsTypes: { filter: [String, Array] },
   }, ['install', '--save-dev', '--registry=https://example.com', '--qar', '--filter=packages'])
   t.deepEqual(unknownOptions, ['save-dev', 'qar'])
@@ -157,7 +141,6 @@ test('do not incorrectly change "install" command to "add"', async (t) => {
         default: return {}
       }
     },
-    isKnownCommand: (commandName) => commandName === 'install',
     universalOptionsTypes: {
       prefix: String,
     },
@@ -179,11 +162,10 @@ test('if a help option is used, set cmd to "help"', async (t) => {
 })
 
 test('no command', async (t) => {
-  const { cmd, isKnownCommand } = await parseCliArgs({
+  const { cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['--version'])
   t.equal(cmd, null)
-  t.true(isKnownCommand)
   t.end()
 })
 
@@ -198,7 +180,6 @@ test('use command-specific shorthands', async (t) => {
       }
       return {}
     },
-    isKnownCommand: (commandName) => commandName === 'install',
     shorthandsByCommandName: {
       install: { D: '--dev' },
     },

@@ -30,8 +30,8 @@ import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 
 export default async function run (inputArgv: string[]) {
-  const { argv, cliArgs, cliConf, cmd, subCmd, isKnownCommand, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
-  if (!isKnownCommand && cmd !== null) {
+  const { argv, cliArgs, cliConf, cmd, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
+  if (cmd !== null && !pnpmCmds[cmd]) {
     console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown command '${cmd}'`)}`)
     console.log(`For help, run: pnpm help`)
     process.exit(1)
@@ -105,7 +105,6 @@ export default async function run (inputArgv: string[]) {
   initReporter(reporterType, {
     cmd,
     config,
-    subCmd,
   })
   global['reporterInitialized'] = true
   delete config.reporter // This is a silly workaround because supi expects a function as config.reporter

@@ -167,9 +167,8 @@ export function toOutput$ (
     {
       appendOnly: opts.reportingOptions?.appendOnly,
       cmd: opts.context.argv[0],
-      isRecursive: opts.context.argv[0] === 'recursive',
+      isRecursive: opts.context.config?.['recursive'] === true,
       pnpmConfig: opts.context.config,
-      subCmd: opts.context.argv[1],
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
     },

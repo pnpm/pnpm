@@ -1,3 +1,4 @@
+import { Config } from '@pnpm/config'
 import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
@@ -33,7 +34,8 @@ test('prints scope of non-recursive install in a workspace', (t) => {
 test('prints scope of recursive install in a workspace when not all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -58,7 +60,8 @@ test('prints scope of recursive install in a workspace when not all packages are
 test('prints scope of recursive install in a workspace when all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -83,7 +86,8 @@ test('prints scope of recursive install in a workspace when all packages are sel
 test('prints scope of recursive install not in a workspace when not all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })
@@ -107,7 +111,8 @@ test('prints scope of recursive install not in a workspace when not all packages
 test('prints scope of recursive install not in a workspace when all packages are selected', (t) => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive', 'install'],
+      argv: ['install'],
+      config: { recursive: true } as Config,
     },
     streamParser: createStreamParser(),
   })

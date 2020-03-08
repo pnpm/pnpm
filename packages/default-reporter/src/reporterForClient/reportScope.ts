@@ -18,13 +18,9 @@ export default (
   opts: {
     isRecursive: boolean,
     cmd: string,
-    subCmd?: string,
   },
 ) => {
-  if (
-    !opts.isRecursive && !COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd) ||
-    opts.isRecursive && (!opts.subCmd || !COMMANDS_THAT_REPORT_SCOPE.has(opts.subCmd))
-  ) {
+  if (!COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {
     return most.never()
   }
   return scope$

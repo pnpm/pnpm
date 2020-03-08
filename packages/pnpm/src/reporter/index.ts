@@ -9,7 +9,6 @@ export default (
   reporterType: ReporterType,
   opts: {
     cmd: string | null,
-    subCmd: string | null,
     config: Config,
   },
 ) => {
@@ -17,7 +16,7 @@ export default (
     case 'default':
       defaultReporter({
         context: {
-          argv: opts.cmd ? opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd] : [],
+          argv: opts.cmd ? [opts.cmd] : [],
           config: opts.config,
         },
         reportingOptions: {
@@ -30,7 +29,7 @@ export default (
     case 'append-only':
       defaultReporter({
         context: {
-          argv: opts.cmd ? opts.subCmd ? [opts.cmd, opts.subCmd] : [opts.cmd] : [],
+          argv: opts.cmd ? [opts.cmd] : [],
           config: opts.config,
         },
         reportingOptions: {

@@ -67,6 +67,7 @@ export interface Config {
   shamefullyHoist?: boolean,
   dev?: boolean,
   ignoreCurrentPrefs?: boolean,
+  recursive?: boolean,
 
   // proxy
   proxy?: string,

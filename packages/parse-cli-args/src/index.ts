@@ -15,8 +15,6 @@ export interface ParsedCliArgs {
     [option: string]: any,
   }
   cmd: string | null
-  subCmd: string | null
-  isKnownCommand: boolean
   unknownOptions: string[]
   workspaceDir?: string
 }
@@ -25,7 +23,6 @@ export default async function parseCliArgs (
   opts: {
     getCommandLongName: (commandName: string) => string | null,
     getTypesByCommandName: (commandName: string) => object,
-    isKnownCommand: (commandName: string) => boolean,
     renamedOptions?: Record<string, string>,
     shorthandsByCommandName: Record<string, Record<string, string>>,
     universalOptionsTypes: Record<string, unknown>,
@@ -55,8 +52,6 @@ export default async function parseCliArgs (
       cliArgs: noptExploratoryResults.argv.remain,
       cliConf: {},
       cmd: 'help',
-      isKnownCommand: true,
-      subCmd: null,
       unknownOptions: [] as string[],
     }
   }
@@ -99,21 +94,17 @@ export default async function parseCliArgs (
     }
   }
 
-  let subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
-
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = argv.remain.slice(1).filter(Boolean)
 
   if (cliConf['recursive'] !== true && (cliConf['filter'] || recursiveCommandUsed)) {
     cliConf['recursive'] = true
+    let subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
     if (subCmd && recursiveCommandUsed) {
       cliArgs.shift()
       argv.remain.shift()
       cmd = subCmd
-      subCmd = null
     }
-  } else if (subCmd && !opts.isKnownCommand(subCmd)) {
-    subCmd = null
   }
   const dir = cliConf['dir'] ?? process.cwd()
   const workspaceDir = cliConf['global'] // tslint:disable-line
@@ -129,8 +120,6 @@ export default async function parseCliArgs (
   }
 
   if (cmd === 'install' && cliArgs.length > 0) {
-    cmd = 'add'
-  } else if (subCmd === 'install' && cliArgs.length > 1) {
     cmd = 'add'
   }
   if (!cmd && cliConf['recursive']) {
@@ -149,8 +138,6 @@ export default async function parseCliArgs (
     cliArgs,
     cliConf,
     cmd,
-    isKnownCommand: opts.isKnownCommand(commandName),
-    subCmd,
     unknownOptions,
     workspaceDir,
   }

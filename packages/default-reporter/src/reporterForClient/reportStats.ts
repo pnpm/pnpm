@@ -18,7 +18,6 @@ export default (
     cmd: string,
     cwd: string,
     isRecursive: boolean,
-    subCmd?: string,
     width: number,
   },
 ) => {
@@ -28,8 +27,8 @@ export default (
 
   const outputs = [
     statsForNotCurrentPackage(stats$, {
+      cmd: opts.cmd,
       currentPrefix: opts.cwd,
-      subCmd: opts.subCmd,
       width: opts.width,
     }),
   ]
@@ -89,13 +88,13 @@ function statsForCurrentPackage (
 function statsForNotCurrentPackage (
   stats$: most.Stream<StatsLog>,
   opts: {
+    cmd: string,
     currentPrefix: string,
-    subCmd?: string,
     width: number,
   },
 ) {
   const cookedStats$ = (
-    opts.subCmd !== 'remove'
+    opts.cmd !== 'remove'
       ? stats$
           .loop((stats, log) => {
             // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice

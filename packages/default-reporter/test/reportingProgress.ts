@@ -118,8 +118,11 @@ test('prints progress beginning when appendOnly is true', t => {
 test('prints progress beginning during recursive install', t => {
   const output$ = toOutput$({
     context: {
-      argv: ['recursive'],
-      config: { dir: '/src/project' } as Config,
+      argv: ['install'],
+      config: {
+        dir: '/src/project',
+        recursive: true,
+      } as Config,
     },
     streamParser: createStreamParser(),
   })

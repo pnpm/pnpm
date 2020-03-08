@@ -35,7 +35,6 @@ export default function (
   opts: {
     isRecursive: boolean,
     cmd: string,
-    subCmd?: string,
     width?: number,
     appendOnly?: boolean,
     throttleProgress?: number,
@@ -67,11 +66,10 @@ export default function (
       cmd: opts.cmd,
       cwd,
       isRecursive: opts.isRecursive,
-      subCmd: opts.subCmd,
       width,
     }),
     reportInstallChecks(log$.installCheck, { cwd }),
-    reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd, subCmd: opts.subCmd }),
+    reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
   ]
