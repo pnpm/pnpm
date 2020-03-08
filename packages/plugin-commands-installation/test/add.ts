@@ -42,13 +42,13 @@ test('installing with "workspace:" should work even if link-workspace-packages i
     },
   ])
 
-  await add.handler(['project-2@workspace:*'], {
+  await add.handler({
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project-1'),
     linkWorkspacePackages: false,
     saveWorkspaceProtocol: false,
     workspaceDir: process.cwd(),
-  })
+  }, ['project-2@workspace:*'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
@@ -71,14 +71,14 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     },
   ])
 
-  await add.handler(['project-2'], {
+  await add.handler({
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project-1'),
     linkWorkspacePackages: false,
     saveWorkspaceProtocol: false,
     workspace: true,
     workspaceDir: process.cwd(),
-  })
+  }, ['project-2'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
@@ -103,13 +103,13 @@ test('add: fail when "workspace" option is true but the command runs not in a wo
 
   let err!: PnpmError
   try {
-    await add.handler(['project-2'], {
+    await add.handler({
       ...DEFAULT_OPTIONS,
       dir: path.resolve('project-1'),
       linkWorkspacePackages: false,
       saveWorkspaceProtocol: false,
       workspace: true,
-    })
+    }, ['project-2'])
   } catch (_err) {
     err = _err
   }
@@ -132,7 +132,7 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
 
   let err!: PnpmError
   try {
-    await add.handler(['project-2'], {
+    await add.handler({
       ...DEFAULT_OPTIONS,
       dir: path.resolve('project-1'),
       linkWorkspacePackages: false,
@@ -143,7 +143,7 @@ test('add: fail when "workspace" option is true but linkWorkspacePackages is fal
       saveWorkspaceProtocol: false,
       workspace: true,
       workspaceDir: process.cwd(),
-    })
+    }, ['project-2'])
   } catch (_err) {
     err = _err
   }
@@ -164,14 +164,14 @@ test('installing with "workspace=true" with linkWorkpacePackages on and saveWork
     },
   ])
 
-  await add.handler(['project-2'], {
+  await add.handler({
     ...DEFAULT_OPTIONS,
     dir: path.resolve('project-1'),
     linkWorkspacePackages: true,
     saveWorkspaceProtocol: false,
     workspace: true,
     workspaceDir: process.cwd(),
-  })
+  }, ['project-2'])
 
   const pkg = await import(path.resolve('project-1/package.json'))
 
@@ -185,14 +185,14 @@ test('installing with "workspace=true" with linkWorkpacePackages on and saveWork
 test('add: fail when --no-save option is used', async (t) => {
   let err!: PnpmError
   try {
-    await add.handler(['is-positive'], {
+    await add.handler({
       ...DEFAULT_OPTIONS,
       cliOptions: {
         save: false,
       },
       dir: process.cwd(),
       linkWorkspacePackages: false,
-    })
+    }, ['is-positive'])
   } catch (_err) {
     err = _err
   }
@@ -204,12 +204,12 @@ test('add: fail when --no-save option is used', async (t) => {
 test('pnpm add --save-peer', async (t) => {
   const project = prepare(t)
 
-  await add.handler(['is-positive@1.0.0'], {
+  await add.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: false,
     savePeer: true,
-  })
+  }, ['is-positive@1.0.0'])
 
   {
     const manifest = await loadJsonFile(path.resolve('package.json'))
@@ -228,11 +228,11 @@ test('pnpm add --save-peer', async (t) => {
 
   await project.has('is-positive')
 
-  await remove.handler(['is-positive'], {
+  await remove.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: false,
-  })
+  }, ['is-positive'])
 
   await project.hasNot('is-positive')
 

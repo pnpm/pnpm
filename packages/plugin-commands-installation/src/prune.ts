@@ -38,7 +38,6 @@ export function help () {
 }
 
 export async function handler (
-  input: string[],
   opts: Pick<Config, 'dev' | 'engineStrict' | 'optional' | 'production'> & CreateStoreControllerOptions,
 ) {
   const store = await createOrConnectStoreController(opts)

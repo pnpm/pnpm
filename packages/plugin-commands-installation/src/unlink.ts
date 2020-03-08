@@ -42,7 +42,6 @@ export function help () {
 }
 
 export async function handler (
-  input: string[],
   opts: CreateStoreControllerOptions &
     Pick<Config,
       'allProjects' |
@@ -57,9 +56,10 @@ export async function handler (
     > & {
       recursive?: boolean,
     },
+  params: string[],
 ) {
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
-    await recursive(opts.allProjects, input, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')
+    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -68,10 +68,10 @@ export async function handler (
     storeDir: store.dir,
   })
 
-  if (!input || !input.length) {
+  if (!params || !params.length) {
     return mutateModules([
       {
-        dependencyNames: input,
+        dependencyNames: params,
         manifest: await readProjectManifestOnly(opts.dir, opts),
         mutation: 'unlinkSome',
         rootDir: opts.dir,

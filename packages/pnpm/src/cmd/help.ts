@@ -2,14 +2,14 @@ import { packageManager } from '@pnpm/cli-utils'
 import renderHelp = require('render-help')
 
 export default function (helpByCommandName: Record<string, () => string>) {
-  return function (input: string[]) {
+  return function (opts: {}, params: string[]) {
     let helpText!: string
-    if (input.length === 0) {
+    if (params.length === 0) {
       helpText = getHelpText()
-    } else if (helpByCommandName[input[0]]) {
-      helpText = helpByCommandName[input[0]]()
+    } else if (helpByCommandName[params[0]]) {
+      helpText = helpByCommandName[params[0]]()
     } else {
-      helpText = `No results for "${input[0]}"`
+      helpText = `No results for "${params[0]}"`
     }
     return `Version ${packageManager.version}\n${helpText}\n`
   }

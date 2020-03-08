@@ -12,8 +12,8 @@ export function cliOptionsTypes () {
 export const help = list.help()
 
 export function handler (
-  args: string[],
   opts: list.ListCommandOptions,
+  params: string[],
 ) {
-  return list.handler(args, { ...opts, long: true })
+  return list.handler({ ...opts, long: true }, params)
 }

@@ -77,9 +77,9 @@ export type StoreCommandOptions = Pick<Config, 'dir' | 'registries' | 'tag' | 's
   reporter?: (logObj: LogBase) => void,
 }
 
-export async function handler (input: string[], opts: StoreCommandOptions) {
+export async function handler (opts: StoreCommandOptions, params: string[]) {
   let store
-  switch (input[0]) {
+  switch (params[0]) {
     case 'status':
       return statusCmd(opts)
     case 'prune':
@@ -91,7 +91,7 @@ export async function handler (input: string[], opts: StoreCommandOptions) {
       return storePrune(storePruneOptions)
     case 'add':
       store = await createOrConnectStoreController(opts)
-      return storeAdd(input.slice(1), {
+      return storeAdd(params.slice(1), {
         prefix: opts.dir,
         registries: opts.registries,
         reporter: opts.reporter,
@@ -100,7 +100,7 @@ export async function handler (input: string[], opts: StoreCommandOptions) {
       })
     case 'usages':
       store = await createOrConnectStoreController(opts)
-      const packageSelectors = input.slice(1)
+      const packageSelectors = params.slice(1)
       const packageUsagesBySelectors = await storeUsages(packageSelectors, {
         reporter: opts.reporter,
         storeController: store.ctrl,
@@ -108,8 +108,8 @@ export async function handler (input: string[], opts: StoreCommandOptions) {
       return prettyPrintUsages(packageSelectors, packageUsagesBySelectors)
     default:
       return help()
-      if (input[0]) {
-        throw new PnpmError('INVALID_STORE_COMMAND', `"store ${input[0]}" is not a pnpm command. See "pnpm help store".`)
+      if (params[0]) {
+        throw new PnpmError('INVALID_STORE_COMMAND', `"store ${params[0]}" is not a pnpm command. See "pnpm help store".`)
       }
   }
 }

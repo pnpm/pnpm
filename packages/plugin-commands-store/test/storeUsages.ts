@@ -25,11 +25,11 @@ test('find usages for single package in store and in a project', async (t) => {
   await project.storeHas('is-negative', '2.1.0')
 
   {
-    const output = await store.handler(['usages', 'is-negative'], {
+    const output = await store.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       storeDir,
-    })
+    }, ['usages', 'is-negative'])
     t.equal(
       output,
       stripIndent`
@@ -40,11 +40,11 @@ test('find usages for single package in store and in a project', async (t) => {
     )
   }
   {
-    const output = await store.handler(['usages', 'is-negative@2.1.0'], {
+    const output = await store.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       storeDir,
-    })
+    }, ['usages', 'is-negative@2.1.0'])
     t.equal(
       output,
       stripIndent`
@@ -56,11 +56,11 @@ test('find usages for single package in store and in a project', async (t) => {
   }
   {
     await project.storeHasNot('should-not-exist-uhsalzkj')
-    const output = await store.handler(['usages', 'should-not-exist-uhsalzkj'], {
+    const output = await store.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       storeDir,
-    })
+    }, ['usages', 'should-not-exist-uhsalzkj'])
     t.equal(
       output,
       stripIndent`
@@ -70,11 +70,11 @@ test('find usages for single package in store and in a project', async (t) => {
     )
   }
   {
-    const output = await store.handler(['usages', 'is-negative', 'is-odd'], {
+    const output = await store.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       storeDir,
-    })
+    }, ['usages', 'is-negative', 'is-odd'])
     t.equal(
       output,
       stripIndent`
@@ -98,19 +98,19 @@ test('find usages for package(s) in store but not in any projects', async (t) =>
   const { storeHas } = assertStore(t, path.join(storeDir, '2'))
 
   // Add dependency directly to store (not to the project)
-  await store.handler(['add', 'is-negative@2.1.0'], {
+  await store.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     storeDir,
-  })
+  }, ['add', 'is-negative@2.1.0'])
   await storeHas('is-negative', '2.1.0')
 
   {
-    const output = await store.handler(['usages', 'is-negative'], {
+    const output = await store.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       storeDir,
-    })
+    }, ['usages', 'is-negative'])
     t.equal(
       output,
       stripIndent`
@@ -120,18 +120,18 @@ test('find usages for package(s) in store but not in any projects', async (t) =>
       'finds usage of package',
     )
   }
-  await store.handler(['add', 'is-negative@2.0.0'], {
+  await store.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     storeDir,
-  })
+  }, ['add', 'is-negative@2.0.0'])
   await storeHas('is-negative', '2.0.0')
   {
-    const output = await store.handler(['usages', 'is-negative'], {
+    const output = await store.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       storeDir,
-    })
+    }, ['usages', 'is-negative'])
     t.equal(
       output,
       stripIndent`

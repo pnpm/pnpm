@@ -66,7 +66,6 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: Pick<Config,
     'allProjects' |
     'dir' |
@@ -85,9 +84,10 @@ export async function handler (
       reporter?: (logObj: LogBase) => void,
       pending: boolean,
     },
+  params: string[],
 ) {
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
-    await recursive(opts.allProjects, args, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! })
+    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! })
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -98,7 +98,7 @@ export async function handler (
     storeDir: store.dir,
   })
 
-  if (args.length === 0) {
+  if (params.length === 0) {
     await rebuild(
       [
         {
@@ -117,7 +117,7 @@ export async function handler (
         rootDir: rebuildOpts.dir,
       },
     ],
-    args,
+    params,
     rebuildOpts,
   )
 }

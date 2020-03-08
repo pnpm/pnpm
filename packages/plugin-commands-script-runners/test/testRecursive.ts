@@ -60,7 +60,7 @@ test('pnpm recursive test', async (t) => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await testCommand.handler([], {
+  await testCommand.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -117,7 +117,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
-  await testCommand.handler([], {
+  await testCommand.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -171,7 +171,7 @@ test('pnpm recursive test with filtering', async (t) => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await testCommand.handler([], {
+  await testCommand.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),

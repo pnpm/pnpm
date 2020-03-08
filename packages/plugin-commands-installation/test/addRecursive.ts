@@ -21,7 +21,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
 
-  await add.handler(['is-positive@1.0.0'], {
+  await add.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -29,8 +29,8 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     saveDev: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
-  await add.handler(['is-negative@1.0.0'], {
+  }, ['is-positive@1.0.0'])
+  await add.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -38,7 +38,7 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     savePeer: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['is-negative@1.0.0'])
 
   {
     const manifest = (await import(path.resolve('project-1/package.json')))
@@ -88,7 +88,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
 
-  await add.handler(['is-positive@1.0.0'], {
+  await add.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -97,8 +97,8 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     saveDev: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
-  await add.handler(['is-negative@1.0.0'], {
+  }, ['is-positive@1.0.0'])
+  await add.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -107,7 +107,7 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     savePeer: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['is-negative@1.0.0'])
 
   {
     const manifest = (await import(path.resolve('project-1/package.json')))

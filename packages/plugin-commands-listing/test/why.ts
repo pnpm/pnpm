@@ -12,9 +12,9 @@ test('`pnpm why` should fail if no package name was provided', async (t) => {
 
   let err!: PnpmError
   try {
-    const output = await why.handler([], {
+    const output = await why.handler({
       dir: process.cwd(),
-    })
+    }, [])
   } catch (_err) {
     err = _err
   }
@@ -34,11 +34,11 @@ test('"why" should find non-direct dependency', async (t) => {
 
   await execa('pnpm', ['install', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])
 
-  const output = await why.handler(['dep-of-pkg-with-1-dep'], {
+  const output = await why.handler({
     dev: false,
     dir: process.cwd(),
     optional: false,
-  })
+  }, ['dep-of-pkg-with-1-dep'])
 
   t.equal(stripAnsi(output), stripIndent`
     Legend: production dependency, optional only, dev only

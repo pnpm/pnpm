@@ -86,17 +86,17 @@ export function help () {
 }
 
 export function handler (
-  args: string[],
   opts: ListCommandOptions,
+  params: string[],
 ) {
-  if (!args.length) {
+  if (!params.length) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')
   }
-  return list(args, {
+  return list({
     ...opts,
     cliOptions: {
       ...(opts.cliOptions ?? {}),
       depth: Infinity,
     },
-  })
+  }, params)
 }

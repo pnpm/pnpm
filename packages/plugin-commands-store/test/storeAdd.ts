@@ -12,7 +12,7 @@ test('pnpm store add express@4.16.3', async function (t) {
 
   const storeDir = path.resolve('store')
 
-  await store.handler(['add', 'express@4.16.3'], {
+  await store.handler({
     dir: process.cwd(),
     lock: true,
     rawConfig: {
@@ -20,7 +20,7 @@ test('pnpm store add express@4.16.3', async function (t) {
     },
     registries: { default: `http://localhost:${REGISTRY_MOCK_PORT}/` },
     storeDir,
-  })
+  }, ['add', 'express@4.16.3'])
 
   const pathToCheck = path.join(storeDir, '2', `localhost+${REGISTRY_MOCK_PORT}`, 'express', '4.16.3')
   t.ok(await exists(pathToCheck), `express@4.16.3 is in store (at ${pathToCheck})`)
@@ -41,7 +41,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
 
   const storeDir = path.resolve('store')
 
-  await store.handler(['add', '@foo/no-deps@1.0.0'], {
+  await store.handler({
     dir: process.cwd(),
     lock: true,
     rawConfig: {
@@ -52,7 +52,7 @@ test('pnpm store add scoped package that uses not the standard registry', async 
       'default': 'https://registry.npmjs.org/',
     },
     storeDir,
-  })
+  }, ['add', '@foo/no-deps@1.0.0'])
 
   const pathToCheck = path.join(storeDir, '2', `localhost+${REGISTRY_MOCK_PORT}`, '@foo', 'no-deps', '1.0.0')
   t.ok(await exists(pathToCheck), `@foo/no-deps@1.0.0 is in store (at ${pathToCheck})`)
@@ -76,7 +76,7 @@ test('should fail if some packages can not be added', async (t) => {
 
   let thrown = false
   try {
-    await store.handler(['add', '@pnpm/this-does-not-exist'], {
+    await store.handler({
       dir: process.cwd(),
       lock: true,
       rawConfig: {
@@ -87,7 +87,7 @@ test('should fail if some packages can not be added', async (t) => {
         'default': 'https://registry.npmjs.org/',
       },
       storeDir,
-    })
+    }, ['add', '@pnpm/this-does-not-exist'])
   } catch (e) {
     thrown = true
     t.equal(e.code, 'ERR_PNPM_STORE_ADD_FAILURE', 'has thrown the correct error code')

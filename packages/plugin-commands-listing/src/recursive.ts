@@ -5,7 +5,7 @@ import { render } from './list'
 
 export default async (
   pkgs: Project[],
-  args: string[],
+  params: string[],
   opts: Pick<Config, 'lockfileDir'> & {
     depth?: number,
     include: IncludedDependencies,
@@ -16,7 +16,7 @@ export default async (
 ) => {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {
-    return render(pkgs.map((pkg) => pkg.dir), args, {
+    return render(pkgs.map((pkg) => pkg.dir), params, {
       ...opts,
       alwaysPrintRootPackage: depth === -1,
       lockfileDir: opts.lockfileDir,
@@ -25,7 +25,7 @@ export default async (
   const outputs = []
   for (const { dir } of pkgs) {
     try {
-      const output = await render([dir], args, {
+      const output = await render([dir], params, {
         ...opts,
         alwaysPrintRootPackage: depth === -1,
         lockfileDir: opts.lockfileDir || dir,

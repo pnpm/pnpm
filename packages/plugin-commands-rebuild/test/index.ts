@@ -38,12 +38,12 @@ test('rebuilds dependencies', async (t) => {
     'github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb',
   ])
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     pending: false,
     storeDir,
-  })
+  }, [])
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -86,12 +86,12 @@ test('rebuild does not fail when a linked package is present', async (t) => {
     '--ignore-scripts',
   ])
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     pending: false,
     storeDir,
-  })
+  }, [])
 
   // see related issue https://github.com/pnpm/pnpm/issues/1155
   t.pass('rebuild did not fail')
@@ -113,12 +113,12 @@ test('rebuilds specific dependencies', async (t) => {
     '--ignore-scripts',
   ])
 
-  await rebuild.handler(['install-scripts-example-for-pnpm'], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     pending: false,
     storeDir,
-  })
+  }, ['install-scripts-example-for-pnpm'])
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
@@ -165,12 +165,12 @@ test('rebuild with pending option', async (t) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     pending: true,
     storeDir,
-  })
+  }, [])
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -215,12 +215,12 @@ test('rebuild dependencies in correct order', async (t) => {
   await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     pending: false,
     storeDir,
-  })
+  }, [])
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -253,13 +253,13 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     independentLeaves: true,
     pending: true,
     storeDir,
-  })
+  }, [])
 
   modules = await project.readModulesManifest()
   t.ok(modules)
@@ -291,12 +291,12 @@ test('rebuild links bins', async (t) => {
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd1')))
   t.notOk(await exists(path.resolve('node_modules/has-generated-bins-as-dep/node_modules/.bin/cmd2')))
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     pending: true,
     storeDir,
-  })
+  }, [])
 
   await project.isExecutable('.bin/cmd1')
   await project.isExecutable('.bin/cmd2')
@@ -327,13 +327,13 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t) => {
 
   const reporter = sinon.spy()
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     pending: true,
     reporter,
     storeDir,
-  })
+  }, [])
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',

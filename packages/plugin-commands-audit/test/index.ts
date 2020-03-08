@@ -4,7 +4,7 @@ import stripAnsi = require('strip-ansi')
 import test = require('tape')
 
 test('audit', async (t) => {
-  const output = await audit.handler([], {
+  const output = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
       dependencies: true,
@@ -89,7 +89,7 @@ Severity: 2 low | 3 moderate | 1 high`)
 })
 
 test('audit --dev', async (t) => {
-  const output = await audit.handler([], {
+  const output = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
       dependencies: false,
@@ -120,7 +120,7 @@ Severity: 1 moderate`)
 })
 
 test('audit --audit-level', async (t) => {
-  const output = await audit.handler([], {
+  const output = await audit.handler({
     auditLevel: 'moderate',
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
@@ -185,7 +185,7 @@ Severity: 2 low | 3 moderate | 1 high`)
 })
 
 test('audit: no vulnerabilities', async (t) => {
-  const output = await audit.handler([], {
+  const output = await audit.handler({
     dir: path.join(__dirname, '../../../fixtures/has-outdated-deps'),
     include: {
       dependencies: true,
@@ -202,7 +202,7 @@ test('audit: no vulnerabilities', async (t) => {
 })
 
 test('audit --json', async (t) => {
-  const output = await audit.handler([], {
+  const output = await audit.handler({
     dir: path.join(__dirname, 'packages/has-vulnerabilities'),
     include: {
       dependencies: true,

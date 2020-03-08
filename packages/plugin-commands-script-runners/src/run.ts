@@ -40,8 +40,8 @@ export function cliOptionsTypes () {
   }
 }
 
-export const completion: CompletionFunc = async (args, cliOpts) => {
-  if (args.length > 0) {
+export const completion: CompletionFunc = async (cliOpts, params) => {
+  if (params.length > 0) {
     return []
   }
   const manifest = await readProjectManifestOnly(cliOpts.dir as string ?? process.cwd(), cliOpts)
@@ -88,16 +88,16 @@ export type RunOpts = Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGr
 )
 
 export async function handler (
-  args: string[],
   opts: RunOpts,
+  params: string[],
 ) {
   if (opts.recursive) {
-    await runRecursive(args, opts)
+    await runRecursive(params, opts)
     return
   }
   const dir = opts.dir
   const manifest = await readProjectManifestOnly(dir, opts)
-  const scriptName = args[0]
+  const scriptName = params[0]
   if (!scriptName) {
     return printProjectCommands(manifest)
   }
@@ -117,7 +117,7 @@ export async function handler (
   if (manifest.scripts?.[`pre${scriptName}`]) {
     await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
   }
-  await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: args.slice(1) })
+  await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: params.slice(1) })
   if (manifest.scripts?.[`post${scriptName}`]) {
     await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
   }

@@ -41,8 +41,8 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: RunOpts,
+  params: string[],
 ) {
-  return run(['stop', ...args], opts)
+  return run(opts, ['stop', ...params])
 }

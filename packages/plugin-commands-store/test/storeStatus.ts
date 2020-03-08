@@ -20,7 +20,7 @@ test('CLI fails when store status finds modified packages', async function (t) {
 
   let err!: PnpmError
   try {
-    await store.handler(['status'], {
+    await store.handler({
       dir: process.cwd(),
       lock: false,
       rawConfig: {
@@ -28,7 +28,7 @@ test('CLI fails when store status finds modified packages', async function (t) {
       },
       registries: { default: REGISTRY },
       storeDir,
-    })
+    }, ['status'])
   } catch (_err) {
     err = _err
   }
@@ -46,7 +46,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
   // store status does not fail on not installed optional dependencies
   await execa('pnpm', ['add', 'not-compatible-with-any-os', '--save-optional', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
-  await store.handler(['status'], {
+  await store.handler({
     dir: process.cwd(),
     lock: false,
     rawConfig: {
@@ -54,7 +54,7 @@ test('CLI does not fail when store status does not find modified packages', asyn
     },
     registries: { default: REGISTRY },
     storeDir,
-  })
+  }, ['status'])
   t.pass('CLI did not fail')
   t.end()
 })

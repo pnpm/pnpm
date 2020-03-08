@@ -59,10 +59,10 @@ test('pnpm recursive exec', async (t) => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await exec.handler(['npm', 'run', 'build'], {
+  await exec.handler({
     ...DEFAULT_OPTS,
     selectedProjectsGraph,
-  })
+  }, ['npm', 'run', 'build'])
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
   const outputs2 = await import(path.resolve('output2.json')) as string[]
@@ -82,10 +82,10 @@ test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await exec.handler(['node', '-e', `require('fs').writeFileSync('pkgname', process.env.PNPM_PACKAGE_NAME, 'utf8')`], {
+  await exec.handler({
     ...DEFAULT_OPTS,
     selectedProjectsGraph,
-  })
+  }, ['node', '-e', `require('fs').writeFileSync('pkgname', process.env.PNPM_PACKAGE_NAME, 'utf8')`])
 
   t.equal(await fs.readFile('foo/pkgname', 'utf8'), 'foo', '$PNPM_PACKAGE_NAME is correct')
   t.end()
@@ -143,10 +143,10 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
   let failed = false
   let err1!: PnpmError
   try {
-    await exec.handler(['npm', 'run', 'build', '--no-bail'], {
+    await exec.handler({
       ...DEFAULT_OPTS,
       selectedProjectsGraph,
-    })
+    }, ['npm', 'run', 'build', '--no-bail'])
   } catch (_err) {
     err1 = _err
     failed = true
@@ -162,10 +162,10 @@ test('testing the bail config with "pnpm recursive exec"', async (t) => {
   failed = false
   let err2!: PnpmError
   try {
-    await exec.handler(['npm', 'run', 'build'], {
+    await exec.handler({
       ...DEFAULT_OPTS,
       selectedProjectsGraph,
-    })
+    }, ['npm', 'run', 'build'])
   } catch (_err) {
     err2 = _err
     failed = true
@@ -212,12 +212,12 @@ test('pnpm recursive exec --no-sort', async (t) => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await exec.handler(['npm', 'run', 'build'], {
+  await exec.handler({
     ...DEFAULT_OPTS,
     selectedProjectsGraph,
     sort: false,
     workspaceConcurrency: 1,
-  })
+  }, ['npm', 'run', 'build'])
 
   const outputs = await import(path.resolve('output.json')) as string[]
 

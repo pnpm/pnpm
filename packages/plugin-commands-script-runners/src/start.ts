@@ -44,8 +44,8 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: RunOpts,
+  params: string[],
 ) {
-  return run(['start', ...args], opts)
+  return run(opts, ['start', ...params])
 }

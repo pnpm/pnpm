@@ -25,19 +25,19 @@ test('pnpm run: returns correct exit code', async (t) => {
     },
   })
 
-  await run.handler(['exit0'], {
+  await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, ['exit0'])
 
   let err!: Error & { errno: Number }
   try {
-    await run.handler(['exit1'], {
+    await run.handler({
       dir: process.cwd(),
       extraBinPaths: [],
       rawConfig: {},
-    })
+    }, ['exit1'])
   } catch (_err) {
     err = _err
   }
@@ -59,11 +59,11 @@ test('run: pass the args to the command that is specfied in the build script', a
   await fs.writeFile('args.json', '[]', 'utf8')
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await run.handler(['foo', 'arg', '--flag=true', '--help', '-h'], {
+  await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const args = await import(path.resolve('args.json'))
   t.deepEqual(args, [
@@ -86,11 +86,11 @@ test('run: pass the args to the command that is specfied in the build script of 
   await fs.writeFile('args.json', '[]', 'utf8')
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await run.handler(['foo', 'arg', '--flag=true', '--help', '-h'], {
+  await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, ['foo', 'arg', '--flag=true', '--help', '-h'])
 
   const args = await import(path.resolve('args.json'))
   t.deepEqual(args, [
@@ -113,11 +113,11 @@ test('test: pass the args to the command that is specfied in the build script of
   await fs.writeFile('args.json', '[]', 'utf8')
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await testCommand.handler(['arg', '--flag=true', '--help', '-h'], {
+  await testCommand.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, ['arg', '--flag=true', '--help', '-h'])
 
   const args = await import(path.resolve('args.json'))
   t.deepEqual(args, [
@@ -140,11 +140,11 @@ test('start: pass the args to the command that is specfied in the build script o
   await fs.writeFile('args.json', '[]', 'utf8')
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await start.handler(['arg', '--flag=true', '--help', '-h'], {
+  await start.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, ['arg', '--flag=true', '--help', '-h'])
 
   const args = await import(path.resolve('args.json'))
   t.deepEqual(args, [
@@ -167,11 +167,11 @@ test('stop: pass the args to the command that is specfied in the build script of
   await fs.writeFile('args.json', '[]', 'utf8')
   await fs.writeFile('recordArgs.js', RECORD_ARGS_FILE, 'utf8')
 
-  await stop.handler(['arg', '--flag=true', '--help', '-h'], {
+  await stop.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, ['arg', '--flag=true', '--help', '-h'])
 
   const args = await import(path.resolve('args.json'))
   t.deepEqual(args, [
@@ -201,11 +201,11 @@ test('restart: run stop, restart and start', async (t) => {
   })
 
   await execa('pnpm', ['add', 'json-append@1'])
-  await restart.handler([], {
+  await restart.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, [])
 
   const scriptsRan = await import(path.resolve('output.json'))
   t.deepEqual(scriptsRan, [
@@ -230,11 +230,11 @@ test('"pnpm run" prints the list of available commands', async (t) => {
     },
   })
 
-  const output = await run.handler([], {
+  const output = await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     rawConfig: {},
-  })
+  }, [])
 
   t.equal(output, stripIndent`
     Lifecycle scripts:
@@ -251,12 +251,12 @@ test('"pnpm run" prints the list of available commands', async (t) => {
 test('pnpm run does not fail with --if-present even if the wanted script is not present', async (t) => {
   prepare(t, {})
 
-  await run.handler(['build'], {
+  await run.handler({
     dir: process.cwd(),
     extraBinPaths: [],
     ifPresent: true,
     rawConfig: {},
-  })
+  }, ['build'])
 
   t.end()
 })

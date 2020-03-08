@@ -19,7 +19,7 @@ export function help () {
   })
 }
 
-export async function handler (input: string[], opts: PnpmOptions) {
-  await install.handler(input, opts)
-  await test.handler(input, opts as any) // tslint:disable-line:no-any
+export async function handler (opts: PnpmOptions, params: string[]) {
+  await install.handler(opts)
+  await test.handler(opts as any, params) // tslint:disable-line:no-any
 }

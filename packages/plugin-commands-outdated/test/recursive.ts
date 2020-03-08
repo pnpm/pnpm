@@ -40,7 +40,7 @@ test('pnpm recursive outdated', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -50,7 +50,7 @@ test('pnpm recursive outdated', async (t) => {
   })
 
   {
-    const output = await outdated.handler([], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -74,7 +74,7 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler([], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -93,7 +93,7 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler([], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -118,7 +118,7 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler([], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -147,7 +147,7 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler([], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -181,13 +181,13 @@ test('pnpm recursive outdated', async (t) => {
   }
 
   {
-    const output = await outdated.handler(['is-positive'], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
-    })
+    }, ['is-positive'])
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
     ┌─────────────┬─────────┬────────┬──────────────────────┐
@@ -234,7 +234,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -244,7 +244,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   })
 
   {
-    const output = await outdated.handler([], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -266,7 +266,7 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   }
 
   {
-    const output = await outdated.handler([], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -285,13 +285,13 @@ test('pnpm recursive outdated in workspace with shared lockfile', async (t) => {
   }
 
   {
-    const output = await outdated.handler(['is-positive'], {
+    const output = await outdated.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
-    })
+    }, ['is-positive'])
 
     t.equal(stripAnsi(output as unknown as string), stripIndent`
     ┌─────────────┬─────────┬────────┬──────────────────────┐

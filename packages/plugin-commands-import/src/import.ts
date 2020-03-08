@@ -29,7 +29,6 @@ export function help () {
 export const commandNames = ['import']
 
 export async function handler (
-  input: string[],
   opts: CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>,
 ) {
   // Removing existing pnpm lockfile

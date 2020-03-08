@@ -117,7 +117,7 @@ export default async function run (inputArgv: string[]) {
   delete config.reporter // This is a silly workaround because supi expects a function as config.reporter
 
   if (selfUpdate) {
-    await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
+    await pnpmCmds.server(config as any, ['stop']) // tslint:disable-line:no-any
   }
 
   if (cliOptions['recursive']) {
@@ -174,10 +174,10 @@ export default async function run (inputArgv: string[]) {
 
       try {
         const result = pnpmCmds[cmd || 'help'](
-          cliParams,
           // TypeScript doesn't currently infer that the type of config
           // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
           config as Omit<typeof config, 'reporter'>,
+          cliParams,
         )
         if (result instanceof Promise) {
           result

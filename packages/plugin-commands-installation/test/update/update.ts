@@ -19,18 +19,18 @@ test('update with "*" pattern', async (t) => {
     },
   })
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     workspaceDir: process.cwd(),
   })
 
-  await update.handler(['peer-*'], {
+  await update.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     latest: true,
     workspaceDir: process.cwd(),
-  })
+  }, ['peer-*'])
 
   const lockfile = await project.readLockfile()
 
@@ -54,7 +54,7 @@ test('update: fail when both "latest" and "workspace" are true', async (t) => {
 
   let err!: PnpmError
   try {
-    await update.handler(['project-2'], {
+    await update.handler({
       ...DEFAULT_OPTS,
       dir: path.resolve('project-1'),
       latest: true,
@@ -62,7 +62,7 @@ test('update: fail when both "latest" and "workspace" are true', async (t) => {
       saveWorkspaceProtocol: false,
       workspace: true,
       workspaceDir: process.cwd(),
-    })
+    }, ['project-2'])
   } catch (_err) {
     err = _err
   }
@@ -79,7 +79,7 @@ test('update: fail when package not in dependencies', async (t) => {
     },
   })
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     workspaceDir: process.cwd(),
@@ -87,12 +87,12 @@ test('update: fail when package not in dependencies', async (t) => {
 
   let err!: PnpmError
   try {
-    await update.handler(['peer-b'], {
+    await update.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
       sharedWorkspaceLockfile: true,
       workspaceDir: process.cwd(),
-    })
+    }, ['peer-b'])
   } catch (_err) {
     err = _err
   }

@@ -53,23 +53,23 @@ test('interactively update', async (t) => {
     },
   })
 
-  await add.handler([
-    'is-negative@1.0.0',
-    'is-positive@2.0.0',
-    'micromatch@3.0.0',
-  ], {
+  await add.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: true,
     save: false,
-  })
+  }, [
+    'is-negative@1.0.0',
+    'is-positive@2.0.0',
+    'micromatch@3.0.0',
+  ])
 
   prompt.returns({
     updateDependencies: ['is-negative'],
   })
 
   t.comment('update to compatible versions')
-  await update.handler([], {
+  await update.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     interactive: true,
@@ -105,7 +105,7 @@ test('interactively update', async (t) => {
   }
 
   t.comment('update to latest versions')
-  await update.handler([], {
+  await update.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     interactive: true,
@@ -171,7 +171,7 @@ test('interactive update of dev dependencies only', async (t) => {
   })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTIONS,
     allProjects,
     dir: process.cwd(),
@@ -181,7 +181,7 @@ test('interactive update of dev dependencies only', async (t) => {
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   })
-  await update.handler([], {
+  await update.handler({
     ...DEFAULT_OPTIONS,
     allProjects,
     dev: true,

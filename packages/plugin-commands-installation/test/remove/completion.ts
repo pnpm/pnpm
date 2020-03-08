@@ -11,7 +11,7 @@ test('remove arg completions', async (t) => {
       'is-negative': '1.0.0',
     },
   })
-  t.deepEqual(await remove.completion([], {}), [
+  t.deepEqual(await remove.completion({}, []), [
     { name: 'is-negative' },
     { name: 'is-positive' },
   ])

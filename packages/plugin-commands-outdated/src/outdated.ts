@@ -114,7 +114,7 @@ export function help () {
   })
 }
 
-export const completion: CompletionFunc = (args, cliOpts) => {
+export const completion: CompletionFunc = (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
@@ -155,8 +155,8 @@ export type OutdatedCommandOptions = {
 >
 
 export async function handler (
-  args: string[],
   opts: OutdatedCommandOptions,
+  params: string[] = [],
 ) {
   const include = {
     dependencies: opts.production !== false,
@@ -165,7 +165,7 @@ export async function handler (
   }
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return outdatedRecursive(pkgs, args, { ...opts, include })
+    return outdatedRecursive(pkgs, params, { ...opts, include })
   }
   const packages = [
     {
@@ -173,7 +173,7 @@ export async function handler (
       manifest: await readProjectManifestOnly(opts.dir, opts),
     },
   ]
-  const [ outdatedPackages ] = (await outdatedDepsOfProjects(packages, args, { ...opts, include }))
+  const [ outdatedPackages ] = (await outdatedDepsOfProjects(packages, params, { ...opts, include }))
 
   if (!outdatedPackages.length) return ''
 

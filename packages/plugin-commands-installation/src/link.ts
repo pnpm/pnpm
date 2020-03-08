@@ -71,7 +71,6 @@ export function help () {
 }
 
 export async function handler (
-  input: string[],
   opts: CreateStoreControllerOptions & Pick<Config,
     'cliOptions' |
     'engineStrict' |
@@ -80,6 +79,7 @@ export async function handler (
     'saveProd' |
     'workspaceDir'
   > & Partial<Pick<Config, 'globalBin' | 'globalDir' | 'linkWorkspacePackages'>>,
+  params: string[],
 ) {
   const cwd = opts?.dir ?? process.cwd()
 
@@ -102,7 +102,7 @@ export async function handler (
   })
 
   // pnpm link
-  if (!input || !input.length) {
+  if (!params || !params.length) {
     const { manifest, writeProjectManifest } = await tryReadProjectManifest(opts.globalDir!, opts)
     const newManifest = await linkToGlobal(cwd, {
       ...linkOpts,
@@ -115,7 +115,7 @@ export async function handler (
     return
   }
 
-  const [pkgPaths, pkgNames] = R.partition((inp) => inp.startsWith('.'), input)
+  const [pkgPaths, pkgNames] = R.partition((inp) => inp.startsWith('.'), params)
 
   if (pkgNames.length) {
     let globalPkgNames!: string[]

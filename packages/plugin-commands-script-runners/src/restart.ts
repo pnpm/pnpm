@@ -41,10 +41,10 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: RunOpts,
+  params: string[],
 ) {
-  await stop(args, opts)
-  await run(['restart', ...args], opts)
-  await start(args, opts)
+  await stop(opts, params)
+  await run(opts, ['restart', ...params])
+  await start(opts, params)
 }

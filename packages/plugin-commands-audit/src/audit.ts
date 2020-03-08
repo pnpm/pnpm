@@ -87,7 +87,6 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: Pick<UniversalOptions, 'dir'> & {
     auditLevel?: 'low' | 'moderate' | 'high' | 'critical',
     include: IncludedDependencies

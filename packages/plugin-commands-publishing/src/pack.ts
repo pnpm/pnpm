@@ -27,7 +27,6 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: Pick<UniversalOptions, 'dir'> & {
     argv: {
       original: string[],

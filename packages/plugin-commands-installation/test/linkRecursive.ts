@@ -28,7 +28,7 @@ test('recursive linking/unlinking', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -45,14 +45,14 @@ test('recursive linking/unlinking', async (t) => {
     t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
-  await unlink.handler([], {
+  await unlink.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, [])
 
   process.chdir('project-1')
   t.ok(await exists(path.resolve('node_modules', 'is-positive', 'index.js')), 'local package is unlinked')
@@ -91,7 +91,7 @@ test('recursive unlink specific package', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -108,14 +108,14 @@ test('recursive unlink specific package', async (t) => {
     t.equal(project1Lockfile.devDependencies['is-positive'], 'link:../is-positive')
   }
 
-  await unlink.handler(['is-positive'], {
+  await unlink.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['is-positive'])
 
   process.chdir('project-1')
   t.ok(await exists(path.resolve('node_modules', 'is-positive', 'index.js')), 'local package is unlinked')

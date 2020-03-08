@@ -26,11 +26,11 @@ test('listing packages', async (t) => {
   await execa('pnpm', ['install'])
 
   {
-    const output = await list.handler([], {
+    const output = await list.handler({
       dev: false,
       dir: process.cwd(),
       optional: false,
-    })
+    }, [])
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -43,11 +43,11 @@ test('listing packages', async (t) => {
   }
 
   {
-    const output = await list.handler([], {
+    const output = await list.handler({
       dir: process.cwd(),
       optional: false,
       production: false,
-    })
+    }, [])
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -60,9 +60,9 @@ test('listing packages', async (t) => {
   }
 
   {
-    const output = await list.handler([], {
+    const output = await list.handler({
       dir: process.cwd(),
-    })
+    }, [])
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -91,10 +91,10 @@ test('independent-leaves=true: pnpm list --long', async (t) => {
 
   await execa('pnpm', ['install', '--independent-leaves', '--no-hoist'])
 
-  const output = await list.handler([], {
+  const output = await list.handler({
     dir: process.cwd(),
     long: true,
-  })
+  }, [])
 
   // TODO: the --long flag should work with --independent-leaves
   t.equal(stripAnsi(output), stripIndent`
@@ -132,10 +132,10 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
 
   process.chdir('pkg')
 
-  const output = await list.handler([], {
+  const output = await list.handler({
     dir: process.cwd(),
     lockfileDir: path.resolve('..'),
-  })
+  }, [])
 
   t.equal(stripAnsi(output), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -156,10 +156,10 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
   await execa('pnpm', ['add', '--no-optional', 'pkg-with-optional', 'is-positive@1.0.0'])
 
   {
-    const output = await list.handler([], {
+    const output = await list.handler({
       depth: 10,
       dir: process.cwd(),
-    })
+    }, [])
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -174,10 +174,10 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
   }
 
   {
-    const output = await list.handler(['not-compatible-with-any-os'], {
+    const output = await list.handler({
       depth: 10,
       dir: process.cwd(),
-    })
+    }, ['not-compatible-with-any-os'])
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only
@@ -191,9 +191,9 @@ test.skip('list on a project with skipped optional dependencies', async (t) => {
   }
 
   {
-    const output = await why.handler(['not-compatible-with-any-os'], {
+    const output = await why.handler({
       dir: process.cwd(),
-    })
+    }, ['not-compatible-with-any-os'])
 
     t.equal(stripAnsi(output), stripIndent`
       Legend: production dependency, optional only, dev only

@@ -71,7 +71,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 
 export default async function recursive (
   allProjects: Project[],
-  input: string[],
+  params: string[],
   opts: RecursiveOptions & {
     allowNew?: boolean,
     ignoredPackages?: Set<string>,
@@ -166,7 +166,7 @@ export default async function recursive (
     optionalDependencies: true,
   }
 
-  const updateMatch = cmdFullName === 'update' && input.length ? createMatcher(input) : null
+  const updateMatch = cmdFullName === 'update' && params.length ? createMatcher(params) : null
 
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
@@ -175,13 +175,13 @@ export default async function recursive (
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
     const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
-    const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (input.length === 0 && !updateToLatest ? 'install' : 'installSome')
+    const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
     const writeProjectManifests = [] as Array<(manifest: ProjectManifest) => Promise<void>>
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
-      let currentInput = [...input]
+      let currentInput = [...params]
       if (updateMatch) {
         currentInput = matchDependencies(updateMatch, manifest, includeDirect)
         if (!currentInput.length) {
@@ -190,7 +190,7 @@ export default async function recursive (
         }
       }
       if (updateToLatest) {
-        if (!input || !input.length) {
+        if (!params || !params.length) {
           currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
         } else {
           currentInput = createLatestSpecs(currentInput, manifest)
@@ -275,13 +275,13 @@ export default async function recursive (
         }
 
         const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
-        let currentInput = [...input]
+        let currentInput = [...params]
         if (updateMatch) {
           currentInput = matchDependencies(updateMatch, manifest, includeDirect)
           if (!currentInput.length) return
         }
         if (updateToLatest) {
-          if (!input || !input.length) {
+          if (!params || !params.length) {
             currentInput = updateToLatestSpecsFromManifest(manifest, includeDirect)
           } else {
             currentInput = createLatestSpecs(currentInput, manifest)
@@ -367,10 +367,10 @@ export default async function recursive (
       cmdFullName === 'unlink'
     )
   ) {
-    await rebuild.handler([], {
+    await rebuild.handler({
       ...opts,
       pending: opts.pending === true,
-    })
+    }, [])
   }
 
   throwOnFail(result)
@@ -443,17 +443,17 @@ export function matchDependencies (
   return matchedDeps
 }
 
-export function createMatcher (inputs: string[]) {
-  const matchers = inputs.map((input) => {
-    const atIndex = input.indexOf('@', 1)
+export function createMatcher (params: string[]) {
+  const matchers = params.map((param) => {
+    const atIndex = param.indexOf('@', 1)
     let pattern!: string
     let spec!: string
     if (atIndex === -1) {
-      pattern = input
+      pattern = param
       spec = ''
     } else {
-      pattern = input.substr(0, atIndex)
-      spec = input.substr(atIndex + 1)
+      pattern = param.substr(0, atIndex)
+      spec = param.substr(atIndex + 1)
     }
     return {
       match: matcher(pattern),

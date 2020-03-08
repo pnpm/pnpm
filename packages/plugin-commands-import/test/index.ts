@@ -48,7 +48,7 @@ test('import from package-lock.json', async (t) => {
 
   await ncp(path.join(fixtures, 'has-package-lock-json'), process.cwd())
 
-  await importCommand.handler([], {
+  await importCommand.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
   })
@@ -71,7 +71,7 @@ test('import from npm-shrinkwrap.json', async (t) => {
 
   await ncp(path.join(fixtures, 'has-npm-shrinkwrap-json'), process.cwd())
 
-  await importCommand.handler([], {
+  await importCommand.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
   })
@@ -93,7 +93,7 @@ test('import fails when no npm lockfiles are found', async (t) => {
 
   let err!: PnpmError
   try {
-    await importCommand.handler([], {
+    await importCommand.handler({
       ...DEFAULT_OPTS,
       dir: process.cwd(),
     })

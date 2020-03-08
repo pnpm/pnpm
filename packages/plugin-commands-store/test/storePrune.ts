@@ -22,7 +22,7 @@ test('remove unreferenced packages', async (t) => {
   await project.storeHas('is-negative', '2.1.0')
 
   const reporter = sinon.spy()
-  await store.handler(['prune'], {
+  await store.handler({
     dir: process.cwd(),
     lock: true,
     rawConfig: {
@@ -31,7 +31,7 @@ test('remove unreferenced packages', async (t) => {
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-  })
+  }, ['prune'])
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -41,7 +41,7 @@ test('remove unreferenced packages', async (t) => {
   await project.storeHasNot('is-negative', '2.1.0')
 
   reporter.resetHistory()
-  await store.handler(['prune'], {
+  await store.handler({
     dir: process.cwd(),
     lock: true,
     rawConfig: {
@@ -50,7 +50,7 @@ test('remove unreferenced packages', async (t) => {
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-  })
+  }, ['prune'])
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
@@ -71,7 +71,7 @@ test('remove packages that are used by project that no longer exist', async (t) 
   await storeHas('is-negative', '2.1.0')
 
   const reporter = sinon.spy()
-  await store.handler(['prune'], {
+  await store.handler({
     dir: process.cwd(),
     lock: true,
     rawConfig: {
@@ -80,7 +80,7 @@ test('remove packages that are used by project that no longer exist', async (t) 
     registries: { default: REGISTRY },
     reporter,
     storeDir,
-  })
+  }, ['prune'])
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -112,7 +112,7 @@ test('keep dependencies used by others', async (t) => {
 
   R.toPairs(lockfile.packages || {}).forEach(([depPath, dep]) => t.ok(dep.dev, `${depPath} is dev`))
 
-  await store.handler(['prune'], {
+  await store.handler({
     dir: process.cwd(),
     lock: true,
     rawConfig: {
@@ -120,7 +120,7 @@ test('keep dependencies used by others', async (t) => {
     },
     registries: { default: REGISTRY },
     storeDir,
-  })
+  }, ['prune'])
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.storeHasNot('map-obj', '1.0.1')
@@ -134,7 +134,7 @@ test('keep dependency used by package', async (t) => {
   await execa('pnpm', ['add', 'is-not-positive@1.0.0', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY])
   await execa('pnpm', ['remove', 'is-not-positive', '--store-dir', storeDir], { env: { npm_config_registry: REGISTRY } })
 
-  await store.handler(['prune'], {
+  await store.handler({
     dir: process.cwd(),
     lock: true,
     rawConfig: {
@@ -142,7 +142,7 @@ test('keep dependency used by package', async (t) => {
     },
     registries: { default: REGISTRY },
     storeDir,
-  })
+  }, ['prune'])
 
   await project.storeHas('is-positive', '3.1.0')
   t.end()

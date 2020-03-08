@@ -9,7 +9,7 @@ test('pack: package with package.json', async (t) => {
     version: '0.0.0',
   })
 
-  await pack.handler([], { argv: { original: [] }, dir: process.cwd() })
+  await pack.handler({ argv: { original: [] }, dir: process.cwd() })
 
   t.ok(await exists('test-publish-package.json-0.0.0.tgz'))
   t.ok(await exists('package.json'))
@@ -22,7 +22,7 @@ test('pack: package with package.yaml', async (t) => {
     version: '0.0.0',
   }, { manifestFormat: 'YAML' })
 
-  await pack.handler([], { argv: { original: [] }, dir: process.cwd() })
+  await pack.handler({ argv: { original: [] }, dir: process.cwd() })
 
   t.ok(await exists('test-publish-package.yaml-0.0.0.tgz'))
   t.ok(await exists('package.yaml'))
@@ -36,7 +36,7 @@ test('pack: package with package.json5', async (t) => {
     version: '0.0.0',
   }, { manifestFormat: 'JSON5' })
 
-  await pack.handler([], { argv: { original: [] }, dir: process.cwd() })
+  await pack.handler({ argv: { original: [] }, dir: process.cwd() })
 
   t.ok(await exists('test-publish-package.json5-0.0.0.tgz'))
   t.ok(await exists('package.json5'))

@@ -31,7 +31,7 @@ test('recursive install/uninstall', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -44,26 +44,26 @@ test('recursive install/uninstall', async (t) => {
   t.ok(projects['project-2'].requireModule('is-negative'))
   await projects['project-2'].has('is-negative')
 
-  await add.handler(['noop'], {
+  await add.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['noop'])
 
   t.ok(projects['project-1'].requireModule('noop'))
   t.ok(projects['project-2'].requireModule('noop'))
 
-  await remove.handler(['is-negative'], {
+  await remove.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['is-negative'])
 
   await projects['project-2'].hasNot('is-negative')
 
@@ -92,7 +92,7 @@ test('recursive install with package that has link', async (t) => {
     },
   ])
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
@@ -128,7 +128,7 @@ test('running `pnpm recursive` on a subset of packages', async t => {
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
@@ -181,7 +181,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
   await makeDir('node_modules')
   process.chdir('packages')
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
@@ -217,7 +217,7 @@ test('recursive installation fails when installation in one of the packages fail
 
   let err!: PnpmError
   try {
-    await install.handler([], {
+    await install.handler({
       ...DEFAULT_OPTS,
       ...await readProjects(process.cwd(), []),
       dir: process.cwd(),
@@ -248,7 +248,7 @@ test('second run of `recursive install` after package.json has been edited manua
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -266,7 +266,7 @@ test('second run of `recursive install` after package.json has been edited manua
     },
   })
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -315,7 +315,7 @@ test('recursive --filter ignore excluded packages', async (t) => {
     ],
   })
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
@@ -360,7 +360,7 @@ test('recursive filter multiple times', async (t) => {
     },
   ])
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), [
       { namePattern: 'project-1' },
@@ -399,7 +399,7 @@ test('recursive install --no-bail', async (t) => {
 
   let err!: PnpmError
   try {
-    await install.handler([], {
+    await install.handler({
       ...DEFAULT_OPTS,
       ...await readProjects(process.cwd(), []),
       bail: false,
@@ -433,7 +433,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     },
   ])
 
-  await update.handler(['project-2'], {
+  await update.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
@@ -444,7 +444,7 @@ test('installing with "workspace=true" should work even if link-workspace-packag
     sharedWorkspaceLockfile: true,
     workspace: true,
     workspaceDir: process.cwd(),
-  })
+  }, ['project-2'])
 
   {
     const pkg = await import(path.resolve('project-1/package.json'))

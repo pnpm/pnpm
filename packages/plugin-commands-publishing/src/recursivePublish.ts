@@ -66,7 +66,7 @@ export default async function (
   })
   const access = opts.cliOptions['access'] ? ['--access', opts.cliOptions['access']] : []
   for (const pkg of pkgsToPublish) {
-    await publish([pkg.dir], {
+    await publish({
       ...opts,
       argv: {
         original: [
@@ -80,7 +80,7 @@ export default async function (
         ],
       },
       recursive: false,
-    })
+    }, [pkg.dir])
   }
   const tag = opts.tag || 'latest'
   for (const pkg of pkgsToPublish) {

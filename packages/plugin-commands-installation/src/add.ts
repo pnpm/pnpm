@@ -5,7 +5,8 @@ import PnpmError from '@pnpm/error'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
-import { handler as install, InstallCommandOptions } from './install'
+import { InstallCommandOptions } from './install'
+import installDeps from './installDeps'
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -150,7 +151,6 @@ export function help () {
 }
 
 export async function handler (
-  input: string[],
   opts: InstallCommandOptions & {
     allowNew?: boolean,
     ignoreWorkspaceRootCheck?: boolean,
@@ -158,11 +158,12 @@ export async function handler (
     update?: boolean,
     useBetaCli?: boolean,
   },
+  params: string[],
 ) {
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
   }
-  if (!input || !input.length) {
+  if (!params || !params.length) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm add` requires the package name')
   }
   if (
@@ -177,5 +178,14 @@ export async function handler (
     )
   }
 
-  return install(input, opts)
+  const include = {
+    dependencies: opts.production !== false,
+    devDependencies: opts.dev !== false,
+    optionalDependencies: opts.optional !== false,
+  }
+  return installDeps({
+    ...opts,
+    include,
+    includeDirect: include,
+  }, params)
 }

@@ -294,7 +294,6 @@ export type InstallCommandOptions = Pick<Config,
 }
 
 export function handler (
-  input: string[],
   opts: InstallCommandOptions,
 ) {
   const include = {
@@ -302,11 +301,11 @@ export function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  return installDeps(input, {
+  return installDeps({
     ...opts,
     frozenLockfileIfExists: isCI &&
       typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined',
     include,
     includeDirect: include,
-  })
+  }, [])
 }

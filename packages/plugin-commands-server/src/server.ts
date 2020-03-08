@@ -98,14 +98,14 @@ export function help () {
 }
 
 export async function handler (
-  input: string[],
   opts: CreateStoreControllerOptions & {
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
     unstoppable?: boolean,
   },
+  params: string[],
 ) {
-  switch (input[0]) {
+  switch (params[0]) {
     case 'start':
       return start(opts)
     case 'status':
@@ -114,8 +114,8 @@ export async function handler (
       return stop(opts)
     default:
       help()
-      if (input[0]) {
-        throw new PnpmError('INVALID_SERVER_COMMAND', `"server ${input[0]}" is not a pnpm command. See "pnpm help server".`)
+      if (params[0]) {
+        throw new PnpmError('INVALID_SERVER_COMMAND', `"server ${params[0]}" is not a pnpm command. See "pnpm help server".`)
       }
   }
 }

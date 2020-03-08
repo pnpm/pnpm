@@ -28,7 +28,6 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: Required<Pick<Config, 'selectedProjectsGraph'>> & {
     bail?: boolean,
     unsafePerm?: boolean,
@@ -36,6 +35,7 @@ export async function handler (
     sort?: boolean,
     workspaceConcurrency?: number,
   },
+  params: string[],
 ) {
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
@@ -52,7 +52,7 @@ export async function handler (
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         try {
-          await execa(args[0], args.slice(1), {
+          await execa(params[0], params.slice(1), {
             cwd: prefix,
             env: {
               ...process.env,

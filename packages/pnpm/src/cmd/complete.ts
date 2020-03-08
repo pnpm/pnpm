@@ -57,7 +57,7 @@ export default async function complete (
       completions = ctx.initialCompletion()
     } else if (ctx.completionByCommandName[input.cmd]) {
       try {
-        completions = await ctx.completionByCommandName[input.cmd](input.params, input.options)
+        completions = await ctx.completionByCommandName[input.cmd](input.options, input.params)
       } catch (err) {
         // Ignore
       }

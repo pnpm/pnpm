@@ -35,7 +35,7 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 
 export default async function recursive (
   allProjects: Project[],
-  input: string[],
+  params: string[],
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>,
   } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>,
@@ -100,9 +100,9 @@ export default async function recursive (
   }
 
   const rebuild = (
-    input.length === 0
+    params.length === 0
     ? rebuildAll
-    : (importers: any, opts: any) => rebuildPkgs(importers, input, opts) // tslint:disable-line
+    : (importers: any, opts: any) => rebuildPkgs(importers, params, opts) // tslint:disable-line
   )
   if (opts.lockfileDir) {
     const importers = await getImporters()

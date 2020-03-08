@@ -29,7 +29,7 @@ test('recursive update', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -38,14 +38,14 @@ test('recursive update', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  await update.handler(['is-positive@2.0.0'], {
+  await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['is-positive@2.0.0'])
 
   t.equal(projects['project-1'].requireModule('is-positive/package.json').version, '2.0.0')
   projects['project-2'].hasNot('is-positive')
@@ -76,7 +76,7 @@ test('recursive update prod dependencies only', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -89,7 +89,7 @@ test('recursive update prod dependencies only', async (t) => {
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
-  await update.handler([], {
+  await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dev: false,
@@ -136,7 +136,7 @@ test('recursive update with pattern', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -145,7 +145,7 @@ test('recursive update with pattern', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  await update.handler(['peer-*'], {
+  await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -153,7 +153,7 @@ test('recursive update with pattern', async (t) => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['peer-*'])
 
   t.equal(projects['project-1'].requireModule('peer-a/package.json').version, '1.0.1')
   t.equal(projects['project-1'].requireModule('pnpm-foo/package.json').version, '1.0.0')
@@ -191,7 +191,7 @@ test('recursive update with pattern and name in project', async (t) => {
   const lockfileDir = process.cwd()
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -203,7 +203,7 @@ test('recursive update with pattern and name in project', async (t) => {
 
   let err!: PnpmError
   try {
-    await update.handler(['this-does-not-exist'], {
+    await update.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
@@ -212,14 +212,14 @@ test('recursive update with pattern and name in project', async (t) => {
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-    })
+    }, ['this-does-not-exist'])
   } catch (_err) {
     err = _err
   }
   t.ok(err)
   t.equal(err.code, 'ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES', 'recursive update fails if no dependency matched')
 
-  await update.handler(['peer-*', 'print-version'], {
+  await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -228,7 +228,7 @@ test('recursive update with pattern and name in project', async (t) => {
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['peer-*', 'print-version'])
 
   t.equal(projects['project-1'].requireModule('peer-a/package.json').version, '1.0.1')
   t.equal(projects['project-1'].requireModule('pnpm-foo/package.json').version, '1.0.0')
@@ -266,7 +266,7 @@ test('recursive update --latest foo should only update projects that have foo', 
   const lockfileDir = process.cwd()
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -279,7 +279,7 @@ test('recursive update --latest foo should only update projects that have foo', 
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
-  await update.handler(['@zkochan/async-regex-replace', 'foo', 'qar@100.1.0'], {
+  await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -288,7 +288,7 @@ test('recursive update --latest foo should only update projects that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['@zkochan/async-regex-replace', 'foo', 'qar@100.1.0'])
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
 
@@ -322,7 +322,7 @@ test('recursive update --latest foo should only update packages that have foo', 
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -334,7 +334,7 @@ test('recursive update --latest foo should only update packages that have foo', 
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'bar', version: '100.1.0', distTag: 'latest' })
 
-  await update.handler(['foo', 'qar@100.1.0'], {
+  await update.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -342,7 +342,7 @@ test('recursive update --latest foo should only update packages that have foo', 
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['foo', 'qar@100.1.0'])
 
   {
     const lockfile = await projects['project-1'].readLockfile()
@@ -372,13 +372,13 @@ test('recursive update in workspace should not add new dependencies', async (t) 
 
   let err!: PnpmError
   try {
-    await update.handler(['is-positive'], {
+    await update.handler({
       ...DEFAULT_OPTS,
       ...await readProjects(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),
-    })
+    }, ['is-positive'])
   } catch (_err) {
     err = _err
   }

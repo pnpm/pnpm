@@ -124,8 +124,8 @@ export type ListCommandOptions = Pick<Config,
 }
 
 export function handler (
-  args: string[],
   opts: ListCommandOptions,
+  params: string[],
 ) {
   const include = {
     dependencies: opts.production !== false,
@@ -135,9 +135,9 @@ export function handler (
   const depth = opts.cliOptions?.['depth'] ?? 0
   if (opts.recursive && opts.selectedProjectsGraph) {
     const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    return listRecursive(pkgs, args, { ...opts, depth, include })
+    return listRecursive(pkgs, params, { ...opts, depth, include })
   }
-  return render([opts.dir], args, {
+  return render([opts.dir], params, {
     ...opts,
     depth,
     include,
@@ -147,7 +147,7 @@ export function handler (
 
 export async function render (
   prefixes: string[],
-  args: string[],
+  params: string[],
   opts: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
@@ -167,7 +167,7 @@ export async function render (
     // tslint:disable-next-line: no-unnecessary-type-assertion
     reportAs: (opts.parseable ? 'parseable' : (opts.json ? 'json' : 'tree')) as ('parseable' | 'json' | 'tree'),
   }
-  return args.length
-    ? listForPackages(args, prefixes, listOpts)
+  return params.length
+    ? listForPackages(params, prefixes, listOpts)
     : list(prefixes, listOpts)
 }

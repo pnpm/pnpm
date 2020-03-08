@@ -66,14 +66,14 @@ test('pnpm recursive run', async (t) => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await run.handler(['build'], {
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['build'])
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
   const outputs2 = await import(path.resolve('output2.json')) as string[]
@@ -118,14 +118,14 @@ test('pnpm recursive run concurrently', async (t) => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await run.handler(['build'], {
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['build'])
 
   const outputs1 = await import(path.resolve('output1.json')) as number[]
   const outputs2 = await import(path.resolve('output2.json')) as number[]
@@ -174,14 +174,14 @@ test('`pnpm recursive run` fails when run without filters and no package has the
 
   let err!: PnpmError
   try {
-    await run.handler(['this-command-does-not-exist'], {
+    await run.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-    })
+    }, ['this-command-does-not-exist'])
   } catch (_err) {
     err = _err
   }
@@ -219,13 +219,13 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
 
   let err!: PnpmError
   try {
-    await run.handler(['this-command-does-not-exist'], {
+    await run.handler({
       ...DEFAULT_OPTS,
       ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
       dir: process.cwd(),
       recursive: true,
       workspaceDir: process.cwd(),
-    })
+    }, ['this-command-does-not-exist'])
   } catch (_err) {
     err = _err
   }
@@ -275,14 +275,14 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     [{ namePattern: 'project-1' }],
     { workspaceDir: process.cwd() },
   )
-  await run.handler(['this-command-does-not-exist'], {
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['this-command-does-not-exist'])
   t.end()
 })
 
@@ -337,14 +337,14 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
 
   let err1!: PnpmError
   try {
-    await run.handler(['build', '--no-bail'], {
+    await run.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-    })
+    }, ['build', '--no-bail'])
   } catch (_err) {
     err1 = _err
   }
@@ -357,14 +357,14 @@ test('testing the bail config with "pnpm recursive run"', async (t) => {
 
   let err2!: PnpmError
   try {
-    await run.handler(['build'], {
+    await run.handler({
       ...DEFAULT_OPTS,
       allProjects,
       dir: process.cwd(),
       recursive: true,
       selectedProjectsGraph,
       workspaceDir: process.cwd(),
-    })
+    }, ['build'])
   } catch (_err) {
     err2 = _err
   }
@@ -416,14 +416,14 @@ test('pnpm recursive run with filtering', async (t) => {
     '--store-dir',
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
-  await run.handler(['build'], {
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, ['build'])
 
   const outputs = await import(path.resolve('output.json')) as string[]
 
@@ -457,14 +457,14 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
   ])
 
   process.env['npm_config_unsafe_perm'] = 'false'
-  await run.handler(['build'], {
+  await run.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     workspaceDir: process.cwd(),
     ...await readProjects(process.cwd(), []),
-  })
+  }, ['build'])
   delete process.env['npm_config_unsafe_perm']
 
   const outputs = await import(path.resolve('output.json')) as string[]

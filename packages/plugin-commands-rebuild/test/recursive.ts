@@ -44,14 +44,14 @@ test('pnpm recursive rebuild', async (t) => {
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-2'].hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, [])
 
   await projects['project-1'].has('pre-and-postinstall-scripts-example/generated-by-preinstall.js')
   await projects['project-1'].has('pre-and-postinstall-scripts-example/generated-by-postinstall.js')
@@ -119,14 +119,14 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
     '--ignore-scripts',
   ])
 
-  await rebuild.handler([], {
+  await rebuild.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
-  })
+  }, [])
 
   const outputs1 = await import(path.resolve('output1.json')) as string[]
   const outputs2 = await import(path.resolve('output2.json')) as string[]

@@ -66,12 +66,12 @@ test('recursive publish', async (t) => {
 
   await fs.writeFile('.npmrc', CREDENTIALS, 'utf8')
 
-  await publish.handler([], {
+  await publish.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
-  })
+  }, [])
 
   {
     const { stdout } = await execa('npm', ['view', pkg1.name, 'versions', '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`, '--json'])
@@ -84,13 +84,13 @@ test('recursive publish', async (t) => {
 
   await projects[pkg1.name].writePackageJson({ ...pkg1, version: '2.0.0' })
 
-  await publish.handler([], {
+  await publish.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
     recursive: true,
     tag: 'next',
-  })
+  }, [])
 
   {
     const { stdout } = await execa('npm', ['dist-tag', 'ls', pkg1.name, '--registry', `http://localhost:${REGISTRY_MOCK_PORT}`])

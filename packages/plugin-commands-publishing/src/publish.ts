@@ -64,7 +64,6 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
     argv: {
       original: string[],
@@ -73,6 +72,7 @@ export async function handler (
     recursive?: boolean,
     workspaceDir?: string,
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'publishBranch' | 'selectedProjectsGraph' >,
+  params: string[],
 ) {
   if (opts.gitChecks && await isGitRepo()) {
     const branch = opts.publishBranch ?? 'master'
@@ -102,11 +102,11 @@ export async function handler (
     })
     return
   }
-  if (args.length && args[0].endsWith('.tgz')) {
-    runNpm(opts.npmPath, ['publish', ...args])
+  if (params.length && params[0].endsWith('.tgz')) {
+    runNpm(opts.npmPath, ['publish', ...params])
     return
   }
-  const dir = args.length && args[0] || process.cwd()
+  const dir = params.length && params[0] || process.cwd()
 
   let _status!: number
   await fakeRegularManifest(

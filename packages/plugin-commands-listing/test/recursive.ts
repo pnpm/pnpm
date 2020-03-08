@@ -37,7 +37,7 @@ test('recursive list', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -46,13 +46,13 @@ test('recursive list', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  const output = await list.handler([], {
+  const output = await list.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
-  })
+  }, [])
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -102,7 +102,7 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     allProjects,
     dir: process.cwd(),
@@ -111,14 +111,14 @@ test('recursive list with shared-workspace-lockfile', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  const output = await list.handler([], {
+  const output = await list.handler({
     ...DEFAULT_OPTS,
     allProjects,
     cliOptions: { depth: 2 },
     dir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
-  })
+  }, [])
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -169,7 +169,7 @@ test('recursive list --filter', async (t) => {
     },
   ])
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTS,
     ...await readProjects(process.cwd(), []),
     dir: process.cwd(),
@@ -177,14 +177,14 @@ test('recursive list --filter', async (t) => {
     workspaceDir: process.cwd(),
   })
 
-  const output = await list.handler([], {
+  const output = await list.handler({
     ...DEFAULT_OPTS,
     dir: process.cwd(),
     recursive: true,
     ...await readProjects(process.cwd(), [
       { includeDependencies: true, namePattern: 'project-1' },
     ]),
-  })
+  }, [])
 
   t.equal(stripAnsi(output as unknown as string), stripIndent`
     Legend: production dependency, optional only, dev only
@@ -210,12 +210,12 @@ test('`pnpm recursive why` should fail if no package name was provided', async (
 
   let err!: PnpmError
   try {
-    await why.handler([], {
+    await why.handler({
       ...DEFAULT_OPTS,
       ...await readProjects(process.cwd(), []),
       dir: process.cwd(),
       recursive: true,
-    })
+    }, [])
   } catch (_err) {
     err = _err
   }

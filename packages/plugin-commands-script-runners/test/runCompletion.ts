@@ -11,7 +11,7 @@ test('run completion', async (t) => {
   })
 
   t.deepEqual(
-    await run.completion([], {}),
+    await run.completion({}, []),
     [
       {
         name: 'lint',
@@ -22,7 +22,7 @@ test('run completion', async (t) => {
     ],
   )
 
-  t.deepEqual(await run.completion(['test'], {}), [],
+  t.deepEqual(await run.completion({}, ['test']), [],
     "don't suggest script completions if script name already typed")
 
   t.end()

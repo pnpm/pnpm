@@ -15,10 +15,10 @@ export type RecursiveRunOpts = Pick<Config,
 Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>>
 
 export default async (
-  args: string[],
+  params: string[],
   opts: RecursiveRunOpts,
 ) => {
-  const scriptName = args[0]
+  const scriptName = params[0]
   let hasCommand = 0
   const packageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
@@ -34,7 +34,7 @@ export default async (
     opts.workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
   ) ? 'inherit' : 'pipe'
-  const passedThruArgs = args.slice(1)
+  const passedThruArgs = params.slice(1)
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>

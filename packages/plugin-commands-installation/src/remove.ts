@@ -91,12 +91,11 @@ export function help () {
 
 export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
 
-export const completion: CompletionFunc = (args, cliOpts) => {
+export const completion: CompletionFunc = (cliOpts, params) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
 export async function handler (
-  input: string[],
   opts: CreateStoreControllerOptions & Pick<Config,
     'allProjects' |
     'bail' |
@@ -117,9 +116,10 @@ export async function handler (
   > & {
     recursive?: boolean,
   },
+  params: string[],
 ) {
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
-    await recursive(opts.allProjects, input, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'remove')
+    await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'remove')
     return
   }
   const store = await createOrConnectStoreController(opts)
@@ -138,7 +138,7 @@ export async function handler (
     [
       {
         binsDir: opts.bin,
-        dependencyNames: input,
+        dependencyNames: params,
         manifest: currentManifest.manifest,
         mutation: 'uninstallSome',
         rootDir: opts.dir,

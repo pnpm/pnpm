@@ -74,7 +74,7 @@ export const shorthands = {
 
 export const commandNames = ['update', 'up', 'upgrade']
 
-export const completion: CompletionFunc = (args, cliOpts) => {
+export const completion: CompletionFunc = (cliOpts) => {
   return readDepNameCompletions(cliOpts.dir as string)
 }
 
@@ -151,13 +151,13 @@ export type UpdateCommandOptions = InstallCommandOptions & {
 }
 
 export async function handler (
-  input: string[],
   opts: UpdateCommandOptions,
+  params: string[] = [],
 ) {
   if (opts.interactive) {
-    return interactiveUpdate(input, opts)
+    return interactiveUpdate(params, opts)
   }
-  return update(input, opts)
+  return update(params, opts)
 }
 
 async function interactiveUpdate (
@@ -230,10 +230,10 @@ async function update (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  return installDeps(dependencies, {
+  return installDeps({
     ...opts,
     allowNew: false,
     includeDirect,
     update: true,
-  })
+  }, dependencies)
 }

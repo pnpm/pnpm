@@ -80,8 +80,8 @@ export type InstallDepsOptions = Pick<Config,
 }
 
 export default async function handler (
-  input: string[],
   opts: InstallDepsOptions,
+  params: string[],
 ) {
   if (opts.workspace) {
     if (opts.latest) {
@@ -109,18 +109,18 @@ export default async function handler (
   }
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
     await recursive(opts.allProjects,
-      input,
+      params,
       {
         ...opts,
         selectedProjectsGraph: opts.selectedProjectsGraph!,
         workspaceDir: opts.workspaceDir!,
       },
-      opts.update ? 'update' : (input.length === 0 ? 'install' : 'add'),
+      opts.update ? 'update' : (params.length === 0 ? 'install' : 'add'),
     )
     return
   }
   // `pnpm install ""` is going to be just `pnpm install`
-  input = input.filter(Boolean)
+  params = params.filter(Boolean)
 
   const dir = opts.dir || process.cwd()
   let allProjects = opts.allProjects
@@ -160,30 +160,30 @@ export default async function handler (
     manifest = {}
   }
 
-  const updateMatch = opts.update && input.length ? createMatcher(input) : null
+  const updateMatch = opts.update && params.length ? createMatcher(params) : null
   if (updateMatch) {
-    input = matchDependencies(updateMatch, manifest, includeDirect)
-    if (!input.length) {
+    params = matchDependencies(updateMatch, manifest, includeDirect)
+    if (!params.length) {
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies.')
     }
   }
 
   if (opts.update && opts.latest) {
-    if (!input || !input.length) {
-      input = updateToLatestSpecsFromManifest(manifest, includeDirect)
+    if (!params || !params.length) {
+      params = updateToLatestSpecsFromManifest(manifest, includeDirect)
     } else {
-      input = createLatestSpecs(input, manifest)
+      params = createLatestSpecs(params, manifest)
     }
   }
   if (opts.workspace) {
-    if (!input || !input.length) {
-      input = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages!)
+    if (!params || !params.length) {
+      params = updateToWorkspacePackagesFromManifest(manifest, includeDirect, workspacePackages!)
     } else {
-      input = createWorkspaceSpecs(input, workspacePackages!)
+      params = createWorkspaceSpecs(params, workspacePackages!)
     }
   }
-  if (!input || !input.length) {
+  if (!params || !params.length) {
     const updatedManifest = await install(manifest, installOpts)
     if (opts.update === true && opts.save !== false) {
       await writeProjectManifest(updatedManifest)
@@ -193,7 +193,7 @@ export default async function handler (
       {
         allowNew: opts.allowNew,
         binsDir: installOpts.bin,
-        dependencySelectors: input,
+        dependencySelectors: params,
         manifest,
         mutation: 'installSome',
         peer: opts.savePeer,

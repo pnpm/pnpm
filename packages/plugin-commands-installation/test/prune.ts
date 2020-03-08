@@ -34,15 +34,15 @@ test('prune removes external link that is not in package.json', async function (
   const storeDir = path.resolve('store')
   await copyFixture('local-pkg', 'local')
 
-  await link.handler(['./local'], {
+  await link.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     storeDir,
-  })
+  }, ['./local'])
 
   await project.has('local-pkg')
 
-  await prune.handler([], {
+  await prune.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     storeDir,
@@ -59,13 +59,13 @@ test('prune removes dev dependencies', async (t) => {
   })
   const storeDir = path.resolve('store')
 
-  await install.handler([], {
+  await install.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: true,
   })
 
-  await prune.handler([], {
+  await prune.handler({
     ...DEFAULT_OPTIONS,
     dev: false,
     dir: process.cwd(),

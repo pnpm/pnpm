@@ -35,9 +35,8 @@ export const GLOBAL_OPTIONS = R.pick([
 ], allTypes)
 
 export type Command = (
-  args: string[],
   opts: PnpmOptions,
-  invocation?: string,
+  params: string[],
 ) => string | void | Promise<string | void>
 
 const commands: Array<{

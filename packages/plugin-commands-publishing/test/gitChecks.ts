@@ -37,12 +37,12 @@ test('publish: fails git check if branch is not on master', async (t) => {
 
   let err!: PnpmError
   try {
-    await publish.handler([], {
+    await publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
       gitChecks: true,
-    })
+    }, [])
   } catch (_err) {
     err = _err
   }
@@ -68,13 +68,13 @@ test('publish: fails git check if branch is not on specified branch', async (t) 
 
   let err!: PnpmError
   try {
-    await publish.handler([], {
+    await publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
       gitChecks: true,
       publishBranch: 'latest',
-    })
+    }, [])
   } catch (_err) {
     err = _err
   }
@@ -99,12 +99,12 @@ test('publish: fails git check if branch is not clean', async (t) => {
 
   let err!: PnpmError
   try {
-    await publish.handler([], {
+    await publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
       gitChecks: true,
-    })
+    }, [])
   } catch (_err) {
     err = _err
   }
@@ -134,12 +134,12 @@ test('publish: fails git check if branch is not up-to-date', async (t) => {
 
   let err!: PnpmError
   try {
-    await publish.handler([], {
+    await publish.handler({
       ...DEFAULT_OPTS,
       argv: { original: ['publish', ...CREDENTIALS] },
       dir: process.cwd(),
       gitChecks: true,
-    })
+    }, [])
   } catch (_err) {
     err = _err
   }

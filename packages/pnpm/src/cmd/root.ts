@@ -34,11 +34,9 @@ export function help () {
 }
 
 export async function handler (
-  args: string[],
   opts: {
     dir: string,
   },
-  command: string,
 ) {
   return `${path.join(opts.dir, 'node_modules')}\n`
 }
