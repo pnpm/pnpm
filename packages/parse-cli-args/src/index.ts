@@ -99,8 +99,6 @@ export default async function parseCliArgs (
     }
   }
 
-  let isKnownCommand = opts.isKnownCommand(commandName)
-
   let subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
 
   // `pnpm install ""` is going to be just `pnpm install`
@@ -151,7 +149,7 @@ export default async function parseCliArgs (
     cliArgs,
     cliConf,
     cmd,
-    isKnownCommand,
+    isKnownCommand: opts.isKnownCommand(commandName),
     subCmd,
     unknownOptions,
     workspaceDir,
