@@ -76,7 +76,7 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
-      '@pnpm/lifecycle': 'workspace:8.0.2'
+      '@pnpm/lifecycle': 'workspace:8.0.3'
       '@pnpm/link-bins': 'workspace:5.1.7'
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.2'
@@ -583,7 +583,7 @@ importers:
       tempy: 0.4.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
-      '@pnpm/build-modules': 'workspace:4.1.7'
+      '@pnpm/build-modules': 'workspace:4.1.8'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/default-fetcher': 'workspace:*'
@@ -592,13 +592,13 @@ importers:
       '@pnpm/filter-lockfile': 'workspace:3.1.0'
       '@pnpm/headless': 'link:'
       '@pnpm/hoist': 'workspace:2.1.9'
-      '@pnpm/lifecycle': 'workspace:8.0.2'
+      '@pnpm/lifecycle': 'workspace:8.0.3'
       '@pnpm/link-bins': 'workspace:5.1.7'
       '@pnpm/lockfile-file': 'workspace:3.0.5'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-cleaner': 'workspace:8.0.10'
+      '@pnpm/modules-cleaner': 'workspace:8.0.11'
       '@pnpm/modules-yaml': 'workspace:5.0.1'
       '@pnpm/package-requester': 'workspace:11.0.4'
       '@pnpm/package-store': 'workspace:*'
@@ -1368,7 +1368,7 @@ importers:
       load-json-file: 6.2.0
       ncp: 2.0.0
       render-help: 1.0.0
-      supi: 'workspace:0.38.18'
+      supi: 'workspace:0.38.19'
       tempy: 0.4.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1448,7 +1448,7 @@ importers:
       '@pnpm/outdated': 'workspace:7.0.11'
       '@pnpm/package-store': 'workspace:8.0.4'
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.14'
+      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.15'
       '@pnpm/pnpmfile': 'workspace:0.1.6'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/registry-mock': 1.11.1
@@ -1486,7 +1486,7 @@ importers:
       read-yaml-file: 1.1.0
       render-help: 1.0.0
       sinon: 9.0.0
-      supi: 'workspace:0.38.18'
+      supi: 'workspace:0.38.19'
       table: 5.4.6
       write-json-file: 4.2.1
       write-yaml-file: 3.0.1
@@ -1747,7 +1747,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'workspace:2.0.3'
       '@pnpm/find-workspace-packages': 'workspace:2.1.10'
       '@pnpm/get-context': 'workspace:1.1.1'
-      '@pnpm/lifecycle': 'workspace:8.0.2'
+      '@pnpm/lifecycle': 'workspace:8.0.3'
       '@pnpm/link-bins': 'workspace:5.1.7'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
@@ -1818,7 +1818,7 @@ importers:
       '@pnpm/config': 'workspace:8.1.1'
       '@pnpm/error': 'workspace:1.1.0'
       '@pnpm/filter-workspace-packages': 'workspace:2.0.3'
-      '@pnpm/lifecycle': 'workspace:8.0.2'
+      '@pnpm/lifecycle': 'workspace:8.0.3'
       '@pnpm/logger': ^3.1.0
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -2062,15 +2062,15 @@ importers:
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:*'
-      '@pnpm/parse-cli-args': 'workspace:0.4.0'
+      '@pnpm/parse-cli-args': 'workspace:0.5.0'
       '@pnpm/plugin-commands-audit': 'workspace:0.2.12'
-      '@pnpm/plugin-commands-import': 'workspace:0.1.25'
-      '@pnpm/plugin-commands-installation': 'workspace:0.2.19'
+      '@pnpm/plugin-commands-import': 'workspace:0.1.26'
+      '@pnpm/plugin-commands-installation': 'workspace:0.2.20'
       '@pnpm/plugin-commands-listing': 'workspace:0.2.12'
       '@pnpm/plugin-commands-outdated': 'workspace:0.2.14'
       '@pnpm/plugin-commands-publishing': 'workspace:0.2.16'
-      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.14'
-      '@pnpm/plugin-commands-script-runners': 'workspace:0.2.11'
+      '@pnpm/plugin-commands-rebuild': 'workspace:0.1.15'
+      '@pnpm/plugin-commands-script-runners': 'workspace:0.2.12'
       '@pnpm/plugin-commands-server': 'workspace:0.1.15'
       '@pnpm/plugin-commands-store': 'workspace:0.1.14'
       '@pnpm/prepare': 'workspace:*'
@@ -2511,7 +2511,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/assert-store': 'workspace:*'
-      '@pnpm/build-modules': 'workspace:4.1.7'
+      '@pnpm/build-modules': 'workspace:4.1.8'
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
@@ -2521,16 +2521,16 @@ importers:
       '@pnpm/filter-lockfile': 'workspace:3.1.0'
       '@pnpm/fs-locker': 3.0.1
       '@pnpm/get-context': 'workspace:1.1.1'
-      '@pnpm/headless': 'workspace:12.1.12'
+      '@pnpm/headless': 'workspace:12.1.13'
       '@pnpm/hoist': 'workspace:2.1.9'
-      '@pnpm/lifecycle': 'workspace:8.0.2'
+      '@pnpm/lifecycle': 'workspace:8.0.3'
       '@pnpm/link-bins': 'workspace:5.1.7'
       '@pnpm/lockfile-file': 'workspace:3.0.5'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-cleaner': 'workspace:8.0.10'
+      '@pnpm/modules-cleaner': 'workspace:8.0.11'
       '@pnpm/modules-yaml': 'workspace:5.0.1'
       '@pnpm/package-requester': 'workspace:11.0.4'
       '@pnpm/package-store': 'workspace:*'
@@ -3481,7 +3481,7 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-1+82Jph7UHSii3+uQc936IHLytyCIOfF3lbQSh/cGBCFJTWi6/1bJ7d/BB0O/zzPaHRQkfGr+JH2MOSMs4UiGQ==
-  /@verdaccio/commons-api/9.3.1:
+  /@verdaccio/commons-api/9.3.2:
     dependencies:
       http-errors: 1.7.3
       http-status-codes: 1.4.0
@@ -3489,7 +3489,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-EuBx5yYFJeOm8ryXhHEr4jsV6IySxVdItkVFQccuDc4qmLGUfNLqg1lOCtJKGu0uMvZE/m4UaUQSmvAvkizHmQ==
+      integrity: sha512-qbzyTRZtbURr6p50Gdo4axFrVBJ57HXymiU79Oh6OwmPNWpPJxhau+FURzVJySSIhCoDyOfFKI/KirTEt+V8Pw==
   /@verdaccio/file-locking/1.0.0:
     dependencies:
       lockfile: 1.0.4
@@ -3499,20 +3499,20 @@ packages:
       npm: '>=2.15.9'
     resolution:
       integrity: sha512-FncTOEL01a8yd6xOcNX1TQgc3pRYxByAI2OaAJHjGu5xxcGoqTo6RrIDU3ILdW2ypjc9Ow/xJLarUkr6zDhyfQ==
-  /@verdaccio/file-locking/9.3.1:
+  /@verdaccio/file-locking/9.3.2:
     dependencies:
       lockfile: 1.0.4
     dev: true
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-apgKGRaYzieg8KZdO5JRSGa8qcU6SobF5cvUhgRN7xHwbqWnzRXgl1JfaJqVeObf4ZV3yimdFMJ22KdZYcGepw==
-  /@verdaccio/local-storage/9.3.1:
+      integrity: sha512-SVILYv5MAVX1NMkBc8oV1nMjlh04YS/9QOZgasv87GEzgxYbO/l/sfK/kQmMs9yCniK4km6fZMvQN8DyidgMeg==
+  /@verdaccio/local-storage/9.3.2:
     dependencies:
-      '@verdaccio/commons-api': 9.3.1
-      '@verdaccio/file-locking': 9.3.1
-      '@verdaccio/streams': 9.3.1
-      async: 3.1.0
+      '@verdaccio/commons-api': 9.3.2
+      '@verdaccio/file-locking': 9.3.2
+      '@verdaccio/streams': 9.3.2
+      async: 3.2.0
       level: 5.0.1
       lodash: 4.17.15
       mkdirp: 0.5.1
@@ -3520,7 +3520,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-+4SLIjeFlyopREWb9m0EUONyfcTzWx5+JP/C747vL3Jo0QrbGbqwBqne7qXFKiYNN4mf/lHuRnxb920ITCqSWw==
+      integrity: sha512-d9R69S8a6yeJSNvq9mV8XYAVrwFiIhWBRUNxYEuhgstn8exlgqWgKic8aN8+pR3ajuvUGcLwdcL77W91EFhSHw==
   /@verdaccio/readme/8.5.2:
     dependencies:
       dompurify: 2.0.7
@@ -3536,13 +3536,13 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-Rbw+vm/KHgy5OQB+jSxxIXYvVFmG/fuFmBeH7F4fp2r5h7w1TP/mlQZI7PVlPPhLZtM6Xdrzf6H+NRCwRncwIg==
-  /@verdaccio/streams/9.3.1:
+  /@verdaccio/streams/9.3.2:
     dev: true
     engines:
       node: '>=8'
       npm: '>=5'
     resolution:
-      integrity: sha512-AO0i8lsu3H1ss694Dtg9KbWpOlSRFNVeT5J2oscAAjQydXjOB63paxiOdUBTaavhT03T+i/AnSgWahsdSG1diA==
+      integrity: sha512-+DtUE/t/o4WDDtUVudjHqxcypvqnfwoHEy5x1KndFUhSbmdHsWjLOmy+Fu1FXzWPncODRebyZZro2LDiMxoaqg==
   /@verdaccio/ui-theme/0.3.13:
     dev: true
     engines:
@@ -4280,14 +4280,14 @@ packages:
     dev: false
     resolution:
       integrity: sha512-aiieFW/7h3hY0Bq5d+ktDBejxuwR78vRu9hDUdR8rNhSaQ29VzPL4AoIRG7D/c7tdenwOcKvgPM6tIxB3cB6HA==
-  /async/3.1.0:
-    dev: true
-    resolution:
-      integrity: sha512-4vx/aaY6j/j3Lw3fbCHNWP0pPaTCew3F6F3hYyl/tHs/ndmV1q7NW9T5yuJ2XAGwdQrP+6Wu20x06U4APo/iQQ==
   /async/3.1.1:
     dev: true
     resolution:
       integrity: sha512-X5Dj8hK1pJNC2Wzo2Rcp9FBVdJMGRR/S7V+lH46s8GVFhtbo5O4Le5GECCF/8PISVdkUA6mMPvgz7qTTD1rf1g==
+  /async/3.2.0:
+    dev: true
+    resolution:
+      integrity: sha512-TR2mEZFVOj2pLStYxLht7TyfuRzaydfpxr3k9RpHIzMgw7A64dzsdqCxH1WJyQdoe8T10nDXd9wnEigmiuHIZw==
   /asynckit/0.4.0:
     resolution:
       integrity: sha1-x57Zf380y48robyXkLzDZkdLS3k=
@@ -5110,7 +5110,7 @@ packages:
       import-fresh: 3.2.1
       parse-json: 5.0.0
       path-type: 4.0.0
-      yaml: 1.7.2
+      yaml: 1.8.0
     dev: true
     engines:
       node: '>=8'
@@ -7424,7 +7424,7 @@ packages:
       whatwg-encoding: 1.0.5
       whatwg-mimetype: 2.3.0
       whatwg-url: 7.1.0
-      ws: 7.2.1
+      ws: 7.2.2
       xml-name-validator: 3.0.0
     dev: true
     engines:
@@ -11795,7 +11795,7 @@ packages:
   /verdaccio/4.4.4:
     dependencies:
       '@verdaccio/commons-api': 8.5.0
-      '@verdaccio/local-storage': 9.3.1
+      '@verdaccio/local-storage': 9.3.2
       '@verdaccio/readme': 8.5.2
       '@verdaccio/streams': 8.5.2
       '@verdaccio/ui-theme': 0.3.13
@@ -12164,7 +12164,7 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-OHzbrlgjw/K/BAH6LdEOcSQFz5nkk0I/25CjKLIVFvcg2Ej7+QE/GTnitgqWnhlsdghor7OV5gfttQPGogQ1XA==
-  /ws/7.2.1:
+  /ws/7.2.2:
     dev: true
     engines:
       node: '>=8.3.0'
@@ -12177,7 +12177,7 @@ packages:
       utf-8-validate:
         optional: true
     resolution:
-      integrity: sha512-sucePNSafamSKoOqoNfBd8V0StlkzJKL2ZAhGQinCfNQ+oacw+Pk7lcdAElecBF2VkLNZRiIb5Oi1Q5lVUVt2A==
+      integrity: sha512-2qj/tYkDPDSVf7JiHanwEBwkhxi7DchFewIsSnR33MQtG3O/BPAJjqs4g6XEuayuRqIExSQMHZlmyDLbuSrXYw==
   /x256/0.0.2:
     dev: false
     engines:
@@ -12216,14 +12216,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-u6spj+0znbYDahinSCXevONvrmo=
-  /yaml/1.7.2:
+  /yaml/1.8.0:
     dependencies:
       '@babel/runtime': 7.8.7
     dev: true
     engines:
       node: '>= 6'
     resolution:
-      integrity: sha512-qXROVp90sb83XtAoqE8bP9RwAkTTZbugRUTm5YeFCBfNRPEp2YzTeqWiz7m5OORHzEvrA/qcGS8hp/E+MMROYw==
+      integrity: sha512-6qI/tTx7OVtA4qNqD0OyutbM6Z9EKu4rxWm/2Y3FDEBQ4/2X2XAnyuRXMzAE2+1BPyqzksJZtrIwblOHg0IEzA==
   /yargs-parser/10.1.0:
     dependencies:
       camelcase: 4.1.0

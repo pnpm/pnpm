@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-installation",
-  "version": "0.2.19",
+  "version": "0.2.20",
   "description": "Commands for installation",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -66,7 +66,7 @@
     "@pnpm/find-workspace-packages": "workspace:2.1.10",
     "@pnpm/outdated": "workspace:7.0.11",
     "@pnpm/package-store": "workspace:8.0.4",
-    "@pnpm/plugin-commands-rebuild": "workspace:0.1.14",
+    "@pnpm/plugin-commands-rebuild": "workspace:0.1.15",
     "@pnpm/pnpmfile": "workspace:0.1.6",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/semver-diff": "1.0.2",
@@ -89,7 +89,7 @@
     "ramda": "0.27.0",
     "read-ini-file": "2.0.0",
     "render-help": "1.0.0",
-    "supi": "workspace:0.38.18",
+    "supi": "workspace:0.38.19",
     "table": "5.4.6"
   },
   "peerDependencies": {

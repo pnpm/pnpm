@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-rebuild",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Commands for rebuilding dependencies",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -55,7 +55,7 @@
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/find-workspace-packages": "workspace:2.1.10",
     "@pnpm/get-context": "workspace:1.1.1",
-    "@pnpm/lifecycle": "workspace:8.0.2",
+    "@pnpm/lifecycle": "workspace:8.0.3",
     "@pnpm/link-bins": "workspace:5.1.7",
     "@pnpm/lockfile-utils": "workspace:2.0.9",
     "@pnpm/lockfile-walker": "workspace:2.0.1",
