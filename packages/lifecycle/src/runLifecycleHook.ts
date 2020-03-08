@@ -20,15 +20,6 @@ export default async function runLifecycleHook (
   },
 ) {
   const optional = opts.optional === true
-  if (opts.stdio !== 'inherit') {
-    lifecycleLogger.debug({
-      depPath: opts.depPath,
-      optional,
-      script: manifest.scripts![stage],
-      stage,
-      wd: opts.pkgRoot,
-    })
-  }
 
   const m = { _id: getId(manifest), ...manifest }
   m.scripts = { ...m.scripts }
@@ -38,6 +29,15 @@ export default async function runLifecycleHook (
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     m.scripts[stage] = `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`
+  }
+  if (opts.stdio !== 'inherit') {
+    lifecycleLogger.debug({
+      depPath: opts.depPath,
+      optional,
+      script: m.scripts![stage],
+      stage,
+      wd: opts.pkgRoot,
+    })
   }
   return lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawConfig,
