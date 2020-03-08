@@ -16,7 +16,7 @@ export default async function complete (
     universalOptionsTypes: Record<string, Object>,
   },
   input: {
-    args: string[],
+    params: string[],
     cmd: string | null,
     currentTypedWordType: 'option' | 'value' | null,
     lastOption: string | null,
@@ -57,7 +57,7 @@ export default async function complete (
       completions = ctx.initialCompletion()
     } else if (ctx.completionByCommandName[input.cmd]) {
       try {
-        completions = await ctx.completionByCommandName[input.cmd](input.args, input.options)
+        completions = await ctx.completionByCommandName[input.cmd](input.params, input.options)
       } catch (err) {
         // Ignore
       }

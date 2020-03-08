@@ -15,11 +15,11 @@ test('complete an option value', async (t) => {
       universalOptionsTypes: {},
     },
     {
-      args: [],
       cmd: 'install',
       currentTypedWordType: null,
       lastOption: '--resolution-strategy',
       options: {},
+      params: [],
     },
   )
   t.deepEqual(completions, [
@@ -48,11 +48,11 @@ test('complete a command', async (t) => {
   t.deepEqual(
     await complete(ctx,
       {
-        args: [],
         cmd: 'run',
         currentTypedWordType: 'value',
         lastOption: null,
         options: {},
+        params: [],
       },
     ),
     [{ name: 'test' }],
@@ -60,11 +60,11 @@ test('complete a command', async (t) => {
   t.deepEqual(
     await complete(ctx,
       {
-        args: [],
         cmd: 'run',
         currentTypedWordType: null,
         lastOption: null,
         options: {},
+        params: [],
       },
     ),
     [
@@ -77,11 +77,11 @@ test('complete a command', async (t) => {
   t.deepEqual(
     await complete(ctx,
       {
-        args: [],
         cmd: 'run',
         currentTypedWordType: 'option',
         lastOption: null,
         options: {},
+        params: [],
       },
     ),
     [
@@ -108,11 +108,11 @@ test('if command completion fails, return empty array', async (t) => {
         },
       },
       {
-        args: [],
         cmd: 'run',
         currentTypedWordType: 'value',
         lastOption: null,
         options: {},
+        params: [],
       },
     ),
     [],
@@ -136,11 +136,11 @@ test('initial completion', async (t) => {
   t.deepEqual(
     await complete(ctx,
       {
-        args: [],
         cmd: null,
         currentTypedWordType: null,
         lastOption: null,
         options: {},
+        params: [],
       },
     ), [
       { name: 'add' },
@@ -152,11 +152,11 @@ test('initial completion', async (t) => {
   t.deepEqual(
     await complete(ctx,
       {
-        args: [],
         cmd: 'ad',
         currentTypedWordType: 'value',
         lastOption: null,
         options: {},
+        params: [],
       },
     ), [
       { name: 'add' },
@@ -166,11 +166,11 @@ test('initial completion', async (t) => {
   t.deepEqual(
     await complete(ctx,
       {
-        args: [],
         cmd: null,
         currentTypedWordType: 'option',
         lastOption: null,
         options: {},
+        params: [],
       },
     ), [
       { name: '--filter' },
@@ -194,11 +194,11 @@ test('suggest no completions for after --version', async (t) => {
         universalOptionsTypes: {},
       },
       {
-        args: [],
         cmd: null,
         currentTypedWordType: null,
         lastOption: null,
         options: { version: true },
+        params: [],
       },
     ), [],
   )

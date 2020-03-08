@@ -27,16 +27,16 @@ export default function (
     const inputArgv = splitCmd(finishedArgv).slice(1)
     // We cannot autocomplete what a user types after "pnpm test --"
     if (inputArgv.includes('--')) return
-    const { cliArgs, cliConf, cmd } = await parseCliArgs(inputArgv)
+    const { params, options, cmd } = await parseCliArgs(inputArgv)
     return tabtab.log(
       await complete(
         opts,
         {
-          args: cliArgs,
           cmd,
           currentTypedWordType: currentTypedWordType(env),
           lastOption: getLastOption(env),
-          options: cliConf,
+          options,
+          params,
         },
       ),
     )

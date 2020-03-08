@@ -13,66 +13,66 @@ const DEFAULT_OPTS = {
 }
 
 test('a command is recursive if it has a --filter option', async (t) => {
-  const { cliConf, cmd } = await parseCliArgs({
+  const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { filter: [String, Array] },
   }, ['--filter', 'foo', 'update'])
   t.equal(cmd, 'update')
-  t.ok(cliConf['recursive'])
+  t.ok(options['recursive'])
   t.end()
 })
 
 test('a command is recursive if -r option is used', async (t) => {
-  const { cliConf, cmd } = await parseCliArgs({
+  const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { recursive: Boolean },
     universalShorthands: { 'r': '--recursive' },
   }, ['-r', 'update'])
   t.equal(cmd, 'update')
-  t.ok(cliConf['recursive'])
+  t.ok(options['recursive'])
   t.end()
 })
 
 test('a command is recursive if --recursive option is used', async (t) => {
-  const { cliConf, cmd } = await parseCliArgs({
+  const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { recursive: Boolean },
   }, ['-r', 'update'])
   t.equal(cmd, 'update')
-  t.ok(cliConf['recursive'])
+  t.ok(options['recursive'])
   t.end()
 })
 
 test('the install command is recursive when executed in a subdir of a workspace', async (t) => {
-  const { cliConf, cmd, workspaceDir } = await parseCliArgs({
+  const { options, cmd, workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { dir: String },
   }, ['--dir', __dirname, 'install'])
   t.equal(cmd, 'install')
-  t.ok(cliConf['recursive'])
+  t.ok(options['recursive'])
   t.equal(workspaceDir, path.join(__dirname, '../../..'))
   t.end()
 })
 
 test('the install command is recursive when executed in the root of a workspace', async (t) => {
   const expectedWorkspaceDir = path.join(__dirname, '../../..')
-  const { cliConf, cmd, workspaceDir } = await parseCliArgs({
+  const { options, cmd, workspaceDir } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { dir: String },
   }, ['--dir', expectedWorkspaceDir, 'install'])
   t.equal(cmd, 'install')
-  t.ok(cliConf['recursive'])
+  t.ok(options['recursive'])
   t.equal(workspaceDir, expectedWorkspaceDir)
   t.end()
 })
 
 test('recursive is returned as the command name if no subcommand passed', async (t) => {
-  const { cliConf, cmd } = await parseCliArgs({
+  const { options, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: { filter: [String, Array] },
   }, ['recursive'])
   t.equal(cmd, 'recursive')
-  t.ok(cliConf['recursive'])
+  t.ok(options['recursive'])
   t.end()
 })
 
@@ -86,31 +86,31 @@ test('when runnning a global command inside a workspace, the workspace should be
 })
 
 test('command is used recursively', async (t) => {
-  const { cmd, cliConf } = await parseCliArgs({
+  const { cmd, options } = await parseCliArgs({
     ...DEFAULT_OPTS,
     universalOptionsTypes: {},
   }, ['recursive', 'foo'])
   t.equal(cmd, 'foo')
-  t.equal(cliConf.recursive, true)
+  t.equal(options.recursive, true)
   t.end()
 })
 
 test('the install command is converted to add when called with args', async (t) => {
-  const { cliArgs, cmd } = await parseCliArgs({
+  const { params, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
   }, ['install', 'rimraf@1'])
   t.equal(cmd, 'add')
-  t.deepEqual(cliArgs, ['rimraf@1'])
+  t.deepEqual(params, ['rimraf@1'])
   t.end()
 })
 
 test('the "i" command is converted to add when called with args', async (t) => {
-  const { cliArgs, cmd } = await parseCliArgs({
+  const { params, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getCommandLongName: (commandName) => commandName === 'i' ? 'install' : commandName,
   }, ['i', 'rimraf@1'])
   t.equal(cmd, 'add')
-  t.deepEqual(cliArgs, ['rimraf@1'])
+  t.deepEqual(params, ['rimraf@1'])
   t.end()
 })
 
@@ -170,7 +170,7 @@ test('no command', async (t) => {
 })
 
 test('use command-specific shorthands', async (t) => {
-  const { cliConf } = await parseCliArgs({
+  const { options } = await parseCliArgs({
     ...DEFAULT_OPTS,
     getTypesByCommandName: (commandName: string) => {
       if (commandName === 'install') {
@@ -184,6 +184,6 @@ test('use command-specific shorthands', async (t) => {
       install: { D: '--dev' },
     },
   }, ['install', '-D'])
-  t.ok(cliConf['dev'])
+  t.ok(options['dev'])
   t.end()
 })

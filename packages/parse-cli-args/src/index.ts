@@ -9,11 +9,9 @@ export interface ParsedCliArgs {
     cooked: string[],
     original: string[],
   }
-  cliArgs: string[]
-  cliConf: {
-    // tslint:disable-next-line: no-any
-    [option: string]: any,
-  }
+  params: string[]
+  // tslint:disable-next-line: no-any
+  options: Record<string, any>
   cmd: string | null
   unknownOptions: string[]
   workspaceDir?: string
@@ -49,9 +47,9 @@ export default async function parseCliArgs (
   if (noptExploratoryResults['help']) {
     return {
       argv: noptExploratoryResults.argv,
-      cliArgs: noptExploratoryResults.argv.remain,
-      cliConf: {},
       cmd: 'help',
+      options: {},
+      params: noptExploratoryResults.argv.remain,
       unknownOptions: [] as string[],
     }
   }
@@ -65,17 +63,17 @@ export default async function parseCliArgs (
     ...opts.getTypesByCommandName(commandName),
   } as any // tslint:disable-line:no-any
 
-  function getCommandName (cliArgs: string[]) {
+  function getCommandName (args: string[]) {
     if (recursiveCommandUsed) {
-      cliArgs = cliArgs.slice(1)
+      args = args.slice(1)
     }
-    if (opts.getCommandLongName(cliArgs[0]) !== 'install' || cliArgs.length === 1) {
-      return cliArgs[0]
+    if (opts.getCommandLongName(args[0]) !== 'install' || args.length === 1) {
+      return args[0]
     }
     return 'add'
   }
 
-  const { argv, ...cliConf } = nopt(
+  const { argv, ...options } = nopt(
     types,
     {
       ...opts.universalShorthands,
@@ -86,58 +84,58 @@ export default async function parseCliArgs (
   )
 
   if (opts.renamedOptions) {
-    for (const cliOption of Object.keys(cliConf)) {
+    for (const cliOption of Object.keys(options)) {
       if (opts.renamedOptions[cliOption]) {
-        cliConf[opts.renamedOptions[cliOption]] = cliConf[cliOption]
-        delete cliConf[cliOption]
+        options[opts.renamedOptions[cliOption]] = options[cliOption]
+        delete options[cliOption]
       }
     }
   }
 
   // `pnpm install ""` is going to be just `pnpm install`
-  const cliArgs = argv.remain.slice(1).filter(Boolean)
+  const params = argv.remain.slice(1).filter(Boolean)
 
-  if (cliConf['recursive'] !== true && (cliConf['filter'] || recursiveCommandUsed)) {
-    cliConf['recursive'] = true
+  if (options['recursive'] !== true && (options['filter'] || recursiveCommandUsed)) {
+    options['recursive'] = true
     let subCmd: string | null = argv.remain[1] && opts.getCommandLongName(argv.remain[1])
     if (subCmd && recursiveCommandUsed) {
-      cliArgs.shift()
+      params.shift()
       argv.remain.shift()
       cmd = subCmd
     }
   }
-  const dir = cliConf['dir'] ?? process.cwd()
-  const workspaceDir = cliConf['global'] // tslint:disable-line
+  const dir = options['dir'] ?? process.cwd()
+  const workspaceDir = options['global'] // tslint:disable-line
     ? undefined
     : await findWorkspaceDir(dir)
 
   if (
     (cmd === 'add' || cmd === 'install') &&
     typeof workspaceDir === 'string' &&
-    cliArgs.length === 0
+    params.length === 0
   ) {
-    cliConf['recursive'] = true
+    options['recursive'] = true
   }
 
-  if (cmd === 'install' && cliArgs.length > 0) {
+  if (cmd === 'install' && params.length > 0) {
     cmd = 'add'
   }
-  if (!cmd && cliConf['recursive']) {
+  if (!cmd && options['recursive']) {
     cmd = 'recursive'
   }
 
   const allowedOptions = new Set(Object.keys(types))
   const unknownOptions = [] as string[]
-  for (const cliOption of Object.keys(cliConf)) {
+  for (const cliOption of Object.keys(options)) {
     if (!allowedOptions.has(cliOption) && !cliOption.startsWith('//')) {
       unknownOptions.push(cliOption)
     }
   }
   return {
     argv,
-    cliArgs,
-    cliConf,
     cmd,
+    options,
+    params,
     unknownOptions,
     workspaceDir,
   }

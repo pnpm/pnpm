@@ -30,7 +30,14 @@ import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 
 export default async function run (inputArgv: string[]) {
-  const { argv, cliArgs, cliConf, cmd, unknownOptions, workspaceDir } = await parseCliArgs(inputArgv)
+  const {
+    argv,
+    params: cliParams,
+    options: cliOptions,
+    cmd,
+    unknownOptions,
+    workspaceDir,
+  } = await parseCliArgs(inputArgv)
   if (cmd !== null && !pnpmCmds[cmd]) {
     console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(`Unknown command '${cmd}'`)}`)
     console.log(`For help, run: pnpm help`)
@@ -55,7 +62,7 @@ export default async function run (inputArgv: string[]) {
     argv: { remain: string[], cooked: string[], original: string[] },
   }
   try {
-    config = await getConfig(cliConf, {
+    config = await getConfig(cliOptions, {
       excludeReporter: false,
       rcOptionsTypes: getRCOptionsTypes(cmd),
       workspaceDir,
@@ -113,7 +120,7 @@ export default async function run (inputArgv: string[]) {
     await pnpmCmds.server(['stop'], config as any) // tslint:disable-line:no-any
   }
 
-  if (cliConf['recursive']) {
+  if (cliOptions['recursive']) {
     const wsDir = workspaceDir ?? process.cwd()
     const allProjects = await findWorkspacePackages(wsDir, config)
 
@@ -155,7 +162,7 @@ export default async function run (inputArgv: string[]) {
 
       scopeLogger.debug({
         ...(
-          !cliConf['recursive']
+          !cliOptions['recursive']
             ? { selected: 1 }
             : {
               selected: Object.keys(config.selectedProjectsGraph!).length,
@@ -167,7 +174,7 @@ export default async function run (inputArgv: string[]) {
 
       try {
         const result = pnpmCmds[cmd || 'help'](
-          cliArgs,
+          cliParams,
           // TypeScript doesn't currently infer that the type of config
           // is `Omit<typeof config, 'reporter'>` after the `delete config.reporter` statement
           config as Omit<typeof config, 'reporter'>,
