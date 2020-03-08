@@ -97,6 +97,17 @@ test('isKnownCommand is false when an unknown command is used', async (t) => {
   t.end()
 })
 
+test('isKnownCommand is false when an unknown command is used recursively', async (t) => {
+  const { cmd, isKnownCommand } = await parseCliArgs({
+    ...DEFAULT_OPTS,
+    isKnownCommand: () => false,
+    universalOptionsTypes: {},
+  }, ['recursive', 'foo'])
+  t.false(isKnownCommand)
+  t.equal(cmd, 'foo')
+  t.end()
+})
+
 test('the install command is converted to add when called with args', async (t) => {
   const { cliArgs, cmd } = await parseCliArgs({
     ...DEFAULT_OPTS,
