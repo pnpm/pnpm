@@ -79,6 +79,7 @@ export default async function (
           ...access,
         ],
       },
+      gitChecks: false,
       recursive: false,
     }, [pkg.dir])
   }
