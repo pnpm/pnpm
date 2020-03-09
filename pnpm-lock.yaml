@@ -2054,7 +2054,7 @@ importers:
       '@pnpm/config': 'workspace:8.1.1'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
-      '@pnpm/default-reporter': 'workspace:6.1.0'
+      '@pnpm/default-reporter': 'workspace:6.1.1'
       '@pnpm/file-reporter': 0.1.0
       '@pnpm/filter-workspace-packages': 'workspace:2.0.3'
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
