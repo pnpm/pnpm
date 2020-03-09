@@ -51,7 +51,7 @@ export default function reportError (logObj: Log) {
           return formatGenericError(err.message ?? logObj['message'], err.stack)
         }
         const errorSummary = formatErrorSummary(err.message)
-        if (!logObj['message']['pkgsStack']) {
+        if (!logObj['message']['pkgsStack']?.length) {
           return errorSummary
         }
         return `${errorSummary}${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
