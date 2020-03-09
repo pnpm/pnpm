@@ -159,7 +159,7 @@
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/supi/coverage ts-node packages/supi/test",
     "test:e2e": "run-p -r registry-mock test:tap",
-    "pretest": "registry-mock prepare",
+    "pretest:e2e": "registry-mock prepare",
     "test-with-preview": "preview && pnpm run test:e2e",
     "_test": "pnpm run test:e2e",
     "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
