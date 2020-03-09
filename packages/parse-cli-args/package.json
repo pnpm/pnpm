@@ -32,6 +32,6 @@
   },
   "dependencies": {
     "@pnpm/find-workspace-dir": "workspace:1.0.0",
-    "nopt": "4.0.1"
+    "nopt": "4.0.3"
   }
 }

@@ -96,7 +96,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       chalk: 3.0.0
       load-json-file: 6.2.0
-      nopt: 4.0.1
+      nopt: 4.0.3
       ramda: 0.27.0
       version-selector-type: 2.0.1
     devDependencies:
@@ -119,7 +119,7 @@ importers:
       '@types/ramda': ^0.26.43
       chalk: 3.0.0
       load-json-file: 6.2.0
-      nopt: 4.0.1
+      nopt: 4.0.3
       ramda: 0.27.0
       version-selector-type: 2.0.1
   packages/command:
@@ -1275,7 +1275,7 @@ importers:
   packages/parse-cli-args:
     dependencies:
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
-      nopt: 4.0.1
+      nopt: 4.0.3
     devDependencies:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
@@ -1283,7 +1283,7 @@ importers:
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
-      nopt: 4.0.1
+      nopt: 4.0.3
   packages/pkgs-graph:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
@@ -3278,7 +3278,7 @@ packages:
       integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==
   /@types/graceful-fs/4.1.3:
     dependencies:
-      '@types/node': 12.12.29
+      '@types/node': 13.9.0
     dev: true
     resolution:
       integrity: sha512-AiHRaEB50LQg0pZmm659vNBb9f4SJ0qrAnteuzhSeAUcJKxoYgEnprg/83kppCnc2zvtCKbdZry1a5pVY3lOTQ==
@@ -3581,7 +3581,7 @@ packages:
       safe-buffer: 5.2.0
       which: 2.0.2
       y18n: 4.0.0
-      yargs: 15.1.0
+      yargs: 15.3.0
     dev: false
     engines:
       node: '>=8.15'
@@ -4534,7 +4534,7 @@ packages:
       rimraf: 3.0.2
       test-exclude: 6.0.0
       v8-to-istanbul: 4.1.2
-      yargs: 15.1.0
+      yargs: 15.3.0
       yargs-parser: 16.1.0
     dev: true
     engines:
@@ -8500,7 +8500,7 @@ packages:
       glob: 7.1.6
       graceful-fs: 4.2.3
       mkdirp: 0.5.1
-      nopt: 4.0.1
+      nopt: 4.0.3
       npmlog: 4.1.2
       request: 2.88.2
       rimraf: 2.7.1
@@ -8529,14 +8529,14 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-bd0hvSoxQXuScn3Vhfim83YI6+4=
-  /nopt/4.0.1:
+  /nopt/4.0.3:
     dependencies:
       abbrev: 1.1.1
       osenv: 0.1.5
     dev: false
     hasBin: true
     resolution:
-      integrity: sha1-0NRoWv1UFRk8jHUFYC0NF81kR00=
+      integrity: sha512-CvaGwVMztSMJLOeXPrez7fyfObdZqNUK1cPAEzLHrTybIua9pMdmmPR5YwtfNftIOMv3DPUhFaxsZMNTQO20Kg==
   /normalize-newline/3.0.0:
     dev: true
     engines:
@@ -12241,8 +12241,17 @@ packages:
     dependencies:
       camelcase: 5.3.1
       decamelize: 1.2.0
+    dev: true
     resolution:
       integrity: sha512-H/V41UNZQPkUMIT5h5hiwg4QKIY1RPvoBV4XcjUbRM8Bk2oKqqyZ0DIEbTFZB0XjbtSPG8SAa/0DxCQmiRgzKg==
+  /yargs-parser/18.1.0:
+    dependencies:
+      camelcase: 5.3.1
+      decamelize: 1.2.0
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-o/Jr6JBOv6Yx3pL+5naWSoIA2jJ+ZkMYQG/ie9qFbukBe4uzmBatlXFOiu/tNKRWEtyf+n5w7jc/O16ufqOTdQ==
   /yargs/13.3.0:
     dependencies:
       cliui: 5.0.0
@@ -12258,7 +12267,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2eehun/8ALW8TLoIl7MVaRUrg+yCnenu8B4kBlRxj3GJGDKU1Og7sMXPNm1BYyM1DOJmTZ4YeN/Nwxv+8XJsUA==
-  /yargs/15.1.0:
+  /yargs/15.3.0:
     dependencies:
       cliui: 6.0.0
       decamelize: 1.2.0
@@ -12270,11 +12279,11 @@ packages:
       string-width: 4.2.0
       which-module: 2.0.0
       y18n: 4.0.0
-      yargs-parser: 16.1.0
+      yargs-parser: 18.1.0
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-T39FNN1b6hCW4SOIk1XyTOWxtXdcen0t+XYrysQmChzSipvhBO8Bj0nK1ozAasdk24dNWuMZvr4k24nz+8HHLg==
+      integrity: sha512-g/QCnmjgOl1YJjGsnUg2SatC7NUYEiLXJqxNOQU9qSpjzGtGXda9b+OKccr1kLTy8BN9yqEyqfq5lxlwdc13TA==
   /yn/3.1.1:
     dev: true
     engines:

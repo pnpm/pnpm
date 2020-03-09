@@ -43,7 +43,7 @@
     "@pnpm/utils": "workspace:0.12.4",
     "chalk": "3.0.0",
     "load-json-file": "6.2.0",
-    "nopt": "4.0.1",
+    "nopt": "4.0.3",
     "ramda": "0.27.0",
     "version-selector-type": "2.0.1"
   },
