@@ -3,12 +3,11 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
-    "declaration": false,
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.js",
+    "src/**/*",
     "../../typings/**/*.d.ts"
   ]
 }
