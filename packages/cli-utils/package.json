@@ -14,7 +14,8 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "pretest": "rimraf node_modules/.bin/pnpm",
-    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/cli-utils/coverage ts-node packages/cli-utils/test --type-check",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/cli-utils/coverage ts-node packages/cli-utils/test --type-check",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/cli-utils",

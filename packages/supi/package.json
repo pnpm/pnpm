@@ -161,7 +161,8 @@
     "test:e2e": "run-p -r registry-mock test:tap",
     "pretest": "registry-mock prepare",
     "test-with-preview": "preview && pnpm run test:e2e",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run test:e2e",
+    "_test": "pnpm run test:e2e",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   }

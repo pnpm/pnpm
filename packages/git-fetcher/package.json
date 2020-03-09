@@ -8,7 +8,8 @@
     "lib"
   ],
   "scripts": {
-    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/git-fetcher/coverage ts-node packages/git-fetcher/test --type-check",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/git-fetcher/coverage ts-node packages/git-fetcher/test --type-check",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"

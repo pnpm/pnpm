@@ -159,7 +159,8 @@
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/pnpm/coverage ts-node packages/pnpm/test --type-check",
     "pretest:e2e": "rimraf node_modules/.bin/pnpm && registry-mock prepare",
     "test:e2e": "run-p -r registry-mock test:tap",
-    "test": "pnpm run lint && pnpm run tsc && cross-env PNPM_REGISTRY_MOCK_PORT=7772 npm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7772 npm run test:e2e",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "tsc": "rimraf lib && tsc",
     "release": "sh .scripts/release.sh"
   },

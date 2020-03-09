@@ -13,7 +13,8 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "test": "pnpm run tsc -- --sourceMap && ncp test/fixtures test/fixtures_for_testing && cd ../.. && c8 --reporter lcov --reports-dir packages/link-bins/coverage ts-node packages/link-bins/test --type-check && cd packages/link-bins && rimraf test/fixtures_for_testing",
+    "_test": "ncp test/fixtures test/fixtures_for_testing && cd ../.. && c8 --reporter lcov --reports-dir packages/link-bins/coverage ts-node packages/link-bins/test --type-check && cd packages/link-bins && rimraf test/fixtures_for_testing",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "prepublishOnly": "pnpm run tsc",
     "fix": "tslint -c tslint.json --project . --fix"
   },

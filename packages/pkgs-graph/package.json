@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/pkgs-graph/coverage ts-node packages/pkgs-graph/test --type-check",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/pkgs-graph/coverage ts-node packages/pkgs-graph/test --type-check",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "tsc": "tsc",
     "prepublishOnly": "pnpm run tsc"
   },

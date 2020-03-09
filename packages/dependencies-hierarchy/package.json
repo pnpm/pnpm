@@ -9,8 +9,9 @@
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "pretest": "pnpm install -rf -C fixtures --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && pnpm install -rf -C fixtureWithLinks --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile",
-    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/dependencies-hierarchy/coverage ts-node packages/dependencies-hierarchy/test --type-check",
+    "pre_test": "pnpm install -rf -C fixtures --frozen-lockfile --no-shared-workspace-lockfile --no-link-workspace-packages && pnpm install -rf -C fixtureWithLinks --frozen-lockfile --link-workspace-packages --no-shared-workspace-lockfile",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/dependencies-hierarchy/coverage ts-node packages/dependencies-hierarchy/test --type-check",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },

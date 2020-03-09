@@ -24,7 +24,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-is-installable#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/package-is-installable/coverage ts-node packages/package-is-installable/test --type-check",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-is-installable/coverage ts-node packages/package-is-installable/test --type-check",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"

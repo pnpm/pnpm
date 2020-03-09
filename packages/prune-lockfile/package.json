@@ -12,7 +12,8 @@
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "test": "pnpm run tsc -- --sourceMap && cd ../.. && c8 --reporter lcov --reports-dir packages/prune-lockfile/coverage ts-node packages/prune-lockfile/test --type-check",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/prune-lockfile/coverage ts-node packages/prune-lockfile/test --type-check",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },

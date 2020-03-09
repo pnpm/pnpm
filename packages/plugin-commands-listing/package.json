@@ -17,7 +17,8 @@
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/plugin-commands-listing/coverage ts-node packages/plugin-commands-listing/test --type-check",
     "pretest:e2e": "registry-mock prepare",
     "test:e2e": "run-p -r registry-mock test:tap",
-    "test": "pnpm run tsc -- --sourceMap && cross-env PNPM_REGISTRY_MOCK_PORT=7773 pnpm run test:e2e",
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7773 pnpm run test:e2e",
+    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-listing",
