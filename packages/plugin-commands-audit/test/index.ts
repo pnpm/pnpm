@@ -83,8 +83,19 @@ test('audit', async (t) => {
 ├─────────────────────┼──────────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/786     │
 └─────────────────────┴──────────────────────────────────────┘
-6 vulnerabilities found
-Severity: 2 low | 3 moderate | 1 high`)
+┌─────────────────────┬───────────────────────────────────┐
+│ low                 │ Validation Bypass                 │
+├─────────────────────┼───────────────────────────────────┤
+│ Package             │ kind-of                           │
+├─────────────────────┼───────────────────────────────────┤
+│ Vulnerable versions │ >=6.0.0 <6.0.3                    │
+├─────────────────────┼───────────────────────────────────┤
+│ Patched versions    │ >=6.0.3                           │
+├─────────────────────┼───────────────────────────────────┤
+│ More info           │ https://npmjs.com/advisories/1490 │
+└─────────────────────┴───────────────────────────────────┘
+7 vulnerabilities found
+Severity: 3 low | 3 moderate | 1 high`)
   t.end()
 })
 
@@ -179,8 +190,8 @@ test('audit --audit-level', async (t) => {
 ├─────────────────────┼──────────────────────────────────┤
 │ More info           │ https://npmjs.com/advisories/880 │
 └─────────────────────┴──────────────────────────────────┘
-6 vulnerabilities found
-Severity: 2 low | 3 moderate | 1 high`)
+7 vulnerabilities found
+Severity: 3 low | 3 moderate | 1 high`)
   t.end()
 })
 
