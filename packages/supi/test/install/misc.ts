@@ -1167,8 +1167,7 @@ test.only('globally installed package which don\'t have bins should log warning 
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
-  const opts = await testDefaults({ reporter })
-  opts.global = true
+  const opts = await testDefaults({ global: true, reporter })
 
   await mutateModules([
     {
