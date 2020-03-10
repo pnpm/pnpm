@@ -1162,3 +1162,30 @@ test('fail if none of the available resolvers support a version spec', async (t:
     ],
   )
 })
+
+test('globally installed package which don\'t have bins should log warning message', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  const reporter = sinon.spy()
+
+  const opts = await testDefaults({ global: true, reporter })
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest: {
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], opts)
+
+  t.ok(reporter.calledWithMatch({
+    message: 'is-positive has no binaries',
+    prefix: process.cwd(),
+  }))
+
+  t.end()
+})

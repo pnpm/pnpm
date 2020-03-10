@@ -81,7 +81,7 @@ async function linkBins (
     warn: (msg: string) => void,
   },
 ) {
-  if (!allCmds.length) return
+  if (!allCmds.length) return [] as string[]
 
   await makeDir(binPath)
 
@@ -105,6 +105,8 @@ async function linkBins (
       throw result.reason
     }
   }
+
+  return allCmds.map(cmd => cmd.pkgName)
 }
 
 async function isFromModules (filename: string) {
