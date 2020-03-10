@@ -1163,7 +1163,7 @@ test('fail if none of the available resolvers support a version spec', async (t:
   )
 })
 
-test.only('globally installed package which don\'t have bins should log warning message', async (t: tape.Test) => {
+test('globally installed package which don\'t have bins should log warning message', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
