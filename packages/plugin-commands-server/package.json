@@ -26,7 +26,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-server#readme",
   "devDependencies": {
     "@pnpm/logger": "^3.1.0",
     "@pnpm/plugin-commands-server": "link:",

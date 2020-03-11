@@ -2,11 +2,7 @@
   "name": "@pnpm/headless",
   "description": "Fast installation using only pnpm-lock.yaml",
   "version": "12.1.13",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -47,7 +43,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/headless#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/headless#readme",
   "keywords": [
     "pnpm",
     "install",

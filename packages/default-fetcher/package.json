@@ -28,7 +28,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/default-fetcher#readme",
   "dependencies": {
     "@pnpm/git-fetcher": "workspace:2.0.10",
     "@pnpm/resolver-base": "workspace:7.0.0",

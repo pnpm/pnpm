@@ -29,7 +29,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-listing#readme",
   "devDependencies": {
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/filter-workspace-packages": "workspace:2.0.3",

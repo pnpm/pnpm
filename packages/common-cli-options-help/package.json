@@ -25,5 +25,5 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/common-cli-options-help#readme"
 }

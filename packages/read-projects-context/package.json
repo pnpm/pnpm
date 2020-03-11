@@ -1,11 +1,7 @@
 {
   "name": "@pnpm/read-projects-context",
   "version": "1.0.4",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,5 +33,8 @@
   },
   "devDependencies": {
     "@pnpm/logger": "3.1.0"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
   }
 }

@@ -2,11 +2,7 @@
   "name": "@pnpm/core-loggers",
   "description": "Core loggers of pnpm",
   "version": "4.0.1",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -39,5 +35,6 @@
   },
   "dependencies": {
     "@pnpm/types": "workspace:^5.0.0"
-  }
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/core-loggers#readme"
 }

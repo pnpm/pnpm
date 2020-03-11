@@ -2,11 +2,7 @@
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
   "version": "3.0.3",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -25,7 +21,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/symlink-dependency#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/symlink-dependency#readme",
   "keywords": [
     "pnpm"
   ],

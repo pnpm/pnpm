@@ -20,12 +20,7 @@
   "keywords": [
     "pnpm-reporter"
   ],
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/",
-    "twitter": "ZoltanKochan"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "engines": {
     "node": ">=10"
   },
@@ -65,5 +60,6 @@
     "ghooks": "2.0.4",
     "load-json-file": "6.2.0",
     "normalize-newline": "3.0.0"
-  }
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/default-reporter#readme"
 }

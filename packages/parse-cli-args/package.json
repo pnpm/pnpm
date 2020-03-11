@@ -26,7 +26,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/parse-cli-args#readme",
   "devDependencies": {
     "@pnpm/parse-cli-args": "link:",
     "@types/nopt": "3.0.29"

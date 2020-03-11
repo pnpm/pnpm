@@ -23,11 +23,7 @@
     "list",
     "ls"
   ],
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "engines": {
     "node": ">=10"
   },

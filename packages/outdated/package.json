@@ -24,12 +24,7 @@
     "pnpm",
     "outdated"
   ],
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/",
-    "twitter": "ZoltanKochan"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

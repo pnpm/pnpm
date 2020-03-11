@@ -30,7 +30,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-store#readme",
   "devDependencies": {
     "@pnpm/assert-store": "workspace:1.0.0",
     "@pnpm/lockfile-file": "workspace:3.0.5",

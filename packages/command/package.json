@@ -16,7 +16,7 @@
     "test": "pnpm run tsc -- --sourceMap",
     "prepublishOnly": "pnpm run tsc"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-installation",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/command",
   "keywords": [
     "pnpm"
   ],
@@ -25,5 +25,5 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/command#readme"
 }

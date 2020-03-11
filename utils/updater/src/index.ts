@@ -69,8 +69,30 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       }
       break
   }
+  let homepage: string
+  let repository: string | { type: 'git', url: string }
+  if (manifest.name === 'pnpm') {
+    homepage = 'https://pnpm.js.org'
+    repository = {
+      type: 'git',
+      url: 'git+https://github.com/pnpm/pnpm.git',
+    }
+  } else {
+    homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
+    repository = `https://github.com/pnpm/pnpm/blob/master/${relative}`
+  }
   return {
     ...manifest,
+    author: 'Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)',
+    bugs: {
+      url: 'https://github.com/pnpm/pnpm/issues',
+    },
+    engines: {
+      node: '>=10',
+    },
+    license: 'MIT',
     scripts,
+    homepage,
+    repository,
   }
 }

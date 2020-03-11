@@ -2,11 +2,7 @@
   "name": "@pnpm/modules-cleaner",
   "version": "8.0.11",
   "description": "Exports util functions to clean up node_modules",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -50,5 +46,8 @@
     "@pnpm/modules-cleaner": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/ramda": "^0.26.43"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
   }
 }

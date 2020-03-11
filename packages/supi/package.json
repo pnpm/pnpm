@@ -2,11 +2,7 @@
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
   "version": "0.38.19",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -122,7 +118,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/supi#readme",
   "keywords": [
     "dependency manager",
     "install",

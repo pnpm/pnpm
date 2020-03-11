@@ -2,12 +2,7 @@
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
   "version": "4.11.4",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/",
-    "twitter": "ZoltanKochan"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bin": {
     "pnpm": "bin/pnpm.js",
     "pnpx": "bin/pnpx.js"

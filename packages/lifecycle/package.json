@@ -29,7 +29,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/tree/master/packages/lifecycle#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lifecycle#readme",
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"
   },

@@ -27,7 +27,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-audit#readme",
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "link:",
     "@pnpm/types": "workspace:5.0.0",

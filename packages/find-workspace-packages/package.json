@@ -25,7 +25,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/find-workspace-packages#readme",
   "devDependencies": {
     "@pnpm/find-workspace-packages": "link:"
   },

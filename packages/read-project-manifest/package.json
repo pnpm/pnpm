@@ -17,21 +17,16 @@
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/read-importer-manifest",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/read-project-manifest",
   "keywords": [
     "pnpm"
   ],
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/",
-    "twitter": "ZoltanKochan"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-importer-manifest#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-project-manifest#readme",
   "dependencies": {
     "@pnpm/error": "workspace:1.1.0",
     "@pnpm/types": "workspace:^5.0.0",

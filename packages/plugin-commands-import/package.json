@@ -31,7 +31,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-import#readme",
   "devDependencies": {
     "@pnpm/assert-project": "workspace:2.0.0",
     "@pnpm/plugin-commands-import": "link:",

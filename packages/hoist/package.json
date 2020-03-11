@@ -2,11 +2,7 @@
   "name": "@pnpm/hoist",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "version": "2.1.9",
-  "author": {
-    "name": "Zoltan Kochan",
-    "email": "z@kochan.io",
-    "url": "https://www.kochan.io/"
-  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
@@ -25,7 +21,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/pnpm/hoist#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/hoist#readme",
   "keywords": [
     "pnpm"
   ],

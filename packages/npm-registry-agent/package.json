@@ -37,5 +37,8 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/npm-registry-agent#readme",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "engines": {
+    "node": ">=10"
   }
 }
