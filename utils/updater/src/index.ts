@@ -90,9 +90,9 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
     engines: {
       node: '>=10',
     },
-    license: 'MIT',
-    scripts,
     homepage,
+    license: 'MIT',
     repository,
+    scripts,
   }
 }
