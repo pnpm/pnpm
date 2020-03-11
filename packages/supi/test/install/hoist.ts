@@ -434,8 +434,8 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   {
     const modulesManifest = await rootNodeModules.readModulesManifest()
     t.deepEqual(modulesManifest?.hoistedAliases, {
-      'localhost+4873/dep-of-pkg-with-1-dep/100.0.0': ['dep-of-pkg-with-1-dep'],
-      'localhost+4873/foo/100.0.0': ['foo'],
+      [`localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.0.0`]: ['dep-of-pkg-with-1-dep'],
+      [`localhost+${REGISTRY_MOCK_PORT}/foo/100.0.0`]: ['foo'],
     })
   }
 
@@ -462,7 +462,7 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   {
     const modulesManifest = await rootNodeModules.readModulesManifest()
     t.deepEqual(modulesManifest?.hoistedAliases, {
-      'localhost+4873/dep-of-pkg-with-1-dep/100.0.0': ['dep-of-pkg-with-1-dep'],
+      [`localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.0.0`]: ['dep-of-pkg-with-1-dep'],
     })
   }
 })

@@ -27,7 +27,7 @@ export default function packageIsInstallable (
     engineStrict?: boolean,
     nodeVersion?: string,
     optional: boolean,
-    pnpmVersion: string,
+    pnpmVersion?: string,
     lockfileDir: string,
   },
 ): boolean | null {
@@ -69,7 +69,7 @@ export function checkPackage (
   },
   options: {
     nodeVersion?: string,
-    pnpmVersion: string,
+    pnpmVersion?: string,
   },
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return checkPlatform(pkgId, {

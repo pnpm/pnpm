@@ -2,16 +2,20 @@ import { DependencyManifest } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 
+const defaultManifest = {
+  name: 'unknown',
+  version: '0.0.0',
+}
 let pkgJson
 try {
-  pkgJson = loadJsonFile.sync<DependencyManifest>(
-    path.join(path.dirname(require.main!.filename), '../package.json'),
-  )
-} catch (err) {
   pkgJson = {
-    name: 'unknown',
-    version: '0.0.0',
+    ...defaultManifest,
+    ...loadJsonFile.sync<DependencyManifest>(
+      path.join(path.dirname(require.main!.filename), '../package.json'),
+    ),
   }
+} catch (err) {
+  pkgJson = defaultManifest
 }
 
 const packageManager = {

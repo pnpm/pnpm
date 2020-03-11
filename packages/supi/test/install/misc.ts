@@ -1155,7 +1155,7 @@ test('fail if none of the available resolvers support a version spec', async (t:
     err.pkgsStack,
     [
       {
-        id: 'localhost+4873/@types/plotly.js/1.44.29',
+        id: `localhost+${REGISTRY_MOCK_PORT}/@types/plotly.js/1.44.29`,
         name: '@types/plotly.js',
         version: '1.44.29',
       },

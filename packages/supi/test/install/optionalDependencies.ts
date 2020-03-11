@@ -164,7 +164,13 @@ test('skip optional dependency that does not support the current pnpm version', 
     optionalDependencies: {
       'for-legacy-pnpm': '*',
     },
-  }, await testDefaults({ reporter }))
+  }, await testDefaults({
+    packageManager: {
+      name: 'pnpm',
+      version: '4.0.0',
+    },
+    reporter,
+  }))
 
   await project.hasNot('for-legacy-pnpm')
   await project.storeHas('for-legacy-pnpm', '1.0.0')

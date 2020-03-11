@@ -11,13 +11,13 @@
     "lib"
   ],
   "scripts": {
-    "pretest": "registry-mock prepare",
     "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "prepublishOnly": "pnpm run tsc",
     "tsc": "tsc",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/outdated/coverage ts-node packages/outdated/test --type-check",
-    "_test": "run-p -r registry-mock test:tap"
+    "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7771 pnpm run test:e2e",
+    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/outdated",
   "keywords": [

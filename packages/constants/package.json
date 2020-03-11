@@ -11,7 +11,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "pnpm run tsc -- --sourceMap && tslint -c ../../tslint.json -p .",
+    "test": "pnpm run tsc -- --sourceMap",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "pnpm run tsc"
   },

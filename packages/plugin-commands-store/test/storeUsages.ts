@@ -34,7 +34,7 @@ test('find usages for single package in store and in a project', async (t) => {
       output,
       stripIndent`
         Package: is-negative
-        └─┬ Package in store: localhost+7778/is-negative/2.1.0
+        └─┬ Package in store: localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0
           └── Project with dependency: ${path.resolve('node_modules')}` + '\n',
       'finds usages by package name',
     )
@@ -49,7 +49,7 @@ test('find usages for single package in store and in a project', async (t) => {
       output,
       stripIndent`
         Package: is-negative@2.1.0
-        └─┬ Package in store: localhost+7778/is-negative/2.1.0
+        └─┬ Package in store: localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0
           └── Project with dependency: ${path.resolve('node_modules')}` + '\n',
       'finds usages by package name and version',
     )
@@ -79,11 +79,11 @@ test('find usages for single package in store and in a project', async (t) => {
       output,
       stripIndent`
         Package: is-negative
-        └─┬ Package in store: localhost+7778/is-negative/2.1.0
+        └─┬ Package in store: localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0
           └── Project with dependency: ${path.resolve('node_modules')}
 
         Package: is-odd
-        └─┬ Package in store: localhost+7778/is-odd/3.0.0
+        └─┬ Package in store: localhost+${REGISTRY_MOCK_PORT}/is-odd/3.0.0
           └── Project with dependency: ${path.resolve('node_modules')}` + '\n',
       'finds usages of two packages',
     )
@@ -115,7 +115,7 @@ test('find usages for package(s) in store but not in any projects', async (t) =>
       output,
       stripIndent`
         Package: is-negative
-        └─┬ Package in store: localhost+7778/is-negative/2.1.0
+        └─┬ Package in store: localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0
           └── No pnpm projects using this package` + '\n',
       'finds usage of package',
     )
@@ -136,9 +136,9 @@ test('find usages for package(s) in store but not in any projects', async (t) =>
       output,
       stripIndent`
         Package: is-negative
-        ├─┬ Package in store: localhost+7778/is-negative/2.1.0
+        ├─┬ Package in store: localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0
         │ └── No pnpm projects using this package
-        └─┬ Package in store: localhost+7778/is-negative/2.0.0
+        └─┬ Package in store: localhost+${REGISTRY_MOCK_PORT}/is-negative/2.0.0
           └── No pnpm projects using this package` + '\n',
       'finds usages of packages',
     )

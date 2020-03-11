@@ -9,7 +9,7 @@ export { Project }
 
 export default async (
   workspaceRoot: string,
-  opts: { engineStrict?: boolean },
+  opts?: { engineStrict?: boolean },
 ) => {
   const packagesManifest = await requirePackagesManifest(workspaceRoot)
   const pkgs = await findPackages(workspaceRoot, {
@@ -22,7 +22,7 @@ export default async (
   })
   pkgs.sort((pkg1: {dir: string}, pkg2: {dir: string}) => pkg1.dir.localeCompare(pkg2.dir))
   for (const pkg of pkgs) {
-    packageIsInstallable(pkg.dir, pkg.manifest, opts)
+    packageIsInstallable(pkg.dir, pkg.manifest, opts ?? {})
   }
 
   return pkgs as Project[]

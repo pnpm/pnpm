@@ -6,12 +6,13 @@ import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
 import path = require('path')
 import test = require('tape')
+import tempy = require('tempy')
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 test('CLI fails when store status finds modified packages', async function (t) {
   const project = prepare(t)
-  const storeDir = path.resolve('pnpm-store')
+  const storeDir = tempy.directory()
 
   await execa('pnpm', ['add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
@@ -40,7 +41,7 @@ test('CLI fails when store status finds modified packages', async function (t) {
 
 test('CLI does not fail when store status does not find modified packages', async function (t) {
   const project = prepare(t)
-  const storeDir = path.resolve('pnpm-store')
+  const storeDir = tempy.directory()
 
   await execa('pnpm', ['add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
   // store status does not fail on not installed optional dependencies

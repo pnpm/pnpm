@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/plugin-commands-audit/coverage ts-node packages/plugin-commands-audit/test",
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/plugin-commands-audit/coverage ts-node packages/plugin-commands-audit/test --type-check",
     "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
     "prepublishOnly": "pnpm run tsc"
   },

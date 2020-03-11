@@ -157,9 +157,9 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/pnpm/coverage ts-node packages/pnpm/test --type-check",
-    "pretest:e2e": "rimraf node_modules/.bin/pnpm && registry-mock prepare",
-    "test:e2e": "run-p -r registry-mock test:tap",
-    "_test": "pnpm run tsc && cross-env PNPM_REGISTRY_MOCK_PORT=7772 npm run test:e2e",
+    "pretest:e2e": "rimraf node_modules/.bin/pnpm",
+    "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",
+    "_test": "pnpm run tsc && cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
     "test": "pnpm run _test",
     "tsc": "rimraf lib && tsc",
     "release": "sh .scripts/release.sh"

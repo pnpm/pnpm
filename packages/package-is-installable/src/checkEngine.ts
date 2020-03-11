@@ -24,7 +24,7 @@ export default function checkEngine (
   if (wantedEngine.node && !semver.satisfies(currentEngine.node, wantedEngine.node)) {
     unsatisfiedWanted.node = wantedEngine.node
   }
-  if (wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm)) {
+  if (currentEngine.pnpm && wantedEngine.pnpm && !semver.satisfies(currentEngine.pnpm, wantedEngine.pnpm)) {
     unsatisfiedWanted.pnpm = wantedEngine.pnpm
   }
   if (Object.keys(unsatisfiedWanted).length) {
@@ -35,7 +35,7 @@ export default function checkEngine (
 
 export type Engine = {
   node: string,
-  pnpm: string,
+  pnpm?: string,
 }
 
 export type WantedEngine = Partial<Engine>

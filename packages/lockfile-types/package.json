@@ -18,5 +18,6 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme",
+  "scripts": {}
 }
