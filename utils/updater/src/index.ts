@@ -14,11 +14,15 @@ const repoRoot = path.join(__dirname, '../../..')
   const pkgsDir = path.join(repoRoot, 'packages')
   const lockfile = await readWantedLockfile(repoRoot, { ignoreIncompatible: false })
   for (const { dir, manifest, writeProjectManifest } of pkgs) {
-    if (!isSubdir(pkgsDir, dir)) continue
-    await writeProjectManifest(await updateManifest(dir, manifest))
-    if (manifest.name === '@pnpm/fetch') continue
+    if (isSubdir(pkgsDir, dir)) {
+      await writeProjectManifest(await updateManifest(dir, manifest))
+    }
+    if (manifest.name === '@pnpm/fetch' || manifest.name === '@pnpm/tsconfig') continue
     const relative = path.relative(repoRoot, dir)
     const importer = lockfile.importers[relative]
+    if (!importer) continue
+    const tsconfigLoc = path.join(dir, 'tsconfig.json')
+    if (!await exists(tsconfigLoc)) continue
     const deps = {
       ...importer.dependencies,
       ...importer.devDependencies,
@@ -28,8 +32,8 @@ const repoRoot = path.join(__dirname, '../../..')
       if (!spec.startsWith('link:') || spec.length === 5 || spec === 'link:../fetch') continue
       references.push({ path: spec.substr(5) })
     }
-    const tsConfig = await loadJsonFile<Object>(path.join(dir, 'tsconfig.json'))
-    await writeJsonFile(path.join(dir, 'tsconfig.json'), {
+    const tsConfig = await loadJsonFile<Object>(tsconfigLoc)
+    await writeJsonFile(tsconfigLoc, {
       ...tsConfig,
       compilerOptions: {
         ...tsConfig['compilerOptions'],
