@@ -5,6 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
+    "!*.map",
     "lib"
   ],
   "engines": {
@@ -12,11 +13,11 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "pre_test": "ncp test/fixtures test/fixtures_for_testing",
     "post_test": "rimraf test/fixtures_for_testing",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/link-bins/coverage ts-node packages/link-bins/test --type-check",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
+    "test": "pnpm run tsc && pnpm run _test",
     "prepublishOnly": "pnpm run tsc",
     "fix": "tslint -c tslint.json --project . --fix"
   },

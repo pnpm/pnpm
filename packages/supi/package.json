@@ -9,7 +9,8 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib/"
+    "!*.map",
+    "lib"
   ],
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"
@@ -157,8 +158,8 @@
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",
     "test-with-preview": "preview && pnpm run test:e2e",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=4873 pnpm run test:e2e",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
-    "tsc": "rimraf lib && tsc",
+    "test": "pnpm run tsc && pnpm run _test",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "prepublishOnly": "pnpm run tsc"
   }
 }

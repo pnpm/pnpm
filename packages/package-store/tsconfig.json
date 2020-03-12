@@ -1,10 +1,37 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../core-loggers"
+    },
+    {
+      "path": "../fetcher-base"
+    },
+    {
+      "path": "../package-requester"
+    },
+    {
+      "path": "../resolver-base"
+    },
+    {
+      "path": "../store-controller-types"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../npm-resolver"
+    },
+    {
+      "path": "../tarball-fetcher"
+    }
   ]
 }

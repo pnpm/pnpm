@@ -1,10 +1,91 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../build-modules"
+    },
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../core-loggers"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../filter-lockfile"
+    },
+    {
+      "path": "../hoist"
+    },
+    {
+      "path": "../lifecycle"
+    },
+    {
+      "path": "../link-bins"
+    },
+    {
+      "path": "../lockfile-file"
+    },
+    {
+      "path": "../lockfile-utils"
+    },
+    {
+      "path": "../matcher"
+    },
+    {
+      "path": "../modules-cleaner"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
+      "path": "../package-requester"
+    },
+    {
+      "path": "../read-package-json"
+    },
+    {
+      "path": "../read-project-manifest"
+    },
+    {
+      "path": "../store-controller-types"
+    },
+    {
+      "path": "../symlink-dependency"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../utils"
+    },
+    {
+      "path": "../dependency-path"
+    },
+    {
+      "path": "../../privatePackages/assert-project"
+    },
+    {
+      "path": "../default-fetcher"
+    },
+    {
+      "path": "../default-resolver"
+    },
+    {
+      "path": "../package-store"
+    },
+    {
+      "path": "../read-projects-context"
+    }
   ]
 }

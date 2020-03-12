@@ -6,6 +6,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
+    "!*.map",
     "lib"
   ],
   "keywords": [],
@@ -17,9 +18,9 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-modules-dir#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc -- --sourceMap",
+    "test": "pnpm run tsc",
     "lint": "tslint -c ../../tslint.json --project .",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "prepublishOnly": "pnpm run tsc"
   },
   "dependencies": {

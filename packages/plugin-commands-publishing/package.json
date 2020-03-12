@@ -5,6 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
+    "!*.map",
     "lib"
   ],
   "engines": {
@@ -12,12 +13,12 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/plugin-commands-publishing/coverage ts-node packages/plugin-commands-publishing/test --type-check",
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",
     "_test": "cross-env PNPM_REGISTRY_MOCK_PORT=7776 pnpm run test:e2e",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
+    "test": "pnpm run tsc && pnpm run _test",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing",

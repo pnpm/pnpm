@@ -9,7 +9,8 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "lib/"
+    "!*.map",
+    "lib"
   ],
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"
@@ -74,8 +75,8 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-store/coverage ts-node packages/package-store/test --type-check",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
-    "tsc": "rimraf lib && tsc",
+    "test": "pnpm run tsc && pnpm run _test",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "prepublishOnly": "pnpm run tsc"
   }
 }

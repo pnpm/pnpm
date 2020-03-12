@@ -5,13 +5,14 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
+    "!*.map",
     "lib"
   ],
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "lint": "tslint -c ../../tslint.json --project .",
-    "tsc": "rimraf lib && tsc --pretty",
-    "test": "pnpm run tsc -- --sourceMap",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "test": "pnpm run tsc",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/fetcher-base",

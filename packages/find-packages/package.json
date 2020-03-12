@@ -4,14 +4,15 @@
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
+    "!*.map",
     "lib"
   ],
   "typings": "lib/index.d.ts",
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/find-packages/coverage ts-node packages/find-packages/test --type-check",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
-    "tsc": "tsc",
+    "test": "pnpm run tsc && pnpm run _test",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/find-packages",

@@ -6,7 +6,7 @@
     "test-branch": "pnpm run lint && git remote set-branches --add origin master && git fetch && pnpm run build && run-p -r verdaccio test-pkgs-branch",
     "test-pkgs-branch": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm run _test --filter=...[origin/master]",
     "verdaccio": "verdaccio --config ./verdaccio.yaml --listen 7348",
-    "build": "pnpm run -r tsc -- --sourceMap",
+    "build": "pnpm run --filter @pnpm/fetch tsc && pnpm run --filter pnpm tsc",
     "coveralls": "lcov-result-merger './packages/*/coverage/lcov.info' | coveralls"
   },
   "devDependencies": {
