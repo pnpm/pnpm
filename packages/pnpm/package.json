@@ -12,8 +12,9 @@
   },
   "main": "lib/bin/pnpm.js",
   "files": [
-    "bin/",
-    "lib/"
+    "!*.map",
+    "bin",
+    "lib"
   ],
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.3.9",
@@ -156,7 +157,7 @@
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",
     "_test": "pnpm run tsc && cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
     "test": "pnpm run _test",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "release": "sh .scripts/release.sh"
   },
   "publishconfig": {

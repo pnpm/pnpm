@@ -1,10 +1,82 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../command"
+    },
+    {
+      "path": "../common-cli-options-help"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../filter-workspace-packages"
+    },
+    {
+      "path": "../find-workspace-dir"
+    },
+    {
+      "path": "../find-workspace-packages"
+    },
+    {
+      "path": "../outdated"
+    },
+    {
+      "path": "../package-store"
+    },
+    {
+      "path": "../plugin-commands-rebuild"
+    },
+    {
+      "path": "../pnpmfile"
+    },
+    {
+      "path": "../resolver-base"
+    },
+    {
+      "path": "../sort-packages"
+    },
+    {
+      "path": "../store-connection-manager"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../utils"
+    },
+    {
+      "path": "../supi"
+    },
+    {
+      "path": "../lockfile-types"
+    },
+    {
+      "path": "../matcher"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    }
   ]
 }

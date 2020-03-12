@@ -2826,14 +2826,20 @@ importers:
   utils/updater:
     dependencies:
       '@pnpm/find-workspace-packages': 'link:../../packages/find-workspace-packages'
+      '@pnpm/lockfile-file': 'link:../../packages/lockfile-file'
       '@pnpm/types': 'link:../../packages/types'
       is-subdir: 1.1.1
+      load-json-file: 6.2.0
       path-exists: 4.0.0
+      write-json-file: 4.3.0
     specifiers:
       '@pnpm/find-workspace-packages': 'workspace:2.1.10'
+      '@pnpm/lockfile-file': 'workspace:3.0.5'
       '@pnpm/types': 'workspace:5.0.0'
       is-subdir: 1.1.1
+      load-json-file: 6.2.0
       path-exists: 4.0.0
+      write-json-file: 4.3.0
 lockfileVersion: 5.1
 packages:
   /@babel/code-frame/7.8.3:
@@ -12136,6 +12142,19 @@ packages:
       node: '>=8.3'
     resolution:
       integrity: sha512-nkmp9weFMmE0Zev48m6sr9zU2iHO2BemwqfIasXny4DzIKIoKt9WEbgdMW0pwk9DmzC8jzSwixkjgK2vu1zw4g==
+  /write-json-file/4.3.0:
+    dependencies:
+      detect-indent: 6.0.0
+      graceful-fs: 4.2.3
+      is-plain-obj: 2.1.0
+      make-dir: 3.0.2
+      sort-keys: 4.0.0
+      write-file-atomic: 3.0.3
+    dev: false
+    engines:
+      node: '>=8.3'
+    resolution:
+      integrity: sha512-PxiShnxf0IlnQuMYOPPhPkhExoCQuTUNPOa/2JWCYTmBquU9njyyDuwRKN26IZBlp4yn1nt+Agh2HOOBl+55HQ==
   /write-json5-file/2.1.2:
     dependencies:
       graceful-fs: 4.2.3

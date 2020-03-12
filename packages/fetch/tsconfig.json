@@ -3,8 +3,9 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
-    "outDir": "lib",
-    "rootDir": "src"
+    "composite": false,
+    "declaration": false,
+    "outDir": "lib"
   },
   "include": [
     "src/**/*",

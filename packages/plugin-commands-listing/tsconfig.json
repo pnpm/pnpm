@@ -1,10 +1,43 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../common-cli-options-help"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../error"
+    },
+    {
+      "path": "../list"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../filter-workspace-packages"
+    },
+    {
+      "path": "../plugin-commands-installation"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    }
   ]
 }

@@ -9,7 +9,20 @@
     "../../typings/**/*.d.ts"
   ],
   "references": [
-    { "path": "../fetch" },
-    { "path": "../lockfile-walker" }
+    {
+      "path": "../lockfile-types"
+    },
+    {
+      "path": "../lockfile-utils"
+    },
+    {
+      "path": "../lockfile-walker"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../lockfile-file"
+    }
   ]
 }

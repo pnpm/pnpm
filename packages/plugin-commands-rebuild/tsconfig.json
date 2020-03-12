@@ -1,10 +1,76 @@
 {
   "extends": "@pnpm/tsconfig",
   "compilerOptions": {
-    "outDir": "lib"
+    "outDir": "lib",
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../cli-utils"
+    },
+    {
+      "path": "../common-cli-options-help"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../constants"
+    },
+    {
+      "path": "../core-loggers"
+    },
+    {
+      "path": "../find-workspace-packages"
+    },
+    {
+      "path": "../get-context"
+    },
+    {
+      "path": "../lifecycle"
+    },
+    {
+      "path": "../link-bins"
+    },
+    {
+      "path": "../lockfile-utils"
+    },
+    {
+      "path": "../lockfile-walker"
+    },
+    {
+      "path": "../modules-yaml"
+    },
+    {
+      "path": "../sort-packages"
+    },
+    {
+      "path": "../store-connection-manager"
+    },
+    {
+      "path": "../store-controller-types"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../utils"
+    },
+    {
+      "path": "../dependency-path"
+    },
+    {
+      "path": "../filter-workspace-packages"
+    },
+    {
+      "path": "../../privatePackages/prepare"
+    },
+    {
+      "path": "../../privatePackages/test-fixtures"
+    }
   ]
 }

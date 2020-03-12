@@ -5,15 +5,16 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
+    "!*.map",
     "lib"
   ],
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/npm-registry-agent/coverage ts-node packages/npm-registry-agent/test --type-check",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
+    "test": "pnpm run tsc && pnpm run _test",
     "prepublishOnly": "pnpm run tsc",
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix"
   },

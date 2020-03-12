@@ -8,13 +8,14 @@
     "node": ">=10"
   },
   "files": [
-    "lib/"
+    "!*.map",
+    "lib"
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/prune-lockfile/coverage ts-node packages/prune-lockfile/test --type-check",
-    "test": "pnpm run tsc -- --sourceMap && pnpm run _test",
-    "tsc": "rimraf lib && tsc",
+    "test": "pnpm run tsc && pnpm run _test",
+    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "prepublishOnly": "pnpm run tsc"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/prune-lockfile",

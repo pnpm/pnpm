@@ -7,5 +7,16 @@
   "include": [
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../lockfile-types"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../dependency-path"
+    }
   ]
 }
