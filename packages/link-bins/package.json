@@ -13,13 +13,13 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json --project .",
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "pre_test": "ncp test/fixtures test/fixtures_for_testing",
     "post_test": "rimraf test/fixtures_for_testing",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/link-bins/coverage ts-node packages/link-bins/test --type-check",
-    "test": "pnpm run tsc && pnpm run _test",
-    "prepublishOnly": "pnpm run tsc",
-    "fix": "tslint -c tslint.json --project . --fix"
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "fix": "tslint -c tslint.json --project . --fix",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/link-bins",
   "keywords": [

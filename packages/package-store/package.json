@@ -75,8 +75,8 @@
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "pretest": "rimraf .tmp",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-store/coverage ts-node packages/package-store/test --type-check",
-    "test": "pnpm run tsc && pnpm run _test",
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
-    "prepublishOnly": "pnpm run tsc"
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   }
 }

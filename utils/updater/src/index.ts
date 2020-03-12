@@ -77,9 +77,9 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       }
       if (manifest.name === 'pnpm') {
         scripts.test = 'pnpm run _test'
-        scripts._test = `pnpm run tsc && cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
+        scripts._test = `pnpm run compile && cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
       } else {
-        scripts.test = 'pnpm run tsc && pnpm run _test'
+        scripts.test = 'pnpm run compile && pnpm run _test'
         scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
       }
       break
@@ -88,21 +88,23 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
         scripts = {
           ...manifest.scripts,
           _test: `cd ../.. && c8 --reporter lcov --reports-dir ${path.join(relative, 'coverage')} ts-node ${path.join(relative, 'test')} --type-check`,
-          test: 'pnpm run tsc && pnpm run _test',
+          test: 'pnpm run compile && pnpm run _test',
         }
       } else {
         scripts = {
           ...manifest.scripts,
-          test: 'pnpm run tsc',
+          test: 'pnpm run compile',
         }
       }
       break
   }
   if (manifest.name === '@pnpm/fetch') {
-    scripts.tsc = 'rimraf lib && tsc && cpy src/**/*.d.ts lib'
+    scripts.compile = 'rimraf lib && tsc && cpy src/**/*.d.ts lib'
   } else {
-    scripts.tsc = 'rimraf lib tsconfig.tsbuildinfo && tsc --build'
+    scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build'
   }
+  delete scripts.tsc
+  scripts.prepublishOnly = 'pnpm run compile'
   let homepage: string
   let repository: string | { type: 'git', url: string }
   if (manifest.name === 'pnpm') {

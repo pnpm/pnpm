@@ -21,10 +21,10 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/modules-cleaner#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc",
+    "test": "pnpm run compile",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
-    "prepublishOnly": "pnpm run tsc"
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",

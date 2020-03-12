@@ -14,9 +14,9 @@
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/write-project-manifest/coverage ts-node packages/write-project-manifest/test --type-check",
-    "test": "pnpm run tsc && pnpm run _test",
-    "prepublishOnly": "pnpm run tsc",
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/packages/write-project-manifest",
   "keywords": [

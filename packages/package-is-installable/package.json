@@ -22,10 +22,10 @@
   "scripts": {
     "start": "pnpm run tsc -- --watch",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/package-is-installable/coverage ts-node packages/package-is-installable/test --type-check",
-    "test": "pnpm run tsc && pnpm run _test",
+    "test": "pnpm run compile && pnpm run _test",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
-    "prepublishOnly": "pnpm run tsc"
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",

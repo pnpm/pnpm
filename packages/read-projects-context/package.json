@@ -21,10 +21,10 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/read-projects-context#readme",
   "scripts": {
     "start": "pnpm run tsc -- --watch",
-    "test": "pnpm run tsc",
+    "test": "pnpm run compile",
     "lint": "tslint -c ../../tslint.json --project .",
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
-    "prepublishOnly": "pnpm run tsc"
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
     "@pnpm/lockfile-file": "workspace:3.0.5",

@@ -12,11 +12,11 @@
   "license": "MIT",
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/npm-registry-agent/coverage ts-node packages/npm-registry-agent/test --type-check",
-    "test": "pnpm run tsc && pnpm run _test",
-    "prepublishOnly": "pnpm run tsc",
-    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix"
+    "test": "pnpm run compile && pnpm run _test",
+    "prepublishOnly": "pnpm run compile",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "devDependencies": {
     "@types/http-proxy-agent": "^2.0.2",

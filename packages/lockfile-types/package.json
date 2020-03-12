@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-types#readme",
   "scripts": {
-    "tsc": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "prepublishOnly": "pnpm run compile"
   }
 }
