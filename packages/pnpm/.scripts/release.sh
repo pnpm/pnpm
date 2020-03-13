@@ -2,6 +2,6 @@
 set -e
 set -u
 
-pnpm run tsc
+pnpm run compile
 npm cache clear --force
 publish-packed --tag next --prune

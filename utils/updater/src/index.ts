@@ -104,16 +104,17 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
     scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build'
   }
   delete scripts.tsc
-  scripts.prepublishOnly = 'pnpm run compile'
   let homepage: string
   let repository: string | { type: 'git', url: string }
   if (manifest.name === 'pnpm') {
+    delete scripts.prepublishOnly
     homepage = 'https://pnpm.js.org'
     repository = {
       type: 'git',
       url: 'git+https://github.com/pnpm/pnpm.git',
     }
   } else {
+    scripts.prepublishOnly = 'pnpm run compile'
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
     repository = `https://github.com/pnpm/pnpm/blob/master/${relative}`
   }
