@@ -13,8 +13,8 @@ import logger from '@pnpm/logger'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  DEPENDENCIES_FIELDS,
   DependenciesField,
+  DEPENDENCIES_FIELDS,
   Registries,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'

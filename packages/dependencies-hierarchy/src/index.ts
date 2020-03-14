@@ -13,7 +13,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDir from '@pnpm/read-modules-dir'
-import { DEPENDENCIES_FIELDS, DependenciesField, Registries } from '@pnpm/types'
+import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import {
   normalizeRegistries,
   realNodeModulesDir,

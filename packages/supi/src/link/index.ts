@@ -16,8 +16,8 @@ import { pruneSharedLockfile } from '@pnpm/prune-lockfile'
 import readProjectManifest from '@pnpm/read-project-manifest'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
-  DEPENDENCIES_FIELDS,
   DependenciesField,
+  DEPENDENCIES_FIELDS,
   DependencyManifest,
   ProjectManifest,
 } from '@pnpm/types'
