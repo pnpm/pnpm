@@ -16,7 +16,7 @@ importers:
       rimraf: 3.0.2
       tape: 4.13.2
       ts-node: 8.6.2_typescript@3.8.3
-      tslint: 5.20.1_typescript@3.8.3
+      tslint: 6.1.0_typescript@3.8.3
       typescript: 3.8.3
       verdaccio: 4.5.1
     specifiers:
@@ -35,7 +35,7 @@ importers:
       rimraf: 3.0.2
       tape: 4.13.2
       ts-node: 8.6.2
-      tslint: 5.20.1
+      tslint: 6.1.0
       typescript: 3.8.3
       verdaccio: 4.5.1
   packages/audit:
@@ -11583,7 +11583,7 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/5.20.1_typescript@3.8.3:
+  /tslint/6.1.0_typescript@3.8.3:
     dependencies:
       '@babel/code-frame': 7.8.3
       builtin-modules: 1.1.1
@@ -11606,7 +11606,7 @@ packages:
     peerDependencies:
       typescript: '>=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
     resolution:
-      integrity: sha512-EcMxhzCFt8k+/UP5r8waCf/lzmeSyVlqxqMEDQE7rWYiQky8KpIBz1JAoYXfROHrPZ1XXd43q8yQnULOLiBRQg==
+      integrity: sha512-fXjYd/61vU6da04E505OZQGb2VCN2Mq3doeWcOIryuG+eqdmFUXTYVwdhnbEu2k46LNLgUYt9bI5icQze/j0bQ==
   /tsscmp/1.0.6:
     dev: true
     engines:

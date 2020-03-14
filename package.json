@@ -25,7 +25,7 @@
     "rimraf": "3.0.2",
     "tape": "4.13.2",
     "ts-node": "8.6.2",
-    "tslint": "5.20.1",
+    "tslint": "6.1.0",
     "typescript": "3.8.3",
     "verdaccio": "4.5.1"
   },

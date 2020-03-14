@@ -6,8 +6,8 @@ import {
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import {
-  DEPENDENCIES_FIELDS,
   DependenciesField,
+  DEPENDENCIES_FIELDS,
   IncludedDependencies,
   PackageManifest,
   ProjectManifest,
