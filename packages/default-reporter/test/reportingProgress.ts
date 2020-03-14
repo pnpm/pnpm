@@ -180,7 +180,7 @@ test('prints progress on first download', async t => {
     status: 'resolved',
   })
 
-  await delay(0)
+  await delay(10)
 
   progressLogger.debug({
     packageId,
@@ -190,6 +190,7 @@ test('prints progress on first download', async t => {
 })
 
 test('moves fixed line to the end', async t => {
+  t.plan(1)
   const prefix = '/src/project'
   const output$ = toOutput$({
     context: {
@@ -221,7 +222,7 @@ test('moves fixed line to the end', async t => {
     status: 'resolved',
   })
 
-  await delay(0)
+  await delay(10)
 
   progressLogger.debug({
     packageId,
@@ -240,8 +241,6 @@ test('moves fixed line to the end', async t => {
     prefix: prefix,
     stage: 'importing_done',
   })
-
-  t.plan(1)
 })
 
 test('prints "Already up-to-date"', t => {
