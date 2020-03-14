@@ -199,7 +199,7 @@ importers:
       ramda: 0.27.0
       right-pad: 1.0.1
       semver: 7.1.3
-      stacktracey: 1.2.123
+      stacktracey: 1.2.125
       string-length: 4.0.0
       strip-ansi: 6.0.0
     devDependencies:
@@ -241,7 +241,7 @@ importers:
       ramda: 0.27.0
       right-pad: 1.0.1
       semver: 7.1.3
-      stacktracey: 1.2.123
+      stacktracey: 1.2.125
       string-length: 4.0.0
       strip-ansi: 6.0.0
   packages/default-resolver:
@@ -10802,13 +10802,13 @@ packages:
     dev: false
     resolution:
       integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==
-  /stacktracey/1.2.123:
+  /stacktracey/1.2.125:
     dependencies:
       as-table: 1.0.55
       get-source: 1.0.42
     dev: false
     resolution:
-      integrity: sha512-o1FEWcaloEB607E50cqaq3Sv62P8JGQJlHThvBP3e/FdgnHYpuBsDztEiBqRRVOTz8j7nckAvN1x4obPXw4rMg==
+      integrity: sha512-d+XRhr8Q1UvsAIPRIk8yRRjL1fXL7uBZTjzC3FNQZDD86BJH51TMSi3a8bQ6BvYt62p93gBIVDeblpunJhTATA==
   /static-extend/0.1.2:
     dependencies:
       define-property: 0.2.5
