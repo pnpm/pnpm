@@ -46,7 +46,7 @@
     "execa": "4.0.0",
     "load-json-file": "6.2.0",
     "path-exists": "4.0.0",
-    "sinon": "9.0.0",
+    "sinon": "9.0.1",
     "tempy": "0.4.0"
   },
   "dependencies": {

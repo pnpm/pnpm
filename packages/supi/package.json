@@ -109,7 +109,7 @@
     "path-name": "1.0.0",
     "read-yaml-file": "1.1.0",
     "resolve-link-target": "1.0.1",
-    "sinon": "9.0.0",
+    "sinon": "9.0.1",
     "supi": "link:",
     "symlink-dir": "3.1.2",
     "tape-promise": "4.0.0",
