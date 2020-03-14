@@ -10,7 +10,7 @@ import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 import { DEFAULT_OPTS } from './utils'
 
-test('recursive install/uninstall', async (t) => {
+test('recursive add/remove', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -66,6 +66,91 @@ test('recursive install/uninstall', async (t) => {
   }, ['is-negative'])
 
   await projects['project-2'].hasNot('is-negative')
+
+  t.end()
+})
+
+test('recursive add/remove in workspace with many lockfiles', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: false,
+    workspaceDir: process.cwd(),
+  })
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+  await projects['project-2'].has('is-negative')
+
+  await add.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['noop'])
+
+  t.ok(projects['project-1'].requireModule('noop'))
+  t.ok(projects['project-2'].requireModule('noop'))
+
+  await remove.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['is-negative'])
+
+  await projects['project-2'].hasNot('is-negative')
+
+  {
+    const manifest = await import(path.resolve('project-1/package.json'))
+    t.deepEqual(manifest, {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+        'noop': '^0.2.2',
+      },
+    })
+  }
+  {
+    const manifest = await import(path.resolve('project-2/package.json'))
+    t.deepEqual(manifest, {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'noop': '^0.2.2',
+      },
+    })
+  }
 
   t.end()
 })
