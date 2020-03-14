@@ -7,20 +7,22 @@ import renderHelp = require('render-help')
 import { handler as run, RunOpts } from './run'
 
 export function rcOptionsTypes () {
-  return {
-    ...R.pick([
-      'npm-path',
-    ], allTypes),
-  }
-}
-
-export function cliOptionsTypes () {
   return R.pick([
-    'bail',
-    'sort',
+    'npm-path',
     'unsafe-perm',
     'workspace-concurrency',
   ], allTypes)
+}
+
+export function cliOptionsTypes () {
+  return {
+    ...rcOptionsTypes(),
+    ...R.pick([
+      'bail',
+      'sort',
+    ], allTypes),
+    recursive: Boolean,
+  }
 }
 
 export const commandNames = ['test', 't', 'tst']

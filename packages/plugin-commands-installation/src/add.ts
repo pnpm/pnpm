@@ -33,7 +33,6 @@ export function rcOptionsTypes () {
     'pnpmfile',
     'prefer-offline',
     'production',
-    'recursive',
     'registry',
     'reporter',
     'resolution-strategy',
@@ -65,6 +64,7 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
+    recursive: Boolean,
     save: Boolean,
     workspace: Boolean,
   }

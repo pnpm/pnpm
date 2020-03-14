@@ -37,6 +37,7 @@ export function cliOptionsTypes () {
       'workspace-concurrency',
     ], allTypes),
     ...IF_PRESENT_OPTION,
+    recursive: Boolean,
   }
 }
 

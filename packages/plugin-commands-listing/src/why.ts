@@ -7,9 +7,7 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import { handler as list, ListCommandOptions } from './list'
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes () {
+export function rcOptionsTypes () {
   return R.pick([
     'dev',
     'global-dir',
@@ -20,9 +18,13 @@ export function cliOptionsTypes () {
     'optional',
     'parseable',
     'production',
-    'recursive',
   ], allTypes)
 }
+
+export const cliOptionsTypes = () => ({
+  ...rcOptionsTypes(),
+  recursive: Boolean,
+})
 
 export const commandNames = ['why']
 

@@ -58,7 +58,6 @@ export default async function parseCliArgs (
   const commandName = getCommandName(noptExploratoryResults.argv.remain)
   let cmd = commandName ? opts.getCommandLongName(commandName) : null
   const types = {
-    'recursive': Boolean,
     ...opts.universalOptionsTypes,
     ...opts.getTypesByCommandName(commandName),
   } as any // tslint:disable-line:no-any
@@ -74,7 +73,10 @@ export default async function parseCliArgs (
   }
 
   const { argv, ...options } = nopt(
-    types,
+    {
+      'recursive': Boolean,
+      ...types,
+    },
     {
       ...opts.universalShorthands,
       ...opts.shorthandsByCommandName[commandName],

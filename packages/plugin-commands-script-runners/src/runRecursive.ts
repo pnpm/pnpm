@@ -18,7 +18,7 @@ export default async (
   params: string[],
   opts: RecursiveRunOpts,
 ) => {
-  const scriptName = params[0]
+  const [scriptName, ...passedThruArgs] = params
   let hasCommand = 0
   const packageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)
@@ -34,7 +34,6 @@ export default async (
     opts.workspaceConcurrency === 1 ||
     packageChunks.length === 1 && packageChunks[0].length === 1
   ) ? 'inherit' : 'pipe'
-  const passedThruArgs = params.slice(1)
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>

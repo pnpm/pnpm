@@ -8,9 +8,7 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import listRecursive from './recursive'
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes () {
+export function rcOptionsTypes () {
   return R.pick([
     'depth',
     'dev',
@@ -22,9 +20,13 @@ export function cliOptionsTypes () {
     'optional',
     'parseable',
     'production',
-    'recursive',
   ], allTypes)
 }
+
+export const cliOptionsTypes = () => ({
+  ...rcOptionsTypes(),
+  recursive: Boolean,
+})
 
 export const shorthands = {
   'D': '--dev',

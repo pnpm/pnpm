@@ -19,17 +19,17 @@ export function rcOptionsTypes () {
   return {
     ...R.pick([
       'npm-path',
+      'reporter',
+      'unsafe-perm',
     ], allTypes),
   }
 }
 
 export function cliOptionsTypes () {
   return {
-    ...R.pick([
-      'reporter',
-      'unsafe-perm',
-    ], allTypes),
-    'pending': Boolean,
+    ...rcOptionsTypes(),
+    pending: Boolean,
+    recursive: Boolean,
   }
 }
 

@@ -9,9 +9,7 @@ import renderHelp = require('render-help')
 
 export const commandNames = ['exec']
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes () {
+export function rcOptionsTypes () {
   return R.pick([
     'bail',
     'sort',
@@ -19,6 +17,11 @@ export function cliOptionsTypes () {
     'workspace-concurrency',
   ], types)
 }
+
+export const cliOptionsTypes = () => ({
+  ...rcOptionsTypes(),
+  recursive: Boolean,
+})
 
 export function help () {
   return renderHelp({

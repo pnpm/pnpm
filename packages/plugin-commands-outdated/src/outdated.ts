@@ -27,9 +27,7 @@ import {
   OutdatedWithVersionDiff,
 } from './utils'
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes () {
+export function rcOptionsTypes () {
   return {
     ...R.pick([
       'depth',
@@ -39,12 +37,16 @@ export function cliOptionsTypes () {
       'long',
       'optional',
       'production',
-      'recursive',
     ], allTypes),
     'compatible': Boolean,
     'table': Boolean,
   }
 }
+
+export const cliOptionsTypes = () => ({
+  ...rcOptionsTypes(),
+  recursive: Boolean,
+})
 
 export const shorthands = {
   'D': '--dev',

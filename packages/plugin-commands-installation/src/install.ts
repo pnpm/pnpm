@@ -11,15 +11,12 @@ import R = require('ramda')
 import renderHelp = require('render-help')
 import installDeps from './installDeps'
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes () {
+export function rcOptionsTypes () {
   return R.pick([
     'child-concurrency',
     'dev',
     'engine-strict',
     'frozen-lockfile',
-    'force',
     'global-dir',
     'global-pnpmfile',
     'global',
@@ -39,7 +36,6 @@ export function cliOptionsTypes () {
     'prefer-frozen-lockfile',
     'prefer-offline',
     'production',
-    'recursive',
     'registry',
     'reporter',
     'resolution-strategy',
@@ -61,6 +57,12 @@ export function cliOptionsTypes () {
     'virtual-store-dir',
   ], allTypes)
 }
+
+export const cliOptionsTypes = () => ({
+  ...rcOptionsTypes(),
+  ...R.pick(['force'], allTypes),
+  recursive: Boolean,
+})
 
 export const shorthands = {
   'D': '--dev',

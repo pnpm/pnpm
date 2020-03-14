@@ -18,11 +18,8 @@ import {
 } from 'supi'
 import recursive from './recursive'
 
-export const rcOptionsTypes = cliOptionsTypes
-
-export function cliOptionsTypes () {
+export function rcOptionsTypes () {
   return R.pick([
-    'force',
     'global-dir',
     'global-pnpmfile',
     'global',
@@ -32,7 +29,6 @@ export function cliOptionsTypes () {
     'lockfile',
     'package-import-method',
     'pnpmfile',
-    'recursive',
     'reporter',
     'resolution-strategy',
     'save-dev',
@@ -44,6 +40,12 @@ export function cliOptionsTypes () {
     'virtual-store-dir',
   ], allTypes)
 }
+
+export const cliOptionsTypes = () => ({
+  ...rcOptionsTypes(),
+  ...R.pick(['force'], allTypes),
+  recursive: Boolean,
+})
 
 export function help () {
   return renderHelp({
