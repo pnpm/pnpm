@@ -46,7 +46,7 @@
     "is-port-reachable": "3.0.0",
     "mz": "2.7.0",
     "node-fetch": "2.6.0",
-    "tempy": "0.4.0"
+    "tempy": "0.5.0"
   },
   "dependencies": {
     "@pnpm/fetch": "workspace:1.0.3",
