@@ -295,14 +295,17 @@ export default async function recursive (
             action = (currentInput.length === 0 ? unlink : unlinkPkgs.bind(null, currentInput))
             break
           case 'remove':
-            action = (manifest: PackageManifest, opts: any) => mutateModules([ // tslint:disable-line:no-any
-              {
-                dependencyNames: currentInput,
-                manifest,
-                mutation: 'uninstallSome',
-                rootDir,
-              },
-            ], opts)
+            action = async (manifest: PackageManifest, opts: any) => { // tslint:disable-line:no-any
+              const [{ manifest: newManifest }] = await mutateModules([
+                {
+                  dependencyNames: currentInput,
+                  manifest,
+                  mutation: 'uninstallSome',
+                  rootDir,
+                },
+              ], opts)
+              return newManifest
+            }
             break
           default:
             action = currentInput.length === 0
