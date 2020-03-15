@@ -50,13 +50,13 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 Using a [standalone script](https://github.com/pnpm/self-installer#readme):
 
 ```
-curl -L https://unpkg.com/@pnpm/self-installer | node
+curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | node
 ```
 
 On Windows (PowerShell):
 
 ```powershell
-(Invoke-WebRequest 'https://unpkg.com/@pnpm/self-installer').Content | node
+(Invoke-WebRequest 'https://raw.githubusercontent.com/pnpm/self-installer/master/install.js').Content | node
 ```
 
 
