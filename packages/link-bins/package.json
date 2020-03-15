@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "5.1.7",
+  "version": "5.2.0",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",

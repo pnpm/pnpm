@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@pnpm/find-workspace-packages": "workspace:2.1.10",
+    "@pnpm/find-workspace-packages": "workspace:2.1.11",
     "@pnpm/lockfile-file": "workspace:3.0.5",
     "@pnpm/types": "workspace:5.0.0",
     "is-subdir": "1.1.1",
