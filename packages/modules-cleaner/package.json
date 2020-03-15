@@ -46,7 +46,7 @@
     "@pnpm/logger": "3.1.0",
     "@pnpm/modules-cleaner": "link:",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "^0.26.43"
+    "@types/ramda": "^0.26.44"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

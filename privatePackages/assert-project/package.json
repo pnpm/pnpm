@@ -20,7 +20,7 @@
     "@pnpm/assert-project": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.0",
-    "@types/node": "^12.12.29"
+    "@types/node": "^12.12.30"
   },
   "directories": {
     "test": "test"

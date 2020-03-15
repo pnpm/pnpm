@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/lockfile-walker#readme",
   "devDependencies": {
     "@pnpm/lockfile-walker": "link:",
-    "@types/ramda": "^0.26.43",
+    "@types/ramda": "^0.26.44",
     "tempy": "0.4.0"
   },
   "dependencies": {

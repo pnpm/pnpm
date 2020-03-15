@@ -32,7 +32,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/prune-lockfile#readme",
   "devDependencies": {
     "@pnpm/prune-lockfile": "link:",
-    "@types/ramda": "^0.26.43",
+    "@types/ramda": "^0.26.44",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {

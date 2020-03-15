@@ -34,7 +34,7 @@
     "@types/common-tags": "^1.8.0",
     "@types/is-windows": "^1.0.0",
     "@types/mz": "^2.7.0",
-    "@types/ramda": "^0.26.43",
+    "@types/ramda": "^0.26.44",
     "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {

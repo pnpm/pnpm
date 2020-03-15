@@ -66,7 +66,7 @@
     "@types/mz": "^2.7.0",
     "@types/ncp": "^2.0.3",
     "@types/normalize-path": "3.0.0",
-    "@types/ramda": "^0.26.43",
+    "@types/ramda": "^0.26.44",
     "@types/sinon": "^7.5.2",
     "@types/ssri": "6.0.1",
     "delay": "4.3.0",
