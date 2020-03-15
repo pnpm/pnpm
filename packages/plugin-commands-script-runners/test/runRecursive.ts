@@ -3,6 +3,7 @@ import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspac
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
+import { stripIndent } from 'common-tags'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
@@ -283,6 +284,75 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, ['this-command-does-not-exist'])
+  t.end()
+})
+
+test('"pnpm run --filter <pkg>" prints the list of available commands', async (t) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        foo: 'echo hi',
+        test: 'ts-node test',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await readProjects(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+    allProjects,
+    [{ namePattern: 'project-1' }],
+    { workspaceDir: process.cwd() },
+  )
+
+  const output = await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, [])
+
+  t.equal(output, stripIndent`
+    Lifecycle scripts:
+      test
+        ts-node test
+
+    Commands available via "pnpm run":
+      foo
+        echo hi`,
+  )
   t.end()
 })
 
