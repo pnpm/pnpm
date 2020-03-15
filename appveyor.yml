@@ -5,7 +5,7 @@ install:
   - ps: Install-Product node $env:nodejs_version
   - npm set verify-store-integrity false
   - set PNPM_VERSION=next
-  - curl -L https://unpkg.com/@pnpm/self-installer | node
+  - curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | node
   - pnpm -v
   - pnpm recursive install --no-lock
 matrix:
