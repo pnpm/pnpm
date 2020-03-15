@@ -19,6 +19,9 @@ export default async (
   opts: RecursiveRunOpts,
 ) => {
   const [scriptName, ...passedThruArgs] = params
+  if (!scriptName) {
+    throw new PnpmError('SCRIPT_NAME_IS_REQUIRED', 'You must specify the script you want to run')
+  }
   let hasCommand = 0
   const packageChunks = opts.sort
     ? sortPackages(opts.selectedProjectsGraph)

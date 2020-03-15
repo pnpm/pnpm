@@ -3,6 +3,7 @@ import { filterPkgsBySelectorObjects, readProjects } from '@pnpm/filter-workspac
 import { run } from '@pnpm/plugin-commands-script-runners'
 import { preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
+import { stripIndent } from 'common-tags'
 import execa = require('execa')
 import fs = require('mz/fs')
 import path = require('path')
@@ -283,6 +284,104 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, ['this-command-does-not-exist'])
+  t.end()
+})
+
+test('"pnpm run --filter <pkg>" without specifying the script name', async (t) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        foo: 'echo hi',
+        test: 'ts-node test',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await readProjects(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  t.comment('prints the list of available commands if a single project is selected')
+  {
+    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+      allProjects,
+      [{ namePattern: 'project-1' }],
+      { workspaceDir: process.cwd() },
+    )
+    const output = await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, [])
+
+    t.equal(output, stripIndent`
+      Lifecycle scripts:
+        test
+          ts-node test
+
+      Commands available via "pnpm run":
+        foo
+          echo hi`,
+    )
+  }
+  t.comment('throws an error if several projects are selected')
+  {
+    const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+      allProjects,
+      [{ includeDependents: true, namePattern: 'project-1' }],
+      { workspaceDir: process.cwd() },
+    )
+
+    let err!: PnpmError
+    try {
+      await run.handler({
+        ...DEFAULT_OPTS,
+        allProjects,
+        dir: process.cwd(),
+        recursive: true,
+        selectedProjectsGraph,
+        workspaceDir: process.cwd(),
+      }, [])
+    } catch (_err) {
+      err = _err
+    }
+
+    t.ok(err)
+    t.equal(err.code, 'ERR_PNPM_SCRIPT_NAME_IS_REQUIRED')
+    t.equal(err.message, 'You must specify the script you want to run')
+  }
   t.end()
 })
 

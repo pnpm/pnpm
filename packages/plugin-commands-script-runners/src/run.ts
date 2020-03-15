@@ -92,13 +92,18 @@ export async function handler (
   opts: RunOpts,
   params: string[],
 ) {
+  let dir: string
+  const [scriptName, ...passedThruArgs] = params
   if (opts.recursive) {
-    await runRecursive(params, opts)
-    return
+    if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
+      await runRecursive(params, opts)
+      return
+    }
+    dir = Object.keys(opts.selectedProjectsGraph)[0]
+  } else {
+    dir = opts.dir
   }
-  const dir = opts.dir
   const manifest = await readProjectManifestOnly(dir, opts)
-  const scriptName = params[0]
   if (!scriptName) {
     return printProjectCommands(manifest)
   }
@@ -118,7 +123,7 @@ export async function handler (
   if (manifest.scripts?.[`pre${scriptName}`]) {
     await runLifecycleHooks(`pre${scriptName}`, manifest, lifecycleOpts)
   }
-  await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: params.slice(1) })
+  await runLifecycleHooks(scriptName, manifest, { ...lifecycleOpts, args: passedThruArgs })
   if (manifest.scripts?.[`post${scriptName}`]) {
     await runLifecycleHooks(`post${scriptName}`, manifest, lifecycleOpts)
   }
