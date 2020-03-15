@@ -60,10 +60,10 @@ On Windows (PowerShell):
 ```
 
 
-Via npm:
+Via npx:
 
 ```
-npm add -g pnpm
+npx pnpm add -g pnpm
 ```
 
 Once you first installed pnpm, you can upgrade it using pnpm:
