@@ -22,7 +22,9 @@ import { filterPackages } from '@pnpm/filter-workspace-packages'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
 import isCI = require('is-ci')
+import path = require('path')
 import R = require('ramda')
+import which = require('which')
 import checkForUpdates from './checkForUpdates'
 import pnpmCmds, { getRCOptionsTypes } from './cmd'
 import './logging/fileLogger'
@@ -93,7 +95,7 @@ export default async function run (inputArgv: string[]) {
     return
   }
 
-  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && argv.remain.includes(packageManager.name)
+  const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
 
   // Don't check for updates
   //   1. on CI environments
@@ -118,6 +120,11 @@ export default async function run (inputArgv: string[]) {
 
   if (selfUpdate) {
     await pnpmCmds.server(config as any, ['stop']) // tslint:disable-line:no-any
+    try {
+      config.globalBin = path.dirname(which.sync('pnpm'))
+    } catch (err) {
+      // if pnpm not found, then ignore
+    }
   }
 
   if (cliOptions['recursive']) {
