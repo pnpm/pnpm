@@ -1,4 +1,5 @@
 import { DependenciesField, Registries } from '@pnpm/types'
+import isWindows = require('is-windows')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
 import writeYamlFile = require('write-yaml-file')
@@ -32,6 +33,8 @@ export async function read (modulesDir: string): Promise<Modules | null> {
     const modules = await readYamlFile<Modules>(modulesYamlPath)
     if (!modules.virtualStoreDir) {
       modules.virtualStoreDir = path.join(modulesDir, '.pnpm')
+    } else if (!path.isAbsolute(modules.virtualStoreDir)) {
+      modules.virtualStoreDir = path.join(modulesDir, modules.virtualStoreDir)
     }
     return modules
   } catch (err) {
@@ -49,12 +52,20 @@ export function write (
   modules: Modules & { registries: Registries },
 ) {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
-  if (modules.skipped) modules.skipped.sort()
+  const saveModules = { ...modules }
+  if (saveModules.skipped) saveModules.skipped.sort()
 
-  if (!modules.hoistPattern) {
+  if (!saveModules.hoistPattern) {
     // Because the YAML writer fails on undefined fields
-    delete modules.hoistPattern
-    delete modules.hoistedAliases
+    delete saveModules.hoistPattern
+    delete saveModules.hoistedAliases
   }
-  return writeYamlFile(modulesYamlPath, modules, YAML_OPTS)
+  // We should store the absolute virtual store directory path on Windows
+  // because junctions are used on Windows. Junctions will break even if
+  // the relative path to the virtual store remains the same after moving
+  // a project.
+  if (!isWindows()) {
+    saveModules.virtualStoreDir = path.relative(modulesDir, saveModules.virtualStoreDir)
+  }
+  return writeYamlFile(modulesYamlPath, saveModules, YAML_OPTS)
 }

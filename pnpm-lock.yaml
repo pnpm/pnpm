@@ -955,14 +955,18 @@ importers:
   packages/modules-yaml:
     dependencies:
       '@pnpm/types': 'link:../types'
+      is-windows: 1.0.2
       read-yaml-file: 1.1.0
       write-yaml-file: 3.0.1
     devDependencies:
       '@pnpm/modules-yaml': 'link:'
+      '@types/is-windows': 1.0.0
       tempy: 0.4.0
     specifiers:
       '@pnpm/modules-yaml': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
+      '@types/is-windows': ^1.0.0
+      is-windows: 1.0.2
       read-yaml-file: 1.1.0
       tempy: 0.4.0
       write-yaml-file: 3.0.1
