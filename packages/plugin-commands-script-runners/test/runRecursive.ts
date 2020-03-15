@@ -356,6 +356,74 @@ test('"pnpm run --filter <pkg>" prints the list of available commands', async (t
   t.end()
 })
 
+test('"pnpm run --filter <pkg>" prints the list of available commands', async (t) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        foo: 'echo hi',
+        test: 'ts-node test',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects } = await readProjects(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
+    allProjects,
+    [{ includeDependents: true, namePattern: 'project-1' }],
+    { workspaceDir: process.cwd() },
+  )
+
+  let err!: PnpmError
+  try {
+    await run.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      recursive: true,
+      selectedProjectsGraph,
+      workspaceDir: process.cwd(),
+    }, [])
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err.code, 'ERR_PNPM_SCRIPT_NAME_IS_REQUIRED')
+  t.equal(err.message, 'You must specify the script you want to run')
+  t.end()
+})
+
 test('testing the bail config with "pnpm recursive run"', async (t) => {
   const projects = preparePackages(t, [
     {
