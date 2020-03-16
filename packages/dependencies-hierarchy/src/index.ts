@@ -365,9 +365,14 @@ function getPkgInfo (
       version = parsed.version
     } else {
       pkgSnapshot = opts.wantedPackages[relDepPath]
-      const parsed = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-      name = parsed.name
-      version = parsed.version
+      if (pkgSnapshot) {
+        const parsed = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+        name = parsed.name
+        version = parsed.version
+      } else {
+        name = opts.alias
+        version = opts.ref
+      }
       isMissing = true
       isSkipped = opts.skipped.has(relDepPath)
     }
