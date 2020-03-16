@@ -93,10 +93,6 @@
       "allowedVersions": "6.0.1"
     },
     {
-      "packageNames": ["tempy"],
-      "allowedVersions": "0.4.0"
-    },
-    {
       "packageNames": ["write-json-file"],
       "allowedVersions": "4.0.0"
     },

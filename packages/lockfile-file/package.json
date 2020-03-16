@@ -40,7 +40,7 @@
     "@types/normalize-path": "3.0.0",
     "@types/ramda": "^0.26.44",
     "@types/write-file-atomic": "3.0.0",
-    "tempy": "0.4.0",
+    "tempy": "0.5.0",
     "write-yaml-file": "3.0.1",
     "yaml-tag": "1.1.0"
   },

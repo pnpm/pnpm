@@ -32,7 +32,7 @@
   "devDependencies": {
     "@pnpm/lockfile-walker": "link:",
     "@types/ramda": "^0.26.44",
-    "tempy": "0.4.0"
+    "tempy": "0.5.0"
   },
   "dependencies": {
     "@pnpm/lockfile-types": "workspace:2.0.0",
