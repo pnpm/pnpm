@@ -36,8 +36,8 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
-  DEPENDENCIES_FIELDS,
   DependenciesField,
+  DEPENDENCIES_FIELDS,
   DependencyManifest,
   ProjectManifest,
   Registries,
