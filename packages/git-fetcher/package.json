@@ -5,8 +5,8 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "!*.map",
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
     "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/git-fetcher/coverage ts-node packages/git-fetcher/test --type-check",

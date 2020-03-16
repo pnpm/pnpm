@@ -12,9 +12,9 @@
   },
   "main": "lib/bin/pnpm.js",
   "files": [
+    "lib",
     "!*.map",
-    "bin",
-    "lib"
+    "bin"
   ],
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.3.10",

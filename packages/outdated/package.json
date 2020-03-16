@@ -8,8 +8,8 @@
     "node": ">=10"
   },
   "files": [
-    "!*.map",
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
     "test": "pnpm run compile && pnpm run _test",

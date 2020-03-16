@@ -9,8 +9,8 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
-    "!*.map",
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"

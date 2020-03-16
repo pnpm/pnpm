@@ -8,8 +8,8 @@
     "node": ">=10"
   },
   "files": [
-    "!*.map",
-    "lib"
+    "lib",
+    "!*.map"
   ],
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",

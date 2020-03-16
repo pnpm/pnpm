@@ -118,11 +118,10 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
     homepage = `https://github.com/pnpm/pnpm/blob/master/${relative}#readme`
     repository = `https://github.com/pnpm/pnpm/blob/master/${relative}`
   }
-  const files = ['lib', '!*.map']
+  const files = ['lib', '!*.map'] // the order is importent
   if (manifest.bin) {
     files.push('bin')
   }
-  files.sort()
   return {
     ...manifest,
     author: 'Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)',
