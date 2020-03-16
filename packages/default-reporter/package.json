@@ -23,7 +23,7 @@
   ],
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "engines": {
-    "node": ">=10"
+    "node": ">=10.13"
   },
   "license": "MIT",
   "bugs": {

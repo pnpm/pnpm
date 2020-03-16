@@ -23,7 +23,7 @@
     "tarball"
   ],
   "engines": {
-    "node": ">=10"
+    "node": ">=10.13"
   },
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",

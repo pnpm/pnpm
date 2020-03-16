@@ -129,7 +129,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       url: 'https://github.com/pnpm/pnpm/issues',
     },
     engines: {
-      node: '>=10',
+      node: '>=10.13',
     },
     files,
     homepage,

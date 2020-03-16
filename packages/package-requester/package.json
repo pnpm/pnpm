@@ -9,7 +9,7 @@
     "!*.map"
   ],
   "engines": {
-    "node": ">=10"
+    "node": ">=10.13"
   },
   "scripts": {
     "start": "pnpm run tsc -- --watch",
