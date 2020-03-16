@@ -206,10 +206,10 @@ test('support installing and uninstalling from the same store simultaneously', a
       await project.storeHasNot('pkg-that-installs-slowly')
       await execPnpm(['uninstall', 'rimraf@2.5.1'])
 
-      await project.has('pkg-that-installs-slowly')
       await project.hasNot('rimraf')
     })(),
   ])
+  await project.has('pkg-that-installs-slowly')
 })
 
 test('top-level packages should find the plugins they use', async (t: tape.Test) => {
