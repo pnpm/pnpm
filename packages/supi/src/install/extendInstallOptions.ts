@@ -71,6 +71,7 @@ export interface StrictInstallOptions {
   forceShamefullyHoist: boolean,
 
   global: boolean,
+  globalBin: string,
 }
 
 export type InstallOptions = Partial<StrictInstallOptions> &

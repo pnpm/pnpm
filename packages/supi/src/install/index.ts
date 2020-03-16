@@ -36,8 +36,8 @@ import {
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
-  DependenciesField,
   DEPENDENCIES_FIELDS,
+  DependenciesField,
   DependencyManifest,
   ProjectManifest,
   Registries,
@@ -304,6 +304,9 @@ export async function mutateModules (
           break
         }
         case 'unlinkSome': {
+          if (project.manifest?.name) {
+            await rimraf(path.join(opts.globalBin, project.manifest?.name))
+          }
           const packagesToInstall: string[] = []
           const allDeps = getAllDependenciesFromManifest(project.manifest)
           for (const depName of project.dependencyNames) {
