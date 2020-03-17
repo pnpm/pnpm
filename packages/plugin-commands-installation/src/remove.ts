@@ -11,6 +11,7 @@ import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { filterDependenciesByType, getAllDependenciesFromPackage } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -137,19 +138,39 @@ export async function handler (
   removeOpts['workspacePackages'] = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined
-  const currentManifest = await readProjectManifest(opts.dir, opts)
+  const targetDependenciesField = getSaveType(opts)
+  const {
+    manifest: currentManifest,
+    writeProjectManifest,
+  } = await readProjectManifest(opts.dir, opts)
+  const targetDeps = Object.keys(
+    targetDependenciesField === undefined
+    ? getAllDependenciesFromPackage(currentManifest)
+    : filterDependenciesByType(currentManifest, {
+      dependencies: targetDependenciesField === 'dependencies',
+      devDependencies: targetDependenciesField === 'devDependencies',
+      optionalDependencies: targetDependenciesField === 'optionalDependencies',
+    }),
+  )
+  if (targetDeps.length === 0) {
+    throw new PnpmError('PKG_TO_REMOVE_NOT_FOUND', 'There are no dependencies to remove from')
+  }
+  const nonMatched = R.without(targetDeps, params)
+  if (nonMatched.length !== 0) {
+    throw new PnpmError('PKG_TO_REMOVE_NOT_FOUND', `Some of the dependencies specified for deletion are not present: ${nonMatched.join(', ')}. Next dependencies may be removed: ${targetDeps.join(', ')}`)
+  }
   const [mutationResult] = await mutateModules(
     [
       {
         binsDir: opts.bin,
         dependencyNames: params,
-        manifest: currentManifest.manifest,
+        manifest: currentManifest,
         mutation: 'uninstallSome',
         rootDir: opts.dir,
-        targetDependenciesField: getSaveType(opts),
+        targetDependenciesField,
       },
     ],
     removeOpts,
   )
-  await currentManifest.writeProjectManifest(mutationResult.manifest)
+  await writeProjectManifest(mutationResult.manifest)
 }

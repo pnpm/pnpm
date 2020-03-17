@@ -196,7 +196,11 @@ test('lockfile compatibility', async (t: tape.Test) => {
 })
 
 test('support installing and uninstalling from the same store simultaneously', async (t: tape.Test) => {
-  const project = prepare(t)
+  const project = prepare(t, {
+    dependencies: {
+      rimraf: '2.5.1',
+    },
+  })
 
   await Promise.all([
     execPnpm(['install', 'pkg-that-installs-slowly']),
@@ -204,7 +208,7 @@ test('support installing and uninstalling from the same store simultaneously', a
       await delay(500) // to be sure that lock was created
 
       await project.storeHasNot('pkg-that-installs-slowly')
-      await execPnpm(['uninstall', 'rimraf@2.5.1'])
+      await execPnpm(['uninstall', 'rimraf'])
 
       await project.hasNot('rimraf')
     })(),
