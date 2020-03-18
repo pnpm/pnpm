@@ -153,11 +153,17 @@ export async function handler (
     }),
   )
   if (targetDeps.length === 0) {
-    throw new PnpmError('PKG_TO_REMOVE_NOT_FOUND', 'There are no dependencies to remove from')
+    throw new PnpmError('REMOVE_FROM_EMPTY_PROJECT', 'There are no dependencies to remove from')
   }
   const nonMatched = R.without(targetDeps, params)
   if (nonMatched.length !== 0) {
-    throw new PnpmError('PKG_TO_REMOVE_NOT_FOUND', `Some of the dependencies specified for deletion are not present: ${nonMatched.join(', ')}. Next dependencies may be removed: ${targetDeps.join(', ')}`)
+    throw new PnpmError(
+      'PKG_TO_REMOVE_NOT_FOUND',
+      `Some of the dependencies specified for deletion are not present: ` +
+      `${nonMatched.join(', ')}. Next dependencies may be removed` +
+      `${targetDependenciesField ? ` from ${targetDependenciesField}` : ''}: ` +
+      `${targetDeps.join(', ')}`,
+    )
   }
   const [mutationResult] = await mutateModules(
     [
