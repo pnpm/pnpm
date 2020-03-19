@@ -7,3 +7,5 @@ import * as unlink from './unlink'
 import * as update from './update'
 
 export { add, install, link, prune, remove, unlink, update }
+
+export { RemoveMissingDepsError } from './remove'

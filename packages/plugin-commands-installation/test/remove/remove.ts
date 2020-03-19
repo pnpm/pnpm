@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { remove } from '@pnpm/plugin-commands-installation'
+import { remove, RemoveMissingDepsError } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { oneLine } from 'common-tags'
 import test = require('tape')
@@ -56,7 +56,7 @@ test('remove should fail if the project does not have one of the removed depende
   })
 
   {
-    let err!: PnpmError
+    let err!: RemoveMissingDepsError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
@@ -67,16 +67,12 @@ test('remove should fail if the project does not have one of the removed depende
       err = _err
     }
     t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
-    t.equal(
-      err.message,
-      oneLine`
-        Some of the dependencies specified for deletion are not present:
-        dev-dep-1, optional-dep-1. Next dependencies may be removed from
-        dependencies: prod-dep-1, prod-dep-2`,
-    )
+    t.equal(err.message, oneLine`Cannot remove 'dev-dep-1', 'optional-dep-1':
+      no such dependencies found in 'dependencies'`)
+    t.equal(err.hint, 'Available dependencies: prod-dep-1, prod-dep-2')
   }
   {
-    let err!: PnpmError
+    let err!: RemoveMissingDepsError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
@@ -87,16 +83,12 @@ test('remove should fail if the project does not have one of the removed depende
       err = _err
     }
     t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
-    t.equal(
-      err.message,
-      oneLine`
-        Some of the dependencies specified for deletion are not present:
-        prod-dep-1, optional-dep-1. Next dependencies may be removed from
-        devDependencies: dev-dep-1, dev-dep-2`,
-    )
+    t.equal(err.message, oneLine`Cannot remove 'prod-dep-1', 'optional-dep-1':
+      no such dependencies found in 'devDependencies'`)
+    t.equal(err.hint, 'Available dependencies: dev-dep-1, dev-dep-2')
   }
   {
-    let err!: PnpmError
+    let err!: RemoveMissingDepsError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
@@ -107,16 +99,12 @@ test('remove should fail if the project does not have one of the removed depende
       err = _err
     }
     t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
-    t.equal(
-      err.message,
-      oneLine`
-        Some of the dependencies specified for deletion are not present:
-        prod-dep-1, dev-dep-1. Next dependencies may be removed from
-        optionalDependencies: optional-dep-1, optional-dep-2`,
-    )
+    t.equal(err.message, oneLine`Cannot remove 'prod-dep-1', 'dev-dep-1':
+      no such dependencies found in 'optionalDependencies'`)
+    t.equal(err.hint, 'Available dependencies: optional-dep-1, optional-dep-2')
   }
   {
-    let err!: PnpmError
+    let err!: RemoveMissingDepsError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
@@ -126,13 +114,9 @@ test('remove should fail if the project does not have one of the removed depende
       err = _err
     }
     t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
-    t.equal(
-      err.message,
-      oneLine`
-        Some of the dependencies specified for deletion are not present:
-        express. Next dependencies may be removed: dev-dep-1, dev-dep-2,
-        prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2`,
-    )
+    t.equal(err.message, "Cannot remove 'express': no such dependency found")
+    t.equal(err.hint, oneLine`Available dependencies: dev-dep-1, dev-dep-2,
+      prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2`)
   }
   t.end()
 })

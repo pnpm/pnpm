@@ -11,6 +11,7 @@ import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { DependenciesField } from '@pnpm/types'
 import { filterDependenciesByType, getAllDependenciesFromPackage } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
@@ -19,6 +20,24 @@ import {
   mutateModules,
 } from 'supi'
 import recursive from './recursive'
+
+export class RemoveMissingDepsError extends PnpmError {
+  public hint: string
+  constructor (
+    opts: {
+      availableDependencies: string[],
+      nonMatchedDependencies: string[],
+      removingFrom?: DependenciesField,
+    },
+  ) {
+    let message = 'Cannot remove '
+    message += `${opts.nonMatchedDependencies.map(dep => `'${dep}'`).join(', ')}: `
+    message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
+    message += `found${opts.removingFrom ? ` in '${opts.removingFrom}'` : ''}`
+    super('PKG_TO_REMOVE_NOT_FOUND', message)
+    this.hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
+  }
+}
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -157,13 +176,11 @@ export async function handler (
   }
   const nonMatched = R.without(targetDeps, params)
   if (nonMatched.length !== 0) {
-    throw new PnpmError(
-      'PKG_TO_REMOVE_NOT_FOUND',
-      `Some of the dependencies specified for deletion are not present: ` +
-      `${nonMatched.join(', ')}. Next dependencies may be removed` +
-      `${targetDependenciesField ? ` from ${targetDependenciesField}` : ''}: ` +
-      `${targetDeps.join(', ')}`,
-    )
+    throw new RemoveMissingDepsError({
+      availableDependencies: targetDeps,
+      nonMatchedDependencies: nonMatched,
+      removingFrom: targetDependenciesField,
+    })
   }
   const [mutationResult] = await mutateModules(
     [
