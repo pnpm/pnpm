@@ -22,7 +22,6 @@ import {
 import recursive from './recursive'
 
 export class RemoveMissingDepsError extends PnpmError {
-  public hint: string
   constructor (
     opts: {
       availableDependencies: string[],
@@ -34,8 +33,8 @@ export class RemoveMissingDepsError extends PnpmError {
     message += `${opts.nonMatchedDependencies.map(dep => `'${dep}'`).join(', ')}: `
     message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
     message += `found${opts.removingFrom ? ` in '${opts.removingFrom}'` : ''}`
-    super('PKG_TO_REMOVE_NOT_FOUND', message)
-    this.hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
+    const hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
+    super('PKG_TO_REMOVE_NOT_FOUND', message, { hint })
   }
 }
 
