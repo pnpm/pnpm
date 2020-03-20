@@ -200,7 +200,7 @@ importers:
       right-pad: 1.0.1
       semver: 7.1.3
       stacktracey: 1.2.125
-      string-length: 4.0.0
+      string-length: 4.0.1
       strip-ansi: 6.0.0
     devDependencies:
       '@pnpm/default-reporter': 'link:'
@@ -242,7 +242,7 @@ importers:
       right-pad: 1.0.1
       semver: 7.1.3
       stacktracey: 1.2.125
-      string-length: 4.0.0
+      string-length: 4.0.1
       strip-ansi: 6.0.0
   packages/default-resolver:
     dependencies:
@@ -10823,7 +10823,7 @@ packages:
   /stream-shift/1.0.1:
     resolution:
       integrity: sha512-AiisoFqQ0vbGcZgQPY1cdP2I76glaVA/RauYR4G4thNFgkTqr90yXTo4LYX60Jl+sIlPNHHdGSwo01AvbKUSVQ==
-  /string-length/4.0.0:
+  /string-length/4.0.1:
     dependencies:
       char-regex: 1.0.2
       strip-ansi: 6.0.0
@@ -10831,7 +10831,7 @@ packages:
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-GWDgJDQvvIwP4e5IEu0tuOyRUs/bVvQNNdh0HhMnZwo0Kuo4NKmjI/as/9I34+GHYWKkuS0nUrHubgRTs4O4fw==
+      integrity: sha512-PKyXUd0LK0ePjSOnWn34V2uD6acUWev9uy0Ft05k0E8xRW+SKcA0F7eMr7h5xlzfn+4O3N+55rduYyet3Jk+jw==
   /string-to-stream/3.0.1:
     dependencies:
       readable-stream: 3.6.0
