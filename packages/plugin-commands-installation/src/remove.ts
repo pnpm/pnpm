@@ -12,7 +12,7 @@ import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependenciesField } from '@pnpm/types'
-import { filterDependenciesByType, getAllDependenciesFromPackage } from '@pnpm/utils'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -21,18 +21,18 @@ import {
 } from 'supi'
 import recursive from './recursive'
 
-export class RemoveMissingDepsError extends PnpmError {
+class RemoveMissingDepsError extends PnpmError {
   constructor (
     opts: {
       availableDependencies: string[],
       nonMatchedDependencies: string[],
-      removingFrom?: DependenciesField,
+      targetDependenciesField?: DependenciesField,
     },
   ) {
     let message = 'Cannot remove '
     message += `${opts.nonMatchedDependencies.map(dep => `'${dep}'`).join(', ')}: `
     message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
-    message += `found${opts.removingFrom ? ` in '${opts.removingFrom}'` : ''}`
+    message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
     const hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
     super('PKG_TO_REMOVE_NOT_FOUND', message, { hint })
   }
@@ -161,24 +161,20 @@ export async function handler (
     manifest: currentManifest,
     writeProjectManifest,
   } = await readProjectManifest(opts.dir, opts)
-  const targetDeps = Object.keys(
+  const availableDependencies = Object.keys(
     targetDependenciesField === undefined
     ? getAllDependenciesFromPackage(currentManifest)
-    : filterDependenciesByType(currentManifest, {
-      dependencies: targetDependenciesField === 'dependencies',
-      devDependencies: targetDependenciesField === 'devDependencies',
-      optionalDependencies: targetDependenciesField === 'optionalDependencies',
-    }),
+    : currentManifest[targetDependenciesField] ?? {},
   )
-  if (targetDeps.length === 0) {
+  if (availableDependencies.length === 0) {
     throw new PnpmError('REMOVE_FROM_EMPTY_PROJECT', 'There are no dependencies to remove from')
   }
-  const nonMatched = R.without(targetDeps, params)
-  if (nonMatched.length !== 0) {
+  const nonMatchedDependencies = R.without(availableDependencies, params)
+  if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({
-      availableDependencies: targetDeps,
-      nonMatchedDependencies: nonMatched,
-      removingFrom: targetDependenciesField,
+      availableDependencies,
+      nonMatchedDependencies,
+      targetDependenciesField,
     })
   }
   const [mutationResult] = await mutateModules(

@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import { remove, RemoveMissingDepsError } from '@pnpm/plugin-commands-installation'
+import { remove } from '@pnpm/plugin-commands-installation'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { oneLine } from 'common-tags'
 import test = require('tape')
@@ -56,7 +56,7 @@ test('remove should fail if the project does not have one of the removed depende
   })
 
   {
-    let err!: RemoveMissingDepsError
+    let err!: PnpmError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
@@ -72,7 +72,7 @@ test('remove should fail if the project does not have one of the removed depende
     t.equal(err.hint, 'Available dependencies: prod-dep-1, prod-dep-2')
   }
   {
-    let err!: RemoveMissingDepsError
+    let err!: PnpmError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
@@ -88,7 +88,7 @@ test('remove should fail if the project does not have one of the removed depende
     t.equal(err.hint, 'Available dependencies: dev-dep-1, dev-dep-2')
   }
   {
-    let err!: RemoveMissingDepsError
+    let err!: PnpmError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
@@ -104,7 +104,7 @@ test('remove should fail if the project does not have one of the removed depende
     t.equal(err.hint, 'Available dependencies: optional-dep-1, optional-dep-2')
   }
   {
-    let err!: RemoveMissingDepsError
+    let err!: PnpmError
     try {
       await remove.handler({
         ...DEFAULT_OPTS,
