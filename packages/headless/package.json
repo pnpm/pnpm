@@ -27,7 +27,7 @@
     "@types/fs-extra": "^8.1.0",
     "@types/mz": "^2.7.0",
     "@types/ramda": "^0.26.44",
-    "@types/rimraf": "^2.0.4",
+    "@types/rimraf": "^3.0.0",
     "@types/sinon": "^7.5.2",
     "@types/tape-promise": "4.0.0",
     "@zkochan/rimraf": "1.0.0",
