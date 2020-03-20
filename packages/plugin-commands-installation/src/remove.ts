@@ -31,10 +31,17 @@ class RemoveMissingDepsError extends PnpmError {
   ) {
     let message = 'Cannot remove '
     message += `${opts.nonMatchedDependencies.map(dep => `'${dep}'`).join(', ')}: `
-    message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
-    message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
-    const hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
-    super('PKG_TO_REMOVE_NOT_FOUND', message, { hint })
+    if (opts.availableDependencies.length > 0) {
+      message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
+      message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
+      const hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
+      super('PKG_TO_REMOVE_NOT_FOUND', message, { hint })
+      return
+    }
+    message += opts.targetDependenciesField
+      ? `project has no '${opts.targetDependenciesField}'`
+      : 'project has no dependencies of any kind'
+    super('PKG_TO_REMOVE_NOT_FOUND', message)
   }
 }
 
@@ -166,9 +173,6 @@ export async function handler (
     ? getAllDependenciesFromPackage(currentManifest)
     : currentManifest[targetDependenciesField] ?? {},
   )
-  if (availableDependencies.length === 0) {
-    throw new PnpmError('REMOVE_FROM_EMPTY_PROJECT', 'There are no dependencies to remove from')
-  }
   const nonMatchedDependencies = R.without(availableDependencies, params)
   if (nonMatchedDependencies.length !== 0) {
     throw new RemoveMissingDepsError({

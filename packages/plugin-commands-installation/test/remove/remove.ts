@@ -25,17 +25,61 @@ test('remove should fail if no dependency is specified for removal', async (t) =
 test('remove should fail if the project has no dependencies at all', async (t) => {
   prepare(t)
 
-  let err!: PnpmError
-  try {
-    await remove.handler({
-      ...DEFAULT_OPTS,
-      dir: process.cwd(),
-    }, ['express'])
-  } catch (_err) {
-    err = _err
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+      }, ['express'])
+    } catch (_err) {
+      err = _err
+    }
+    t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
+    t.equal(err.message, "Cannot remove 'express': project has no dependencies of any kind")
   }
-  t.equal(err.code, 'ERR_PNPM_REMOVE_FROM_EMPTY_PROJECT')
-  t.equal(err.message, 'There are no dependencies to remove from')
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveProd: true,
+      }, ['express'])
+    } catch (_err) {
+      err = _err
+    }
+    t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
+    t.equal(err.message, "Cannot remove 'express': project has no 'dependencies'")
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveDev: true,
+      }, ['express'])
+    } catch (_err) {
+      err = _err
+    }
+    t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
+    t.equal(err.message, "Cannot remove 'express': project has no 'devDependencies'")
+  }
+  {
+    let err!: PnpmError
+    try {
+      await remove.handler({
+        ...DEFAULT_OPTS,
+        dir: process.cwd(),
+        saveOptional: true,
+      }, ['express'])
+    } catch (_err) {
+      err = _err
+    }
+    t.equal(err.code, 'ERR_PNPM_PKG_TO_REMOVE_NOT_FOUND')
+    t.equal(err.message, "Cannot remove 'express': project has no 'optionalDependencies'")
+  }
   t.end()
 })
 
