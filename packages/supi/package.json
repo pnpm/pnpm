@@ -100,7 +100,7 @@
     "dir-is-case-sensitive": "1.0.2",
     "execa": "4.0.0",
     "exists-link": "2.0.0",
-    "fs-extra": "8.1.0",
+    "fs-extra": "9.0.0",
     "is-ci": "2.0.0",
     "is-windows": "1.0.2",
     "ncp": "2.0.0",
