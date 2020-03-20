@@ -694,7 +694,7 @@ importers:
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/types': 'link:../types'
-      '@zkochan/cmd-shim': 4.2.1
+      '@zkochan/cmd-shim': 4.3.0
       is-subdir: 1.1.1
       is-windows: 1.0.2
       make-dir: 3.0.2
@@ -732,7 +732,7 @@ importers:
       '@types/ramda': ^0.26.44
       '@types/sinon': ^7.5.2
       '@types/tape': ^4.2.34
-      '@zkochan/cmd-shim': 4.2.1
+      '@zkochan/cmd-shim': 4.3.0
       is-subdir: 1.1.1
       is-windows: 1.0.2
       make-dir: 3.0.2
@@ -3578,7 +3578,7 @@ packages:
       node-fetch: '*'
     resolution:
       integrity: sha512-48tgGYYNX4AGyR8LZa5nMGdr3j4VXYxAA7BX6RWSKIWZkdh1bbkUB6M9ZLfmxsED0CEGpJmP7svN8qnolwZ45w==
-  /@zkochan/cmd-shim/4.2.1:
+  /@zkochan/cmd-shim/4.3.0:
     dependencies:
       is-windows: 1.0.2
       make-dir: 3.0.2
@@ -3586,7 +3586,7 @@ packages:
     engines:
       node: '>=8.15'
     resolution:
-      integrity: sha512-nlAQt6YjG1VwmxhNwvXOcgxPFJR6yF6u9kbAU2uWjfeDDkBavzUC6F210+Xfb44Ui7eY3vFK6CvSr3MNKedjOw==
+      integrity: sha512-i3eTvq0VnWRb9U2Hj22unmiN5Gg+J776xhrr/fAtuaf5xL+/qf4QIu+6tQgo9Soll489dWF4yJmzXJ8pv8oUiw==
   /@zkochan/libnpx/11.0.3:
     dependencies:
       '@zkochan/npm-package-arg': 1.0.2
