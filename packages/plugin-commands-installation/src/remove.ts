@@ -35,13 +35,13 @@ class RemoveMissingDepsError extends PnpmError {
       message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
       message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
       const hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
-      super('PKG_TO_REMOVE_NOT_FOUND', message, { hint })
+      super('CANNOT_REMOVE_MISSING_DEPS', message, { hint })
       return
     }
     message += opts.targetDependenciesField
       ? `project has no '${opts.targetDependenciesField}'`
       : 'project has no dependencies of any kind'
-    super('PKG_TO_REMOVE_NOT_FOUND', message)
+    super('CANNOT_REMOVE_MISSING_DEPS', message)
   }
 }
 
