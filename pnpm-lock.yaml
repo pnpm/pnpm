@@ -568,7 +568,7 @@ importers:
       '@types/fs-extra': 8.1.0
       '@types/mz': 2.7.0
       '@types/ramda': 0.26.44
-      '@types/rimraf': 2.0.4
+      '@types/rimraf': 3.0.0
       '@types/sinon': 7.5.2
       '@types/tape-promise': 4.0.0
       '@zkochan/rimraf': 1.0.0
@@ -614,7 +614,7 @@ importers:
       '@types/fs-extra': ^8.1.0
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.26.44
-      '@types/rimraf': ^2.0.4
+      '@types/rimraf': ^3.0.0
       '@types/sinon': ^7.5.2
       '@types/tape-promise': 4.0.0
       '@zkochan/rimraf': 1.0.0
@@ -671,7 +671,7 @@ importers:
     devDependencies:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 3.1.0
-      '@types/rimraf': 2.0.4
+      '@types/rimraf': 3.0.0
       json-append: 1.1.1
       load-json-file: 6.2.0
     specifiers:
@@ -680,7 +680,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.2'
       '@pnpm/types': 'workspace:5.0.0'
-      '@types/rimraf': ^2.0.4
+      '@types/rimraf': ^3.0.0
       '@zkochan/npm-lifecycle': 3.1.4
       json-append: 1.1.1
       load-json-file: 6.2.0
@@ -2334,7 +2334,7 @@ importers:
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 2.7.0
       '@types/node-fetch': 2.5.5
-      '@types/uuid': 7.0.0
+      '@types/uuid': 7.0.2
       '@zkochan/rimraf': 1.0.0
       is-port-reachable: 3.0.0
       mz: 2.7.0
@@ -2352,7 +2352,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/mz': ^2.7.0
       '@types/node-fetch': ^2.5.5
-      '@types/uuid': 7.0.0
+      '@types/uuid': ^7.0.2
       '@zkochan/rimraf': 1.0.0
       is-port-reachable: 3.0.0
       mz: 2.7.0
@@ -2655,7 +2655,7 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/mz': 2.7.0
       '@types/retry': 0.12.0
-      '@types/rimraf': 2.0.4
+      '@types/rimraf': 3.0.0
       '@types/ssri': 6.0.1
       cp-file: 9.0.0
       nock: 12.0.3
@@ -2668,7 +2668,7 @@ importers:
       '@types/graceful-fs': ^4.1.3
       '@types/mz': ^2.7.0
       '@types/retry': ^0.12.0
-      '@types/rimraf': ^2.0.4
+      '@types/rimraf': ^3.0.0
       '@types/ssri': ^6.0.1
       cp-file: 9.0.0
       credentials-by-uri: 2.0.0
@@ -3424,13 +3424,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==
-  /@types/rimraf/2.0.4:
+  /@types/rimraf/3.0.0:
     dependencies:
       '@types/glob': 7.1.1
       '@types/node': 13.9.2
     dev: true
     resolution:
-      integrity: sha512-8gBudvllD2A/c0CcEX/BivIDorHFt5UI5m46TsNj8DjWCCTTZT74kEe4g+QsY7P/B9WdO98d82zZgXO/RQzu2Q==
+      integrity: sha512-7WhJ0MdpFgYQPXlF4Dx+DhgvlPCfz/x5mHaeDQAKhcenvQP1KCpLQ18JklAqeGMYSAT2PxLpzd0g2/HE7fj7hQ==
   /@types/semver/7.1.0:
     dependencies:
       '@types/node': 13.9.2
@@ -3476,10 +3476,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-vA13siXfQr32NKBm/6cu084W0kaw68uXhoM5klpv9J9rYjUYjpbv5nu8LV2OBLrZMIhYx5nCktebU8JRYcmxGg==
-  /@types/uuid/7.0.0:
+  /@types/uuid/7.0.2:
     dev: true
     resolution:
-      integrity: sha512-RiX1I0lK9WFLFqy2xOxke396f0wKIzk5sAll0tL4J4XDYJXURI7JOs96XQb3nP+2gEpQ/LutBb66jgiT5oQshQ==
+      integrity: sha512-8Ly3zIPTnT0/8RCU6Kg/G3uTICf9sRwYOpUzSIM3503tLIKcnJPRuinHhXngJUy2MntrEf6dlpOHXJju90Qh5w==
   /@types/validate-npm-package-name/3.0.0:
     dev: true
     resolution:
