@@ -11,6 +11,8 @@ import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
+import { DependenciesField } from '@pnpm/types'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')
@@ -18,6 +20,30 @@ import {
   mutateModules,
 } from 'supi'
 import recursive from './recursive'
+
+class RemoveMissingDepsError extends PnpmError {
+  constructor (
+    opts: {
+      availableDependencies: string[],
+      nonMatchedDependencies: string[],
+      targetDependenciesField?: DependenciesField,
+    },
+  ) {
+    let message = 'Cannot remove '
+    message += `${opts.nonMatchedDependencies.map(dep => `'${dep}'`).join(', ')}: `
+    if (opts.availableDependencies.length > 0) {
+      message += `no such ${opts.nonMatchedDependencies.length > 1 ? 'dependencies' : 'dependency'} `
+      message += `found${opts.targetDependenciesField ? ` in '${opts.targetDependenciesField}'` : ''}`
+      const hint = `Available dependencies: ${opts.availableDependencies.join(', ')}`
+      super('CANNOT_REMOVE_MISSING_DEPS', message, { hint })
+      return
+    }
+    message += opts.targetDependenciesField
+      ? `project has no '${opts.targetDependenciesField}'`
+      : 'project has no dependencies of any kind'
+    super('CANNOT_REMOVE_MISSING_DEPS', message)
+  }
+}
 
 export function rcOptionsTypes () {
   return R.pick([
@@ -137,19 +163,36 @@ export async function handler (
   removeOpts['workspacePackages'] = opts.workspaceDir
     ? arrayOfWorkspacePackagesToMap(await findWorkspacePackages(opts.workspaceDir, opts))
     : undefined
-  const currentManifest = await readProjectManifest(opts.dir, opts)
+  const targetDependenciesField = getSaveType(opts)
+  const {
+    manifest: currentManifest,
+    writeProjectManifest,
+  } = await readProjectManifest(opts.dir, opts)
+  const availableDependencies = Object.keys(
+    targetDependenciesField === undefined
+    ? getAllDependenciesFromPackage(currentManifest)
+    : currentManifest[targetDependenciesField] ?? {},
+  )
+  const nonMatchedDependencies = R.without(availableDependencies, params)
+  if (nonMatchedDependencies.length !== 0) {
+    throw new RemoveMissingDepsError({
+      availableDependencies,
+      nonMatchedDependencies,
+      targetDependenciesField,
+    })
+  }
   const [mutationResult] = await mutateModules(
     [
       {
         binsDir: opts.bin,
         dependencyNames: params,
-        manifest: currentManifest.manifest,
+        manifest: currentManifest,
         mutation: 'uninstallSome',
         rootDir: opts.dir,
-        targetDependenciesField: getSaveType(opts),
+        targetDependenciesField,
       },
     ],
     removeOpts,
   )
-  await currentManifest.writeProjectManifest(mutationResult.manifest)
+  await writeProjectManifest(mutationResult.manifest)
 }

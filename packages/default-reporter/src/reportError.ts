@@ -50,11 +50,14 @@ export default function reportError (logObj: Log) {
         if (!err.code?.startsWith?.('ERR_PNPM_')) {
           return formatGenericError(err.message ?? logObj['message'], err.stack)
         }
-        const errorSummary = formatErrorSummary(err.message)
-        if (!logObj['message']['pkgsStack']?.length) {
-          return errorSummary
+        let errorOutput = formatErrorSummary(err.message)
+        if (logObj['message']['pkgsStack']?.length) {
+          errorOutput += `${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
         }
-        return `${errorSummary}${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
+        if (logObj['message']['hint']) {
+          errorOutput += `${EOL}${logObj['message']['hint']}`
+        }
+        return errorOutput
     }
   }
   return formatErrorSummary(logObj['message'])

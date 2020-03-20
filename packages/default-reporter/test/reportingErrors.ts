@@ -355,13 +355,13 @@ test('prints error without packages stacktrace when pkgsStack is empty', t => {
   })
 })
 
-test('prints error with packages stacktrace - depth 1', t => {
+test('prints error with packages stacktrace - depth 1 and hint', t => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
     streamParser: createStreamParser(),
   })
 
-  const err = new PnpmError('SOME_ERROR', 'some error')
+  const err = new PnpmError('SOME_ERROR', 'some error', { hint: 'hint' })
   err.pkgsStack = [
     {
       id: 'registry.npmjs.org/foo/1.0.0',
@@ -380,6 +380,7 @@ test('prints error with packages stacktrace - depth 1', t => {
       t.equal(output, ERROR + ' ' + stripIndents`
         ${chalk.red('some error')}
         This error happened while installing the dependencies of foo@1.0.0
+        hint
       `)
     },
   })
@@ -416,6 +417,29 @@ test('prints error with packages stacktrace - depth 2', t => {
         ${chalk.red('some error')}
         This error happened while installing the dependencies of foo@1.0.0
          at bar@1.0.0
+      `)
+    },
+  })
+})
+
+test('prints error and hint', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const err = new PnpmError('SOME_ERROR', 'some error', { hint: 'some hint' })
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, ERROR + ' ' + stripIndents`
+        ${chalk.red('some error')}
+        some hint
       `)
     },
   })
