@@ -10,7 +10,7 @@
     "coveralls": "lcov-result-merger './packages/*/coverage/lcov.info' | coveralls"
   },
   "devDependencies": {
-    "@pnpm/registry-mock": "1.11.1",
+    "@pnpm/registry-mock": "2.0.0",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/tslint-config": "workspace:*",
     "@types/node": "*",

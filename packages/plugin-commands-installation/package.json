@@ -37,7 +37,6 @@
     "@pnpm/matcher": "workspace:1.0.0",
     "@pnpm/plugin-commands-installation": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
-    "@pnpm/registry-mock": "1.11.1",
     "@pnpm/test-fixtures": "workspace:0.0.0",
     "@types/common-tags": "^1.8.0",
     "@types/is-ci": "^2.0.0",

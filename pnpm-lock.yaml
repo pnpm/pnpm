@@ -1,7 +1,7 @@
 importers:
   .:
     devDependencies:
-      '@pnpm/registry-mock': 1.11.1
+      '@pnpm/registry-mock': 2.0.0
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': 13.9.2
@@ -20,7 +20,7 @@ importers:
       typescript: 3.8.3
       verdaccio: 4.5.1
     specifiers:
-      '@pnpm/registry-mock': 1.11.1
+      '@pnpm/registry-mock': 2.0.0
       '@pnpm/tsconfig': 'workspace:*'
       '@pnpm/tslint-config': 'workspace:*'
       '@types/node': '*'
@@ -1419,7 +1419,6 @@ importers:
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/registry-mock': 1.11.1
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/common-tags': 1.8.0
       '@types/is-ci': 2.0.0
@@ -1455,7 +1454,6 @@ importers:
       '@pnpm/plugin-commands-rebuild': 'workspace:1.0.0'
       '@pnpm/pnpmfile': 'workspace:0.1.6'
       '@pnpm/prepare': 'workspace:0.0.0'
-      '@pnpm/registry-mock': 1.11.1
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/sort-packages': 'workspace:1.0.5'
@@ -1732,7 +1730,6 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/registry-mock': 1.11.1
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.26.44
@@ -1760,7 +1757,6 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
-      '@pnpm/registry-mock': 1.11.1
       '@pnpm/sort-packages': 'workspace:1.0.5'
       '@pnpm/store-connection-manager': 'workspace:0.2.21'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
@@ -3156,21 +3152,21 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/registry-mock/1.11.1:
+  /@pnpm/registry-mock/2.0.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       read-yaml-file: 1.1.0
       rimraf: 3.0.2
-      tempy: 0.3.0
+      tempy: 0.5.0
       verdaccio: 4.5.1
       write-yaml-file: 3.0.1
     dev: true
     engines:
-      node: '>=8.15'
+      node: '>=10.13'
     hasBin: true
     resolution:
-      integrity: sha512-oHsIXITAZCotTw9cB9yWcFwLTXmEWC4zlg3Uvy4nypEdXwRNFu16Cd2RHzqZK0VF6t0eG1xxffUvISDoX8lTPg==
+      integrity: sha512-UxKEGbR7yaaZt2QRU4uCY/5p3ttAThKMN6lf5ol/wFf2JowG5zsXcDPiM16qnx4jqCmOObWssuR79sqjQq5lIA==
   /@pnpm/semver-diff/1.0.2:
     dev: false
     engines:
@@ -3772,7 +3768,7 @@ packages:
   /anonymous-npm-registry-client/0.1.2:
     dependencies:
       concat-stream: 1.6.2
-      graceful-fs: 4.2.1
+      graceful-fs: 4.2.3
       normalize-package-data: 2.5.0
       npm-package-arg: 4.2.1
       once: 1.4.0
@@ -5254,12 +5250,6 @@ packages:
       node: '>= 8'
     resolution:
       integrity: sha512-u7v4o84SwFpD32Z8IIcPZ6z1/ie24O6RU3RbtL5Y316l3KuHVPx9ItBgWQ6VlfAFnRnTtMUrsQ9MUUTuEZjogg==
-  /crypto-random-string/1.0.0:
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
   /crypto-random-string/2.0.0:
     engines:
       node: '>=8'
@@ -11144,27 +11134,11 @@ packages:
       node: '>=4.5'
     resolution:
       integrity: sha512-w2VwSrBoHa5BsSyH+KxEqeQBAllHhccyMFVHtGtdMpF4W7IRWfZjFiQceJPChOeTsSDVUpER2T8FA93pr0L+QA==
-  /temp-dir/1.0.0:
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-CnwOom06Oa+n4OvqnB/AvE2qAR0=
   /temp-dir/2.0.0:
     engines:
       node: '>=8'
     resolution:
       integrity: sha512-aoBAniQmmwtcKp/7BzsH8Cxzv8OL736p7v1ihGb5e9DJ9kTwGWHrQrVB5+lfVDzfGrdRzXch+ig7LHaY1JTOrg==
-  /tempy/0.3.0:
-    dependencies:
-      temp-dir: 1.0.0
-      type-fest: 0.3.1
-      unique-string: 1.0.0
-    dev: true
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-WrH/pui8YCwmeiAoxV+lpRH9HpRtgBhSR2ViBPgpGb/wnYDzp21R4MN45fsCGvLROvY67o3byhJRYRONJyImVQ==
   /tempy/0.5.0:
     dependencies:
       is-stream: 2.0.0
@@ -11512,12 +11486,6 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-53RyidyjvkGpnWPMF9bQgFtWp+Sl8O2Rp13VavmJgfAP9WWG6q6TkrKU8iyJdnwnfgHI6k2hTlgqH4aSdjoTbg==
-  /type-fest/0.3.1:
-    dev: true
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-cUGJnCdr4STbePCgqNFbpVNCepa+kAVohJs1sLhxzdH+gnEoOd8VhbYa7pD3zZYGiURWM2xzEII3fQcRizDkYQ==
   /type-fest/0.4.1:
     engines:
       node: '>=6'
@@ -11633,14 +11601,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2nY4TnBE70yoxHkDli7DMazpWiP7xMdCYqU2nBRO0UB+ZpEkGsSija7MvmvnZFUeC+mrgiUfcHSr3LmRFIg4+A==
-  /unique-string/1.0.0:
-    dependencies:
-      crypto-random-string: 1.0.0
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unique-string/2.0.0:
     dependencies:
       crypto-random-string: 2.0.0
