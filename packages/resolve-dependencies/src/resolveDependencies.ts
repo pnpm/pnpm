@@ -56,15 +56,10 @@ export function nodeIdToParents (
   nodeId: string,
   resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
 ) {
-  const pkgIds = splitNodeId(nodeId).slice(2, -2)
-  return pkgIds
+  return splitNodeId(nodeId).slice(1)
     .map((pkgId) => {
-      const pkg = resolvedPackagesByPackageId[pkgId]
-      return {
-        id: pkg.id,
-        name: pkg.name,
-        version: pkg.version,
-      }
+      const { id, name, version } = resolvedPackagesByPackageId[pkgId]
+      return { id, name, version }
     })
 }
 
@@ -543,13 +538,13 @@ async function resolveDependency (
           pref: wantedDependency.pref,
           version: wantedDependency.alias ? wantedDependency.pref : undefined,
         },
-        parents: nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.resolvedPackagesByPackageId),
+        parents: nodeIdToParents(options.parentNodeId, ctx.resolvedPackagesByPackageId),
         prefix: ctx.prefix,
         reason: 'resolution_failure',
       })
       return null
     }
-    err.pkgsStack = nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.resolvedPackagesByPackageId)
+    err.pkgsStack = nodeIdToParents(options.parentNodeId, ctx.resolvedPackagesByPackageId)
     throw err
   }
 

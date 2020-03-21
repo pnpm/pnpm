@@ -365,7 +365,7 @@ function packageFriendlyId (manifest: {name: string, version: string}) {
 }
 
 function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTree) {
-  const parts = splitNodeId(nodeId).slice(1, -2)
+  const parts = splitNodeId(nodeId).slice(0, -1)
   const result = R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), '>', parts)
     .slice(2)
     .map((nid) => dependenciesTree[nid].resolvedPackage.name)

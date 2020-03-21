@@ -7,5 +7,5 @@ export function createNodeId (parentNodeId: string, pkgId: string) {
 }
 
 export function splitNodeId (nodeId: string) {
-  return nodeId.split('>')
+  return nodeId.substr(1, nodeId.length - 2).split('>')
 }
