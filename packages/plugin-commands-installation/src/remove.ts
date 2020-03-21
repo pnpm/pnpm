@@ -76,7 +76,7 @@ export const cliOptionsTypes = () => ({
 
 export function help () {
   return renderHelp({
-    aliases: ['rm', 'r', 'uninstall', 'un'],
+    aliases: ['rm', 'uninstall', 'un'],
     description: `Removes packages from \`node_modules\` and from the project's \`packages.json\`.`,
     descriptionLists: [
       {
