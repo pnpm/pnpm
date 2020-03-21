@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "4.12.0-1",
+  "version": "4.12.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bin": {
     "pnpm": "bin/pnpm.js",
@@ -31,7 +31,7 @@
     "@pnpm/plugin-commands-audit": "workspace:1.0.1",
     "@pnpm/plugin-commands-import": "workspace:1.0.1",
     "@pnpm/plugin-commands-installation": "workspace:1.1.0",
-    "@pnpm/plugin-commands-listing": "workspace:1.0.1",
+    "@pnpm/plugin-commands-listing": "workspace:1.0.2",
     "@pnpm/plugin-commands-outdated": "workspace:1.0.1",
     "@pnpm/plugin-commands-publishing": "workspace:1.0.1",
     "@pnpm/plugin-commands-rebuild": "workspace:1.0.1",
