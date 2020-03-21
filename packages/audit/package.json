@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/audit",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Audit a lockfile",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/audit#readme",
   "devDependencies": {
     "@pnpm/audit": "link:",
-    "@pnpm/lockfile-file": "workspace:3.0.5"
+    "@pnpm/lockfile-file": "workspace:3.0.6"
   },
   "dependencies": {
     "@pnpm/fetch": "workspace:1.0.3",

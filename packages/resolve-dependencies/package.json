@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "14.3.1",
+  "version": "14.3.2",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
@@ -28,11 +28,11 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",
-    "@pnpm/error": "workspace:1.1.0",
+    "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/lockfile-utils": "workspace:2.0.9",
-    "@pnpm/npm-resolver": "workspace:7.3.6",
-    "@pnpm/package-is-installable": "workspace:4.0.5",
+    "@pnpm/npm-resolver": "workspace:7.3.7",
+    "@pnpm/package-is-installable": "workspace:4.0.6",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",

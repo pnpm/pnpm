@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "@pnpm/find-workspace-packages": "workspace:2.1.11",
-    "@pnpm/lockfile-file": "workspace:3.0.5",
+    "@pnpm/find-workspace-packages": "workspace:2.1.12",
+    "@pnpm/lockfile-file": "workspace:3.0.6",
     "@pnpm/types": "workspace:5.0.0",
     "is-subdir": "1.1.1",
     "load-json-file": "6.2.0",

@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hierarchy",
-  "version": "8.0.13",
+  "version": "8.0.14",
   "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
-    "@pnpm/lockfile-file": "workspace:3.0.5",
+    "@pnpm/lockfile-file": "workspace:3.0.6",
     "@pnpm/lockfile-utils": "workspace:2.0.9",
     "@pnpm/modules-yaml": "workspace:6.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
