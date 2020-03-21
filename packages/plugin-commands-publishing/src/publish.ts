@@ -17,24 +17,23 @@ import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean }
 import recursivePublish, { PublishRecursiveOpts } from './recursivePublish'
 
 export function rcOptionsTypes () {
-  return {
-    ...cliOptionsTypes(),
-    ...R.pick([
-      'npm-path',
-    ], allTypes),
-  }
-}
-
-export function cliOptionsTypes () {
   return R.pick([
     'access',
     'git-checks',
+    'npm-path',
     'otp',
     'publish-branch',
     'registry',
     'tag',
     'unsafe-perm',
   ], allTypes)
+}
+
+export function cliOptionsTypes () {
+  return {
+    ...rcOptionsTypes(),
+    recursive: Boolean,
+  }
 }
 
 export const commandNames = ['publish']
