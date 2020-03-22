@@ -296,9 +296,8 @@ test('do not get confused by filtered dependencies when searching for dependents
       version: '1.0.0',
 
       dependencies: { 'unused-project-1': '1.0.0', 'unused-project-2': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
       scripts: {
-        test: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('printed' + ' by project-2')"`,
       },
     },
     {
@@ -306,9 +305,8 @@ test('do not get confused by filtered dependencies when searching for dependents
       version: '1.0.0',
 
       dependencies: { 'project-2': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
       scripts: {
-        test: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('printed' + ' by project-3')"`,
       },
     },
     {
@@ -316,26 +314,24 @@ test('do not get confused by filtered dependencies when searching for dependents
       version: '1.0.0',
 
       dependencies: { 'project-2': '1.0.0', 'unused-project-1': '1.0.0', 'unused-project-2': '1.0.0' },
-      devDependencies: { 'json-append': '1' },
       scripts: {
-        test: `node -e "process.stdout.write('project-4')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('printed' + ' by project-4')"`,
       },
     },
   ])
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm(['recursive', 'install'])
-
   process.chdir('project-2')
 
-  await execPnpm(['--filter=...project-2', 'run', 'test'])
+  const { stdout } = execPnpmSync(['--filter=...project-2', 'run', 'test'])
 
-  const outputs = await import(path.resolve('..', 'output.json')) as string[]
-  // project-2 should be executed first, we cannot say anything about the order
-  // of the last two packages.
-  t.equal(outputs[0], 'project-2')
-  t.equal(outputs.length, 3)
+  const output = stdout.toString()
+  const project2Output = output.indexOf('printed by project-2')
+  const project3Output = output.indexOf('printed by project-3')
+  const project4Output = output.indexOf('printed by project-4')
+  t.ok(project2Output < project3Output)
+  t.ok(project2Output < project4Output)
 })
 
 test('installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
