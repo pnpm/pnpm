@@ -19,33 +19,35 @@ const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 
+export type WarnFunction = (msg: string) => void
+
 export default async (
-  modules: string,
-  binPath: string,
+  modulesDir: string,
+  binsDir: string,
   opts: {
     allowExoticManifests?: boolean,
-    warn: (msg: string) => void,
+    warn: WarnFunction,
   },
 ) => {
-  const pkgDirs = await readModulesDir(modules)
+  const allDeps = await readModulesDir(modulesDir)
   // If the modules dir does not exist, do nothing
-  if (pkgDirs === null) return
+  if (allDeps === null) return
   const pkgBinOpts = {
     allowExoticManifests: false,
     ...opts,
   }
   const allCmds = R.unnest(
     (await Promise.all(
-      pkgDirs
-        .map((dir) => path.resolve(modules, dir))
-        .filter((dir) => !isSubdir(dir, binPath)) // Don't link own bins
-        .map((dir) => normalizePath(dir))
-        .map((target: string) => getPackageBins(target, pkgBinOpts)),
+      allDeps
+        .map((depName) => path.resolve(modulesDir, depName))
+        .filter((depDir) => !isSubdir(depDir, binsDir)) // Don't link own bins
+        .map((depDir) => normalizePath(depDir))
+        .map(getPackageBins.bind(null, pkgBinOpts)),
     ))
     .filter((cmds: Command[]) => cmds.length),
   )
 
-  return linkBins(allCmds, binPath, opts)
+  return linkBins(allCmds, binsDir, opts)
 }
 
 export async function linkBinsOfPackages (
@@ -55,7 +57,7 @@ export async function linkBinsOfPackages (
   }>,
   binsTarget: string,
   opts: {
-    warn: (msg: string) => void,
+    warn: WarnFunction,
   },
 ) {
   if (!pkgs.length) return
@@ -63,7 +65,7 @@ export async function linkBinsOfPackages (
   const allCmds = R.unnest(
     (await Promise.all(
       pkgs
-        .map((pkg) => getPackageBinsFromPackageJson(pkg.manifest, pkg.location)),
+        .map((pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location)),
     ))
     .filter((cmds: Command[]) => cmds.length),
   )
@@ -76,27 +78,27 @@ async function linkBins (
     ownName: boolean,
     pkgName: string,
   }>,
-  binPath: string,
+  binsDir: string,
   opts: {
-    warn: (msg: string) => void,
+    warn: WarnFunction,
   },
 ) {
   if (!allCmds.length) return [] as string[]
 
-  await makeDir(binPath)
+  await makeDir(binsDir)
 
-  const [cmdsWithOwnName, cmdsWithOtherNames] = R.partition((cmd) => cmd.ownName, allCmds)
+  const [cmdsWithOwnName, cmdsWithOtherNames] = R.partition(({ ownName }) => ownName, allCmds)
 
-  const results1 = await pSettle(cmdsWithOwnName.map((cmd: Command) => linkBin(cmd, binPath)))
+  const results1 = await pSettle(cmdsWithOwnName.map((cmd: Command) => linkBin(cmd, binsDir)))
 
   const usedNames = R.fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as R.KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map((cmd: Command & {pkgName: string}) => {
     if (usedNames[cmd.name]) {
-      opts.warn(`Cannot link bin "${cmd.name}" of "${cmd.pkgName}" to "${binPath}". A package called "${usedNames[cmd.name]}" already has its bin linked.`)
+      opts.warn(`Cannot link bin "${cmd.name}" of "${cmd.pkgName}" to "${binsDir}". A package called "${usedNames[cmd.name]}" already has its bin linked.`)
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
-    return linkBin(cmd, binPath)
+    return linkBin(cmd, binsDir)
   }))
 
   // We want to create all commands that we can create before throwing an exception
@@ -115,42 +117,43 @@ async function isFromModules (filename: string) {
 }
 
 async function getPackageBins (
-  target: string,
   opts: {
     allowExoticManifests: boolean,
-    warn: (msg: string) => void,
+    warn: WarnFunction,
   },
+  target: string,
 ) {
-  const pkg = opts.allowExoticManifests ? await safeReadProjectManifestOnly(target) : await safeReadPkg(target)
+  const manifest = opts.allowExoticManifests
+    ? await safeReadProjectManifestOnly(target) : await safeReadPkgJson(target)
 
-  if (!pkg) {
+  if (!manifest) {
     // There's a directory in node_modules without package.json: ${target}.
     // This used to be a warning but it didn't really cause any issues.
     return []
   }
 
-  if (R.isEmpty(pkg.bin) && !await isFromModules(target)) {
+  if (R.isEmpty(manifest.bin) && !await isFromModules(target)) {
     opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`)
   }
 
-  if (typeof pkg.bin === 'string' && !pkg.name) {
+  if (typeof manifest.bin === 'string' && !manifest.name) {
     throw new PnpmError('INVALID_PACKAGE_NAME', `Package in ${target} must have a name to get bin linked.`)
   }
 
-  return getPackageBinsFromPackageJson(pkg, target)
+  return getPackageBinsFromManifest(manifest, target)
 }
 
-async function getPackageBinsFromPackageJson (pkgJson: DependencyManifest, pkgPath: string) {
-  const cmds = await binify(pkgJson, pkgPath)
+async function getPackageBinsFromManifest (manifest: DependencyManifest, pkgDir: string) {
+  const cmds = await binify(manifest, pkgDir)
   return cmds.map((cmd) => ({
     ...cmd,
-    ownName: cmd.name === pkgJson.name,
-    pkgName: pkgJson.name,
+    ownName: cmd.name === manifest.name,
+    pkgName: manifest.name,
   }))
 }
 
-async function linkBin (cmd: Command, binPath: string) {
-  const externalBinPath = path.join(binPath, cmd.name)
+async function linkBin (cmd: Command, binsDir: string) {
+  const externalBinPath = path.join(binsDir, cmd.name)
 
   if (EXECUTABLE_SHEBANG_SUPPORTED) {
     await fs.chmod(cmd.path, 0o755)
@@ -171,9 +174,9 @@ async function getBinNodePaths (target: string): Promise<string[]> {
   )
 }
 
-async function safeReadPkg (pkgPath: string): Promise<DependencyManifest | null> {
+async function safeReadPkgJson (pkgDir: string): Promise<DependencyManifest | null> {
   try {
-    return await readPackageJsonFromDir(pkgPath) as DependencyManifest
+    return await readPackageJsonFromDir(pkgDir) as DependencyManifest
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       return null
