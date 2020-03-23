@@ -1087,3 +1087,44 @@ test('lockfile is not getting broken if the used registry changes', async (t: ta
     ],
   )
 })
+
+test('broken lockfile is fixed even if it seems like up-to-date at first. Unless frozenLockfile option is set to true', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ lockfileOnly: true }))
+  {
+    const lockfile = await project.readLockfile()
+    t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+    delete lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0']
+    await writeYamlFile(WANTED_LOCKFILE, lockfile)
+  }
+
+  let err!: PnpmError
+  try {
+    await mutateModules([
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ], await testDefaults({ frozenLockfile: true }))
+  } catch (_err) {
+    err = _err
+  }
+  t.equal(err.code, 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ preferFrozenLockfile: true }))
+
+  project.has('pkg-with-1-dep')
+  const lockfile = await project.readLockfile()
+  t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+})
