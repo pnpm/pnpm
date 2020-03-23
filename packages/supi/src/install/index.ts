@@ -252,6 +252,7 @@ export async function mutateModules (
           return projects
         } catch (error) {
           if (frozenLockfile || error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY') throw error
+          // A broken lockfile may be caused by a badly resolved Git conflict
           logger.warn({
             error,
             message: 'The lockfile is broken! Resolution step will be performed to fix it.',
