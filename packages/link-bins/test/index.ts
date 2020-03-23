@@ -167,7 +167,7 @@ test('linkBins() resolves conflicts. Prefer packages that use their name as bin 
 
   await linkBins(path.join(binNameConflictsFixture, 'node_modules'), binTarget, { warn })
 
-  t.ok(warn.calledWith(`Cannot link bin "bar" of "foo" to "${binTarget}". A package called "bar" already has its bin linked.`))
+  t.equal(warn.args[0][0], `Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`)
   t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['bar', 'foofoo']))
 
   {
@@ -209,7 +209,7 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
     { warn },
   )
 
-  t.ok(warn.calledWith(`Cannot link bin "bar" of "foo" to "${binTarget}". A package called "bar" already has its bin linked.`))
+  t.equal(warn.args[0][0], `Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`)
   t.deepEqual(await fs.readdir(binTarget), getExpectedBins(['bar', 'foofoo']))
 
   {

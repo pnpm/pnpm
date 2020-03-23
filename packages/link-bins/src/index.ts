@@ -94,7 +94,7 @@ async function linkBins (
   const usedNames = R.fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as R.KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map((cmd: Command & {pkgName: string}) => {
     if (usedNames[cmd.name]) {
-      opts.warn(`Cannot link bin "${cmd.name}" of "${cmd.pkgName}" to "${binsDir}". A package called "${usedNames[cmd.name]}" already has its bin linked.`)
+      opts.warn(`Cannot link binary '${cmd.name}' of '${cmd.pkgName}' to '${binsDir}': binary of '${usedNames[cmd.name]}' is already linked`)
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
