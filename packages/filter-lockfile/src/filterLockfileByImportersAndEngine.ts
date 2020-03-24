@@ -1,5 +1,4 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshots,
@@ -11,6 +10,7 @@ import { DependenciesField, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
+import LockfileMissingDependencyError from './LockfileMissingDependencyError'
 
 const logger = pnpmLogger('lockfile')
 
@@ -122,11 +122,10 @@ function pkgAllDeps (
     if (ctx.pickedPackages[relDepPath]) continue
     const pkgSnapshot = ctx.pkgSnapshots[relDepPath]
     if (!pkgSnapshot && !relDepPath.startsWith('link:')) {
-      const message = `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`
       if (opts.failOnMissingDependencies) {
-        throw new PnpmError('LOCKFILE_MISSING_DEPENDENCY', message)
+        throw new LockfileMissingDependencyError(relDepPath)
       }
-      logger.debug(message)
+      logger.debug(`No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`)
       continue
     }
     let installable!: boolean
