@@ -132,8 +132,7 @@ export default async function getContext<T> (
     extraBinPaths,
     hoistedAliases: importersContext.hoistedAliases,
     hoistedModulesDir,
-    hoistPattern: typeof importersContext.hoist === 'boolean' ?
-      importersContext.currentHoistPattern : opts.hoistPattern,
+    hoistPattern: opts.hoistPattern,
     include: opts.include || importersContext.include,
     independentLeaves: Boolean(typeof importersContext.independentLeaves === 'undefined' ? opts.independentLeaves : importersContext.independentLeaves),
     lockfileDir: opts.lockfileDir,
@@ -418,7 +417,7 @@ export async function getContextForSingleImporter (
     extraBinPaths,
     hoistedAliases,
     hoistedModulesDir,
-    hoistPattern: typeof hoist === 'boolean' ? currentHoistPattern : opts.hoistPattern,
+    hoistPattern: opts.hoistPattern,
     importerId,
     include: opts.include || include,
     independentLeaves: Boolean(typeof independentLeaves === 'undefined' ? opts.independentLeaves : independentLeaves),
