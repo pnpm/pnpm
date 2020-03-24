@@ -182,13 +182,14 @@ export async function mutateModules (
   return result
 
   async function _install (): Promise<Array<{ rootDir: string, manifest: ProjectManifest }>> {
+    const frozenLockfile = opts.frozenLockfile ||
+      opts.frozenLockfileIfExists && ctx.existsWantedLockfile
     if (
       !opts.lockfileOnly &&
       !opts.update &&
       installsOnly &&
       (
-        opts.frozenLockfile ||
-        opts.frozenLockfileIfExists && ctx.existsWantedLockfile ||
+        frozenLockfile ||
         opts.preferFrozenLockfile &&
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
@@ -206,48 +207,58 @@ export async function mutateModules (
         }
       } else {
         logger.info({ message: 'Lockfile is up-to-date, resolution step is skipped', prefix: opts.lockfileDir })
-        await headless({
-          currentEngine: {
-            nodeVersion: opts.nodeVersion,
-            pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-          },
-          currentLockfile: ctx.currentLockfile,
-          engineStrict: opts.engineStrict,
-          extraBinPaths: opts.extraBinPaths,
-          force: opts.force,
-          hoistedAliases: ctx.hoistedAliases,
-          hoistPattern: ctx.hoistPattern,
-          ignoreScripts: opts.ignoreScripts,
-          include: opts.include,
-          independentLeaves: opts.independentLeaves,
-          lockfileDir: ctx.lockfileDir,
-          ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
-          packageManager:  opts.packageManager,
-          pendingBuilds: ctx.pendingBuilds,
-          projects: ctx.projects as Array<{
-            binsDir: string,
-            buildIndex: number,
-            id: string,
-            manifest: ProjectManifest,
-            modulesDir: string,
-            rootDir: string,
-            pruneDirectDependencies?: boolean,
-          }>,
-          pruneStore: opts.pruneStore,
-          rawConfig: opts.rawConfig,
-          registries: opts.registries,
-          shamefullyHoist: ctx.shamefullyHoist,
-          sideEffectsCacheRead: opts.sideEffectsCacheRead,
-          sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
-          skipped: ctx.skipped,
-          storeController: opts.storeController,
-          storeDir: opts.storeDir,
-          unsafePerm: opts.unsafePerm,
-          userAgent: opts.userAgent,
-          virtualStoreDir: ctx.virtualStoreDir,
-          wantedLockfile: ctx.wantedLockfile,
-        })
-        return projects
+        try {
+          await headless({
+            currentEngine: {
+              nodeVersion: opts.nodeVersion,
+              pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+            },
+            currentLockfile: ctx.currentLockfile,
+            engineStrict: opts.engineStrict,
+            extraBinPaths: opts.extraBinPaths,
+            force: opts.force,
+            hoistedAliases: ctx.hoistedAliases,
+            hoistPattern: ctx.hoistPattern,
+            ignoreScripts: opts.ignoreScripts,
+            include: opts.include,
+            independentLeaves: opts.independentLeaves,
+            lockfileDir: ctx.lockfileDir,
+            ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
+            packageManager:  opts.packageManager,
+            pendingBuilds: ctx.pendingBuilds,
+            projects: ctx.projects as Array<{
+              binsDir: string,
+              buildIndex: number,
+              id: string,
+              manifest: ProjectManifest,
+              modulesDir: string,
+              rootDir: string,
+              pruneDirectDependencies?: boolean,
+            }>,
+            pruneStore: opts.pruneStore,
+            rawConfig: opts.rawConfig,
+            registries: opts.registries,
+            shamefullyHoist: ctx.shamefullyHoist,
+            sideEffectsCacheRead: opts.sideEffectsCacheRead,
+            sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+            skipped: ctx.skipped,
+            storeController: opts.storeController,
+            storeDir: opts.storeDir,
+            unsafePerm: opts.unsafePerm,
+            userAgent: opts.userAgent,
+            virtualStoreDir: ctx.virtualStoreDir,
+            wantedLockfile: ctx.wantedLockfile,
+          })
+          return projects
+        } catch (error) {
+          if (frozenLockfile || error.code !== 'ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY') throw error
+          // A broken lockfile may be caused by a badly resolved Git conflict
+          logger.warn({
+            error,
+            message: 'The lockfile is broken! Resolution step will be performed to fix it.',
+            prefix: ctx.lockfileDir,
+          })
+        }
       }
     }
 

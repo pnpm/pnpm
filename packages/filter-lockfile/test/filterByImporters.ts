@@ -164,7 +164,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
     err = _
   }
   t.ok(err)
-  t.equal(err.message, `No entry for "/prod-dep-dep/1.0.0" in ${WANTED_LOCKFILE}`)
+  t.equal(err.message, `Broken lockfile: no entry for '/prod-dep-dep/1.0.0' in ${WANTED_LOCKFILE}`)
   t.end()
 })
 

@@ -1,5 +1,4 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import PnpmError from '@pnpm/error'
 import {
   Lockfile,
   PackageSnapshots,
@@ -9,6 +8,7 @@ import pnpmLogger from '@pnpm/logger'
 import { DependenciesField, Registries } from '@pnpm/types'
 import R = require('ramda')
 import filterImporter from './filterImporter'
+import LockfileMissingDependencyError from './LockfileMissingDependencyError'
 
 const logger = pnpmLogger('lockfile')
 
@@ -61,10 +61,9 @@ function pkgAllDeps (
     pkgAllDeps(next(), pickedPackages, opts)
   }
   for (const relDepPath of step.missing) {
-    const message = `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`
     if (opts.failOnMissingDependencies) {
-      throw new PnpmError('LOCKFILE_MISSING_DEPENDENCY', message)
+      throw new LockfileMissingDependencyError(relDepPath)
     }
-    logger.debug(message)
+    logger.debug(`No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`)
   }
 }
