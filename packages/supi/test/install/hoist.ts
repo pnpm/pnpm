@@ -466,3 +466,32 @@ test('hoist when updating in one of the workspace projects', async (t) => {
     })
   }
 })
+
+test('should recreate node_modules with hoisting', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+  const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep'], await testDefaults({ hoistPattern: undefined }))
+
+  await project.hasNot('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  {
+    const modulesManifest = await project.readModulesManifest()
+    t.notOk(modulesManifest.hoistPattern)
+    t.notOk(modulesManifest.hoistedAliases)
+  }
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ hoistPattern: '*' }))
+
+  await project.has('pkg-with-1-dep')
+  await project.has('.pnpm/node_modules/dep-of-pkg-with-1-dep')
+  {
+    const modulesManifest = await project.readModulesManifest()
+    t.ok(modulesManifest.hoistPattern)
+    t.ok(modulesManifest.hoistedAliases)
+  }
+})

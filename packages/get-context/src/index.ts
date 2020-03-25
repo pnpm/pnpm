@@ -80,11 +80,11 @@ export default async function getContext<T> (
     forceShamefullyHoist?: boolean,
   },
 ): Promise<PnpmContext<T>> {
-  const importersContext = await readProjectsContext(projects, opts.lockfileDir)
+  let importersContext = await readProjectsContext(projects, opts.lockfileDir)
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (importersContext.modules) {
-    await validateNodeModules(importersContext.modules, importersContext.projects, {
+    const { purged } = await validateNodeModules(importersContext.modules, importersContext.projects, {
       currentHoistPattern: importersContext.currentHoistPattern,
       forceNewNodeModules: opts.forceNewNodeModules === true,
       include: opts.include,
@@ -102,6 +102,9 @@ export default async function getContext<T> (
       forceShamefullyHoist: opts.forceShamefullyHoist,
       shamefullyHoist: opts.shamefullyHoist,
     })
+    if (purged) {
+      importersContext = await readProjectsContext(projects, opts.lockfileDir)
+    }
   }
 
   await makeDir(opts.storeDir)
@@ -132,8 +135,7 @@ export default async function getContext<T> (
     extraBinPaths,
     hoistedAliases: importersContext.hoistedAliases,
     hoistedModulesDir,
-    hoistPattern: typeof importersContext.hoist === 'boolean' ?
-      importersContext.currentHoistPattern : opts.hoistPattern,
+    hoistPattern: opts.hoistPattern,
     include: opts.include || importersContext.include,
     independentLeaves: Boolean(typeof importersContext.independentLeaves === 'undefined' ? opts.independentLeaves : importersContext.independentLeaves),
     lockfileDir: opts.lockfileDir,
@@ -188,12 +190,12 @@ async function validateNodeModules (
     shamefullyHoist?: boolean | undefined,
     forceShamefullyHoist?: boolean,
   },
-) {
+): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
   if (opts.forceShamefullyHoist && modules.shamefullyHoist !== opts.shamefullyHoist) {
     if (opts.forceNewNodeModules && rootProject) {
       await purgeModulesDirsOfImporter(rootProject)
-      return
+      return { purged: true }
     }
     if (modules.shamefullyHoist) {
       throw new PnpmError(
@@ -210,9 +212,14 @@ async function validateNodeModules (
   }
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
     if (opts.forceNewNodeModules) {
-      // TODO: remove the node_modules in the lockfile directory
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
-      return
+      if (!rootProject) {
+        await purgeModulesDirsOfImporter({
+          modulesDir: path.join(opts.lockfileDir, 'node_modules'),
+          rootDir: opts.lockfileDir,
+        })
+      }
+      return { purged: true }
     }
     if (modules.independentLeaves) {
       throw new PnpmError(
@@ -227,6 +234,7 @@ async function validateNodeModules (
       + ' You must remove that option, or else "pnpm install" to recreate the "node_modules" folder.',
     )
   }
+  let purged = false
   if (opts.forceHoistPattern && rootProject) {
     try {
       if (!R.equals(opts.currentHoistPattern, (opts.hoistPattern || undefined))) {
@@ -246,6 +254,7 @@ async function validateNodeModules (
     } catch (err) {
       if (!opts.forceNewNodeModules) throw err
       await purgeModulesDirsOfImporter(rootProject)
+      purged = true
     }
   }
   await Promise.all(projects.map(async (project) => {
@@ -268,15 +277,23 @@ async function validateNodeModules (
     } catch (err) {
       if (!opts.forceNewNodeModules) throw err
       await purgeModulesDirsOfImporter(project)
+      purged = true
     }
   }))
   if (modules.registries && !R.equals(opts.registries, modules.registries)) {
     if (opts.forceNewNodeModules) {
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
-      return
+      return { purged: true }
     }
     throw new PnpmError('REGISTRIES_MISMATCH', `This "node_modules" directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate "node_modules" using the new settings, run "pnpm install".`)
   }
+  if (purged && !rootProject) {
+    await purgeModulesDirsOfImporter({
+      modulesDir: path.join(opts.lockfileDir, 'node_modules'),
+      rootDir: opts.lockfileDir,
+    })
+  }
+  return { purged }
 }
 
 async function purgeModulesDirsOfImporter (
@@ -353,10 +370,10 @@ export async function getContextForSingleImporter (
     independentLeaves?: boolean,
     forceIndependentLeaves?: boolean,
   },
+  alreadyPurged: boolean = false,
 ): Promise<PnpmSingleContext> {
   const {
     currentHoistPattern,
-    hoist,
     hoistedAliases,
     projects,
     include,
@@ -383,8 +400,8 @@ export async function getContextForSingleImporter (
   const importerId = importer.id
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
-  if (modules) {
-    await validateNodeModules(modules, projects, {
+  if (modules && !alreadyPurged) {
+    const { purged } = await validateNodeModules(modules, projects, {
       currentHoistPattern,
       forceNewNodeModules: opts.forceNewNodeModules === true,
       include: opts.include,
@@ -402,6 +419,9 @@ export async function getContextForSingleImporter (
       forceShamefullyHoist: opts.forceShamefullyHoist,
       shamefullyHoist: opts.shamefullyHoist,
     })
+    if (purged) {
+      return getContextForSingleImporter(manifest, opts, true)
+    }
   }
 
   await makeDir(storeDir)
@@ -418,7 +438,7 @@ export async function getContextForSingleImporter (
     extraBinPaths,
     hoistedAliases,
     hoistedModulesDir,
-    hoistPattern: typeof hoist === 'boolean' ? currentHoistPattern : opts.hoistPattern,
+    hoistPattern: opts.hoistPattern,
     importerId,
     include: opts.include || include,
     independentLeaves: Boolean(typeof independentLeaves === 'undefined' ? opts.independentLeaves : independentLeaves),
