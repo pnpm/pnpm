@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/utils",
   "description": "Utils for pnpm",
-  "version": "0.12.4",
+  "version": "0.13.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

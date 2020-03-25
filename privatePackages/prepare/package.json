@@ -15,7 +15,7 @@
     "write-yaml-file": "3.0.1"
   },
   "devDependencies": {
-    "@types/node": "^12.12.30",
+    "@types/node": "^12.12.31",
     "tslint-config-standard": "9.0.0",
     "tslint-eslint-rules": "5.4.0"
   },

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-projects-context",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Reads the current state of projects from modules manifest",
   "main": "lib/index.js",
@@ -30,7 +30,7 @@
     "@pnpm/lockfile-file": "workspace:3.0.6",
     "@pnpm/modules-yaml": "workspace:6.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.12.4"
+    "@pnpm/utils": "workspace:0.13.0"
   },
   "devDependencies": {
     "@pnpm/logger": "3.1.0"

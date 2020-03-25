@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "14.3.2",
+  "version": "14.3.3",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Resolves dependency graph of a package",
   "main": "lib/index.js",
@@ -36,7 +36,7 @@
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.12.4",
+    "@pnpm/utils": "workspace:0.13.0",
     "dependency-path": "workspace:4.0.5",
     "path-exists": "4.0.0",
     "ramda": "0.27.0",

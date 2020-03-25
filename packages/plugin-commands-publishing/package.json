@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:2.0.6",
+    "@pnpm/filter-workspace-packages": "workspace:2.0.7",
     "@pnpm/plugin-commands-publishing": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
     "@types/cross-spawn": "^6.0.1",
@@ -52,7 +52,7 @@
     "write-yaml-file": "3.0.1"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.3.11",
+    "@pnpm/cli-utils": "workspace:0.3.12",
     "@pnpm/config": "workspace:8.1.2",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/npm-resolver": "workspace:7.3.7",
@@ -61,7 +61,7 @@
     "@pnpm/run-npm": "workspace:2.0.0",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.12.4",
+    "@pnpm/utils": "workspace:0.13.0",
     "@zkochan/rimraf": "1.0.0",
     "cp-file": "9.0.0",
     "enquirer": "2.3.4",

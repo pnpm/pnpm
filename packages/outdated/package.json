@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "7.0.13",
+  "version": "7.0.14",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -45,7 +45,7 @@
     "@pnpm/modules-yaml": "workspace:6.0.0",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.12.4",
+    "@pnpm/utils": "workspace:0.13.0",
     "dependency-path": "workspace:4.0.5",
     "lru-cache": "5.1.1",
     "ramda": "0.27.0",
