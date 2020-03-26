@@ -1,7 +1,7 @@
 importers:
   .:
     devDependencies:
-      '@pnpm/registry-mock': 2.0.0
+      '@pnpm/registry-mock': 2.0.1
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
       '@types/node': 12.12.31
@@ -20,7 +20,7 @@ importers:
       typescript: 3.8.3
       verdaccio: 4.5.1
     specifiers:
-      '@pnpm/registry-mock': 2.0.0
+      '@pnpm/registry-mock': 2.0.1
       '@pnpm/tsconfig': 'workspace:*'
       '@pnpm/tslint-config': 'workspace:*'
       '@types/node': '*'
@@ -359,7 +359,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@types/ramda': 0.27.0
       tempy: 0.5.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
@@ -375,7 +375,7 @@ importers:
       dependency-path: 'workspace:4.0.5'
       ramda: 0.27.0
       tempy: 0.5.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
       yaml-tag: 1.1.0
   packages/filter-workspace-packages:
     dependencies:
@@ -441,7 +441,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/types': 'link:../types'
       find-packages: 'link:../find-packages'
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
     devDependencies:
       '@pnpm/find-workspace-packages': 'link:'
     specifiers:
@@ -451,7 +451,7 @@ importers:
       '@pnpm/find-workspace-packages': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       find-packages: 'workspace:7.0.5'
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
   packages/get-context:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -577,7 +577,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       sinon: 9.0.1
       tape-promise: 4.0.0
       tempy: 0.5.0
@@ -628,7 +628,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.27.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       sinon: 9.0.1
       tape-promise: 4.0.0
       tempy: 0.5.0
@@ -823,7 +823,7 @@ importers:
       make-dir: 3.0.2
       normalize-path: 3.0.0
       ramda: 0.27.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       write-file-atomic: 2.4.3
     devDependencies:
       '@pnpm/lockfile-file': 'link:'
@@ -833,7 +833,7 @@ importers:
       '@types/ramda': 0.27.0
       '@types/write-file-atomic': 3.0.0
       tempy: 0.5.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
@@ -851,10 +851,10 @@ importers:
       make-dir: 3.0.2
       normalize-path: 3.0.0
       ramda: 0.27.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       tempy: 0.5.0
       write-file-atomic: 2.4.3
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
       yaml-tag: 1.1.0
   packages/lockfile-types:
     specifiers: {}
@@ -871,7 +871,7 @@ importers:
       '@types/js-yaml': 3.12.3
       '@types/ramda': 0.27.0
       tempy: 0.5.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/lockfile-types': 'workspace:2.0.0'
@@ -884,7 +884,7 @@ importers:
       get-npm-tarball-url: 2.0.1
       ramda: 0.27.0
       tempy: 0.5.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
       yaml-tag: 1.1.0
   packages/lockfile-walker:
     dependencies:
@@ -956,8 +956,8 @@ importers:
     dependencies:
       '@pnpm/types': 'link:../types'
       is-windows: 1.0.2
-      read-yaml-file: 1.1.0
-      write-yaml-file: 3.0.1
+      read-yaml-file: 2.0.0
+      write-yaml-file: 4.0.0
     devDependencies:
       '@pnpm/modules-yaml': 'link:'
       '@types/is-windows': 1.0.0
@@ -967,9 +967,9 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/is-windows': ^1.0.0
       is-windows: 1.0.2
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       tempy: 0.5.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/npm-registry-agent:
     dependencies:
       agentkeepalive: 4.0.0
@@ -1409,7 +1409,7 @@ importers:
       path-absolute: 1.0.1
       path-exists: 4.0.0
       ramda: 0.27.0
-      read-ini-file: 2.0.0
+      read-ini-file: 3.0.0
       render-help: 1.0.0
       supi: 'link:../supi'
       table: 5.4.6
@@ -1430,10 +1430,10 @@ importers:
       load-json-file: 6.2.0
       make-dir: 3.0.2
       proxyquire: 2.1.3
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       sinon: 9.0.1
       write-json-file: 4.2.1
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.12'
       '@pnpm/colorize-semver-diff': 1.0.0
@@ -1484,14 +1484,14 @@ importers:
       path-exists: 4.0.0
       proxyquire: 2.1.3
       ramda: 0.27.0
-      read-ini-file: 2.0.0
-      read-yaml-file: 1.1.0
+      read-ini-file: 3.0.0
+      read-yaml-file: 2.0.0
       render-help: 1.0.0
       sinon: 9.0.1
       supi: 'workspace:0.38.22'
       table: 5.4.6
       write-json-file: 4.2.1
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/plugin-commands-listing:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1516,7 +1516,7 @@ importers:
       execa: 4.0.0
       mz: 2.7.0
       strip-ansi: 6.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.12'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
@@ -1539,7 +1539,7 @@ importers:
       ramda: 0.27.0
       render-help: 1.0.0
       strip-ansi: 6.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/plugin-commands-outdated:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1654,7 +1654,7 @@ importers:
       proxyquire: 2.1.3
       sinon: 9.0.1
       tempy: 0.5.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.12'
       '@pnpm/config': 'workspace:8.1.2'
@@ -1691,7 +1691,7 @@ importers:
       sinon: 9.0.1
       tempy: 0.5.0
       write-json-file: 4.2.1
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/plugin-commands-rebuild:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1721,7 +1721,7 @@ importers:
       mem: 6.0.1
       p-limit: 2.2.2
       ramda: 0.27.0
-      read-ini-file: 2.0.0
+      read-ini-file: 3.0.0
       render-help: 1.0.0
       run-groups: 2.0.2
       semver: 7.1.3
@@ -1738,7 +1738,7 @@ importers:
       execa: 4.0.0
       path-exists: 4.0.0
       sinon: 9.0.1
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.12'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
@@ -1778,12 +1778,12 @@ importers:
       p-limit: 2.2.2
       path-exists: 4.0.0
       ramda: 0.27.0
-      read-ini-file: 2.0.0
+      read-ini-file: 3.0.0
       render-help: 1.0.0
       run-groups: 2.0.2
       semver: 7.1.3
       sinon: 9.0.1
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/plugin-commands-script-runners:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -1810,7 +1810,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       execa: 4.0.0
       mz: 2.7.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.3.12'
       '@pnpm/command': 'workspace:1.0.0'
@@ -1835,7 +1835,7 @@ importers:
       p-limit: 2.2.2
       ramda: 0.27.0
       render-help: 1.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/plugin-commands-server:
     dependencies:
       '@pnpm/cli-utils': 'link:../cli-utils'
@@ -2041,7 +2041,7 @@ importers:
       p-any: 3.0.0
       path-exists: 4.0.0
       pnpm: 'link:'
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       retry: 0.12.0
       semver: 7.1.3
       symlink-dir: 3.1.2
@@ -2049,7 +2049,7 @@ importers:
       tree-kill: 1.2.2
       write-json-file: 4.0.0
       write-pkg: 4.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/cli-utils': 'workspace:0.3.12'
@@ -2127,7 +2127,7 @@ importers:
       pkgs-graph: 'workspace:5.1.3'
       pnpm: 'link:'
       ramda: 0.27.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       render-help: 1.0.0
       retry: 0.12.0
       semver: 7.1.3
@@ -2139,7 +2139,7 @@ importers:
       which: 2.0.2
       write-json-file: 4.0.0
       write-pkg: 4.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/pnpmfile:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -2211,7 +2211,7 @@ importers:
       is-windows: 1.0.2
       json5: 2.1.2
       parse-json: 5.0.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       sort-keys: 4.0.0
       strip-bom: 4.0.0
     devDependencies:
@@ -2236,7 +2236,7 @@ importers:
       is-windows: 1.0.2
       json5: 2.1.2
       parse-json: 5.0.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       sort-keys: 4.0.0
       strip-bom: 4.0.0
       tempy: 0.5.0
@@ -2506,14 +2506,14 @@ importers:
       npm-run-all: 4.1.5
       path-exists: 4.0.0
       path-name: 1.0.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       resolve-link-target: 1.0.1
       sinon: 9.0.1
       supi: 'link:'
       symlink-dir: 3.1.2
       tape-promise: 4.0.0
       write-json-file: 4.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/assert-store': 'workspace:*'
@@ -2600,7 +2600,7 @@ importers:
       path-exists: 4.0.0
       path-name: 1.0.0
       ramda: 0.27.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       resolve-link-target: 1.0.1
       run-groups: 2.0.2
       semver: 7.1.3
@@ -2611,7 +2611,7 @@ importers:
       tape-promise: 4.0.0
       version-selector-type: 2.0.1
       write-json-file: 4.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   packages/symlink-dependency:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -2717,7 +2717,7 @@ importers:
       '@pnpm/types': 'link:../types'
       write-json-file: 4.0.0
       write-json5-file: 2.1.2
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     devDependencies:
       '@pnpm/write-project-manifest': 'link:'
       tempy: 0.5.0
@@ -2727,7 +2727,7 @@ importers:
       tempy: 0.5.0
       write-json-file: 4.0.0
       write-json5-file: 2.1.2
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   privatePackages/assert-project:
     dependencies:
       '@pnpm/assert-store': 'link:../assert-store'
@@ -2740,7 +2740,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       path-exists: 4.0.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       write-pkg: 4.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:'
@@ -2762,7 +2762,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       path-exists: 4.0.0
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       write-pkg: 4.0.0
   privatePackages/assert-store:
     dependencies:
@@ -2780,7 +2780,7 @@ importers:
       tempy: 0.5.0
       write-json5-file: 2.1.2
       write-pkg: 4.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     devDependencies:
       '@types/node': 12.12.31
       tslint-config-standard: 9.0.0
@@ -2796,7 +2796,7 @@ importers:
       tslint-eslint-rules: 5.4.0
       write-json5-file: 2.1.2
       write-pkg: 4.0.0
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
   privatePackages/test-fixtures:
     dependencies:
       ncp: 2.0.0
@@ -3152,21 +3152,21 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/registry-mock/2.0.0:
+  /@pnpm/registry-mock/2.0.1:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
-      read-yaml-file: 1.1.0
+      read-yaml-file: 2.0.0
       rimraf: 3.0.2
       tempy: 0.5.0
       verdaccio: 4.5.1
-      write-yaml-file: 3.0.1
+      write-yaml-file: 4.0.0
     dev: true
     engines:
       node: '>=10.13'
     hasBin: true
     resolution:
-      integrity: sha512-UxKEGbR7yaaZt2QRU4uCY/5p3ttAThKMN6lf5ol/wFf2JowG5zsXcDPiM16qnx4jqCmOObWssuR79sqjQq5lIA==
+      integrity: sha512-rHimIrV+aclTGBU0S2OLMytV44boh0RV3G8jRyW3bBQrp5sio2xcXEfYXXh2N4iO5/JbfMMsuFSRIXAWyFv1qw==
   /@pnpm/semver-diff/1.0.2:
     dev: false
     engines:
@@ -5860,7 +5860,7 @@ packages:
       is-stream: 1.1.0
       npm-run-path: 2.0.2
       p-finally: 1.0.0
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       strip-eof: 1.0.0
     dev: true
     engines:
@@ -5874,7 +5874,7 @@ packages:
       is-stream: 1.1.0
       npm-run-path: 2.0.2
       p-finally: 1.0.0
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       strip-eof: 1.0.0
     dev: true
     engines:
@@ -5890,7 +5890,7 @@ packages:
       merge-stream: 2.0.0
       npm-run-path: 4.0.1
       onetime: 5.1.0
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       strip-final-newline: 2.0.0
     engines:
       node: '>=10'
@@ -6202,7 +6202,7 @@ packages:
   /foreground-child/2.0.0:
     dependencies:
       cross-spawn: 7.0.1
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
     dev: true
     engines:
       node: '>=8.0.0'
@@ -6341,7 +6341,7 @@ packages:
       has-color: 0.1.7
       has-unicode: 2.0.1
       object-assign: 4.1.1
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       string-width: 1.0.2
       strip-ansi: 3.0.1
       wide-align: 1.1.3
@@ -6355,7 +6355,7 @@ packages:
       console-control-strings: 1.1.0
       has-unicode: 2.0.1
       object-assign: 4.1.1
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       string-width: 1.0.2
       strip-ansi: 3.0.1
       wide-align: 1.1.3
@@ -7857,7 +7857,7 @@ packages:
       integrity: sha512-3RMEInA86I/NNp4ZYnh9UDme736Iym0JE++CdfqXt5VjqRK+LnnaE0v+swqpgDO+FVF/AsjpdocipN6qefEpsQ==
   /lockfile/1.0.4:
     dependencies:
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
     dev: true
     resolution:
       integrity: sha512-cvbTwETRfsFh4nHsL1eGWapU1XFi5Ot9E85sWAwia7Y7EgB7vfqcZhTKZ+l7hCGxSPoushMv5GKhT5PdLv03WA==
@@ -7988,7 +7988,7 @@ packages:
   /loud-rejection/1.6.0:
     dependencies:
       currently-unhandled: 0.4.1
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
     dev: true
     engines:
       node: '>=0.10.0'
@@ -7997,7 +7997,7 @@ packages:
   /loud-rejection/2.2.0:
     dependencies:
       currently-unhandled: 0.4.1
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
     dev: false
     engines:
       node: '>=8'
@@ -9480,6 +9480,11 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-uB80kBFb/tfd68bVleG9T5GGsGPjJrLAUpR5PZIrhBnIaRTQRjqdJSsIKkOP6OAIFbj7GOrcudc5pNjZ+geV2g==
+  /pify/5.0.0:
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-eW/gHNMlxdSP6dmG6uJip6FXN0EQBwm2clYYd8Wul42Cwu/DK8HEftzsapcNdYe2MfLiIwZqsDk2RDEsTE79hA==
   /pinkie-promise/2.0.1:
     dependencies:
       pinkie: 2.0.4
@@ -9663,7 +9668,7 @@ packages:
     dependencies:
       graceful-fs: 4.2.3
       retry: 0.12.0
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
     dev: false
     resolution:
       integrity: sha512-iMghHHXv2bsxl6NchhEaFck8tvX3F9cknEEh1SUpguUOBjN7PAAW9BLzmbc1g/mCD1gY3EE2EABBHPJfFdHFmA==
@@ -9829,17 +9834,17 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==
-  /read-ini-file/2.0.0:
+  /read-ini-file/3.0.0:
     dependencies:
       graceful-fs: 4.2.3
       ini: 1.3.5
-      pify: 4.0.1
-      strip-bom: 3.0.0
+      pify: 5.0.0
+      strip-bom: 4.0.0
     dev: false
     engines:
-      node: '>=6'
+      node: '>=10.13'
     resolution:
-      integrity: sha512-3wEdhvVbPLMG38StE59Nt2dXngwuySh/daITnBz7WxEj8XhE7jIlCT9vLQ9/8SRDYwQYhmvXaAZuI7tzHQoBcQ==
+      integrity: sha512-mTryUyCyKKf+gU3qtxLPtCLYVhggOY9gmb5H3xa3HaLZYNxdPEBuRD0AIhgnz10IkMr8NNQLVGXOuvbneOMyFQ==
   /read-package-json/2.1.1:
     dependencies:
       glob: 7.1.6
@@ -9899,16 +9904,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha1-ljYlN48+HE1IyFhytabsfV0JMjc=
-  /read-yaml-file/1.1.0:
+  /read-yaml-file/2.0.0:
     dependencies:
       graceful-fs: 4.2.3
       js-yaml: 3.13.1
-      pify: 4.0.1
-      strip-bom: 3.0.0
+      pify: 5.0.0
+      strip-bom: 4.0.0
     engines:
-      node: '>=6'
+      node: '>=10.13'
     resolution:
-      integrity: sha512-VIMnQi/Z4HT2Fxuwg5KrY174U1VdUIASQVWXXyqtNRtxSr9IYkn1rsI6Tb6HsrHCmB7gVpNwX6JxPTHcH6IoTA==
+      integrity: sha512-k1KSHstyNvNq5mE6gGdqKuPEmlCYxvXMFgYdCuhzh4G3UCZynAzObU2fPpaOJ8Xd/AIUWZ1jkEwEljLVH3xkow==
   /readable-stream/2.3.7:
     dependencies:
       core-util-is: 1.0.2
@@ -10562,8 +10567,12 @@ packages:
     resolution:
       integrity: sha512-mRz/m/JVscCrkMyPqHc/bczi3OQHkLTqXHEFu0zDhK/qfv3UcOA4SVmRCLmos4bhjr9ekVQubj/R7waKapmiQg==
   /signal-exit/3.0.2:
+    dev: false
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
+  /signal-exit/3.0.3:
+    resolution:
+      integrity: sha512-VUJ49FC8U1OxwZLxIbTTrDvLnf/6TDgxZcK8wxR8zs13xpx7xbG60ndBlhNrFi2EMuFRoeDoJO7wthSLq42EjA==
   /sinon/9.0.1:
     dependencies:
       '@sinonjs/commons': 1.7.1
@@ -10962,6 +10971,7 @@ packages:
     resolution:
       integrity: sha1-YhmoVhZSBJHzV4i9vxRHqZx+aw4=
   /strip-bom/3.0.0:
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -12059,14 +12069,14 @@ packages:
     dependencies:
       graceful-fs: 4.2.3
       imurmurhash: 0.1.4
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
     resolution:
       integrity: sha512-GaETH5wwsX+GcnzhPgKcKjJ6M2Cq3/iZp1WyY/X1CSqrW+jVNM9Y7D8EC2sM4ZG/V8wZlSniJnCKWPmBYAucRQ==
   /write-file-atomic/3.0.3:
     dependencies:
       imurmurhash: 0.1.4
       is-typedarray: 1.0.0
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       typedarray-to-buffer: 3.1.5
     resolution:
       integrity: sha512-AvHcyZ5JnSfq3ioSyjrBkH9yW4m7Ayk8/9My/DD9onKeu/94fwrMocemO2QAJFAlnnDN+ZDS+ZjAR5ua1/PV/Q==
@@ -12161,17 +12171,17 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-v2UQ+50TNf2rNHJ8NyWttfm/EJUBWMJcx6ZTYZr6Qp52uuegWw/lBkCtCbnYZEmPRNL61m+u67dAmGxo+HTULA==
-  /write-yaml-file/3.0.1:
+  /write-yaml-file/4.0.0:
     dependencies:
       graceful-fs: 4.2.3
       js-yaml: 3.13.1
       make-dir: 3.0.2
-      pify: 4.0.1
+      pify: 5.0.0
       write-file-atomic: 2.4.3
     engines:
-      node: '>=8.15'
+      node: '>=10.13'
     resolution:
-      integrity: sha512-OHzbrlgjw/K/BAH6LdEOcSQFz5nkk0I/25CjKLIVFvcg2Ej7+QE/GTnitgqWnhlsdghor7OV5gfttQPGogQ1XA==
+      integrity: sha512-lllTLncHf3r8JjI2TrlN5smKleOdVv6Zzj2txKmXSljMIEAyiTW8wzmd+iES1UwqkgfflI3obkeJOfuGMJjAaA==
   /ws/7.2.3:
     dev: true
     engines:

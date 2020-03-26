@@ -45,7 +45,7 @@
     "execa": "4.0.0",
     "path-exists": "4.0.0",
     "sinon": "9.0.1",
-    "write-yaml-file": "3.0.1"
+    "write-yaml-file": "4.0.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.3.12",
@@ -75,7 +75,7 @@
     "mem": "6.0.1",
     "p-limit": "2.2.2",
     "ramda": "0.27.0",
-    "read-ini-file": "2.0.0",
+    "read-ini-file": "3.0.0",
     "render-help": "1.0.0",
     "run-groups": "2.0.2",
     "semver": "7.1.3"

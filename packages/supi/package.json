@@ -107,14 +107,14 @@
     "npm-run-all": "4.1.5",
     "path-exists": "4.0.0",
     "path-name": "1.0.0",
-    "read-yaml-file": "1.1.0",
+    "read-yaml-file": "2.0.0",
     "resolve-link-target": "1.0.1",
     "sinon": "9.0.1",
     "supi": "link:",
     "symlink-dir": "3.1.2",
     "tape-promise": "4.0.0",
     "write-json-file": "4.0.0",
-    "write-yaml-file": "3.0.1"
+    "write-yaml-file": "4.0.0"
   },
   "directories": {
     "test": "test"

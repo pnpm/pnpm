@@ -36,6 +36,6 @@
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/types": "workspace:5.0.0",
     "find-packages": "workspace:7.0.5",
-    "read-yaml-file": "1.1.0"
+    "read-yaml-file": "2.0.0"
   }
 }

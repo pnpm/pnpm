@@ -32,7 +32,7 @@
     "@pnpm/types": "workspace:^5.0.0",
     "write-json-file": "4.0.0",
     "write-json5-file": "2.1.2",
-    "write-yaml-file": "3.0.1"
+    "write-yaml-file": "4.0.0"
   },
   "devDependencies": {
     "@pnpm/write-project-manifest": "link:",

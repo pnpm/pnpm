@@ -53,7 +53,7 @@
     "isexe": "2.0.0",
     "mz": "2.7.0",
     "path-exists": "4.0.0",
-    "read-yaml-file": "1.1.0",
+    "read-yaml-file": "2.0.0",
     "write-pkg": "4.0.0"
   }
 }
