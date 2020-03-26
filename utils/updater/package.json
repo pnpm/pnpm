@@ -1,5 +1,5 @@
 {
-  "name": "@pnpm/updater",
+  "name": "@pnpm-private/updater",
   "private": true,
   "dependencies": {
     "@pnpm/find-workspace-packages": "workspace:2.1.13",
