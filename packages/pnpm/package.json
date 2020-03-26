@@ -73,7 +73,7 @@
     "@types/mkdirp": "1.0.0",
     "@types/mz": "^2.7.0",
     "@types/ncp": "2.0.3",
-    "@types/ramda": "^0.26.44",
+    "@types/ramda": "^0.27.0",
     "@types/retry": "0.12.0",
     "@types/semver": "^7.1.0",
     "@types/table": "^4.0.7",
