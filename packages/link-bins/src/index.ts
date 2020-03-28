@@ -19,7 +19,9 @@ const IS_WINDOWS = isWindows()
 const EXECUTABLE_SHEBANG_SUPPORTED = !IS_WINDOWS
 const POWER_SHELL_IS_SUPPORTED = IS_WINDOWS
 
-export type WarnFunction = (msg: string) => void
+export type WarningCode = 'BINARIES_CONFLICT' | 'EMPTY_BIN'
+
+export type WarnFunction = (msg: string, code: WarningCode) => void
 
 export default async (
   modulesDir: string,
@@ -94,7 +96,7 @@ async function linkBins (
   const usedNames = R.fromPairs(cmdsWithOwnName.map((cmd) => [cmd.name, cmd.name] as R.KeyValuePair<string, string>))
   const results2 = await pSettle(cmdsWithOtherNames.map((cmd: Command & {pkgName: string}) => {
     if (usedNames[cmd.name]) {
-      opts.warn(`Cannot link bin "${cmd.name}" of "${cmd.pkgName}" to "${binsDir}". A package called "${usedNames[cmd.name]}" already has its bin linked.`)
+      opts.warn(`Cannot link binary '${cmd.name}' of '${cmd.pkgName}' to '${binsDir}': binary of '${usedNames[cmd.name]}' is already linked`, 'BINARIES_CONFLICT')
       return Promise.resolve(undefined)
     }
     usedNames[cmd.name] = cmd.pkgName
@@ -133,7 +135,7 @@ async function getPackageBins (
   }
 
   if (R.isEmpty(manifest.bin) && !await isFromModules(target)) {
-    opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`)
+    opts.warn(`Package in ${target} must have a non-empty bin field to get bin linked.`, 'EMPTY_BIN')
   }
 
   if (typeof manifest.bin === 'string' && !manifest.name) {

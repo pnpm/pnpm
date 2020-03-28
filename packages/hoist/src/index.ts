@@ -1,5 +1,5 @@
 import { WANTED_LOCKFILE } from '@pnpm/constants'
-import linkBins from '@pnpm/link-bins'
+import linkBins, { WarnFunction } from '@pnpm/link-bins'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
@@ -62,7 +62,10 @@ export default async function hoistByLockfile (
   })
 
   const bin = path.join(opts.modulesDir, '.bin')
-  const warn = (message: string) => logger.warn({ message, prefix: path.join(opts.modulesDir, '../..') })
+  const warn: WarnFunction = (message, code) => {
+    if (code === 'BINARIES_CONFLICT') return
+    logger.warn({ message, prefix: path.join(opts.modulesDir, '../..') })
+  }
   try {
     await linkBins(opts.modulesDir, bin, { allowExoticManifests: true, warn })
   } catch (err) {
