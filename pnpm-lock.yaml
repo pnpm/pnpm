@@ -1855,7 +1855,7 @@ importers:
       process-exists: 4.0.0
       ramda: 0.27.0
       render-help: 1.0.0
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       tree-kill: 1.2.2
     devDependencies:
       '@pnpm/logger': 3.1.0
@@ -1890,7 +1890,7 @@ importers:
       process-exists: 4.0.0
       ramda: 0.27.0
       render-help: 1.0.0
-      signal-exit: 3.0.2
+      signal-exit: 3.0.3
       tree-kill: 1.2.2
   packages/plugin-commands-store:
     dependencies:
@@ -10566,10 +10566,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-mRz/m/JVscCrkMyPqHc/bczi3OQHkLTqXHEFu0zDhK/qfv3UcOA4SVmRCLmos4bhjr9ekVQubj/R7waKapmiQg==
-  /signal-exit/3.0.2:
-    dev: false
-    resolution:
-      integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
   /signal-exit/3.0.3:
     resolution:
       integrity: sha512-VUJ49FC8U1OxwZLxIbTTrDvLnf/6TDgxZcK8wxR8zs13xpx7xbG60ndBlhNrFi2EMuFRoeDoJO7wthSLq42EjA==
