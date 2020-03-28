@@ -1,9 +1,11 @@
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
+import runLifecycleHooks from '@pnpm/lifecycle'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import runNpm from '@pnpm/run-npm'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
+import { realNodeModulesDir } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
 import { prompt } from 'enquirer'
@@ -107,6 +109,21 @@ export async function handler (
   }
   const dir = params.length && params[0] || process.cwd()
 
+  const lifecycleOpts = {
+    depPath: dir,
+    extraBinPaths: opts.extraBinPaths,
+    pkgRoot: dir,
+    rawConfig: opts.rawConfig,
+    rootNodeModulesDir: await realNodeModulesDir(dir),
+    stdio: 'inherit',
+    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+  }
+  const runScriptsIfPresent = async (scriptNames: string[], manifest: ProjectManifest) => {
+    for (const scriptName of scriptNames) {
+      if (!manifest.scripts?.[scriptName]) continue
+      await runLifecycleHooks(scriptName, manifest, lifecycleOpts)
+    }
+  }
   let _status!: number
   await fakeRegularManifest(
     {
@@ -114,8 +131,19 @@ export async function handler (
       engineStrict: opts.engineStrict,
       workspaceDir: opts.workspaceDir || dir,
     },
-    async () => {
-      const { status } = runNpm(opts.npmPath, ['publish', ...opts.argv.original.slice(1)])
+    async (publishManifest) => {
+      // Unfortunately, we cannot support postpack at the moment
+      await runScriptsIfPresent([
+        'prepublish',
+        'prepare',
+        'prepublishOnly',
+        'prepack',
+      ], publishManifest)
+      const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...opts.argv.original.slice(1)])
+      await runScriptsIfPresent([
+        'publish',
+        'postpublish',
+      ], publishManifest)
       _status = status!
     },
   )
@@ -150,7 +178,7 @@ export async function fakeRegularManifest (
     dir: string,
     workspaceDir: string,
   },
-  fn: () => Promise<void>,
+  fn: (publishManifest: ProjectManifest) => Promise<void>,
 ) {
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
@@ -164,7 +192,7 @@ export async function fakeRegularManifest (
     await rimraf(path.join(opts.dir, fileName))
     await writeJsonFile(path.join(opts.dir, 'package.json'), publishManifest)
   }
-  await fn()
+  await fn(publishManifest)
   if (replaceManifest) {
     await rimraf(path.join(opts.dir, 'package.json'))
     await writeProjectManifest(manifest, true)

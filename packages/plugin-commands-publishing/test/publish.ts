@@ -433,3 +433,45 @@ test('convert specs with workspace protocols to regular version ranges', async (
   })
   t.end()
 })
+
+test('publish: runs all the lifecycle scripts', async (t) => {
+  prepare(t, {
+    name: 'test-publish-with-scripts',
+    version: '0.0.0',
+
+    dependencies: {
+      'json-append': '1.1.1',
+    },
+
+    scripts: {
+      // tslint:disable:object-literal-sort-keys
+      prepublish: `node -e "process.stdout.write('prepublish')" | json-append output.json`,
+      prepare: `node -e "process.stdout.write('prepare')" | json-append output.json`,
+      prepublishOnly: `node -e "process.stdout.write('prepublishOnly')" | json-append output.json`,
+      prepack: `node -e "process.stdout.write('prepack')" | json-append output.json`,
+      publish: `node -e "process.stdout.write('publish')" | json-append output.json`,
+      postpublish: `node -e "process.stdout.write('postpublish')" | json-append output.json`,
+      // tslint:enable:object-literal-sort-keys
+    },
+  })
+
+  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+  }, [])
+
+  const outputs = await import(path.resolve('output.json')) as string[]
+  t.deepEqual(outputs, [
+    'prepublish',
+    'prepare',
+    'prepublishOnly',
+    'prepack',
+    'publish',
+    'postpublish',
+  ])
+
+  t.end()
+})

@@ -20,6 +20,7 @@ Partial<Pick<Config,
   'tag' |
   'ca' |
   'cert' |
+  'extraBinPaths' |
   'fetchRetries' |
   'fetchRetryFactor' |
   'fetchRetryMaxtimeout' |
