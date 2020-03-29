@@ -4,20 +4,22 @@ import lifecycle = require('@zkochan/npm-lifecycle')
 
 function noop () {} // tslint:disable-line:no-empty
 
+export type RunLifecycleHookOptions = {
+  args?: string[],
+  depPath: string,
+  extraBinPaths?: string[],
+  optional?: boolean,
+  pkgRoot: string,
+  rawConfig: object,
+  rootNodeModulesDir: string,
+  stdio?: string,
+  unsafePerm: boolean,
+}
+
 export default async function runLifecycleHook (
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
-  opts: {
-    args?: string[],
-    depPath: string,
-    extraBinPaths?: string[],
-    optional?: boolean,
-    pkgRoot: string,
-    rawConfig: object,
-    rootNodeModulesDir: string,
-    stdio?: string,
-    unsafePerm: boolean,
-  },
+  opts: RunLifecycleHookOptions,
 ) {
   const optional = opts.optional === true
 

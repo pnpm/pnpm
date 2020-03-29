@@ -1,7 +1,7 @@
 import { docsUrl, readProjectManifest } from '@pnpm/cli-utils'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
-import runLifecycleHooks from '@pnpm/lifecycle'
+import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import runNpm from '@pnpm/run-npm'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
@@ -109,7 +109,7 @@ export async function handler (
   }
   const dir = params.length && params[0] || process.cwd()
 
-  const lifecycleOpts = {
+  const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
     depPath: dir,
     extraBinPaths: opts.extraBinPaths,
     pkgRoot: dir,
@@ -117,13 +117,7 @@ export async function handler (
     rootNodeModulesDir: await realNodeModulesDir(dir),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
-  }
-  const runScriptsIfPresent = async (scriptNames: string[], manifest: ProjectManifest) => {
-    for (const scriptName of scriptNames) {
-      if (!manifest.scripts?.[scriptName]) continue
-      await runLifecycleHooks(scriptName, manifest, lifecycleOpts)
-    }
-  }
+  })
   let _status!: number
   await fakeRegularManifest(
     {
@@ -133,14 +127,14 @@ export async function handler (
     },
     async (publishManifest) => {
       // Unfortunately, we cannot support postpack at the moment
-      await runScriptsIfPresent([
+      await _runScriptsIfPresent([
         'prepublish',
         'prepare',
         'prepublishOnly',
         'prepack',
       ], publishManifest)
       const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...opts.argv.original.slice(1)])
-      await runScriptsIfPresent([
+      await _runScriptsIfPresent([
         'publish',
         'postpublish',
       ], publishManifest)
@@ -149,6 +143,17 @@ export async function handler (
   )
   if (_status !== 0) {
     process.exit(_status)
+  }
+}
+
+async function runScriptsIfPresent (
+  opts: RunLifecycleHookOptions,
+  scriptNames: string[],
+  manifest: ProjectManifest,
+) {
+  for (const scriptName of scriptNames) {
+    if (!manifest.scripts?.[scriptName]) continue
+    await runLifecycleHooks(scriptName, manifest, opts)
   }
 }
 
