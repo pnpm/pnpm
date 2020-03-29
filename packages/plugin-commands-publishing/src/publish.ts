@@ -22,6 +22,7 @@ export function rcOptionsTypes () {
   return R.pick([
     'access',
     'git-checks',
+    'ignore-scripts',
     'npm-path',
     'otp',
     'publish-branch',
@@ -69,6 +70,10 @@ export function help () {
             description: 'Tells the registry whether this package should be published as public or restricted',
             name: '--access <public|restricted>',
           },
+          {
+            description: 'Ignores any publish related lifecycle scripts (prepublishOnly, postpublish, and the like)',
+            name: '--ignore-scripts',
+          },
         ],
       },
     ],
@@ -85,7 +90,7 @@ export async function handler (
     engineStrict?: boolean,
     recursive?: boolean,
     workspaceDir?: string,
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'publishBranch' | 'selectedProjectsGraph' >,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'selectedProjectsGraph' >,
   params: string[],
 ) {
   if (opts.gitChecks && await isGitRepo()) {
@@ -140,17 +145,21 @@ export async function handler (
     },
     async (publishManifest) => {
       // Unfortunately, we cannot support postpack at the moment
-      await _runScriptsIfPresent([
-        'prepublish',
-        'prepare',
-        'prepublishOnly',
-        'prepack',
-      ], publishManifest)
+      if (!opts.ignoreScripts) {
+        await _runScriptsIfPresent([
+          'prepublish',
+          'prepare',
+          'prepublishOnly',
+          'prepack',
+        ], publishManifest)
+      }
       const { status } = runNpm(opts.npmPath, ['publish', '--ignore-scripts', ...opts.argv.original.slice(1)])
-      await _runScriptsIfPresent([
-        'publish',
-        'postpublish',
-      ], publishManifest)
+      if (!opts.ignoreScripts) {
+        await _runScriptsIfPresent([
+          'publish',
+          'postpublish',
+        ], publishManifest)
+      }
       _status = status!
     },
   )

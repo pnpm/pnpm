@@ -475,3 +475,39 @@ test('publish: runs all the lifecycle scripts', async (t) => {
 
   t.end()
 })
+
+test('publish: ignores all the lifecycle scripts when --ignore-scripts is used', async (t) => {
+  prepare(t, {
+    name: 'test-publish-with-ignore-scripts',
+    version: '0.0.0',
+
+    dependencies: {
+      'json-append': '1.1.1',
+    },
+
+    scripts: {
+      // tslint:disable:object-literal-sort-keys
+      prepublish: `node -e "process.stdout.write('prepublish')" | json-append output.json`,
+      prepare: `node -e "process.stdout.write('prepare')" | json-append output.json`,
+      prepublishOnly: `node -e "process.stdout.write('prepublishOnly')" | json-append output.json`,
+      prepack: `node -e "process.stdout.write('prepack')" | json-append output.json`,
+      publish: `node -e "process.stdout.write('publish')" | json-append output.json`,
+      postpublish: `node -e "process.stdout.write('postpublish')" | json-append output.json`,
+      // tslint:enable:object-literal-sort-keys
+    },
+  })
+
+  crossSpawn.sync('pnpm', ['install', '--ignore-scripts', '--store-dir=store', `--registry=http://localhost:${REGISTRY_MOCK_PORT}`])
+
+  await publish.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: ['publish', ...CREDENTIALS] },
+    dir: process.cwd(),
+    ignoreScripts: true,
+  }, [])
+
+  t.ok(await exists('package.json'))
+  t.notOk(await exists('output.json'))
+
+  t.end()
+})
