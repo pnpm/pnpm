@@ -2,6 +2,7 @@ import { Config, Project } from '@pnpm/config'
 import createResolver from '@pnpm/npm-resolver'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import runNpm from '@pnpm/run-npm'
+import sortPackages from '@pnpm/sort-packages'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
 import { pickRegistryForPackage } from '@pnpm/utils'
@@ -32,6 +33,7 @@ Partial<Pick<Config,
   'npmPath' |
   'offline' |
   'proxy' |
+  'selectedProjectsGraph' |
   'storeDir' |
   'strictSsl' |
   'userAgent' |
@@ -44,9 +46,9 @@ Partial<Pick<Config,
 }
 
 export default async function (
-  pkgs: Project[],
-  opts: PublishRecursiveOpts,
+  opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>,
 ) {
+  const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
   const resolve = createResolver(Object.assign(opts, {
     fullMetadata: true,
@@ -65,24 +67,30 @@ export default async function (
       resolve,
     }, pkg.manifest.name, pkg.manifest.version))
   })
+  const publishedPkgDirs = new Set(pkgsToPublish.map(({ dir }) => dir))
   const access = opts.cliOptions['access'] ? ['--access', opts.cliOptions['access']] : []
-  for (const pkg of pkgsToPublish) {
-    await publish({
-      ...opts,
-      argv: {
-        original: [
-          'publish',
-          pkg.dir,
-          '--tag',
-          'pnpm-temp',
-          '--registry',
-          pickRegistryForPackage(opts.registries, pkg.manifest.name!),
-          ...access,
-        ],
-      },
-      gitChecks: false,
-      recursive: false,
-    }, [pkg.dir])
+  const chunks = sortPackages(opts.selectedProjectsGraph)
+  for (const chunk of chunks) {
+    for (const pkgDir of chunk) {
+      if (!publishedPkgDirs.has(pkgDir)) continue
+      const pkg = opts.selectedProjectsGraph[pkgDir].package
+      await publish({
+        ...opts,
+        argv: {
+          original: [
+            'publish',
+            pkg.dir,
+            '--tag',
+            'pnpm-temp',
+            '--registry',
+            pickRegistryForPackage(opts.registries, pkg.manifest.name!),
+            ...access,
+          ],
+        },
+        gitChecks: false,
+        recursive: false,
+      }, [pkg.dir])
+    }
   }
   const tag = opts.tag || 'latest'
   for (const pkg of pkgsToPublish) {

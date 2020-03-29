@@ -90,7 +90,7 @@ export async function handler (
     engineStrict?: boolean,
     recursive?: boolean,
     workspaceDir?: string,
-  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch' | 'selectedProjectsGraph' >,
+  } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch'>,
   params: string[],
 ) {
   if (opts.gitChecks && await isGitRepo()) {
@@ -114,9 +114,9 @@ export async function handler (
     }
   }
   if (opts.recursive && opts.selectedProjectsGraph) {
-    const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
-    await recursivePublish(pkgs, {
+    await recursivePublish({
       ...opts,
+      selectedProjectsGraph: opts.selectedProjectsGraph!,
       workspaceDir: opts.workspaceDir ?? process.cwd(),
     })
     return

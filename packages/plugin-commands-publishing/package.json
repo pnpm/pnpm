@@ -60,6 +60,7 @@
     "@pnpm/read-project-manifest": "workspace:1.0.3",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/run-npm": "workspace:2.0.0",
+    "@pnpm/sort-packages": "workspace:1.0.6",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/types": "workspace:5.0.0",
     "@pnpm/utils": "workspace:0.13.0",

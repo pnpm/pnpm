@@ -1626,6 +1626,7 @@ importers:
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/run-npm': 'link:../run-npm'
+      '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
@@ -1668,6 +1669,7 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/run-npm': 'workspace:2.0.0'
+      '@pnpm/sort-packages': 'workspace:1.0.6'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
