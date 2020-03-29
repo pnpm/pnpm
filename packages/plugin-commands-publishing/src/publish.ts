@@ -57,6 +57,18 @@ export function help () {
             description: 'Sets branch name to publish. Default is master',
             name: '--publish-branch',
           },
+          {
+            description: 'Does everything a publish would do except actually publishing to the registry',
+            name: '--dry-run',
+          },
+          {
+            description: 'Registers the published package with the given tag. By default, the "latest" tag is used.',
+            name: '--tag <tag>',
+          },
+          {
+            description: 'Tells the registry whether this package should be published as public or restricted',
+            name: '--access <public|restricted>',
+          },
         ],
       },
     ],
