@@ -1,11 +1,11 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import path = require('path')
 import exists = require('path-exists')
-import runLifecycleHook from './runLifecycleHook'
+import runLifecycleHook, { RunLifecycleHookOptions } from './runLifecycleHook'
 import runLifecycleHooksConcurrently from './runLifecycleHooksConcurrently'
 
 export default runLifecycleHook
-export { runLifecycleHooksConcurrently }
+export { runLifecycleHooksConcurrently, RunLifecycleHookOptions }
 
 export async function runPostinstallHooks (
   opts: {

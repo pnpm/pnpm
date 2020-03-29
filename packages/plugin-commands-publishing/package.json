@@ -55,6 +55,7 @@
     "@pnpm/cli-utils": "workspace:0.3.12",
     "@pnpm/config": "workspace:8.1.2",
     "@pnpm/error": "workspace:1.2.0",
+    "@pnpm/lifecycle": "workspace:8.0.3",
     "@pnpm/npm-resolver": "workspace:7.3.7",
     "@pnpm/read-project-manifest": "workspace:1.0.2",
     "@pnpm/resolver-base": "workspace:7.0.0",
