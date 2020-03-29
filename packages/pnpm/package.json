@@ -98,7 +98,7 @@
     "npm-run-all": "4.1.5",
     "p-any": "3.0.0",
     "path-exists": "4.0.0",
-    "pnpm": "link:",
+    "pnpm": "workspace:*",
     "read-yaml-file": "2.0.0",
     "retry": "0.12.0",
     "semver": "7.1.3",
@@ -149,9 +149,6 @@
   },
   "scripts": {
     "start": "npm run tsc -- --watch",
-    "?commit": "echo 'Run Git commit wizard'",
-    "commit": "commit",
-    "commitmsg": "commitlint -e",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
     "registry-mock": "registry-mock",
     "test:tap": "cd ../.. && c8 --reporter lcov --reports-dir packages/pnpm/coverage ts-node packages/pnpm/test --type-check",
@@ -159,7 +156,8 @@
     "test:e2e": "registry-mock prepare && run-p -r registry-mock test:tap",
     "_test": "pnpm run compile && cross-env PNPM_REGISTRY_MOCK_PORT=7780 pnpm run test:e2e",
     "test": "pnpm run _test",
-    "release": "sh .scripts/release.sh",
+    "prepublishOnly": "pnpm run compile && publish-packed",
+    "postpublish": "publish-packed",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "publishconfig": {

@@ -21,7 +21,7 @@
     "lcov-result-merger": "3.1.0",
     "npm": "6.14.4",
     "npm-run-all": "4.1.5",
-    "publish-packed": "2.1.1",
+    "publish-packed": "3.0.0-0",
     "rimraf": "3.0.2",
     "tape": "4.13.2",
     "ts-node": "8.8.1",
