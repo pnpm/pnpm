@@ -700,7 +700,7 @@ importers:
       make-dir: 3.0.2
       mz: 2.7.0
       normalize-path: 3.0.0
-      p-settle: 4.0.0
+      p-settle: 4.0.1
       ramda: 0.27.0
     devDependencies:
       '@pnpm/link-bins': 'link:'
@@ -739,7 +739,7 @@ importers:
       mz: 2.7.0
       ncp: ^2.0.0
       normalize-path: 3.0.0
-      p-settle: 4.0.0
+      p-settle: 4.0.1
       path-exists: ^4.0.0
       ramda: 0.27.0
       sinon: 9.0.1
@@ -9220,7 +9220,7 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-paHV8NUz8zDHu5lhr/ngGWQiW067DK/+IbJ+RfZ4k+s8y4EKyYCz8pGYWjxCg35eHztpJAt+NUgvN4L+GCbPlg==
-  /p-settle/4.0.0:
+  /p-settle/4.0.1:
     dependencies:
       p-limit: 2.2.2
       p-reflect: 2.1.0
@@ -9228,7 +9228,7 @@ packages:
     engines:
       node: '>=10'
     resolution:
-      integrity: sha512-MK1FEHO70HHo4uCjM2DP/2gOpLGjEes8czFH7bP9RzJS6mAEp7dFINcUUuuQXa+ZFztzKTdF3zl0IiBH1BCkrQ==
+      integrity: sha512-/9fOVH7ipE/TSaxHLZ95XklVLaX2rlOcocE17N/YARHaFbdKwf0jDnIVW22MVQ8sn3AjuJ0XIwylg6GZ3Lhg6Q==
   /p-some/5.0.0:
     dependencies:
       aggregate-error: 3.0.1
