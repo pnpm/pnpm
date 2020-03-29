@@ -86,7 +86,7 @@ export default async function (
   }
   const tag = opts.tag || 'latest'
   for (const pkg of pkgsToPublish) {
-    await runNpm(opts.npmPath, [
+    runNpm(opts.npmPath, [
       'dist-tag',
       'add',
       `${pkg.manifest.name}@${pkg.manifest.version}`,

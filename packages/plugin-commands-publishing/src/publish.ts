@@ -34,7 +34,8 @@ export function rcOptionsTypes () {
 export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
-    recursive: Boolean,
+    'dry-run': Boolean,
+    'recursive': Boolean,
   }
 }
 
