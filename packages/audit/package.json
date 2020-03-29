@@ -31,7 +31,7 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/audit#readme",
   "devDependencies": {
     "@pnpm/audit": "link:",
-    "@pnpm/lockfile-file": "workspace:3.0.6"
+    "@pnpm/lockfile-file": "workspace:3.0.7"
   },
   "dependencies": {
     "@pnpm/fetch": "workspace:1.0.3",

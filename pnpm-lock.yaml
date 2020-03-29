@@ -4,7 +4,7 @@ importers:
       '@pnpm/registry-mock': 2.0.1
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
       '@types/tape': 4.2.34
       c8: 7.1.0
       coveralls: 3.0.11
@@ -51,7 +51,7 @@ importers:
     specifiers:
       '@pnpm/audit': 'link:'
       '@pnpm/fetch': 'workspace:1.0.3'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
@@ -76,8 +76,8 @@ importers:
       '@pnpm/build-modules': 'link:'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
-      '@pnpm/lifecycle': 'workspace:8.0.3'
-      '@pnpm/link-bins': 'workspace:5.2.1'
+      '@pnpm/lifecycle': 'workspace:8.1.0'
+      '@pnpm/link-bins': 'workspace:5.3.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/read-package-json': 'workspace:3.0.2'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
@@ -112,7 +112,7 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/logger': ^3.1.0
       '@pnpm/package-is-installable': 'workspace:4.0.6'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
       '@types/nopt': ^3.0.29
@@ -259,7 +259,7 @@ importers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/git-resolver': 'workspace:4.0.10'
-      '@pnpm/local-resolver': 'workspace:5.0.2'
+      '@pnpm/local-resolver': 'workspace:5.0.3'
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'workspace:7.3.7'
       '@pnpm/resolver-base': 'workspace:7.0.0'
@@ -282,10 +282,10 @@ importers:
       dependencies-hierarchy: 'link:'
     specifiers:
       '@pnpm/constants': 'workspace:*'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/logger': 3.1.0
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
@@ -400,7 +400,7 @@ importers:
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-workspace-packages': 'link:'
-      '@pnpm/find-workspace-packages': 'workspace:2.1.13'
+      '@pnpm/find-workspace-packages': 'workspace:2.1.14'
       '@pnpm/matcher': 'workspace:1.0.0'
       '@types/is-ci': ^2.0.0
       '@types/is-windows': ^1.0.0
@@ -424,7 +424,7 @@ importers:
     devDependencies:
       find-packages: 'link:'
     specifiers:
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/types': 'workspace:5.0.0'
       fast-glob: 3.2.2
       find-packages: 'link:'
@@ -445,12 +445,12 @@ importers:
     devDependencies:
       '@pnpm/find-workspace-packages': 'link:'
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/find-workspace-packages': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
-      find-packages: 'workspace:7.0.5'
+      find-packages: 'workspace:7.0.6'
       read-yaml-file: 2.0.0
   packages/get-context:
     dependencies:
@@ -476,10 +476,10 @@ importers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/get-context': 'link:'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/logger': 3.1.0
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
-      '@pnpm/read-projects-context': 'workspace:1.0.7'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
+      '@pnpm/read-projects-context': 'workspace:1.0.8'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/is-ci': ^2.0.0
       '@types/ramda': ^0.27.0
@@ -583,7 +583,7 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
-      '@pnpm/build-modules': 'workspace:4.1.10'
+      '@pnpm/build-modules': 'workspace:4.1.11'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/default-fetcher': 'workspace:*'
@@ -591,20 +591,20 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-lockfile': 'workspace:3.2.0'
       '@pnpm/headless': 'link:'
-      '@pnpm/hoist': 'workspace:2.1.11'
-      '@pnpm/lifecycle': 'workspace:8.0.3'
-      '@pnpm/link-bins': 'workspace:5.2.1'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/hoist': 'workspace:2.2.0'
+      '@pnpm/lifecycle': 'workspace:8.1.0'
+      '@pnpm/link-bins': 'workspace:5.3.0'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-cleaner': 'workspace:8.0.13'
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/package-requester': 'workspace:11.0.4'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 'workspace:3.0.2'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/read-projects-context': 'workspace:*'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/store-path': 2.1.1
@@ -649,7 +649,7 @@ importers:
       '@types/ramda': 0.27.0
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
-      '@pnpm/link-bins': 'workspace:5.2.1'
+      '@pnpm/link-bins': 'workspace:5.3.0'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
@@ -707,7 +707,7 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.0
       '@types/sinon': 7.5.2
@@ -722,12 +722,12 @@ importers:
       '@pnpm/package-bins': 'workspace:4.0.3'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.0.2'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.0
       '@types/ncp': ^2.0.3
-      '@types/node': ^12.12.31
+      '@types/node': ^12.12.32
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.0
       '@types/sinon': ^7.5.2
@@ -771,7 +771,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/read-package-json': 'workspace:3.0.2'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/archy': 0.0.31
       '@types/common-tags': 1.8.0
@@ -782,7 +782,7 @@ importers:
       chalk: 3.0.0
       cli-columns: 3.1.2
       common-tags: 1.8.0
-      dependencies-hierarchy: 'workspace:8.0.16'
+      dependencies-hierarchy: 'workspace:8.0.17'
       p-limit: 2.2.2
       ramda: 0.27.0
       semver: 7.1.3
@@ -803,7 +803,7 @@ importers:
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/local-resolver': 'link:'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/graceful-fs': 4.1.3
@@ -1071,13 +1071,13 @@ importers:
     specifiers:
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/constants': 'workspace:3.0.0'
-      '@pnpm/default-resolver': 'workspace:7.4.2'
+      '@pnpm/default-resolver': 'workspace:7.4.3'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/outdated': 'link:'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
@@ -1099,13 +1099,13 @@ importers:
     devDependencies:
       '@pnpm/package-bins': 'link:'
       '@types/graceful-fs': 4.1.3
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
       '@types/tape': 4.2.34
     specifiers:
       '@pnpm/package-bins': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/graceful-fs': ^4.1.3
-      '@types/node': ^12.12.31
+      '@types/node': ^12.12.32
       '@types/tape': ^4.2.34
       graceful-fs: 4.2.3
       is-subdir: 1.1.1
@@ -1326,11 +1326,11 @@ importers:
       strip-ansi: 6.0.0
     specifiers:
       '@pnpm/audit': 'workspace:1.0.10'
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/plugin-commands-audit': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.27.0
@@ -1360,19 +1360,19 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/assert-project': 'workspace:2.0.0'
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/plugin-commands-import': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
-      '@pnpm/store-connection-manager': 'workspace:0.2.23'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
+      '@pnpm/store-connection-manager': 'workspace:0.2.24'
       '@types/ncp': 2.0.3
       '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
       ncp: 2.0.0
       render-help: 1.0.0
-      supi: 'workspace:0.38.22'
+      supi: 'workspace:0.38.23'
       tempy: 0.5.0
   packages/plugin-commands-installation:
     dependencies:
@@ -1435,29 +1435,29 @@ importers:
       write-json-file: 4.2.1
       write-yaml-file: 4.0.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/colorize-semver-diff': 1.0.0
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/filter-workspace-packages': 'workspace:2.0.7'
+      '@pnpm/filter-workspace-packages': 'workspace:2.0.8'
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
-      '@pnpm/find-workspace-packages': 'workspace:2.1.13'
+      '@pnpm/find-workspace-packages': 'workspace:2.1.14'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/logger': ^3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/outdated': 'workspace:7.0.14'
+      '@pnpm/outdated': 'workspace:7.0.15'
       '@pnpm/package-store': 'workspace:8.0.4'
       '@pnpm/plugin-commands-installation': 'link:'
-      '@pnpm/plugin-commands-rebuild': 'workspace:1.0.2'
+      '@pnpm/plugin-commands-rebuild': 'workspace:1.0.3'
       '@pnpm/pnpmfile': 'workspace:0.1.7'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/sort-packages': 'workspace:1.0.6'
-      '@pnpm/store-connection-manager': 'workspace:0.2.23'
+      '@pnpm/store-connection-manager': 'workspace:0.2.24'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
@@ -1488,7 +1488,7 @@ importers:
       read-yaml-file: 2.0.0
       render-help: 1.0.0
       sinon: 9.0.1
-      supi: 'workspace:0.38.22'
+      supi: 'workspace:0.38.23'
       table: 5.4.6
       write-json-file: 4.2.1
       write-yaml-file: 4.0.0
@@ -1518,13 +1518,13 @@ importers:
       strip-ansi: 6.0.0
       write-yaml-file: 4.0.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/filter-workspace-packages': 'workspace:2.0.7'
-      '@pnpm/list': 'workspace:4.0.22'
+      '@pnpm/filter-workspace-packages': 'workspace:2.0.8'
+      '@pnpm/list': 'workspace:4.0.23'
       '@pnpm/logger': ^3.1.0
       '@pnpm/plugin-commands-installation': 'workspace:*'
       '@pnpm/plugin-commands-listing': 'link:'
@@ -1580,19 +1580,19 @@ importers:
       mz: 2.7.0
       strip-ansi: 6.0.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/colorize-semver-diff': 1.0.0
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/constants': 'workspace:3.0.0'
-      '@pnpm/default-resolver': 'workspace:7.4.2'
+      '@pnpm/default-resolver': 'workspace:7.4.3'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/filter-workspace-packages': 'workspace:2.0.7'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/filter-workspace-packages': 'workspace:2.0.8'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/matcher': 'workspace:1.0.0'
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
-      '@pnpm/outdated': 'workspace:7.0.14'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
+      '@pnpm/outdated': 'workspace:7.0.15'
       '@pnpm/plugin-commands-installation': 'workspace:*'
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1657,15 +1657,15 @@ importers:
       tempy: 0.5.0
       write-yaml-file: 4.0.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/filter-workspace-packages': 'workspace:2.0.7'
-      '@pnpm/lifecycle': 'workspace:8.0.3'
+      '@pnpm/filter-workspace-packages': 'workspace:2.0.8'
+      '@pnpm/lifecycle': 'workspace:8.1.0'
       '@pnpm/npm-resolver': 'workspace:7.3.7'
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/run-npm': 'workspace:2.0.0'
       '@pnpm/store-path': 2.1.1
@@ -1742,25 +1742,25 @@ importers:
       sinon: 9.0.1
       write-yaml-file: 4.0.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
-      '@pnpm/filter-workspace-packages': 'workspace:2.0.7'
-      '@pnpm/find-workspace-packages': 'workspace:2.1.13'
-      '@pnpm/get-context': 'workspace:1.1.4'
-      '@pnpm/lifecycle': 'workspace:8.0.3'
-      '@pnpm/link-bins': 'workspace:5.2.1'
+      '@pnpm/filter-workspace-packages': 'workspace:2.0.8'
+      '@pnpm/find-workspace-packages': 'workspace:2.1.14'
+      '@pnpm/get-context': 'workspace:1.1.5'
+      '@pnpm/lifecycle': 'workspace:8.1.0'
+      '@pnpm/link-bins': 'workspace:5.3.0'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
       '@pnpm/logger': ^3.1.0
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/sort-packages': 'workspace:1.0.6'
-      '@pnpm/store-connection-manager': 'workspace:0.2.23'
+      '@pnpm/store-connection-manager': 'workspace:0.2.24'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
@@ -1814,13 +1814,13 @@ importers:
       mz: 2.7.0
       write-yaml-file: 4.0.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/filter-workspace-packages': 'workspace:2.0.7'
-      '@pnpm/lifecycle': 'workspace:8.0.3'
+      '@pnpm/filter-workspace-packages': 'workspace:2.0.8'
+      '@pnpm/lifecycle': 'workspace:8.1.0'
       '@pnpm/logger': ^3.1.0
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1868,14 +1868,14 @@ importers:
       '@types/ramda': 0.27.0
       '@types/signal-exit': 3.0.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/logger': ^3.1.0
       '@pnpm/plugin-commands-server': 'link:'
       '@pnpm/server': 'workspace:7.0.3'
-      '@pnpm/store-connection-manager': 'workspace:0.2.23'
+      '@pnpm/store-connection-manager': 'workspace:0.2.24'
       '@pnpm/store-path': 2.1.1
       '@types/common-tags': ^1.8.0
       '@types/is-windows': ^1.0.0
@@ -1931,15 +1931,15 @@ importers:
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.0'
       '@pnpm/check-package': 3.0.1
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/error': 'workspace:1.2.0'
-      '@pnpm/get-context': 'workspace:1.1.4'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/get-context': 'workspace:1.1.5'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/logger': 3.1.0
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
-      '@pnpm/store-connection-manager': 'workspace:0.2.23'
+      '@pnpm/store-connection-manager': 'workspace:0.2.24'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
@@ -2054,7 +2054,7 @@ importers:
       write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
@@ -2062,26 +2062,26 @@ importers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/default-reporter': 'workspace:7.1.0'
       '@pnpm/file-reporter': 0.1.0
-      '@pnpm/filter-workspace-packages': 'workspace:2.0.7'
+      '@pnpm/filter-workspace-packages': 'workspace:2.0.8'
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
-      '@pnpm/find-workspace-packages': 'workspace:2.1.13'
+      '@pnpm/find-workspace-packages': 'workspace:*'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:*'
       '@pnpm/parse-cli-args': 'workspace:1.0.0'
-      '@pnpm/plugin-commands-audit': 'workspace:1.0.2'
-      '@pnpm/plugin-commands-import': 'workspace:1.0.2'
-      '@pnpm/plugin-commands-installation': 'workspace:1.1.1'
-      '@pnpm/plugin-commands-listing': 'workspace:1.0.3'
-      '@pnpm/plugin-commands-outdated': 'workspace:1.0.2'
-      '@pnpm/plugin-commands-publishing': 'workspace:1.0.2'
-      '@pnpm/plugin-commands-rebuild': 'workspace:1.0.2'
-      '@pnpm/plugin-commands-script-runners': 'workspace:1.0.2'
-      '@pnpm/plugin-commands-server': 'workspace:1.0.2'
-      '@pnpm/plugin-commands-store': 'workspace:1.0.2'
+      '@pnpm/plugin-commands-audit': 'workspace:1.0.3'
+      '@pnpm/plugin-commands-import': 'workspace:1.0.3'
+      '@pnpm/plugin-commands-installation': 'workspace:1.1.2'
+      '@pnpm/plugin-commands-listing': 'workspace:1.0.4'
+      '@pnpm/plugin-commands-outdated': 'workspace:1.0.3'
+      '@pnpm/plugin-commands-publishing': 'workspace:1.0.3'
+      '@pnpm/plugin-commands-rebuild': 'workspace:1.0.3'
+      '@pnpm/plugin-commands-script-runners': 'workspace:1.0.3'
+      '@pnpm/plugin-commands-server': 'workspace:1.0.3'
+      '@pnpm/plugin-commands-store': 'workspace:1.0.3'
       '@pnpm/prepare': 'workspace:*'
       '@pnpm/read-package-json': 'workspace:*'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:*'
       '@pnpm/run-npm': 'workspace:2.0.0'
       '@pnpm/tabtab': 0.0.1
       '@pnpm/types': 'workspace:5.0.0'
@@ -2227,7 +2227,7 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/read-project-manifest': 'link:'
       '@pnpm/types': 'workspace:^5.0.0'
-      '@pnpm/write-project-manifest': 'workspace:1.0.0'
+      '@pnpm/write-project-manifest': 'workspace:1.0.1'
       '@types/graceful-fs': 4.1.3
       '@types/is-windows': ^1.0.0
       '@types/json5': 0.0.30
@@ -2251,9 +2251,9 @@ importers:
     devDependencies:
       '@pnpm/logger': 3.1.0
     specifiers:
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/logger': 3.1.0
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
   packages/resolve-dependencies:
@@ -2391,10 +2391,10 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.12'
+      '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/default-fetcher': 'workspace:5.1.16'
-      '@pnpm/default-resolver': 'workspace:7.4.2'
+      '@pnpm/default-resolver': 'workspace:7.4.3'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/package-store': 'workspace:8.0.4'
@@ -2519,7 +2519,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/assert-store': 'workspace:*'
-      '@pnpm/build-modules': 'workspace:4.1.10'
+      '@pnpm/build-modules': 'workspace:4.1.11'
       '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'workspace:3.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
@@ -2528,18 +2528,18 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-lockfile': 'workspace:3.2.0'
       '@pnpm/fs-locker': 3.0.1
-      '@pnpm/get-context': 'workspace:1.1.4'
-      '@pnpm/headless': 'workspace:12.1.16'
-      '@pnpm/hoist': 'workspace:2.1.11'
-      '@pnpm/lifecycle': 'workspace:8.0.3'
-      '@pnpm/link-bins': 'workspace:5.2.1'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/get-context': 'workspace:1.1.5'
+      '@pnpm/headless': 'workspace:12.1.17'
+      '@pnpm/hoist': 'workspace:2.2.0'
+      '@pnpm/lifecycle': 'workspace:8.1.0'
+      '@pnpm/link-bins': 'workspace:5.3.0'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
       '@pnpm/logger': 3.1.0
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-cleaner': 'workspace:8.0.13'
-      '@pnpm/modules-yaml': 'workspace:6.0.0'
+      '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/package-requester': 'workspace:11.0.4'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/pkgid-to-filename': 2.0.0
@@ -2547,7 +2547,7 @@ importers:
       '@pnpm/prune-lockfile': 'workspace:2.0.6'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/read-package-json': 'workspace:3.0.2'
-      '@pnpm/read-project-manifest': 'workspace:1.0.2'
+      '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/resolve-dependencies': 'workspace:14.3.3'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
@@ -2748,7 +2748,7 @@ importers:
       '@pnpm/assert-project': 'link:'
       '@types/is-windows': 1.0.0
       '@types/isexe': 2.0.0
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
     specifiers:
       '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': 'workspace:1.0.0'
@@ -2759,7 +2759,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
       '@types/mz': ^2.7.0
-      '@types/node': ^12.12.31
+      '@types/node': ^12.12.32
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2784,14 +2784,14 @@ importers:
       write-pkg: 4.0.0
       write-yaml-file: 4.0.0
     devDependencies:
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
       '@types/mkdirp': 1.0.0
-      '@types/node': ^12.12.31
+      '@types/node': ^12.12.32
       make-dir: 3.0.2
       tempy: 0.5.0
       tslint-config-standard: 9.0.0
@@ -2839,8 +2839,8 @@ importers:
       path-exists: 4.0.0
       write-json-file: 4.3.0
     specifiers:
-      '@pnpm/find-workspace-packages': 'workspace:2.1.13'
-      '@pnpm/lockfile-file': 'workspace:3.0.6'
+      '@pnpm/find-workspace-packages': 'workspace:2.1.14'
+      '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/types': 'workspace:5.0.0'
       is-subdir: 1.1.1
       load-json-file: 6.2.0
@@ -3257,7 +3257,7 @@ packages:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
@@ -3278,7 +3278,7 @@ packages:
       integrity: sha512-SvCBBPzOIe/3Tu7jTl2Q8NjITjLmq9m7obzjSyb8PXWWZ31xVK6w4T6v8fOx+lrgQnqk3Yxc00LDolFsSakKCA==
   /@types/cross-spawn/6.0.1:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-MtN1pDYdI6D6QFDzy39Q+6c9rl2o/xN7aWGe6oZuzqq5N6+YuwFsWiEAv3dNzvzN9YzU+itpN8lBzFpphQKLAw==
@@ -3287,13 +3287,13 @@ packages:
       integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
   /@types/fs-extra/5.1.0:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-AInn5+UBFIK9FK5xc9yP5e3TQSPNNgjHByqYcj9g5elVBnDQcQL7PlO1CIRy2gWlbwK7UPYqi7vRvFA44dCmYQ==
   /@types/fs-extra/8.1.0:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-UoOfVEzAUpeSPmjm7h1uk5MH6KZma2z2O7a75onTGjnNvAvMVrPzPL/vBbT65iIGHWj6rokwfmYcmxmlSf2uwg==
@@ -3301,12 +3301,12 @@ packages:
     dependencies:
       '@types/events': 3.0.0
       '@types/minimatch': 3.0.3
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     resolution:
       integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==
   /@types/graceful-fs/4.1.3:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
     dev: true
     resolution:
       integrity: sha512-AiHRaEB50LQg0pZmm659vNBb9f4SJ0qrAnteuzhSeAUcJKxoYgEnprg/83kppCnc2zvtCKbdZry1a5pVY3lOTQ==
@@ -3316,7 +3316,7 @@ packages:
       integrity: sha512-dYLI2VgU1UTpdigoeLYc8vVpe7kpu3jysLCTUPB9NS1B+7+BdH6XefI4BhB33CNUaBewnxmjy9GPhF4NXOSNew==
   /@types/http-proxy-agent/2.0.2:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-2S6IuBRhqUnH1/AUx9k8KWtY3Esg4eqri946MnxTG5HwehF1S5mqLln8fcyMiuQkY72p2gH3W+rIPqp5li0LyQ==
@@ -3332,7 +3332,7 @@ packages:
       integrity: sha512-tJ1rq04tGKuIJoWIH0Gyuwv4RQ3+tIu7wQrC0MV47raQ44kIzXSSFKfrxFUOWVRvesoF7mrTqigXmqoZJsXwTg==
   /@types/isexe/2.0.0:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
     dev: true
     resolution:
       integrity: sha512-QuPJ6xd8TLfMy6l/pJ+oeRHYG8efIzR8WeyvFr/k4zbhcRqa+SQiVgUUb3D3PG3Si+XVuxn8RToCcfNCdFqr3g==
@@ -3357,23 +3357,23 @@ packages:
       integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==
   /@types/mkdirp/1.0.0:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
     resolution:
       integrity: sha512-ONFY9//bCEr3DWKON3iDv/Q8LXnhaYYaNDeFSN0AtO5o4sLf9F0pstJKKKjQhXE0kJEeHs8eR6SAsROhhc2Csw==
   /@types/mz/2.7.0:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     resolution:
       integrity: sha512-Q5TZYMKnH0hdV5fNstmMWL2LLw5eRRtTd73KNtsZxoQ2gtCQyET5X79uERUEwGneuxPglg441I7OSY00+9CkSw==
   /@types/ncp/2.0.3:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-eZatZMWhPHUHY/1hUUqwGrWzBAE9deYR3L0QJMicpVkBUOrQslhWblw5Ye+rKuzvFG/UQ3jDolMcjhC2WKUQ5w==
   /@types/node-fetch/2.5.5:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
       form-data: 3.0.0
     dev: true
     resolution:
@@ -3382,9 +3382,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-gpNnRnZP3VWzzj5k3qrpRC6Rk3H/uclhAVo1aIvwzK5p5cOrs9yEyQ8H/HBsBY0u5rrWxXEiVPQ0dEB6pkjE8Q==
-  /@types/node/12.12.31:
+  /@types/node/12.12.32:
     resolution:
-      integrity: sha512-T+wnJno8uh27G9c+1T+a1/WYCHzLeDqtsGJkoEdSp2X8RTh3oOCZQcUnjAx90CS8cmmADX51O0FI/tu9s0yssg==
+      integrity: sha512-44/reuCrwiQEsXud3I5X3sqI5jIXAmHB5xoiyKUw965olNHF3IWKjBLKK3F9LOSUZmK+oDt8jmyO637iX+hMgA==
+  /@types/node/13.9.5:
+    resolution:
+      integrity: sha512-hkzMMD3xu6BrJpGVLeQ3htQQNAcOrJjX7WFmtK8zWQpz2UJf13LCFF2ALA7c9OVdvc2vQJeDdjfR35M0sBCxvw==
   /@types/nopt/3.0.29:
     dev: true
     resolution:
@@ -3422,13 +3425,13 @@ packages:
   /@types/rimraf/3.0.0:
     dependencies:
       '@types/glob': 7.1.1
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-7WhJ0MdpFgYQPXlF4Dx+DhgvlPCfz/x5mHaeDQAKhcenvQP1KCpLQ18JklAqeGMYSAT2PxLpzd0g2/HE7fj7hQ==
   /@types/semver/7.1.0:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-pOKLaubrAEMUItGNpgwl0HMFPrSAFic8oSVIvfu1UwcgGNmNyK9gyhBHKmBnUTwwVvpZfkzUC0GaMgnL6P86uA==
@@ -3455,13 +3458,13 @@ packages:
       integrity: sha512-Ek6EryyaAvP3Lm1aol660YfmhpDkf04TJHK6Vc+R68EQrecK8Qkbv7Ct5jvY2Yf0fkhmkeim4DOz3yDiEYEnNQ==
   /@types/tape/4.2.34:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 12.12.32
     dev: true
     resolution:
       integrity: sha512-d3mILzYSlsPEALCiDYkRnkiYN4cl62dkaCg00Uql/FShIvdMOBFGtjP0N/cm0aCXwaAPVBS5weD4ciHAD8RtsA==
   /@types/touch/3.1.1:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-6qjr7Erk0b9FkZSu17wUJaWhmzUgGfQuec7eIwl9cP7V/YO/k9IcMnHSwAjxAeadC5guq9rwHcoij7PT1RkO1w==
@@ -3489,7 +3492,7 @@ packages:
       integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
   /@types/write-file-atomic/3.0.0:
     dependencies:
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
     dev: true
     resolution:
       integrity: sha512-XrvNv7CBEveBoWkGU4ZxuyeL7iaYVr609VjlNAe+VaS8N9stTvGwp5IZgFP+QDbiRQV/R7MmipPsgAhlf5LZzQ==
@@ -3630,7 +3633,7 @@ packages:
   /@zkochan/rimraf/1.0.0:
     dependencies:
       '@types/glob': 7.1.1
-      '@types/node': 12.12.31
+      '@types/node': 13.9.5
       rimraf: 3.0.2
     engines:
       node: '>=8.15'
@@ -4539,7 +4542,7 @@ packages:
       istanbul-reports: 3.0.1
       rimraf: 3.0.2
       test-exclude: 6.0.0
-      v8-to-istanbul: 4.1.2
+      v8-to-istanbul: 4.1.3
       yargs: 15.3.1
       yargs-parser: 16.1.0
     dev: true
@@ -6615,7 +6618,7 @@ packages:
       node: '>=0.4.7'
     hasBin: true
     optionalDependencies:
-      uglify-js: 3.8.0
+      uglify-js: 3.8.1
     resolution:
       integrity: sha512-SRGwSYuNfx8DwHD/6InAPzD6RgeruWLT+B8e8a7gGs8FWgHzlExpTFMEq2IA6QpAfOClpKHy6+8IqTjeBCu6Kg==
   /har-schema/2.0.0:
@@ -6752,10 +6755,10 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-D5JbOMBIR/TVZkubHT+OyT2705QvogUW4IBn6nHd756OwieSF9aDYFj4dv6HHEVGYbHaLETa3WggZYWWMyy3ZQ==
-  /html-escaper/2.0.1:
+  /html-escaper/2.0.2:
     dev: true
     resolution:
-      integrity: sha512-hNX23TjWwD3q56HpWjUHOKj1+4KKlnjv9PcmBUYKVpga+2cnb9nDx/B1o0yO4n+RZXZdiNxzx6B24C9aNMTkkQ==
+      integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==
   /http-cache-semantics/4.1.0:
     dev: false
     resolution:
@@ -7390,7 +7393,7 @@ packages:
       integrity: sha512-wcdi+uAKzfiGT2abPpKZ0hSU1rGQjUQnLvtY5MpQ7QCTahD3VODhcu4wcfY1YtkGaDD5yuydOLINXsfbus9ROw==
   /istanbul-reports/3.0.1:
     dependencies:
-      html-escaper: 2.0.1
+      html-escaper: 2.0.2
       istanbul-lib-report: 3.0.0
     dev: true
     engines:
@@ -7736,7 +7739,7 @@ packages:
     dependencies:
       level-js: 4.0.2
       level-packager: 5.1.1
-      leveldown: 5.5.1
+      leveldown: 5.6.0
       opencollective-postinstall: 2.0.2
     dev: true
     engines:
@@ -7744,7 +7747,7 @@ packages:
     requiresBuild: true
     resolution:
       integrity: sha512-wcak5OQeA4rURGacqS62R/xNHjCYnJSQDBOlm4KNUGJVE9bWv2B04TclqReYejN+oD65PzD4FsqeWoI5wNC5Lg==
-  /leveldown/5.5.1:
+  /leveldown/5.6.0:
     dependencies:
       abstract-leveldown: 6.2.2
       napi-macros: 2.0.0
@@ -7754,7 +7757,7 @@ packages:
       node: '>=8.6.0'
     requiresBuild: true
     resolution:
-      integrity: sha512-GoC455/ncfg4yLLItr192HuXpA+CcQ2q9GncXJhewvvlpsBBEegChn5tMPP+kGvJt7u2LuXAd8fY2moQxFD+sQ==
+      integrity: sha512-iB8O/7Db9lPaITU1aA2txU/cBEXAt4vWwKQRrrWuS6XDgbP4QZGj9BL2aNbwb002atoQ/lIotJkfyzz+ygQnUQ==
   /levelup/4.3.2:
     dependencies:
       deferred-leveldown: 5.3.0
@@ -8625,7 +8628,7 @@ packages:
       cross-spawn: 6.0.5
       memorystream: 0.3.1
       minimatch: 3.0.4
-      pidtree: 0.3.0
+      pidtree: 0.3.1
       read-pkg: 3.0.0
       shell-quote: 1.7.2
       string.prototype.padend: 3.1.0
@@ -9458,13 +9461,13 @@ packages:
       node: '>=8.6'
     resolution:
       integrity: sha512-q0M/9eZHzmr0AulXyPwNfZjtwZ/RBZlbN3K3CErVrk50T2ASYI7Bye0EvekFY3IP1Nt2DHu0re+V2ZHIpMkuWg==
-  /pidtree/0.3.0:
+  /pidtree/0.3.1:
     dev: true
     engines:
       node: '>=0.10'
     hasBin: true
     resolution:
-      integrity: sha512-9CT4NFlDcosssyg8KVFltgokyKZIFjoBxw8CTGy+5F38Y1eQWrt8tRayiUOXE+zVKQnYu5BR8JjCtvK3BcnBhg==
+      integrity: sha512-qQbW94hLHEqCg7nhby4yRC7G2+jYHY4Rguc2bjw7Uug4GIJuu1tvf2uHaZv5Q8zdt+WKJ6qK1FOI6amaWUo5FA==
   /pify/2.3.0:
     dev: true
     engines:
@@ -10276,6 +10279,7 @@ packages:
     resolution:
       integrity: sha1-MrueOcBtZzONyTeMDW1gdFZq0TE=
   /resolve-url/0.2.1:
+    deprecated: 'https://github.com/lydell/resolve-url#deprecated'
     dev: true
     resolution:
       integrity: sha1-LGN/53yJOv0qZj/iGqkIAGjiBSo=
@@ -11547,7 +11551,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
-  /uglify-js/3.8.0:
+  /uglify-js/3.8.1:
     dependencies:
       commander: 2.20.3
       source-map: 0.6.1
@@ -11557,7 +11561,7 @@ packages:
     hasBin: true
     optional: true
     resolution:
-      integrity: sha512-ugNSTT8ierCsDHso2jkBHXYrU8Y5/fY2ZUprfrJUiD7YpuFvV4jODLFmb3h4btQjqr5Nh4TX4XtgDfCU1WdioQ==
+      integrity: sha512-W7KxyzeaQmZvUFbGj4+YFshhVrMBGSg2IbcYAjGWGvx8DHvJMclbTDMpffdxFUGPBHjIytk7KJUR/KUXstUGDw==
   /uid-number/0.0.6:
     dev: false
     resolution:
@@ -11692,6 +11696,7 @@ packages:
     resolution:
       integrity: sha512-KY9Frmirql91X2Qgjry0Wd4Y+YTdrdZheS8TFwvkbLWf/G5KNJDCh6pKL5OZctEW4+0Baa5idK2ZQuELRwPznQ==
   /urix/0.1.0:
+    deprecated: 'Please see https://github.com/lydell/urix#deprecated'
     dev: true
     resolution:
       integrity: sha1-2pN/emLiH+wf0Y1Js1wpNQZ6bHI=
@@ -11736,7 +11741,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-vy9V/+pKG+5ZTYKf+VcphF5Oc6EFiu3W8Nv3P3zIh0EqVI80ZxOzuPfe9EHjkFNvf8+xuTHVeei4Drydlx4zjw==
-  /v8-to-istanbul/4.1.2:
+  /v8-to-istanbul/4.1.3:
     dependencies:
       '@types/istanbul-lib-coverage': 2.0.1
       convert-source-map: 1.7.0
@@ -11745,7 +11750,7 @@ packages:
     engines:
       node: 8.x.x || >=10.10.0
     resolution:
-      integrity: sha512-G9R+Hpw0ITAmPSr47lSlc5A1uekSYzXxTMlFxso2xoffwo4jQnzbv1p9yXIinO8UMZKfAFewaCHwWvnH4Jb4Ug==
+      integrity: sha512-sAjOC+Kki6aJVbUOXJbcR0MnbfjvBzwKZazEJymA2IX49uoOdEdk+4fBq5cXgYgiyKtAyrrJNtBZdOeDIF+Fng==
   /validate-npm-package-license/3.0.4:
     dependencies:
       spdx-correct: 3.1.0
