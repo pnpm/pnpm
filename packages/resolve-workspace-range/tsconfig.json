@@ -8,9 +8,5 @@
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
   ],
-  "references": [
-    {
-      "path": "../resolve-workspace-range"
-    }
-  ]
+  "references": []
 }

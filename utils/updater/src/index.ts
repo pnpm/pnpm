@@ -107,7 +107,6 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
   let homepage: string
   let repository: string | { type: 'git', url: string }
   if (manifest.name === 'pnpm') {
-    delete scripts.prepublishOnly
     homepage = 'https://pnpm.js.org'
     repository = {
       type: 'git',

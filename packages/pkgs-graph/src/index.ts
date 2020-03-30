@@ -1,7 +1,7 @@
+import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
 import npa = require('@zkochan/npm-package-arg')
 import path = require('path')
 import R = require('ramda')
-import semver = require('semver')
 
 export type Manifest = {
   name?: string,
@@ -81,9 +81,7 @@ export default function<T> (pkgs: Array<Package & T>): {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
           return matchedPkg!.dir
         }
-        const matched = rawSpec === '*'
-          ? semver.maxSatisfying(versions, rawSpec, { includePrerelease: true })
-          : semver.maxSatisfying(versions, rawSpec)
+        const matched = resolveWorkspaceRange(rawSpec, versions)
         if (!matched) {
           unmatched.push({ pkgName: depName, range: rawSpec })
           return ''

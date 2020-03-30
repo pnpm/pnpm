@@ -995,6 +995,7 @@ importers:
   packages/npm-resolver:
     dependencies:
       '@pnpm/error': 'link:../error'
+      '@pnpm/resolve-workspace-range': 'link:../resolve-workspace-range'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/types': 'link:../types'
       credentials-by-uri: 2.0.0
@@ -1023,6 +1024,7 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'link:'
+      '@pnpm/resolve-workspace-range': 'workspace:0.0.0'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/normalize-path': ^3.0.0
@@ -1290,22 +1292,20 @@ importers:
       nopt: 4.0.3
   packages/pkgs-graph:
     dependencies:
+      '@pnpm/resolve-workspace-range': 'link:../resolve-workspace-range'
       '@zkochan/npm-package-arg': 1.0.2
       ramda: 0.27.0
-      semver: 7.1.3
     devDependencies:
       '@types/ramda': 0.27.0
-      '@types/semver': 7.1.0
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
     specifiers:
+      '@pnpm/resolve-workspace-range': 'workspace:0.0.0'
       '@types/ramda': ^0.27.0
-      '@types/semver': ^7.1.0
       '@zkochan/npm-package-arg': ^1.0.2
       better-path-resolve: 1.0.0
       pkgs-graph: 'link:'
       ramda: ^0.27.0
-      semver: 7.1.3
   packages/plugin-commands-audit:
     dependencies:
       '@pnpm/audit': 'link:../audit'
@@ -2299,6 +2299,16 @@ importers:
       path-exists: 4.0.0
       ramda: 0.27.0
       replace-string: 3.0.0
+      semver: 7.1.3
+  packages/resolve-workspace-range:
+    dependencies:
+      semver: 7.1.3
+    devDependencies:
+      '@pnpm/resolve-workspace-range': 'link:'
+      '@types/semver': 7.1.0
+    specifiers:
+      '@pnpm/resolve-workspace-range': 'link:'
+      '@types/semver': ^7.1.0
       semver: 7.1.3
   packages/resolver-base:
     dependencies:
