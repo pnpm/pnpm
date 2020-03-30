@@ -1,13 +1,12 @@
 {
   "scripts": {
-    "postinstall": "pnpm run update-manifests",
     "lint": "tslint --config tslint.json **/src/**/*.ts **/test/**/*.ts --exclude '**/node_modules/**'",
     "test-master": "pnpm run lint && pnpm run compile && run-p -r verdaccio test-pkgs-master",
     "test-pkgs-master": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm run _test --no-sort --filter=./packages --filter=./privatePackages",
     "test-branch": "pnpm run lint && git remote set-branches --add origin master && git fetch && pnpm run compile && run-p -r verdaccio test-pkgs-branch",
     "test-pkgs-branch": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm run _test --no-sort --filter=...[origin/master]",
     "verdaccio": "verdaccio --config ./verdaccio.yaml --listen 7348",
-    "compile": "pnpm run --filter @pnpm/fetch compile && pnpm run --filter pnpm compile",
+    "compile": "pnpm run --filter @pnpm/fetch compile && pnpm run --filter pnpm compile && pnpm run update-manifests",
     "coveralls": "lcov-result-merger './packages/*/coverage/lcov.info' | coveralls",
     "update-manifests": "ts-node utils/updater/src/index.ts"
   },
