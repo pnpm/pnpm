@@ -19,6 +19,9 @@
       "path": "../error"
     },
     {
+      "path": "../lifecycle"
+    },
+    {
       "path": "../npm-resolver"
     },
     {
@@ -29,6 +32,9 @@
     },
     {
       "path": "../run-npm"
+    },
+    {
+      "path": "../sort-packages"
     },
     {
       "path": "../types"
