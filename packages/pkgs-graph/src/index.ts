@@ -81,7 +81,9 @@ export default function<T> (pkgs: Array<Package & T>): {
           const matchedPkg = pkgs.find(pkg => pkg.manifest.name === depName && pkg.manifest.version === rawSpec)
           return matchedPkg!.dir
         }
-        const matched = semver.maxSatisfying(versions, rawSpec)
+        const matched = rawSpec === '*'
+          ? semver.maxSatisfying(versions, rawSpec, { includePrerelease: true })
+          : semver.maxSatisfying(versions, rawSpec)
         if (!matched) {
           unmatched.push({ pkgName: depName, range: rawSpec })
           return ''
