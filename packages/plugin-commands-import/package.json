@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-import",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "The import command",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -46,10 +46,10 @@
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/read-project-manifest": "workspace:1.0.3",
-    "@pnpm/store-connection-manager": "workspace:0.2.24",
+    "@pnpm/store-connection-manager": "workspace:0.2.25",
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
     "render-help": "1.0.0",
-    "supi": "workspace:0.38.23"
+    "supi": "workspace:0.38.24"
   }
 }

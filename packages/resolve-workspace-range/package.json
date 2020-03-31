@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-workspace-range",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Resolves a range from versions that are present inside a workspace",
   "main": "lib/index.js",
