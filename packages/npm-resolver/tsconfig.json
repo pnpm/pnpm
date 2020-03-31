@@ -14,6 +14,9 @@
       "path": "../error"
     },
     {
+      "path": "../resolve-workspace-range"
+    },
+    {
       "path": "../resolver-base"
     },
     {

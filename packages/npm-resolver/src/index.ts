@@ -1,4 +1,5 @@
 import PnpmError from '@pnpm/error'
+import resolveWorkspaceRange from '@pnpm/resolve-workspace-range'
 import {
   PreferredVersions,
   ResolveResult,
@@ -272,14 +273,7 @@ function pickMatchingLocalVersionOrNull (
     case 'version':
       return versions[spec.fetchSpec] ? spec.fetchSpec : null
     case 'range':
-      if (spec.fetchSpec === '*') {
-        return semver.maxSatisfying(localVersions, '*', {
-          includePrerelease: true,
-        })
-      }
-      return semver.maxSatisfying(localVersions, spec.fetchSpec, {
-        loose: true,
-      })
+      return resolveWorkspaceRange(spec.fetchSpec, localVersions)
     default:
       return null
   }

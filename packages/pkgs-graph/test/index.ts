@@ -318,3 +318,54 @@ test('create package graph ignoring the workspace protocol', t => {
   })
   t.end()
 })
+
+test('* matches prerelease versions', t => {
+  const result = createPkgGraph([
+    {
+      dir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+
+        dependencies: {
+          'foo': '*',
+        },
+      },
+    },
+    {
+      dir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0-0',
+      },
+    },
+  ])
+  t.deepEqual(result.unmatched, [])
+  t.deepEqual(result.graph, {
+    [BAR1_PATH]: {
+      dependencies: [FOO1_PATH],
+      package: {
+        dir: BAR1_PATH,
+        manifest: {
+          name: 'bar',
+          version: '1.0.0',
+
+          dependencies: {
+            'foo': '*',
+          },
+        },
+      },
+    },
+    [FOO1_PATH]: {
+      dependencies: [],
+      package: {
+        dir: FOO1_PATH,
+        manifest: {
+          name: 'foo',
+          version: '1.0.0-0',
+        },
+      },
+    },
+  })
+  t.end()
+})
