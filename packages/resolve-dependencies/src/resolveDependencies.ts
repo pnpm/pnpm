@@ -35,12 +35,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import {
-  createNodeId,
-  nodeIdContainsSequence,
-  pickRegistryForPackage,
-  splitNodeId,
-} from '@pnpm/utils'
+import { pickRegistryForPackage } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
 import exists = require('path-exists')
@@ -48,6 +43,11 @@ import R = require('ramda')
 import semver = require('semver')
 import encodePkgId from './encodePkgId'
 import getNonDevWantedDependencies, { WantedDependency } from './getNonDevWantedDependencies'
+import {
+  createNodeId,
+  nodeIdContainsSequence,
+  splitNodeId,
+} from './nodeIdUtils'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
 
 const dependencyResolvedLogger = logger('_dependency_resolved')

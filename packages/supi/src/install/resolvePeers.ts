@@ -2,16 +2,14 @@ import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
+  createNodeId,
   DependenciesTree,
   DependenciesTreeNode,
+  splitNodeId,
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import { Dependencies, DependencyManifest } from '@pnpm/types'
-import {
-  createNodeId,
-  splitNodeId,
-} from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import crypto = require('crypto')
 import importFrom = require('import-from')
