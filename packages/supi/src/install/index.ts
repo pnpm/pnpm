@@ -29,6 +29,7 @@ import logger, {
 } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
+import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
 import resolveDependencies, {
   ResolvedPackage,
 } from '@pnpm/resolve-dependencies'
@@ -46,7 +47,6 @@ import {
 } from '@pnpm/types'
 import {
   getAllDependenciesFromPackage,
-  safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'

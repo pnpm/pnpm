@@ -271,6 +271,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
+      '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
@@ -289,6 +290,7 @@ importers:
       '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/normalize-registries': 'workspace:0.0.0'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
+      '@pnpm/read-package-json': 'workspace:3.0.2'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
       '@types/normalize-path': 3.0.0
@@ -922,9 +924,9 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/package-bins': 'link:../package-bins'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
+      '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'link:../dependency-path'
       fs-vacuum: 1.2.10
@@ -944,9 +946,9 @@ importers:
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 'workspace:4.0.3'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
+      '@pnpm/read-package-json': 'workspace:3.0.2'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/is-windows': ^1.0.0
       '@types/ramda': ^0.27.3
       '@zkochan/rimraf': 1.0.0
@@ -2724,7 +2726,6 @@ importers:
     specifiers: {}
   packages/utils:
     dependencies:
-      '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/types': 'link:../types'
       mz: 2.7.0
       validate-npm-package-name: 3.0.0
@@ -2735,7 +2736,6 @@ importers:
       '@types/validate-npm-package-name': 3.0.0
     specifiers:
       '@pnpm/logger': 3.1.0
-      '@pnpm/read-package-json': 'workspace:3.0.2'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'link:'
       '@types/mz': ^2.7.0

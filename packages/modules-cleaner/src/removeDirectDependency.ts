@@ -3,8 +3,8 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import binify from '@pnpm/package-bins'
+import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DependencyManifest } from '@pnpm/types'
-import { safeReadPackageFromDir } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import isWindows = require('is-windows')
 import path = require('path')

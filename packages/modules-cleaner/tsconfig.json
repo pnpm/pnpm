@@ -28,13 +28,13 @@
       "path": "../read-modules-dir"
     },
     {
+      "path": "../read-package-json"
+    },
+    {
       "path": "../store-controller-types"
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../utils"
     },
     {
       "path": "../dependency-path"

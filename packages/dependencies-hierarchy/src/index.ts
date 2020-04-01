@@ -14,11 +14,9 @@ import {
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import normalizeRegistries from '@pnpm/normalize-registries'
 import readModulesDir from '@pnpm/read-modules-dir'
+import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
-import {
-  realNodeModulesDir,
-  safeReadPackageFromDir,
-} from '@pnpm/utils'
+import { realNodeModulesDir } from '@pnpm/utils'
 import { refToAbsolute, refToRelative } from 'dependency-path'
 import normalizePath = require('normalize-path')
 import path = require('path')

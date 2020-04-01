@@ -38,6 +38,7 @@
     "@pnpm/modules-yaml": "workspace:6.0.1",
     "@pnpm/normalize-registries": "workspace:0.0.0",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
+    "@pnpm/read-package-json": "workspace:3.0.2",
     "@pnpm/types": "workspace:5.0.0",
     "@pnpm/utils": "workspace:0.13.0",
     "dependency-path": "workspace:4.0.5",

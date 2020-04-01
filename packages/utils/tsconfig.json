@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../read-package-json"
-    },
-    {
       "path": "../types"
     }
   ]
