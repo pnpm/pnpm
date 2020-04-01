@@ -10,19 +10,7 @@
   ],
   "references": [
     {
-      "path": "../lockfile-file"
-    },
-    {
-      "path": "../modules-yaml"
-    },
-    {
-      "path": "../normalize-registries"
-    },
-    {
       "path": "../types"
-    },
-    {
-      "path": "../utils"
     }
   ]
 }

@@ -269,6 +269,7 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
@@ -286,6 +287,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:6.0.1'
+      '@pnpm/normalize-registries': 'workspace:0.0.0'
       '@pnpm/read-modules-dir': 'workspace:2.0.1'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
@@ -970,6 +972,16 @@ importers:
       read-yaml-file: 2.0.0
       tempy: 0.5.0
       write-yaml-file: 4.0.0
+  packages/normalize-registries:
+    dependencies:
+      '@pnpm/types': 'link:../types'
+      normalize-registry-url: 1.0.0
+    devDependencies:
+      '@pnpm/normalize-registries': 'link:'
+    specifiers:
+      '@pnpm/normalize-registries': 'link:'
+      '@pnpm/types': 'workspace:5.0.0'
+      normalize-registry-url: 1.0.0
   packages/npm-registry-agent:
     dependencies:
       agentkeepalive: 4.0.0
@@ -1710,12 +1722,12 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
       '@zkochan/npm-package-arg': 1.0.2
       camelcase-keys: 6.2.1
       common-tags: 1.8.0
@@ -1758,6 +1770,7 @@ importers:
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
       '@pnpm/logger': ^3.1.0
       '@pnpm/modules-yaml': 'workspace:6.0.1'
+      '@pnpm/normalize-registries': 'workspace:0.0.0'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/plugin-commands-rebuild': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1766,7 +1779,6 @@ importers:
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/common-tags': ^1.8.0
       '@types/ramda': ^0.27.0
       '@types/semver': ^7.1.0
@@ -1903,6 +1915,7 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
       '@pnpm/get-context': 'link:../get-context'
+      '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 2.1.1
@@ -1939,6 +1952,7 @@ importers:
       '@pnpm/get-context': 'workspace:1.1.5'
       '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/logger': 3.1.0
+      '@pnpm/normalize-registries': 'workspace:0.0.0'
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.25'
@@ -2248,6 +2262,7 @@ importers:
     dependencies:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
     devDependencies:
@@ -2256,6 +2271,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/logger': 3.1.0
       '@pnpm/modules-yaml': 'workspace:6.0.1'
+      '@pnpm/normalize-registries': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
   packages/resolve-dependencies:
@@ -2448,6 +2464,7 @@ importers:
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
@@ -2552,6 +2569,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-cleaner': 'workspace:8.0.13'
       '@pnpm/modules-yaml': 'workspace:6.0.1'
+      '@pnpm/normalize-registries': 'workspace:0.0.0'
       '@pnpm/package-requester': 'workspace:11.0.4'
       '@pnpm/package-store': 'workspace:*'
       '@pnpm/pkgid-to-filename': 2.0.0
@@ -2709,7 +2727,6 @@ importers:
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/types': 'link:../types'
       mz: 2.7.0
-      normalize-registry-url: 1.0.0
       validate-npm-package-name: 3.0.0
     devDependencies:
       '@pnpm/logger': 3.1.0
@@ -2724,7 +2741,6 @@ importers:
       '@types/mz': ^2.7.0
       '@types/validate-npm-package-name': 3.0.0
       mz: 2.7.0
-      normalize-registry-url: 1.0.0
       validate-npm-package-name: 3.0.0
   packages/write-project-manifest:
     dependencies:

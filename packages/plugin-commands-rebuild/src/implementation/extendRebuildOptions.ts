@@ -1,7 +1,7 @@
 import { LogBase } from '@pnpm/logger'
+import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 

@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/utils",
-  "description": "Utils for pnpm",
-  "version": "0.13.0",
+  "name": "@pnpm/normalize-registries",
+  "description": "Accepts a mapping of registry URLs and returns a mapping with the same URLs but normalized",
+  "version": "0.0.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -12,36 +12,24 @@
     "lib",
     "!*.map"
   ],
-  "peerDependencies": {
-    "@pnpm/logger": "^3.1.0"
-  },
   "devDependencies": {
-    "@pnpm/logger": "3.1.0",
-    "@pnpm/utils": "link:",
-    "@types/mz": "^2.7.0",
-    "@types/validate-npm-package-name": "3.0.0"
-  },
-  "directories": {
-    "test": "test"
+    "@pnpm/normalize-registries": "link:"
   },
   "keywords": [],
   "license": "MIT",
   "engines": {
     "node": ">=10.13"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/utils",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/normalize-registries",
   "scripts": {
-    "start": "pnpm run tsc -- --watch",
     "test": "pnpm run compile",
     "lint": "tslint -c ../../tslint.json --project .",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "@pnpm/read-package-json": "workspace:3.0.2",
     "@pnpm/types": "workspace:5.0.0",
-    "mz": "2.7.0",
-    "validate-npm-package-name": "3.0.0"
+    "normalize-registry-url": "1.0.0"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/utils#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/normalize-registries#readme"
 }

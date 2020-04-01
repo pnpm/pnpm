@@ -1,10 +1,10 @@
+import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   DependenciesField,
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { ReporterFunction } from '../types'
 

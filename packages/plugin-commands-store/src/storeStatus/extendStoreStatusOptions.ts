@@ -1,5 +1,5 @@
+import normalizeRegistries, { DEFAULT_REGISTRIES } from '@pnpm/normalize-registries'
 import { Registries } from '@pnpm/types'
-import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { ReporterFunction } from '../types'
 

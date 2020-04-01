@@ -22,6 +22,9 @@
       "path": "../get-context"
     },
     {
+      "path": "../normalize-registries"
+    },
+    {
       "path": "../store-connection-manager"
     },
     {

@@ -34,6 +34,7 @@
     "@pnpm/matcher": "workspace:1.0.0",
     "@pnpm/modules-cleaner": "workspace:8.0.13",
     "@pnpm/modules-yaml": "workspace:6.0.1",
+    "@pnpm/normalize-registries": "workspace:0.0.0",
     "@pnpm/package-requester": "workspace:11.0.4",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/prune-lockfile": "workspace:2.0.6",

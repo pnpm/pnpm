@@ -1,8 +1,8 @@
 import { getLockfileImporterId } from '@pnpm/lockfile-file'
 import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
+import normalizeRegistries from '@pnpm/normalize-registries'
 import { DependenciesField, Registries } from '@pnpm/types'
 import {
-  normalizeRegistries,
   realNodeModulesDir,
 } from '@pnpm/utils'
 import path = require('path')

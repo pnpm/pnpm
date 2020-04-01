@@ -1,5 +1,4 @@
 import getAllDependenciesFromPackage from './getAllDependenciesFromPackage'
-import normalizeRegistries, { DEFAULT_REGISTRIES } from './normalizeRegistries'
 import parseWantedDependency from './parseWantedDependency'
 import pickRegistryForPackage from './pickRegistryForPackage'
 import realNodeModulesDir from './realNodeModulesDir'
@@ -8,9 +7,7 @@ import safeReadPackage, { fromDir as safeReadPackageFromDir } from './safeReadPk
 export const readPackage = safeReadPackage
 
 export {
-  DEFAULT_REGISTRIES,
   getAllDependenciesFromPackage,
-  normalizeRegistries,
   parseWantedDependency,
   pickRegistryForPackage,
   realNodeModulesDir,

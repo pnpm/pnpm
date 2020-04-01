@@ -19,6 +19,9 @@
       "path": "../modules-yaml"
     },
     {
+      "path": "../normalize-registries"
+    },
+    {
       "path": "../read-modules-dir"
     },
     {

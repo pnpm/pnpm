@@ -58,6 +58,9 @@
       "path": "../modules-yaml"
     },
     {
+      "path": "../normalize-registries"
+    },
+    {
       "path": "../package-requester"
     },
     {
