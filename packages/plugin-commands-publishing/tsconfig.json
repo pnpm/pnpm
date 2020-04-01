@@ -25,6 +25,9 @@
       "path": "../npm-resolver"
     },
     {
+      "path": "../pick-registry-for-package"
+    },
+    {
       "path": "../read-project-manifest"
     },
     {

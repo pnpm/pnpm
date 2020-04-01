@@ -25,6 +25,9 @@
       "path": "../normalize-registries"
     },
     {
+      "path": "../pick-registry-for-package"
+    },
+    {
       "path": "../store-connection-manager"
     },
     {

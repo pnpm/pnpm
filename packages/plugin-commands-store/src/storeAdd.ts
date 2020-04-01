@@ -1,8 +1,9 @@
 import PnpmError from '@pnpm/error'
 import logger, { globalInfo, streamParser } from '@pnpm/logger'
+import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
-import { parseWantedDependency, pickRegistryForPackage } from '@pnpm/utils'
+import { parseWantedDependency } from '@pnpm/utils'
 import { ReporterFunction } from './types'
 
 export default async function (

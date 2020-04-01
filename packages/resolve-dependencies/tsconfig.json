@@ -28,6 +28,9 @@
       "path": "../package-is-installable"
     },
     {
+      "path": "../pick-registry-for-package"
+    },
+    {
       "path": "../resolver-base"
     },
     {

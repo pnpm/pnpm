@@ -1,0 +1,34 @@
+{
+  "name": "@pnpm/pick-registry-for-package",
+  "description": "Picks the right registry for the package from a registries config",
+  "version": "0.0.0",
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "devDependencies": {
+    "@pnpm/pick-registry-for-package": "link:"
+  },
+  "keywords": [],
+  "license": "MIT",
+  "engines": {
+    "node": ">=10.13"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/pick-registry-for-package",
+  "scripts": {
+    "test": "pnpm run compile",
+    "lint": "tslint -c ../../tslint.json --project .",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "dependencies": {
+    "@pnpm/types": "workspace:5.0.0"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pick-registry-for-package#readme"
+}

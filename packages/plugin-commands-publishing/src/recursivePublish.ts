@@ -1,11 +1,11 @@
 import { Config, Project } from '@pnpm/config'
 import createResolver from '@pnpm/npm-resolver'
+import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import runNpm from '@pnpm/run-npm'
 import sortPackages from '@pnpm/sort-packages'
 import storePath from '@pnpm/store-path'
 import { Registries } from '@pnpm/types'
-import { pickRegistryForPackage } from '@pnpm/utils'
 import LRU = require('lru-cache')
 import pFilter = require('p-filter')
 import { handler as publish } from './publish'

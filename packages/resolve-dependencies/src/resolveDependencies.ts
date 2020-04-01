@@ -16,6 +16,7 @@ import {
 } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
+import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import {
   DirectoryResolution,
   PreferredVersions,
@@ -35,7 +36,6 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import { pickRegistryForPackage } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
 import exists = require('path-exists')

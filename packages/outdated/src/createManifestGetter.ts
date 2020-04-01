@@ -1,6 +1,6 @@
 import createResolver, { ResolveFunction, ResolverFactoryOptions } from '@pnpm/default-resolver'
+import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
 import { DependencyManifest, Registries } from '@pnpm/types'
-import { pickRegistryForPackage } from '@pnpm/utils'
 import LRU = require('lru-cache')
 
 type GetManifestOpts = {

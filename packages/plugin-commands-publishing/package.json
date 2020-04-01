@@ -57,6 +57,7 @@
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lifecycle": "workspace:8.1.0",
     "@pnpm/npm-resolver": "workspace:7.3.8",
+    "@pnpm/pick-registry-for-package": "workspace:0.0.0",
     "@pnpm/read-project-manifest": "workspace:1.0.3",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/run-npm": "workspace:2.0.0",

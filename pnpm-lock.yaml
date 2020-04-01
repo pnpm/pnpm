@@ -1070,6 +1070,7 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
@@ -1095,6 +1096,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/outdated': 'link:'
+      '@pnpm/pick-registry-for-package': 'workspace:0.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'workspace:0.13.0'
@@ -1304,6 +1306,14 @@ importers:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
       nopt: 4.0.3
+  packages/pick-registry-for-package:
+    dependencies:
+      '@pnpm/types': 'link:../types'
+    devDependencies:
+      '@pnpm/pick-registry-for-package': 'link:'
+    specifiers:
+      '@pnpm/pick-registry-for-package': 'link:'
+      '@pnpm/types': 'workspace:5.0.0'
   packages/pkgs-graph:
     dependencies:
       '@pnpm/resolve-workspace-range': 'link:../resolve-workspace-range'
@@ -1637,6 +1647,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
+      '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/run-npm': 'link:../run-npm'
@@ -1678,6 +1689,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'workspace:2.0.9'
       '@pnpm/lifecycle': 'workspace:8.1.0'
       '@pnpm/npm-resolver': 'workspace:7.3.8'
+      '@pnpm/pick-registry-for-package': 'workspace:0.0.0'
       '@pnpm/plugin-commands-publishing': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/read-project-manifest': 'workspace:1.0.3'
@@ -1918,6 +1930,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/get-context': 'link:../get-context'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
+      '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 2.1.1
@@ -1955,6 +1968,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/logger': 3.1.0
       '@pnpm/normalize-registries': 'workspace:0.0.0'
+      '@pnpm/pick-registry-for-package': 'workspace:0.0.0'
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.25'
@@ -2284,6 +2298,7 @@ importers:
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
+      '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -2306,6 +2321,7 @@ importers:
       '@pnpm/logger': 3.1.0
       '@pnpm/npm-resolver': 'workspace:7.3.8'
       '@pnpm/package-is-installable': 'workspace:4.0.6'
+      '@pnpm/pick-registry-for-package': 'workspace:0.0.0'
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/store-controller-types': 'workspace:7.0.0'

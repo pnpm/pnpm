@@ -33,6 +33,7 @@
     "@pnpm/lockfile-utils": "workspace:2.0.9",
     "@pnpm/npm-resolver": "workspace:7.3.8",
     "@pnpm/package-is-installable": "workspace:4.0.6",
+    "@pnpm/pick-registry-for-package": "workspace:0.0.0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
