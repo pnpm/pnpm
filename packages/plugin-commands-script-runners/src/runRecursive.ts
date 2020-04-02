@@ -5,8 +5,9 @@ import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { PackageManifest } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
 import pLimit from 'p-limit'
+import path = require('path')
+import realpathMissing = require('realpath-missing')
 
 export type RecursiveRunOpts = Pick<Config,
   'unsafePerm' |
@@ -52,7 +53,7 @@ export default async (
             extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,
-            rootNodeModulesDir: await realNodeModulesDir(prefix),
+            rootNodeModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }

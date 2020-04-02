@@ -5,9 +5,10 @@ import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import { ProjectManifest } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
+import path = require('path')
 import R = require('ramda')
+import realpathMissing = require('realpath-missing')
 import renderHelp = require('render-help')
 import runRecursive, { RecursiveRunOpts } from './runRecursive'
 
@@ -116,7 +117,7 @@ export async function handler (
     extraBinPaths: opts.extraBinPaths,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
-    rootNodeModulesDir: await realNodeModulesDir(dir),
+    rootNodeModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }

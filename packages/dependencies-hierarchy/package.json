@@ -40,9 +40,9 @@
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.0.2",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.13.0",
     "dependency-path": "workspace:4.0.5",
     "normalize-path": "3.0.0",
+    "realpath-missing": "1.0.0",
     "resolve-link-target": "1.0.1"
   },
   "devDependencies": {

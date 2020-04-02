@@ -53,13 +53,13 @@ import {
 } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { DependencyManifest, ProjectManifest, Registries } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
+import realpathMissing = require('realpath-missing')
 
 const brokenNodeModulesLogger = logger('_broken_node_modules')
 
@@ -125,7 +125,7 @@ export default async (opts: HeadlessOptions) => {
     throw new Error(`Headless installation requires a ${WANTED_LOCKFILE} file`)
   }
 
-  const rootModulesDir = await realNodeModulesDir(lockfileDir)
+  const rootModulesDir = await realpathMissing(path.join(lockfileDir, 'node_modules'))
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', lockfileDir)
   const currentLockfile = opts.currentLockfile || await readCurrentLockfile(virtualStoreDir, { ignoreIncompatible: false })
   const hoistedModulesDir = opts.shamefullyHoist

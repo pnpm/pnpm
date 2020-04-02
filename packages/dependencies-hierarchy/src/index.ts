@@ -16,10 +16,10 @@ import normalizeRegistries from '@pnpm/normalize-registries'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesField, DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
 import { refToAbsolute, refToRelative } from 'dependency-path'
 import normalizePath = require('normalize-path')
 import path = require('path')
+import realpathMissing = require('realpath-missing')
 import resolveLinkTarget = require('resolve-link-target')
 
 export type SearchFunction = (pkg: { name: string, version: string }) => boolean
@@ -60,7 +60,7 @@ export default async function dependenciesHierarchy (
   if (!maybeOpts || !maybeOpts.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
   }
-  const modulesDir = await realNodeModulesDir(maybeOpts.lockfileDir)
+  const modulesDir = await realpathMissing(path.join(maybeOpts.lockfileDir, 'node_modules'))
   const modules = await readModulesYaml(modulesDir)
   const registries = normalizeRegistries({
     ...maybeOpts && maybeOpts.registries,

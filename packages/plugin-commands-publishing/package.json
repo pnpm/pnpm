@@ -64,7 +64,6 @@
     "@pnpm/sort-packages": "workspace:1.0.6",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.13.0",
     "@zkochan/rimraf": "1.0.0",
     "cp-file": "9.0.0",
     "enquirer": "2.3.4",
@@ -73,6 +72,7 @@
     "mz": "2.7.0",
     "p-filter": "2.1.0",
     "ramda": "0.27.0",
+    "realpath-missing": "1.0.0",
     "render-help": "1.0.0",
     "write-json-file": "4.2.1"
   }

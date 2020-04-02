@@ -5,7 +5,6 @@ import runLifecycleHooks, { RunLifecycleHookOptions } from '@pnpm/lifecycle'
 import { tryReadProjectManifest } from '@pnpm/read-project-manifest'
 import runNpm from '@pnpm/run-npm'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import cpFile = require('cp-file')
 import { prompt } from 'enquirer'
@@ -13,6 +12,7 @@ import fg = require('fast-glob')
 import fs = require('mz/fs')
 import path = require('path')
 import R = require('ramda')
+import realpathMissing = require('realpath-missing')
 import renderHelp = require('render-help')
 import writeJsonFile = require('write-json-file')
 import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from './gitChecks'
@@ -132,7 +132,7 @@ export async function handler (
     extraBinPaths: opts.extraBinPaths,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
-    rootNodeModulesDir: await realNodeModulesDir(dir),
+    rootNodeModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   })
