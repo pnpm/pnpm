@@ -42,7 +42,7 @@
     "@pnpm/tabtab": "0.0.1",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/libnpx": "11.0.3",
-    "chalk": "3.0.0",
+    "chalk": "4.0.0",
     "common-tags": "1.8.0",
     "graceful-fs": "4.2.1",
     "is-ci": "2.0.0",
