@@ -94,7 +94,7 @@ importers:
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       '@pnpm/utils': 'link:../utils'
-      chalk: 3.0.0
+      chalk: 4.0.0
       load-json-file: 6.2.0
       nopt: 4.0.3
       ramda: 0.27.0
@@ -117,7 +117,7 @@ importers:
       '@pnpm/utils': 'workspace:0.13.0'
       '@types/nopt': ^3.0.29
       '@types/ramda': ^0.27.3
-      chalk: 3.0.0
+      chalk: 4.0.0
       load-json-file: 6.2.0
       nopt: 4.0.3
       ramda: 0.27.0
@@ -190,7 +190,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       most: 1.8.0_most@1.8.0
       normalize-path: 3.0.0
@@ -228,7 +228,7 @@ importers:
       '@types/semver': ^7.1.0
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       delay: 4.3.0
       ghooks: 2.0.4
@@ -756,7 +756,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
-      chalk: 3.0.0
+      chalk: 4.0.0
       cli-columns: 3.1.2
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
       p-limit: 2.2.2
@@ -783,7 +783,7 @@ importers:
       '@types/semver': ^7.1.0
       '@zkochan/npm-package-arg': 1.0.2
       archy: 1.0.0
-      chalk: 3.0.0
+      chalk: 4.0.0
       cli-columns: 3.1.2
       common-tags: 1.8.0
       dependencies-hierarchy: 'workspace:8.0.17'
@@ -1338,7 +1338,7 @@ importers:
       '@pnpm/constants': 'link:../constants'
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
-      chalk: 3.0.0
+      chalk: 4.0.0
       ramda: 0.27.0
       render-help: 1.0.0
       table: 5.4.6
@@ -1359,7 +1359,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.27.3
       '@types/table': ^5.0.0
-      chalk: 3.0.0
+      chalk: 4.0.0
       ramda: 0.27.0
       render-help: 1.0.0
       strip-ansi: 6.0.0
@@ -1421,7 +1421,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       camelcase-keys: 6.2.1
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
       is-ci: 2.0.0
@@ -1493,7 +1493,7 @@ importers:
       '@types/sinon': ^9.0.0
       '@types/table': ^5.0.0
       camelcase-keys: 6.2.1
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       enquirer: 2.3.4
       is-ci: 2.0.0
@@ -1580,7 +1580,7 @@ importers:
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/store-path': 2.1.1
       '@pnpm/utils': 'link:../utils'
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       lru-cache: 5.1.1
       ramda: 0.27.0
@@ -1630,7 +1630,7 @@ importers:
       '@types/ramda': ^0.27.3
       '@types/table': ^5.0.0
       '@types/wrap-ansi': 3.0.0
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       lru-cache: 5.1.1
       make-dir: 3.0.2
@@ -2019,7 +2019,7 @@ importers:
       '@pnpm/tabtab': 0.0.1
       '@pnpm/types': 'link:../types'
       '@zkochan/libnpx': 11.0.3
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       graceful-fs: 4.2.1
       is-ci: 2.0.0
@@ -2138,7 +2138,7 @@ importers:
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
-      chalk: 3.0.0
+      chalk: 4.0.0
       common-tags: 1.8.0
       cross-spawn: 7.0.1
       deep-require-cwd: 1.0.0
@@ -2179,7 +2179,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/types': 'link:../types'
-      chalk: 3.0.0
+      chalk: 4.0.0
       path-absolute: 1.0.1
       ramda: 0.27.0
     devDependencies:
@@ -2193,7 +2193,7 @@ importers:
       '@pnpm/pnpmfile': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/ramda': ^0.27.3
-      chalk: 3.0.0
+      chalk: 4.0.0
       path-absolute: 1.0.1
       ramda: 0.27.0
   packages/prune-lockfile:
@@ -4747,6 +4747,15 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-4D3B6Wf41KOYRFdszmDqMCGq5VV/uMAB273JILmO+3jAlh8X4qDtdtgCR3fxtbLEMzSx22QdhnDcJvu2u1fVwg==
+  /chalk/4.0.0:
+    dependencies:
+      ansi-styles: 4.2.1
+      supports-color: 7.1.0
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-N9oWFcegS0sFr9oh1oz2d7Npos6vNoWW9HvtCg5N1KRFpUhaAhvTv5Y58g880fZaEYSNm3qDz8SU1UrGvp+n7A==
   /char-regex/1.0.2:
     dev: false
     engines:
