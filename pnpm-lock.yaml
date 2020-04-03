@@ -16,7 +16,7 @@ importers:
       rimraf: 3.0.2
       tape: 4.13.2
       ts-node: 8.8.1_typescript@3.8.3
-      tslint: 6.1.0_typescript@3.8.3
+      tslint: 6.1.1_typescript@3.8.3
       typescript: 3.8.3
       verdaccio: 4.5.1
     specifiers:
@@ -35,7 +35,7 @@ importers:
       rimraf: 3.0.2
       tape: 4.13.2
       ts-node: 8.8.1
-      tslint: 6.1.0
+      tslint: 6.1.1
       typescript: 3.8.3
       verdaccio: 4.5.1
   packages/audit:
@@ -3595,13 +3595,13 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-Oc02dKPE3/PyDgCU2UPYZx5lfLeYqkQQUY2QDj2s8mLjb4jmKOfLMmnZ564vUVmmswNxjaRs3DTAZAgZQYyGIg==
-  /@verdaccio/ui-theme/1.0.4:
+  /@verdaccio/ui-theme/1.4.0:
     dev: true
     engines:
       node: '>= 8'
       npm: '>=5'
     resolution:
-      integrity: sha512-0rJ9XqNMifhNvSuu5yxGar5gxu50SEsuav97RKfP1oLzB1C8pfYHyBFiTkEteNzyEzabEQO2PaaRH1dOKsU/QA==
+      integrity: sha512-YAPp3i7L6/a0t7T6xTRlEQi++ijlwcxObh6yo8GaiWsUJf4pUBnv6yOKP5C5fPBBH1PvoDVE3FQZ9GhSEm1nGw==
   /@yarnpkg/lockfile/1.1.0:
     dev: true
     resolution:
@@ -9550,7 +9550,7 @@ packages:
       log-utils: 0.2.1
       pointer-symbol: 1.0.0
       radio-symbol: 2.0.0
-      set-value: 3.0.1
+      set-value: 3.0.2
       strip-color: 0.1.0
       terminal-paginator: 2.0.2
       toggle-array: 1.0.1
@@ -10428,14 +10428,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-JxHc1weCN68wRY0fhCoXpyK55m/XPHafOmK4UWD7m2CI14GMcFypt4w/0+NV5f/ZMby2F6S2wwA7fgynh9gWSw==
-  /set-value/3.0.1:
+  /set-value/3.0.2:
     dependencies:
       is-plain-object: 2.0.4
     dev: true
     engines:
       node: '>=6.0'
     resolution:
-      integrity: sha512-w6n3GUPYAWQj4ZyHWzD7K2FnFXHx9OTwJYbWg+6nXjG8sCLfs9DGv+KlqglKIIJx+ks7MlFuwFW2RBPb+8V+xg==
+      integrity: sha512-npjkVoz+ank0zjlV9F47Fdbjfj/PfXyVhZvGALWsyIYU/qrMzpi6avjKW3/7KeSU2Df3I46BrN1xOI1+6vW0hA==
   /setprototypeof/1.1.1:
     dev: true
     resolution:
@@ -11355,7 +11355,7 @@ packages:
       typescript: ^2.2.0 || ^3.0.0
     resolution:
       integrity: sha512-WlSXE+J2vY/VPgIcqQuijMQiel+UtmXS+4nvK4ZzlDiqBfXse8FAvkNnTcYhnQyOTW5KFM+uRRGXxYhFpuBc6w==
-  /tslint/6.1.0_typescript@3.8.3:
+  /tslint/6.1.1_typescript@3.8.3:
     dependencies:
       '@babel/code-frame': 7.8.3
       builtin-modules: 1.1.1
@@ -11378,7 +11378,7 @@ packages:
     peerDependencies:
       typescript: '>=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >=3.0.0-dev || >= 3.1.0-dev || >= 3.2.0-dev'
     resolution:
-      integrity: sha512-fXjYd/61vU6da04E505OZQGb2VCN2Mq3doeWcOIryuG+eqdmFUXTYVwdhnbEu2k46LNLgUYt9bI5icQze/j0bQ==
+      integrity: sha512-kd6AQ/IgPRpLn6g5TozqzPdGNZ0q0jtXW4//hRcj10qLYBaa3mTUU2y2MCG+RXZm8Zx+KZi0eA+YCrMyNlF4UA==
   /tsscmp/1.0.6:
     dev: true
     engines:
@@ -11723,7 +11723,7 @@ packages:
       '@verdaccio/local-storage': 9.4.0
       '@verdaccio/readme': 9.4.0
       '@verdaccio/streams': 9.4.0
-      '@verdaccio/ui-theme': 1.0.4
+      '@verdaccio/ui-theme': 1.4.0
       JSONStream: 1.3.5
       async: 3.1.1
       body-parser: 1.19.0
