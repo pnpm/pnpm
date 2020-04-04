@@ -9,7 +9,7 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
-import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependenciesField } from '@pnpm/types'
@@ -170,7 +170,7 @@ export async function handler (
   } = await readProjectManifest(opts.dir, opts)
   const availableDependencies = Object.keys(
     targetDependenciesField === undefined
-    ? getAllDependenciesFromPackage(currentManifest)
+    ? getAllDependenciesFromManifest(currentManifest)
     : currentManifest[targetDependenciesField] ?? {},
   )
   const nonMatchedDependencies = R.without(availableDependencies, params)

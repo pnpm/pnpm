@@ -25,7 +25,7 @@ import {
 } from '@pnpm/lockfile-file'
 import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import logger, { streamParser } from '@pnpm/logger'
-import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
@@ -305,7 +305,7 @@ export async function mutateModules (
             packageDirs!,
             (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir),
           )
-          const allDeps = getAllDependenciesFromPackage(project.manifest)
+          const allDeps = getAllDependenciesFromManifest(project.manifest)
           const packagesToInstall: string[] = []
           for (const pkgName of externalPackages) {
             await rimraf(path.join(project.modulesDir, pkgName))
@@ -322,7 +322,7 @@ export async function mutateModules (
         }
         case 'unlinkSome': {
           const packagesToInstall: string[] = []
-          const allDeps = getAllDependenciesFromPackage(project.manifest)
+          const allDeps = getAllDependenciesFromManifest(project.manifest)
           for (const depName of project.dependencyNames) {
             try {
               if (!await isExternalLink(ctx.storeDir, project.modulesDir, depName)) {
@@ -390,7 +390,7 @@ export async function mutateModules (
     }
 
     async function installSome (project: any) { // tslint:disable-line:no-any
-      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(project.manifest)
+      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromManifest(project.manifest)
       const optionalDependencies = project.targetDependenciesField ? {} : project.manifest.optionalDependencies || {}
       const devDependencies = project.targetDependenciesField ? {} : project.manifest.devDependencies || {}
       const wantedDeps = parseWantedDependencies(project.dependencySelectors, {

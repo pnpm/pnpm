@@ -5,7 +5,7 @@ import {
   Lockfile,
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
-import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
+import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import {
   DependenciesField,
   DEPENDENCIES_FIELDS,
@@ -46,7 +46,7 @@ export default async function outdated (
   if (!opts.wantedLockfile) {
     throw new PnpmError('OUTDATED_NO_LOCKFILE', 'No lockfile in this directory. Run `pnpm install` to generate one.')
   }
-  const allDeps = getAllDependenciesFromPackage(opts.manifest)
+  const allDeps = getAllDependenciesFromManifest(opts.manifest)
   const importerId = getLockfileImporterId(opts.lockfileDir, opts.prefix)
   const currentLockfile = opts.currentLockfile || { importers: { [importerId]: {} } }
 

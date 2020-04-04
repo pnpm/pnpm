@@ -1,5 +1,26 @@
-import getAllDependenciesFromPackage from './getAllDependenciesFromPackage'
+import {
+  Dependencies,
+  IncludedDependencies,
+  ProjectManifest,
+} from '@pnpm/types'
 
-export { getAllDependenciesFromPackage }
+export function filterDependenciesByType (
+  manifest: ProjectManifest,
+  include: IncludedDependencies,
+) {
+  return {
+    ...(include.devDependencies ? manifest.devDependencies : {}),
+    ...(include.dependencies ? manifest.dependencies : {}),
+    ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
+  }
+}
 
-export * from './filterDependenciesByType'
+export function getAllDependenciesFromManifest (
+  manifest: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+): Dependencies {
+  return {
+    ...manifest.devDependencies,
+    ...manifest.dependencies,
+    ...manifest.optionalDependencies,
+  } as Dependencies
+}
