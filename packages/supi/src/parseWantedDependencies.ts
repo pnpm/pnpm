@@ -1,7 +1,5 @@
-import {
-  Dependencies,
-} from '@pnpm/types'
-import { parseWantedDependency } from '@pnpm/utils'
+import parseWantedDependency from '@pnpm/parse-wanted-dependency'
+import { Dependencies } from '@pnpm/types'
 import guessPinnedVersionFromExistingSpec from './guessPinnedVersionFromExistingSpec'
 import { PinnedVersion, WantedDependency } from './install/getWantedDependencies'
 

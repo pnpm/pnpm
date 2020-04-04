@@ -1,9 +1,5 @@
 import getAllDependenciesFromPackage from './getAllDependenciesFromPackage'
-import parseWantedDependency from './parseWantedDependency'
 
-export {
-  getAllDependenciesFromPackage,
-  parseWantedDependency,
-}
+export { getAllDependenciesFromPackage }
 
 export * from './filterDependenciesByType'

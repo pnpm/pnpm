@@ -43,6 +43,9 @@
       "path": "../package-store"
     },
     {
+      "path": "../parse-wanted-dependency"
+    },
+    {
       "path": "../plugin-commands-rebuild"
     },
     {

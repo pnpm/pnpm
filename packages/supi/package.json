@@ -36,6 +36,7 @@
     "@pnpm/modules-yaml": "workspace:6.0.1",
     "@pnpm/normalize-registries": "workspace:0.0.0",
     "@pnpm/package-requester": "workspace:11.0.4",
+    "@pnpm/parse-wanted-dependency": "workspace:0.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/prune-lockfile": "workspace:2.0.6",
     "@pnpm/read-modules-dir": "workspace:2.0.1",

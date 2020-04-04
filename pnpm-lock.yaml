@@ -1306,6 +1306,16 @@ importers:
       '@pnpm/parse-cli-args': 'link:'
       '@types/nopt': 3.0.29
       nopt: 4.0.3
+  packages/parse-wanted-dependency:
+    dependencies:
+      validate-npm-package-name: 3.0.0
+    devDependencies:
+      '@pnpm/parse-wanted-dependency': 'link:'
+      '@types/validate-npm-package-name': 3.0.0
+    specifiers:
+      '@pnpm/parse-wanted-dependency': 'link:'
+      '@types/validate-npm-package-name': 3.0.0
+      validate-npm-package-name: 3.0.0
   packages/pick-registry-for-package:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -1412,6 +1422,7 @@ importers:
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-store': 'link:../package-store'
+      '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
       '@pnpm/plugin-commands-rebuild': 'link:../plugin-commands-rebuild'
       '@pnpm/pnpmfile': 'link:../pnpmfile'
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -1474,6 +1485,7 @@ importers:
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/outdated': 'workspace:7.0.16'
       '@pnpm/package-store': 'workspace:8.0.4'
+      '@pnpm/parse-wanted-dependency': 'workspace:0.0.0'
       '@pnpm/plugin-commands-installation': 'link:'
       '@pnpm/plugin-commands-rebuild': 'workspace:1.0.4'
       '@pnpm/pnpmfile': 'workspace:0.1.7'
@@ -1930,12 +1942,12 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/get-context': 'link:../get-context'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
+      '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
       archy: 1.0.0
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
@@ -1968,6 +1980,7 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/logger': 3.1.0
       '@pnpm/normalize-registries': 'workspace:0.0.0'
+      '@pnpm/parse-wanted-dependency': 'workspace:0.0.0'
       '@pnpm/pick-registry-for-package': 'workspace:0.0.0'
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
@@ -1975,7 +1988,6 @@ importers:
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/archy': 0.0.31
       '@types/common-tags': ^1.8.0
       '@types/ramda': ^0.27.3
@@ -2484,6 +2496,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/package-requester': 'link:../package-requester'
+      '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prune-lockfile': 'link:../prune-lockfile'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
@@ -2590,6 +2603,7 @@ importers:
       '@pnpm/normalize-registries': 'workspace:0.0.0'
       '@pnpm/package-requester': 'workspace:11.0.4'
       '@pnpm/package-store': 'workspace:*'
+      '@pnpm/parse-wanted-dependency': 'workspace:0.0.0'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/prune-lockfile': 'workspace:2.0.6'
@@ -2743,21 +2757,13 @@ importers:
   packages/utils:
     dependencies:
       '@pnpm/types': 'link:../types'
-      mz: 2.7.0
-      validate-npm-package-name: 3.0.0
     devDependencies:
       '@pnpm/logger': 3.1.0
       '@pnpm/utils': 'link:'
-      '@types/mz': 2.7.0
-      '@types/validate-npm-package-name': 3.0.0
     specifiers:
       '@pnpm/logger': 3.1.0
       '@pnpm/types': 'workspace:5.0.0'
       '@pnpm/utils': 'link:'
-      '@types/mz': ^2.7.0
-      '@types/validate-npm-package-name': 3.0.0
-      mz: 2.7.0
-      validate-npm-package-name: 3.0.0
   packages/write-project-manifest:
     dependencies:
       '@pnpm/types': 'link:../types'

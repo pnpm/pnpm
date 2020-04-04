@@ -25,6 +25,9 @@
       "path": "../normalize-registries"
     },
     {
+      "path": "../parse-wanted-dependency"
+    },
+    {
       "path": "../pick-registry-for-package"
     },
     {
@@ -35,9 +38,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../utils"
     },
     {
       "path": "../dependency-path"

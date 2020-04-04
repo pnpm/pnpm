@@ -64,6 +64,9 @@
       "path": "../package-requester"
     },
     {
+      "path": "../parse-wanted-dependency"
+    },
+    {
       "path": "../prune-lockfile"
     },
     {

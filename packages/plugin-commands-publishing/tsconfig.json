@@ -43,9 +43,6 @@
       "path": "../types"
     },
     {
-      "path": "../utils"
-    },
-    {
       "path": "../filter-workspace-packages"
     },
     {
