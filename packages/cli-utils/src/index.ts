@@ -3,7 +3,6 @@ import getConfig from './getConfig'
 export { getConfig }
 
 export * from './getOptionType'
-export * from './getPinnedVersion'
 export * from './optionTypesToCompletions'
 export * from './packageIsInstallable'
 export * from './readDepNameCompletions'
