@@ -109,7 +109,6 @@ importers:
       load-json-file: 6.2.0
       nopt: 4.0.3
       ramda: 0.27.0
-      version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/cli-utils': 'link:'
       '@pnpm/logger': 3.1.0
@@ -133,7 +132,6 @@ importers:
       load-json-file: 6.2.0
       nopt: 4.0.3
       ramda: 0.27.0
-      version-selector-type: 2.0.1
   packages/command:
     specifiers: {}
   packages/common-cli-options-help:
@@ -1468,6 +1466,7 @@ importers:
       render-help: 1.0.0
       supi: 'link:../supi'
       table: 5.4.6
+      version-selector-type: 2.0.1
     devDependencies:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/logger': 3.1.0
@@ -1546,6 +1545,7 @@ importers:
       sinon: 9.0.1
       supi: 'workspace:0.38.24'
       table: 5.4.6
+      version-selector-type: 2.0.1
       write-json-file: 4.2.1
       write-yaml-file: 4.0.0
   packages/plugin-commands-listing:

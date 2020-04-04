@@ -1,10 +1,8 @@
 import {
-  createLatestSpecs,
   getPinnedVersion,
   getSaveType,
   RecursiveSummary,
   throwOnCommandFail,
-  updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { Config, Project, ProjectsGraph } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -37,6 +35,7 @@ import {
   MutatedProject,
   mutateModules,
 } from 'supi'
+import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,

@@ -7,7 +7,7 @@ import {
 export function filterDependenciesByType (
   manifest: ProjectManifest,
   include: IncludedDependencies,
-) {
+): Dependencies {
   return {
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),

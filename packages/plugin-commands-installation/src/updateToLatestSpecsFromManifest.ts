@@ -1,14 +1,10 @@
-import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
+import { filterDependenciesByType, getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
 import R = require('ramda')
 import getVerSelType = require('version-selector-type')
 
-export function updateToLatestSpecsFromManifest (manifest: ProjectManifest, include: IncludedDependencies) {
-  const allDeps = {
-    ...(include.devDependencies ? manifest.devDependencies : {}),
-    ...(include.dependencies ? manifest.dependencies : {}),
-    ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
-  } as { [name: string]: string }
+export default function updateToLatestSpecsFromManifest (manifest: ProjectManifest, include: IncludedDependencies) {
+  const allDeps = filterDependenciesByType(manifest, include)
   const updateSpecs = []
   for (const [depName, depVersion] of R.toPairs(allDeps)) {
     if (depVersion.startsWith('npm:')) {

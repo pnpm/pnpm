@@ -1,10 +1,8 @@
 import {
-  createLatestSpecs,
   getPinnedVersion,
   getSaveType,
   readProjectManifestOnly,
   tryReadProjectManifest,
-  updateToLatestSpecsFromManifest,
 } from '@pnpm/cli-utils'
 import { Config } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
@@ -21,6 +19,7 @@ import {
   mutateModules,
 } from 'supi'
 import recursive, { createMatcher, matchDependencies } from './recursive'
+import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 const OVERWRITE_UPDATE_OPTIONS = {

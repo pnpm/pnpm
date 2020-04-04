@@ -11,6 +11,5 @@ export * from './readDepNameCompletions'
 export * from './readProjectManifest'
 export * from './recursiveSummary'
 export * from './style'
-export * from './updateToLatestSpecsFromManifest'
 
 export const docsUrl = (cmd: string) => `https://pnpm.js.org/en/cli/${cmd}`
