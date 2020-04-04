@@ -1,10 +1,10 @@
 import {
   getOptionCompletions,
-  optionTypesToCompletions,
 } from '@pnpm/cli-utils'
 import { Completion, CompletionFunc } from '@pnpm/command'
 import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
+import optionTypesToCompletions from '../optionTypesToCompletions'
 import universalShorthands from '../shorthands'
 
 export default async function complete (

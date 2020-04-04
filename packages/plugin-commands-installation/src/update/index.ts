@@ -1,6 +1,5 @@
 import {
   docsUrl,
-  optionTypesToCompletions,
   readDepNameCompletions,
   readProjectManifestOnly,
 } from '@pnpm/cli-utils'

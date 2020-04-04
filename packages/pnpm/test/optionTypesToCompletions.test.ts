@@ -1,5 +1,5 @@
-import { optionTypesToCompletions } from '@pnpm/cli-utils'
 import test = require('tape')
+import optionTypesToCompletions from '../src/optionTypesToCompletions'
 
 test('optionTypesToCompletions()', t => {
   t.deepEqual(

@@ -1,6 +1,5 @@
 import {
   docsUrl,
-  optionTypesToCompletions,
   readDepNameCompletions,
   readProjectManifestOnly,
   TABLE_OPTIONS,
