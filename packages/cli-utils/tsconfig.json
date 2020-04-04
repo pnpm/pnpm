@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../cli-meta"
+    },
+    {
       "path": "../command"
     },
     {

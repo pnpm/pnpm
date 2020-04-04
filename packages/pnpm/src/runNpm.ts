@@ -1,4 +1,4 @@
-import { packageManager } from '@pnpm/cli-utils'
+import packageManager from '@pnpm/cli-meta'
 import getConfig, { types as allTypes } from '@pnpm/config'
 import runNpm from '@pnpm/run-npm'
 import R = require('ramda')

@@ -38,6 +38,7 @@
     "@types/signal-exit": "^3.0.0"
   },
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:0.0.0",
     "@pnpm/cli-utils": "workspace:0.3.13",
     "@pnpm/common-cli-options-help": "workspace:0.1.4",
     "@pnpm/config": "workspace:8.1.2",

@@ -1,4 +1,4 @@
-import { packageManager } from '@pnpm/cli-utils'
+import packageManager from '@pnpm/cli-meta'
 import chalk = require('chalk')
 import { stripIndents } from 'common-tags'
 import updateNotifier = require('update-notifier')

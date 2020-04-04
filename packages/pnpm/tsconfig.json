@@ -13,6 +13,9 @@
   ],
   "references": [
     {
+      "path": "../cli-meta"
+    },
+    {
       "path": "../cli-utils"
     },
     {

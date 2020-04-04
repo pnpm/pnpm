@@ -1,4 +1,4 @@
-import { packageManager } from '@pnpm/cli-utils'
+import packageManager from '@pnpm/cli-meta'
 import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import { createServer } from '@pnpm/server'

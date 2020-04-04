@@ -1,8 +1,7 @@
 import getConfig from './getConfig'
 import getSaveType from './getSaveType'
-import packageManager from './pnpmPkgJson'
 
-export { getConfig, getSaveType, packageManager }
+export { getConfig, getSaveType }
 
 export * from './getOptionType'
 export * from './getPinnedVersion'

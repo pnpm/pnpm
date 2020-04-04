@@ -13,7 +13,8 @@ gfs.gracefulify(fs)
 
 import loudRejection from 'loud-rejection'
 loudRejection()
-import { getConfig, packageManager } from '@pnpm/cli-utils'
+import packageManager from '@pnpm/cli-meta'
+import { getConfig } from '@pnpm/cli-utils'
 import {
   Config,
 } from '@pnpm/config'

@@ -86,8 +86,19 @@ importers:
       graph-sequencer: 2.0.0
       ramda: 0.27.0
       run-groups: 2.0.2
+  packages/cli-meta:
+    dependencies:
+      load-json-file: 6.2.0
+    devDependencies:
+      '@pnpm/cli-meta': 'link:'
+      '@pnpm/types': 'link:../types'
+    specifiers:
+      '@pnpm/cli-meta': 'link:'
+      '@pnpm/types': 'workspace:5.0.0'
+      load-json-file: 6.2.0
   packages/cli-utils:
     dependencies:
+      '@pnpm/cli-meta': 'link:../cli-meta'
       '@pnpm/command': 'link:../command'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
@@ -106,6 +117,7 @@ importers:
       '@types/nopt': 3.0.29
       '@types/ramda': 0.27.3
     specifiers:
+      '@pnpm/cli-meta': 'workspace:0.0.0'
       '@pnpm/cli-utils': 'link:'
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/config': 'workspace:8.1.2'
@@ -1886,6 +1898,7 @@ importers:
       write-yaml-file: 4.0.0
   packages/plugin-commands-server:
     dependencies:
+      '@pnpm/cli-meta': 'link:../cli-meta'
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
       '@pnpm/config': 'link:../config'
@@ -1914,6 +1927,7 @@ importers:
       '@types/ramda': 0.27.3
       '@types/signal-exit': 3.0.0
     specifiers:
+      '@pnpm/cli-meta': 'workspace:0.0.0'
       '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
       '@pnpm/config': 'workspace:8.1.2'
@@ -2012,6 +2026,7 @@ importers:
       tempy: 0.5.0
   packages/pnpm:
     dependencies:
+      '@pnpm/cli-meta': 'link:../cli-meta'
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/command': 'link:../command'
       '@pnpm/common-cli-options-help': 'link:../common-cli-options-help'
@@ -2104,6 +2119,7 @@ importers:
       write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
+      '@pnpm/cli-meta': 'workspace:0.0.0'
       '@pnpm/cli-utils': 'workspace:0.3.13'
       '@pnpm/command': 'workspace:1.0.0'
       '@pnpm/common-cli-options-help': 'workspace:0.1.4'
@@ -2433,7 +2449,7 @@ importers:
       graph-sequencer: 2.0.0
   packages/store-connection-manager:
     dependencies:
-      '@pnpm/cli-utils': 'link:../cli-utils'
+      '@pnpm/cli-meta': 'link:../cli-meta'
       '@pnpm/config': 'link:../config'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
       '@pnpm/default-resolver': 'link:../default-resolver'
@@ -2453,7 +2469,7 @@ importers:
       '@types/lru-cache': 5.1.0
       '@types/mz': 2.7.0
     specifiers:
-      '@pnpm/cli-utils': 'workspace:0.3.13'
+      '@pnpm/cli-meta': 'workspace:0.0.0'
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/default-fetcher': 'workspace:5.1.16'
       '@pnpm/default-resolver': 'workspace:7.4.4'

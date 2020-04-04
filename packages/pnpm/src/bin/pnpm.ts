@@ -9,8 +9,8 @@ const argv = process.argv.slice(2)
   switch (argv[0]) {
     case '-v':
     case '--version':
-      const pkg = (await import('@pnpm/cli-utils')).packageManager
-      console.log(pkg.version)
+      const { version } = (await import('@pnpm/cli-meta')).default
+      console.log(version)
       break
     case 'install-completion': {
       const { install: installCompletion } = await import('@pnpm/tabtab')

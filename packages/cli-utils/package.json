@@ -37,6 +37,7 @@
     "@types/ramda": "^0.27.3"
   },
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:0.0.0",
     "@pnpm/command": "workspace:1.0.0",
     "@pnpm/config": "workspace:8.1.2",
     "@pnpm/error": "workspace:1.2.0",

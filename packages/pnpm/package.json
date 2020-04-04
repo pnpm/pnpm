@@ -17,6 +17,7 @@
     "bin"
   ],
   "dependencies": {
+    "@pnpm/cli-meta": "workspace:0.0.0",
     "@pnpm/cli-utils": "workspace:0.3.13",
     "@pnpm/command": "workspace:1.0.0",
     "@pnpm/common-cli-options-help": "workspace:0.1.4",

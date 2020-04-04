@@ -1,0 +1,37 @@
+{
+  "name": "@pnpm/cli-meta",
+  "version": "0.0.0",
+  "description": "Reads the metainfo of the currently running pnpm instance",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "engines": {
+    "node": ">=10.13"
+  },
+  "scripts": {
+    "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
+    "test": "pnpm run compile",
+    "prepublishOnly": "pnpm run compile",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/cli-meta",
+  "keywords": [
+    "pnpm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cli-meta#readme",
+  "devDependencies": {
+    "@pnpm/cli-meta": "link:",
+    "@pnpm/types": "workspace:5.0.0"
+  },
+  "dependencies": {
+    "load-json-file": "6.2.0"
+  }
+}

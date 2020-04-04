@@ -10,7 +10,7 @@
   ],
   "references": [
     {
-      "path": "../cli-utils"
+      "path": "../cli-meta"
     },
     {
       "path": "../config"

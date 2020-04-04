@@ -35,7 +35,7 @@
     "@types/mz": "^2.7.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.3.13",
+    "@pnpm/cli-meta": "workspace:0.0.0",
     "@pnpm/config": "workspace:8.1.2",
     "@pnpm/default-fetcher": "workspace:5.1.16",
     "@pnpm/default-resolver": "workspace:7.4.4",
