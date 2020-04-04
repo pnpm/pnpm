@@ -2,7 +2,6 @@ import getConfig from './getConfig'
 
 export { getConfig }
 
-export * from './getOptionType'
 export * from './packageIsInstallable'
 export * from './readDepNameCompletions'
 export * from './readProjectManifest'

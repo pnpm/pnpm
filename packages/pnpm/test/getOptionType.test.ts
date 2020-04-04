@@ -1,9 +1,9 @@
+import test = require('tape')
 import {
   currentTypedWordType,
   getLastOption,
   getOptionCompletions,
-} from '@pnpm/cli-utils'
-import test = require('tape')
+} from '../src/getOptionType'
 
 const TYPES = {
   'color': ['red', 'blue', Array],

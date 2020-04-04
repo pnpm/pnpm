@@ -13,9 +13,6 @@
   },
   "scripts": {
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "pretest": "rimraf node_modules/.bin/pnpm",
-    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/cli-utils/coverage ts-node packages/cli-utils/test --type-check",
-    "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
@@ -33,7 +30,6 @@
     "@pnpm/cli-utils": "link:",
     "@pnpm/logger": "^3.1.0",
     "@pnpm/types": "workspace:5.0.0",
-    "@types/nopt": "^3.0.29",
     "@types/ramda": "^0.27.3"
   },
   "dependencies": {
@@ -44,9 +40,7 @@
     "@pnpm/package-is-installable": "workspace:4.0.6",
     "@pnpm/read-project-manifest": "workspace:1.0.3",
     "chalk": "4.0.0",
-    "load-json-file": "6.2.0",
-    "nopt": "4.0.3",
-    "ramda": "0.27.0"
+    "load-json-file": "6.2.0"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"

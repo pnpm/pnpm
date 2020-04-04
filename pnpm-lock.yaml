@@ -106,13 +106,10 @@ importers:
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
       chalk: 4.0.0
       load-json-file: 6.2.0
-      nopt: 4.0.3
-      ramda: 0.27.0
     devDependencies:
       '@pnpm/cli-utils': 'link:'
       '@pnpm/logger': 3.1.0
       '@pnpm/types': 'link:../types'
-      '@types/nopt': 3.0.29
       '@types/ramda': 0.27.3
     specifiers:
       '@pnpm/cli-meta': 'workspace:0.0.0'
@@ -124,12 +121,9 @@ importers:
       '@pnpm/package-is-installable': 'workspace:4.0.6'
       '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/types': 'workspace:5.0.0'
-      '@types/nopt': ^3.0.29
       '@types/ramda': ^0.27.3
       chalk: 4.0.0
       load-json-file: 6.2.0
-      nopt: 4.0.3
-      ramda: 0.27.0
   packages/command:
     specifiers: {}
   packages/common-cli-options-help:
@@ -2049,12 +2043,14 @@ importers:
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/tabtab': 0.0.1
       '@pnpm/types': 'link:../types'
+      '@types/nopt': 3.0.29
       '@zkochan/libnpx': 11.0.3
       chalk: 4.0.0
       common-tags: 1.8.0
       graceful-fs: 4.2.1
       is-ci: 2.0.0
       loud-rejection: 2.2.0
+      nopt: 4.0.3
       pkgs-graph: 'link:../pkgs-graph'
       ramda: 0.27.0
       render-help: 1.0.0
@@ -2159,6 +2155,7 @@ importers:
       '@types/mkdirp': 1.0.0
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
+      '@types/nopt': ^3.0.29
       '@types/ramda': ^0.27.3
       '@types/retry': 0.12.0
       '@types/semver': ^7.1.0
@@ -2186,6 +2183,7 @@ importers:
       make-dir: 3.0.2
       mz: 2.7.0
       ncp: 2.0.0
+      nopt: 4.0.3
       normalize-newline: 3.0.0
       npm-run-all: 4.1.5
       p-any: 3.0.0
@@ -3437,7 +3435,6 @@ packages:
     resolution:
       integrity: sha512-1WgO8hsyHynlx7nhP1kr0OFzsgKz5XDQL+Lfc3b1Q3qIln/n8cKD4m09NJ0+P1Rq7Zgnc7N0+SsMnoD1rEb0kA==
   /@types/nopt/3.0.29:
-    dev: true
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/normalize-package-data/2.4.0:

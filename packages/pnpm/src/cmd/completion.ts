@@ -1,10 +1,10 @@
-import {
-  currentTypedWordType,
-  getLastOption,
-} from '@pnpm/cli-utils'
 import { Completion, CompletionFunc } from '@pnpm/command'
 import tabtab = require('@pnpm/tabtab')
 import { split as splitCmd } from 'split-cmd'
+import {
+  currentTypedWordType,
+  getLastOption,
+} from '../getOptionType'
 import parseCliArgs from '../parseCliArgs'
 import complete from './complete'
 
