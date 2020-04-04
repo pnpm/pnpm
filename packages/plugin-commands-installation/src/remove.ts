@@ -1,6 +1,5 @@
 import {
   docsUrl,
-  getSaveType,
   readDepNameCompletions,
   readProjectManifest,
 } from '@pnpm/cli-utils'
@@ -19,6 +18,7 @@ import renderHelp = require('render-help')
 import {
   mutateModules,
 } from 'supi'
+import getSaveType from './getSaveType'
 import recursive from './recursive'
 
 class RemoveMissingDepsError extends PnpmError {

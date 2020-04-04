@@ -1,7 +1,6 @@
 import getConfig from './getConfig'
-import getSaveType from './getSaveType'
 
-export { getConfig, getSaveType }
+export { getConfig }
 
 export * from './getOptionType'
 export * from './getPinnedVersion'

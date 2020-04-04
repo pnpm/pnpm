@@ -1,6 +1,5 @@
 import {
   getPinnedVersion,
-  getSaveType,
   readProjectManifestOnly,
   tryReadProjectManifest,
 } from '@pnpm/cli-utils'
@@ -18,6 +17,7 @@ import {
   install,
   mutateModules,
 } from 'supi'
+import getSaveType from './getSaveType'
 import recursive, { createMatcher, matchDependencies } from './recursive'
 import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLatestSpecsFromManifest'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'

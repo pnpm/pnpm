@@ -1,7 +1,6 @@
 import {
   docsUrl,
   getConfig,
-  getSaveType,
   readProjectManifest,
   readProjectManifestOnly,
   tryReadProjectManifest,
@@ -24,6 +23,7 @@ import {
   linkToGlobal,
   WorkspacePackages,
 } from 'supi'
+import getSaveType from './getSaveType'
 import * as installCommand from './install'
 
 const installLimit = pLimit(4)
