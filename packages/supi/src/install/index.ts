@@ -750,7 +750,7 @@ async function installInContext (
     const topParents = project.manifest
       ? await getTopParents(
           R.difference(
-            Object.keys(getAllDependenciesFromPackage(project.manifest)),
+            Object.keys(getAllDependenciesFromManifest(project.manifest)),
             resolvedImporter.directDependencies
               .filter((dep, index) => project.wantedDependencies[index].isNew === true)
               .map(({ alias }) => alias) || [],
