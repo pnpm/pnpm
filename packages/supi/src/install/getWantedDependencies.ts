@@ -1,9 +1,9 @@
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import {
   Dependencies,
   IncludedDependencies,
   ProjectManifest,
 } from '@pnpm/types'
-import { filterDependenciesByType } from '@pnpm/utils'
 import guessPinnedVersionFromExistingSpec from '../guessPinnedVersionFromExistingSpec'
 
 export type PinnedVersion = 'major' | 'minor' | 'patch' | 'none'

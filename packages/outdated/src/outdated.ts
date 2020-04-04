@@ -5,6 +5,7 @@ import {
   Lockfile,
 } from '@pnpm/lockfile-file'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
+import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
 import {
   DependenciesField,
   DEPENDENCIES_FIELDS,
@@ -12,7 +13,6 @@ import {
   PackageManifest,
   ProjectManifest,
 } from '@pnpm/types'
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import semver = require('semver')
 

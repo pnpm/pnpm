@@ -37,6 +37,9 @@
       "path": "../find-workspace-packages"
     },
     {
+      "path": "../manifest-utils"
+    },
+    {
       "path": "../outdated"
     },
     {
@@ -62,9 +65,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../utils"
     },
     {
       "path": "../supi"

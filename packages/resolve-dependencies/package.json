@@ -37,7 +37,6 @@
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "@pnpm/utils": "workspace:0.13.0",
     "dependency-path": "workspace:4.0.5",
     "path-exists": "4.0.0",
     "ramda": "0.27.0",

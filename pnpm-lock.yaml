@@ -91,9 +91,9 @@ importers:
       '@pnpm/command': 'link:../command'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
+      '@pnpm/manifest-utils': 'link:../manifest-utils'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/read-project-manifest': 'link:../read-project-manifest'
-      '@pnpm/utils': 'link:../utils'
       chalk: 4.0.0
       load-json-file: 6.2.0
       nopt: 4.0.3
@@ -111,10 +111,10 @@ importers:
       '@pnpm/config': 'workspace:8.1.2'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/logger': ^3.1.0
+      '@pnpm/manifest-utils': 'workspace:0.0.0'
       '@pnpm/package-is-installable': 'workspace:4.0.6'
       '@pnpm/read-project-manifest': 'workspace:1.0.3'
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/nopt': ^3.0.29
       '@types/ramda': ^0.27.3
       chalk: 4.0.0
@@ -908,6 +908,14 @@ importers:
       dependency-path: 'workspace:4.0.5'
       ramda: 0.27.0
       tempy: 0.5.0
+  packages/manifest-utils:
+    dependencies:
+      '@pnpm/types': 'link:../types'
+    devDependencies:
+      '@pnpm/manifest-utils': 'link:'
+    specifiers:
+      '@pnpm/manifest-utils': 'link:'
+      '@pnpm/types': 'workspace:5.0.0'
   packages/matcher:
     dependencies:
       escape-string-regexp: 2.0.0
@@ -1068,12 +1076,12 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
+      '@pnpm/manifest-utils': 'link:../manifest-utils'
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
       lru-cache: 5.1.1
       ramda: 0.27.0
@@ -1093,13 +1101,13 @@ importers:
       '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/logger': 3.1.0
+      '@pnpm/manifest-utils': 'workspace:0.0.0'
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/outdated': 'link:'
       '@pnpm/pick-registry-for-package': 'workspace:0.0.0'
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.27.3
       '@types/semver': ^7.1.0
@@ -1420,6 +1428,7 @@ importers:
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/find-workspace-packages': 'link:../find-workspace-packages'
+      '@pnpm/manifest-utils': 'link:../manifest-utils'
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
@@ -1430,7 +1439,6 @@ importers:
       '@pnpm/sort-packages': 'link:../sort-packages'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
       camelcase-keys: 6.2.2
       chalk: 4.0.0
       common-tags: 1.8.0
@@ -1482,6 +1490,7 @@ importers:
       '@pnpm/find-workspace-packages': 'workspace:2.1.14'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
       '@pnpm/logger': ^3.1.0
+      '@pnpm/manifest-utils': 'workspace:0.0.0'
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/outdated': 'workspace:7.0.16'
       '@pnpm/package-store': 'workspace:8.0.4'
@@ -1496,7 +1505,6 @@ importers:
       '@pnpm/store-connection-manager': 'workspace:0.2.25'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/common-tags': ^1.8.0
       '@types/is-ci': ^2.0.0
       '@types/mz': ^2.7.0
@@ -1591,7 +1599,6 @@ importers:
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/store-path': 2.1.1
-      '@pnpm/utils': 'link:../utils'
       chalk: 4.0.0
       common-tags: 1.8.0
       lru-cache: 5.1.1
@@ -1635,7 +1642,6 @@ importers:
       '@pnpm/semver-diff': 1.0.2
       '@pnpm/store-path': 2.1.1
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/common-tags': 1.8.0
       '@types/lru-cache': ^5.1.0
       '@types/mz': ^2.7.0
@@ -2314,7 +2320,6 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
       dependency-path: 'link:../dependency-path'
       path-exists: 4.0.0
       ramda: 0.27.0
@@ -2338,7 +2343,6 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/ramda': ^0.27.3
       '@types/semver': ^7.1.0
       dependency-path: 'workspace:4.0.5'
@@ -2491,6 +2495,7 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/lockfile-walker': 'link:../lockfile-walker'
+      '@pnpm/manifest-utils': 'link:../manifest-utils'
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
@@ -2507,7 +2512,6 @@ importers:
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
-      '@pnpm/utils': 'link:../utils'
       '@zkochan/npm-package-arg': 1.0.2
       '@zkochan/rimraf': 1.0.0
       common-tags: 1.8.0
@@ -2597,6 +2601,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
       '@pnpm/logger': 3.1.0
+      '@pnpm/manifest-utils': 'workspace:0.0.0'
       '@pnpm/matcher': 'workspace:1.0.0'
       '@pnpm/modules-cleaner': 'workspace:8.0.13'
       '@pnpm/modules-yaml': 'workspace:6.0.1'
@@ -2617,7 +2622,6 @@ importers:
       '@pnpm/symlink-dependency': 'workspace:3.0.3'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'workspace:0.13.0'
       '@types/common-tags': 1.8.0
       '@types/fs-extra': ^8.1.0
       '@types/graceful-fs': 4.1.3
@@ -2754,16 +2758,6 @@ importers:
       '@pnpm/tarball-resolver': 'link:'
   packages/types:
     specifiers: {}
-  packages/utils:
-    dependencies:
-      '@pnpm/types': 'link:../types'
-    devDependencies:
-      '@pnpm/logger': 3.1.0
-      '@pnpm/utils': 'link:'
-    specifiers:
-      '@pnpm/logger': 3.1.0
-      '@pnpm/types': 'workspace:5.0.0'
-      '@pnpm/utils': 'link:'
   packages/write-project-manifest:
     dependencies:
       '@pnpm/types': 'link:../types'

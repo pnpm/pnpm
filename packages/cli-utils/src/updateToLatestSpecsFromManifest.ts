@@ -1,5 +1,5 @@
+import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
 import { IncludedDependencies, ProjectManifest } from '@pnpm/types'
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import R = require('ramda')
 import getVerSelType = require('version-selector-type')
 

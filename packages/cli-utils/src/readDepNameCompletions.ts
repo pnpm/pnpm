@@ -1,4 +1,4 @@
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
+import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
 import { readProjectManifest } from './readProjectManifest'
 
 export async function readDepNameCompletions (dir?: string) {

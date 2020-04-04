@@ -10,6 +10,7 @@ import { Config, Project, ProjectsGraph } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import logger from '@pnpm/logger'
+import { filterDependenciesByType } from '@pnpm/manifest-utils'
 import matcher from '@pnpm/matcher'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
 import { requireHooks } from '@pnpm/pnpmfile'
@@ -20,7 +21,6 @@ import {
   PackageManifest,
   ProjectManifest,
 } from '@pnpm/types'
-import { filterDependenciesByType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import isSubdir = require('is-subdir')
 import mem = require('mem')

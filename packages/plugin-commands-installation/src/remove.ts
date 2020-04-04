@@ -9,10 +9,10 @@ import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
+import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
 import { requireHooks } from '@pnpm/pnpmfile'
 import { createOrConnectStoreController, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
 import { DependenciesField } from '@pnpm/types'
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import R = require('ramda')
 import renderHelp = require('render-help')

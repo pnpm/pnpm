@@ -49,6 +49,9 @@
       "path": "../lockfile-walker"
     },
     {
+      "path": "../manifest-utils"
+    },
+    {
       "path": "../matcher"
     },
     {
@@ -92,9 +95,6 @@
     },
     {
       "path": "../types"
-    },
-    {
-      "path": "../utils"
     },
     {
       "path": "../dependency-path"

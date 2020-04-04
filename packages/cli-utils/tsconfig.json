@@ -19,13 +19,13 @@
       "path": "../error"
     },
     {
+      "path": "../manifest-utils"
+    },
+    {
       "path": "../package-is-installable"
     },
     {
       "path": "../read-project-manifest"
-    },
-    {
-      "path": "../utils"
     },
     {
       "path": "../types"

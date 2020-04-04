@@ -24,9 +24,8 @@ import {
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
 import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
-import logger, {
-  streamParser,
-} from '@pnpm/logger'
+import logger, { streamParser } from '@pnpm/logger'
+import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
@@ -45,9 +44,6 @@ import {
   ProjectManifest,
   Registries,
 } from '@pnpm/types'
-import {
-  getAllDependenciesFromPackage,
-} from '@pnpm/utils'
 import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
 import isInnerLink = require('is-inner-link')

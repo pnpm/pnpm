@@ -1,7 +1,7 @@
 {
-  "name": "@pnpm/utils",
-  "description": "Utils for pnpm",
-  "version": "0.13.0",
+  "name": "@pnpm/manifest-utils",
+  "description": "Utils for dealing with package manifest",
+  "version": "0.0.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -13,17 +13,14 @@
     "!*.map"
   ],
   "devDependencies": {
-    "@pnpm/utils": "link:"
-  },
-  "directories": {
-    "test": "test"
+    "@pnpm/manifest-utils": "link:"
   },
   "keywords": [],
   "license": "MIT",
   "engines": {
     "node": ">=10.13"
   },
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/utils",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils",
   "scripts": {
     "test": "pnpm run compile",
     "lint": "tslint -c ../../tslint.json --project .",
@@ -33,5 +30,5 @@
   "dependencies": {
     "@pnpm/types": "workspace:5.0.0"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/utils#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/manifest-utils#readme"
 }

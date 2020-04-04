@@ -1,7 +1,7 @@
 import { nameVerFromPkgSnapshot, PackageSnapshots } from '@pnpm/lockfile-utils'
+import { getAllDependenciesFromPackage } from '@pnpm/manifest-utils'
 import { PreferredVersions } from '@pnpm/resolver-base'
 import { Dependencies, ProjectManifest } from '@pnpm/types'
-import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import getVerSelType = require('version-selector-type')
 
 export default function getPreferredVersionsFromPackage (
