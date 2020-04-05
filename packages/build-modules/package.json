@@ -39,7 +39,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "graph-sequencer": "2.0.0",
     "ramda": "0.27.0",
-    "run-groups": "2.0.2"
+    "run-groups": "2.0.3"
   },
   "devDependencies": {
     "@pnpm/build-modules": "link:",
