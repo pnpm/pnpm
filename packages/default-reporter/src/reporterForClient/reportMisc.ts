@@ -7,7 +7,7 @@ import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
 // tslint:disable:object-literal-sort-keys
-const LOGLEVEL_NUMBER: Record<LOG_LEVEL, number> = {
+const LOG_LEVEL_NUMBER: Record<LOG_LEVEL, number> = {
   error: 0,
   warn: 1,
   info: 2,
@@ -26,9 +26,9 @@ export default (
     zoomOutCurrent: boolean,
   },
 ) => {
-  const maxLogLevel = LOGLEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOGLEVEL_NUMBER['info']
+  const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
   return most.merge(log$.registry, log$.other)
-    .filter((obj) => LOGLEVEL_NUMBER[obj.level] <= maxLogLevel &&
+    .filter((obj) => LOG_LEVEL_NUMBER[obj.level] <= maxLogLevel &&
       (obj.level !== 'info' || !obj['prefix'] || obj['prefix'] === opts.cwd))
     .map((obj) => {
       switch (obj.level) {
