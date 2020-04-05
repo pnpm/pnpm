@@ -1,6 +1,6 @@
 import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
-import { LOG_LEVEL } from '@pnpm/logger'
+import { LogLevel } from '@pnpm/logger'
 import most = require('most')
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportDeprecations from './reportDeprecations'
@@ -37,7 +37,7 @@ export default function (
     appendOnly?: boolean,
     cmd: string,
     isRecursive: boolean,
-    logLevel?: LOG_LEVEL,
+    logLevel?: LogLevel,
     pnpmConfig?: Config,
     throttleProgress?: number,
     width?: number,

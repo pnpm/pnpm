@@ -1,6 +1,6 @@
 import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
-import { LOG_LEVEL } from '@pnpm/logger'
+import { LogLevel } from '@pnpm/logger'
 import PushStream from '@zkochan/zen-push'
 import createDiffer = require('ansi-diff')
 import most = require('most')
@@ -14,7 +14,7 @@ export default function (
     streamParser: object,
     reportingOptions?: {
       appendOnly?: boolean,
-      logLevel?: LOG_LEVEL,
+      logLevel?: LogLevel,
       throttleProgress?: number,
       outputMaxWidth?: number,
     },
@@ -64,7 +64,7 @@ export function toOutput$ (
     streamParser: object,
     reportingOptions?: {
       appendOnly?: boolean,
-      logLevel?: LOG_LEVEL,
+      logLevel?: LogLevel,
       outputMaxWidth?: number,
       throttleProgress?: number,
     },

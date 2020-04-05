@@ -40,6 +40,6 @@
   },
   "devDependencies": {
     "@pnpm/default-resolver": "link:",
-    "@pnpm/logger": "3.2.1"
+    "@pnpm/logger": "3.2.2"
   }
 }

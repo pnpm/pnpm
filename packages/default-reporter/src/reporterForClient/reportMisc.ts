@@ -1,5 +1,5 @@
 import { LinkLog, Log, RegistryLog } from '@pnpm/core-loggers'
-import { LOG_LEVEL } from '@pnpm/logger'
+import { LogLevel } from '@pnpm/logger'
 import most = require('most')
 import os = require('os')
 import reportError from '../reportError'
@@ -7,7 +7,7 @@ import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
 // tslint:disable:object-literal-sort-keys
-const LOG_LEVEL_NUMBER: Record<LOG_LEVEL, number> = {
+const LOG_LEVEL_NUMBER: Record<LogLevel, number> = {
   error: 0,
   warn: 1,
   info: 2,
@@ -22,7 +22,7 @@ export default (
   },
   opts: {
     cwd: string,
-    logLevel?: LOG_LEVEL,
+    logLevel?: LogLevel,
     zoomOutCurrent: boolean,
   },
 ) => {
