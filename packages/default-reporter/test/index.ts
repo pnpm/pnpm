@@ -19,6 +19,7 @@ import { stripIndent, stripIndents } from 'common-tags'
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import R = require('ramda')
+import StackTracey = require('stacktracey')
 import test = require('tape')
 import './reportingErrors'
 import './reportingLifecycleScripts'
@@ -970,6 +971,102 @@ test('prints skipped optional dependency info message', t => {
     error: t.end,
     next: output => {
       t.equal(output, `info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
+    },
+  })
+})
+
+test('logLevel=error', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new Error('some error')
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.skip(2).take(1).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndents`
+        Info message
+        ${WARN} Some issue
+        ${ERROR} ${chalk.red('some error')}
+        ${new StackTracey(err.stack).pretty}
+      `)
+    },
+  })
+})
+
+test('logLevel=warn', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      logLevel: 'warn',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new Error('some error')
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.skip(1).take(1).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndents`
+        ${WARN} Some issue
+        ${ERROR} ${chalk.red('some error')}
+        ${new StackTracey(err.stack).pretty}
+      `)
+    },
+  })
+})
+
+test('logLevel=error', t => {
+  const prefix = process.cwd()
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: prefix } as Config,
+    },
+    reportingOptions: {
+      logLevel: 'error',
+    },
+    streamParser: createStreamParser(),
+  })
+
+  logger.info({ message: 'Info message', prefix })
+  logger.warn({ message: 'Some issue', prefix })
+  const err = new Error('some error')
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndents`
+        ${ERROR} ${chalk.red('some error')}
+        ${new StackTracey(err.stack).pretty}
+      `)
     },
   })
 })

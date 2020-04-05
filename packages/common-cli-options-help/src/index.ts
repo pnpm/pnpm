@@ -42,7 +42,7 @@ export const UNIVERSAL_OPTIONS = [
   },
   {
     description: 'What level of logs to report. Any logs of higher level than the setting are shown. Values: silent, error, warn, info, debug. Default: info',
-    name: '--loglevel <type>',
+    name: '--loglevel <level>',
   },
 ]
 export const FILTERING = {
