@@ -26,7 +26,7 @@ export default (
     zoomOutCurrent: boolean,
   },
 ) => {
-  const maxLogLevel = LOGLEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOGLEVEL_NUMBER['error']
+  const maxLogLevel = LOGLEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOGLEVEL_NUMBER['info']
   return most.merge(log$.registry, log$.other)
     .filter((obj) => LOGLEVEL_NUMBER[obj.level] <= maxLogLevel &&
       (obj.level !== 'info' || !obj['prefix'] || obj['prefix'] === opts.cwd))
