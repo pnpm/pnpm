@@ -44,7 +44,7 @@
     "load-json-file": "6.2.0",
     "mem": "6.0.1",
     "normalize-path": "3.0.0",
-    "p-limit": "2.2.2",
+    "p-limit": "2.3.0",
     "p-memoize": "4.0.0",
     "parse-npm-tarball-url": "3.0.0",
     "semver": "7.1.3",
