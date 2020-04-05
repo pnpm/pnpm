@@ -40,7 +40,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/npm-lifecycle": "3.1.4",
     "path-exists": "4.0.0",
-    "run-groups": "2.0.2"
+    "run-groups": "2.0.3"
   },
   "devDependencies": {
     "@pnpm/lifecycle": "link:",
