@@ -304,7 +304,8 @@ export function handler (
   return installDeps({
     ...opts,
     frozenLockfileIfExists: isCI &&
-      typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined',
+      typeof opts.rawLocalConfig['frozen-lockfile'] === 'undefined' &&
+      typeof opts.rawLocalConfig['prefer-frozen-lockfile'] === 'undefined',
     include,
     includeDirect: include,
   }, [])

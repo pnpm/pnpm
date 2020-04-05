@@ -481,4 +481,11 @@ test('installing in a CI environment', async (t: tape.Test) => {
   t.ok(err, 'installation fails with out-of-date lockfile')
 
   await execPnpm(['install', '--no-frozen-lockfile'], { env: { CI: 'true' } })
+
+  await rimraf('node_modules')
+  await project.writePackageJson({
+    dependencies: { 'rimraf': '2' },
+  })
+
+  await execPnpm(['install', '--no-prefer-frozen-lockfile'], { env: { CI: 'true' } })
 })
