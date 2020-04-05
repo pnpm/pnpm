@@ -33,7 +33,7 @@
     "find-packages": "link:"
   },
   "dependencies": {
-    "@pnpm/read-project-manifest": "workspace:1.0.3",
+    "@pnpm/read-project-manifest": "workspace:1.0.4",
     "@pnpm/types": "workspace:5.0.0",
     "fast-glob": "3.2.2",
     "p-filter": "^2.1.0"

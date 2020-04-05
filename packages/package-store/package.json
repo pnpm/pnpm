@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "8.0.4",
+  "version": "8.0.5",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -19,7 +19,7 @@
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/fetcher-base": "workspace:6.0.0",
     "@pnpm/fs-locker": "3.0.1",
-    "@pnpm/package-requester": "workspace:11.0.4",
+    "@pnpm/package-requester": "workspace:11.0.5",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",

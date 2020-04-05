@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/link-bins",
-  "version": "5.3.0",
+  "version": "5.3.1",
   "description": "Link bins to node_modules/.bin",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,8 +36,8 @@
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/package-bins": "workspace:4.0.3",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
-    "@pnpm/read-package-json": "workspace:3.0.2",
-    "@pnpm/read-project-manifest": "workspace:1.0.3",
+    "@pnpm/read-package-json": "workspace:3.1.0",
+    "@pnpm/read-project-manifest": "workspace:1.0.4",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/cmd-shim": "4.3.0",
     "is-subdir": "1.1.1",
