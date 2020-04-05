@@ -1,6 +1,6 @@
 import { Config } from '@pnpm/config'
 import defaultReporter from '@pnpm/default-reporter'
-import { streamParser, writeToConsole } from '@pnpm/logger'
+import { LOG_LEVEL, streamParser, writeToConsole } from '@pnpm/logger'
 import silentReporter from './silentReporter'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
@@ -21,6 +21,7 @@ export default (
         },
         reportingOptions: {
           appendOnly: false,
+          logLevel: opts.config.loglevel as LOG_LEVEL,
           throttleProgress: 200,
         },
         streamParser,
@@ -34,6 +35,7 @@ export default (
         },
         reportingOptions: {
           appendOnly: true,
+          logLevel: opts.config.loglevel as LOG_LEVEL,
           throttleProgress: 1000,
         },
         streamParser,

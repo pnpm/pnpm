@@ -54,7 +54,7 @@ export interface Config {
   registry?: string,
   optional?: boolean,
   unsafePerm?: boolean,
-  loglevel?: 'silent' | 'error' | 'warn' | 'notice' | 'http' | 'timing' | 'info' | 'verbose' | 'silly',
+  loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug',
   frozenLockfile?: boolean,
   preferFrozenLockfile?: boolean,
   only?: 'prod' | 'production' | 'dev' | 'development',

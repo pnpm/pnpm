@@ -40,6 +40,10 @@ export const UNIVERSAL_OPTIONS = [
     name: '--dir <dir>',
     shortAlias: '-C',
   },
+  {
+    description: 'What level of logs to report. Any logs of higher level than the setting are shown. Values: silent, error, warn, info, debug. Default: info',
+    name: '--loglevel <type>',
+  },
 ]
 export const FILTERING = {
   list: [
