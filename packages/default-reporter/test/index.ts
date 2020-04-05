@@ -975,7 +975,7 @@ test('prints skipped optional dependency info message', t => {
   })
 })
 
-test('logLevel=error', t => {
+test('logLevel=default', t => {
   const prefix = process.cwd()
   const output$ = toOutput$({
     context: {
@@ -987,7 +987,7 @@ test('logLevel=error', t => {
 
   logger.info({ message: 'Info message', prefix })
   logger.warn({ message: 'Some issue', prefix })
-  const err = new Error('some error')
+  const err = new PnpmError('SOME_CODE', 'some error')
   logger.error(err, err)
 
   t.plan(1)
@@ -996,12 +996,9 @@ test('logLevel=error', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        Info message
-        ${WARN} Some issue
-        ${ERROR} ${chalk.red('some error')}
-        ${new StackTracey(err.stack).pretty}
-      `)
+      t.equal(output, `Info message
+${WARN} Some issue
+${ERROR} ${chalk.red('some error')}`)
     },
   })
 })
@@ -1021,7 +1018,7 @@ test('logLevel=warn', t => {
 
   logger.info({ message: 'Info message', prefix })
   logger.warn({ message: 'Some issue', prefix })
-  const err = new Error('some error')
+  const err = new PnpmError('SOME_CODE', 'some error')
   logger.error(err, err)
 
   t.plan(1)
@@ -1030,11 +1027,8 @@ test('logLevel=warn', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        ${WARN} Some issue
-        ${ERROR} ${chalk.red('some error')}
-        ${new StackTracey(err.stack).pretty}
-      `)
+      t.equal(output, `${WARN} Some issue
+${ERROR} ${chalk.red('some error')}`)
     },
   })
 })
@@ -1054,7 +1048,7 @@ test('logLevel=error', t => {
 
   logger.info({ message: 'Info message', prefix })
   logger.warn({ message: 'Some issue', prefix })
-  const err = new Error('some error')
+  const err = new PnpmError('SOME_CODE', 'some error')
   logger.error(err, err)
 
   t.plan(1)
@@ -1063,10 +1057,7 @@ test('logLevel=error', t => {
     complete: () => t.end(),
     error: t.end,
     next: output => {
-      t.equal(output, stripIndents`
-        ${ERROR} ${chalk.red('some error')}
-        ${new StackTracey(err.stack).pretty}
-      `)
+      t.equal(output, `${ERROR} ${chalk.red('some error')}`)
     },
   })
 })
