@@ -2,7 +2,7 @@
   "name": "@pnpm-private/updater",
   "private": true,
   "dependencies": {
-    "@pnpm/find-workspace-packages": "workspace:2.1.15",
+    "@pnpm/find-workspace-packages": "workspace:2.1.16",
     "@pnpm/lockfile-file": "workspace:3.0.7",
     "@pnpm/types": "workspace:5.0.0",
     "is-subdir": "1.1.1",
