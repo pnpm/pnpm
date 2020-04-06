@@ -51,7 +51,7 @@
   },
   "devDependencies": {
     "@pnpm/default-reporter": "link:",
-    "@pnpm/logger": "3.1.0",
+    "@pnpm/logger": "3.2.2",
     "@types/common-tags": "1.8.0",
     "@types/normalize-path": "3.0.0",
     "@types/pretty-time": "1.1.0",

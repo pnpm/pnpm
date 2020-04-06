@@ -1,5 +1,6 @@
 import { Config } from '@pnpm/config'
 import * as logs from '@pnpm/core-loggers'
+import { LogLevel } from '@pnpm/logger'
 import most = require('most')
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportDeprecations from './reportDeprecations'
@@ -33,12 +34,13 @@ export default function (
     skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
   },
   opts: {
-    isRecursive: boolean,
-    cmd: string,
-    width?: number,
     appendOnly?: boolean,
-    throttleProgress?: number,
+    cmd: string,
+    isRecursive: boolean,
+    logLevel?: LogLevel,
     pnpmConfig?: Config,
+    throttleProgress?: number,
+    width?: number,
   },
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
@@ -59,6 +61,7 @@ export default function (
       log$,
       {
         cwd,
+        logLevel: opts.logLevel,
         zoomOutCurrent: opts.isRecursive,
       },
     ),

@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/assert-store": "workspace:1.0.0",
     "@pnpm/lockfile-file": "workspace:3.0.7",
-    "@pnpm/logger": "3.1.0",
+    "@pnpm/logger": "3.2.2",
     "@pnpm/plugin-commands-store": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
     "@types/archy": "0.0.31",

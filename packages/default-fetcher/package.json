@@ -37,6 +37,6 @@
   },
   "devDependencies": {
     "@pnpm/default-fetcher": "link:",
-    "@pnpm/logger": "3.1.0"
+    "@pnpm/logger": "3.2.2"
   }
 }

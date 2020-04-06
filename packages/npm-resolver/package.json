@@ -53,7 +53,7 @@
     "write-json-file": "4.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "3.1.0",
+    "@pnpm/logger": "3.2.2",
     "@pnpm/npm-resolver": "link:",
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.1.0",
