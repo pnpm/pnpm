@@ -36,6 +36,7 @@ export function cliOptionsTypes () {
   return {
     ...rcOptionsTypes(),
     'dry-run': Boolean,
+    'json': Boolean,
     'recursive': Boolean,
   }
 }
