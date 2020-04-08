@@ -4,7 +4,7 @@ importers:
       '@pnpm/registry-mock': 2.0.1
       '@pnpm/tsconfig': 'link:utils/tsconfig'
       '@pnpm/tslint-config': 'link:utils/tslint-config'
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
       '@types/tape': 4.2.34
       c8: 7.1.0
       coveralls: 3.0.11
@@ -588,7 +588,7 @@ importers:
       mz: 2.7.0
       npm-run-all: 4.1.5
       read-yaml-file: 2.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tape-promise: 4.0.0
       tempy: 0.5.0
     specifiers:
@@ -639,7 +639,7 @@ importers:
       ramda: 0.27.0
       read-yaml-file: 2.0.0
       realpath-missing: 1.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tape-promise: 4.0.0
       tempy: 0.5.0
   packages/hoist:
@@ -717,14 +717,14 @@ importers:
       '@types/is-windows': 1.0.0
       '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.3
       '@types/sinon': 9.0.0
       '@types/tape': 4.2.34
       ncp: 2.0.0
       path-exists: 4.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
@@ -737,7 +737,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.0
       '@types/ncp': ^2.0.3
-      '@types/node': ^12.12.34
+      '@types/node': ^12.12.35
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.3
       '@types/sinon': ^9.0.0
@@ -752,7 +752,7 @@ importers:
       p-settle: 4.0.1
       path-exists: ^4.0.0
       ramda: 0.27.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
   packages/list:
     dependencies:
@@ -1131,13 +1131,13 @@ importers:
     devDependencies:
       '@pnpm/package-bins': 'link:'
       '@types/graceful-fs': 4.1.3
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
       '@types/tape': 4.2.34
     specifiers:
       '@pnpm/package-bins': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/graceful-fs': ^4.1.3
-      '@types/node': ^12.12.34
+      '@types/node': ^12.12.35
       '@types/tape': ^4.2.34
       graceful-fs: 4.2.3
       is-subdir: 1.1.1
@@ -1199,7 +1199,7 @@ importers:
       ncp: 2.0.0
       nock: 12.0.3
       normalize-path: 3.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
     specifiers:
       '@pnpm/check-package': 3.0.1
@@ -1235,7 +1235,7 @@ importers:
       promise-share: 1.0.0
       ramda: 0.27.0
       rename-overwrite: 2.0.2
-      sinon: 9.0.1
+      sinon: 9.0.2
       ssri: 6.0.1
       symlink-dir: 3.1.2
       tempy: 0.5.0
@@ -1273,7 +1273,7 @@ importers:
       '@types/ramda': 0.27.3
       '@types/sinon': 9.0.0
       proxyquire: 2.1.3
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.1'
@@ -1305,7 +1305,7 @@ importers:
       proxyquire: 2.1.3
       ramda: 0.27.0
       rename-overwrite: 2.0.2
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
       write-json-file: 4.0.0
   packages/parse-cli-args:
@@ -1481,7 +1481,7 @@ importers:
       make-dir: 3.0.2
       proxyquire: 2.1.3
       read-yaml-file: 2.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       write-json-file: 4.2.1
       write-yaml-file: 4.0.0
     specifiers:
@@ -1538,7 +1538,7 @@ importers:
       read-ini-file: 3.0.0
       read-yaml-file: 2.0.0
       render-help: 1.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       supi: 'workspace:0.38.25'
       table: 5.4.6
       version-selector-type: 2.0.1
@@ -1705,7 +1705,7 @@ importers:
       execa: 4.0.0
       path-exists: 4.0.0
       proxyquire: 2.1.3
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
       write-yaml-file: 4.0.0
     specifiers:
@@ -1744,7 +1744,7 @@ importers:
       ramda: 0.27.0
       realpath-missing: 1.0.0
       render-help: 1.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
       write-json-file: 4.2.1
       write-yaml-file: 4.0.0
@@ -1793,7 +1793,7 @@ importers:
       '@types/sinon': 9.0.0
       execa: 4.0.0
       path-exists: 4.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       write-yaml-file: 4.0.0
     specifiers:
       '@pnpm/cli-utils': 'workspace:0.4.1'
@@ -1838,7 +1838,7 @@ importers:
       render-help: 1.0.0
       run-groups: 2.0.3
       semver: 7.2.1
-      sinon: 9.0.1
+      sinon: 9.0.2
       write-yaml-file: 4.0.0
   packages/plugin-commands-script-runners:
     dependencies:
@@ -1984,7 +1984,7 @@ importers:
       execa: 4.0.0
       load-json-file: 6.2.0
       path-exists: 4.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.0'
@@ -2018,7 +2018,7 @@ importers:
       path-exists: 4.0.0
       ramda: 0.27.0
       render-help: 1.0.0
-      sinon: 9.0.1
+      sinon: 9.0.2
       tempy: 0.5.0
   packages/pnpm:
     dependencies:
@@ -2108,7 +2108,7 @@ importers:
       pnpm: 'link:'
       read-yaml-file: 2.0.0
       retry: 0.12.0
-      semver: 7.1.3
+      semver: 7.2.1
       symlink-dir: 3.1.2
       tape-promise: 4.0.0
       tree-kill: 1.2.2
@@ -2198,7 +2198,7 @@ importers:
       read-yaml-file: 2.0.0
       render-help: 1.0.0
       retry: 0.12.0
-      semver: 7.1.3
+      semver: 7.2.1
       split-cmd: 1.0.1
       symlink-dir: 3.1.2
       tape-promise: 4.0.0
@@ -2590,7 +2590,7 @@ importers:
       path-name: 1.0.0
       read-yaml-file: 2.0.0
       resolve-link-target: 1.0.1
-      sinon: 9.0.1
+      sinon: 9.0.2
       supi: 'link:'
       symlink-dir: 3.1.2
       tape-promise: 4.0.0
@@ -2689,7 +2689,7 @@ importers:
       run-groups: 2.0.3
       semver: 7.2.1
       semver-utils: 1.1.4
-      sinon: 9.0.1
+      sinon: 9.0.2
       supi: 'link:'
       symlink-dir: 3.1.2
       tape-promise: 4.0.0
@@ -2808,7 +2808,7 @@ importers:
       '@pnpm/assert-project': 'link:'
       '@types/is-windows': 1.0.0
       '@types/isexe': 2.0.0
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
     specifiers:
       '@pnpm/assert-project': 'link:'
       '@pnpm/assert-store': 'workspace:1.0.0'
@@ -2819,7 +2819,7 @@ importers:
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
       '@types/mz': ^2.7.0
-      '@types/node': ^12.12.34
+      '@types/node': ^12.12.35
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2844,14 +2844,14 @@ importers:
       write-pkg: 4.0.0
       write-yaml-file: 4.0.0
     devDependencies:
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
       tslint-config-standard: 9.0.0
       tslint-eslint-rules: 5.4.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
       '@types/mkdirp': 1.0.0
-      '@types/node': ^12.12.34
+      '@types/node': ^12.12.35
       make-dir: 3.0.2
       tempy: 0.5.0
       tslint-config-standard: 9.0.0
@@ -2913,12 +2913,12 @@ packages:
       '@babel/highlight': 7.9.0
     resolution:
       integrity: sha512-a9gxpmdXtZEInkCSHUJDLHZVBgb1QS0jhss4cPP93EW7s+uC5bikET2twEF3KV+7rDblJcmNvTR7VJejqd2C2g==
-  /@babel/helper-validator-identifier/7.9.0:
+  /@babel/helper-validator-identifier/7.9.5:
     resolution:
-      integrity: sha512-6G8bQKjOh+of4PV/ThDm/rRqlU7+IGoJuofpagU5GlEl29Vv0RGqqt86ZGRV8ZuSOY3o+8yXl5y782SMcG7SHw==
+      integrity: sha512-/8arLKUFq882w4tWGj9JYzRpAlZgiWUJ+dtteNTDqrRBz9Iguck9Rn3ykuBDoUwh2TO4tSAJlrxDUOXWklJe4g==
   /@babel/highlight/7.9.0:
     dependencies:
-      '@babel/helper-validator-identifier': 7.9.0
+      '@babel/helper-validator-identifier': 7.9.5
       chalk: 2.4.2
       js-tokens: 4.0.0
     resolution:
@@ -3251,7 +3251,7 @@ packages:
   /@pnpm/tabtab/0.0.1:
     dependencies:
       debug: 4.1.1
-      enquirer: 2.3.4
+      enquirer: 2.3.5
       minimist: 1.2.5
       mkdirp: 1.0.4
       untildify: 4.0.0
@@ -3266,28 +3266,28 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-9NET910DNaIPngYnLLPeg+Ogzqsi9uM4mSboU5y6p8S5DzMTVEsJZrawi+BoDNUVBa2DhJqQYUFvMDfgU062LQ==
-  /@sinonjs/commons/1.7.1:
+  /@sinonjs/commons/1.7.2:
     dependencies:
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-Debi3Baff1Qu1Unc3mjJ96MgpbwTn43S1+9yJ0llWygPwDNu2aaWBD6yc9y/Z8XDRNhx7U+u2UDg2OGQXkclUQ==
+      integrity: sha512-+DUO6pnp3udV/v2VfUWgaY5BIE1IfT7lLfeDzPVeMT1XKkaAp9LgSI9x5RtrFQoZ9Oi0PgXQQHPaoKu7dCjVxw==
   /@sinonjs/fake-timers/6.0.1:
     dependencies:
-      '@sinonjs/commons': 1.7.1
+      '@sinonjs/commons': 1.7.2
     dev: true
     resolution:
       integrity: sha512-MZPUxrmFubI36XS1DI3qmI0YdN1gks62JtFZvxR67ljjSNCeK6U08Zx4msEWOXuofgqUt6zPHSi1H9fbjR/NRA==
   /@sinonjs/formatio/5.0.1:
     dependencies:
-      '@sinonjs/commons': 1.7.1
+      '@sinonjs/commons': 1.7.2
       '@sinonjs/samsam': 5.0.3
     dev: true
     resolution:
       integrity: sha512-KaiQ5pBf1MpS09MuA0kp6KBQt2JUOQycqVG1NZXvzeaXe5LGFqAKueIS0bw4w0P9r7KuBSVdUk5QjXsUdu2CxQ==
   /@sinonjs/samsam/5.0.3:
     dependencies:
-      '@sinonjs/commons': 1.7.1
+      '@sinonjs/commons': 1.7.2
       lodash.get: 4.4.2
       type-detect: 4.0.8
     dev: true
@@ -3317,7 +3317,7 @@ packages:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
@@ -3338,7 +3338,7 @@ packages:
       integrity: sha512-SvCBBPzOIe/3Tu7jTl2Q8NjITjLmq9m7obzjSyb8PXWWZ31xVK6w4T6v8fOx+lrgQnqk3Yxc00LDolFsSakKCA==
   /@types/cross-spawn/6.0.1:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-MtN1pDYdI6D6QFDzy39Q+6c9rl2o/xN7aWGe6oZuzqq5N6+YuwFsWiEAv3dNzvzN9YzU+itpN8lBzFpphQKLAw==
@@ -3347,7 +3347,7 @@ packages:
       integrity: sha512-EaObqwIvayI5a8dCzhFrjKzVwKLxjoG9T6Ppd5CEo07LRKfQ8Yokw54r5+Wq7FaBQ+yXRvQAYPrHwya1/UFt9g==
   /@types/fs-extra/8.1.0:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-UoOfVEzAUpeSPmjm7h1uk5MH6KZma2z2O7a75onTGjnNvAvMVrPzPL/vBbT65iIGHWj6rokwfmYcmxmlSf2uwg==
@@ -3355,12 +3355,12 @@ packages:
     dependencies:
       '@types/events': 3.0.0
       '@types/minimatch': 3.0.3
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     resolution:
       integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==
   /@types/graceful-fs/4.1.3:
     dependencies:
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
     dev: true
     resolution:
       integrity: sha512-AiHRaEB50LQg0pZmm659vNBb9f4SJ0qrAnteuzhSeAUcJKxoYgEnprg/83kppCnc2zvtCKbdZry1a5pVY3lOTQ==
@@ -3370,7 +3370,7 @@ packages:
       integrity: sha512-dYLI2VgU1UTpdigoeLYc8vVpe7kpu3jysLCTUPB9NS1B+7+BdH6XefI4BhB33CNUaBewnxmjy9GPhF4NXOSNew==
   /@types/http-proxy-agent/2.0.2:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-2S6IuBRhqUnH1/AUx9k8KWtY3Esg4eqri946MnxTG5HwehF1S5mqLln8fcyMiuQkY72p2gH3W+rIPqp5li0LyQ==
@@ -3386,7 +3386,7 @@ packages:
       integrity: sha512-tJ1rq04tGKuIJoWIH0Gyuwv4RQ3+tIu7wQrC0MV47raQ44kIzXSSFKfrxFUOWVRvesoF7mrTqigXmqoZJsXwTg==
   /@types/isexe/2.0.0:
     dependencies:
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
     dev: true
     resolution:
       integrity: sha512-QuPJ6xd8TLfMy6l/pJ+oeRHYG8efIzR8WeyvFr/k4zbhcRqa+SQiVgUUb3D3PG3Si+XVuxn8RToCcfNCdFqr3g==
@@ -3411,33 +3411,33 @@ packages:
       integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==
   /@types/mkdirp/1.0.0:
     dependencies:
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
     resolution:
       integrity: sha512-ONFY9//bCEr3DWKON3iDv/Q8LXnhaYYaNDeFSN0AtO5o4sLf9F0pstJKKKjQhXE0kJEeHs8eR6SAsROhhc2Csw==
   /@types/mz/2.7.0:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     resolution:
       integrity: sha512-Q5TZYMKnH0hdV5fNstmMWL2LLw5eRRtTd73KNtsZxoQ2gtCQyET5X79uERUEwGneuxPglg441I7OSY00+9CkSw==
   /@types/ncp/2.0.3:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-eZatZMWhPHUHY/1hUUqwGrWzBAE9deYR3L0QJMicpVkBUOrQslhWblw5Ye+rKuzvFG/UQ3jDolMcjhC2WKUQ5w==
   /@types/node-fetch/2.5.5:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
       form-data: 3.0.0
     dev: true
     resolution:
       integrity: sha512-IWwjsyYjGw+em3xTvWVQi5MgYKbRs0du57klfTaZkv/B24AEQ/p/IopNeqIYNy3EsfHOpg8ieQSDomPcsYMHpA==
-  /@types/node/12.12.34:
+  /@types/node/12.12.35:
     resolution:
-      integrity: sha512-BneGN0J9ke24lBRn44hVHNeDlrXRYF+VRp0HbSUNnEZahXGAysHZIqnf/hER6aabdBgzM4YOV4jrR8gj4Zfi0g==
-  /@types/node/13.11.0:
+      integrity: sha512-ASYsaKecA7TUsDrqIGPNk3JeEox0z/0XR/WsJJ8BIX/9+SkMSImQXKWfU/yBrSyc7ZSE/NPqLu36Nur0miCFfQ==
+  /@types/node/13.11.1:
     resolution:
-      integrity: sha512-uM4mnmsIIPK/yeO+42F2RQhGUIs39K2RFmugcJANppXe6J1nvH87PvzPZYpza7Xhhs8Yn9yIAVdLZ84z61+0xQ==
+      integrity: sha512-eWQGP3qtxwL8FGneRrC5DwrJLGN4/dH1clNTuLfN81HCrxVtxRjygDTUoZJ5ASlDEeo0ppYFQjQIlXhtXpOn6g==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -3474,13 +3474,13 @@ packages:
   /@types/rimraf/3.0.0:
     dependencies:
       '@types/glob': 7.1.1
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-7WhJ0MdpFgYQPXlF4Dx+DhgvlPCfz/x5mHaeDQAKhcenvQP1KCpLQ18JklAqeGMYSAT2PxLpzd0g2/HE7fj7hQ==
   /@types/semver/7.1.0:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-pOKLaubrAEMUItGNpgwl0HMFPrSAFic8oSVIvfu1UwcgGNmNyK9gyhBHKmBnUTwwVvpZfkzUC0GaMgnL6P86uA==
@@ -3513,13 +3513,13 @@ packages:
       integrity: sha512-Ek6EryyaAvP3Lm1aol660YfmhpDkf04TJHK6Vc+R68EQrecK8Qkbv7Ct5jvY2Yf0fkhmkeim4DOz3yDiEYEnNQ==
   /@types/tape/4.2.34:
     dependencies:
-      '@types/node': 12.12.34
+      '@types/node': 12.12.35
     dev: true
     resolution:
       integrity: sha512-d3mILzYSlsPEALCiDYkRnkiYN4cl62dkaCg00Uql/FShIvdMOBFGtjP0N/cm0aCXwaAPVBS5weD4ciHAD8RtsA==
   /@types/touch/3.1.1:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-6qjr7Erk0b9FkZSu17wUJaWhmzUgGfQuec7eIwl9cP7V/YO/k9IcMnHSwAjxAeadC5guq9rwHcoij7PT1RkO1w==
@@ -3547,7 +3547,7 @@ packages:
       integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==
   /@types/write-file-atomic/3.0.0:
     dependencies:
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
     dev: true
     resolution:
       integrity: sha512-XrvNv7CBEveBoWkGU4ZxuyeL7iaYVr609VjlNAe+VaS8N9stTvGwp5IZgFP+QDbiRQV/R7MmipPsgAhlf5LZzQ==
@@ -3610,13 +3610,13 @@ packages:
       npm: '>=5'
     resolution:
       integrity: sha512-Oc02dKPE3/PyDgCU2UPYZx5lfLeYqkQQUY2QDj2s8mLjb4jmKOfLMmnZ564vUVmmswNxjaRs3DTAZAgZQYyGIg==
-  /@verdaccio/ui-theme/1.4.0:
+  /@verdaccio/ui-theme/1.5.0:
     dev: true
     engines:
       node: '>= 8'
       npm: '>=5'
     resolution:
-      integrity: sha512-YAPp3i7L6/a0t7T6xTRlEQi++ijlwcxObh6yo8GaiWsUJf4pUBnv6yOKP5C5fPBBH1PvoDVE3FQZ9GhSEm1nGw==
+      integrity: sha512-OLkTTJPnBgUDsRrGqIg5RC3NBmb7wolQEPrTGE1ScuVe0sO3351fw+TFj/hx5Oepbv4PqxknYossmWcrMaSq6Q==
   /@yarnpkg/lockfile/1.1.0:
     dev: true
     resolution:
@@ -3688,7 +3688,7 @@ packages:
   /@zkochan/rimraf/1.0.0:
     dependencies:
       '@types/glob': 7.1.1
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
       rimraf: 3.0.2
     engines:
       node: '>=8.15'
@@ -5790,14 +5790,6 @@ packages:
       once: 1.4.0
     resolution:
       integrity: sha512-+uw1inIHVPQoaVuHzRyXd21icM+cnt4CzD5rW+NC1wjOUSTOs+Te7FOv7AhN7vS9x/oIyhLP5PR1H+phQAHu5Q==
-  /enquirer/2.3.4:
-    dependencies:
-      ansi-colors: 3.2.4
-    dev: false
-    engines:
-      node: '>=8.6'
-    resolution:
-      integrity: sha512-pkYrrDZumL2VS6VBGDhqbajCM2xpkUNLuKfGPjfKaSIBKYopQbqEFyrOkRMIb2HDR/rO1kGhEt/5twBwtzKBXw==
   /enquirer/2.3.5:
     dependencies:
       ansi-colors: 3.2.4
@@ -8533,7 +8525,7 @@ packages:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
   /nise/4.0.3:
     dependencies:
-      '@sinonjs/commons': 1.7.1
+      '@sinonjs/commons': 1.7.2
       '@sinonjs/fake-timers': 6.0.1
       '@sinonjs/text-encoding': 0.7.1
       just-extend: 4.1.0
@@ -9668,7 +9660,7 @@ packages:
   /publish-packed/3.0.0-0:
     dependencies:
       '@types/fs-extra': 8.1.0
-      '@types/node': 13.11.0
+      '@types/node': 13.11.1
       all-module-paths: 0.10.7
       execa: 4.0.0
       fs-extra: 9.0.0
@@ -10412,7 +10404,6 @@ packages:
     resolution:
       integrity: sha512-ekM0zfiA9SCBlsKa2X1hxyxiI4L3B6EbVJkkdgQXnSEEaHlGdvyodMruTiulSRWMMB4NeIuYNMC9rTKTz97GxA==
   /semver/7.2.1:
-    dev: false
     engines:
       node: '>=10'
     hasBin: true
@@ -10534,9 +10525,9 @@ packages:
   /signal-exit/3.0.3:
     resolution:
       integrity: sha512-VUJ49FC8U1OxwZLxIbTTrDvLnf/6TDgxZcK8wxR8zs13xpx7xbG60ndBlhNrFi2EMuFRoeDoJO7wthSLq42EjA==
-  /sinon/9.0.1:
+  /sinon/9.0.2:
     dependencies:
-      '@sinonjs/commons': 1.7.1
+      '@sinonjs/commons': 1.7.2
       '@sinonjs/fake-timers': 6.0.1
       '@sinonjs/formatio': 5.0.1
       '@sinonjs/samsam': 5.0.3
@@ -10545,7 +10536,7 @@ packages:
       supports-color: 7.1.0
     dev: true
     resolution:
-      integrity: sha512-iTTyiQo5T94jrOx7X7QLBZyucUJ2WvL9J13+96HMfm2CGoJYbIPqRfl6wgNcqmzk0DI28jeGx5bUTXizkrqBmg==
+      integrity: sha512-0uF8Q/QHkizNUmbK3LRFqx5cpTttEVXudywY9Uwzy8bTfZUhljZ7ARzSxnRHWYWtVTeh4Cw+tTb3iU21FQVO9A==
   /slash/2.0.0:
     dev: true
     engines:
@@ -11766,7 +11757,7 @@ packages:
       '@verdaccio/local-storage': 9.4.0
       '@verdaccio/readme': 9.4.0
       '@verdaccio/streams': 9.4.0
-      '@verdaccio/ui-theme': 1.4.0
+      '@verdaccio/ui-theme': 1.5.0
       JSONStream: 1.3.5
       async: 3.1.1
       body-parser: 1.19.0
