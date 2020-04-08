@@ -1,6 +1,6 @@
 import audit, { AuditVulnerabilityCounts } from '@pnpm/audit'
 import { docsUrl, TABLE_OPTIONS } from '@pnpm/cli-utils'
-import { types as allTypes, UniversalOptions } from '@pnpm/config'
+import { Config, types as allTypes, UniversalOptions } from '@pnpm/config'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import { readWantedLockfile } from '@pnpm/lockfile-file'
@@ -93,13 +93,22 @@ export async function handler (
     json?: boolean,
     lockfileDir?: string,
     registries: Registries,
-  },
+  } & Pick<Config, 'fetchRetries' | 'fetchRetryMaxtimeout' | 'fetchRetryMintimeout' | 'fetchRetryFactor'>,
 ) {
   const lockfile = await readWantedLockfile(opts.lockfileDir || opts.dir, { ignoreIncompatible: true })
   if (!lockfile) {
     throw new PnpmError('AUDIT_NO_LOCKFILE', `No ${WANTED_LOCKFILE} found: Cannot audit a project without a lockfile`)
   }
-  const auditReport = await audit(lockfile, { include: opts.include, registry: opts.registries.default })
+  const auditReport = await audit(lockfile, {
+    include: opts.include,
+    registry: opts.registries.default,
+    retry: {
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
+    },
+  })
   if (opts.json) {
     return JSON.stringify(auditReport, null, 2)
   }

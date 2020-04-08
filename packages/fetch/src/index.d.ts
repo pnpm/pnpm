@@ -22,10 +22,11 @@ interface URLLike {
 }
 
 export interface RetryOpts {
-  minTimeout?: number
-  retries?: number
   factor?: number
+  maxTimeout?: number
+  minTimeout?: number
   onRetry? (error: unknown): void
+  retries?: number
 }
 
 export interface RequestInit extends NodeRequestInit {
