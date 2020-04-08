@@ -75,7 +75,6 @@ test('an error is thrown if the audit endpoint responds with a non-OK code', asy
   const registry = 'http://registry.registry/'
   nock(registry)
     .post('/-/npm/v1/security/audits')
-    .times(10) // fetch will retry the request
     .reply(500, { message: 'Something bad happened' })
 
   let err!: PnpmError
@@ -83,7 +82,12 @@ test('an error is thrown if the audit endpoint responds with a non-OK code', asy
     await audit({
       importers: {},
       lockfileVersion: 5,
-    }, { registry })
+    }, {
+      registry,
+      retry: {
+        retries: 0,
+      },
+    })
   } catch (_err) {
     err = _err
   }

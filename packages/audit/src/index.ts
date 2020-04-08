@@ -1,5 +1,5 @@
 import PnpmError from '@pnpm/error'
-import fetch from '@pnpm/fetch'
+import fetch, { RetryOpts } from '@pnpm/fetch'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { DependenciesField } from '@pnpm/types'
 import lockfileToAuditTree from './lockfileToAuditTree'
@@ -12,6 +12,7 @@ export default async function audit (
   opts: {
     include?: { [dependenciesField in DependenciesField]: boolean },
     registry: string,
+    retry?: RetryOpts,
   },
 ) {
   const auditTree = lockfileToAuditTree(lockfile, { include: opts.include })
@@ -21,6 +22,7 @@ export default async function audit (
     body: JSON.stringify(auditTree),
     headers: { 'Content-Type': 'application/json' },
     method: 'post',
+    retry: opts.retry,
   })
   if (res.status !== 200) {
     throw new PnpmError('AUDIT_SERVER_ERROR', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
