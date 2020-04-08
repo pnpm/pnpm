@@ -33,7 +33,7 @@
   "dependencies": {
     "@pnpm/types": "workspace:5.0.0",
     "encode-registry": "2.0.2",
-    "semver": "7.1.3"
+    "semver": "7.2.1"
   },
   "devDependencies": {
     "@types/semver": "^7.1.0",

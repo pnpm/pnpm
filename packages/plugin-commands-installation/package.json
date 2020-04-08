@@ -78,7 +78,7 @@
     "camelcase-keys": "6.2.2",
     "chalk": "4.0.0",
     "common-tags": "1.8.0",
-    "enquirer": "2.3.4",
+    "enquirer": "2.3.5",
     "is-ci": "2.0.0",
     "is-subdir": "1.1.1",
     "mem": "6.0.1",
