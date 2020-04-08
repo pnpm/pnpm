@@ -34,6 +34,7 @@
     "@pnpm/lockfile-file": "workspace:3.0.7"
   },
   "dependencies": {
+    "@pnpm/error": "workspace:1.2.0",
     "@pnpm/fetch": "workspace:1.0.3",
     "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/lockfile-utils": "workspace:2.0.9",

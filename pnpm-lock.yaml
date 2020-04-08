@@ -40,6 +40,7 @@ importers:
       verdaccio: 4.5.1
   packages/audit:
     dependencies:
+      '@pnpm/error': 'link:../error'
       '@pnpm/fetch': 'link:../fetch'
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/lockfile-utils': 'link:../lockfile-utils'
@@ -50,6 +51,7 @@ importers:
       '@pnpm/lockfile-file': 'link:../lockfile-file'
     specifiers:
       '@pnpm/audit': 'link:'
+      '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/fetch': 'workspace:1.0.3'
       '@pnpm/lockfile-file': 'workspace:3.0.7'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
