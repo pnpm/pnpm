@@ -25,7 +25,7 @@ export default async function audit (
     retry: opts.retry,
   })
   if (res.status !== 200) {
-    throw new PnpmError('AUDIT_SERVER_ERROR', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
+    throw new PnpmError('AUDIT_BAD_RESPONSE', `The audit endpoint (at ${auditUrl}) responded with ${res.status}: ${await res.text()}`)
   }
   return res.json() as Promise<AuditReport>
 }

@@ -93,7 +93,7 @@ test('an error is thrown if the audit endpoint responds with a non-OK code', asy
   }
 
   t.ok(err)
-  t.equal(err.code, 'ERR_PNPM_AUDIT_SERVER_ERROR')
+  t.equal(err.code, 'ERR_PNPM_AUDIT_BAD_RESPONSE')
   t.equal(err.message, 'The audit endpoint (at http://registry.registry/-/npm/v1/security/audits) responded with 500: {"message":"Something bad happened"}')
   t.end()
 })
