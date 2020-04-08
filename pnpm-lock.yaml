@@ -49,6 +49,7 @@ importers:
     devDependencies:
       '@pnpm/audit': 'link:'
       '@pnpm/lockfile-file': 'link:../lockfile-file'
+      nock: 12.0.3
     specifiers:
       '@pnpm/audit': 'link:'
       '@pnpm/error': 'workspace:1.2.0'
@@ -58,6 +59,7 @@ importers:
       '@pnpm/lockfile-utils': 'workspace:2.0.9'
       '@pnpm/lockfile-walker': 'workspace:2.0.1'
       '@pnpm/types': 'workspace:5.0.0'
+      nock: 12.0.3
   packages/build-modules:
     dependencies:
       '@pnpm/constants': 'link:../constants'
