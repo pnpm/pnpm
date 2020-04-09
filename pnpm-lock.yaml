@@ -246,7 +246,7 @@ importers:
       pretty-time: 1.1.0
       ramda: 0.27.0
       right-pad: 1.0.1
-      semver: 7.2.1
+      semver: ^7.2.1
       stacktracey: 1.2.127
       string-length: 4.0.1
       strip-ansi: 6.0.0
@@ -317,7 +317,7 @@ importers:
       '@types/semver': ^7.1.0
       dependency-path: 'link:'
       encode-registry: 2.0.2
-      semver: 7.2.1
+      semver: ^7.2.1
   packages/error:
     specifiers: {}
   packages/fetch:
@@ -537,7 +537,7 @@ importers:
       graceful-git: 3.0.1
       hosted-git-info: 3.0.4
       is-windows: 1.0.2
-      semver: 7.2.1
+      semver: ^7.2.1
   packages/headless:
     dependencies:
       '@pnpm/build-modules': 'link:../build-modules'
@@ -795,7 +795,7 @@ importers:
       dependencies-hierarchy: 'workspace:8.0.18'
       p-limit: 2.3.0
       ramda: 0.27.0
-      semver: 7.2.1
+      semver: ^7.2.1
   packages/local-resolver:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -1069,7 +1069,7 @@ importers:
       p-memoize: 4.0.0
       parse-npm-tarball-url: 3.0.0
       path-exists: 4.0.0
-      semver: 7.2.1
+      semver: ^7.2.1
       ssri: 6.0.1
       tempy: 0.5.0
       version-selector-type: 2.0.1
@@ -1121,7 +1121,7 @@ importers:
       lru-cache: 5.1.1
       npm-run-all: 4.1.5
       ramda: 0.27.0
-      semver: 7.2.1
+      semver: ^7.2.1
   packages/package-bins:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -1159,7 +1159,7 @@ importers:
       '@pnpm/package-is-installable': 'link:'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/semver': ^7.1.0
-      semver: 7.2.1
+      semver: ^7.2.1
   packages/package-requester:
     dependencies:
       '@pnpm/check-package': 3.0.1
@@ -1837,7 +1837,7 @@ importers:
       read-ini-file: 3.0.0
       render-help: 1.0.0
       run-groups: 2.0.3
-      semver: 7.2.1
+      semver: ^7.2.1
       sinon: 9.0.2
       write-yaml-file: 4.0.0
   packages/plugin-commands-script-runners:
@@ -2198,7 +2198,7 @@ importers:
       read-yaml-file: 2.0.0
       render-help: 1.0.0
       retry: 0.12.0
-      semver: 7.2.1
+      semver: ^7.2.1
       split-cmd: 1.0.1
       symlink-dir: 3.1.2
       tape-promise: 4.0.0
@@ -2365,7 +2365,7 @@ importers:
       path-exists: 4.0.0
       ramda: 0.27.0
       replace-string: 3.0.0
-      semver: 7.2.1
+      semver: ^7.2.1
   packages/resolve-workspace-range:
     dependencies:
       semver: 7.2.1
@@ -2375,7 +2375,7 @@ importers:
     specifiers:
       '@pnpm/resolve-workspace-range': 'link:'
       '@types/semver': ^7.1.0
-      semver: 7.2.1
+      semver: ^7.2.1
   packages/resolver-base:
     dependencies:
       '@pnpm/types': 'link:../types'
@@ -2687,7 +2687,7 @@ importers:
       read-yaml-file: 2.0.0
       resolve-link-target: 1.0.1
       run-groups: 2.0.3
-      semver: 7.2.1
+      semver: ^7.2.1
       semver-utils: 1.1.4
       sinon: 9.0.2
       supi: 'link:'

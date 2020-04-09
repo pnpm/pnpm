@@ -24,7 +24,7 @@
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
   },
   "dependencies": {
-    "semver": "7.2.1"
+    "semver": "^7.2.1"
   },
   "devDependencies": {
     "@pnpm/resolve-workspace-range": "link:",
