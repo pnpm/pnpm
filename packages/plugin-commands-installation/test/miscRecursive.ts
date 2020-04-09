@@ -1,10 +1,12 @@
 import PnpmError from '@pnpm/error'
 import { readProjects } from '@pnpm/filter-workspace-packages'
+import { Lockfile } from '@pnpm/lockfile-types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
 import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import test = require('tape')
 import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
@@ -541,6 +543,44 @@ test('installing with "workspace=true" should work even if link-workspace-packag
   }
 
   await projects['project-1'].has('project-2')
+
+  t.end()
+})
+
+test('recursive install on workspace with custom lockfile-dir', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const lockfileDir = path.resolve('_')
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    lockfileDir,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = await readYamlFile<Lockfile>(path.join(lockfileDir, 'pnpm-lock.yaml'))
+  t.deepEqual(Object.keys(lockfile.importers), ['../project-1', '../project-2'])
 
   t.end()
 })
