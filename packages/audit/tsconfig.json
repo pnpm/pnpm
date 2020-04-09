@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../error"
+    },
+    {
       "path": "../lockfile-types"
     },
     {
