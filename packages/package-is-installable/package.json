@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-is-installable",
-  "version": "4.0.6",
+  "version": "4.0.7",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "description": "Checks if a package is installable on the current system",
   "main": "lib/index.js",

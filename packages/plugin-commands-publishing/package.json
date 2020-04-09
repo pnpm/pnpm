@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-publishing",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "The pack and publish commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-publishing#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:2.0.11",
+    "@pnpm/filter-workspace-packages": "workspace:2.0.12",
     "@pnpm/plugin-commands-publishing": "link:",
     "@pnpm/prepare": "workspace:0.0.0",
     "@types/cross-spawn": "^6.0.1",
@@ -52,16 +52,16 @@
     "write-yaml-file": "4.0.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.1",
-    "@pnpm/config": "workspace:8.2.0",
+    "@pnpm/cli-utils": "workspace:0.4.2",
+    "@pnpm/config": "workspace:8.2.1",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lifecycle": "workspace:8.1.1",
-    "@pnpm/npm-resolver": "workspace:7.3.8",
+    "@pnpm/npm-resolver": "workspace:7.3.9",
     "@pnpm/pick-registry-for-package": "workspace:1.0.0",
     "@pnpm/read-project-manifest": "workspace:1.0.4",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/run-npm": "workspace:2.0.1",
-    "@pnpm/sort-packages": "workspace:1.0.7",
+    "@pnpm/sort-packages": "workspace:1.0.8",
     "@pnpm/store-path": "2.1.1",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "8.0.14",
+  "version": "8.0.15",
   "description": "Exports util functions to clean up node_modules",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
@@ -28,16 +28,16 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",
-    "@pnpm/filter-lockfile": "workspace:3.2.0",
+    "@pnpm/filter-lockfile": "workspace:3.2.1",
     "@pnpm/lockfile-types": "workspace:2.0.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.9",
+    "@pnpm/lockfile-utils": "workspace:2.0.10",
     "@pnpm/package-bins": "workspace:4.0.3",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.1.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
-    "dependency-path": "workspace:4.0.5",
+    "dependency-path": "workspace:4.0.6",
     "fs-vacuum": "1.2.10",
     "is-windows": "1.0.2",
     "ramda": "0.27.0"
