@@ -2872,12 +2872,12 @@ importers:
       '@commitlint/cli': 8.3.5
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.5
-      husky: 4.2.4
+      husky: 4.2.5
     specifiers:
       '@commitlint/cli': 8.3.5
       '@commitlint/config-conventional': 8.3.4
       '@commitlint/prompt-cli': 8.3.5
-      husky: 4.2.4
+      husky: ^4.2.5
   typings:
     specifiers: {}
   utils/tsconfig:
@@ -4764,6 +4764,7 @@ packages:
     dependencies:
       ansi-styles: 4.2.1
       supports-color: 7.1.0
+    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -4772,7 +4773,6 @@ packages:
     dependencies:
       ansi-styles: 4.2.1
       supports-color: 7.1.0
-    dev: false
     engines:
       node: '>=10'
     resolution:
@@ -6885,9 +6885,9 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
-  /husky/4.2.4:
+  /husky/4.2.5:
     dependencies:
-      chalk: 3.0.0
+      chalk: 4.0.0
       ci-info: 2.0.0
       compare-versions: 3.6.0
       cosmiconfig: 6.0.0
@@ -6903,7 +6903,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-aLUw3YxdljMuu57SQvSGW33/Dbsztis7UZRAx1WHC13O4Lv0wa9oHaeobSMOBI/nGiVRbCJBGj263WUxaw2p2Q==
+      integrity: sha512-SYZ95AjKcX7goYVZtVZF2i6XiZcHknw50iXvY7b0MiGoj5RwdgRQNEHdb+gPDPCXKlzwrybjFjkL6FOj8uRhZQ==
   /iconv-lite/0.4.24:
     dependencies:
       safer-buffer: 2.1.2
