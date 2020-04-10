@@ -53,6 +53,7 @@ export const types = Object.assign({
   'lockfile-directory': String, // TODO: deprecate
   'lockfile-only': Boolean,
   'loglevel': ['silent', 'error', 'warn', 'info', 'debug'],
+  'modules-dir': String,
   'network-concurrency': Number,
   'npm-path': String,
   'offline': Boolean,

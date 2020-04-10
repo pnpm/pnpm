@@ -125,6 +125,10 @@ export function help () {
             name: '--lockfile-dir <dir>',
           },
           {
+            description: 'Allows to install dependencies to a directory other than node_modules',
+            name: '--modules-dir <dir>',
+          },
+          {
             description: 'Dependencies inside node_modules have access only to their listed dependencies',
             name: '--no-hoist',
           },

@@ -219,6 +219,7 @@ export async function mutateModules (
             include: opts.include,
             independentLeaves: opts.independentLeaves,
             lockfileDir: ctx.lockfileDir,
+            modulesDir: opts.modulesDir,
             ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
             packageManager:  opts.packageManager,
             pendingBuilds: ctx.pendingBuilds,

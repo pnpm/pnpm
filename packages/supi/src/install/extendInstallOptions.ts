@@ -32,6 +32,7 @@ export interface StrictInstallOptions {
   depth: number,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
   lockfileDir: string,
+  modulesDir: string,
   rawConfig: object,
   verifyStoreIntegrity: boolean,
   engineStrict: boolean,
