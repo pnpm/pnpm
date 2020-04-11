@@ -254,7 +254,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
         rootDir: lockfileDir,
       },
     ],
-    lockfileDir,
+    { lockfileDir },
   )
 
   await headless(await testDefaults({
@@ -743,7 +743,7 @@ test('using side effects cache and hoistPattern=*', async (t) => {
         rootDir: lockfileDir,
       },
     ],
-    lockfileDir,
+    { lockfileDir },
   )
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -788,7 +788,7 @@ test('installing in a workspace', async (t) => {
         rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
-    workspaceFixture,
+    { lockfileDir: workspaceFixture },
   )
 
   projects = await Promise.all(
@@ -831,7 +831,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
         rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
-    workspaceFixture,
+    { lockfileDir: workspaceFixture },
   )
 
   await headless(await testDefaults({
