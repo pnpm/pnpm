@@ -7,6 +7,7 @@ import realpathMissing = require('realpath-missing')
 
 export interface ProjectOptions {
   binsDir?: string,
+  modulesDir?: string,
   rootDir: string,
 }
 
@@ -22,7 +23,6 @@ export default async function <T>(
   hoistedAliases: { [depPath: string]: string[] },
   projects: Array<{
     id: string,
-    modulesDir: string,
   } & T & Required<ProjectOptions>>,
   include: Record<DependenciesField, boolean>,
   independentLeaves: boolean | undefined,
@@ -46,7 +46,7 @@ export default async function <T>(
     pendingBuilds: modules?.pendingBuilds || [],
     projects: await Promise.all(
       projects.map(async (project) => {
-        const modulesDir = await realpathMissing(path.join(project.rootDir, relativeModulesDir))
+        const modulesDir = await realpathMissing(path.join(project.rootDir, project.modulesDir ?? relativeModulesDir))
         const importerId = getLockfileImporterId(opts.lockfileDir, project.rootDir)
 
         return {

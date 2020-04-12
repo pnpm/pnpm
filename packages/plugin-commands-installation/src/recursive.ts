@@ -47,6 +47,7 @@ type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
   'linkWorkspacePackages' |
   'lockfileDir' |
   'lockfileOnly' |
+  'modulesDir' |
   'pnpmfile' |
   'rawLocalConfig' |
   'registries' |
@@ -179,6 +180,7 @@ export default async function recursive (
     const mutatedImporters = [] as MutatedProject[]
     await Promise.all(importers.map(async ({ buildIndex, rootDir }) => {
       const localConfig = await memReadLocalConfig(rootDir)
+      const modulesDir = localConfig.modulesDir ?? opts.modulesDir
       const { manifest, writeProjectManifest } = manifestsByPath[rootDir]
       let currentInput = [...params]
       if (updateMatch) {
@@ -212,6 +214,7 @@ export default async function recursive (
           mutatedImporters.push({
             dependencyNames: currentInput,
             manifest,
+            modulesDir,
             mutation,
             rootDir,
             targetDependenciesField,
@@ -222,6 +225,7 @@ export default async function recursive (
             allowNew: cmdFullName === 'install' || cmdFullName === 'add',
             dependencySelectors: currentInput,
             manifest,
+            modulesDir,
             mutation,
             peer: opts.savePeer,
             pinnedVersion: getPinnedVersion({
@@ -236,6 +240,7 @@ export default async function recursive (
           mutatedImporters.push({
             buildIndex,
             manifest,
+            modulesDir,
             mutation,
             rootDir,
           } as MutatedProject)

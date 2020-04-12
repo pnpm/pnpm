@@ -76,10 +76,12 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
       return require(path.join(modules, pkgName))
     },
     async has (pkgName: string, _modulesDir?: string) {
-      t.ok(await exists(path.join(_modulesDir ?? modules, pkgName)), `${pkgName} is in node_modules`)
+      const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
+      t.ok(await exists(path.join(md, pkgName)), `${pkgName} is in ${md}`)
     },
-    async hasNot (pkgName: string, modulesDir?: string) {
-      t.notOk(await exists(path.join(modules ?? modulesDir, pkgName)), `${pkgName} is not in node_modules`)
+    async hasNot (pkgName: string, _modulesDir?: string) {
+      const md = _modulesDir ? path.join(projectPath, _modulesDir) : modules
+      t.notOk(await exists(path.join(md, pkgName)), `${pkgName} is not in ${md}`)
     },
     async getStorePath () {
       const store = await getStoreInstance()

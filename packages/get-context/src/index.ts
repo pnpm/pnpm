@@ -50,6 +50,7 @@ export interface PnpmContext<T> {
 export interface ProjectOptions {
   binsDir?: string,
   manifest: ProjectManifest,
+  modulesDir?: string,
   rootDir: string,
 }
 
