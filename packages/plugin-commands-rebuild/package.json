@@ -72,7 +72,7 @@
     "dependency-path": "workspace:4.0.6",
     "graph-sequencer": "2.0.0",
     "load-json-file": "6.2.0",
-    "mem": "6.0.1",
+    "mem": "^6.1.0",
     "p-limit": "2.3.0",
     "ramda": "0.27.0",
     "read-ini-file": "3.0.0",

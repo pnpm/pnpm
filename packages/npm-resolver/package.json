@@ -42,7 +42,7 @@
     "encode-registry": "2.0.2",
     "fetch-from-npm-registry": "workspace:4.0.2",
     "load-json-file": "6.2.0",
-    "mem": "6.0.1",
+    "mem": "^6.1.0",
     "normalize-path": "3.0.0",
     "p-limit": "2.3.0",
     "p-memoize": "4.0.0",
