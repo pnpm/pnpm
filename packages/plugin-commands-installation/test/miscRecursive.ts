@@ -584,3 +584,41 @@ test('recursive install on workspace with custom lockfile-dir', async (t) => {
 
   t.end()
 })
+
+test('recursive install in a monorepo with different modules directories', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+  await fs.writeFile('project-1/.npmrc', 'modules-dir=modules_1', 'utf8')
+  await fs.writeFile('project-2/.npmrc', 'modules-dir=modules_2', 'utf8')
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await projects['project-1'].has('is-positive', 'modules_1')
+  await projects['project-2'].has('is-positive', 'modules_2')
+
+  t.end()
+})
