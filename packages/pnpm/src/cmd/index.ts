@@ -33,6 +33,7 @@ export const GLOBAL_OPTIONS = R.pick([
   'help',
   'parseable',
   'prefix',
+  'reporter',
 ], allTypes)
 
 export type Command = (
