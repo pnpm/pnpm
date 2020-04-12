@@ -1,5 +1,6 @@
 import { RecursiveSummary, throwOnCommandFail } from '@pnpm/cli-utils'
 import { Config, types } from '@pnpm/config'
+import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import execa = require('execa')
@@ -37,9 +38,12 @@ export async function handler (
     rawConfig: object,
     sort?: boolean,
     workspaceConcurrency?: number,
-  },
+  } & Pick<Config, 'recursive'>,
   params: string[],
 ) {
+  if (!opts.recursive) {
+    throw new PnpmError('EXEC_NOT_RECURSIVE', 'The "pnpm exec" command currently only works with the "-r" option')
+  }
   const limitRun = pLimit(opts.workspaceConcurrency ?? 4)
 
   const result = {
