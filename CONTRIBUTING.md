@@ -17,9 +17,9 @@
 
 ## Setting Up the Environment
 
-1. Run `pnpm recursive install` in the root of the repository to install all dependencies.
-2. For compiling all packages in the repo, run `pnpm recursive run tsc` or `npm run build` in the root of the repo.
-3. To run tests, run `pnpm test` in the root of the repo.
+1. Run `pnpm install` in the root of the repository to install all dependencies.
+2. For compiling all projects, run `pnpm run compile` in the root of the repository. To run a task that will recompile the projects on change, run `pnpm run watch`.
+3. In order to run all the tests in the repository, run `pnpm run test-master`. You may also run tests of specific projects by running `pnpm test` inside a project's directory or using `pnpm --filter <project name> test`.
 
 ## Submitting a Pull Request (PR)
 
