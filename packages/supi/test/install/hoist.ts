@@ -169,7 +169,7 @@ test('hoistPattern=* throws exception when executed on node_modules installed w/
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_HOISTING_NOT_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This "node_modules" folder was created without the --hoist-pattern option.') === 0)
+    t.ok(err.message.indexOf('This modules directory was created without the --hoist-pattern option.') === 0)
   }
 })
 
@@ -187,7 +187,7 @@ test('hoistPattern=undefined throws exception when executed on node_modules inst
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_HOISTING_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This "node_modules" folder was created using the --hoist-pattern option.') === 0)
+    t.ok(err.message.indexOf('This modules directory was created using the --hoist-pattern option.') === 0)
   }
 
   // Instatll doesn't fail if the value of hoistPattern isn't forced
