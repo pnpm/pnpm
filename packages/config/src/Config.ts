@@ -110,6 +110,7 @@ export interface Config {
   sort: boolean,
   strictPeerDependencies: boolean,
   lockfileDir?: string,
+  modulesDir?: string,
   sharedWorkspaceLockfile?: boolean,
   useLockfile: boolean,
   resolutionStrategy: 'fast' | 'fewer-dependencies',

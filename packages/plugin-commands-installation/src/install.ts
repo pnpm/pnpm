@@ -121,11 +121,15 @@ export function help () {
             name: '--prefer-frozen-lockfile',
           },
           {
-            description: `The directory in which the ${WANTED_LOCKFILE} of the package will be created. Several projects may share a single lockfile`,
+            description: `The directory in which the ${WANTED_LOCKFILE} of the package will be created. Several projects may share a single lockfile.`,
             name: '--lockfile-dir <dir>',
           },
           {
-            description: 'Dependencies inside node_modules have access only to their listed dependencies',
+            description: 'The directory in which dependencies will be installed (instead of node_modules)',
+            name: '--modules-dir <dir>',
+          },
+          {
+            description: 'Dependencies inside the modules directory will have access only to their listed dependencies',
             name: '--no-hoist',
           },
           {

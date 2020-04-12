@@ -32,7 +32,7 @@ export default async function testDefaults (
         rootDir: lockfileDir,
       },
     ],
-    lockfileDir,
+    { lockfileDir },
   )
   storeDir = await storePath(lockfileDir, storeDir)
   const rawConfig = { registry }

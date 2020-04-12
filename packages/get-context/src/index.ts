@@ -50,6 +50,7 @@ export interface PnpmContext<T> {
 export interface ProjectOptions {
   binsDir?: string,
   manifest: ProjectManifest,
+  modulesDir?: string,
   rootDir: string,
 }
 
@@ -61,6 +62,7 @@ export default async function getContext<T> (
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDir: string,
+    modulesDir?: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -80,8 +82,9 @@ export default async function getContext<T> (
     forceShamefullyHoist?: boolean,
   },
 ): Promise<PnpmContext<T>> {
-  let importersContext = await readProjectsContext(projects, opts.lockfileDir)
-  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
+  const modulesDir = opts.modulesDir ?? 'node_modules'
+  let importersContext = await readProjectsContext(projects, { lockfileDir: opts.lockfileDir, modulesDir })
+  const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
   if (importersContext.modules) {
     const { purged } = await validateNodeModules(importersContext.modules, importersContext.projects, {
@@ -89,6 +92,7 @@ export default async function getContext<T> (
       forceNewNodeModules: opts.forceNewNodeModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
+      modulesDir,
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
@@ -103,7 +107,10 @@ export default async function getContext<T> (
       shamefullyHoist: opts.shamefullyHoist,
     })
     if (purged) {
-      importersContext = await readProjectsContext(projects, opts.lockfileDir)
+      importersContext = await readProjectsContext(projects, {
+        lockfileDir: opts.lockfileDir,
+        modulesDir,
+      })
     }
   }
 
@@ -177,6 +184,7 @@ async function validateNodeModules (
     forceNewNodeModules: boolean,
     include?: IncludedDependencies,
     lockfileDir: string,
+    modulesDir: string,
     registries: Registries,
     storeDir: string,
     virtualStoreDir: string,
@@ -200,14 +208,14 @@ async function validateNodeModules (
     if (modules.shamefullyHoist) {
       throw new PnpmError(
         'SHAMEFULLY_HOIST_WANTED',
-        'This "node_modules" folder was created using the --shamefully-hoist option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the "node_modules" folder.',
+        'This modules directory was created using the --shamefully-hoist option.'
+        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.',
       )
     }
     throw new PnpmError(
       'SHAMEFULLY_HOIST_NOT_WANTED',
-      'This "node_modules" folder was created without the --shamefully-hoist option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the "node_modules" folder.',
+      'This modules directory was created without the --shamefully-hoist option.'
+      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.',
     )
   }
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
@@ -215,7 +223,7 @@ async function validateNodeModules (
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       if (!rootProject) {
         await purgeModulesDirsOfImporter({
-          modulesDir: path.join(opts.lockfileDir, 'node_modules'),
+          modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
           rootDir: opts.lockfileDir,
         })
       }
@@ -224,14 +232,14 @@ async function validateNodeModules (
     if (modules.independentLeaves) {
       throw new PnpmError(
         'INDEPENDENT_LEAVES_WANTED',
-        'This "node_modules" folder was created using the --independent-leaves option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the "node_modules" folder.',
+        'This modules directory was created using the --independent-leaves option.'
+        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.',
       )
     }
     throw new PnpmError(
       'INDEPENDENT_LEAVES_NOT_WANTED',
-      'This "node_modules" folder was created without the --independent-leaves option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the "node_modules" folder.',
+      'This modules directory was created without the --independent-leaves option.'
+      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.',
     )
   }
   let purged = false
@@ -241,14 +249,14 @@ async function validateNodeModules (
         if (opts.currentHoistPattern) {
           throw new PnpmError(
             'HOISTING_WANTED',
-            'This "node_modules" folder was created using the --hoist-pattern option.'
-            + ' You must add this option, or else add the --force option to recreate the "node_modules" folder.',
+            'This modules directory was created using the --hoist-pattern option.'
+            + ' You must add this option, or else add the --force option to recreate the modules directory.',
           )
         }
         throw new PnpmError(
           'HOISTING_NOT_WANTED',
-          'This "node_modules" folder was created without the --hoist-pattern option.'
-          + ' You must remove that option, or else run "pnpm install" to recreate the "node_modules" folder.',
+          'This modules directory was created without the --hoist-pattern option.'
+          + ' You must remove that option, or else run "pnpm install" to recreate the modules directory.',
         )
       }
     } catch (err) {
@@ -268,7 +276,7 @@ async function validateNodeModules (
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('INCLUDED_DEPS_CONFLICT',
-              `node_modules (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
+              `modules directory (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
               `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
             )
           }
@@ -285,11 +293,11 @@ async function validateNodeModules (
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       return { purged: true }
     }
-    throw new PnpmError('REGISTRIES_MISMATCH', `This "node_modules" directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate "node_modules" using the new settings, run "pnpm install".`)
+    throw new PnpmError('REGISTRIES_MISMATCH', `This modules directory was created using the following registries configuration: ${JSON.stringify(modules.registries)}. The current configuration is ${JSON.stringify(opts.registries)}. To recreate recreate the modules directory using the new settings, run "pnpm install".`)
   }
   if (purged && !rootProject) {
     await purgeModulesDirsOfImporter({
-      modulesDir: path.join(opts.lockfileDir, 'node_modules'),
+      modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
       rootDir: opts.lockfileDir,
     })
   }
@@ -351,6 +359,7 @@ export async function getContextForSingleImporter (
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDir: string,
+    modulesDir?: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -390,7 +399,10 @@ export async function getContextForSingleImporter (
         rootDir: opts.dir,
       },
     ],
-    opts.lockfileDir,
+    {
+      lockfileDir: opts.lockfileDir,
+      modulesDir: opts.modulesDir,
+    },
   )
 
   const storeDir = opts.storeDir
@@ -406,6 +418,7 @@ export async function getContextForSingleImporter (
       forceNewNodeModules: opts.forceNewNodeModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
+      modulesDir: opts.modulesDir ?? 'node_modules',
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
