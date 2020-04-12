@@ -86,6 +86,7 @@ export const types = Object.assign({
   'verify-store-integrity': Boolean,
   'virtual-store-dir': String,
   'workspace-concurrency': Number,
+  'workspace-packages': [String, Array],
 }, npmTypes.types)
 
 export type CliOptions = Record<string, unknown> & { dir?: string }

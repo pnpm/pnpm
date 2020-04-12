@@ -34,6 +34,7 @@ export const GLOBAL_OPTIONS = R.pick([
   'parseable',
   'prefix',
   'reporter',
+  'workspace-packages',
 ], allTypes)
 
 export type Command = (

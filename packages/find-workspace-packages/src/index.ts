@@ -9,16 +9,23 @@ export { Project }
 
 export default async (
   workspaceRoot: string,
-  opts?: { engineStrict?: boolean },
+  opts?: {
+    engineStrict?: boolean,
+    patterns?: string[],
+  },
 ) => {
-  const packagesManifest = await requirePackagesManifest(workspaceRoot)
+  let patterns = opts?.patterns
+  if (!patterns) {
+    const packagesManifest = await requirePackagesManifest(workspaceRoot)
+    patterns = packagesManifest?.packages ?? undefined
+  }
   const pkgs = await findPackages(workspaceRoot, {
     ignore: [
       '**/node_modules/**',
       '**/bower_components/**',
     ],
     includeRoot: true,
-    patterns: packagesManifest?.packages || undefined,
+    patterns,
   })
   pkgs.sort((pkg1: {dir: string}, pkg2: {dir: string}) => pkg1.dir.localeCompare(pkg2.dir))
   for (const pkg of pkgs) {

@@ -397,3 +397,38 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
     await project.has('is-negative')
   }
 })
+
+test('--workspace-packages', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      location: 'project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  const storeDir = path.resolve('../store')
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  await execPnpm(['install', '--store-dir', storeDir, '--workspace-packages', 'project-1'])
+
+  await projects['project-1'].has('is-positive')
+  await projects['project-2'].hasNot('is-positive')
+})

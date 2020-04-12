@@ -130,7 +130,10 @@ export default async function run (inputArgv: string[]) {
 
   if (cliOptions['recursive']) {
     const wsDir = workspaceDir ?? process.cwd()
-    const allProjects = await findWorkspacePackages(wsDir, config)
+    const allProjects = await findWorkspacePackages(wsDir, {
+      engineStrict: config.engineStrict,
+      patterns: cliOptions['workspace-packages'],
+    })
 
     if (!allProjects.length) {
       if (!config['parseable']) {
