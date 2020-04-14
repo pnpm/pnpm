@@ -128,7 +128,7 @@ export default async (
   } catch (err) {
     const meta = await loadMeta(pkgMirror, ctx.metaFileName) // TODO: add test for this usecase
     if (!meta) throw err
-    logger.error(err)
+    logger.error(err, err)
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
     return {
       meta,

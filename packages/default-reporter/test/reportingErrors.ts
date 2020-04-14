@@ -332,6 +332,28 @@ test('prints unsupported pnpm and Node versions error', async (t) => {
   logger.error(err, err)
 })
 
+test('prints error even if the error object not passed in through the message object', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  const err = new PnpmError('SOME_ERROR', 'some error')
+  logger.error(err)
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, ERROR + ' ' + stripIndents`
+        ${chalk.red('some error')}
+      `)
+    },
+  })
+})
+
 test('prints error without packages stacktrace when pkgsStack is empty', t => {
   const output$ = toOutput$({
     context: { argv: ['install'] },

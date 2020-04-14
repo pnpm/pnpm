@@ -51,6 +51,7 @@ export default function reportError (logObj: Log) {
           return formatGenericError(err.message ?? logObj['message'], err.stack)
         }
         let errorOutput = formatErrorSummary(err.message)
+        if (!logObj['message']) return errorOutput
         if (logObj['message']['pkgsStack']?.length) {
           errorOutput += `${EOL}${formatPkgsStack(logObj['message']['pkgsStack'])}`
         }
