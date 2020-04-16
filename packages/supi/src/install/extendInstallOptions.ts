@@ -29,6 +29,7 @@ export interface StrictInstallOptions {
   reporter: ReporterFunction,
   force: boolean,
   update: boolean,
+  updatePackageManifest: boolean,
   depth: number,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
   lockfileDir: string,
@@ -138,6 +139,7 @@ const defaults = async (opts: InstallOptions) => {
         process.getgid && process.setgid) ||
       process.getuid() !== 0,
     update: false,
+    updatePackageManifest: true,
     useLockfile: true,
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     verifyStoreIntegrity: true,
