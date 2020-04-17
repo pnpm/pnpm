@@ -296,7 +296,7 @@ export async function mutateModules (
         case 'installSome': {
           await installSome({
             ...project,
-            updatePackageManifest: true,
+            updatePackageManifest: opts.updatePackageManifest,
           })
           break
         }

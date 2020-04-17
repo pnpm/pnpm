@@ -234,5 +234,6 @@ async function update (
     allowNew: false,
     includeDirect,
     update: true,
+    updatePackageManifest: opts.save !== false,
   }, dependencies)
 }
