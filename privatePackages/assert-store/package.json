@@ -43,7 +43,9 @@
     "test": "pnpm run tsc && ts-node test"
   },
   "dependencies": {
-    "@pnpm/assert-store": "link:",
     "path-exists": "4.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/assert-store": "link:"
   }
 }
