@@ -12,7 +12,7 @@ importers:
       lcov-result-merger: 3.1.0
       npm: 6.14.4
       npm-run-all: 4.1.5
-      publish-packed: 3.0.0-0
+      publish-packed: 3.0.1
       rimraf: 3.0.2
       tape: 4.13.2
       ts-node: 8.8.2_typescript@3.8.3
@@ -31,7 +31,7 @@ importers:
       lcov-result-merger: 3.1.0
       npm: 6.14.4
       npm-run-all: 4.1.5
-      publish-packed: 3.0.0-0
+      publish-packed: 3.0.1
       rimraf: 3.0.2
       tape: 4.13.2
       ts-node: 8.8.2
@@ -8639,7 +8639,7 @@ packages:
   /normalize-package-data/2.5.0:
     dependencies:
       hosted-git-info: 2.8.8
-      resolve: 1.16.0
+      resolve: 1.16.1
       semver: 5.7.1
       validate-npm-package-license: 3.0.4
     resolution:
@@ -9670,10 +9670,8 @@ packages:
   /psl/1.8.0:
     resolution:
       integrity: sha512-RIdOzyoavK+hA18OGGWDqUTsCLhtA7IcZ/6NCs4fFJaHBDab+pDDmDIByWFRQJq2Cd7r1OoQxBGKOaztq+hjIQ==
-  /publish-packed/3.0.0-0:
+  /publish-packed/3.0.1:
     dependencies:
-      '@types/fs-extra': 8.1.0
-      '@types/node': 13.11.1
       all-module-paths: 0.10.7
       execa: 4.0.0
       fs-extra: 9.0.0
@@ -9688,7 +9686,7 @@ packages:
       node: '>=10'
     hasBin: true
     resolution:
-      integrity: sha512-ivwtc3fv7u5bxklyfTfnB7WWzRL3mXEpe2A6s8HZopPEmU14uKwQAQklH7IOIyZSR1UBfY4FW9Hkjct5MrlGiw==
+      integrity: sha512-PLPmUuAGV0rjjdEbjpUVWQwFM9r17SgIv9gDwx44zmqCdBSEXcYIYqLf5MrM8veUbqyVBGVhHTvT78/Y/eteIA==
   /pump/2.0.1:
     dependencies:
       end-of-stream: 1.4.4
@@ -10245,11 +10243,11 @@ packages:
     dev: true
     resolution:
       integrity: sha512-84oo6ZTtoTUpjgNEr5SJyzQhzL72gaRodsSfyxC/AXRvwu0Yse9H8eF9IpGo7b8YetZhlI6v7ZQ6bKBFV/6S7w==
-  /resolve/1.16.0:
+  /resolve/1.16.1:
     dependencies:
       path-parse: 1.0.6
     resolution:
-      integrity: sha512-LarL/PIKJvc09k1jaeT4kQb/8/7P+qV4qSnN2K80AES+OHdfZELAKVOBjxsvtToT/uLOfFbvYvKfZmV8cee7nA==
+      integrity: sha512-rmAglCSqWWMrrBv/XM6sW0NuRFiKViw/W4d9EbC4pt+49H8JwHy+mcGmALTEg504AUDcLTvb1T2q3E9AnmY+ig==
   /responselike/1.0.2:
     dependencies:
       lowercase-keys: 1.0.1
