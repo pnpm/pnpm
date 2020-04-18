@@ -28,6 +28,7 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'network-concurrency',
     'npmPath',
     'package-import-method',
     'pnpmfile',

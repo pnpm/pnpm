@@ -29,6 +29,7 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'network-concurrency',
     'package-import-method',
     'pnpmfile',
     'prefer-frozen-lockfile',

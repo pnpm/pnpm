@@ -31,6 +31,7 @@ export function rcOptionsTypes () {
     'lockfile-directory',
     'lockfile-only',
     'lockfile',
+    'network-concurrency',
     'npmPath',
     'offline',
     'only',
