@@ -50,7 +50,7 @@
     "dependency-path": "workspace:4.0.6",
     "lru-cache": "5.1.1",
     "ramda": "0.27.0",
-    "semver": "^7.2.1"
+    "semver": "^7.3.2"
   },
   "devDependencies": {
     "@pnpm/logger": "3.2.2",

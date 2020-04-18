@@ -78,7 +78,7 @@
     "read-ini-file": "3.0.0",
     "render-help": "1.0.0",
     "run-groups": "2.0.3",
-    "semver": "^7.2.1"
+    "semver": "^7.3.2"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"

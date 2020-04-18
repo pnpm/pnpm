@@ -16,7 +16,7 @@
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/tslint-config": "workspace:*",
     "@types/node": "*",
-    "@types/tape": "^4.2.34",
+    "@types/tape": "^4.13.0",
     "c8": "7.1.0",
     "coveralls": "3.0.11",
     "cross-env": "7.0.2",
