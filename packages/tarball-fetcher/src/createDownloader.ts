@@ -179,7 +179,7 @@ export default (
         const tempTarballLocation = pathTemp(saveToDir)
         const writeStream = fs.createWriteStream(tempTarballLocation)
 
-        return await new Promise<FetchResult>((resolve, reject) => {
+        return await new Promise<FetchResult>(async (resolve, reject) => {
           const stream = res.body
             .on('error', reject)
             .pipe(writeStream)
@@ -187,15 +187,15 @@ export default (
 
           const tempLocation = pathTemp(opts.unpackTo)
           const ignore = gotOpts.fsIsCaseSensitive ? opts.ignore : createIgnorer(url, opts.ignore)
-          Promise.all([
-            opts.integrity && safeCheckStream(res.body, opts.integrity, url) || true,
-            unpackStream.local(res.body, tempLocation, {
-              generateIntegrity: opts.generatePackageIntegrity,
-              ignore,
-            }),
-            waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
-          ])
-          .then(([integrityCheckResult, filesIndex]) => {
+          try {
+            const [integrityCheckResult, filesIndex] = await Promise.all([
+              opts.integrity && safeCheckStream(res.body, opts.integrity, url) || true,
+              unpackStream.local(res.body, tempLocation, {
+                generateIntegrity: opts.generatePackageIntegrity,
+                ignore,
+              }),
+              waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
+            ])
             if (integrityCheckResult !== true) {
               throw integrityCheckResult
             }
@@ -203,8 +203,7 @@ export default (
               // ignore errors
             })
             resolve({ tempLocation, filesIndex: filesIndex as FilesIndex })
-          })
-          .catch((err) => {
+          } catch (err) {
             rimraf(tempTarballLocation, () => {
               // ignore errors
             })
@@ -213,7 +212,7 @@ export default (
               // A redundant stage folder won't break anything
             })
             reject(err)
-          })
+          }
         })
       } catch (err) {
         err.attempts = currentAttempt
