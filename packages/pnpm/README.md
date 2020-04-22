@@ -19,7 +19,7 @@ Features:
 * **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
-* **Works everywhere.** Works on Windows, Linux and OS X.
+* **Works everywhere.** Works on Windows, Linux, and OS X.
 
 Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
 
