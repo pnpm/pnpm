@@ -140,6 +140,7 @@ export function toOutput$ (
           scopePushStream.next(log)
           break
         case 'pnpm' as any: // tslint:disable-line
+        case 'pnpm:global' as any: // tslint:disable-line
         case 'pnpm:store' as any: // tslint:disable-line
         case 'pnpm:lockfile' as any: // tslint:disable-line
           otherPushStream.next(log)
