@@ -3,6 +3,7 @@ import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { ProjectManifest } from '@pnpm/types'
 import isSubdir = require('is-subdir')
 import loadJsonFile = require('load-json-file')
+import normalizePath = require('normalize-path')
 import path = require('path')
 import exists = require('path-exists')
 import writeJsonFile = require('write-json-file')
@@ -47,7 +48,7 @@ const repoRoot = path.join(__dirname, '../../..')
 let registryMockPort = 7769
 
 async function updateManifest (dir: string, manifest: ProjectManifest) {
-  const relative = path.relative(repoRoot, dir)
+  const relative = normalizePath(path.relative(repoRoot, dir))
   let scripts: Record<string, string>
   switch (manifest.name) {
     case '@pnpm/lockfile-types':
@@ -71,7 +72,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       scripts = {
         ...manifest.scripts,
         'registry-mock': 'registry-mock',
-        'test:tap': `cd ../.. && c8 --reporter lcov --reports-dir ${path.join(relative, 'coverage')} ts-node ${path.join(relative, 'test')} --type-check`,
+        'test:tap': `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
 
         'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:tap',
       }
@@ -87,7 +88,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       if (await exists(path.join(dir, 'test'))) {
         scripts = {
           ...manifest.scripts,
-          _test: `cd ../.. && c8 --reporter lcov --reports-dir ${path.join(relative, 'coverage')} ts-node ${path.join(relative, 'test')} --type-check`,
+          _test: `cd ../.. && c8 --reporter lcov --reports-dir ${normalizePath(path.join(relative, 'coverage'))} ts-node ${normalizePath(path.join(relative, 'test'))} --type-check`,
           test: 'pnpm run compile && pnpm run _test',
         }
       } else {

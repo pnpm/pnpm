@@ -2897,6 +2897,7 @@ importers:
       '@pnpm/types': 'link:../../packages/types'
       is-subdir: 1.1.1
       load-json-file: 6.2.0
+      normalize-path: 3.0.0
       path-exists: 4.0.0
       write-json-file: 4.3.0
     specifiers:
@@ -2905,6 +2906,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       is-subdir: 1.1.1
       load-json-file: 6.2.0
+      normalize-path: ^3.0.0
       path-exists: 4.0.0
       write-json-file: 4.3.0
 lockfileVersion: 5.1
