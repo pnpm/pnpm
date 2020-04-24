@@ -7,7 +7,7 @@ importers:
       '@types/node': 13.13.2
       '@types/tape': 4.13.0
       c8: 7.1.0
-      coveralls: 3.0.11
+      coveralls: 3.0.14
       cross-env: 7.0.2
       lcov-result-merger: 3.1.0
       npm: 6.14.4
@@ -26,7 +26,7 @@ importers:
       '@types/node': '*'
       '@types/tape': ^4.13.0
       c8: 7.1.0
-      coveralls: 3.0.11
+      coveralls: ^3.0.14
       cross-env: 7.0.2
       lcov-result-merger: 3.1.0
       npm: 6.14.4
@@ -5245,7 +5245,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-16ZvhVjVhEP75sMflsPtXcwbly+79os1zhBVcpRWNmnwifEbZChW+0URYING/A2ehBwp8i0pOXJYzdpiGO3Ivw==
-  /coveralls/3.0.11:
+  /coveralls/3.0.14:
     dependencies:
       js-yaml: 3.13.1
       lcov-parse: 1.0.0
@@ -5257,7 +5257,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-LZPWPR2NyGKyaABnc49dR0fpeP6UqhvGq4B5nUrTQ1UBy55z96+ga7r+/ChMdMJUwBgyJDXBi88UBgz2rs9IiQ==
+      integrity: sha512-nEQqCHzxiFfu1dEHYxe7xrbF5vFmx122mTWIM+BkiAOmsWbSAcucNk8stELnNk2lS1biTUjFOCIf8v8ZN225IA==
   /cp-file/7.0.0:
     dependencies:
       graceful-fs: 4.2.3
