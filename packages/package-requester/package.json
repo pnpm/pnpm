@@ -45,7 +45,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
-    "make-dir": "3.0.2",
+    "make-dir": "^3.1.0",
     "mz": "2.7.0",
     "p-limit": "2.3.0",
     "p-queue": "6.3.0",

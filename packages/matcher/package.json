@@ -35,6 +35,6 @@
     "@pnpm/matcher": "link:"
   },
   "dependencies": {
-    "escape-string-regexp": "3.0.0"
+    "escape-string-regexp": "^4.0.0"
   }
 }

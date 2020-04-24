@@ -40,7 +40,7 @@
     "credentials-by-uri": "2.0.0",
     "fetch-from-npm-registry": "workspace:4.0.2",
     "graceful-fs": "4.2.1",
-    "make-dir": "3.0.2",
+    "make-dir": "^3.1.0",
     "mem": "^6.1.0",
     "mz": "2.7.0",
     "path-temp": "2.0.0",

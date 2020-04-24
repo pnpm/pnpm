@@ -41,7 +41,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/types": "workspace:^5.0.0",
-    "make-dir": "3.0.2",
+    "make-dir": "^3.1.0",
     "mz": "2.7.0",
     "symlink-dir": "3.1.2"
   }
