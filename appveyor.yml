@@ -2,6 +2,8 @@ environment:
   matrix:
     - nodejs_version: 10
 install:
+  - git config --global user.name xyz
+  - git config --global user.email x@y.z
   - ps: Install-Product node $env:nodejs_version
   - npm set verify-store-integrity false
   - set PNPM_VERSION=next
