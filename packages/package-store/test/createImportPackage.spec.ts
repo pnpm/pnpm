@@ -11,6 +11,7 @@ const createImportPackage = proxyquire('@pnpm/package-store/lib/storeController/
     'make-dir': makeDirMock,
     'mz/fs': fsMock,
     'path-temp': (dir: string) => path.join(dir, '_tmp'),
+    'rename-overwrite': sinon.spy(),
   }),
   'make-dir': makeDirMock,
   'mz/fs': fsMock,

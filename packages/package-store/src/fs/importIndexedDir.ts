@@ -1,9 +1,9 @@
 import pnpmLogger, { globalWarn } from '@pnpm/logger'
 import rimraf = require('@zkochan/rimraf')
 import makeDir = require('make-dir')
-import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
+import renameOverwrite = require('rename-overwrite')
 
 const importingLogger = pnpmLogger('_package-file-already-exists')
 
@@ -14,8 +14,7 @@ export default async function importIndexedDir (importFile: ImportFile, existing
   try {
     await rimraf(stage)
     await tryImportIndexedDir(importFile, existingDir, stage, filenames)
-    await rimraf(newDir)
-    await fs.rename(stage, newDir)
+    await renameOverwrite(stage, newDir)
   } catch (err) {
     try { await rimraf(stage) } catch (err) {} // tslint:disable-line:no-empty
     throw err
