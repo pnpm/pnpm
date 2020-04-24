@@ -290,13 +290,16 @@ export async function mutateModules (
           })
           break
         case 'install': {
-          await installCase(project)
+          await installCase({
+            ...project,
+            updatePackageManifest: opts.updatePackageManifest ?? opts.update === true,
+          })
           break
         }
         case 'installSome': {
           await installSome({
             ...project,
-            updatePackageManifest: opts.updatePackageManifest,
+            updatePackageManifest: opts.updatePackageManifest !== false,
           })
           break
         }
@@ -385,7 +388,6 @@ export async function mutateModules (
       projectsToInstall.push({
         pruneDirectDependencies: false,
         ...project,
-        updatePackageManifest: opts.update === true,
         wantedDependencies,
       })
     }
