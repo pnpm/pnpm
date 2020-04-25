@@ -1,6 +1,20 @@
 # @pnpm/store-connection-manager
 
+## 0.3.0-alpha.0
+
+### Minor Changes
+
+- 91c4b5954: Using a content-addressable filesystem for storing packages.
+
+### Patch Changes
+
+- Updated dependencies [91c4b5954]
+  - @pnpm/default-fetcher@6.0.0-alpha.0
+  - @pnpm/package-store@9.0.0-alpha.0
+  - @pnpm/server@8.0.0-alpha.0
+
 ## 0.2.31
+
 ### Patch Changes
 
 - 907c63a48: Update `@pnpm/store-path`.

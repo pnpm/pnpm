@@ -1,6 +1,17 @@
 # @pnpm/plugin-commands-installation
 
+## 1.2.4-alpha.0
+
+### Patch Changes
+
+- Updated dependencies [91c4b5954]
+  - @pnpm/package-store@9.0.0-alpha.0
+  - @pnpm/store-connection-manager@0.3.0-alpha.0
+  - supi@0.39.0-alpha.0
+  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.0
+
 ## 1.2.3
+
 ### Patch Changes
 
 - 907c63a48: Dependencies updated.

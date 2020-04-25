@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "8.1.0",
+  "version": "9.0.0-alpha.0",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -16,14 +16,14 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:0.0.0",
+    "@pnpm/cafs": "workspace:1.0.0-alpha.0",
     "@pnpm/core-loggers": "workspace:4.0.1",
-    "@pnpm/fetcher-base": "workspace:6.0.0",
+    "@pnpm/fetcher-base": "workspace:7.0.0-alpha.0",
     "@pnpm/fs-locker": "3.0.1",
-    "@pnpm/package-requester": "workspace:11.0.6",
+    "@pnpm/package-requester": "workspace:12.0.0-alpha.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/resolver-base": "workspace:7.0.0",
-    "@pnpm/store-controller-types": "workspace:7.0.0",
+    "@pnpm/store-controller-types": "workspace:8.0.0-alpha.0",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
