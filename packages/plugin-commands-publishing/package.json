@@ -62,7 +62,7 @@
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/run-npm": "workspace:2.0.1",
     "@pnpm/sort-packages": "workspace:1.0.9",
-    "@pnpm/store-path": "2.1.1",
+    "@pnpm/store-path": "^3.0.1",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
     "cp-file": "9.0.0",

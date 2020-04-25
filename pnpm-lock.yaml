@@ -576,7 +576,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/read-projects-context': 'link:../read-projects-context'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       '@types/fs-extra': 8.1.0
       '@types/mz': 2.7.0
       '@types/ramda': 0.27.4
@@ -619,7 +619,7 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:1.0.4'
       '@pnpm/read-projects-context': 'workspace:*'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@pnpm/symlink-dependency': 'workspace:3.0.3'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/fs-extra': ^8.1.0
@@ -1088,7 +1088,7 @@ importers:
       '@pnpm/matcher': 'link:../matcher'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       '@pnpm/types': 'link:../types'
       dependency-path: 'link:../dependency-path'
       lru-cache: 5.1.1
@@ -1114,7 +1114,7 @@ importers:
       '@pnpm/modules-yaml': 'workspace:6.0.1'
       '@pnpm/outdated': 'link:'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.0'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@pnpm/types': 'workspace:5.0.0'
       '@types/lru-cache': ^5.1.0
       '@types/ramda': ^0.27.3
@@ -1608,7 +1608,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/semver-diff': 1.0.2
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       chalk: 4.0.0
       common-tags: 1.8.0
       lru-cache: 5.1.1
@@ -1650,7 +1650,7 @@ importers:
       '@pnpm/plugin-commands-outdated': 'link:'
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/semver-diff': 1.0.2
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@pnpm/types': 'workspace:5.0.0'
       '@types/common-tags': 1.8.0
       '@types/lru-cache': ^5.1.0
@@ -1680,7 +1680,7 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/run-npm': 'link:../run-npm'
       '@pnpm/sort-packages': 'link:../sort-packages'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       cp-file: 9.0.0
@@ -1724,7 +1724,7 @@ importers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/run-npm': 'workspace:2.0.1'
       '@pnpm/sort-packages': 'workspace:1.0.9'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@pnpm/types': 'workspace:5.0.0'
       '@types/cross-spawn': ^6.0.1
       '@types/lru-cache': ^5.1.0
@@ -1903,7 +1903,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       common-tags: 1.8.0
       delay: 4.3.0
       diable: 4.0.2
@@ -1933,7 +1933,7 @@ importers:
       '@pnpm/plugin-commands-server': 'link:'
       '@pnpm/server': 'workspace:7.0.4'
       '@pnpm/store-connection-manager': 'workspace:0.2.30'
-      '@pnpm/store-path': ^2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@types/common-tags': ^1.8.0
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.0
@@ -1962,7 +1962,7 @@ importers:
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       '@pnpm/types': 'link:../types'
       archy: 1.0.0
       common-tags: 1.8.0
@@ -2002,7 +2002,7 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.0'
       '@pnpm/store-connection-manager': 'workspace:0.2.30'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@pnpm/types': 'workspace:5.0.0'
       '@types/archy': 0.0.31
       '@types/common-tags': ^1.8.0
@@ -2456,7 +2456,7 @@ importers:
       '@pnpm/error': 'link:../error'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:../server'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       delay: 4.3.0
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
@@ -2477,7 +2477,7 @@ importers:
       '@pnpm/package-store': 'workspace:8.0.5'
       '@pnpm/server': 'workspace:7.0.4'
       '@pnpm/store-connection-manager': 'link:'
-      '@pnpm/store-path': ^2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@types/lru-cache': 5.1.0
       '@types/mz': ^2.7.0
       delay: ^4.3.0
@@ -2557,7 +2557,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': 3.0.1
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/common-tags': 1.8.0
       '@types/fs-extra': 8.1.0
@@ -2631,7 +2631,7 @@ importers:
       '@pnpm/resolve-dependencies': 'workspace:14.4.3'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/store-controller-types': 'workspace:7.0.0'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^3.0.1
       '@pnpm/symlink-dependency': 'workspace:3.0.3'
       '@pnpm/test-fixtures': 'workspace:0.0.0'
       '@pnpm/types': 'workspace:5.0.0'
@@ -3232,19 +3232,18 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-JyAtKNsJCE0k6ZpkAF6wFQ7Ib5jflJcTXGpwOp9cipFI2v+2XNn2JUglxsg/JFPZvEdjkoW8VwxeDNMY7Pg8JQ==
-  /@pnpm/store-path/2.1.1:
+  /@pnpm/store-path/3.0.1:
     dependencies:
       can-link: 1.0.2
-      make-dir: 3.1.0
       mz: 2.7.0
       path-absolute: 1.0.1
       path-temp: 2.0.0
       root-link-target: 2.0.0
       touch: 3.1.0
     engines:
-      node: '>=8.15'
+      node: '>=10.12'
     resolution:
-      integrity: sha512-KBcGPWLkkiOsqk3rSegE4pUMHPKnL9xJ8F6Yi0Z5Q4MDyEXZeeZQSegHK3fKU+HGkkmKuC3jVz9apGEgbafZBQ==
+      integrity: sha512-B32Ep3nlZofknPvH8ipI9IqUbyEieyc+bO3b+aOOD+fE4pNyfZZ9/Yq6B7uFAkdws9iToi1UrXFvVRRuoEPemA==
   /@pnpm/tabtab/0.0.1:
     dependencies:
       debug: 4.1.1

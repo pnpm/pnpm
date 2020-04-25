@@ -60,7 +60,7 @@
     "@pnpm/pick-registry-for-package": "workspace:1.0.0",
     "@pnpm/store-connection-manager": "workspace:0.2.30",
     "@pnpm/store-controller-types": "workspace:7.0.0",
-    "@pnpm/store-path": "2.1.1",
+    "@pnpm/store-path": "^3.0.1",
     "@pnpm/types": "workspace:5.0.0",
     "archy": "1.0.0",
     "common-tags": "1.8.0",

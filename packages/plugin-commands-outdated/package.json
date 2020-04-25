@@ -62,7 +62,7 @@
     "@pnpm/modules-yaml": "workspace:6.0.1",
     "@pnpm/outdated": "workspace:7.0.21",
     "@pnpm/semver-diff": "1.0.2",
-    "@pnpm/store-path": "2.1.1",
+    "@pnpm/store-path": "^3.0.1",
     "chalk": "4.0.0",
     "common-tags": "1.8.0",
     "lru-cache": "5.1.1",
