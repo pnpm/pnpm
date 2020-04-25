@@ -4,7 +4,6 @@ import {
   ImportPackageFunction,
   PackageFilesResponse,
 } from '@pnpm/store-controller-types'
-import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import pLimit from 'p-limit'
@@ -142,7 +141,7 @@ export async function copyPkg (
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
     importingLogger.debug({ from, to, method: 'copy' })
     const staging = pathTemp(path.dirname(to))
-    await makeDir(staging)
+    await fs.mkdir(staging, { recursive: true })
     await ncp(from + '/.', staging)
     await renameOverwrite(staging, to)
   }

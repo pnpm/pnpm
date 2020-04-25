@@ -1,6 +1,7 @@
 import pnpmLogger, { globalWarn } from '@pnpm/logger'
 import rimraf = require('@zkochan/rimraf')
-import makeDir = require('make-dir')
+import makeEmptyDir = require('make-empty-dir')
+import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
@@ -12,7 +13,6 @@ type ImportFile = (src: string, dest: string) => Promise<void>
 export default async function importIndexedDir (importFile: ImportFile, existingDir: string, newDir: string, filenames: string[]) {
   const stage = pathTemp(path.dirname(newDir))
   try {
-    await rimraf(stage)
     await tryImportIndexedDir(importFile, existingDir, stage, filenames)
     await renameOverwrite(stage, newDir)
   } catch (err) {
@@ -22,13 +22,18 @@ export default async function importIndexedDir (importFile: ImportFile, existing
 }
 
 async function tryImportIndexedDir (importFile: ImportFile, existingDir: string, newDir: string, filenames: string[]) {
+  await makeEmptyDir(newDir, { recursive: true })
   const alldirs = new Set<string>()
   filenames
     .forEach((f) => {
-      alldirs.add(path.join(newDir, path.dirname(f)))
+      const dir = path.join(newDir, path.dirname(f))
+      if (dir === '.') return
+      alldirs.add(dir)
     })
   await Promise.all(
-    Array.from(alldirs).sort((d1, d2) => d1.length - d2.length).map((dir) => makeDir(dir)),
+    Array.from(alldirs)
+      .sort((d1, d2) => d1.length - d2.length)
+      .map((dir) => fs.mkdir(dir, { recursive: true })),
   )
   let allLinked = true
   await Promise.all(

@@ -26,7 +26,7 @@
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
-    "make-dir": "^3.1.0",
+    "make-empty-dir": "^1.0.0",
     "mz": "2.7.0",
     "ncp": "2.0.0",
     "p-filter": "2.1.0",
