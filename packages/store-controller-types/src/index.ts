@@ -76,7 +76,6 @@ export interface FetchPackageToStoreOptions {
 }
 
 export type ImportPackageFunction = (
-  from: string,
   to: string,
   opts: {
     filesResponse: PackageFilesResponse,
@@ -86,7 +85,7 @@ export type ImportPackageFunction = (
 
 export interface PackageFilesResponse {
   fromStore: boolean,
-  filenames: string[],
+  filesIndex: Record<string, { integrity: string }>,
 }
 
 export type RequestPackageFunction = (

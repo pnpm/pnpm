@@ -253,8 +253,8 @@ export default async function linkPackages (
     const pkgJson = await depNode.fetchingBundledManifest()
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
-      filesResponse.filenames.includes('binding.gyp') ||
-        filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
+      filesResponse.filesIndex['binding.gyp'] ||
+        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
     )
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
@@ -451,7 +451,6 @@ async function selectNewFromWantedDeps (
         const depNode = depGraph[depPath]
         if (!depNode) return
         if (prevRelDepPaths.has(wantedRelDepPath)) {
-          if (depNode.independent) return
           if (await fs.exists(depNode.peripheralLocation)) {
             return
           }
@@ -476,11 +475,10 @@ async function linkAllPkgs (
   },
 ) {
   return Promise.all(
-    depNodes.map(async ({ centralLocation, fetchingFiles, independent, peripheralLocation }) => {
+    depNodes.map(async ({ fetchingFiles, independent, peripheralLocation }) => {
       const filesResponse = await fetchingFiles()
 
-      if (independent) return
-      return storeController.importPackage(centralLocation, peripheralLocation, {
+      return storeController.importPackage(peripheralLocation, {
         filesResponse,
         force: opts.force,
       })

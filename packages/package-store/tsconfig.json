@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../cafs"
+    },
+    {
       "path": "../core-loggers"
     },
     {

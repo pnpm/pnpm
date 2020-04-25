@@ -16,6 +16,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
+    "@pnpm/cafs": "workspace:0.0.0",
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/fetcher-base": "workspace:6.0.0",
     "@pnpm/fs-locker": "3.0.1",
@@ -28,7 +29,6 @@
     "load-json-file": "6.2.0",
     "make-empty-dir": "^1.0.0",
     "mz": "2.7.0",
-    "ncp": "2.0.0",
     "p-filter": "2.1.0",
     "p-limit": "2.3.0",
     "path-exists": "4.0.0",
@@ -43,7 +43,6 @@
     "@pnpm/package-store": "link:",
     "@pnpm/tarball-fetcher": "workspace:*",
     "@types/mz": "^2.7.0",
-    "@types/ncp": "2.0.3",
     "@types/proxyquire": "1.3.28",
     "@types/ramda": "^0.27.4",
     "@types/sinon": "^9.0.0",

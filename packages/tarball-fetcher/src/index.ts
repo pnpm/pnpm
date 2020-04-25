@@ -1,5 +1,6 @@
 import PnpmError from '@pnpm/error'
 import {
+  Cafs,
   FetchFunction,
   FetchOptions,
   FetchResult,
@@ -9,13 +10,8 @@ import getCredentialsByURI = require('credentials-by-uri')
 import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')
-import pathTemp = require('path-temp')
-import rimraf = require('rimraf')
 import ssri = require('ssri')
-import * as unpackStream from 'unpack-stream'
 import createDownloader, { DownloadFunction } from './createDownloader'
-
-export type IgnoreFunction = (filename: string) => boolean
 
 export default function (
   opts: {
@@ -34,18 +30,13 @@ export default function (
     fetchRetryMintimeout?: number,
     fetchRetryMaxtimeout?: number,
     userAgent?: string,
-    ignoreFile?: IgnoreFunction,
     offline?: boolean,
-    fsIsCaseSensitive?: boolean,
   },
 ): { tarball: FetchFunction } {
   const download = createDownloader({
     alwaysAuth: opts.alwaysAuth || false,
     ca: opts.ca,
     cert: opts.cert,
-    fsIsCaseSensitive: typeof opts.fsIsCaseSensitive === 'boolean'
-      ? opts.fsIsCaseSensitive
-      : false,
     key: opts.key,
     localAddress: opts.localAddress,
     proxy: opts.httpsProxy || opts.proxy,
@@ -69,10 +60,8 @@ export default function (
       fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
         download,
         getCredentialsByURI: mem((registry: string) => getCreds(registry)),
-        ignoreFile: opts.ignoreFile,
         offline: opts.offline,
       }),
-      ignore: opts.ignoreFile,
     }) as FetchFunction,
   }
 }
@@ -80,7 +69,7 @@ export default function (
 function fetchFromTarball (
   ctx: {
     fetchFromRemoteTarball: (
-      dir: string,
+      cafs: Cafs,
       dist: {
         integrity?: string,
         registry?: string,
@@ -88,37 +77,34 @@ function fetchFromTarball (
       },
       opts: FetchOptions,
     ) => Promise<FetchResult>,
-    ignore?: IgnoreFunction,
   },
+  cafs: Cafs,
   resolution: {
     integrity?: string,
     registry?: string,
     tarball: string,
   },
-  target: string,
   opts: FetchOptions,
 ) {
   if (resolution.tarball.startsWith('file:')) {
     const tarball = path.join(opts.lockfileDir, resolution.tarball.slice(5))
-    return fetchFromLocalTarball(tarball, target, {
-      ignore: ctx.ignore,
+    return fetchFromLocalTarball(cafs, tarball, {
       integrity: resolution.integrity,
     })
   }
-  return ctx.fetchFromRemoteTarball(target, resolution, opts)
+  return ctx.fetchFromRemoteTarball(cafs, resolution, opts)
 }
 
 async function fetchFromRemoteTarball (
   ctx: {
     offline?: boolean,
     download: DownloadFunction,
-    ignoreFile?: IgnoreFunction,
     getCredentialsByURI: (registry: string) => {
       authHeaderValue: string | undefined,
       alwaysAuth: boolean | undefined,
     },
   },
-  unpackTo: string,
+  cafs: Cafs,
   dist: {
     integrity?: string,
     registry?: string,
@@ -127,7 +113,7 @@ async function fetchFromRemoteTarball (
   opts: FetchOptions,
 ) {
   try {
-    return await fetchFromLocalTarball(opts.cachedTarballLocation, unpackTo, {
+    return await fetchFromLocalTarball(cafs, opts.cachedTarballLocation, {
       integrity: dist.integrity,
     })
   } catch (err) {
@@ -163,44 +149,32 @@ async function fetchFromRemoteTarball (
     const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
     return ctx.download(dist.tarball, opts.cachedTarballLocation, {
       auth,
-      ignore: ctx.ignoreFile,
+      cafs,
       integrity: dist.integrity,
       onProgress: opts.onProgress,
       onStart: opts.onStart,
       registry: dist.registry,
-      unpackTo,
     })
   }
 }
 
 async function fetchFromLocalTarball (
+  cafs: Cafs,
   tarball: string,
-  dir: string,
   opts: {
-    ignore?: IgnoreFunction,
     integrity?: string,
   },
 ): Promise<FetchResult> {
-  const tarballStream = fs.createReadStream(tarball)
-  const tempLocation = pathTemp(dir)
   try {
-    const filesIndex = (
+    const tarballStream = fs.createReadStream(tarball)
+    const [filesIndex] = (
       await Promise.all([
-        unpackStream.local(
-          tarballStream,
-          tempLocation,
-          {
-            ignore: opts.ignore,
-          },
-        ),
+        cafs.addFilesFromTarball(tarballStream),
         opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // tslint:disable-line
       ])
-    )[0]
-    return { filesIndex, tempLocation }
+    )
+    return { filesIndex }
   } catch (err) {
-    rimraf(tempLocation, () => {
-      // ignore errors
-    })
     err.attempts = 1
     err.resource = tarball
     throw err

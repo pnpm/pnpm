@@ -8,5 +8,12 @@
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../fetcher-base"
+    },
+    {
+      "path": "../cafs"
+    }
+  ]
 }

@@ -92,6 +92,42 @@ importers:
       graph-sequencer: 2.0.0
       ramda: 0.27.0
       run-groups: 2.0.3
+  packages/cafs:
+    dependencies:
+      '@pnpm/fetcher-base': 'link:../fetcher-base'
+      '@zkochan/rimraf': 1.0.0
+      decompress-maybe: 1.0.0
+      get-stream: 5.1.0
+      mz: 2.7.0
+      p-limit: 2.3.0
+      path-exists: 4.0.0
+      path-temp: 2.0.0
+      rename-overwrite: 2.0.2
+      ssri: 6.0.1
+      tar-stream: 2.1.2
+    devDependencies:
+      '@types/mz': 2.7.0
+      '@types/node': 13.13.2
+      '@types/ssri': 6.0.2
+      '@types/tar-stream': 2.1.0
+      tempy: 0.5.0
+    specifiers:
+      '@pnpm/fetcher-base': 'workspace:6.0.0'
+      '@types/mz': 2.7.0
+      '@types/node': ^13.13.2
+      '@types/ssri': ^6.0.2
+      '@types/tar-stream': ^2.1.0
+      '@zkochan/rimraf': 1.0.0
+      decompress-maybe: ^1.0.0
+      get-stream: 5.1.0
+      mz: 2.7.0
+      p-limit: 2.3.0
+      path-exists: 4.0.0
+      path-temp: 2.0.0
+      rename-overwrite: 2.0.2
+      ssri: 6.0.1
+      tar-stream: ^2.1.2
+      tempy: ^0.5.0
   packages/cli-meta:
     dependencies:
       load-json-file: 6.2.0
@@ -504,19 +540,19 @@ importers:
       ramda: 0.27.0
   packages/git-fetcher:
     dependencies:
+      '@pnpm/fetcher-base': 'link:../fetcher-base'
       '@zkochan/rimraf': 1.0.0
-      dint: 4.0.0
       execa: 4.0.0
-      path-temp: 2.0.0
-    devDependencies:
-      '@pnpm/git-fetcher': 'link:'
       tempy: 0.5.0
+    devDependencies:
+      '@pnpm/cafs': 'link:../cafs'
+      '@pnpm/git-fetcher': 'link:'
     specifiers:
+      '@pnpm/cafs': 'workspace:0.0.0'
+      '@pnpm/fetcher-base': 'workspace:6.0.0'
       '@pnpm/git-fetcher': 'link:'
       '@zkochan/rimraf': 1.0.0
-      dint: 4.0.0
       execa: 4.0.0
-      path-temp: 2.0.0
       tempy: 0.5.0
   packages/git-resolver:
     dependencies:
@@ -589,12 +625,14 @@ importers:
       fs-extra: 9.0.0
       is-windows: 1.0.2
       isexe: 2.0.0
+      load-json-file: 6.2.0
       mz: 2.7.0
       npm-run-all: 4.1.5
       read-yaml-file: 2.0.0
       sinon: 9.0.2
       tape-promise: 4.0.0
       tempy: 0.5.0
+      write-json-file: 4.3.0
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/build-modules': 'workspace:4.1.13'
@@ -635,6 +673,7 @@ importers:
       fs-extra: 9.0.0
       is-windows: 1.0.2
       isexe: 2.0.0
+      load-json-file: 6.2.0
       mz: 2.7.0
       npm-run-all: 4.1.5
       p-limit: 2.3.0
@@ -646,6 +685,7 @@ importers:
       sinon: 9.0.2
       tape-promise: 4.0.0
       tempy: 0.5.0
+      write-json-file: 4.3.0
   packages/hoist:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -1166,7 +1206,7 @@ importers:
       semver: ^7.3.2
   packages/package-requester:
     dependencies:
-      '@pnpm/check-package': 3.0.1
+      '@pnpm/cafs': 'link:../cafs'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       '@pnpm/pkgid-to-filename': 2.0.0
@@ -1174,13 +1214,11 @@ importers:
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
-      '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
       make-dir: 3.1.0
       mz: 2.7.0
       p-limit: 2.3.0
       p-queue: 6.3.0
-      path-exists: 4.0.0
       promise-share: 1.0.0
       ramda: 0.27.0
       rename-overwrite: 2.0.2
@@ -1206,7 +1244,7 @@ importers:
       sinon: 9.0.2
       tempy: 0.5.0
     specifiers:
-      '@pnpm/check-package': 3.0.1
+      '@pnpm/cafs': 'workspace:0.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/fetcher-base': 'workspace:6.0.0'
       '@pnpm/local-resolver': 'workspace:*'
@@ -1225,7 +1263,6 @@ importers:
       '@types/ramda': ^0.27.4
       '@types/sinon': ^9.0.0
       '@types/ssri': ^6.0.2
-      '@zkochan/rimraf': 1.0.0
       delay: 4.3.0
       load-json-file: 6.2.0
       make-dir: ^3.1.0
@@ -1235,7 +1272,6 @@ importers:
       normalize-path: 3.0.0
       p-limit: 2.3.0
       p-queue: 6.3.0
-      path-exists: 4.0.0
       promise-share: 1.0.0
       ramda: 0.27.0
       rename-overwrite: 2.0.2
@@ -1246,6 +1282,7 @@ importers:
       write-json-file: 4.0.0
   packages/package-store:
     dependencies:
+      '@pnpm/cafs': 'link:../cafs'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       '@pnpm/fs-locker': 3.0.1
@@ -1258,7 +1295,6 @@ importers:
       load-json-file: 6.2.0
       make-empty-dir: 1.0.0
       mz: 2.7.0
-      ncp: 2.0.0
       p-filter: 2.1.0
       p-limit: 2.3.0
       path-exists: 4.0.0
@@ -1272,7 +1308,6 @@ importers:
       '@pnpm/package-store': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
       '@types/mz': 2.7.0
-      '@types/ncp': 2.0.3
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.4
       '@types/sinon': 9.0.0
@@ -1280,6 +1315,7 @@ importers:
       sinon: 9.0.2
       tempy: 0.5.0
     specifiers:
+      '@pnpm/cafs': 'workspace:0.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/fetcher-base': 'workspace:6.0.0'
       '@pnpm/fs-locker': 3.0.1
@@ -1293,7 +1329,6 @@ importers:
       '@pnpm/tarball-fetcher': 'workspace:*'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/mz': ^2.7.0
-      '@types/ncp': 2.0.3
       '@types/proxyquire': 1.3.28
       '@types/ramda': ^0.27.4
       '@types/sinon': ^9.0.0
@@ -1301,7 +1336,6 @@ importers:
       load-json-file: 6.2.0
       make-empty-dir: ^1.0.0
       mz: 2.7.0
-      ncp: 2.0.0
       p-filter: 2.1.0
       p-limit: 2.3.0
       path-exists: 4.0.0
@@ -1959,6 +1993,7 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
       '@pnpm/get-context': 'link:../get-context'
+      '@pnpm/lockfile-utils': 'link:../lockfile-utils'
       '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
@@ -1969,6 +2004,7 @@ importers:
       archy: 1.0.0
       common-tags: 1.8.0
       dependency-path: 'link:../dependency-path'
+      dint: 4.0.0
       p-filter: 2.1.0
       ramda: 0.27.0
       render-help: 1.0.0
@@ -1996,6 +2032,7 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/get-context': 'workspace:1.2.1'
       '@pnpm/lockfile-file': 'workspace:3.0.8'
+      '@pnpm/lockfile-utils': 'workspace:2.0.11'
       '@pnpm/logger': 3.2.2
       '@pnpm/normalize-registries': 'workspace:1.0.0'
       '@pnpm/parse-wanted-dependency': 'workspace:1.0.0'
@@ -2014,6 +2051,7 @@ importers:
       archy: 1.0.0
       common-tags: 1.8.0
       dependency-path: 'workspace:4.0.6'
+      dint: 4.0.0
       execa: 4.0.0
       load-json-file: 6.2.0
       p-filter: 2.1.0
@@ -2415,6 +2453,7 @@ importers:
       '@types/uuid': 7.0.3
       '@zkochan/rimraf': 1.0.0
       is-port-reachable: 3.0.0
+      load-json-file: 6.2.0
       mz: 2.7.0
       node-fetch: 2.6.0
       tempy: 0.5.0
@@ -2433,6 +2472,7 @@ importers:
       '@types/uuid': ^7.0.3
       '@zkochan/rimraf': 1.0.0
       is-port-reachable: 3.0.0
+      load-json-file: 6.2.0
       mz: 2.7.0
       node-fetch: 2.6.0
       p-limit: 2.3.0
@@ -2724,9 +2764,10 @@ importers:
       retry: 0.12.0
       rimraf: 3.0.2
       ssri: 6.0.1
-      unpack-stream: 6.0.0
     devDependencies:
+      '@pnpm/cafs': 'link:../cafs'
       '@pnpm/logger': 3.2.2
+      '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': 4.1.3
       '@types/mz': 2.7.0
@@ -2737,9 +2778,11 @@ importers:
       nock: 12.0.3
       tempy: 0.5.0
     specifiers:
+      '@pnpm/cafs': 'workspace:0.0.0'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/fetcher-base': 'workspace:6.0.0'
       '@pnpm/logger': 3.2.2
+      '@pnpm/read-package-json': 'workspace:3.1.0'
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': ^4.1.3
       '@types/mz': ^2.7.0
@@ -2759,7 +2802,6 @@ importers:
       rimraf: 3.0.2
       ssri: 6.0.1
       tempy: 0.5.0
-      unpack-stream: 6.0.0
   packages/tarball-resolver:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -3701,6 +3743,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-0V8cKowBdsiA9nbxAg7531sF2cdPZNiUogcfIUeUGm+bejUBE/bvibz3rH36iQP9bQjO/sOzFwU97/uC5mCyoA==
+  /@types/tar-stream/2.1.0:
+    dependencies:
+      '@types/node': 13.13.2
+    dev: true
+    resolution:
+      integrity: sha512-s1UQxQUVMHbSkCC0X4qdoiWgHF8DoyY1JjQouFsnk/8ysoTdBaiCHud/exoAZzKDbzAXVc+ah6sczxGVMAohFw==
   /@types/touch/3.1.1:
     dependencies:
       '@types/node': 13.13.2
@@ -5928,7 +5976,7 @@ packages:
       integrity: sha512-WkrWp9GR4KXfKGYzOLmTuGVi1UWFfws377n9cc55/tb6DuqyF6pcQ5AbiHEshaDpY9v6oaSr2XCDidGmMwdzIA==
   /dir-is-case-sensitive/1.0.2:
     dependencies:
-      graceful-fs: 4.2.1
+      graceful-fs: 4.2.3
       path-temp: 2.0.0
     engines:
       node: '>=8.15'
@@ -8725,10 +8773,6 @@ packages:
       node: '>= 8.0.0'
     resolution:
       integrity: sha512-SyV9uPETRig5ZmYev0ANfiGeB+g6N2EnqqEfBbCGmmJ6MgZ3E4qv5aPbnHVdZ60KAHHXV+T3sXopdrnIXQdmjQ==
-  /mkdirp-classic/0.5.2:
-    dev: false
-    resolution:
-      integrity: sha512-ejdnDQcR75gwknmMw/tx02AuRs8jCtqFoFqDZMjiNxsu85sRIJVXDKHuLYvUUPRBUtV2FpSZa9bL1BUa3BdR2g==
   /mkdirp/0.5.5:
     dependencies:
       minimist: 1.2.5
@@ -11036,7 +11080,6 @@ packages:
   /sort-keys/4.0.0:
     dependencies:
       is-plain-obj: 2.1.0
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -11490,15 +11533,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-waWwC/OqYVE9TS6r1IynlP2sEdk4Lfo6jazlgkuNkPTHIbuG2BTABIaKdlQWwPeB6Oo4ksZ1j33Yt0NTOAlYMQ==
-  /tar-fs/2.0.1:
-    dependencies:
-      chownr: 1.1.4
-      mkdirp-classic: 0.5.2
-      pump: 3.0.0
-      tar-stream: 2.1.2
-    dev: false
-    resolution:
-      integrity: sha512-6tzWDMeroL87uF/+lin46k+Q+46rAJ0SyPGz7OW7wTgblI273hsBqk2C1j0/xNadNLKDTUL9BukSjB7cwgmlPA==
   /tar-stream/2.1.2:
     dependencies:
       bl: 4.0.2
@@ -12033,17 +12067,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-8rMeVYWSIyccIJscb9NdCfZKSRBKYTeVnwmiRYT2ulE3qd1RaDQ0xQDP+rI3ccIWbhu/zuo5cgN8z73belNZgw==
-  /unpack-stream/6.0.0:
-    dependencies:
-      '@types/ssri': 6.0.2
-      decompress-maybe: 1.0.0
-      ssri: 6.0.1
-      tar-fs: 2.0.1
-    dev: false
-    engines:
-      node: '>=8.15'
-    resolution:
-      integrity: sha512-BJVLP4Vo+BE5r3mZdcioGFA1XHFUI1wmhy7ytlCicItn815lWZXGj4uxip3H7ou1UWBLFUDFBnX6t4ScvOVSEA==
   /unpipe/1.0.0:
     dev: true
     engines:
@@ -12533,7 +12556,6 @@ packages:
       make-dir: 3.1.0
       sort-keys: 4.0.0
       write-file-atomic: 3.0.3
-    dev: false
     engines:
       node: '>=8.3'
     resolution:

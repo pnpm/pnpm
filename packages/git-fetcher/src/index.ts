@@ -1,8 +1,8 @@
+import { Cafs } from '@pnpm/fetcher-base'
 import rimraf = require('@zkochan/rimraf')
-import dint = require('dint')
 import execa = require('execa')
 import path = require('path')
-import pathTemp = require('path-temp')
+import tempy = require('tempy')
 
 export default () => {
   return {
@@ -11,16 +11,17 @@ export default () => {
         repo: string,
         commit: string,
       },
-      targetFolder: string,
+      opts: {
+        cafs: Cafs,
+      },
     ) {
-      const tempLocation = pathTemp(targetFolder)
+      const tempLocation = tempy.directory()
       await execGit(['clone', resolution.repo, tempLocation])
       await execGit(['checkout', resolution.commit], { cwd: tempLocation })
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
       return {
-        filesIndex: await dint.from(tempLocation),
-        tempLocation,
+        filesIndex: await opts.cafs.addFilesFromDir(tempLocation),
       }
     },
   }

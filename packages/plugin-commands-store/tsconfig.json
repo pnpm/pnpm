@@ -22,6 +22,9 @@
       "path": "../get-context"
     },
     {
+      "path": "../lockfile-utils"
+    },
+    {
       "path": "../normalize-registries"
     },
     {

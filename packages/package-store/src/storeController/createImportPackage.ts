@@ -1,25 +1,19 @@
 import { importingLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import {
-  ImportPackageFunction,
-  PackageFilesResponse,
-} from '@pnpm/store-controller-types'
+import { ImportPackageFunction } from '@pnpm/store-controller-types'
 import fs = require('mz/fs')
-import ncpCB = require('ncp')
 import pLimit from 'p-limit'
 import path = require('path')
 import exists = require('path-exists')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
-import { promisify } from 'util'
 import importIndexedDir from '../fs/importIndexedDir'
 
-const ncp = promisify(ncpCB)
 const limitLinking = pLimit(16)
 
-export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): ImportPackageFunction => {
+export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): (to: string, opts: { filesMap: Record<string, string>, fromStore: boolean, force: boolean }) => ReturnType<ImportPackageFunction> => {
   const importPackage = createImportPackage(packageImportMethod)
-  return (from, to, opts) => limitLinking(() => importPackage(from, to, opts))
+  return (to, opts) => limitLinking(() => importPackage(to, opts))
 }
 
 function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone') {
@@ -49,22 +43,22 @@ function createAutoImporter () {
   return auto
 
   async function initialAuto (
-    from: string,
     to: string,
     opts: {
-      filesResponse: PackageFilesResponse,
+      filesMap: Record<string, string>,
       force: boolean,
+      fromStore: boolean,
     },
   ) {
     try {
-      await clonePkg(from, to, opts)
+      await clonePkg(to, opts)
       auto = clonePkg
       return
     } catch (err) {
       // ignore
     }
     try {
-      await hardlinkPkg(from, to, opts)
+      await hardlinkPkg(to, opts)
       auto = hardlinkPkg
       return
     } catch (err) {
@@ -72,24 +66,24 @@ function createAutoImporter () {
       globalWarn(err.message)
       globalInfo('Falling back to copying packages from store')
       auto = copyPkg
-      await auto(from, to, opts)
+      await auto(to, opts)
     }
   }
 }
 
 async function clonePkg (
-  from: string,
   to: string,
   opts: {
-    filesResponse: PackageFilesResponse,
+    filesMap: Record<string, string>,
+    fromStore: boolean,
     force: boolean,
   },
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ from, to, method: 'clone' })
-    await importIndexedDir(cloneFile, from, to, opts.filesResponse.filenames)
+  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
+    importingLogger.debug({ to, method: 'clone' })
+    await importIndexedDir(cloneFile, to, opts.filesMap)
   }
 }
 
@@ -98,27 +92,26 @@ async function cloneFile (from: string, to: string) {
 }
 
 async function hardlinkPkg (
-  from: string,
   to: string,
   opts: {
-    filesResponse: PackageFilesResponse,
+    filesMap: Record<string, string>,
     force: boolean,
+    fromStore: boolean,
   },
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
-  if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, from, to)) {
-    importingLogger.debug({ from, to, method: 'hardlink' })
-    await importIndexedDir(fs.link, from, to, opts.filesResponse.filenames)
+  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
+    importingLogger.debug({ to, method: 'hardlink' })
+    await importIndexedDir(fs.link, to, opts.filesMap)
   }
 }
 
 async function pkgLinkedToStore (
   pkgJsonPath: string,
-  from: string,
+  pkgJsonPathInStore: string,
   to: string,
 ) {
-  const pkgJsonPathInStore = path.join(from, 'package.json')
   if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
   globalInfo(`Relinking ${to} from the store`)
   return false
@@ -130,19 +123,17 @@ async function isSameFile (file1: string, file2: string) {
 }
 
 export async function copyPkg (
-  from: string,
   to: string,
   opts: {
-    filesResponse: PackageFilesResponse,
+    filesMap: Record<string, string>,
+    fromStore: boolean,
     force: boolean,
   },
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
-  if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({ from, to, method: 'copy' })
-    const staging = pathTemp(path.dirname(to))
-    await fs.mkdir(staging, { recursive: true })
-    await ncp(from + '/.', staging)
-    await renameOverwrite(staging, to)
+
+  if (!opts.fromStore || opts.force || !await exists(pkgJsonPath)) {
+    importingLogger.debug({ to, method: 'copy' })
+    await importIndexedDir(fs.copyFile, to, opts.filesMap)
   }
 }

@@ -6,6 +6,7 @@ import { PackageFilesResponse, ResolveFunction } from '@pnpm/store-controller-ty
 import createFetcher from '@pnpm/tarball-fetcher'
 import rimraf = require('@zkochan/rimraf')
 import isPortReachable = require('is-port-reachable')
+import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import fetch from 'node-fetch'
 import path = require('path')
@@ -14,9 +15,10 @@ import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
 
-const storeDir = tempy.directory()
-
-async function createStoreController () {
+async function createStoreController (storeDir?: string) {
+  if (!storeDir) {
+    storeDir = tempy.directory()
+  }
   const rawConfig = { registry }
   const resolve = createResolver({
     metaCache: new Map<string, object>() as PackageMetaCache,
@@ -69,7 +71,7 @@ test('server', async t => {
 
   const files = await response.files!()
   t.notOk(files.fromStore)
-  t.ok(files.filenames.includes('package.json'))
+  t.ok(files.filesIndex['package.json'])
   t.ok(response.finishing)
 
   await response.finishing!()
@@ -83,7 +85,8 @@ test('fetchPackage', async t => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeCtrlForServer = await createStoreController()
+  const storeDir = tempy.directory()
+  const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
     port,
@@ -108,7 +111,7 @@ test('fetchPackage', async t => {
 
   const files = await response['files']() as PackageFilesResponse
   t.notOk(files.fromStore)
-  t.ok(files.filenames.includes('package.json'))
+  t.ok(files.filesIndex['package.json'])
   t.ok(response['finishing'])
 
   await response['finishing']()
@@ -173,7 +176,8 @@ test('server upload', async t => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
-  const storeCtrlForServer = await createStoreController()
+  const storeDir = tempy.directory()
+  const storeCtrlForServer = await createStoreController(storeDir)
   const server = createServer(storeCtrlForServer, {
     hostname,
     port,
@@ -188,9 +192,8 @@ test('server upload', async t => {
     packageId: fakePkgId,
   })
 
-  const cachePath = path.join(storeDir, fakePkgId, 'side_effects', fakeEngine, 'package')
-  t.ok(await fs.exists(cachePath), 'cache directory created')
-  t.deepEqual(await fs.readdir(cachePath), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
+  const cacheIntegrity = await loadJsonFile(path.join(storeDir, fakePkgId, 'side_effects', fakeEngine, 'integrity.json'))
+  t.deepEqual(Object.keys(cacheIntegrity), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
 
   await server.close()
   await storeCtrl.close()

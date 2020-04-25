@@ -11,7 +11,7 @@ const test = promisifyTape(tape)
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test('caching side effects of native package', async function (t) {
+test.skip('caching side effects of native package', async function (t) {
   const project = prepare(t)
 
   await execPnpm(['add', '--side-effects-cache', 'diskusage@1.1.3'])
@@ -33,7 +33,7 @@ test('caching side effects of native package', async function (t) {
   t.end()
 })
 
-test('using side effects cache', async function (t) {
+test.skip('using side effects cache', async function (t) {
   const project = prepare(t)
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -52,7 +52,7 @@ test('using side effects cache', async function (t) {
   t.end()
 })
 
-test('readonly side effects cache', async function (t) {
+test.skip('readonly side effects cache', async function (t) {
   const project = prepare(t)
 
   await execPnpm(['add', 'diskusage@1.1.2', '--side-effects-cache', '--no-verify-store-integrity'])

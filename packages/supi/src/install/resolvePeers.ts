@@ -23,7 +23,6 @@ export interface DependenciesGraphNode {
   version: string,
   hasBin: boolean,
   hasBundledDependencies: boolean,
-  centralLocation: string,
   modules: string,
   fetchingBundledManifest?: () => Promise<DependencyManifest>,
   fetchingFiles: () => Promise<PackageFilesResponse>,
@@ -226,7 +225,6 @@ function resolvePeersOfNode (
     ctx.depGraph[absolutePath] = {
       absolutePath,
       additionalInfo: node.resolvedPackage.additionalInfo,
-      centralLocation,
       children: Object.assign(children, resolvedPeers),
       depth: node.depth,
       dev: node.resolvedPackage.dev,

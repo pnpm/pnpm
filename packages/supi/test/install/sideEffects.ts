@@ -13,7 +13,7 @@ const test = promisifyTape(tape)
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test('caching side effects of native package', async (t) => {
+test.skip('caching side effects of native package', async (t) => {
   prepareEmpty(t)
 
   const opts = await testDefaults({
@@ -38,7 +38,7 @@ test('caching side effects of native package', async (t) => {
   t.notEqual(stat1.ino, stat3.ino, 'cache is overridden when force is true')
 })
 
-test('caching side effects of native package when hoisting is used', async (t) => {
+test.skip('caching side effects of native package when hoisting is used', async (t) => {
   const project = prepareEmpty(t)
 
   const opts = await testDefaults({
@@ -67,7 +67,7 @@ test('caching side effects of native package when hoisting is used', async (t) =
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 })
 
-test('using side effects cache', async (t) => {
+test.skip('using side effects cache', async (t) => {
   prepareEmpty(t)
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -89,7 +89,7 @@ test('using side effects cache', async (t) => {
   t.ok(await exists('node_modules/diskusage/build/new-file.txt'), 'side effects cache correctly used')
 })
 
-test('readonly side effects cache', async (t) => {
+test.skip('readonly side effects cache', async (t) => {
   prepareEmpty(t)
 
   const opts1 = await testDefaults({

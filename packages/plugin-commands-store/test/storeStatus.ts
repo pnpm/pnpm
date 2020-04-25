@@ -16,8 +16,7 @@ test('CLI fails when store status finds modified packages', async function (t) {
 
   await execa('pnpm', ['add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
-  const isPositive = await project.resolve('is-positive', '3.1.0', 'index.js')
-  await rimraf(isPositive)
+  await rimraf(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/3.1.0/node_modules/is-positive/index.js`)
 
   let err!: PnpmError
   try {

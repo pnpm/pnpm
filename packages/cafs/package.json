@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/cafs",
+  "version": "0.0.0",
+  "description": "A content-addressable filesystem for the packages storage",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "_test": "cd ../.. && c8 --reporter lcov --reports-dir packages/cafs/coverage ts-node packages/cafs/test --type-check",
+    "test": "pnpm run compile && pnpm run _test",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
+    "prepublishOnly": "pnpm run compile"
+  },
+  "keywords": [],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "dependencies": {
+    "@pnpm/fetcher-base": "workspace:6.0.0",
+    "@zkochan/rimraf": "1.0.0",
+    "decompress-maybe": "^1.0.0",
+    "get-stream": "5.1.0",
+    "mz": "2.7.0",
+    "p-limit": "2.3.0",
+    "path-exists": "4.0.0",
+    "path-temp": "2.0.0",
+    "rename-overwrite": "2.0.2",
+    "ssri": "6.0.1",
+    "tar-stream": "^2.1.2"
+  },
+  "devDependencies": {
+    "@types/mz": "2.7.0",
+    "@types/node": "^13.13.2",
+    "@types/ssri": "^6.0.2",
+    "@types/tar-stream": "^2.1.0",
+    "tempy": "^0.5.0"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "engines": {
+    "node": ">=10.13"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cafs#readme",
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/cafs"
+}

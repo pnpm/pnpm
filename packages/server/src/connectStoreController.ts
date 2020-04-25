@@ -48,12 +48,11 @@ export default function (
           packageName,
         }) as { dir: string, isBuilt: boolean }
       },
-      importPackage: async (from: string, to: string, opts: {
+      importPackage: async (to: string, opts: {
         filesResponse: PackageFilesResponse,
         force: boolean,
       }) => {
         await limitedFetch(`${remotePrefix}/importPackage`, {
-          from,
           opts,
           to,
         })
