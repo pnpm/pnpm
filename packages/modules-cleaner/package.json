@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "8.0.15",
+  "version": "8.0.16",
   "description": "Exports util functions to clean up node_modules",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
@@ -28,9 +28,9 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "workspace:4.0.1",
-    "@pnpm/filter-lockfile": "workspace:3.2.1",
+    "@pnpm/filter-lockfile": "workspace:3.2.2",
     "@pnpm/lockfile-types": "workspace:2.0.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.10",
+    "@pnpm/lockfile-utils": "workspace:2.0.11",
     "@pnpm/package-bins": "workspace:4.0.3",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.1.0",
@@ -46,7 +46,7 @@
     "@pnpm/logger": "3.2.2",
     "@pnpm/modules-cleaner": "link:",
     "@types/is-windows": "^1.0.0",
-    "@types/ramda": "^0.27.3"
+    "@types/ramda": "^0.27.4"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "7.0.21",
+  "version": "7.0.22",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -37,13 +37,13 @@
   "dependencies": {
     "@pnpm/config": "workspace:8.3.0",
     "@pnpm/constants": "workspace:3.0.0",
-    "@pnpm/default-resolver": "workspace:7.4.8",
+    "@pnpm/default-resolver": "workspace:7.4.9",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/lockfile-file": "workspace:3.0.7",
-    "@pnpm/lockfile-utils": "workspace:2.0.10",
+    "@pnpm/lockfile-file": "workspace:3.0.8",
+    "@pnpm/lockfile-utils": "workspace:2.0.11",
     "@pnpm/manifest-utils": "workspace:1.0.0",
-    "@pnpm/matcher": "workspace:1.0.1",
-    "@pnpm/modules-yaml": "workspace:6.0.1",
+    "@pnpm/matcher": "workspace:1.0.2",
+    "@pnpm/modules-yaml": "workspace:6.0.2",
     "@pnpm/pick-registry-for-package": "workspace:1.0.0",
     "@pnpm/store-path": "^3.0.1",
     "@pnpm/types": "workspace:5.0.0",
@@ -56,7 +56,7 @@
     "@pnpm/logger": "3.2.2",
     "@pnpm/outdated": "link:",
     "@types/lru-cache": "^5.1.0",
-    "@types/ramda": "^0.27.3",
+    "@types/ramda": "^0.27.4",
     "@types/semver": "^7.1.0",
     "npm-run-all": "4.1.5"
   }

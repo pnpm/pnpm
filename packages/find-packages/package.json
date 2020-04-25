@@ -1,6 +1,6 @@
 {
   "name": "find-packages",
-  "version": "7.0.6",
+  "version": "7.0.7",
   "description": "Find all packages inside a directory",
   "main": "lib/index.js",
   "files": [
@@ -33,7 +33,7 @@
     "find-packages": "link:"
   },
   "dependencies": {
-    "@pnpm/read-project-manifest": "workspace:1.0.4",
+    "@pnpm/read-project-manifest": "workspace:1.0.5",
     "@pnpm/types": "workspace:5.0.0",
     "fast-glob": "3.2.2",
     "p-filter": "^2.1.0"

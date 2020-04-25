@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-utils",
-  "version": "2.0.10",
+  "version": "2.0.11",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,7 +33,7 @@
   "devDependencies": {
     "@pnpm/lockfile-utils": "link:",
     "@types/js-yaml": "^3.12.3",
-    "@types/ramda": "^0.27.3",
+    "@types/ramda": "^0.27.4",
     "tempy": "0.5.0",
     "write-yaml-file": "^4.1.0",
     "yaml-tag": "1.1.0"

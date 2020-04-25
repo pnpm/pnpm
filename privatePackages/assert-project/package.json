@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-project",
   "description": "Utils for testing projects that use pnpm",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -20,7 +20,7 @@
     "@pnpm/assert-project": "link:",
     "@types/is-windows": "^1.0.0",
     "@types/isexe": "2.0.0",
-    "@types/node": "^12.12.36"
+    "@types/node": "^12.12.37"
   },
   "directories": {
     "test": "test"

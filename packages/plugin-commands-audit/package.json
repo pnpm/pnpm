@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-audit",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "pnpm commands for dependencies audit",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,17 +32,17 @@
   "devDependencies": {
     "@pnpm/plugin-commands-audit": "link:",
     "@pnpm/types": "workspace:5.0.0",
-    "@types/ramda": "^0.27.3",
+    "@types/ramda": "^0.27.4",
     "@types/table": "^5.0.0",
     "strip-ansi": "6.0.0"
   },
   "dependencies": {
-    "@pnpm/audit": "workspace:1.1.0",
-    "@pnpm/cli-utils": "workspace:0.4.3",
+    "@pnpm/audit": "workspace:1.1.1",
+    "@pnpm/cli-utils": "workspace:0.4.4",
     "@pnpm/config": "workspace:8.3.0",
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/lockfile-file": "workspace:3.0.7",
+    "@pnpm/lockfile-file": "workspace:3.0.8",
     "chalk": "4.0.0",
     "ramda": "0.27.0",
     "render-help": "1.0.0",
