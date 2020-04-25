@@ -23,7 +23,7 @@
     "@pnpm/logger": "3.2.2",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/read-projects-context": "workspace:*",
-    "@pnpm/store-path": "^3.0.1",
+    "@pnpm/store-path": "^4.0.0-0",
     "@types/fs-extra": "^8.1.0",
     "@types/mz": "^2.7.0",
     "@types/ramda": "^0.27.4",
