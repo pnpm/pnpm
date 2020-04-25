@@ -1,7 +1,9 @@
-import checkPackage from '@pnpm/check-package'
 import { getContextForSingleImporter } from '@pnpm/get-context'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
 import * as dp from 'dependency-path'
+import dint = require('dint')
+import loadJsonFile = require('load-json-file')
 import pFilter = require('p-filter')
 import path = require('path')
 import extendOptions, {
@@ -18,6 +20,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
     registries,
     storeDir,
     skipped,
+    virtualStoreDir,
     wantedLockfile,
   } = await getContextForSingleImporter({}, {
     ...opts,
@@ -25,19 +28,23 @@ export default async function (maybeOpts: StoreStatusOptions) {
   })
   if (!wantedLockfile) return []
 
-  const pkgPaths = (Object.keys(wantedLockfile.packages || {})
-    .map((id) => {
-      if (id === '/') return null
-      return dp.resolve(registries, id)
+  const pkgs = Object.keys(wantedLockfile.packages || {})
+    .filter((relDepPath) => !skipped.has(relDepPath))
+    .map((relDepPath) => {
+      return {
+        pkgPath: dp.resolve(registries, relDepPath),
+        ...nameVerFromPkgSnapshot(relDepPath, wantedLockfile.packages![relDepPath]),
+      }
     })
-    .filter((pkgId) => pkgId && !skipped.has(pkgId)) as string[])
-    .map((pkgPath: string) => path.join(storeDir, pkgPath))
 
-  const modified = await pFilter(pkgPaths, async (pkgPath: string) => !await checkPackage(path.join(pkgPath, 'package')))
+  const modified = await pFilter(pkgs, async ({ pkgPath, name }) => {
+    const integrity = await loadJsonFile(path.join(storeDir, pkgPath, 'integrity.json'))
+    return (await dint.check(path.join(virtualStoreDir, pkgPath, 'node_modules', name), integrity)) === false
+  })
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
 
-  return modified
+  return modified.map(({ pkgPath }) => pkgPath)
 }

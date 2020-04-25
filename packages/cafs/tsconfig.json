@@ -10,19 +10,7 @@
   ],
   "references": [
     {
-      "path": "../error"
-    },
-    {
       "path": "../fetcher-base"
-    },
-    {
-      "path": "../fetch-from-npm-registry"
-    },
-    {
-      "path": "../cafs"
-    },
-    {
-      "path": "../read-package-json"
     }
   ]
 }

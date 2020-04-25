@@ -1,5 +1,10 @@
 import { Resolution } from '@pnpm/resolver-base'
-import { IntegrityMap } from 'ssri'
+import { Integrity } from 'ssri'
+
+export type Cafs = {
+  addFilesFromDir: (dir: string) => Promise<FilesIndex>,
+  addFilesFromTarball: (stream: NodeJS.ReadableStream) => Promise<FilesIndex>,
+}
 
 export interface FetchOptions {
   cachedTarballLocation: string,
@@ -9,19 +14,18 @@ export interface FetchOptions {
 }
 
 export type FetchFunction = (
+  cafs: Cafs,
   resolution: Resolution,
-  targetFolder: string,
   opts: FetchOptions,
 ) => Promise<FetchResult>
 
 export interface FetchResult {
   filesIndex: FilesIndex,
-  tempLocation: string,
 }
 
 export interface FilesIndex {
   [filename: string]: {
     size: number,
-    generatingIntegrity?: Promise<IntegrityMap>,
+    generatingIntegrity: Promise<Integrity>,
   },
 }

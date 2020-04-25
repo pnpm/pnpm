@@ -542,7 +542,6 @@ async function lockfileToDepGraph (
             // ignore
           })
         graph[peripheralLocation] = {
-          centralLocation: pkgLocation.dir,
           children: {},
           fetchingFiles: fetchResponse.files,
           finishing: fetchResponse.finishing,
@@ -649,7 +648,6 @@ async function getChildrenPaths (
 
 export interface DependenciesGraphNode {
   hasBundledDependencies: boolean,
-  centralLocation: string,
   modules: string,
   name: string,
   fetchingFiles: () => Promise<PackageFilesResponse>,
@@ -686,8 +684,7 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      if (depNode.independent) return
-      return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {
+      return storeController.importPackage(depNode.peripheralLocation, {
         filesResponse,
         force: opts.force,
       })

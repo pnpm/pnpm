@@ -6,25 +6,43 @@ import path = require('path')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 
-const importingLogger = pnpmLogger('_package-file-already-exists')
+const filenameConflictsLogger = pnpmLogger('_filename-conflicts')
 
 type ImportFile = (src: string, dest: string) => Promise<void>
 
-export default async function importIndexedDir (importFile: ImportFile, existingDir: string, newDir: string, filenames: string[]) {
+export default async function importIndexedDir (
+  importFile: ImportFile,
+  newDir: string,
+  filenames: Record<string, string>,
+) {
   const stage = pathTemp(path.dirname(newDir))
   try {
-    await tryImportIndexedDir(importFile, existingDir, stage, filenames)
+    await tryImportIndexedDir(importFile, stage, filenames)
     await renameOverwrite(stage, newDir)
   } catch (err) {
     try { await rimraf(stage) } catch (err) {} // tslint:disable-line:no-empty
-    throw err
+    if (err['code'] !== 'EEXIST') throw err
+
+    const { uniqueFileMap, conflictingFileNames } = getUniqueFileMap(filenames)
+    if (Object.keys(conflictingFileNames).length === 0) throw err
+    filenameConflictsLogger.debug({
+      conflicts: conflictingFileNames,
+      writingTo: newDir,
+    })
+    globalWarn(
+      `Not all files were linked to "${path.relative(process.cwd(), newDir)}". ` +
+      'Some of the files have equal names in different case, ' +
+      'which is an issue on case-insensitive filesystems. ' +
+      `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`,
+    )
+    await importIndexedDir(importFile, newDir, uniqueFileMap)
   }
 }
 
-async function tryImportIndexedDir (importFile: ImportFile, existingDir: string, newDir: string, filenames: string[]) {
+async function tryImportIndexedDir (importFile: ImportFile, newDir: string, filenames: Record<string, string>) {
   await makeEmptyDir(newDir, { recursive: true })
   const alldirs = new Set<string>()
-  filenames
+  Object.keys(filenames)
     .forEach((f) => {
       const dir = path.join(newDir, path.dirname(f))
       if (dir === '.') return
@@ -35,32 +53,30 @@ async function tryImportIndexedDir (importFile: ImportFile, existingDir: string,
       .sort((d1, d2) => d1.length - d2.length)
       .map((dir) => fs.mkdir(dir, { recursive: true })),
   )
-  let allLinked = true
   await Promise.all(
-    filenames
-      .map(async (f: string) => {
-        const src = path.join(existingDir, f)
+    Object.entries(filenames)
+      .map(async ([f, src]: [string, string]) => {
         const dest = path.join(newDir, f)
-        try {
-          await importFile(src, dest)
-        } catch (err) {
-          if (err['code'] !== 'EEXIST') throw err
-          // If the file is already linked, we ignore the error.
-          // This is an extreme edge case that may happen only in one case,
-          // when the store folder is case sensitive and the project's node_modules
-          // is case insensitive.
-          // So, for instance, foo.js and Foo.js could be unpacked to the store
-          // but they cannot be both linked to node_modules.
-          // More details at https://github.com/pnpm/pnpm/issues/1685
-          allLinked = false
-          importingLogger.debug({ src, dest })
-        }
+        await importFile(src, dest)
       }),
   )
-  if (!allLinked) {
-    globalWarn(
-      `Not all files from "${existingDir}" were linked to "${newDir}". ` +
-      'This happens when the store is case sensitive while the target directory is case insensitive.',
-    )
+}
+
+function getUniqueFileMap (fileMap: Record<string, string>) {
+  const lowercaseFiles = new Map<string, string>()
+  const conflictingFileNames = {}
+  const uniqueFileMap = {}
+  for (const filename of Object.keys(fileMap).sort()) {
+    const lowercaseFilename = filename.toLowerCase()
+    if (lowercaseFiles.has(lowercaseFilename)) {
+      conflictingFileNames[filename] = lowercaseFiles.get(lowercaseFilename)
+      continue
+    }
+    lowercaseFiles.set(lowercaseFilename, filename)
+    uniqueFileMap[filename] = fileMap[filename]
+  }
+  return {
+    conflictingFileNames,
+    uniqueFileMap,
   }
 }

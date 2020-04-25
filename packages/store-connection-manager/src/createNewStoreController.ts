@@ -1,8 +1,6 @@
 import { Config } from '@pnpm/config'
 import createFetcher from '@pnpm/default-fetcher'
-import logger from '@pnpm/logger'
 import createStore from '@pnpm/package-store'
-import dirIsCaseSensitive from 'dir-is-case-sensitive'
 import fs = require('mz/fs')
 import path = require('path')
 import createResolver, { CreateResolverOptions } from './createResolver'
@@ -29,17 +27,10 @@ export default async (
   })
   const resolve = createResolver(sopts)
   await fs.mkdir(sopts.storeDir, { recursive: true })
-  const fsIsCaseSensitive = await dirIsCaseSensitive(sopts.storeDir)
-  logger.debug({
-    // An undefined field would cause a crash of the logger
-    // so converting it to null
-    isCaseSensitive: typeof fsIsCaseSensitive === 'boolean'
-      ? fsIsCaseSensitive : null,
-    store: sopts.storeDir,
-  })
-  const fetchers = createFetcher({ ...sopts, fsIsCaseSensitive })
+  const fetchers = createFetcher(sopts)
   return {
     ctrl: await createStore(resolve, fetchers as {}, {
+      ignoreFile: sopts.ignoreFile,
       locks: sopts.locks,
       lockStaleDuration: sopts.lockStaleDuration,
       networkConcurrency: sopts.networkConcurrency,

@@ -142,7 +142,7 @@ export default function (
           break
         case '/importPackage':
           const importPackageBody = (await bodyPromise) as any // tslint:disable-line:no-any
-          await store.importPackage(importPackageBody.from, importPackageBody.to, importPackageBody.opts)
+          await store.importPackage(importPackageBody.to, importPackageBody.opts)
           res.end(JSON.stringify('OK'))
           break
         case '/upload':

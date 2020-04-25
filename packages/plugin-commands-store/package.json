@@ -55,6 +55,7 @@
     "@pnpm/config": "workspace:8.3.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/get-context": "workspace:1.2.1",
+    "@pnpm/lockfile-utils": "workspace:2.0.11",
     "@pnpm/normalize-registries": "workspace:1.0.0",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
     "@pnpm/pick-registry-for-package": "workspace:1.0.0",
@@ -65,6 +66,7 @@
     "archy": "1.0.0",
     "common-tags": "1.8.0",
     "dependency-path": "workspace:4.0.6",
+    "dint": "4.0.0",
     "p-filter": "2.1.0",
     "ramda": "0.27.0",
     "render-help": "1.0.0"

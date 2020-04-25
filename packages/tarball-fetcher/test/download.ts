@@ -1,5 +1,7 @@
 ///<reference path="../../../typings/index.d.ts" />
+import createCafs, { getFilePathInCafs as _getFilePathInCafs } from '@pnpm/cafs'
 import { LogBase, streamParser } from '@pnpm/logger'
+import readPackage from '@pnpm/read-package-json'
 import createFetcher from '@pnpm/tarball-fetcher'
 import cpFile = require('cp-file')
 import { existsSync } from 'fs'
@@ -9,6 +11,11 @@ import path = require('path')
 import ssri = require('ssri')
 import test = require('tape')
 import tempy = require('tempy')
+
+const cafsDir = tempy.directory()
+console.log(cafsDir)
+const cafs = createCafs(cafsDir)
+const getFilePathInCafs = _getFilePathInCafs.bind(_getFilePathInCafs, cafsDir)
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
@@ -35,7 +42,6 @@ test('fail when tarball size does not match content-length', async t => {
   process.chdir(tempy.directory())
   t.comment(`temp dir ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
     // Even though the integrity of the downloaded tarball
@@ -47,7 +53,7 @@ test('fail when tarball size does not match content-length', async t => {
   }
 
   try {
-    await fetch.tarball(resolution, unpackTo, {
+    await fetch.tarball(cafs, resolution, {
       cachedTarballLocation,
       lockfileDir: process.cwd(),
     })
@@ -95,13 +101,14 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
     }
   }
   streamParser.on('data', reporter as any) // tslint:disable-line:no-any
-  const { tempLocation } = await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
+  const { filesIndex } = await fetch.tarball(cafs, resolution, {
     cachedTarballLocation,
     lockfileDir: process.cwd(),
   })
   streamParser.removeListener('data', reporter as any) // tslint:disable-line:no-any
 
-  t.equal((await import(path.join(tempLocation, 'package.json'))).version, '6.24.1')
+  const pkgJsonIntegrity = await filesIndex['package.json'].generatingIntegrity
+  t.equal((await readPackage(getFilePathInCafs(pkgJsonIntegrity))).version, '6.24.1')
 
   t.ok(scope.isDone())
   t.end()
@@ -134,7 +141,7 @@ test('fail when the tarball in the cache does not pass integrity check in offlin
       },
       registry,
     })
-    await fetch.tarball(resolution, path.join(cacheDir, 'unpacked'), {
+    await fetch.tarball(cafs, resolution, {
       cachedTarballLocation,
       lockfileDir: process.cwd(),
     })
@@ -163,16 +170,13 @@ test('retry when tarball size does not match content-length', async t => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached.tgz')
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
-  const result = await fetch.tarball(resolution, unpackTo, {
+  const result = await fetch.tarball(cafs, resolution, {
     cachedTarballLocation,
     lockfileDir: process.cwd(),
   })
-
-  t.equal(typeof result.tempLocation, 'string')
 
   // fetch.tarball() doesn't wait till the cached tarball is renamed.
   // So this may happen a bit later
@@ -200,7 +204,6 @@ test('redownload incomplete cached tarballs', async t => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const cachedTarballFd = await fs.open(cachedTarballLocation, 'w')
   const tarballData = await fs.readFile(tarballPath)
@@ -217,7 +220,7 @@ test('redownload incomplete cached tarballs', async t => {
   }
   streamParser.on('data', reporter as any) // tslint:disable-line:no-any
   try {
-    await fetch.tarball(resolution, unpackTo, {
+    await fetch.tarball(cafs, resolution, {
       cachedTarballLocation,
       lockfileDir: process.cwd(),
     })
@@ -242,7 +245,6 @@ test('fail when integrity check fails two times in a row', async t => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
     integrity: tarballIntegrity,
@@ -250,7 +252,7 @@ test('fail when integrity check fails two times in a row', async t => {
   }
 
   try {
-    await fetch.tarball(resolution, unpackTo, {
+    await fetch.tarball(cafs, resolution, {
       cachedTarballLocation,
       lockfileDir: process.cwd(),
     })
@@ -281,7 +283,6 @@ test('retry when integrity check fails', async t => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
     integrity: tarballIntegrity,
@@ -289,7 +290,7 @@ test('retry when integrity check fails', async t => {
   }
 
   const params: Array<[number | null, number]> = []
-  await fetch.tarball(resolution, unpackTo, {
+  await fetch.tarball(cafs, resolution, {
     cachedTarballLocation,
     lockfileDir: process.cwd(),
     onStart (size, attempts) {
@@ -308,7 +309,6 @@ test('fail when integrity check of local file fails', async (t) => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
@@ -319,7 +319,7 @@ test('fail when integrity check of local file fails', async (t) => {
 
   let err: Error | null = null
   try {
-    await fetch.tarball(resolution, unpackTo, {
+    await fetch.tarball(cafs, resolution, {
       cachedTarballLocation,
       lockfileDir: process.cwd(),
     })
@@ -341,7 +341,6 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
@@ -350,13 +349,12 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
     tarball: `file:${tarball}`,
   }
 
-  const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
+  const { filesIndex } = await fetch.tarball(cafs, resolution, {
     cachedTarballLocation,
     lockfileDir: process.cwd(),
   })
 
   t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
-  t.equal(typeof tempLocation, 'string', 'temp location returned')
 
   t.end()
 })
@@ -372,7 +370,6 @@ test("don't fail when the cache tarball does not exist", async (t) => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('dir', 'cached')
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
@@ -380,13 +377,12 @@ test("don't fail when the cache tarball does not exist", async (t) => {
     tarball: `${registry}foo.tgz`,
   }
 
-  const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
+  const { filesIndex } = await fetch.tarball(cafs, resolution, {
     cachedTarballLocation,
     lockfileDir: process.cwd(),
   })
 
   t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
-  t.equal(typeof tempLocation, 'string', 'temp location returned')
 
   t.end()
 })
@@ -395,7 +391,6 @@ test('fail when the cache tarball does not exist in offline mode', async (t) => 
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('dir', 'cached')
   const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
   const resolution = {
@@ -415,7 +410,7 @@ test('fail when the cache tarball does not exist in offline mode', async (t) => 
       },
       registry,
     })
-    await fetch.tarball(resolution, unpackTo, {
+    await fetch.tarball(cafs, resolution, {
       cachedTarballLocation,
       lockfileDir: process.cwd(),
     })
@@ -441,14 +436,13 @@ test('retry on server error', async t => {
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
     integrity: tarballIntegrity,
     tarball: 'http://example.com/foo.tgz',
   }
 
-  const index = await fetch.tarball(resolution, unpackTo, {
+  const index = await fetch.tarball(cafs, resolution, {
     cachedTarballLocation,
     lockfileDir: process.cwd(),
   })
@@ -467,7 +461,6 @@ test('throw error when accessing private package w/o authorization', async t => 
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
     integrity: tarballIntegrity,
@@ -477,7 +470,7 @@ test('throw error when accessing private package w/o authorization', async t => 
   let err!: Error
 
   try {
-    await fetch.tarball(resolution, unpackTo, {
+    await fetch.tarball(cafs, resolution, {
       cachedTarballLocation,
       lockfileDir: process.cwd(),
     })
@@ -525,7 +518,6 @@ test('accessing private packages', async t => {
     registry,
   })
 
-  const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = {
     integrity: tarballIntegrity,
@@ -533,7 +525,7 @@ test('accessing private packages', async t => {
     tarball: 'http://example.com/foo.tgz',
   }
 
-  const index = await fetch.tarball(resolution, unpackTo, {
+  const index = await fetch.tarball(cafs, resolution, {
     cachedTarballLocation,
     lockfileDir: process.cwd(),
   })

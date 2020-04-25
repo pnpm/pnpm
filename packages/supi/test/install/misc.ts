@@ -408,20 +408,6 @@ test('refetch package to store if it has been modified', async (t) => {
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
 })
 
-test("don't refetch package to store if it has been modified and verify-store-integrity = false", async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-  const opts = await testDefaults({ verifyStoreIntegrity: false })
-  const manifest = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], opts)
-
-  await writeJsonFile(path.join(await project.getStorePath(), `localhost+${REGISTRY_MOCK_PORT}`, 'magic-hook', '2.0.0', 'node_modules', 'magic-hook', 'package.json'), {})
-
-  await rimraf('node_modules')
-
-  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], opts)
-
-  t.deepEqual(project.requireModule('magic-hook/package.json'), {}, 'package.json not refetched even though it was mutated')
-})
-
 // TODO: decide what to do with this case
 // tslint:disable-next-line:no-string-literal
 test.skip('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {

@@ -1,3 +1,4 @@
+import { getFilePathInCafs as _getFilePathInCafs } from '@pnpm/cafs'
 import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -5,6 +6,7 @@ import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requeste
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
+  ImportPackageFunction,
   PackageUsagesBySearchQueries,
   StoreController,
 } from '@pnpm/store-controller-types'
@@ -15,6 +17,8 @@ import pLimit from 'p-limit'
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
+import { promisify } from 'util'
+import writeJsonFile = require('write-json-file')
 import {
   read as readStore,
   save as saveStore,
@@ -26,6 +30,7 @@ export default async function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
   initOpts: {
+    ignoreFile?: (filename: string) => boolean,
     locks?: string,
     lockStaleDuration?: number,
     storeDir: string,
@@ -45,11 +50,23 @@ export default async function (
 
   const storeIndex = await readStore(initOpts.storeDir) || {}
   const packageRequester = createPackageRequester(resolve, fetchers, {
+    ignoreFile: initOpts.ignoreFile,
     networkConcurrency: initOpts.networkConcurrency,
     storeDir: initOpts.storeDir,
     storeIndex,
     verifyStoreIntegrity: initOpts.verifyStoreIntegrity,
   })
+
+  const impPkg = createImportPackage(initOpts.packageImportMethod)
+  const cafsDir = path.join(storeDir, 'files')
+  const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
+  const importPackage: ImportPackageFunction = (to, opts) => {
+    const filesMap = {} as Record<string, string>
+    for (const [fileName, { integrity }] of Object.entries(opts.filesResponse.filesIndex)) {
+      filesMap[fileName] = getFilePathInCafs(integrity)
+    }
+    return impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
+  }
 
   return {
     close: unlock ? async () => { await unlock() } : () => Promise.resolve(undefined),
@@ -57,7 +74,7 @@ export default async function (
     fetchPackage: packageRequester.fetchPackageToStore,
     findPackageUsages,
     getPackageLocation,
-    importPackage: createImportPackage(initOpts.packageImportMethod),
+    importPackage,
     prune,
     requestPackage: packageRequester.requestPackage,
     saveState: saveStore.bind(null, initOpts.storeDir, storeIndex),
@@ -150,10 +167,22 @@ export default async function (
   }
 
   async function upload (builtPkgLocation: string, opts: {packageId: string, engine: string}) {
-    const cachePath = path.join(storeDir, opts.packageId, 'side_effects', opts.engine, 'package')
-    // TODO calculate integrity.json here
-    const filenames: string[] = []
-    await copyPkg(builtPkgLocation, cachePath, { filesResponse: { fromStore: true, filenames }, force: true })
+    const filesIndex = await packageRequester.cafs.addFilesFromDir(builtPkgLocation)
+    // TODO: move this to a function
+    // This is duplicated in @pnpm/package-requester
+    const integrity = {}
+    await Promise.all(
+      Object.keys(filesIndex)
+        .map(async (filename) => {
+          const fileIntegrity = await filesIndex[filename].generatingIntegrity
+          integrity[filename] = {
+            integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
+            size: filesIndex[filename].size,
+          }
+        }),
+    )
+    const cachePath = path.join(storeDir, opts.packageId, 'side_effects', opts.engine)
+    await writeJsonFile(path.join(cachePath, 'integrity.json'), integrity, { indent: undefined })
   }
 }
 

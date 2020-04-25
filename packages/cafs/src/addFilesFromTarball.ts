@@ -1,0 +1,41 @@
+import { FilesIndex } from '@pnpm/fetcher-base'
+import decompress = require('decompress-maybe')
+import ssri = require('ssri')
+import { Duplex, PassThrough } from 'stream'
+import tar = require('tar-stream')
+
+export default async function (
+  addStreamToCafs: (fileStream: PassThrough) => Promise<ssri.Integrity>,
+  _ignore: null | ((filename: string) => Boolean),
+  stream: NodeJS.ReadableStream,
+): Promise<FilesIndex> {
+  const ignore = _ignore ? _ignore : () => false
+  const extract = tar.extract()
+  const filesIndex = {}
+  await new Promise((resolve, reject) => {
+    extract.on('entry', async (header, fileStream, next) => {
+      const filename = header.name.substr(header.name.indexOf('/') + 1)
+      if (header.type !== 'file' || ignore(filename)) {
+        fileStream.resume()
+        next()
+        return
+      }
+      const generatingIntegrity = addStreamToCafs(fileStream)
+      filesIndex[filename] = {
+        generatingIntegrity,
+        size: header.size,
+      }
+      next()
+    })
+    // listener
+    extract.on('finish', () => resolve())
+    extract.on('error', reject)
+
+    // pipe through extractor
+    stream
+      .on('error', reject)
+      .pipe(decompress() as Duplex)
+      .on('error', reject).pipe(extract)
+  })
+  return filesIndex
+}

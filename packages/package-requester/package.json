@@ -35,7 +35,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/check-package": "3.0.1",
+    "@pnpm/cafs": "workspace:0.0.0",
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/fetcher-base": "workspace:6.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
@@ -43,13 +43,11 @@
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "@zkochan/rimraf": "1.0.0",
     "load-json-file": "6.2.0",
     "make-dir": "^3.1.0",
     "mz": "2.7.0",
     "p-limit": "2.3.0",
     "p-queue": "6.3.0",
-    "path-exists": "4.0.0",
     "promise-share": "1.0.0",
     "ramda": "0.27.0",
     "rename-overwrite": "2.0.2",

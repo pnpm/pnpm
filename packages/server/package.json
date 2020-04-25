@@ -44,6 +44,7 @@
     "@types/uuid": "^7.0.3",
     "@zkochan/rimraf": "1.0.0",
     "is-port-reachable": "3.0.0",
+    "load-json-file": "6.2.0",
     "mz": "2.7.0",
     "node-fetch": "2.6.0",
     "tempy": "0.5.0"

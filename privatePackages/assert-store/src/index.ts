@@ -17,9 +17,9 @@ export default (t: Test, storePath: string | Promise<string>, encodedRegistryNam
     async resolve (pkgName: string, version?: string, relativePath?: string): Promise<string> {
       const pkgFolder = version ? path.join(ern, pkgName, version) : pkgName
       if (relativePath) {
-        return path.join(await storePath, pkgFolder, 'package', relativePath)
+        return path.join(await storePath, pkgFolder, relativePath)
       }
-      return path.join(await storePath, pkgFolder, 'package')
+      return path.join(await storePath, pkgFolder)
     },
   }
   return store

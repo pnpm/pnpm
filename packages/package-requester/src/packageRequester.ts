@@ -1,13 +1,17 @@
-import checkPackage from '@pnpm/check-package'
+import createCafs, {
+  checkFilesIntegrity as _checkFilesIntegrity,
+  getFilePathInCafs as _getFilePathInCafs,
+} from '@pnpm/cafs'
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
 import {
+  Cafs,
   FetchFunction,
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
+import readPackage from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
   Resolution,
@@ -27,18 +31,13 @@ import {
   DependencyManifest,
   StoreIndex,
 } from '@pnpm/types'
-import rimraf = require('@zkochan/rimraf')
 import loadJsonFile = require('load-json-file')
-import makeDir = require('make-dir')
 import * as fs from 'mz/fs'
 import PQueue from 'p-queue'
 import path = require('path')
-import exists = require('path-exists')
 import pShare = require('promise-share')
 import R = require('ramda')
-import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
-import symlinkDir = require('symlink-dir')
 import writeJsonFile = require('write-json-file')
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
@@ -64,12 +63,14 @@ export default function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
   opts: {
+    ignoreFile?: (filename: string) => boolean,
     networkConcurrency?: number,
     storeDir: string,
     storeIndex: StoreIndex,
     verifyStoreIntegrity: boolean,
   },
 ): RequestPackageFunction & {
+  cafs: Cafs,
   fetchPackageToStore: FetchPackageToStoreFunction,
   requestPackage: RequestPackageFunction,
 } {
@@ -82,10 +83,15 @@ export default function (
   requestsQueue['counter'] = 0 // tslint:disable-line
   requestsQueue['concurrency'] = networkConcurrency // tslint:disable-line
 
-  const fetch = fetcher.bind(null, fetchers)
+  const cafsDir = path.join(opts.storeDir, 'files')
+  const cafs = createCafs(cafsDir, opts.ignoreFile)
+  const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
+  const fetch = fetcher.bind(null, fetchers, cafs)
   const fetchPackageToStore = fetchToStore.bind(null, {
+    checkFilesIntegrity: _checkFilesIntegrity.bind(null, cafsDir),
     fetch,
     fetchingLocker: new Map(),
+    getFilePathInCafs,
     requestsQueue,
     storeDir: opts.storeDir,
     storeIndex: opts.storeIndex,
@@ -99,7 +105,7 @@ export default function (
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
 
-  return Object.assign(requestPackage, { fetchPackageToStore, requestPackage })
+  return Object.assign(requestPackage, { cafs, fetchPackageToStore, requestPackage })
 }
 
 async function resolveAndFetch (
@@ -235,10 +241,10 @@ async function resolveAndFetch (
 
 function fetchToStore (
   ctx: {
+    checkFilesIntegrity: (integrity: Record<string, { size: number, integrity: string }>) => Promise<boolean>,
     fetch: (
       packageId: string,
       resolution: Resolution,
-      target: string,
       opts: FetchOptions,
     ) => Promise<FetchResult>,
     fetchingLocker: Map<string, {
@@ -247,6 +253,7 @@ function fetchToStore (
       bundledManifest?: Promise<BundledManifest>,
       inStoreLocation: string,
     }>,
+    getFilePathInCafs: (integrity: string) => string,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storeDir: string,
@@ -297,7 +304,7 @@ function fetchToStore (
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
     // Otherwise, if a package was not in store when the server started, it will be always
     // reported as "downloaded" instead of "reused".
-    files.promise.then(({ filenames, fromStore }) => { // tslint:disable-line
+    files.promise.then(({ filesIndex, fromStore }) => { // tslint:disable-line
       // If it's already in the store, we don't need to update the cache
       if (fromStore) {
         return
@@ -317,7 +324,7 @@ function fetchToStore (
       ctx.fetchingLocker.set(opts.pkgId, {
         bundledManifest: tmp.bundledManifest,
         files: Promise.resolve({
-          filenames,
+          filesIndex,
           fromStore: true,
         }),
         finishing: tmp.finishing,
@@ -338,7 +345,7 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(() => readBundledManifest(path.join(result.inStoreLocation, 'package'))),
+      result.files.then(({ filesIndex }) => readBundledManifest(ctx.getFilePathInCafs(filesIndex['package.json'].integrity))),
     )
   }
 
@@ -363,31 +370,28 @@ function fetchToStore (
   ) {
     try {
       const isLocalTarballDep = opts.pkgId.startsWith('file:')
-      const linkToUnpacked = path.join(target, 'package')
-
-      // We can safely assume that if there is no data about the package in `store.json` then
-      // it is not in the store yet.
-      // In case there is record about the package in `store.json`, we check it in the file system just in case
-      const targetExists = ctx.storeIndex[targetRelative] && await exists(path.join(linkToUnpacked, 'package.json'))
 
       if (
-        !opts.force && targetExists &&
+        !opts.force &&
         (
           isLocalTarballDep === false ||
           await tarballIsUpToDate(opts.resolution as any, target, opts.lockfileDir) // tslint:disable-line
         )
       ) {
+        let integrity
+        try {
+          integrity = await loadJsonFile<Record<string, { size: number, integrity: string }>>(path.join(target, 'integrity.json'))
+        } catch (err) {
+          // ignoring. It is fine if the integrity file is not present. Just refetch the package
+        }
         // if target exists and it wasn't modified, then no need to refetch it
-        const satisfiedIntegrity = ctx.verifyStoreIntegrity
-          ? await checkPackage(linkToUnpacked)
-          : await loadJsonFile<object>(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
-        if (satisfiedIntegrity) {
+        if (integrity && await ctx.checkFilesIntegrity(integrity)) {
           files.resolve({
-            filenames: Object.keys(satisfiedIntegrity).filter((f) => !satisfiedIntegrity[f].isDir), // Filtering can be removed for store v3
+            filesIndex: integrity,
             fromStore: true,
           })
           if (opts.fetchRawManifest) {
-            readBundledManifest(linkToUnpacked)
+            readBundledManifest(ctx.getFilePathInCafs(integrity['package.json'].integrity))
               .then(bundledManifest.resolve)
               .catch(bundledManifest.reject)
           }
@@ -403,93 +407,63 @@ function fetchToStore (
       // We fetch into targetStage directory first and then fs.rename() it to the
       // target directory.
 
-      let filesIndex!: {}
-      let tempLocation!: string
-      await Promise.all([
-        (async () => {
-          // Tarballs are requested first because they are bigger than metadata files.
-          // However, when one line is left available, allow it to be picked up by a metadata request.
-          // This is done in order to avoid situations when tarballs are downloaded in chunks
-          // As much tarballs should be downloaded simultaneously as possible.
-          const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
+      // Tarballs are requested first because they are bigger than metadata files.
+      // However, when one line is left available, allow it to be picked up by a metadata request.
+      // This is done in order to avoid situations when tarballs are downloaded in chunks
+      // As much tarballs should be downloaded simultaneously as possible.
+      const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
 
-          const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(
-            opts.pkgId,
-            opts.resolution,
-            target,
-            {
-              cachedTarballLocation: path.join(ctx.storeDir, opts.pkgId, 'packed.tgz'),
-              lockfileDir: opts.lockfileDir,
-              onProgress: (downloaded) => {
-                fetchingProgressLogger.debug({
-                  downloaded,
-                  packageId: opts.pkgId,
-                  status: 'in_progress',
-                })
-              },
-              onStart: (size, attempt) => {
-                fetchingProgressLogger.debug({
-                  attempt,
-                  packageId: opts.pkgId,
-                  size,
-                  status: 'started',
-                })
-              },
-            },
-          ), { priority })
+      const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(
+        opts.pkgId,
+        opts.resolution,
+        {
+          cachedTarballLocation: path.join(ctx.storeDir, opts.pkgId, 'packed.tgz'),
+          lockfileDir: opts.lockfileDir,
+          onProgress: (downloaded) => {
+            fetchingProgressLogger.debug({
+              downloaded,
+              packageId: opts.pkgId,
+              status: 'in_progress',
+            })
+          },
+          onStart: (size, attempt) => {
+            fetchingProgressLogger.debug({
+              attempt,
+              packageId: opts.pkgId,
+              size,
+              status: 'started',
+            })
+          },
+        },
+      ), { priority })
 
-          filesIndex = fetchedPackage.filesIndex
-          tempLocation = fetchedPackage.tempLocation
-        })(),
-        // removing only the folder with the unpacked files
-        // not touching tarball and integrity.json
-        targetExists && await rimraf(path.join(target, 'node_modules')),
-      ])
+      const filesIndex = fetchedPackage.filesIndex
 
       // Ideally, files wouldn't care about when integrity is calculated.
       // However, we can only rename the temp folder once we know the package name.
       // And we cannot rename the temp folder till we're calculating integrities.
-      if (ctx.verifyStoreIntegrity) {
-        const fileIntegrities = await Promise.all(
-          Object.keys(filesIndex)
-            .map((filename) =>
-            filesIndex[filename].generatingIntegrity
-                .then((fileIntegrity: object) => ({
-                  [filename]: {
-                    integrity: fileIntegrity,
-                    size: filesIndex[filename].size,
-                  },
-                })),
-            ),
-        )
-        const integrity = fileIntegrities
-          .reduce((acc, info) => {
-            Object.assign(acc, info)
-            return acc
-          }, {})
-        await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: undefined })
-      } else {
-        // TODO: save only filename: {size}
-        await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, { indent: undefined })
-      }
+      const integrity = {}
+      await Promise.all(
+        Object.keys(filesIndex)
+          .map(async (filename) => {
+            const fileIntegrity = await filesIndex[filename].generatingIntegrity
+            integrity[filename] = {
+              integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
+              size: filesIndex[filename].size,
+            }
+          }),
+      )
+      await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: undefined })
       finishing.resolve(undefined)
 
       let pkgName: string | undefined = opts.pkgName
       if (!pkgName || opts.fetchRawManifest) {
-        const manifest = await readPkgFromDir(tempLocation) as DependencyManifest
+        const manifest = await readPackage(ctx.getFilePathInCafs(integrity['package.json'].integrity)) as DependencyManifest
         bundledManifest.resolve(pickBundledManifest(manifest))
         if (!pkgName) {
           pkgName = manifest.name
         }
       }
-
-      const unpacked = path.join(target, 'node_modules', pkgName)
-      await makeDir(path.dirname(unpacked))
-
-      // rename(oldPath, newPath) is an atomic operation, so we do it at the
-      // end
-      await renameOverwrite(tempLocation, unpacked)
-      await symlinkDir(unpacked, linkToUnpacked)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
         await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal
@@ -497,7 +471,7 @@ function fetchToStore (
 
       ctx.storeIndex[targetRelative] = ctx.storeIndex[targetRelative] || []
       files.resolve({
-        filenames: Object.keys(filesIndex).filter((f) => !filesIndex[f].isDir), // Filtering can be removed for store v3
+        filesIndex: integrity,
         fromStore: false,
       })
     } catch (err) {
@@ -509,8 +483,8 @@ function fetchToStore (
   }
 }
 
-async function readBundledManifest (dir: string): Promise<BundledManifest> {
-  return pickBundledManifest(await readPkgFromDir(dir) as DependencyManifest)
+async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
+  return pickBundledManifest(await readPackage(pkgJsonPath) as DependencyManifest)
 }
 
 async function tarballIsUpToDate (
@@ -564,9 +538,9 @@ function differed<T> (): PromiseContainer<T> {
 
 async function fetcher (
   fetcherByHostingType: {[hostingType: string]: FetchFunction},
+  cafs: Cafs,
   packageId: string,
   resolution: Resolution,
-  target: string,
   opts: FetchOptions,
 ): Promise<FetchResult> {
   const fetch = fetcherByHostingType[resolution.type || 'tarball']
@@ -574,7 +548,7 @@ async function fetcher (
     throw new Error(`Fetching for dependency type "${resolution.type}" is not supported`)
   }
   try {
-    return await fetch(resolution, target, opts)
+    return await fetch(cafs, resolution, opts)
   } catch (err) {
     packageRequestLogger.warn({
       message: `Fetching ${packageId} failed!`,
