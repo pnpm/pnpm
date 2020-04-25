@@ -1181,7 +1181,7 @@ importers:
       ramda: 0.27.0
       rename-overwrite: 2.0.2
       ssri: 6.0.1
-      symlink-dir: 3.1.2
+      symlink-dir: 4.0.1
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/local-resolver': 'link:../local-resolver'
@@ -1237,7 +1237,7 @@ importers:
       rename-overwrite: 2.0.2
       sinon: 9.0.2
       ssri: 6.0.1
-      symlink-dir: 3.1.2
+      symlink-dir: ^4.0.1
       tempy: 0.5.0
       write-json-file: 4.0.0
   packages/package-store:
@@ -2109,7 +2109,7 @@ importers:
       read-yaml-file: 2.0.0
       retry: 0.12.0
       semver: 7.3.2
-      symlink-dir: 3.1.2
+      symlink-dir: 4.0.1
       tape-promise: 4.0.0
       tree-kill: 1.2.2
       write-json-file: 4.0.0
@@ -2200,7 +2200,7 @@ importers:
       retry: 0.12.0
       semver: ^7.3.2
       split-cmd: 1.0.1
-      symlink-dir: 3.1.2
+      symlink-dir: ^4.0.1
       tape-promise: 4.0.0
       tree-kill: 1.2.2
       update-notifier: 4.1.0
@@ -2592,7 +2592,7 @@ importers:
       resolve-link-target: 1.0.1
       sinon: 9.0.2
       supi: 'link:'
-      symlink-dir: 3.1.2
+      symlink-dir: 4.0.1
       tape-promise: 4.0.0
       write-json-file: 4.0.0
       write-yaml-file: 4.0.0
@@ -2691,7 +2691,7 @@ importers:
       semver-utils: 1.1.4
       sinon: 9.0.2
       supi: 'link:'
-      symlink-dir: 3.1.2
+      symlink-dir: ^4.0.1
       tape-promise: 4.0.0
       version-selector-type: 2.0.1
       write-json-file: 4.0.0
@@ -2702,7 +2702,7 @@ importers:
       '@pnpm/types': 'link:../types'
       make-dir: 3.1.0
       mz: 2.7.0
-      symlink-dir: 3.1.2
+      symlink-dir: 4.0.1
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@types/mz': 2.7.0
@@ -2713,7 +2713,7 @@ importers:
       '@types/mz': ^2.7.0
       make-dir: ^3.1.0
       mz: 2.7.0
-      symlink-dir: 3.1.2
+      symlink-dir: ^4.0.1
   packages/tarball-fetcher:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -11007,17 +11007,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==
-  /symlink-dir/3.1.2:
+  /symlink-dir/4.0.1:
     dependencies:
       better-path-resolve: 1.0.0
       graceful-fs: 4.2.3
-      make-dir: 3.1.0
       rename-overwrite: 2.0.2
     engines:
-      node: '>=8.15'
+      node: '>=10.12'
     hasBin: true
     resolution:
-      integrity: sha512-wuqI+beQTU3XQq6bHTg4tcFiXlAN5uWNus+R0/I/R9O/ORpVHdCo2JQp04dCexBIb94VarosKFU+kjVEgzIQpQ==
+      integrity: sha512-eQg3i9IDWlDMeSrfWer2cCIMW8KseWkwN1ar6cQfpm0+JGxb/LBGoRteFU1SUp6V1tGdHTWI3Hj06OXOK7YZcQ==
   /table/5.4.6:
     dependencies:
       ajv: 6.12.2
