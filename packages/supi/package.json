@@ -80,7 +80,7 @@
     "@pnpm/logger": "3.2.2",
     "@pnpm/package-store": "workspace:*",
     "@pnpm/prepare": "workspace:0.0.1",
-    "@pnpm/store-path": "^3.0.1",
+    "@pnpm/store-path": "^4.0.0-0",
     "@pnpm/test-fixtures": "workspace:0.0.0",
     "@types/common-tags": "1.8.0",
     "@types/fs-extra": "^8.1.0",
