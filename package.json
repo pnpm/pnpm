@@ -25,7 +25,7 @@
     "npm-run-all": "4.1.5",
     "publish-packed": "3.0.1",
     "rimraf": "3.0.2",
-    "tape": "4.13.2",
+    "tape": "5.0.0",
     "ts-node": "8.8.2",
     "tslint": "6.1.1",
     "typescript": "3.8.3",
