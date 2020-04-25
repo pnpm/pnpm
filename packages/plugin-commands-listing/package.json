@@ -44,7 +44,7 @@
     "execa": "4.0.0",
     "mz": "2.7.0",
     "strip-ansi": "6.0.0",
-    "write-yaml-file": "4.0.0"
+    "write-yaml-file": "^4.1.0"
   },
   "dependencies": {
     "@pnpm/cli-utils": "workspace:0.4.3",
