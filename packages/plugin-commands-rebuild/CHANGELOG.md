@@ -1,6 +1,15 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1.0.11-alpha.0
+
+### Patch Changes
+
+- Updated dependencies [91c4b5954]
+  - @pnpm/store-controller-types@8.0.0-alpha.0
+  - @pnpm/store-connection-manager@0.3.0-alpha.0
+
 ## 1.0.10
+
 ### Patch Changes
 
 - 907c63a48: Dependencies updated.
