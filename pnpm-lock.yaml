@@ -352,7 +352,7 @@ importers:
       '@types/ssri': 6.0.1
     specifiers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
-      '@types/ssri': 6.0.1
+      '@types/ssri': '6'
   packages/filter-lockfile:
     dependencies:
       '@pnpm/constants': 'link:../constants'
@@ -809,7 +809,7 @@ importers:
       '@pnpm/local-resolver': 'link:'
       '@types/graceful-fs': 4.1.3
       '@types/normalize-path': 3.0.0
-      '@types/ssri': 6.0.1
+      '@types/ssri': 6.0.2
     specifiers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/local-resolver': 'link:'
@@ -818,7 +818,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/graceful-fs': 4.1.3
       '@types/normalize-path': 3.0.0
-      '@types/ssri': ^6.0.1
+      '@types/ssri': '6'
       graceful-fs: 4.2.1
       normalize-path: 3.0.0
       ssri: 6.0.1
@@ -1044,7 +1044,7 @@ importers:
       '@pnpm/npm-resolver': 'link:'
       '@types/normalize-path': 3.0.0
       '@types/semver': 7.1.0
-      '@types/ssri': 6.0.1
+      '@types/ssri': 6.0.2
       nock: 12.0.3
       path-exists: 4.0.0
       tempy: 0.5.0
@@ -1057,7 +1057,7 @@ importers:
       '@pnpm/types': 'workspace:5.0.0'
       '@types/normalize-path': ^3.0.0
       '@types/semver': ^7.1.0
-      '@types/ssri': ^6.0.1
+      '@types/ssri': '6'
       credentials-by-uri: 2.0.0
       encode-registry: 2.0.2
       fetch-from-npm-registry: 'workspace:4.0.2'
@@ -1220,7 +1220,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/ramda': ^0.27.3
       '@types/sinon': ^9.0.0
-      '@types/ssri': 6.0.1
+      '@types/ssri': '6'
       '@zkochan/rimraf': 1.0.0
       delay: 4.3.0
       load-json-file: 6.2.0
@@ -2736,7 +2736,7 @@ importers:
       '@types/mz': 2.7.0
       '@types/retry': 0.12.0
       '@types/rimraf': 3.0.0
-      '@types/ssri': 6.0.1
+      '@types/ssri': 6.0.2
       cp-file: 9.0.0
       nock: 12.0.3
       tempy: 0.5.0
@@ -2749,7 +2749,7 @@ importers:
       '@types/mz': ^2.7.0
       '@types/retry': ^0.12.0
       '@types/rimraf': ^3.0.0
-      '@types/ssri': ^6.0.1
+      '@types/ssri': '6'
       cp-file: 9.0.0
       credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'workspace:4.0.2'
@@ -3504,6 +3504,12 @@ packages:
   /@types/ssri/6.0.1:
     resolution:
       integrity: sha512-Sf5NnDETSFGTHXIfG4zTTczRFhGEjSCfwfvHZ5oFmyX0fUA5BJKV/hdQ2zDnfcC6WXvE78ZTh+/18VzMyMM1QQ==
+  /@types/ssri/6.0.2:
+    dependencies:
+      '@types/node': 13.13.2
+    dev: true
+    resolution:
+      integrity: sha512-kbuJWqTfsJZCK+8nWGXaqXcrcjm9cCrf7uqCX05rxySsmsNwuOWMpQMvSOdVM2M9qodnmD8kxm/MyKJ6NLOabA==
   /@types/table/5.0.0:
     dev: true
     resolution:

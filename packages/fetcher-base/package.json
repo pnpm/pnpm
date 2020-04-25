@@ -31,6 +31,6 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetcher-base#readme",
   "dependencies": {
     "@pnpm/resolver-base": "workspace:7.0.0",
-    "@types/ssri": "6.0.1"
+    "@types/ssri": "6"
   }
 }
