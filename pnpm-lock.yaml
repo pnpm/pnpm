@@ -7,7 +7,7 @@ importers:
       '@types/node': 13.13.2
       '@types/tape': 4.13.0
       c8: 7.1.0
-      coveralls: 3.0.14
+      coveralls: 3.1.0
       cross-env: 7.0.2
       lcov-result-merger: 3.1.0
       npm: 6.14.4
@@ -349,7 +349,7 @@ importers:
   packages/fetcher-base:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
-      '@types/ssri': 6.0.1
+      '@types/ssri': 6.0.2
     specifiers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@types/ssri': '6'
@@ -1194,7 +1194,7 @@ importers:
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.4
       '@types/sinon': 9.0.0
-      '@types/ssri': 6.0.1
+      '@types/ssri': 6.0.2
       delay: 4.3.0
       ncp: 2.0.0
       nock: 12.0.3
@@ -3225,7 +3225,7 @@ packages:
       rimraf: 3.0.2
       tempy: 0.5.0
       verdaccio: 4.6.0
-      write-yaml-file: 4.0.0
+      write-yaml-file: 4.1.0
     dev: true
     engines:
       node: '>=10.13'
@@ -3501,13 +3501,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-yYezQwGWty8ziyYLdZjwxyMb0CZR49h8JALHGrxjQHWlqGgc8kLdHEgWrgL0uZ29DMvEVBDnHU2Wg36zKSIUtA==
-  /@types/ssri/6.0.1:
-    resolution:
-      integrity: sha512-Sf5NnDETSFGTHXIfG4zTTczRFhGEjSCfwfvHZ5oFmyX0fUA5BJKV/hdQ2zDnfcC6WXvE78ZTh+/18VzMyMM1QQ==
   /@types/ssri/6.0.2:
     dependencies:
       '@types/node': 13.13.2
-    dev: true
     resolution:
       integrity: sha512-kbuJWqTfsJZCK+8nWGXaqXcrcjm9cCrf7uqCX05rxySsmsNwuOWMpQMvSOdVM2M9qodnmD8kxm/MyKJ6NLOabA==
   /@types/table/5.0.0:
@@ -5231,7 +5227,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-16ZvhVjVhEP75sMflsPtXcwbly+79os1zhBVcpRWNmnwifEbZChW+0URYING/A2ehBwp8i0pOXJYzdpiGO3Ivw==
-  /coveralls/3.0.14:
+  /coveralls/3.1.0:
     dependencies:
       js-yaml: 3.13.1
       lcov-parse: 1.0.0
@@ -5243,7 +5239,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-nEQqCHzxiFfu1dEHYxe7xrbF5vFmx122mTWIM+BkiAOmsWbSAcucNk8stELnNk2lS1biTUjFOCIf8v8ZN225IA==
+      integrity: sha512-sHxOu2ELzW8/NC1UP5XVLbZDzO4S3VxfFye3XYCznopHy02YjNkHcj5bKaVw2O7hVaBdBjEdQGpie4II1mWhuQ==
   /cp-file/7.0.0:
     dependencies:
       graceful-fs: 4.2.3
@@ -7491,7 +7487,7 @@ packages:
       whatwg-encoding: 1.0.5
       whatwg-mimetype: 2.3.0
       whatwg-url: 8.0.0
-      ws: 7.2.3
+      ws: 7.2.5
       xml-name-validator: 3.0.0
     dev: true
     engines:
@@ -11587,7 +11583,7 @@ packages:
       integrity: sha512-8rMeVYWSIyccIJscb9NdCfZKSRBKYTeVnwmiRYT2ulE3qd1RaDQ0xQDP+rI3ccIWbhu/zuo5cgN8z73belNZgw==
   /unpack-stream/6.0.0:
     dependencies:
-      '@types/ssri': 6.0.1
+      '@types/ssri': 6.0.2
       decompress-maybe: 1.0.0
       ssri: 6.0.1
       tar-fs: 2.0.1
@@ -12087,18 +12083,6 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-v2UQ+50TNf2rNHJ8NyWttfm/EJUBWMJcx6ZTYZr6Qp52uuegWw/lBkCtCbnYZEmPRNL61m+u67dAmGxo+HTULA==
-  /write-yaml-file/4.0.0:
-    dependencies:
-      graceful-fs: 4.2.3
-      js-yaml: 3.13.1
-      make-dir: 3.1.0
-      pify: 5.0.0
-      write-file-atomic: 2.4.3
-    dev: true
-    engines:
-      node: '>=10.13'
-    resolution:
-      integrity: sha512-lllTLncHf3r8JjI2TrlN5smKleOdVv6Zzj2txKmXSljMIEAyiTW8wzmd+iES1UwqkgfflI3obkeJOfuGMJjAaA==
   /write-yaml-file/4.1.0:
     dependencies:
       graceful-fs: 4.2.3
@@ -12108,7 +12092,7 @@ packages:
       node: '>=10.13'
     resolution:
       integrity: sha512-jN421OlwO/MN/EwAykk5ic8AL9QAycpKGaHKFBlcr3aQ6RUX8ZbrreOPUuhoYSxj/o30FhOQLSH36WYldAFrUw==
-  /ws/7.2.3:
+  /ws/7.2.5:
     dev: true
     engines:
       node: '>=8.3.0'
@@ -12121,7 +12105,7 @@ packages:
       utf-8-validate:
         optional: true
     resolution:
-      integrity: sha512-HTDl9G9hbkNDk98naoR/cHDws7+EyYMOdL1BmjsZXRUjf7d+MficC4B7HLUPlSiho0vg+CWKrGIt/VJBd1xunQ==
+      integrity: sha512-C34cIU4+DB2vMyAbmEKossWq2ZQDr6QEyuuCzWrM9zfw1sGc0mYiJ0UnG9zzNykt49C2Fi34hvr2vssFQRS6EA==
   /x256/0.0.2:
     dev: false
     engines:
