@@ -473,13 +473,14 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       is-ci: 2.0.0
-      make-dir: 3.1.0
+      mz: 2.7.0
       path-absolute: 1.0.1
       ramda: 0.27.0
     devDependencies:
       '@pnpm/get-context': 'link:'
       '@pnpm/logger': 3.2.2
       '@types/is-ci': 2.0.0
+      '@types/mz': 2.7.0
       '@types/ramda': 0.27.4
     specifiers:
       '@pnpm/constants': 'workspace:3.0.0'
@@ -492,10 +493,11 @@ importers:
       '@pnpm/read-projects-context': 'workspace:2.0.0'
       '@pnpm/types': 'workspace:5.0.0'
       '@types/is-ci': ^2.0.0
+      '@types/mz': ^2.7.0
       '@types/ramda': ^0.27.3
       '@zkochan/rimraf': 1.0.0
       is-ci: 2.0.0
-      make-dir: ^3.1.0
+      mz: ^2.7.0
       path-absolute: 1.0.1
       ramda: 0.27.0
   packages/git-fetcher:
@@ -707,7 +709,6 @@ importers:
       '@zkochan/cmd-shim': 4.3.0
       is-subdir: 1.1.1
       is-windows: 1.0.2
-      make-dir: 3.1.0
       mz: 2.7.0
       normalize-path: 3.0.0
       p-settle: 4.0.1
@@ -742,16 +743,15 @@ importers:
       '@types/ramda': ^0.27.3
       '@types/sinon': ^9.0.0
       '@types/tape': ^4.13.0
-      '@zkochan/cmd-shim': 4.3.0
-      is-subdir: 1.1.1
-      is-windows: 1.0.2
-      make-dir: ^3.1.0
-      mz: 2.7.0
+      '@zkochan/cmd-shim': ^4.3.0
+      is-subdir: ^1.1.1
+      is-windows: ^1.0.2
+      mz: ^2.7.0
       ncp: ^2.0.0
-      normalize-path: 3.0.0
-      p-settle: 4.0.1
+      normalize-path: ^3.0.0
+      p-settle: ^4.0.1
       path-exists: ^4.0.0
-      ramda: 0.27.0
+      ramda: ^0.27.0
       sinon: 9.0.2
       tempy: 0.5.0
   packages/list:
@@ -830,7 +830,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       js-yaml: 3.13.1
-      make-dir: 3.1.0
+      mz: 2.7.0
       normalize-path: 3.0.0
       ramda: 0.27.0
       read-yaml-file: 2.0.0
@@ -839,6 +839,7 @@ importers:
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/logger': 3.2.2
       '@types/js-yaml': 3.12.3
+      '@types/mz': 2.7.0
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.4
       '@types/write-file-atomic': 3.0.0
@@ -850,22 +851,23 @@ importers:
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/lockfile-types': 'workspace:2.0.0'
-      '@pnpm/logger': 3.2.2
+      '@pnpm/logger': ^3.2.2
       '@pnpm/types': 'workspace:5.0.0'
       '@types/js-yaml': ^3.12.3
-      '@types/normalize-path': 3.0.0
+      '@types/mz': ^2.7.0
+      '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.3
-      '@types/write-file-atomic': 3.0.0
-      '@zkochan/rimraf': 1.0.0
-      js-yaml: 3.13.1
-      make-dir: ^3.1.0
-      normalize-path: 3.0.0
-      ramda: 0.27.0
-      read-yaml-file: 2.0.0
-      tempy: 0.5.0
-      write-file-atomic: 2.4.3
+      '@types/write-file-atomic': ^3.0.0
+      '@zkochan/rimraf': ^1.0.0
+      js-yaml: ^3.13.1
+      mz: ^2.7.0
+      normalize-path: ^3.0.0
+      ramda: ^0.27.0
+      read-yaml-file: ^2.0.0
+      tempy: ^0.5.0
+      write-file-atomic: ^2.4.3
       write-yaml-file: ^4.1.0
-      yaml-tag: 1.1.0
+      yaml-tag: ^1.1.0
   packages/lockfile-types:
     specifiers: {}
   packages/lockfile-utils:
@@ -1907,7 +1909,6 @@ importers:
       diable: 4.0.2
       get-port: 5.1.1
       is-windows: 1.0.2
-      make-dir: 3.1.0
       mz: 2.7.0
       process-exists: 4.0.0
       ramda: 0.27.0
@@ -1932,24 +1933,23 @@ importers:
       '@pnpm/plugin-commands-server': 'link:'
       '@pnpm/server': 'workspace:7.0.4'
       '@pnpm/store-connection-manager': 'workspace:0.2.30'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^2.1.1
       '@types/common-tags': ^1.8.0
       '@types/is-windows': ^1.0.0
       '@types/mz': ^2.7.0
       '@types/ramda': ^0.27.3
       '@types/signal-exit': ^3.0.0
-      common-tags: 1.8.0
-      delay: 4.3.0
-      diable: 4.0.2
-      get-port: 5.1.1
-      is-windows: 1.0.2
-      make-dir: ^3.1.0
-      mz: 2.7.0
-      process-exists: 4.0.0
-      ramda: 0.27.0
-      render-help: 1.0.0
-      signal-exit: 3.0.3
-      tree-kill: 1.2.2
+      common-tags: ^1.8.0
+      delay: ^4.3.0
+      diable: ^4.0.2
+      get-port: ^5.1.1
+      is-windows: ^1.0.2
+      mz: ^2.7.0
+      process-exists: ^4.0.0
+      ramda: ^0.27.0
+      render-help: ^1.0.0
+      signal-exit: ^3.0.3
+      tree-kill: ^1.2.2
   packages/plugin-commands-store:
     dependencies:
       '@pnpm/check-package': 3.0.1
@@ -2461,7 +2461,6 @@ importers:
       diable: 4.0.2
       dir-is-case-sensitive: 1.0.2
       lru-cache: 5.1.1
-      make-dir: 3.1.0
       mz: 2.7.0
     devDependencies:
       '@pnpm/logger': 3.2.2
@@ -2478,15 +2477,14 @@ importers:
       '@pnpm/package-store': 'workspace:8.0.5'
       '@pnpm/server': 'workspace:7.0.4'
       '@pnpm/store-connection-manager': 'link:'
-      '@pnpm/store-path': 2.1.1
+      '@pnpm/store-path': ^2.1.1
       '@types/lru-cache': 5.1.0
       '@types/mz': ^2.7.0
-      delay: 4.3.0
-      diable: 4.0.2
-      dir-is-case-sensitive: 1.0.2
-      lru-cache: 5.1.1
-      make-dir: ^3.1.0
-      mz: 2.7.0
+      delay: ^4.3.0
+      diable: ^4.0.2
+      dir-is-case-sensitive: ^1.0.2
+      lru-cache: ^5.1.1
+      mz: ^2.7.0
   packages/store-controller-types:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -2540,7 +2538,6 @@ importers:
       is-inner-link: 2.0.2
       is-subdir: 1.1.1
       load-json-file: 6.2.0
-      make-dir: 3.1.0
       mz: 2.7.0
       normalize-path: 3.0.0
       p-every: 2.0.0
@@ -2672,7 +2669,6 @@ importers:
       is-subdir: 1.1.1
       is-windows: 1.0.2
       load-json-file: 6.2.0
-      make-dir: ^3.1.0
       mz: 2.7.0
       ncp: 2.0.0
       normalize-path: 3.0.0
@@ -2700,7 +2696,6 @@ importers:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/types': 'link:../types'
-      make-dir: 3.1.0
       mz: 2.7.0
       symlink-dir: 4.0.1
     devDependencies:
@@ -2711,8 +2706,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/types': 'workspace:^5.0.0'
       '@types/mz': ^2.7.0
-      make-dir: ^3.1.0
-      mz: 2.7.0
+      mz: ^2.7.0
       symlink-dir: ^4.0.1
   packages/tarball-fetcher:
     dependencies:

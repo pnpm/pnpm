@@ -39,14 +39,13 @@
     "@pnpm/read-package-json": "workspace:3.1.0",
     "@pnpm/read-project-manifest": "workspace:1.0.4",
     "@pnpm/types": "workspace:5.0.0",
-    "@zkochan/cmd-shim": "4.3.0",
-    "is-subdir": "1.1.1",
-    "is-windows": "1.0.2",
-    "make-dir": "^3.1.0",
-    "mz": "2.7.0",
-    "normalize-path": "3.0.0",
-    "p-settle": "4.0.1",
-    "ramda": "0.27.0"
+    "@zkochan/cmd-shim": "^4.3.0",
+    "is-subdir": "^1.1.1",
+    "is-windows": "^1.0.2",
+    "mz": "^2.7.0",
+    "normalize-path": "^3.0.0",
+    "p-settle": "^4.0.1",
+    "ramda": "^0.27.0"
   },
   "devDependencies": {
     "@pnpm/link-bins": "link:",

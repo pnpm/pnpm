@@ -3,7 +3,6 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import { DependenciesField } from '@pnpm/types'
-import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import symlinkDir = require('symlink-dir')
@@ -37,7 +36,7 @@ export default async function symlinkDirectRootDependency (
     destModulesDirReal = await fs.realpath(destModulesDir)
   } catch (err) {
     if (err.code === 'ENOENT') {
-      await makeDir(destModulesDir)
+      await fs.mkdir(destModulesDir, { recursive: true })
       destModulesDirReal = await fs.realpath(destModulesDir)
     } else {
       throw err

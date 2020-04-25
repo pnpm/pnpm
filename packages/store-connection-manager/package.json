@@ -42,13 +42,12 @@
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/package-store": "workspace:8.0.5",
     "@pnpm/server": "workspace:7.0.4",
-    "@pnpm/store-path": "2.1.1",
-    "delay": "4.3.0",
-    "diable": "4.0.2",
-    "dir-is-case-sensitive": "1.0.2",
-    "lru-cache": "5.1.1",
-    "make-dir": "^3.1.0",
-    "mz": "2.7.0"
+    "@pnpm/store-path": "^2.1.1",
+    "delay": "^4.3.0",
+    "diable": "^4.0.2",
+    "dir-is-case-sensitive": "^1.0.2",
+    "lru-cache": "^5.1.1",
+    "mz": "^2.7.0"
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"

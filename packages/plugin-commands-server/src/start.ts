@@ -11,7 +11,6 @@ import storePath from '@pnpm/store-path'
 import Diable = require('diable')
 import getPort = require('get-port')
 import isWindows = require('is-windows')
-import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import onExit = require('signal-exit')
@@ -36,7 +35,7 @@ export default async (
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
-  await makeDir(connectionInfoDir)
+  await fs.mkdir(connectionInfoDir, { recursive: true })
 
   // Open server.json with exclusive write access to ensure only one process can successfully
   // start the server. Note: NFS does not support exclusive writing, but do we really care?

@@ -7,7 +7,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
-import makeDir = require('make-dir')
+import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
@@ -885,7 +885,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
     t.ok(lockfile.packages![absDepPath].name, 'github-hosted package has name specified')
   }
 
-  await makeDir('project-2')
+  await fs.mkdir('project-2')
 
   process.chdir('project-2')
 

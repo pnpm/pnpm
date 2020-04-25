@@ -35,26 +35,27 @@
   },
   "devDependencies": {
     "@pnpm/lockfile-file": "link:",
-    "@pnpm/logger": "3.2.2",
+    "@pnpm/logger": "^3.2.2",
     "@types/js-yaml": "^3.12.3",
-    "@types/normalize-path": "3.0.0",
+    "@types/mz": "^2.7.0",
+    "@types/normalize-path": "^3.0.0",
     "@types/ramda": "^0.27.3",
-    "@types/write-file-atomic": "3.0.0",
-    "tempy": "0.5.0",
+    "@types/write-file-atomic": "^3.0.0",
+    "tempy": "^0.5.0",
     "write-yaml-file": "^4.1.0",
-    "yaml-tag": "1.1.0"
+    "yaml-tag": "^1.1.0"
   },
   "dependencies": {
     "@pnpm/constants": "workspace:3.0.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lockfile-types": "workspace:2.0.0",
     "@pnpm/types": "workspace:5.0.0",
-    "@zkochan/rimraf": "1.0.0",
-    "js-yaml": "3.13.1",
-    "make-dir": "^3.1.0",
-    "normalize-path": "3.0.0",
-    "ramda": "0.27.0",
-    "read-yaml-file": "2.0.0",
-    "write-file-atomic": "2.4.3"
+    "@zkochan/rimraf": "^1.0.0",
+    "js-yaml": "^3.13.1",
+    "mz": "^2.7.0",
+    "normalize-path": "^3.0.0",
+    "ramda": "^0.27.0",
+    "read-yaml-file": "^2.0.0",
+    "write-file-atomic": "^2.4.3"
   }
 }

@@ -14,7 +14,7 @@ import {
   Registries,
 } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
-import makeDir = require('make-dir')
+import fs = require('mz/fs')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
@@ -114,7 +114,7 @@ export default async function getContext<T> (
     }
   }
 
-  await makeDir(opts.storeDir)
+  await fs.mkdir(opts.storeDir, { recursive: true })
 
   projects.forEach((project) => {
     packageManifestLogger.debug({
@@ -437,7 +437,7 @@ export async function getContextForSingleImporter (
     }
   }
 
-  await makeDir(storeDir)
+  await fs.mkdir(storeDir, { recursive: true })
   const extraBinPaths = [
     ...opts.extraBinPaths || [],
   ]

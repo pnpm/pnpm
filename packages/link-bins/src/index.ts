@@ -7,7 +7,6 @@ import { DependencyManifest } from '@pnpm/types'
 import cmdShim = require('@zkochan/cmd-shim')
 import isSubdir = require('is-subdir')
 import isWindows = require('is-windows')
-import makeDir = require('make-dir')
 import Module = require('module')
 import fs = require('mz/fs')
 import normalizePath = require('normalize-path')
@@ -87,7 +86,7 @@ async function linkBins (
 ) {
   if (!allCmds.length) return [] as string[]
 
-  await makeDir(binsDir)
+  await fs.mkdir(binsDir, { recursive: true })
 
   const [cmdsWithOwnName, cmdsWithOtherNames] = R.partition(({ ownName }) => ownName, allCmds)
 

@@ -3,7 +3,7 @@ import createFetcher from '@pnpm/default-fetcher'
 import logger from '@pnpm/logger'
 import createStore from '@pnpm/package-store'
 import dirIsCaseSensitive from 'dir-is-case-sensitive'
-import makeDir = require('make-dir')
+import fs = require('mz/fs')
 import path = require('path')
 import createResolver, { CreateResolverOptions } from './createResolver'
 
@@ -28,7 +28,7 @@ export default async (
     registry: opts.registry || 'https://registry.npmjs.org/',
   })
   const resolve = createResolver(sopts)
-  await makeDir(sopts.storeDir)
+  await fs.mkdir(sopts.storeDir, { recursive: true })
   const fsIsCaseSensitive = await dirIsCaseSensitive(sopts.storeDir)
   logger.debug({
     // An undefined field would cause a crash of the logger

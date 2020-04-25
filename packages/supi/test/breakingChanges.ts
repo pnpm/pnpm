@@ -3,7 +3,6 @@ import PnpmError from '@pnpm/error'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
 import isCI = require('is-ci')
-import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import { addDependenciesToPackage, install } from 'supi'
@@ -108,7 +107,7 @@ test('do not fail on non-compatible store when forced during named installation'
 })
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
-  await makeDir('node_modules')
+  await fs.mkdir('node_modules')
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storeDir}\nindependentLeaves: false`)
 }
 
