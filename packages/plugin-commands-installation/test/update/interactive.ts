@@ -53,11 +53,13 @@ test('interactively update', async (t) => {
     },
   })
 
+  const storeDir = path.resolve('pnpm-store')
   await add.handler({
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: true,
     save: false,
+    storeDir,
   }, [
     'is-negative@1.0.0',
     'is-positive@2.0.0',
@@ -74,6 +76,7 @@ test('interactively update', async (t) => {
     dir: process.cwd(),
     interactive: true,
     linkWorkspacePackages: true,
+    storeDir,
   })
 
   t.ok(prompt.calledWithMatch({
@@ -111,6 +114,7 @@ test('interactively update', async (t) => {
     interactive: true,
     latest: true,
     linkWorkspacePackages: true,
+    storeDir,
   })
 
   t.ok(prompt.calledWithMatch({

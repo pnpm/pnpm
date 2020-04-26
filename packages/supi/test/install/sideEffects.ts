@@ -123,7 +123,7 @@ test.skip('readonly side effects cache', async (t) => {
   t.notOk(await exists(path.join(opts2.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.2/side_effects/${ENGINE_DIR}/package/build`)), 'cache folder not created')
 })
 
-test.skip('uploading errors do not interrupt installation', async (t) => {
+test('uploading errors do not interrupt installation', async (t) => {
   prepareEmpty(t)
 
   const opts = await testDefaults({

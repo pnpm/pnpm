@@ -241,7 +241,7 @@ async function resolveAndFetch (
 
 function fetchToStore (
   ctx: {
-    checkFilesIntegrity: (integrity: Record<string, { size: number, integrity: string }>) => Promise<boolean>,
+    checkFilesIntegrity: (integrity: Record<string, { size: number, mode: number, integrity: string }>) => Promise<boolean>,
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -253,7 +253,7 @@ function fetchToStore (
       bundledManifest?: Promise<BundledManifest>,
       inStoreLocation: string,
     }>,
-    getFilePathInCafs: (integrity: string) => string,
+    getFilePathInCafs: (file: { mode: number, integrity: string }) => string,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storeDir: string,
@@ -345,7 +345,7 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(({ filesIndex }) => readBundledManifest(ctx.getFilePathInCafs(filesIndex['package.json'].integrity))),
+      result.files.then(({ filesIndex }) => readBundledManifest(ctx.getFilePathInCafs(filesIndex['package.json']))),
     )
   }
 
@@ -380,7 +380,7 @@ function fetchToStore (
       ) {
         let integrity
         try {
-          integrity = await loadJsonFile<Record<string, { size: number, integrity: string }>>(path.join(target, 'integrity.json'))
+          integrity = await loadJsonFile<Record<string, { size: number, mode: number, integrity: string }>>(path.join(target, 'integrity.json'))
         } catch (err) {
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
@@ -391,7 +391,7 @@ function fetchToStore (
             fromStore: true,
           })
           if (opts.fetchRawManifest) {
-            readBundledManifest(ctx.getFilePathInCafs(integrity['package.json'].integrity))
+            readBundledManifest(ctx.getFilePathInCafs(integrity['package.json']))
               .then(bundledManifest.resolve)
               .catch(bundledManifest.reject)
           }
@@ -449,6 +449,7 @@ function fetchToStore (
             const fileIntegrity = await filesIndex[filename].generatingIntegrity
             integrity[filename] = {
               integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
+              mode: filesIndex[filename].mode,
               size: filesIndex[filename].size,
             }
           }),
@@ -458,7 +459,7 @@ function fetchToStore (
 
       let pkgName: string | undefined = opts.pkgName
       if (!pkgName || opts.fetchRawManifest) {
-        const manifest = await readPackage(ctx.getFilePathInCafs(integrity['package.json'].integrity)) as DependencyManifest
+        const manifest = await readPackage(ctx.getFilePathInCafs(integrity['package.json'])) as DependencyManifest
         bundledManifest.resolve(pickBundledManifest(manifest))
         if (!pkgName) {
           pkgName = manifest.name

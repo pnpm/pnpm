@@ -25,6 +25,7 @@ export interface FetchResult {
 
 export interface FilesIndex {
   [filename: string]: {
+    mode: number,
     size: number,
     generatingIntegrity: Promise<Integrity>,
   },

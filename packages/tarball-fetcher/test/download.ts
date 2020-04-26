@@ -108,7 +108,7 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
   streamParser.removeListener('data', reporter as any) // tslint:disable-line:no-any
 
   const pkgJsonIntegrity = await filesIndex['package.json'].generatingIntegrity
-  t.equal((await readPackage(getFilePathInCafs(pkgJsonIntegrity))).version, '6.24.1')
+  t.equal((await readPackage(getFilePathInCafs({ integrity: pkgJsonIntegrity, ...filesIndex['package.json'] }))).version, '6.24.1')
 
   t.ok(scope.isDone())
   t.end()

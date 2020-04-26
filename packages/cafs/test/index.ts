@@ -9,7 +9,7 @@ test('unpack', async (t) => {
   t.comment(dest)
   const cafs = createCafs(dest)
   await cafs.addFilesFromTarball(
-    fs.createReadStream(path.join(__dirname, '../__fixtures__/babel-helper-hoist-variables-6.24.1.tgz')),
+    fs.createReadStream(path.join(__dirname, '../__fixtures__/node-gyp-6.1.0.tgz')),
   )
   t.end()
 })
