@@ -195,16 +195,16 @@ test('installation using store server started in the background', async (t: tape
 test('store server started in the background should use store location wanted by install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await execPnpm(['install', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])
+  await execPnpm(['add', 'is-positive@1.0.0', '--use-store-server', '--store-dir', '../store2'])
 
-  const serverJsonPath = path.resolve('..', 'store/v3/server/server.json')
+  const serverJsonPath = path.resolve('..', 'store2/v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
   t.ok(project.requireModule('is-positive'))
 
-  await execPnpm(['uninstall', 'is-positive', '--store-dir', '../store2'])
+  await execPnpm(['remove', 'is-positive', '--store-dir', '../store2'])
 
   await execPnpm(['server', 'stop', '--store-dir', '../store2'])
 
