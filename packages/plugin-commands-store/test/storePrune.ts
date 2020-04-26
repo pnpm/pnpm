@@ -10,6 +10,7 @@ import R = require('ramda')
 import sinon = require('sinon')
 import test = require('tape')
 
+const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 test('remove unreferenced packages', async (t) => {
@@ -61,7 +62,7 @@ test('remove unreferenced packages', async (t) => {
 
 test('remove packages that are used by project that no longer exist', async (t) => {
   prepare(t)
-  const storeDir = path.resolve('store', '2')
+  const storeDir = path.resolve('store', STORE_VERSION)
   const { storeHas, storeHasNot } = assertStore(t, storeDir)
 
   await execa('pnpm', ['add', 'is-negative@2.1.0', '--store-dir', storeDir, '--registry', REGISTRY])

@@ -21,7 +21,7 @@ test('repeat install with corrupted `store.json` should work', async (t: tape.Te
   // we assume that it is not in the store.
   // The package is downloaded and in case there is a folder
   // in the store, it is overwritten.
-  await writeJsonFile(path.join(opts.storeDir, '2', 'store.json'), {})
+  await writeJsonFile(path.join(opts.storeDir, 'v3/store.json'), {})
 
   await install(manifest, opts)
 

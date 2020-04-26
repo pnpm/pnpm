@@ -7,6 +7,7 @@ import execa = require('execa')
 import path = require('path')
 import test = require('tape')
 
+const STORE_VERSION = 'v3'
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 const DEFAULT_OPTS = {
   lock: false,
@@ -95,7 +96,7 @@ test('find usages for single package in store and in a project', async (t) => {
 test('find usages for package(s) in store but not in any projects', async (t) => {
   prepareEmpty(t)
   const storeDir = path.resolve('store')
-  const { storeHas } = assertStore(t, path.join(storeDir, '2'))
+  const { storeHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
 
   // Add dependency directly to store (not to the project)
   await store.handler({

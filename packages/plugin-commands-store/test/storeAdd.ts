@@ -7,6 +7,8 @@ import path = require('path')
 import exists = require('path-exists')
 import test = require('tape')
 
+const STORE_VERSION = 'v3'
+
 test('pnpm store add express@4.16.3', async function (t) {
   tempDir(t)
 
@@ -22,10 +24,10 @@ test('pnpm store add express@4.16.3', async function (t) {
     storeDir,
   }, ['add', 'express@4.16.3'])
 
-  const pathToCheck = path.join(storeDir, '2', `localhost+${REGISTRY_MOCK_PORT}`, 'express', '4.16.3')
+  const pathToCheck = path.join(storeDir, STORE_VERSION, `localhost+${REGISTRY_MOCK_PORT}`, 'express', '4.16.3')
   t.ok(await exists(pathToCheck), `express@4.16.3 is in store (at ${pathToCheck})`)
 
-  const storeIndex = await loadJsonFile(path.join(storeDir, '2', 'store.json'))
+  const storeIndex = await loadJsonFile(path.join(storeDir, STORE_VERSION, 'store.json'))
   t.deepEqual(
     storeIndex,
     {
@@ -54,10 +56,10 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     storeDir,
   }, ['add', '@foo/no-deps@1.0.0'])
 
-  const pathToCheck = path.join(storeDir, '2', `localhost+${REGISTRY_MOCK_PORT}`, '@foo', 'no-deps', '1.0.0')
+  const pathToCheck = path.join(storeDir, STORE_VERSION, `localhost+${REGISTRY_MOCK_PORT}`, '@foo', 'no-deps', '1.0.0')
   t.ok(await exists(pathToCheck), `@foo/no-deps@1.0.0 is in store (at ${pathToCheck})`)
 
-  const storeIndex = await loadJsonFile(path.join(storeDir, '2', 'store.json'))
+  const storeIndex = await loadJsonFile(path.join(storeDir, STORE_VERSION, 'store.json'))
   t.deepEqual(
     storeIndex,
     {
