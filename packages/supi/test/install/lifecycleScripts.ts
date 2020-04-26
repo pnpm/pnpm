@@ -236,7 +236,7 @@ test("reports child's close event", async (t: tape.Test) => {
   }
 })
 
-test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
+test.skip('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
   prepareEmpty(t)
 
   // `npm test` adds node-gyp to the PATH
