@@ -124,7 +124,7 @@ test('recursive installation using server', async (t: tape.Test) => {
   const storeDir = path.resolve('store')
   const server = spawnPnpm(['server', 'start'], { storeDir })
 
-  const serverJsonPath = path.resolve(storeDir, '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve(storeDir, 'v3/server/server.json')
   const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
