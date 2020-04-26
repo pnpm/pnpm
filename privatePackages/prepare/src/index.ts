@@ -1,6 +1,6 @@
 import assertProject, { Modules, Project } from '@pnpm/assert-project'
 import { ProjectManifest } from '@pnpm/types'
-import makeDir = require('make-dir')
+import fs = require('fs')
 import path = require('path')
 import { Test } from 'tape'
 import tempy = require('tempy')
@@ -20,7 +20,7 @@ export function tempDir (t: Test) {
   dirNumber++
   const dirname = dirNumber.toString()
   const tmpDir = path.join(tmpPath, dirname)
-  makeDir.sync(tmpDir)
+  fs.mkdirSync(tmpDir, { recursive: true })
 
   t.pass(`create testing dir ${path.join(tmpDir)}`)
 
@@ -69,7 +69,7 @@ export default function prepare (
 ) {
   const dir = opts?.tempDir ?? path.join(tempDir(test), 'project')
 
-  makeDir.sync(dir)
+  fs.mkdirSync(dir, { recursive: true })
   switch (opts?.manifestFormat ?? 'JSON') {
     case 'JSON':
       writePkg.sync(dir, { name: 'project', version: '0.0.0', ...manifest } as any) // tslint:disable-line
@@ -89,7 +89,7 @@ export default function prepare (
 export function prepareEmpty (t: Test) {
   const pkgTmpPath = path.join(tempDir(t), 'project')
 
-  makeDir.sync(pkgTmpPath)
+  fs.mkdirSync(pkgTmpPath, { recursive: true })
   process.chdir(pkgTmpPath)
 
   return assertProject(t, pkgTmpPath)

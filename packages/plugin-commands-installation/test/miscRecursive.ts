@@ -3,7 +3,6 @@ import { readProjects } from '@pnpm/filter-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { add, install, remove, update } from '@pnpm/plugin-commands-installation'
 import { preparePackages } from '@pnpm/prepare'
-import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import path = require('path')
 import readYamlFile from 'read-yaml-file'
@@ -265,7 +264,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
     },
   ])
 
-  await makeDir('node_modules')
+  await fs.mkdir('node_modules')
   process.chdir('packages')
 
   await install.handler({

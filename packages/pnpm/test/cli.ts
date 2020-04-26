@@ -1,7 +1,6 @@
 import prepare from '@pnpm/prepare'
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
-import makeDir = require('make-dir')
 import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -25,7 +24,7 @@ test('some commands pass through to npm', t => {
 test('installs in the folder where the package.json file is', async function (t) {
   const project = prepare(t)
 
-  await makeDir('subdir')
+  await fs.mkdir('subdir')
   process.chdir('subdir')
 
   await execPnpm(['install', 'rimraf@2.5.1'])
