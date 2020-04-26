@@ -62,8 +62,8 @@ export default async function (
   const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
   const importPackage: ImportPackageFunction = (to, opts) => {
     const filesMap = {} as Record<string, string>
-    for (const [fileName, { integrity }] of Object.entries(opts.filesResponse.filesIndex)) {
-      filesMap[fileName] = getFilePathInCafs(integrity)
+    for (const [fileName, fileMeta] of Object.entries(opts.filesResponse.filesIndex)) {
+      filesMap[fileName] = getFilePathInCafs(fileMeta)
     }
     return impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
   }
@@ -177,6 +177,7 @@ export default async function (
           const fileIntegrity = await filesIndex[filename].generatingIntegrity
           integrity[filename] = {
             integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
+            mode: filesIndex[filename].mode,
             size: filesIndex[filename].size,
           }
         }),

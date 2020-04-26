@@ -85,7 +85,7 @@ export type ImportPackageFunction = (
 
 export interface PackageFilesResponse {
   fromStore: boolean,
-  filesIndex: Record<string, { integrity: string }>,
+  filesIndex: Record<string, { mode: number, integrity: string }>,
 }
 
 export type RequestPackageFunction = (

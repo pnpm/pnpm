@@ -9,7 +9,7 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
 export default async function (
   cafsDir: string,
-  integrityObj: Record<string, { size: number, integrity: string }>,
+  integrityObj: Record<string, { size: number, mode: number, integrity: string }>,
 ) {
   let verified = true
   await Promise.all(
@@ -22,7 +22,7 @@ export default async function (
           }
           if (
             !await verifyFile(
-              getFilePathInCafs(cafsDir, fstat.integrity),
+              getFilePathInCafs(cafsDir, fstat),
               fstat,
             )
           ) {

@@ -5,7 +5,7 @@ import { Duplex, PassThrough } from 'stream'
 import tar = require('tar-stream')
 
 export default async function (
-  addStreamToCafs: (fileStream: PassThrough) => Promise<ssri.Integrity>,
+  addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<ssri.Integrity>,
   _ignore: null | ((filename: string) => Boolean),
   stream: NodeJS.ReadableStream,
 ): Promise<FilesIndex> {
@@ -20,9 +20,10 @@ export default async function (
         next()
         return
       }
-      const generatingIntegrity = addStreamToCafs(fileStream)
+      const generatingIntegrity = addStreamToCafs(fileStream, header.mode!)
       filesIndex[filename] = {
         generatingIntegrity,
+        mode: header.mode!,
         size: header.size,
       }
       next()

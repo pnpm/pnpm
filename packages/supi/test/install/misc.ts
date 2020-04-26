@@ -554,7 +554,7 @@ test('bin specified in the directories property linked to .bin folder', async (t
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
 
-test.skip('building native addons', async (t: tape.Test) => {
+test('building native addons', async (t: tape.Test) => {
   const project = prepareEmpty(t)
 
   await addDependenciesToPackage({}, ['diskusage@1.1.3'], await testDefaults({ fastUnpack: false }))
