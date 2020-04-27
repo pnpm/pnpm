@@ -1,5 +1,14 @@
 # @pnpm/store-connection-manager
 
+## 0.3.0-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [4f62d0383]
+  - @pnpm/package-store@9.0.0-alpha.1
+  - @pnpm/server@7.0.5-alpha.1
+  - @pnpm/default-fetcher@5.1.19-alpha.1
+
 ## 0.3.0-alpha.0
 
 ### Minor Changes

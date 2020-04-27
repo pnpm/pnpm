@@ -1,5 +1,16 @@
 # @pnpm/headless
 
+## 12.2.2-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [4f62d0383]
+- Updated dependencies [f93583d52]
+  - @pnpm/package-requester@12.0.0-alpha.1
+  - @pnpm/store-controller-types@8.0.0-alpha.1
+  - @pnpm/build-modules@4.1.14-alpha.1
+  - @pnpm/modules-cleaner@8.0.17-alpha.1
+
 ## 13.0.0-alpha.0
 
 ### Major Changes
