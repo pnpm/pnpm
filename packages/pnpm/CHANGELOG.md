@@ -1,5 +1,16 @@
 # pnpm
 
+## 5.0.0-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [4f62d0383]
+  - @pnpm/plugin-commands-installation@1.3.0-alpha.1
+  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.1
+  - @pnpm/plugin-commands-store@1.0.11-alpha.1
+  - @pnpm/plugin-commands-import@1.0.11-alpha.1
+  - @pnpm/plugin-commands-server@1.0.11-alpha.1
+
 ## 5.0.0-alpha.0
 
 ### Major Changes

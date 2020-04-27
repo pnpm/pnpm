@@ -1,5 +1,22 @@
 # supi
 
+## 0.39.0-alpha.1
+
+### Minor Changes
+
+- 4f62d0383: Executables are saved into a separate directory inside the content-addressable storage.
+
+### Patch Changes
+
+- Updated dependencies [4f62d0383]
+- Updated dependencies [f93583d52]
+  - @pnpm/package-requester@12.0.0-alpha.1
+  - @pnpm/store-controller-types@8.0.0-alpha.1
+  - @pnpm/headless@12.2.2-alpha.1
+  - @pnpm/build-modules@4.1.14-alpha.1
+  - @pnpm/modules-cleaner@8.0.17-alpha.1
+  - @pnpm/resolve-dependencies@14.4.5-alpha.1
+
 ## 0.39.0-alpha.0
 
 ### Minor Changes

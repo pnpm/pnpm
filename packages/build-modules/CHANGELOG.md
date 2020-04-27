@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 4.1.14-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [4f62d0383]
+  - @pnpm/store-controller-types@8.0.0-alpha.1
+
 ## 4.1.14-alpha.0
 
 ### Patch Changes

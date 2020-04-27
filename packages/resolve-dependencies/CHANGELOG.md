@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 14.4.5-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [4f62d0383]
+  - @pnpm/store-controller-types@8.0.0-alpha.1
+
 ## 14.4.5-alpha.0
 
 ### Patch Changes

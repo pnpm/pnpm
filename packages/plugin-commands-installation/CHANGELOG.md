@@ -1,5 +1,19 @@
 # @pnpm/plugin-commands-installation
 
+## 1.3.0-alpha.1
+
+### Minor Changes
+
+- 4f62d0383: Executables are saved into a separate directory inside the content-addressable storage.
+
+### Patch Changes
+
+- Updated dependencies [4f62d0383]
+  - @pnpm/package-store@9.0.0-alpha.1
+  - supi@0.39.0-alpha.1
+  - @pnpm/store-connection-manager@0.2.32-alpha.1
+  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.1
+
 ## 1.2.4-alpha.0
 
 ### Patch Changes
