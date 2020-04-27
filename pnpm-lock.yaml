@@ -2111,7 +2111,6 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
       '@types/is-windows': 1.0.0
-      '@types/mkdirp': 1.0.0
       '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
       '@types/ramda': 0.27.4
@@ -2189,7 +2188,6 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
       '@types/is-windows': ^1.0.0
-      '@types/mkdirp': 1.0.0
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
       '@types/nopt': ^3.0.29
@@ -2598,7 +2596,6 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
       '@types/is-windows': 1.0.0
-      '@types/mkdirp': 1.0.0
       '@types/mz': 2.7.0
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
@@ -2674,7 +2671,6 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
       '@types/is-windows': ^1.0.0
-      '@types/mkdirp': 1.0.0
       '@types/mz': ^2.7.0
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
@@ -2866,7 +2862,6 @@ importers:
     dependencies:
       '@pnpm/assert-project': 'link:../assert-project'
       '@pnpm/types': 'link:../../packages/types'
-      '@types/mkdirp': 1.0.0
       tempy: 0.5.0
       write-json5-file: 3.0.0
       write-pkg: 4.0.0
@@ -2878,7 +2873,6 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/types': 'workspace:*'
-      '@types/mkdirp': 1.0.0
       '@types/node': ^12.12.37
       tempy: 0.5.0
       tslint-config-standard: 9.0.0
@@ -3617,11 +3611,6 @@ packages:
   /@types/minimatch/3.0.3:
     resolution:
       integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==
-  /@types/mkdirp/1.0.0:
-    dependencies:
-      '@types/node': 12.12.37
-    resolution:
-      integrity: sha512-ONFY9//bCEr3DWKON3iDv/Q8LXnhaYYaNDeFSN0AtO5o4sLf9F0pstJKKKjQhXE0kJEeHs8eR6SAsROhhc2Csw==
   /@types/mz/2.7.0:
     dependencies:
       '@types/node': 13.13.4
@@ -3641,6 +3630,7 @@ packages:
     resolution:
       integrity: sha512-o2WVNf5UhWRkxlf6eq+jMZDu7kjgpgJfl4xVNlvryc95O/6F2ld8ztKX+qu+Rjyet93WAWm5LjeX9H5FGkODvw==
   /@types/node/12.12.37:
+    dev: true
     resolution:
       integrity: sha512-4mXKoDptrXAwZErQHrLzpe0FN/0Wmf5JRniSVIdwUrtDf9wnmEV1teCNLBo/TwuXhkK/bVegoEn/wmb+x0AuPg==
   /@types/node/13.13.4:
