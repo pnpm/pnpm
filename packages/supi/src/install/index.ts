@@ -190,11 +190,7 @@ export async function mutateModules (
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
-        await pEvery(ctx.projects, async (project) =>
-          !hasLocalTarballDepsInRoot(ctx.wantedLockfile, project.id) &&
-          satisfiesPackageManifest(ctx.wantedLockfile, project.manifest, project.id) &&
-          linkedPackagesAreUpToDate(project.manifest, ctx.wantedLockfile.importers[project.id], project.rootDir, opts.workspacePackages),
-        )
+        await allProjectsAreUpToDate(ctx.projects, { wantedLockfile: ctx.wantedLockfile, workspacePackages: opts.workspacePackages })
       )
     ) {
       if (!ctx.existsWantedLockfile) {
@@ -524,12 +520,12 @@ function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDep
 }
 
 async function linkedPackagesAreUpToDate (
+  manifestsByDir: Record<string, DependencyManifest>,
+  workspacePackages: WorkspacePackages,
   manifest: ProjectManifest,
   projectSnapshot: ProjectSnapshot,
-  prefix: string,
-  workspacePackages?: WorkspacePackages,
+  projectDir: string,
 ) {
-  const workspacePackagesByDirectory = workspacePackages ? getWorkspacePackagesByDirectory(workspacePackages) : {}
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = projectSnapshot[depField]
     const pkgDeps = manifest[depField]
@@ -540,10 +536,10 @@ async function linkedPackagesAreUpToDate (
       const isLinked = importerDeps[depName].startsWith('link:')
       if (isLinked && (pkgDeps[depName].startsWith('link:') || pkgDeps[depName].startsWith('file:'))) continue
       const dir = isLinked
-        ? path.join(prefix, importerDeps[depName].substr(5))
+        ? path.join(projectDir, importerDeps[depName].substr(5))
         : workspacePackages?.[depName]?.[importerDeps[depName]]?.dir
       if (!dir) continue
-      const linkedPkg = workspacePackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
+      const linkedPkg = manifestsByDir[dir] || await safeReadPkgFromDir(dir)
       const availableRange = getVersionRange(pkgDeps[depName])
       // This should pass the same options to semver as @pnpm/npm-resolver
       const localPackageSatisfiesRange = availableRange === '*' ||
@@ -573,6 +569,22 @@ function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) 
     })
   })
   return workspacePackagesByDirectory
+}
+
+async function allProjectsAreUpToDate (
+  projects: Array<ProjectOptions & { id: string }>,
+  opts: {
+    wantedLockfile: Lockfile,
+    workspacePackages: WorkspacePackages,
+  },
+) {
+  const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
+  const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, manifestsByDir, opts.workspacePackages)
+  return pEvery(projects, async (project) =>
+    !hasLocalTarballDepsInRoot(opts.wantedLockfile, project.id) &&
+    satisfiesPackageManifest(opts.wantedLockfile, project.manifest, project.id) &&
+    _linkedPackagesAreUpToDate(project.manifest, opts.wantedLockfile.importers[project.id], project.rootDir),
+  )
 }
 
 function hasLocalTarballDepsInRoot (lockfile: Lockfile, importerId: string) {
