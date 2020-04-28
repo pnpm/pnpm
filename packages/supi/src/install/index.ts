@@ -579,20 +579,20 @@ async function allProjectsAreUpToDate (
   },
 ) {
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
+  const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, opts.wantedLockfile)
   const _linkedPackagesAreUpToDate = linkedPackagesAreUpToDate.bind(null, manifestsByDir, opts.workspacePackages)
-  return pEvery(projects, async (project) =>
-    !hasLocalTarballDepsInRoot(opts.wantedLockfile, project.id) &&
-    satisfiesPackageManifest(opts.wantedLockfile, project.manifest, project.id) &&
-    _linkedPackagesAreUpToDate(project.manifest, opts.wantedLockfile.importers[project.id], project.rootDir),
-  )
+  return pEvery(projects, async (project) => {
+    const importer = opts.wantedLockfile.importers[project.id]
+    return importer && !hasLocalTarballDepsInRoot(importer) &&
+      _satisfiesPackageManifest(project.manifest, project.id) &&
+      _linkedPackagesAreUpToDate(project.manifest, importer, project.rootDir)
+  })
 }
 
-function hasLocalTarballDepsInRoot (lockfile: Lockfile, importerId: string) {
-  const importer = lockfile.importers?.[importerId]
-  if (!importer) return false
-  return R.any(refIsLocalTarball, R.values(importer.dependencies || {}))
-    || R.any(refIsLocalTarball, R.values(importer.devDependencies || {}))
-    || R.any(refIsLocalTarball, R.values(importer.optionalDependencies || {}))
+function hasLocalTarballDepsInRoot (importer: ProjectSnapshot) {
+  return R.any(refIsLocalTarball, Object.values(importer.dependencies ?? {}))
+    || R.any(refIsLocalTarball, Object.values(importer.devDependencies ?? {}))
+    || R.any(refIsLocalTarball, Object.values(importer.optionalDependencies ?? {}))
 }
 
 function refIsLocalTarball (ref: string) {
