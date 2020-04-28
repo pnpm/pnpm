@@ -52,20 +52,20 @@ async function linkedPackagesAreUpToDate (
   projectDir: string,
 ) {
   for (const depField of DEPENDENCIES_FIELDS) {
-    const importerDeps = projectSnapshot[depField]
-    const pkgDeps = manifest[depField]
-    if (!importerDeps || !pkgDeps) continue
-    const depNames = Object.keys(importerDeps)
+    const lockfileDeps = projectSnapshot[depField]
+    const manifestDeps = manifest[depField]
+    if (!lockfileDeps || !manifestDeps) continue
+    const depNames = Object.keys(lockfileDeps)
     for (const depName of depNames) {
-      if (!pkgDeps[depName]) continue
-      const isLinked = importerDeps[depName].startsWith('link:')
-      if (isLinked && (pkgDeps[depName].startsWith('link:') || pkgDeps[depName].startsWith('file:'))) continue
+      if (!manifestDeps[depName]) continue
+      const isLinked = lockfileDeps[depName].startsWith('link:')
+      if (isLinked && (manifestDeps[depName].startsWith('link:') || manifestDeps[depName].startsWith('file:'))) continue
       const dir = isLinked
-        ? path.join(projectDir, importerDeps[depName].substr(5))
-        : workspacePackages?.[depName]?.[importerDeps[depName]]?.dir
+        ? path.join(projectDir, lockfileDeps[depName].substr(5))
+        : workspacePackages?.[depName]?.[lockfileDeps[depName]]?.dir
       if (!dir) continue
       const linkedPkg = manifestsByDir[dir] || await safeReadPkgFromDir(dir)
-      const availableRange = getVersionRange(pkgDeps[depName])
+      const availableRange = getVersionRange(manifestDeps[depName])
       // This should pass the same options to semver as @pnpm/npm-resolver
       const localPackageSatisfiesRange = availableRange === '*' ||
         linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
