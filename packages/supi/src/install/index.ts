@@ -17,13 +17,11 @@ import {
 } from '@pnpm/lifecycle'
 import linkBins from '@pnpm/link-bins'
 import {
-  Lockfile,
   ProjectSnapshot,
   writeCurrentLockfile,
   writeLockfiles,
   writeWantedLockfile,
 } from '@pnpm/lockfile-file'
-import { satisfiesPackageManifest } from '@pnpm/lockfile-utils'
 import logger, { streamParser } from '@pnpm/logger'
 import { getAllDependenciesFromManifest } from '@pnpm/manifest-utils'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
@@ -48,18 +46,17 @@ import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
-import pEvery from 'p-every'
 import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
-import semver = require('semver')
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
 import lock from '../lock'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
 import { updateProjectManifest } from '../utils/getPref'
+import allProjectsAreUpToDate from './allProjectsAreUpToDate'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -190,11 +187,7 @@ export async function mutateModules (
         (!opts.pruneLockfileImporters || Object.keys(ctx.wantedLockfile.importers).length === ctx.projects.length) &&
         ctx.existsWantedLockfile &&
         ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
-        await pEvery(ctx.projects, async (project) =>
-          !hasLocalTarballDepsInRoot(ctx.wantedLockfile, project.id) &&
-          satisfiesPackageManifest(ctx.wantedLockfile, project.manifest, project.id) &&
-          linkedPackagesAreUpToDate(project.manifest, ctx.wantedLockfile.importers[project.id], project.rootDir, opts.workspacePackages),
-        )
+        await allProjectsAreUpToDate(ctx.projects, { wantedLockfile: ctx.wantedLockfile, workspacePackages: opts.workspacePackages })
       )
     ) {
       if (!ctx.existsWantedLockfile) {
@@ -521,59 +514,6 @@ function forgetResolutionsOfPrevWantedDeps (importer: ProjectSnapshot, wantedDep
       delete importer.optionalDependencies[alias]
     }
   }
-}
-
-async function linkedPackagesAreUpToDate (
-  manifest: ProjectManifest,
-  projectSnapshot: ProjectSnapshot,
-  prefix: string,
-  workspacePackages?: WorkspacePackages,
-) {
-  const workspacePackagesByDirectory = workspacePackages ? getWorkspacePackagesByDirectory(workspacePackages) : {}
-  for (const depField of DEPENDENCIES_FIELDS) {
-    const importerDeps = projectSnapshot[depField]
-    const pkgDeps = manifest[depField]
-    if (!importerDeps || !pkgDeps) continue
-    const depNames = Object.keys(importerDeps)
-    for (const depName of depNames) {
-      if (!pkgDeps[depName]) continue
-      const isLinked = importerDeps[depName].startsWith('link:')
-      if (isLinked && (pkgDeps[depName].startsWith('link:') || pkgDeps[depName].startsWith('file:'))) continue
-      const dir = isLinked
-        ? path.join(prefix, importerDeps[depName].substr(5))
-        : workspacePackages?.[depName]?.[importerDeps[depName]]?.dir
-      if (!dir) continue
-      const linkedPkg = workspacePackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
-      const availableRange = pkgDeps[depName].startsWith('workspace:') ? pkgDeps[depName].substr(10) : pkgDeps[depName]
-      // This should pass the same options to semver as @pnpm/npm-resolver
-      const localPackageSatisfiesRange = availableRange === '*' ||
-        linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
-      if (isLinked !== localPackageSatisfiesRange) return false
-    }
-  }
-  return true
-}
-
-function getWorkspacePackagesByDirectory (workspacePackages: WorkspacePackages) {
-  const workspacePackagesByDirectory = {}
-  Object.keys(workspacePackages || {}).forEach((pkgName) => {
-    Object.keys(workspacePackages[pkgName] || {}).forEach((pkgVersion) => {
-      workspacePackagesByDirectory[workspacePackages[pkgName][pkgVersion].dir] = workspacePackages[pkgName][pkgVersion].manifest
-    })
-  })
-  return workspacePackagesByDirectory
-}
-
-function hasLocalTarballDepsInRoot (lockfile: Lockfile, importerId: string) {
-  const importer = lockfile.importers?.[importerId]
-  if (!importer) return false
-  return R.any(refIsLocalTarball, R.values(importer.dependencies || {}))
-    || R.any(refIsLocalTarball, R.values(importer.devDependencies || {}))
-    || R.any(refIsLocalTarball, R.values(importer.optionalDependencies || {}))
-}
-
-function refIsLocalTarball (ref: string) {
-  return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }
 
 export async function addDependenciesToPackage (

@@ -1,4 +1,5 @@
 ///<reference path="../../../typings/index.d.ts" />
+import './allProjectsAreUpToDate.test'
 import './api'
 import './breakingChanges'
 import './cache'
