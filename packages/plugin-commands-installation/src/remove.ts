@@ -118,7 +118,9 @@ export function help () {
   })
 }
 
-export const commandNames = ['remove', 'uninstall', 'r', 'rm', 'un']
+// Unlike npm, pnpm does not treat "r" as an alias of "remove".
+// This way we avoid the confusion about whether "pnpm r" means remove, run, or recursive.
+export const commandNames = ['remove', 'uninstall', 'rm', 'un']
 
 export const completion: CompletionFunc = (cliOpts, params) => {
   return readDepNameCompletions(cliOpts.dir as string)

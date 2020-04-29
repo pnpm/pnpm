@@ -87,15 +87,6 @@ export default async function run (inputArgv: string[]) {
     process.env['FORCE_COLOR'] = '0'
   }
 
-  if (config.useBetaCli && cmd === 'remove' && config.argv.remain[0] === 'r') {
-    // Reporting is not initialized at this point, so just printing the error
-    console.error(`${chalk.bgRed.black('\u2009ERROR\u2009')} ${
-      chalk.red("The 'r' alias for 'pnpm remove' is deprecated.")}`)
-    console.log(`For help, run: pnpm help ${cmd}`)
-    process.exit(1)
-    return
-  }
-
   const selfUpdate = config.global && (cmd === 'add' || cmd === 'update') && cliParams.includes(packageManager.name)
 
   // Don't check for updates
