@@ -57,15 +57,25 @@ async function linkedPackagesAreUpToDate (
     if (!lockfileDeps || !manifestDeps) continue
     const depNames = Object.keys(lockfileDeps)
     for (const depName of depNames) {
-      if (!manifestDeps[depName]) continue
-      const isLinked = lockfileDeps[depName].startsWith('link:')
-      if (isLinked && (manifestDeps[depName].startsWith('link:') || manifestDeps[depName].startsWith('file:'))) continue
-      const dir = isLinked
-        ? path.join(projectDir, lockfileDeps[depName].substr(5))
-        : workspacePackages?.[depName]?.[lockfileDeps[depName]]?.dir
-      if (!dir) continue
-      const linkedPkg = manifestsByDir[dir] || await safeReadPkgFromDir(dir)
-      const availableRange = getVersionRange(manifestDeps[depName])
+      const currentSpec = manifestDeps[depName]
+      if (!currentSpec) continue
+      const lockfileRef = lockfileDeps[depName]
+      const isLinked = lockfileRef.startsWith('link:')
+      if (
+        isLinked &&
+        (
+          currentSpec.startsWith('link:') ||
+          currentSpec.startsWith('file:')
+        )
+      ) {
+        continue
+      }
+      const linkedDir = isLinked
+        ? path.join(projectDir, lockfileRef.substr(5))
+        : workspacePackages?.[depName]?.[lockfileRef]?.dir
+      if (!linkedDir) continue
+      const linkedPkg = manifestsByDir[linkedDir] ?? await safeReadPkgFromDir(linkedDir)
+      const availableRange = getVersionRange(currentSpec)
       // This should pass the same options to semver as @pnpm/npm-resolver
       const localPackageSatisfiesRange = availableRange === '*' ||
         linkedPkg && semver.satisfies(linkedPkg.version, availableRange, { loose: true })
