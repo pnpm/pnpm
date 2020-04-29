@@ -52,8 +52,8 @@ export function help () {
 
         list: [
           {
-            description: 'Checks if current branch is your publish branch, clean, and up-to-date',
-            name: '--git-checks',
+            description: "Don't check if current branch is your publish branch, clean, and up-to-date",
+            name: '--no-git-checks',
           },
           {
             description: 'Sets branch name to publish. Default is master',
@@ -94,7 +94,7 @@ export async function handler (
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch'>,
   params: string[],
 ) {
-  if (opts.gitChecks && await isGitRepo()) {
+  if (opts.gitChecks !== false && await isGitRepo()) {
     const branch = opts.publishBranch ?? 'master'
     if (await getCurrentBranch() !== branch) {
       const { confirm } = await prompt({
