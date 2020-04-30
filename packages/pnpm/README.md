@@ -15,7 +15,7 @@
 Features:
 
 * **Fast.** As fast as npm and Yarn.
-* **Efficient.** One version of a package is saved only ever once on a disk.
+* **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
 * **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
@@ -34,11 +34,15 @@ Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
 
 ## Background
 
-pnpm uses hard links and symlinks to save one version of a module only ever once on a disk.
-When using npm or Yarn for example, if you have 100 projects using the same version
-of lodash, you will have 100 copies of lodash on disk. With pnpm, lodash will be saved in a
-single place on the disk and a hard link will put it into the `node_modules` where it should
-be installed.
+pnpm uses a content-addressable filesystem to store all files from all module directories on a disk.
+When using npm or Yarn, if you have 100 projects using lodash, you will have 100 copies of lodash on disk.
+With pnpm, lodash will be stored in a content-addressable storage, so:
+
+1. if you depend on different versions of lodash, only the files that differ are added to the store.
+  If lodash has 100 files, and a new version has a change only in one of those files,
+  `pnpm update` will only add 1 new file to the storage.
+1. all the files are saved in a single place on the disk. When packages are installed, their files are hard-linked
+  from that single place consuming no additional disk space.
 
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
