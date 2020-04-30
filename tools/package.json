@@ -1,5 +1,6 @@
 {
   "name": "@pnpm-private/tools",
+  "version": "0.0.0",
   "private": true,
   "devDependencies": {
     "@commitlint/cli": "8.3.5",
