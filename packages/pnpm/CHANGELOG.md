@@ -1,5 +1,19 @@
 # pnpm
 
+## 5.0.0-alpha.2
+
+### Major Changes
+
+- 9e2a5b827: `pnpm r` is not an alias of `pnpm remove`.
+
+### Patch Changes
+
+- Updated dependencies [4063f1bee]
+- Updated dependencies [9e2a5b827]
+  - @pnpm/plugin-commands-publishing@2.0.0-alpha.0
+  - @pnpm/plugin-commands-installation@2.0.0-alpha.2
+  - @pnpm/plugin-commands-import@1.0.11-alpha.2
+
 ## 5.0.0-alpha.1
 
 ### Patch Changes

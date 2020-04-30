@@ -92,10 +92,15 @@
     "@pnpm/test-fixtures": "0.0.0",
     "@pnpm/tsconfig": "1.0.0",
     "@pnpm/tslint-config": "1.0.0",
-    "@pnpm-private/updater": "0.0.0"
+    "@pnpm-private/updater": "0.0.0",
+    "@pnpm-private/tools": "0.0.0",
+    "@pnpm-private/typings": "0.0.0"
   },
   "changesets": [
+    "angry-weeks-collect",
+    "blue-wombats-help",
     "late-dolphins-destroy",
+    "mighty-buckets-study",
     "pretty-elephants-warn",
     "quick-starfishes-fold",
     "sharp-coins-enjoy"

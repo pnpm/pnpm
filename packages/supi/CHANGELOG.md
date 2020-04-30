@@ -1,5 +1,11 @@
 # supi
 
+## 0.39.0-alpha.2
+
+### Patch Changes
+
+- 2e8ebabb2: Headless installation should be preferred when local dependencies that use aliases are up-to-date.
+
 ## 0.39.0-alpha.1
 
 ### Minor Changes

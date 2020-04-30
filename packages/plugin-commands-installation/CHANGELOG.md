@@ -1,5 +1,16 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.0-alpha.2
+
+### Major Changes
+
+- 9e2a5b827: `pnpm r` is not an alias of `pnpm remove`.
+
+### Patch Changes
+
+- Updated dependencies [2e8ebabb2]
+  - supi@0.39.0-alpha.2
+
 ## 1.3.0-alpha.1
 
 ### Minor Changes
