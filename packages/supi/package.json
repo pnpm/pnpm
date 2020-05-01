@@ -161,5 +161,6 @@
     "test": "pnpm run compile && pnpm run _test",
     "prepublishOnly": "pnpm run compile",
     "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

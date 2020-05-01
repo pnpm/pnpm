@@ -37,5 +37,6 @@
     "@pnpm/types": "workspace:5.0.0",
     "fast-glob": "3.2.2",
     "p-filter": "^2.1.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

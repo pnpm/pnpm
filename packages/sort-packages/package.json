@@ -33,5 +33,6 @@
   "dependencies": {
     "@pnpm/config": "workspace:8.3.0",
     "graph-sequencer": "2.0.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

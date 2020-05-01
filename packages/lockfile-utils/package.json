@@ -45,5 +45,6 @@
     "dependency-path": "workspace:4.0.6",
     "get-npm-tarball-url": "2.0.1",
     "ramda": "0.27.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

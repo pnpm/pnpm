@@ -26,5 +26,6 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/types#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/types#readme",
+  "funding": "https://opencollective.com/pnpm"
 }

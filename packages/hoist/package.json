@@ -49,5 +49,6 @@
     "@pnpm/types": "workspace:5.0.0",
     "dependency-path": "workspace:4.0.6",
     "ramda": "0.27.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

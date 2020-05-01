@@ -44,5 +44,6 @@
     "!*.map"
   ],
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/cafs#readme",
-  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/cafs"
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/cafs",
+  "funding": "https://opencollective.com/pnpm"
 }

@@ -31,5 +31,6 @@
   },
   "devDependencies": {
     "@pnpm/tarball-resolver": "link:"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

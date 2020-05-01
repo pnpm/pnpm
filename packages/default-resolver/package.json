@@ -41,5 +41,6 @@
   "devDependencies": {
     "@pnpm/default-resolver": "link:",
     "@pnpm/logger": "3.2.2"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

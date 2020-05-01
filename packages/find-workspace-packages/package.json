@@ -37,5 +37,6 @@
     "@pnpm/types": "workspace:5.0.0",
     "find-packages": "workspace:7.0.7",
     "read-yaml-file": "2.0.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

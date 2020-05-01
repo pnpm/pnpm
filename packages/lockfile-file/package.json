@@ -57,5 +57,6 @@
     "ramda": "^0.27.0",
     "read-yaml-file": "^2.0.0",
     "write-file-atomic": "^2.4.3"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

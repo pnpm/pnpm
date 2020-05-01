@@ -40,5 +40,6 @@
     "@pnpm/modules-yaml": "link:",
     "@types/is-windows": "^1.0.0",
     "tempy": "0.5.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }
