@@ -14,8 +14,9 @@ export { checkFilesIntegrity }
 
 export default function createCafs (cafsDir: string, ignore?: ((filename: string) => Boolean)) {
   const locker = new Map()
-  const addStream = addStreamToCafs.bind(null, locker, cafsDir)
-  const addBuffer = addBufferToCafs.bind(null, locker, cafsDir)
+  const _writeBufferToCafs = writeBufferToCafs.bind(null, locker, cafsDir)
+  const addStream = addStreamToCafs.bind(null, _writeBufferToCafs)
+  const addBuffer = addBufferToCafs.bind(null, _writeBufferToCafs)
   return {
     addFilesFromDir: addFilesFromDir.bind(null, { addBuffer, addStream }),
     addFilesFromTarball: addFilesFromTarball.bind(null, addStream, ignore ?? null),
@@ -23,29 +24,40 @@ export default function createCafs (cafsDir: string, ignore?: ((filename: string
 }
 
 async function addStreamToCafs (
-  locker: Map<string, Promise<void>>,
-  cafsDir: string,
+  writeBufferToCafs: WriteBufferToCafs,
   fileStream: NodeJS.ReadableStream,
   mode: number,
 ): Promise<ssri.Integrity> {
   const buffer = await getStream.buffer(fileStream)
-  return addBufferToCafs(locker, cafsDir, buffer, mode)
+  return addBufferToCafs(writeBufferToCafs, buffer, mode)
 }
 
 const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
+type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined) => Promise<void>
 
 async function addBufferToCafs (
-  locker: Map<string, Promise<void>>,
-  cafsDir: string,
+  writeBufferToCafs: WriteBufferToCafs,
   buffer: Buffer,
   mode: number,
 ): Promise<ssri.Integrity> {
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
-  const fileDest = contentPathFromHex(cafsDir, isExecutable, integrity.hexDigest())
+  const fileDest = contentPathFromHex(isExecutable, integrity.hexDigest())
+  await writeBufferToCafs(buffer, fileDest, isExecutable ? 0o755 : undefined)
+  return integrity
+}
+
+async function writeBufferToCafs (
+  locker: Map<string, Promise<void>>,
+  cafsDir: string,
+  buffer: Buffer,
+  fileDest: string,
+  mode: number | undefined,
+) {
+  fileDest = path.join(cafsDir, fileDest)
   if (locker.has(fileDest)) {
     await locker.get(fileDest)
-    return integrity
+    return
   }
   const p = (async () => {
     // This is a slow operation. Should be rewritten
@@ -60,12 +72,11 @@ async function addBufferToCafs (
     // If we don't allow --no-verify-store-integrity then we probably can write
     // to the final file directly.
     const temp = pathTemp(path.dirname(fileDest))
-    await writeFile(temp, buffer, isExecutable ? 0o755 : undefined)
+    await writeFile(temp, buffer, mode)
     await renameOverwrite(temp, fileDest)
   })()
   locker.set(fileDest, p)
   await p
-  return integrity
 }
 
 export function getFilePathInCafs (
@@ -75,23 +86,19 @@ export function getFilePathInCafs (
     mode: number,
   },
 ) {
-  return contentPathFromIntegrity(cafsDir, file.integrity, file.mode)
+  return path.join(cafsDir, contentPathFromIntegrity(file.integrity, file.mode))
 }
 
 function contentPathFromIntegrity (
-  cafsDir: string,
   integrity: string | Hash,
   mode: number,
 ) {
   const sri = ssri.parse(integrity, { single: true })
   const isExecutable = modeIsExecutable(mode)
-  return contentPathFromHex(cafsDir, isExecutable, sri.hexDigest())
+  return contentPathFromHex(isExecutable, sri.hexDigest())
 }
 
-function contentPathFromHex (cafsDir: string, isExecutable: boolean, hex: string) {
-  return path.join(
-    isExecutable ? path.join(cafsDir, 'x') : cafsDir,
-    hex.slice(0, 2),
-    hex.slice(2),
-  )
+function contentPathFromHex (isExecutable: boolean, hex: string) {
+  return (isExecutable ? `x${path.sep}` : '') +
+    path.join(hex.slice(0, 2), hex.slice(2))
 }
