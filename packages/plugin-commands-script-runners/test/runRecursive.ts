@@ -135,7 +135,7 @@ test('pnpm recursive run concurrently', async (t) => {
   t.end()
 })
 
-test('`pnpm recursive run` fails when run without filters and no package has the desired command', async (t) => {
+test('`pnpm recursive run` fails when run without filters and no package has the desired command, unless if-present is set', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -173,6 +173,17 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     path.resolve(DEFAULT_OPTS.storeDir),
   ])
 
+  t.comment('recursive run does not fail when if-present is true')
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    ifPresent: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['this-command-does-not-exist'])
+
   let err!: PnpmError
   try {
     await run.handler({
@@ -190,7 +201,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
   t.end()
 })
 
-test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command', async (t) => {
+test('`pnpm recursive run` fails when run with a filter that includes all packages and no package has the desired command, unless if-present is set', async (t) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -217,6 +228,16 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
       version: '1.0.0',
     },
   ])
+
+  t.comment('recursive run does not fail when if-present is true')
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    ifPresent: true,
+    recursive: true,
+    workspaceDir: process.cwd(),
+  }, ['this-command-does-not-exist'])
 
   let err!: PnpmError
   try {

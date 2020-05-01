@@ -13,7 +13,10 @@ export type RecursiveRunOpts = Pick<Config,
   'unsafePerm' |
   'rawConfig'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>>
+Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>> &
+{
+  ifPresent?: boolean,
+}
 
 export default async (
   params: string[],
@@ -87,7 +90,7 @@ export default async (
     )))
   }
 
-  if (scriptName !== 'test' && !hasCommand) {
+  if (scriptName !== 'test' && !hasCommand && !opts.ifPresent) {
     const allPackagesAreSelected = Object.keys(opts.selectedProjectsGraph).length === opts.allProjects.length
     if (allPackagesAreSelected) {
       throw new PnpmError('RECURSIVE_RUN_NO_SCRIPT', `None of the packages has a "${scriptName}" script`)

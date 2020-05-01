@@ -79,7 +79,6 @@ export function help () {
 }
 
 export type RunOpts = Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'> & {
-  ifPresent?: boolean,
   recursive?: boolean,
 } & Pick<Config, 'dir' | 'engineStrict'> & (
   { recursive?: false } &
