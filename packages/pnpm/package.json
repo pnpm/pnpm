@@ -165,5 +165,6 @@
   },
   "publishconfig": {
     "tag": "next"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

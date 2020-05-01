@@ -38,5 +38,6 @@
   "devDependencies": {
     "@types/semver": "^7.1.0",
     "dependency-path": "link:"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

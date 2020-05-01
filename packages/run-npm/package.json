@@ -32,5 +32,6 @@
   "dependencies": {
     "cross-spawn": "7.0.2",
     "path-name": "1.0.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

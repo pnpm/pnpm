@@ -55,5 +55,6 @@
     "p-limit": "2.3.0",
     "promise-share": "1.0.0",
     "uuid": "7.0.3"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

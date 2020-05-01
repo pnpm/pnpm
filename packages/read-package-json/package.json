@@ -35,5 +35,6 @@
   },
   "devDependencies": {
     "@pnpm/read-package-json": "link:"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

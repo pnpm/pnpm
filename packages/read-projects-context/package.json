@@ -38,5 +38,6 @@
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

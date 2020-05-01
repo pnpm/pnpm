@@ -38,5 +38,6 @@
   "devDependencies": {
     "@pnpm/default-fetcher": "link:",
     "@pnpm/logger": "3.2.2"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

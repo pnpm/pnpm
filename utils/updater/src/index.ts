@@ -132,6 +132,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       node: '>=10.13',
     },
     files,
+    funding: 'https://opencollective.com/pnpm',
     homepage,
     license: 'MIT',
     repository,

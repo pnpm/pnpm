@@ -50,5 +50,6 @@
     "@pnpm/logger": "3.2.2",
     "@types/normalize-path": "3.0.0",
     "dependencies-hierarchy": "link:"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

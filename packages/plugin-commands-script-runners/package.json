@@ -62,5 +62,6 @@
   },
   "peerDependencies": {
     "@pnpm/logger": "^3.1.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

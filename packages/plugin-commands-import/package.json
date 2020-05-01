@@ -51,5 +51,6 @@
     "load-json-file": "6.2.0",
     "render-help": "1.0.0",
     "supi": "workspace:0.38.29"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

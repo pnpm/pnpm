@@ -30,5 +30,6 @@
   "dependencies": {
     "@pnpm/types": "workspace:5.0.0"
   },
-  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pick-registry-for-package#readme"
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/pick-registry-for-package#readme",
+  "funding": "https://opencollective.com/pnpm"
 }

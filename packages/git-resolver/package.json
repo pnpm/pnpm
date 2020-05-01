@@ -44,5 +44,6 @@
     "@types/is-windows": "^1.0.0",
     "@types/semver": "^7.1.0",
     "is-windows": "1.0.2"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

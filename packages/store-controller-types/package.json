@@ -30,5 +30,6 @@
   "dependencies": {
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/types": "workspace:5.0.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

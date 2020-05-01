@@ -36,5 +36,6 @@
   "devDependencies": {
     "@types/node-fetch": "^2.5.7",
     "cpy-cli": "3.1.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }

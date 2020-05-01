@@ -41,5 +41,6 @@
     "@pnpm/lockfile-utils": "workspace:2.0.11",
     "@pnpm/lockfile-walker": "workspace:2.0.2",
     "@pnpm/types": "workspace:5.0.0"
-  }
+  },
+  "funding": "https://opencollective.com/pnpm"
 }
