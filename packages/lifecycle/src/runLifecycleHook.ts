@@ -32,6 +32,9 @@ export default async function runLifecycleHook (
   if (opts.args?.length && m.scripts?.[stage]) {
     m.scripts[stage] = `${m.scripts[stage]} ${opts.args.map((arg) => `"${arg}"`).join(' ')}`
   }
+  // This script is used to prevent the usage of npm or Yarn.
+  // It does nothing, when pnpm is used, so we may skip its execution.
+  if (m.scripts[stage] === 'npx only-allow pnpm') return
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
