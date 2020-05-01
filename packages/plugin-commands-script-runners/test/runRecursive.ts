@@ -234,6 +234,95 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
   t.end()
 })
 
+test('`pnpm recursive run` succeeds when run without filters and no package has the desired command and if-present', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
+  await execa('pnpm', [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    ifPresent: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['this-command-does-not-exist'])
+  t.end()
+})
+
+test('`pnpm recursive run` succeeds when run with a filter that includes all packages and no package has the desired command and if-present', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-1': '1',
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+    },
+  ])
+
+  await run.handler({
+    ...DEFAULT_OPTS,
+    ...await readProjects(process.cwd(), [{ namePattern: '*' }]),
+    dir: process.cwd(),
+    ifPresent: true,
+    recursive: true,
+    workspaceDir: process.cwd(),
+  }, ['this-command-does-not-exist'])
+  t.end()
+})
+
 test('`pnpm recursive run` succeeds when run against a subset of packages and no package has the desired command', async (t) => {
   const projects = preparePackages(t, [
     {
