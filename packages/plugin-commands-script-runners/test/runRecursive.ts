@@ -183,7 +183,7 @@ test('`pnpm recursive run` fails when run without filters and no package has the
     selectedProjectsGraph,
     workspaceDir: process.cwd(),
   }, ['this-command-does-not-exist'])
-  
+
   let err!: PnpmError
   try {
     await run.handler({
@@ -228,7 +228,7 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
       version: '1.0.0',
     },
   ])
-  
+
   t.comment('recursive run does not fail when if-present is true')
   await run.handler({
     ...DEFAULT_OPTS,
@@ -252,7 +252,6 @@ test('`pnpm recursive run` fails when run with a filter that includes all packag
     err = _err
   }
   t.equal(err.code, 'ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT')
-  
   t.end()
 })
 
