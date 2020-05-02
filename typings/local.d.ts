@@ -118,11 +118,6 @@ declare module 'remove-all-except-outer-links' {
   export = anything;
 }
 
-declare module 'rename-overwrite' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'right-pad' {
   const anything: any;
   export = anything;

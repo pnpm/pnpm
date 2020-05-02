@@ -49,9 +49,9 @@
     "p-queue": "6.3.0",
     "promise-share": "1.0.0",
     "ramda": "0.27.0",
-    "rename-overwrite": "2.0.2",
+    "rename-overwrite": "^3.0.0",
     "ssri": "6.0.1",
-    "symlink-dir": "^4.0.1",
+    "symlink-dir": "^4.0.3",
     "write-json-file": "4.0.0"
   },
   "devDependencies": {

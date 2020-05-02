@@ -34,7 +34,7 @@
     "path-exists": "4.0.0",
     "path-temp": "2.0.0",
     "ramda": "0.27.0",
-    "rename-overwrite": "2.0.2",
+    "rename-overwrite": "^3.0.0",
     "write-json-file": "4.0.0"
   },
   "devDependencies": {

@@ -22,7 +22,7 @@
     "p-limit": "2.3.0",
     "path-exists": "4.0.0",
     "path-temp": "2.0.0",
-    "rename-overwrite": "2.0.2",
+    "rename-overwrite": "^3.0.0",
     "ssri": "6.0.1",
     "tar-stream": "^2.1.2"
   },

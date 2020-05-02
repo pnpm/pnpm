@@ -103,7 +103,7 @@
     "read-yaml-file": "2.0.0",
     "retry": "0.12.0",
     "semver": "^7.3.2",
-    "symlink-dir": "^4.0.1",
+    "symlink-dir": "^4.0.3",
     "tape-promise": "4.0.0",
     "tree-kill": "1.2.2",
     "write-json-file": "4.0.0",

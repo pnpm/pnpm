@@ -102,7 +102,7 @@ importers:
       p-limit: 2.3.0
       path-exists: 4.0.0
       path-temp: 2.0.0
-      rename-overwrite: 2.0.2
+      rename-overwrite: 3.0.0
       ssri: 6.0.1
       tar-stream: 2.1.2
     devDependencies:
@@ -124,7 +124,7 @@ importers:
       p-limit: 2.3.0
       path-exists: 4.0.0
       path-temp: 2.0.0
-      rename-overwrite: 2.0.2
+      rename-overwrite: ^3.0.0
       ssri: 6.0.1
       tar-stream: ^2.1.2
       tempy: ^0.5.0
@@ -1220,9 +1220,9 @@ importers:
       p-queue: 6.3.0
       promise-share: 1.0.0
       ramda: 0.27.0
-      rename-overwrite: 2.0.2
+      rename-overwrite: 3.0.0
       ssri: 6.0.1
-      symlink-dir: 4.0.1
+      symlink-dir: 4.0.3
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/local-resolver': 'link:../local-resolver'
@@ -1272,10 +1272,10 @@ importers:
       p-queue: 6.3.0
       promise-share: 1.0.0
       ramda: 0.27.0
-      rename-overwrite: 2.0.2
+      rename-overwrite: ^3.0.0
       sinon: 9.0.2
       ssri: 6.0.1
-      symlink-dir: ^4.0.1
+      symlink-dir: ^4.0.3
       tempy: 0.5.0
       write-json-file: 4.0.0
   packages/package-store:
@@ -1298,7 +1298,7 @@ importers:
       path-exists: 4.0.0
       path-temp: 2.0.0
       ramda: 0.27.0
-      rename-overwrite: 2.0.2
+      rename-overwrite: 3.0.0
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/logger': 3.2.2
@@ -1340,7 +1340,7 @@ importers:
       path-temp: 2.0.0
       proxyquire: 2.1.3
       ramda: 0.27.0
-      rename-overwrite: 2.0.2
+      rename-overwrite: ^3.0.0
       sinon: 9.0.2
       tempy: 0.5.0
       write-json-file: 4.0.0
@@ -2141,7 +2141,7 @@ importers:
       read-yaml-file: 2.0.0
       retry: 0.12.0
       semver: 7.3.2
-      symlink-dir: 4.0.1
+      symlink-dir: 4.0.3
       tape-promise: 4.0.0
       tree-kill: 1.2.2
       write-json-file: 4.0.0
@@ -2230,7 +2230,7 @@ importers:
       retry: 0.12.0
       semver: ^7.3.2
       split-cmd: 1.0.1
-      symlink-dir: ^4.0.1
+      symlink-dir: ^4.0.3
       tape-promise: 4.0.0
       tree-kill: 1.2.2
       update-notifier: 4.1.0
@@ -2620,7 +2620,7 @@ importers:
       resolve-link-target: 1.0.1
       sinon: 9.0.2
       supi: 'link:'
-      symlink-dir: 4.0.1
+      symlink-dir: 4.0.3
       tape-promise: 4.0.0
       write-json-file: 4.0.0
       write-yaml-file: 4.1.0
@@ -2717,7 +2717,7 @@ importers:
       semver-utils: 1.1.4
       sinon: 9.0.2
       supi: 'link:'
-      symlink-dir: ^4.0.1
+      symlink-dir: ^4.0.3
       tape-promise: 4.0.0
       version-selector-type: 2.0.1
       write-json-file: 4.0.0
@@ -2727,7 +2727,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/types': 'link:../types'
       mz: 2.7.0
-      symlink-dir: 4.0.1
+      symlink-dir: 4.0.3
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@types/mz': 2.7.0
@@ -2737,7 +2737,7 @@ importers:
       '@pnpm/types': 'workspace:^5.0.0'
       '@types/mz': ^2.7.0
       mz: ^2.7.0
-      symlink-dir: ^4.0.1
+      symlink-dir: ^4.0.3
   packages/tarball-fetcher:
     dependencies:
       '@pnpm/error': 'link:../error'
@@ -10429,10 +10429,19 @@ packages:
     dependencies:
       graceful-fs: 4.2.4
       rimraf: 3.0.2
+    dev: true
     engines:
       node: '>=8'
     resolution:
       integrity: sha512-XodkUmbg11ZzZoAkYfJYEmj8FscfeRL2KHGALeDSB76ia8A1zqQq0+WkcepXm7QkuzmW0CE3uiFUBr/UJfin+w==
+  /rename-overwrite/3.0.0:
+    dependencies:
+      graceful-fs: 4.2.4
+      rimraf: 3.0.2
+    engines:
+      node: '>=10.12'
+    resolution:
+      integrity: sha512-/XB82wGDkV0bWNWu0PQgv+uuwsp/149HwF00/pRmJFPcX/9xLCvlUdbOjn3/OELh/mBveZ5MGknqGEnURxn5Xw==
   /render-help/1.0.0:
     dependencies:
       table: 5.4.6
@@ -11466,16 +11475,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==
-  /symlink-dir/4.0.1:
+  /symlink-dir/4.0.3:
     dependencies:
       better-path-resolve: 1.0.0
       graceful-fs: 4.2.4
-      rename-overwrite: 2.0.2
+      rename-overwrite: 3.0.0
     engines:
       node: '>=10.12'
     hasBin: true
     resolution:
-      integrity: sha512-eQg3i9IDWlDMeSrfWer2cCIMW8KseWkwN1ar6cQfpm0+JGxb/LBGoRteFU1SUp6V1tGdHTWI3Hj06OXOK7YZcQ==
+      integrity: sha512-sa2kgXRjZyK2asEekhR08OTGAqGGRNQGRiXxInok1wrRwcshb701RLHrVc8REXRDxea0mBb0Hnby2QcMlle2sg==
   /table/5.4.6:
     dependencies:
       ajv: 6.12.2

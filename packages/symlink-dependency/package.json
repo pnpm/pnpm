@@ -42,7 +42,7 @@
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/types": "workspace:^5.0.0",
     "mz": "^2.7.0",
-    "symlink-dir": "^4.0.1"
+    "symlink-dir": "^4.0.3"
   },
   "funding": "https://opencollective.com/pnpm"
 }
