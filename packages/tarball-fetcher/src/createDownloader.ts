@@ -1,5 +1,10 @@
 import PnpmError from '@pnpm/error'
-import { Cafs, FetchResult, FilesIndex } from '@pnpm/fetcher-base'
+import {
+  Cafs,
+  DeferredManifestPromise,
+  FetchResult,
+  FilesIndex,
+} from '@pnpm/fetcher-base'
 import createFetcher from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
 import fs = require('mz/fs')
@@ -57,6 +62,7 @@ export type DownloadFunction = (url: string, saveto: string, opts: {
     alwaysAuth: boolean | undefined,
   },
   cafs: Cafs,
+  manifest?: DeferredManifestPromise,
   registry?: string,
   onStart?: (totalSize: number | null, attempt: number) => void,
   onProgress?: (downloaded: number) => void,
@@ -107,6 +113,7 @@ export default (
       alwaysAuth: boolean | undefined,
     },
     cafs: Cafs,
+    manifest?: DeferredManifestPromise,
     registry?: string,
     onStart?: (totalSize: number | null, attempt: number) => void,
     onProgress?: (downloaded: number) => void,
@@ -173,7 +180,7 @@ export default (
           try {
             const [integrityCheckResult, filesIndex] = await Promise.all([
               opts.integrity && safeCheckStream(res.body, opts.integrity, url) || true,
-              opts.cafs.addFilesFromTarball(res.body),
+              opts.cafs.addFilesFromTarball(res.body, opts.manifest),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
             if (integrityCheckResult !== true) {

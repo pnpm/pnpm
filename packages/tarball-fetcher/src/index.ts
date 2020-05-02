@@ -1,6 +1,7 @@
 import PnpmError from '@pnpm/error'
 import {
   Cafs,
+  DeferredManifestPromise,
   FetchFunction,
   FetchOptions,
   FetchResult,
@@ -90,6 +91,7 @@ function fetchFromTarball (
     const tarball = path.join(opts.lockfileDir, resolution.tarball.slice(5))
     return fetchFromLocalTarball(cafs, tarball, {
       integrity: resolution.integrity,
+      manifest: opts.manifest,
     })
   }
   return ctx.fetchFromRemoteTarball(cafs, resolution, opts)
@@ -115,6 +117,7 @@ async function fetchFromRemoteTarball (
   try {
     return await fetchFromLocalTarball(cafs, opts.cachedTarballLocation, {
       integrity: dist.integrity,
+      manifest: opts.manifest,
     })
   } catch (err) {
     // ignore errors for missing files or broken/partial archives
@@ -151,6 +154,7 @@ async function fetchFromRemoteTarball (
       auth,
       cafs,
       integrity: dist.integrity,
+      manifest: opts.manifest,
       onProgress: opts.onProgress,
       onStart: opts.onStart,
       registry: dist.registry,
@@ -163,17 +167,18 @@ async function fetchFromLocalTarball (
   tarball: string,
   opts: {
     integrity?: string,
+    manifest?: DeferredManifestPromise,
   },
 ): Promise<FetchResult> {
   try {
     const tarballStream = fs.createReadStream(tarball)
-    const [filesIndex] = (
+    const [fetchResult] = (
       await Promise.all([
-        cafs.addFilesFromTarball(tarballStream),
+        cafs.addFilesFromTarball(tarballStream, opts.manifest),
         opts.integrity && (ssri.checkStream(tarballStream, opts.integrity) as any), // tslint:disable-line
       ])
     )
-    return { filesIndex }
+    return { filesIndex: fetchResult }
   } catch (err) {
     err.attempts = 1
     err.resource = tarball
