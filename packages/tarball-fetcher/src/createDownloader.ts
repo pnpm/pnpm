@@ -166,13 +166,8 @@ export default (
           if (onProgress) onProgress(downloaded)
         })
 
-        const tempTarballLocation = pathTemp(saveToDir)
-        const writeStream = fs.createWriteStream(tempTarballLocation)
-
         return await new Promise<FetchResult>(async (resolve, reject) => {
           const stream = res.body
-            .on('error', reject)
-            .pipe(writeStream)
             .on('error', reject)
 
           try {
@@ -184,14 +179,8 @@ export default (
             if (integrityCheckResult !== true) {
               throw integrityCheckResult
             }
-            fs.rename(tempTarballLocation, saveto).catch(() => {
-              // ignore errors
-            })
             resolve({ filesIndex: filesIndex as FilesIndex })
           } catch (err) {
-            rimraf(tempTarballLocation, () => {
-              // ignore errors
-            })
             reject(err)
           }
         })
@@ -228,7 +217,7 @@ function waitTillClosed (
   },
 ) {
   return new Promise((resolve, reject) => {
-    opts.stream.on('close', () => {
+    opts.stream.on('end', () => {
       const downloaded = opts.getDownloaded()
       if (opts.size !== null && opts.size !== downloaded) {
         const err = new BadTarballError({

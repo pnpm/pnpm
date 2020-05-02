@@ -65,8 +65,6 @@ test('fail when tarball size does not match content-length', async t => {
     t.equal(err['receivedSize'], tarballSize)
     t.equal(err['attempts'], 2)
 
-    t.notOk(existsSync(cachedTarballLocation), 'invalid tarball not saved')
-
     t.ok(scope.isDone())
     t.end()
   }
@@ -178,13 +176,9 @@ test('retry when tarball size does not match content-length', async t => {
     lockfileDir: process.cwd(),
   })
 
-  // fetch.tarball() doesn't wait till the cached tarball is renamed.
-  // So this may happen a bit later
-  setTimeout(() => {
-    t.ok(existsSync(cachedTarballLocation), 'tarball saved') // it is actually not a big issue if the tarball is not there
-    t.ok(nock.isDone())
-    t.end()
-  }, 100)
+  t.ok(result.filesIndex)
+  t.ok(nock.isDone())
+  t.end()
 })
 
 test('redownload incomplete cached tarballs', async t => {
