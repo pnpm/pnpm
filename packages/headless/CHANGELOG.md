@@ -1,6 +1,15 @@
 # @pnpm/headless
 
+## 12.2.2
+
+### Patch Changes
+
+- Updated dependencies [2ec4c4eb9]
+  - @pnpm/lifecycle@8.2.0
+  - @pnpm/build-modules@4.1.14
+
 ## 12.2.1
+
 ### Patch Changes
 
 - 907c63a48: Update `@pnpm/store-path`.

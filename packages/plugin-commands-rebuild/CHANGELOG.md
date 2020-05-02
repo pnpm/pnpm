@@ -1,6 +1,14 @@
 # @pnpm/plugin-commands-rebuild
 
+## 1.0.11
+
+### Patch Changes
+
+- Updated dependencies [2ec4c4eb9]
+  - @pnpm/lifecycle@8.2.0
+
 ## 1.0.10
+
 ### Patch Changes
 
 - 907c63a48: Dependencies updated.

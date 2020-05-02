@@ -1,6 +1,21 @@
 # pnpm
 
+## 4.14.2
+
+### Patch Changes
+
+- f8d6a07fe: Print a meaningful error on unsupported Node.js versions.
+- Updated dependencies [c80d4ba3c]
+  - @pnpm/plugin-commands-script-runners@1.1.0
+  - @pnpm/plugin-commands-import@1.0.11
+  - @pnpm/plugin-commands-installation@1.2.4
+  - @pnpm/plugin-commands-publishing@1.0.12
+  - @pnpm/plugin-commands-rebuild@1.0.11
+  - @pnpm/plugin-commands-listing@1.0.9
+  - @pnpm/plugin-commands-outdated@1.0.9
+
 ## 4.14.1
+
 ### Patch Changes
 
 - 907c63a48: Update symlink-dir to v4.

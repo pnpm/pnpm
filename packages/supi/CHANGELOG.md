@@ -1,6 +1,17 @@
 # supi
 
+## 0.38.30
+
+### Patch Changes
+
+- 760cc6664: Headless installation should be preferred when local dependencies that use aliases are up-to-date.
+- Updated dependencies [2ec4c4eb9]
+  - @pnpm/lifecycle@8.2.0
+  - @pnpm/build-modules@4.1.14
+  - @pnpm/headless@12.2.2
+
 ## 0.38.29
+
 ### Patch Changes
 
 - 907c63a48: Update symlink-dir to v4.
