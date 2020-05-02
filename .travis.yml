@@ -11,7 +11,7 @@ before_install:
   - curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | PNPM_VERSION=1.33.2 node
   # Testing whether pnpm can upgrade itself
   - npm install --global npm@latest
-  - pnpm i -g pnpm@next
+  - pnpm i -g pnpm@4
   - pnpm -v
 install:
   - pnpm install --no-lock --force

@@ -34,6 +34,6 @@
     "verdaccio": "^4.6.0"
   },
   "engines": {
-    "pnpm": ">=4"
+    "pnpm": "4"
   }
 }

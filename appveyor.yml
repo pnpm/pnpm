@@ -6,7 +6,7 @@ install:
   - git config --global user.email x@y.z
   - ps: Install-Product node $env:nodejs_version
   - npm set verify-store-integrity false
-  - set PNPM_VERSION=next
+  - set PNPM_VERSION=4
   - curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | node
   - pnpm -v
   - pnpm recursive install --no-lock
