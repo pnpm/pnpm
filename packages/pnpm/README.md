@@ -38,10 +38,10 @@ pnpm uses a content-addressable filesystem to store all files from all module di
 When using npm or Yarn, if you have 100 projects using lodash, you will have 100 copies of lodash on disk.
 With pnpm, lodash will be stored in a content-addressable storage, so:
 
-1. if you depend on different versions of lodash, only the files that differ are added to the store.
+1. If you depend on different versions of lodash, only the files that differ are added to the store.
   If lodash has 100 files, and a new version has a change only in one of those files,
   `pnpm update` will only add 1 new file to the storage.
-1. all the files are saved in a single place on the disk. When packages are installed, their files are hard-linked
+1. All the files are saved in a single place on the disk. When packages are installed, their files are hard-linked
   from that single place consuming no additional disk space.
 
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
