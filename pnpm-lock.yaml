@@ -1081,7 +1081,7 @@ importers:
       parse-npm-tarball-url: 3.0.0
       semver: 7.3.2
       ssri: 6.0.1
-      version-selector-type: 2.0.1
+      version-selector-type: 3.0.0
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/logger': 3.2.2
@@ -1116,7 +1116,7 @@ importers:
       semver: ^7.3.2
       ssri: 6.0.1
       tempy: 0.5.0
-      version-selector-type: 2.0.1
+      version-selector-type: ^3.0.0
       write-json-file: 4.0.0
   packages/outdated:
     dependencies:
@@ -1498,7 +1498,7 @@ importers:
       render-help: 1.0.0
       supi: 'link:../supi'
       table: 5.4.6
-      version-selector-type: 2.0.1
+      version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/lockfile-types': 'link:../lockfile-types'
       '@pnpm/logger': 3.2.2
@@ -1575,7 +1575,7 @@ importers:
       sinon: 9.0.2
       supi: 'workspace:0.39.0-alpha.2'
       table: 5.4.6
-      version-selector-type: 2.0.1
+      version-selector-type: ^3.0.0
       write-json-file: 4.2.1
       write-yaml-file: ^4.1.0
   packages/plugin-commands-listing:
@@ -2580,7 +2580,7 @@ importers:
       run-groups: 2.0.3
       semver: 7.3.2
       semver-utils: 1.1.4
-      version-selector-type: 2.0.1
+      version-selector-type: 3.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
@@ -2719,7 +2719,7 @@ importers:
       supi: 'link:'
       symlink-dir: ^4.0.3
       tape-promise: 4.0.0
-      version-selector-type: 2.0.1
+      version-selector-type: ^3.0.0
       write-json-file: 4.0.0
       write-yaml-file: ^4.1.0
   packages/symlink-dependency:
@@ -12248,14 +12248,14 @@ packages:
       '0': node >=0.6.0
     resolution:
       integrity: sha1-OhBcoXBTr1XW4nDB+CiGguGNpAA=
-  /version-selector-type/2.0.1:
+  /version-selector-type/3.0.0:
     dependencies:
-      semver: 6.3.0
+      semver: 7.3.2
     dev: false
     engines:
-      node: '>=4'
+      node: '>=10.13'
     resolution:
-      integrity: sha512-wglKuX3nE2jJPld8UfSKo8YZeYovkAsErRCzbzEt5hHWp+s1Ai4q97dQI5X7wFXAykeHxvez38HJScuUWPxb6g==
+      integrity: sha512-PSvMIZS7C1MuVNBXl/CDG2pZq8EXy/NW2dHIdm3bVP5N0PC8utDK8ttXLXj44Gn3J0lQE3U7Mpm1estAOd+eiA==
   /vinyl-fs/3.0.3:
     dependencies:
       fs-mkdirp-stream: 1.0.0

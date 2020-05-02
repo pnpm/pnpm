@@ -70,7 +70,7 @@
     "run-groups": "2.0.3",
     "semver": "^7.3.2",
     "semver-utils": "1.1.4",
-    "version-selector-type": "2.0.1"
+    "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "workspace:*",

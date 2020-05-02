@@ -49,7 +49,7 @@
     "parse-npm-tarball-url": "3.0.0",
     "semver": "^7.3.2",
     "ssri": "6.0.1",
-    "version-selector-type": "2.0.1",
+    "version-selector-type": "^3.0.0",
     "write-json-file": "4.0.0"
   },
   "devDependencies": {
