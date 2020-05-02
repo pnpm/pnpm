@@ -6,6 +6,13 @@
 
 - 4063f1bee: Git checks are on by default.
 
+## 1.0.12
+
+### Patch Changes
+
+- Updated dependencies [2ec4c4eb9]
+  - @pnpm/lifecycle@8.2.0
+
 ## 1.0.11
 
 ### Patch Changes

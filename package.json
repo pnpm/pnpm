@@ -29,12 +29,12 @@
     "publish-packed": "^3.0.1",
     "rimraf": "^3.0.2",
     "tape": "^4.13.2",
-    "ts-node": "^8.8.2",
+    "ts-node": "^8.9.1",
     "tslint": "^6.1.2",
     "typescript": "^3.8.3",
-    "verdaccio": "^4.6.1"
+    "verdaccio": "^4.6.2"
   },
   "engines": {
-    "pnpm": ">=4"
+    "pnpm": "4"
   }
 }

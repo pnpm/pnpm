@@ -39,6 +39,16 @@
   - @pnpm/modules-cleaner@8.0.17-alpha.0
   - @pnpm/resolve-dependencies@14.4.5-alpha.0
 
+## 0.38.30
+
+### Patch Changes
+
+- 760cc6664: Headless installation should be preferred when local dependencies that use aliases are up-to-date.
+- Updated dependencies [2ec4c4eb9]
+  - @pnpm/lifecycle@8.2.0
+  - @pnpm/build-modules@4.1.14
+  - @pnpm/headless@12.2.2
+
 ## 0.38.29
 
 ### Patch Changes

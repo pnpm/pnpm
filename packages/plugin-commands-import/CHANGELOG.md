@@ -23,6 +23,13 @@
   - @pnpm/store-connection-manager@0.3.0-alpha.0
   - supi@0.39.0-alpha.0
 
+## 1.0.11
+
+### Patch Changes
+
+- Updated dependencies [760cc6664]
+  - supi@0.38.30
+
 ## 1.0.10
 
 ### Patch Changes

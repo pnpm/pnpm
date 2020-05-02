@@ -25,6 +25,14 @@
   - @pnpm/build-modules@4.1.14-alpha.0
   - @pnpm/modules-cleaner@8.0.17-alpha.0
 
+## 12.2.2
+
+### Patch Changes
+
+- Updated dependencies [2ec4c4eb9]
+  - @pnpm/lifecycle@8.2.0
+  - @pnpm/build-modules@4.1.14
+
 ## 12.2.1
 
 ### Patch Changes

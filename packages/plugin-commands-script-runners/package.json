@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "1.0.8",
+  "version": "1.1.0",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -51,7 +51,7 @@
     "@pnpm/common-cli-options-help": "workspace:0.1.5",
     "@pnpm/config": "workspace:8.3.0",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/lifecycle": "workspace:8.1.1",
+    "@pnpm/lifecycle": "workspace:8.2.0",
     "@pnpm/sort-packages": "workspace:1.0.9",
     "@pnpm/types": "workspace:5.0.0",
     "common-tags": "1.8.0",

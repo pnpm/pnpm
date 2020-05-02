@@ -14,6 +14,13 @@
 - Updated dependencies [91c4b5954]
   - @pnpm/store-controller-types@8.0.0-alpha.0
 
+## 4.1.14
+
+### Patch Changes
+
+- Updated dependencies [2ec4c4eb9]
+  - @pnpm/lifecycle@8.2.0
+
 ## 4.1.13
 
 ### Patch Changes
