@@ -216,7 +216,6 @@ async function resolveAndFetch (
       force: forceFetch,
       lockfileDir: options.lockfileDir,
       pkgId: id,
-      pkgName: manifest?.name,
       resolution: resolution,
     })
 
@@ -268,7 +267,6 @@ function fetchToStore (
   opts: {
     fetchRawManifest?: boolean,
     force: boolean,
-    pkgName?: string,
     pkgId: string,
     lockfileDir: string,
     resolution: Resolution,

@@ -71,7 +71,6 @@ export interface FetchPackageToStoreOptions {
   force: boolean,
   lockfileDir: string,
   pkgId: string,
-  pkgName?: string,
   resolution: Resolution,
 }
 
