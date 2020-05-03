@@ -11,9 +11,6 @@
   "references": [
     {
       "path": "../fetcher-base"
-    },
-    {
-      "path": "../types"
     }
   ]
 }
