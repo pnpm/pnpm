@@ -360,11 +360,13 @@ function fetchToStore (
     inStoreLocation: result.inStoreLocation,
   }
 
-  function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
-    return p.catch((err) => {
+  async function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
+    try {
+      return await p
+    } catch (err) {
       ctx.fetchingLocker.delete(opts.pkgId)
       throw err
-    })
+    }
   }
 
   async function doFetchToStore (
