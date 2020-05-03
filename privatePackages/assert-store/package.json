@@ -43,6 +43,7 @@
     "test": "pnpm run tsc && ts-node test"
   },
   "dependencies": {
+    "@pnpm/cafs": "workspace:^1.0.0-alpha.2",
     "path-exists": "4.0.0"
   },
   "devDependencies": {

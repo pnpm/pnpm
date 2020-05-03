@@ -376,6 +376,9 @@ function fetchToStore (
   ) {
     try {
       const isLocalTarballDep = opts.pkgId.startsWith('file:')
+      const pkgIndexFilePath = opts.resolution['integrity']
+        ? ctx.getFilePathInCafs({ integrity: opts.resolution['integrity'], mode: 0 }) + '.json'
+        : path.join(target, 'integrity.json')
 
       if (
         !opts.force &&
@@ -386,7 +389,7 @@ function fetchToStore (
       ) {
         let integrity
         try {
-          integrity = await loadJsonFile<Record<string, { size: number, mode: number, integrity: string }>>(path.join(target, 'integrity.json'))
+          integrity = await loadJsonFile<Record<string, { size: number, mode: number, integrity: string }>>(pkgIndexFilePath)
         } catch (err) {
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
@@ -476,10 +479,11 @@ function fetchToStore (
             }
           }),
       )
-      await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: undefined })
+      await writeJsonFile(pkgIndexFilePath, integrity, { indent: undefined })
       finishing.resolve(undefined)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
+        await fs.mkdir(target, { recursive: true })
         await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal
       }
 

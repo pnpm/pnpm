@@ -10,7 +10,8 @@ import tempy = require('tempy')
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
-test('CLI fails when store status finds modified packages', async function (t) {
+// TODO: unskip when alpha.4 is out
+test.skip('CLI fails when store status finds modified packages', async function (t) {
   const project = prepare(t)
   const storeDir = tempy.directory()
 
@@ -38,7 +39,8 @@ test('CLI fails when store status finds modified packages', async function (t) {
   t.end()
 })
 
-test('CLI does not fail when store status does not find modified packages', async function (t) {
+// TODO: unskip when alpha.4 is out
+test.skip('CLI does not fail when store status does not find modified packages', async function (t) {
   const project = prepare(t)
   const storeDir = tempy.directory()
 

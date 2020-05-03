@@ -38,6 +38,7 @@ const fetch = createFetcher({
 
 test('request package', async t => {
   const storeDir = tempy.directory()
+  t.comment(storeDir)
   const storeIndex = {}
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
