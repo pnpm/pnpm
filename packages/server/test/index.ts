@@ -193,7 +193,7 @@ test('server upload', async t => {
   })
 
   const cacheIntegrity = await loadJsonFile(path.join(storeDir, fakePkgId, 'side_effects', fakeEngine, 'integrity.json'))
-  t.deepEqual(Object.keys(cacheIntegrity), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
+  t.deepEqual(Object.keys(cacheIntegrity).sort(), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
 
   await server.close()
   await storeCtrl.close()
