@@ -150,7 +150,7 @@ async function fetchFromRemoteTarball (
     }
 
     const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
-    return ctx.download(dist.tarball, opts.cachedTarballLocation, {
+    return ctx.download(dist.tarball, {
       auth,
       cafs,
       integrity: dist.integrity,

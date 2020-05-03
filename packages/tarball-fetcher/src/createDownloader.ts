@@ -56,7 +56,7 @@ export interface HttpResponse {
   body: string
 }
 
-export type DownloadFunction = (url: string, saveto: string, opts: {
+export type DownloadFunction = (url: string, opts: {
   auth?: {
     authHeaderValue: string | undefined,
     alwaysAuth: boolean | undefined,
@@ -107,7 +107,7 @@ export default (
     ...gotOpts.retry,
   }
 
-  return async function download (url: string, saveto: string, opts: {
+  return async function download (url: string, opts: {
     auth?: {
       authHeaderValue: string | undefined,
       alwaysAuth: boolean | undefined,
@@ -119,9 +119,6 @@ export default (
     onProgress?: (downloaded: number) => void,
     integrity?: string,
   }): Promise<FetchResult> {
-    const saveToDir = path.dirname(saveto)
-    await fs.mkdir(saveToDir, { recursive: true })
-
     // If a tarball is hosted on a different place than the manifest, only send
     // credentials on `alwaysAuth`
     const shouldAuth = opts.auth && (
