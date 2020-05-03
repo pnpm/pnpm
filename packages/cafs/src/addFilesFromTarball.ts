@@ -1,10 +1,9 @@
 import { DeferredManifestPromise, FilesIndex } from '@pnpm/fetcher-base'
-import concatStream = require('concat-stream')
 import decompress = require('decompress-maybe')
 import ssri = require('ssri')
 import { Duplex, PassThrough } from 'stream'
 import tar = require('tar-stream')
-import deferredManifestParsing from './deferredManifestParsing'
+import { parseJsonStream } from './parseJson'
 
 export default async function (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<ssri.Integrity>,
@@ -24,9 +23,7 @@ export default async function (
         return
       }
       if (filename === 'package.json' && manifest) {
-        fileStream.pipe(
-          concatStream((buffer) => deferredManifestParsing(buffer, manifest)),
-        )
+        parseJsonStream(fileStream, manifest)
       }
       const generatingIntegrity = addStreamToCafs(fileStream, header.mode!)
       filesIndex[filename] = {

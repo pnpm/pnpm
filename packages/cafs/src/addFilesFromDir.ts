@@ -3,7 +3,7 @@ import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import ssri = require('ssri')
-import deferredManifestParsing from './deferredManifestParsing'
+import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 
@@ -46,7 +46,7 @@ async function _retrieveFileIntegrities (
         const generatingIntegrity = limit(async () => {
           if (deferredManifest && rootDir === currDir && file === 'package.json') {
             const buffer = await fs.readFile(fullPath)
-            deferredManifestParsing(buffer, deferredManifest)
+            parseJsonBuffer(buffer, deferredManifest)
             return cafs.addBuffer(buffer, stat.mode)
           }
           if (stat.size < MAX_BULK_SIZE) {

@@ -1,6 +1,7 @@
 ---
 "@pnpm/cafs": minor
 "@pnpm/fetcher-base": minor
+"@pnpm/git-fetcher": minor
 "@pnpm/package-requester": minor
 "pnpm": minor
 "@pnpm/tarball-fetcher": minor

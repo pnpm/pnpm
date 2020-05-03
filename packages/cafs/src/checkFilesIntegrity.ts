@@ -4,7 +4,7 @@ import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import ssri = require('ssri')
 import { getFilePathInCafs } from '.'
-import deferredManifestParsing from './deferredManifestParsing'
+import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
@@ -69,7 +69,7 @@ async function verifyFile (
     if (!ok) {
       await rimraf(filename)
     } else if (deferredManifest) {
-      deferredManifestParsing(data, deferredManifest)
+      parseJsonBuffer(data, deferredManifest)
     }
     return ok
   } catch (err) {
