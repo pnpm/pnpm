@@ -33,6 +33,7 @@ import {
 } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import * as fs from 'mz/fs'
+import pDefer = require('p-defer')
 import PQueue from 'p-queue'
 import path = require('path')
 import pShare = require('promise-share')
@@ -277,9 +278,9 @@ function fetchToStore (
   const target = path.join(ctx.storeDir, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
-    const bundledManifest = differed<BundledManifest>()
-    const files = differed<PackageFilesResponse>()
-    const finishing = differed<void>()
+    const bundledManifest = pDefer<BundledManifest>()
+    const files = pDefer<PackageFilesResponse>()
+    const finishing = pDefer<void>()
 
     doFetchToStore(bundledManifest, files, finishing) // tslint:disable-line
 
@@ -364,9 +365,9 @@ function fetchToStore (
   }
 
   async function doFetchToStore (
-    bundledManifest: PromiseContainer<BundledManifest>,
-    files: PromiseContainer<PackageFilesResponse>,
-    finishing: PromiseContainer<void>,
+    bundledManifest: pDefer.DeferredPromise<BundledManifest>,
+    files: pDefer.DeferredPromise<PackageFilesResponse>,
+    finishing: pDefer.DeferredPromise<void>,
   ) {
     try {
       const isLocalTarballDep = opts.pkgId.startsWith('file:')
@@ -511,29 +512,6 @@ async function tarballIsUpToDate (
     return Boolean(await ssri.checkStream(tarballStream, currentIntegrity))
   } catch (err) {
     return false
-  }
-}
-
-// tslint:disable-next-line
-function noop () {}
-
-interface PromiseContainer <T> {
-  promise: Promise<T>,
-  resolve: (v: T) => void,
-  reject: (err: Error) => void,
-}
-
-function differed<T> (): PromiseContainer<T> {
-  let pResolve: (v: T) => void = noop
-  let pReject: (err: Error) => void = noop
-  const promise = new Promise<T>((resolve, reject) => {
-    pResolve = resolve
-    pReject = reject
-  })
-  return {
-    promise,
-    reject: pReject,
-    resolve: pResolve,
   }
 }
 
