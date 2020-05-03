@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-store
 
+## 1.0.11-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [42e6490d1]
+  - @pnpm/store-controller-types@8.0.0-alpha.2
+  - @pnpm/store-connection-manager@0.2.32-alpha.2
+
 ## 1.0.11-alpha.1
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/tarball-fetcher
 
+## 6.0.0-alpha.2
+
+### Major Changes
+
+- 7db36dcb3: There is no reason to keep the tarballs on the disk.
+  All the files are unpacked and their checksums are stored.
+  So the tarball is only used if someone modifies the content of
+  the unpacked package. In that rare case, it is fine if we
+  redownload the tarball from the registry.
+
+### Minor Changes
+
+- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
+
+### Patch Changes
+
+- Updated dependencies [42e6490d1]
+  - @pnpm/fetcher-base@7.0.0-alpha.2
+
 ## 6.0.0-alpha.1
 
 ### Minor Changes

@@ -3,7 +3,7 @@
   "tag": "alpha",
   "initialVersions": {
     "@pnpm/audit": "1.1.1",
-    "@pnpm/build-modules": "4.1.13",
+    "@pnpm/build-modules": "4.1.14",
     "@pnpm/cafs": "0.0.0",
     "@pnpm/cli-meta": "1.0.0",
     "@pnpm/cli-utils": "0.4.4",
@@ -56,7 +56,7 @@
     "@pnpm/pick-registry-for-package": "1.0.0",
     "pkgs-graph": "5.1.5",
     "@pnpm/plugin-commands-audit": "1.0.8",
-    "@pnpm/plugin-commands-import": "1.0.10",
+    "@pnpm/plugin-commands-import": "1.0.11",
     "@pnpm/plugin-commands-installation": "1.2.3",
     "@pnpm/plugin-commands-listing": "1.0.9",
     "@pnpm/plugin-commands-outdated": "1.0.9",
@@ -97,12 +97,22 @@
     "@pnpm-private/typings": "0.0.0"
   },
   "changesets": [
+    "angry-mugs-argue",
     "angry-weeks-collect",
     "blue-wombats-help",
+    "dry-swans-fix",
     "late-dolphins-destroy",
     "mighty-buckets-study",
+    "mighty-keys-type",
+    "neat-beers-sit",
+    "old-moose-design",
     "pretty-elephants-warn",
     "quick-starfishes-fold",
-    "sharp-coins-enjoy"
+    "sharp-coins-enjoy",
+    "slow-worms-travel",
+    "swift-ties-cross",
+    "thin-beans-taste",
+    "unlucky-panthers-fold",
+    "violet-trainers-fold"
   ]
 }

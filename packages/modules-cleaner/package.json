@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "8.0.17-alpha.1",
+  "version": "8.0.17-alpha.2",
   "description": "Exports util functions to clean up node_modules",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "main": "lib/index.js",
@@ -34,7 +34,7 @@
     "@pnpm/package-bins": "workspace:4.0.3",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.1.0",
-    "@pnpm/store-controller-types": "workspace:8.0.0-alpha.1",
+    "@pnpm/store-controller-types": "workspace:8.0.0-alpha.2",
     "@pnpm/types": "workspace:5.0.0",
     "@zkochan/rimraf": "1.0.0",
     "dependency-path": "workspace:4.0.6",

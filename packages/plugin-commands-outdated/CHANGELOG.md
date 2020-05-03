@@ -1,6 +1,14 @@
 # @pnpm/plugin-commands-outdated
 
+## 1.0.10-alpha.0
+
+### Patch Changes
+
+- @pnpm/default-resolver@7.4.10-alpha.0
+- @pnpm/outdated@7.0.23-alpha.0
+
 ## 1.0.9
+
 ### Patch Changes
 
 - 907c63a48: Update `@pnpm/store-path`.

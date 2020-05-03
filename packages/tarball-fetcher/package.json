@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/tarball-fetcher",
-  "version": "6.0.0-alpha.1",
+  "version": "6.0.0-alpha.2",
   "description": "Fetcher for packages hosted as tarballs",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/fetcher-base": "workspace:7.0.0-alpha.1",
+    "@pnpm/fetcher-base": "workspace:7.0.0-alpha.2",
     "credentials-by-uri": "2.0.0",
     "fetch-from-npm-registry": "workspace:4.0.2",
     "graceful-fs": "4.2.1",
@@ -47,7 +47,7 @@
     "ssri": "6.0.1"
   },
   "devDependencies": {
-    "@pnpm/cafs": "workspace:1.0.0-alpha.1",
+    "@pnpm/cafs": "workspace:1.0.0-alpha.2",
     "@pnpm/logger": "3.2.2",
     "@pnpm/read-package-json": "workspace:3.1.0",
     "@pnpm/tarball-fetcher": "link:",

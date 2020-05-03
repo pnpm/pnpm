@@ -1,5 +1,14 @@
 # @pnpm/plugin-commands-publishing
 
+## 1.0.12-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [f453a5f46]
+  - @pnpm/lifecycle@8.2.0-alpha.0
+  - @pnpm/npm-resolver@7.3.12-alpha.0
+
 ## 2.0.0-alpha.0
 
 ### Major Changes

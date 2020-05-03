@@ -1,5 +1,12 @@
 # @pnpm/modules-cleaner
 
+## 8.0.17-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [42e6490d1]
+  - @pnpm/store-controller-types@8.0.0-alpha.2
+
 ## 8.0.17-alpha.1
 
 ### Patch Changes

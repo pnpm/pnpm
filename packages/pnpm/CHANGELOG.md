@@ -1,5 +1,25 @@
 # pnpm
 
+## 5.0.0-alpha.3
+
+### Minor Changes
+
+- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
+
+### Patch Changes
+
+- 26c34c4f3: Print a meaningful error on unsupported Node.js versions.
+- Updated dependencies [7300eba86]
+- Updated dependencies [f453a5f46]
+  - @pnpm/plugin-commands-script-runners@1.1.0-alpha.0
+  - @pnpm/plugin-commands-installation@2.0.0-alpha.3
+  - @pnpm/plugin-commands-publishing@1.0.12-alpha.1
+  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.2
+  - @pnpm/plugin-commands-store@1.0.11-alpha.2
+  - @pnpm/plugin-commands-server@1.0.11-alpha.2
+  - @pnpm/plugin-commands-import@1.0.11-alpha.3
+  - @pnpm/plugin-commands-outdated@1.0.10-alpha.0
+
 ## 5.0.0-alpha.2
 
 ### Major Changes

@@ -1,5 +1,14 @@
 # @pnpm/default-fetcher
 
+## 5.1.19-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [7db36dcb3]
+- Updated dependencies [42e6490d1]
+  - @pnpm/tarball-fetcher@6.0.0-alpha.2
+  - @pnpm/git-fetcher@3.0.0-alpha.2
+
 ## 6.0.0-alpha.1
 
 ### Patch Changes

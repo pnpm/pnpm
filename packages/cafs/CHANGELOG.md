@@ -1,5 +1,17 @@
 # @pnpm/cafs
 
+## 1.0.0-alpha.2
+
+### Minor Changes
+
+- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
+
+### Patch Changes
+
+- c207d994f: Update rename-overwrite to v3.
+- Updated dependencies [42e6490d1]
+  - @pnpm/fetcher-base@7.0.0-alpha.2
+
 ## 1.0.0-alpha.1
 
 ### Minor Changes

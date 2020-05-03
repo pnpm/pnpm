@@ -1,5 +1,23 @@
 # supi
 
+## 0.39.0-alpha.3
+
+### Patch Changes
+
+- f453a5f46: Update version-selector-type to v3.
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [64bae33c4]
+- Updated dependencies [c207d994f]
+- Updated dependencies [42e6490d1]
+  - @pnpm/lifecycle@8.2.0-alpha.0
+  - @pnpm/package-requester@12.0.0-alpha.2
+  - @pnpm/store-controller-types@8.0.0-alpha.2
+  - @pnpm/build-modules@4.1.14-alpha.2
+  - @pnpm/headless@12.2.2-alpha.2
+  - @pnpm/modules-cleaner@8.0.17-alpha.2
+  - @pnpm/resolve-dependencies@14.4.5-alpha.2
+
 ## 0.39.0-alpha.2
 
 ### Patch Changes

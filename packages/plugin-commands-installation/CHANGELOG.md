@@ -1,5 +1,18 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.0-alpha.3
+
+### Patch Changes
+
+- f453a5f46: Update version-selector-type to v3.
+- Updated dependencies [c207d994f]
+- Updated dependencies [f453a5f46]
+  - @pnpm/package-store@9.0.0-alpha.2
+  - supi@0.39.0-alpha.3
+  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.2
+  - @pnpm/store-connection-manager@0.2.32-alpha.2
+  - @pnpm/outdated@7.0.23-alpha.0
+
 ## 2.0.0-alpha.2
 
 ### Major Changes

@@ -1,5 +1,13 @@
 # @pnpm/server
 
+## 8.0.0-alpha.2
+
+### Patch Changes
+
+- 919103471: Update uuid to v8.
+- Updated dependencies [42e6490d1]
+  - @pnpm/store-controller-types@8.0.0-alpha.2
+
 ## 8.0.0-alpha.1
 
 ### Patch Changes

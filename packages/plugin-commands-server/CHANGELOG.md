@@ -1,5 +1,13 @@
 # @pnpm/plugin-commands-server
 
+## 1.0.11-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [919103471]
+  - @pnpm/server@8.0.0-alpha.2
+  - @pnpm/store-connection-manager@0.2.32-alpha.2
+
 ## 1.0.11-alpha.1
 
 ### Patch Changes

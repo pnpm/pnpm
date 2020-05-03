@@ -1,5 +1,11 @@
 # @pnpm/store-controller-types
 
+## 8.0.0-alpha.2
+
+### Minor Changes
+
+- 42e6490d1: The fetch package to store function does not need the pkgName anymore.
+
 ## 8.0.0-alpha.1
 
 ### Minor Changes

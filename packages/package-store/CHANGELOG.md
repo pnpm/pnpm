@@ -1,5 +1,19 @@
 # @pnpm/package-store
 
+## 9.0.0-alpha.2
+
+### Patch Changes
+
+- c207d994f: Update rename-overwrite to v3.
+- Updated dependencies [42e6490d1]
+- Updated dependencies [64bae33c4]
+- Updated dependencies [c207d994f]
+- Updated dependencies [42e6490d1]
+  - @pnpm/package-requester@12.0.0-alpha.2
+  - @pnpm/store-controller-types@8.0.0-alpha.2
+  - @pnpm/cafs@1.0.0-alpha.2
+  - @pnpm/fetcher-base@7.0.0-alpha.2
+
 ## 9.0.0-alpha.1
 
 ### Minor Changes
