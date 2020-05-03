@@ -16,7 +16,7 @@ importers:
       publish-packed: 3.0.1
       rimraf: 3.0.2
       tape: 4.13.2
-      ts-node: 8.9.1_typescript@3.8.3
+      ts-node: 8.10.1_typescript@3.8.3
       tslint: 6.1.2_typescript@3.8.3
       typescript: 3.8.3
       verdaccio: 4.6.2
@@ -1218,7 +1218,7 @@ importers:
       mz: 2.7.0
       p-defer: 3.0.0
       p-limit: 2.3.0
-      p-queue: 6.3.0
+      p-queue: 6.4.0
       promise-share: 1.0.0
       ramda: 0.27.0
       rename-overwrite: 3.0.0
@@ -1271,7 +1271,7 @@ importers:
       normalize-path: 3.0.0
       p-defer: ^3.0.0
       p-limit: 2.3.0
-      p-queue: 6.3.0
+      p-queue: ^6.4.0
       promise-share: 1.0.0
       ramda: 0.27.0
       rename-overwrite: ^3.0.0
@@ -3664,7 +3664,7 @@ packages:
       integrity: sha512-SQaNzWQ2YZSr7FqAyPPiA3FYpux2Lqh3HWMZQk47x3xbMCqgC/w0dY3dw9rGqlweDDkrySQBcaScXWeR+Yb11Q==
   /@types/ramda/0.27.4:
     dependencies:
-      ts-toolbelt: 6.5.1
+      ts-toolbelt: 6.6.2
     dev: true
     resolution:
       integrity: sha512-uE1OSffeRZoFjVah2RjR4pAyptzqN6T+fEsWr06biuUstR2IBIzKhSGwKxzISAoy4SC+JkJv8y99Hm3cJ/TDOQ==
@@ -7033,7 +7033,7 @@ packages:
       node: '>=0.4.7'
     hasBin: true
     optionalDependencies:
-      uglify-js: 3.9.1
+      uglify-js: 3.9.2
     resolution:
       integrity: sha512-1f2BACcBfiwAfStCKZNrUCgqNZkGsAT7UM3kkYtXuLo0KnaVfjKOyf7PRzB6++aK9STyT1Pd2ZCPe3EGOXleXA==
   /har-schema/2.0.0:
@@ -9541,7 +9541,7 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-oMxCJKVS75Bf2RWtXJNQNaX2K1G0FYpllOh2iTsPXZqnf9dWMcis3BL+pRdLeQY8lIdwwL01k/UV5LBdcVhZzg==
-  /p-queue/6.3.0:
+  /p-queue/6.4.0:
     dependencies:
       eventemitter3: 4.0.0
       p-timeout: 3.2.0
@@ -9549,7 +9549,7 @@ packages:
     engines:
       node: '>=8'
     resolution:
-      integrity: sha512-fg5dJlFpd5+3CgG3/0ogpVZUeJbjiyXFg0nu53hrOYsybqSiDyxyOpad0Rm6tAiGjgztAwkyvhlYHC53OiAJOA==
+      integrity: sha512-X7ddxxiQ+bLR/CUt3/BVKrGcJDNxBr0pEEFKHHB6vTPWNUhgDv36GpIH18RmGM3YGPpBT+JWGjDDqsVGuF0ERw==
   /p-reflect/2.1.0:
     dev: false
     engines:
@@ -11797,7 +11797,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/8.9.1_typescript@3.8.3:
+  /ts-node/8.10.1_typescript@3.8.3:
     dependencies:
       arg: 4.1.3
       diff: 4.0.2
@@ -11812,11 +11812,11 @@ packages:
     peerDependencies:
       typescript: '>=2.7'
     resolution:
-      integrity: sha512-yrq6ODsxEFTLz0R3BX2myf0WBCSQh9A+py8PBo1dCzWIOcvisbyH6akNKqDHMgXePF2kir5mm5JXJTH3OUJYOQ==
-  /ts-toolbelt/6.5.1:
+      integrity: sha512-bdNz1L4ekHiJul6SHtZWs1ujEKERJnHs4HxN7rjTyyVOFf3HaJ6sLqe6aPG62XTzAB/63pKRh5jTSWL0D7bsvw==
+  /ts-toolbelt/6.6.2:
     dev: true
     resolution:
-      integrity: sha512-zjnZ/vy1eUA0li3H0JXecl0R3jiP42snpLimsrppt9V3LLbM4NM4jMgjXQ4S67hvehq+r9CxpX4Wj6RnFRzReA==
+      integrity: sha512-P0fN4yv9rkTmKsu/Xew8heopmQ3fDnCF5tY4CV1ZMAUeBHJA6QsJhMEdxtWNdgV7dnKKAAw+A12azm2cONQ6NQ==
   /tslib/1.11.1:
     dev: true
     resolution:
@@ -11980,7 +11980,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
-  /uglify-js/3.9.1:
+  /uglify-js/3.9.2:
     dependencies:
       commander: 2.20.3
     dev: true
@@ -11989,7 +11989,7 @@ packages:
     hasBin: true
     optional: true
     resolution:
-      integrity: sha512-JUPoL1jHsc9fOjVFHdQIhqEEJsQvfKDjlubcCilu8U26uZ73qOg8VsN8O1jbuei44ZPlwL7kmbAdM4tzaUvqnA==
+      integrity: sha512-zGVwKslUAD/EeqOrD1nQaBmXIHl1Vw371we8cvS8I6mYK9rmgX5tv8AAeJdfsQ3Kk5mGax2SVV/AizxdNGhl7Q==
   /uid-number/0.0.6:
     dev: false
     resolution:
