@@ -41,6 +41,7 @@ import pShare = require('promise-share')
 import R = require('ramda')
 import ssri = require('ssri')
 import writeJsonFile = require('write-json-file')
+import safeDeferredPromise from './safeDeferredPromise'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -393,7 +394,7 @@ function fetchToStore (
 
         if (integrity) {
           const manifest = opts.fetchRawManifest
-            ? pDefer<DependencyManifest>()
+            ? safeDeferredPromise<DependencyManifest>()
             : undefined
           const verified = await ctx.checkFilesIntegrity(integrity, manifest)
           if (verified) {
@@ -402,7 +403,7 @@ function fetchToStore (
               fromStore: true,
             })
             if (manifest) {
-              manifest.promise
+              manifest()
                 .then((manifest) => bundledManifest.resolve(pickBundledManifest(manifest)))
                 .catch(bundledManifest.reject)
             }
@@ -426,10 +427,10 @@ function fetchToStore (
       const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
 
       const fetchManifest = opts.fetchRawManifest
-        ? pDefer<DependencyManifest>()
+        ? safeDeferredPromise<DependencyManifest>()
         : undefined
       if (fetchManifest) {
-        fetchManifest.promise
+        fetchManifest()
           .then((manifest) => bundledManifest.resolve(pickBundledManifest(manifest)))
           .catch(bundledManifest.reject)
       }
