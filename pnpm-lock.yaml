@@ -96,6 +96,7 @@ importers:
     dependencies:
       '@pnpm/fetcher-base': 'link:../fetcher-base'
       '@zkochan/rimraf': 1.0.0
+      concat-stream: 2.0.0
       decompress-maybe: 1.0.0
       get-stream: 5.1.0
       mz: 2.7.0
@@ -106,6 +107,7 @@ importers:
       ssri: 6.0.1
       tar-stream: 2.1.2
     devDependencies:
+      '@types/concat-stream': 1.6.0
       '@types/mz': 2.7.0
       '@types/node': 13.13.4
       '@types/ssri': 6.0.2
@@ -113,11 +115,13 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/fetcher-base': 'workspace:7.0.0-alpha.1'
+      '@types/concat-stream': ^1.6.0
       '@types/mz': 2.7.0
       '@types/node': ^13.13.4
       '@types/ssri': ^6.0.2
       '@types/tar-stream': ^2.1.0
       '@zkochan/rimraf': 1.0.0
+      concat-stream: ^2.0.0
       decompress-maybe: ^1.0.0
       get-stream: 5.1.0
       mz: 2.7.0
@@ -387,9 +391,11 @@ importers:
   packages/fetcher-base:
     dependencies:
       '@pnpm/resolver-base': 'link:../resolver-base'
+      '@pnpm/types': 'link:../types'
       '@types/ssri': 6.0.2
     specifiers:
       '@pnpm/resolver-base': 'workspace:7.0.0'
+      '@pnpm/types': 'workspace:5.0.0'
       '@types/ssri': ^6.0.2
   packages/filter-lockfile:
     dependencies:
@@ -547,12 +553,16 @@ importers:
     devDependencies:
       '@pnpm/cafs': 'link:../cafs'
       '@pnpm/git-fetcher': 'link:'
+      '@pnpm/types': 'link:../types'
+      p-defer: 3.0.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.0-alpha.1'
       '@pnpm/fetcher-base': 'workspace:7.0.0-alpha.1'
       '@pnpm/git-fetcher': 'link:'
+      '@pnpm/types': 'workspace:5.0.0'
       '@zkochan/rimraf': 1.0.0
       execa: 4.0.0
+      p-defer: ^3.0.0
       tempy: 0.5.0
   packages/git-resolver:
     dependencies:
@@ -3537,6 +3547,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-htRqZr5qn8EzMelhX/Xmx142z218lLyGaeZ3YR8jlze4TATRU9huKKvuBmAJEW4LCC4pnY1N6JAm6p85fMHjhg==
+  /@types/concat-stream/1.6.0:
+    dependencies:
+      '@types/node': 13.13.4
+    dev: true
+    resolution:
+      integrity: sha1-OU2+C7X+5Gs42JZzXoto7yOQ0A0=
   /@types/configstore/4.0.0:
     dev: true
     resolution:
@@ -5318,6 +5334,17 @@ packages:
       '0': node >= 0.8
     resolution:
       integrity: sha512-27HBghJxjiZtIk3Ycvn/4kbJk/1uZuJFfuPEns6LaEvpvG1f0hTea8lilrouyo9mVc2GWdcEZ8OLoGmSADlrCw==
+  /concat-stream/2.0.0:
+    dependencies:
+      buffer-from: 1.1.1
+      inherits: 2.0.4
+      readable-stream: 3.6.0
+      typedarray: 0.0.6
+    dev: false
+    engines:
+      '0': node >= 6.0
+    resolution:
+      integrity: sha512-MWufYdFw53ccGjCA+Ol7XJYpAlW6/prSMzuPOTRnJGcGzuhLn4Scrz7qf6o8bROZ514ltazcIFJZevcfbo0x7A==
   /config-chain/1.1.12:
     dependencies:
       ini: 1.3.5
@@ -9457,7 +9484,6 @@ packages:
     resolution:
       integrity: sha1-n26xgvbJqozXQwBKfU+WsZaw+ww=
   /p-defer/3.0.0:
-    dev: false
     engines:
       node: '>=8'
     resolution:
@@ -11960,7 +11986,6 @@ packages:
     resolution:
       integrity: sha512-zdu8XMNEDepKKR+XYOXAVPtWui0ly0NtohUscw+UmaHiAWT8hrV1rr//H6V+0DvJ3OQ19S979M0laLfX8rm82Q==
   /typedarray/0.0.6:
-    dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
   /typescript/3.8.3:

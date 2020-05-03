@@ -5,6 +5,7 @@ import createCafs, {
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
 import {
   Cafs,
+  DeferredManifestPromise,
   FetchFunction,
   FetchOptions,
   FetchResult,
@@ -40,6 +41,7 @@ import pShare = require('promise-share')
 import R = require('ramda')
 import ssri = require('ssri')
 import writeJsonFile = require('write-json-file')
+import safeDeferredPromise from './safeDeferredPromise'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 const packageRequestLogger = logger('package-requester')
@@ -214,7 +216,6 @@ async function resolveAndFetch (
       force: forceFetch,
       lockfileDir: options.lockfileDir,
       pkgId: id,
-      pkgName: manifest?.name,
       resolution: resolution,
     })
 
@@ -242,7 +243,10 @@ async function resolveAndFetch (
 
 function fetchToStore (
   ctx: {
-    checkFilesIntegrity: (integrity: Record<string, { size: number, mode: number, integrity: string }>) => Promise<boolean>,
+    checkFilesIntegrity: (
+      integrity: Record<string, { size: number, mode: number, integrity: string }>,
+      manifest?: DeferredManifestPromise,
+    ) => Promise<boolean>,
     fetch: (
       packageId: string,
       resolution: Resolution,
@@ -263,7 +267,6 @@ function fetchToStore (
   opts: {
     fetchRawManifest?: boolean,
     force: boolean,
-    pkgName?: string,
     pkgId: string,
     lockfileDir: string,
     resolution: Resolution,
@@ -386,23 +389,30 @@ function fetchToStore (
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
         // if target exists and it wasn't modified, then no need to refetch it
-        if (integrity && await ctx.checkFilesIntegrity(integrity)) {
-          files.resolve({
-            filesIndex: integrity,
-            fromStore: true,
-          })
-          if (opts.fetchRawManifest) {
-            readBundledManifest(ctx.getFilePathInCafs(integrity['package.json']))
-              .then(bundledManifest.resolve)
-              .catch(bundledManifest.reject)
+
+        if (integrity) {
+          const manifest = opts.fetchRawManifest
+            ? safeDeferredPromise<DependencyManifest>()
+            : undefined
+          const verified = await ctx.checkFilesIntegrity(integrity, manifest)
+          if (verified) {
+            files.resolve({
+              filesIndex: integrity,
+              fromStore: true,
+            })
+            if (manifest) {
+              manifest()
+                .then((manifest) => bundledManifest.resolve(pickBundledManifest(manifest)))
+                .catch(bundledManifest.reject)
+            }
+            finishing.resolve(undefined)
+            return
           }
-          finishing.resolve(undefined)
-          return
+          packageRequestLogger.warn({
+            message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
+            prefix: opts.lockfileDir,
+          })
         }
-        packageRequestLogger.warn({
-          message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
-          prefix: opts.lockfileDir,
-        })
       }
 
       // We fetch into targetStage directory first and then fs.rename() it to the
@@ -414,12 +424,21 @@ function fetchToStore (
       // As much tarballs should be downloaded simultaneously as possible.
       const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
 
+      const fetchManifest = opts.fetchRawManifest
+        ? safeDeferredPromise<DependencyManifest>()
+        : undefined
+      if (fetchManifest) {
+        fetchManifest()
+          .then((manifest) => bundledManifest.resolve(pickBundledManifest(manifest)))
+          .catch(bundledManifest.reject)
+      }
       const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(
         opts.pkgId,
         opts.resolution,
         {
           cachedTarballLocation: path.join(ctx.storeDir, opts.pkgId, 'packed.tgz'),
           lockfileDir: opts.lockfileDir,
+          manifest: fetchManifest,
           onProgress: (downloaded) => {
             fetchingProgressLogger.debug({
               downloaded,
@@ -457,15 +476,6 @@ function fetchToStore (
       )
       await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: undefined })
       finishing.resolve(undefined)
-
-      let pkgName: string | undefined = opts.pkgName
-      if (!pkgName || opts.fetchRawManifest) {
-        const manifest = await readPackage(ctx.getFilePathInCafs(integrity['package.json'])) as DependencyManifest
-        bundledManifest.resolve(pickBundledManifest(manifest))
-        if (!pkgName) {
-          pkgName = manifest.name
-        }
-      }
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
         await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal

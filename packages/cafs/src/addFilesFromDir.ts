@@ -1,8 +1,9 @@
-import { FilesIndex } from '@pnpm/fetcher-base'
+import { DeferredManifestPromise, FilesIndex } from '@pnpm/fetcher-base'
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import ssri = require('ssri')
+import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 
@@ -14,9 +15,10 @@ export default async function (
     addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>,
   },
   dirname: string,
+  manifest?: DeferredManifestPromise,
 ) {
   const index = {}
-  await _retrieveFileIntegrities(cafs, dirname, dirname, index)
+  await _retrieveFileIntegrities(cafs, dirname, dirname, index, manifest)
   return index
 }
 
@@ -28,6 +30,7 @@ async function _retrieveFileIntegrities (
   rootDir: string,
   currDir: string,
   index: FilesIndex,
+  deferredManifest?: DeferredManifestPromise,
 ) {
   try {
     const files = await fs.readdir(currDir)
@@ -40,12 +43,20 @@ async function _retrieveFileIntegrities (
       }
       if (stat.isFile()) {
         const relativePath = path.relative(rootDir, fullPath)
+        const generatingIntegrity = limit(async () => {
+          if (deferredManifest && rootDir === currDir && file === 'package.json') {
+            const buffer = await fs.readFile(fullPath)
+            parseJsonBuffer(buffer, deferredManifest)
+            return cafs.addBuffer(buffer, stat.mode)
+          }
+          if (stat.size < MAX_BULK_SIZE) {
+            const buffer = await fs.readFile(fullPath)
+            return cafs.addBuffer(buffer, stat.mode)
+          }
+          return cafs.addStream(fs.createReadStream(fullPath), stat.mode)
+        })
         index[relativePath] = {
-          generatingIntegrity: limit(() => {
-            return stat.size < MAX_BULK_SIZE
-              ? fs.readFile(fullPath).then((buffer) => cafs.addBuffer(buffer, stat.mode))
-              : cafs.addStream(fs.createReadStream(fullPath), stat.mode)
-          }),
+          generatingIntegrity,
           mode: stat.mode,
           size: stat.size,
         }

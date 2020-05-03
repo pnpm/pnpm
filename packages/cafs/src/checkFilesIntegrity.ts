@@ -1,8 +1,10 @@
+import { DeferredManifestPromise } from '@pnpm/fetcher-base'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import ssri = require('ssri')
 import { getFilePathInCafs } from '.'
+import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
@@ -10,6 +12,7 @@ const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 export default async function (
   cafsDir: string,
   integrityObj: Record<string, { size: number, mode: number, integrity: string }>,
+  manifest?: DeferredManifestPromise,
 ) {
   let verified = true
   await Promise.all(
@@ -24,6 +27,7 @@ export default async function (
             !await verifyFile(
               getFilePathInCafs(cafsDir, fstat),
               fstat,
+              f === 'package.json' ? manifest : undefined,
             )
           ) {
             verified = false
@@ -34,8 +38,12 @@ export default async function (
   return verified
 }
 
-async function verifyFile (filename: string, fstat: { size: number, integrity: string }) {
-  if (fstat.size > MAX_BULK_SIZE) {
+async function verifyFile (
+  filename: string,
+  fstat: { size: number, integrity: string },
+  deferredManifest?: DeferredManifestPromise,
+) {
+  if (fstat.size > MAX_BULK_SIZE && !deferredManifest) {
     try {
       const ok = Boolean(await ssri.checkStream(fs.createReadStream(filename), fstat.integrity))
       if (!ok) {
@@ -60,6 +68,8 @@ async function verifyFile (filename: string, fstat: { size: number, integrity: s
     const ok = Boolean(ssri.checkData(data, fstat.integrity))
     if (!ok) {
       await rimraf(filename)
+    } else if (deferredManifest) {
+      parseJsonBuffer(data, deferredManifest)
     }
     return ok
   } catch (err) {

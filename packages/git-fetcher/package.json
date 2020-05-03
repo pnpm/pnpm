@@ -37,7 +37,9 @@
   },
   "devDependencies": {
     "@pnpm/cafs": "workspace:1.0.0-alpha.1",
-    "@pnpm/git-fetcher": "link:"
+    "@pnpm/git-fetcher": "link:",
+    "@pnpm/types": "workspace:5.0.0",
+    "p-defer": "^3.0.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }

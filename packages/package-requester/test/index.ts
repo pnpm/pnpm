@@ -560,7 +560,7 @@ test('always return a package manifest in the response', async t => {
   nock.cleanAll()
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
-    storeDir: '.store',
+    storeDir: tempy.directory(),
     storeIndex: {},
     verifyStoreIntegrity: true,
   })

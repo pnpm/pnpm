@@ -1,13 +1,15 @@
-import { FilesIndex } from '@pnpm/fetcher-base'
+import { DeferredManifestPromise, FilesIndex } from '@pnpm/fetcher-base'
 import decompress = require('decompress-maybe')
 import ssri = require('ssri')
 import { Duplex, PassThrough } from 'stream'
 import tar = require('tar-stream')
+import { parseJsonStream } from './parseJson'
 
 export default async function (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<ssri.Integrity>,
   _ignore: null | ((filename: string) => Boolean),
   stream: NodeJS.ReadableStream,
+  manifest?: DeferredManifestPromise,
 ): Promise<FilesIndex> {
   const ignore = _ignore ? _ignore : () => false
   const extract = tar.extract()
@@ -19,6 +21,9 @@ export default async function (
         fileStream.resume()
         next()
         return
+      }
+      if (filename === 'package.json' && manifest) {
+        parseJsonStream(fileStream, manifest)
       }
       const generatingIntegrity = addStreamToCafs(fileStream, header.mode!)
       filesIndex[filename] = {

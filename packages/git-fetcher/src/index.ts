@@ -1,4 +1,4 @@
-import { Cafs } from '@pnpm/fetcher-base'
+import { Cafs, DeferredManifestPromise } from '@pnpm/fetcher-base'
 import rimraf = require('@zkochan/rimraf')
 import execa = require('execa')
 import path = require('path')
@@ -13,6 +13,7 @@ export default () => {
       },
       opts: {
         cafs: Cafs,
+        manifest?: DeferredManifestPromise,
       },
     ) {
       const tempLocation = tempy.directory()
@@ -21,7 +22,7 @@ export default () => {
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
       return {
-        filesIndex: await opts.cafs.addFilesFromDir(tempLocation),
+        filesIndex: await opts.cafs.addFilesFromDir(tempLocation, opts.manifest),
       }
     },
   }

@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../resolver-base"
+    },
+    {
+      "path": "../types"
     }
   ]
 }
