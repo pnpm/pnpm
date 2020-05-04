@@ -6,7 +6,10 @@ import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
 import addFilesFromDir from './addFilesFromDir'
 import addFilesFromTarball from './addFilesFromTarball'
-import checkFilesIntegrity from './checkFilesIntegrity'
+import checkFilesIntegrity, {
+  PackageFileInfo,
+  PackageFilesIndex,
+}from './checkFilesIntegrity'
 import getFilePathInCafs, {
   contentPathFromHex,
   FileType,
@@ -20,6 +23,8 @@ export {
   FileType,
   getFilePathByModeInCafs,
   getFilePathInCafs,
+  PackageFileInfo,
+  PackageFilesIndex,
 }
 
 export default function createCafs (cafsDir: string, ignore?: ((filename: string) => Boolean)) {

@@ -9,17 +9,25 @@ import { parseJsonBuffer } from './parseJson'
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
+export type PackageFileInfo = {
+  integrity: string,
+  mode: number,
+  size: number,
+}
+
+export type PackageFilesIndex = Record<string, PackageFileInfo>
+
 export default async function (
   cafsDir: string,
-  integrityObj: Record<string, { size: number, mode: number, integrity: string }>,
+  pkgIndex: PackageFilesIndex,
   manifest?: DeferredManifestPromise,
 ) {
   let verified = true
   await Promise.all(
-    Object.keys(integrityObj)
+    Object.keys(pkgIndex)
       .map((f) =>
         limit(async () => {
-          const fstat = integrityObj[f]
+          const fstat = pkgIndex[f]
           if (!fstat.integrity) {
             throw new Error(`Integrity checksum is missing for ${f}`)
           }

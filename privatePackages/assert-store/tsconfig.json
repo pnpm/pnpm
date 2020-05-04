@@ -8,5 +8,9 @@
     "src/**/*.ts",
     "../../typings/**/*.d.ts"
   ],
-  "references": []
+  "references": [
+    {
+      "path": "../../packages/cafs"
+    }
+  ]
 }

@@ -3,6 +3,7 @@ import createCafs, {
   FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
+  PackageFilesIndex,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
 import {
@@ -247,7 +248,7 @@ async function resolveAndFetch (
 function fetchToStore (
   ctx: {
     checkFilesIntegrity: (
-      integrity: Record<string, { size: number, mode: number, integrity: string }>,
+      pkgIndex: PackageFilesIndex,
       manifest?: DeferredManifestPromise,
     ) => Promise<boolean>,
     fetch: (
@@ -395,22 +396,22 @@ function fetchToStore (
           await tarballIsUpToDate(opts.resolution as any, target, opts.lockfileDir) // tslint:disable-line
         )
       ) {
-        let integrity
+        let pkgFilesIndex
         try {
-          integrity = await loadJsonFile<Record<string, { size: number, mode: number, integrity: string }>>(pkgIndexFilePath)
+          pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
         } catch (err) {
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
         // if target exists and it wasn't modified, then no need to refetch it
 
-        if (integrity) {
+        if (pkgFilesIndex) {
           const manifest = opts.fetchRawManifest
             ? safeDeferredPromise<DependencyManifest>()
             : undefined
-          const verified = await ctx.checkFilesIntegrity(integrity, manifest)
+          const verified = await ctx.checkFilesIntegrity(pkgFilesIndex, manifest)
           if (verified) {
             files.resolve({
-              filesIndex: integrity,
+              filesIndex: pkgFilesIndex,
               fromStore: true,
             })
             if (manifest) {
