@@ -35,10 +35,10 @@ export function contentPathFromHex (fileType: FileType, hex: string) {
   const p = path.join(hex.slice(0, 2), hex.slice(2))
   switch (fileType) {
     case 'exec':
-      return `x${path.sep}${p}`
+      return `${p}-exec`
     case 'nonexec':
       return p
     case 'index':
-      return `${p}.json`
+      return `${p}-index.json`
   }
 }

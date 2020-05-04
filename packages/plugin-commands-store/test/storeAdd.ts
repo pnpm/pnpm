@@ -25,8 +25,8 @@ test('pnpm store add express@4.16.3', async function (t) {
     storeDir,
   }, ['add', 'express@4.16.3'])
 
-  const pathToCheck = path.join(storeDir, STORE_VERSION, 'files/6a/f8a502350db3246ecc4becf6b5a34d22f7ed53.json')
-  t.ok(await exists(pathToCheck), `express@4.16.3 is in store (at ${pathToCheck})`)
+  const { cafsHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
+  await cafsHas('sha1-avilAjUNsyRuzEvs9rWjTSL37VM=')
 
   const storeIndex = await loadJsonFile(path.join(storeDir, STORE_VERSION, 'store.json'))
   t.deepEqual(
