@@ -479,7 +479,7 @@ function fetchToStore (
             }
           }),
       )
-      await writeJsonFile(pkgIndexFilePath, integrity, { indent: undefined })
+      await writeJsonFile(pkgIndexFilePath, integrity)
       finishing.resolve(undefined)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
