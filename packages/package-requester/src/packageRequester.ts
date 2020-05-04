@@ -1,6 +1,7 @@
 import createCafs, {
   checkFilesIntegrity as _checkFilesIntegrity,
   FileType,
+  getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
@@ -95,6 +96,7 @@ export default function (
     checkFilesIntegrity: _checkFilesIntegrity.bind(null, cafsDir),
     fetch,
     fetchingLocker: new Map(),
+    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
     getFilePathInCafs,
     requestsQueue,
     storeDir: opts.storeDir,
@@ -259,7 +261,8 @@ function fetchToStore (
       bundledManifest?: Promise<BundledManifest>,
       inStoreLocation: string,
     }>,
-    getFilePathInCafs: (integrity: string, fileType?: FileType) => string,
+    getFilePathInCafs: (integrity: string, fileType: FileType) => string,
+    getFilePathByModeInCafs: (integrity: string, mode: number) => string,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storeDir: string,
@@ -350,7 +353,11 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(({ filesIndex }) => readBundledManifest(ctx.getFilePathInCafs(filesIndex['package.json'].integrity))),
+      result.files.then(({ filesIndex }) => {
+        const { integrity, mode } = filesIndex['package.json']
+        const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
+        return readBundledManifest(manifestPath)
+      }),
     )
   }
 

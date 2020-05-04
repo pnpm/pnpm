@@ -459,7 +459,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
     const fetchResult = fetchResults[0]
     const files = await fetchResult.files()
 
-    ino1 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity)).ino
+    ino1 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     t.deepEqual(Object.keys(files.filesIndex).sort(),
       ['package.json', 'index.js', 'license', 'readme.md'].sort(),
@@ -474,7 +474,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
     const fetchResult = fetchResults[1]
     const files = await fetchResult.files()
 
-    ino2 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity)).ino
+    ino2 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     t.deepEqual(Object.keys(files.filesIndex).sort(),
       ['package.json', 'index.js', 'license', 'readme.md'].sort(),
@@ -683,7 +683,7 @@ test('refetch package to store if it has been modified', async (t) => {
     })
 
     const { filesIndex } = await fetchResult.files()
-    indexJsFile = getFilePathInCafs(cafsDir, filesIndex['index.js'].integrity)
+    indexJsFile = getFilePathInCafs(cafsDir, filesIndex['index.js'].integrity, 'nonexec')
   }
 
   // Adding some content to the file to change its integrity

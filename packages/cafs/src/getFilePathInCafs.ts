@@ -18,7 +18,7 @@ export function getFilePathByModeInCafs (
 export default function getFilePathInCafs (
   cafsDir: string,
   integrity: string | Hash,
-  fileType: FileType = 'nonexec',
+  fileType: FileType,
 ) {
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
