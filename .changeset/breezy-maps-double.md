@@ -1,4 +1,5 @@
 ---
+"@pnpm/cafs": major
 "@pnpm/package-requester": major
 "@pnpm/plugin-commands-store": major
 ---
