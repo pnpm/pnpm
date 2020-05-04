@@ -160,12 +160,12 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 
   await project.has('with-same-file-in-different-cases')
 
-  const storeDir = await project.getStorePath()
-  const integrityFile = await import(path.join(storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'with-same-file-in-different-cases', '1.0.0', 'integrity.json'))
+  const integrityFile = await loadJsonFile(await project.getPkgIndexFilePath('with-same-file-in-different-cases', '1.0.0'))
   const packageFiles = Object.keys(integrityFile).sort()
 
   t.deepEqual(packageFiles, ['Foo.js', 'foo.js', 'package.json'])
   const files = await fs.readdir('node_modules/with-same-file-in-different-cases')
+  const storeDir = await project.getStorePath()
   if (await dirIsCaseSensitive(storeDir)) {
     t.deepEqual(files, ['Foo.js', 'foo.js', 'package.json'])
   } else {

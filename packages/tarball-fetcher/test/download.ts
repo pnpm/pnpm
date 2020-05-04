@@ -1,5 +1,5 @@
 ///<reference path="../../../typings/index.d.ts" />
-import createCafs, { getFilePathInCafs as _getFilePathInCafs } from '@pnpm/cafs'
+import createCafs, { getFilePathByModeInCafs as _getFilePathByModeInCafs } from '@pnpm/cafs'
 import { LogBase, streamParser } from '@pnpm/logger'
 import readPackage from '@pnpm/read-package-json'
 import createFetcher from '@pnpm/tarball-fetcher'
@@ -15,7 +15,7 @@ import tempy = require('tempy')
 const cafsDir = tempy.directory()
 console.log(cafsDir)
 const cafs = createCafs(cafsDir)
-const getFilePathInCafs = _getFilePathInCafs.bind(_getFilePathInCafs, cafsDir)
+const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(_getFilePathByModeInCafs, cafsDir)
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
@@ -106,7 +106,7 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
   streamParser.removeListener('data', reporter as any) // tslint:disable-line:no-any
 
   const pkgJsonIntegrity = await filesIndex['package.json'].generatingIntegrity
-  t.equal((await readPackage(getFilePathInCafs({ integrity: pkgJsonIntegrity, ...filesIndex['package.json'] }))).version, '6.24.1')
+  t.equal((await readPackage(getFilePathByModeInCafs(pkgJsonIntegrity, filesIndex['package.json'].mode))).version, '6.24.1')
 
   t.ok(scope.isDone())
   t.end()

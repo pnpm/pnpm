@@ -4,13 +4,23 @@ import exists = require('path-exists')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
-import { Hash } from 'ssri'
 import addFilesFromDir from './addFilesFromDir'
 import addFilesFromTarball from './addFilesFromTarball'
 import checkFilesIntegrity from './checkFilesIntegrity'
+import getFilePathInCafs, {
+  contentPathFromHex,
+  FileType,
+  getFilePathByModeInCafs,
+  modeIsExecutable,
+} from './getFilePathInCafs'
 import writeFile from './writeFile'
 
-export { checkFilesIntegrity }
+export {
+  checkFilesIntegrity,
+  FileType,
+  getFilePathByModeInCafs,
+  getFilePathInCafs,
+}
 
 export default function createCafs (cafsDir: string, ignore?: ((filename: string) => Boolean)) {
   const locker = new Map()
@@ -32,7 +42,6 @@ async function addStreamToCafs (
   return addBufferToCafs(writeBufferToCafs, buffer, mode)
 }
 
-const modeIsExecutable = (mode: number) => (mode & 0o111) === 0o111
 type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undefined) => Promise<void>
 
 async function addBufferToCafs (
@@ -42,7 +51,7 @@ async function addBufferToCafs (
 ): Promise<ssri.Integrity> {
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
-  const fileDest = contentPathFromHex(isExecutable, integrity.hexDigest())
+  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
   await writeBufferToCafs(buffer, fileDest, isExecutable ? 0o755 : undefined)
   return integrity
 }
@@ -77,28 +86,4 @@ async function writeBufferToCafs (
   })()
   locker.set(fileDest, p)
   await p
-}
-
-export function getFilePathInCafs (
-  cafsDir: string,
-  file: {
-    integrity: string | Hash,
-    mode: number,
-  },
-) {
-  return path.join(cafsDir, contentPathFromIntegrity(file.integrity, file.mode))
-}
-
-function contentPathFromIntegrity (
-  integrity: string | Hash,
-  mode: number,
-) {
-  const sri = ssri.parse(integrity, { single: true })
-  const isExecutable = modeIsExecutable(mode)
-  return contentPathFromHex(isExecutable, sri.hexDigest())
-}
-
-function contentPathFromHex (isExecutable: boolean, hex: string) {
-  return (isExecutable ? `x${path.sep}` : '') +
-    path.join(hex.slice(0, 2), hex.slice(2))
 }

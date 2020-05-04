@@ -1,3 +1,4 @@
+import { getFilePathInCafs } from '@pnpm/cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
@@ -31,15 +32,21 @@ export default async function (maybeOpts: StoreStatusOptions) {
   const pkgs = Object.keys(wantedLockfile.packages || {})
     .filter((relDepPath) => !skipped.has(relDepPath))
     .map((relDepPath) => {
+      const pkg = wantedLockfile.packages![relDepPath]
       return {
+        integrity: pkg.resolution['integrity'],
         pkgPath: dp.resolve(registries, relDepPath),
-        ...nameVerFromPkgSnapshot(relDepPath, wantedLockfile.packages![relDepPath]),
+        ...nameVerFromPkgSnapshot(relDepPath, pkg),
       }
     })
 
-  const modified = await pFilter(pkgs, async ({ pkgPath, name }) => {
-    const integrity = await loadJsonFile(path.join(storeDir, pkgPath, 'integrity.json'))
-    return (await dint.check(path.join(virtualStoreDir, pkgPath, 'node_modules', name), integrity)) === false
+  const cafsDir = path.join(storeDir, 'files')
+  const modified = await pFilter(pkgs, async ({ integrity, pkgPath, name }) => {
+    const pkgIndexFilePath = integrity
+      ? getFilePathInCafs(cafsDir, integrity, 'index')
+      : path.join(storeDir, pkgPath, 'integrity.json')
+    const pkgIndex = await loadJsonFile(pkgIndexFilePath)
+    return (await dint.check(path.join(virtualStoreDir, pkgPath, 'node_modules', name), pkgIndex)) === false
   })
 
   if (reporter) {

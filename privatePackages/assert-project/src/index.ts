@@ -20,6 +20,9 @@ export interface Project {
   hasNot (pkgName: string, modulesDir?: string): Promise<void>
   getStorePath (): Promise<string>
   resolve (pkgName: string, version?: string, relativePath?: string): Promise<string>
+  getPkgIndexFilePath (pkgName: string, version?: string): Promise<string>
+  cafsHas (pkgName: string, version?: string): Promise<void>
+  cafsHasNot (pkgName: string, version?: string): Promise<void>
   storeHas (pkgName: string, version?: string): Promise<string>
   storeHasNot (pkgName: string, version?: string): Promise<void>
   isExecutable (pathToExe: string): Promise<void>
@@ -45,6 +48,9 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
 
   let cachedStore: {
     storePath: string;
+    getPkgIndexFilePath (pkgName: string, version?: string): Promise<string>;
+    cafsHas (pkgName: string, version?: string | undefined): Promise<void>;
+    cafsHasNot (pkgName: string, version?: string | undefined): Promise<void>;
     storeHas (pkgName: string, version?: string | undefined): Promise<void>;
     storeHasNot (pkgName: string, version?: string | undefined): Promise<void>;
     resolve (pkgName: string, version?: string | undefined, relativePath?: string | undefined): Promise<string>
@@ -90,6 +96,18 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
     async resolve (pkgName: string, version?: string, relativePath?: string) {
       const store = await getStoreInstance()
       return store.resolve(pkgName, version, relativePath)
+    },
+    async getPkgIndexFilePath (pkgName: string, version?: string): Promise<string> {
+      const store = await getStoreInstance()
+      return store.getPkgIndexFilePath(pkgName, version)
+    },
+    async cafsHas (pkgName: string, version?: string) {
+      const store = await getStoreInstance()
+      return store.cafsHas(pkgName, version)
+    },
+    async cafsHasNot (pkgName: string, version?: string) {
+      const store = await getStoreInstance()
+      return store.cafsHasNot(pkgName, version)
     },
     async storeHas (pkgName: string, version?: string) {
       const store = await getStoreInstance()

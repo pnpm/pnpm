@@ -9,12 +9,13 @@ import test = require('tape')
 import tempy = require('tempy')
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('CLI fails when store status finds modified packages', async function (t) {
   const project = prepare(t)
   const storeDir = tempy.directory()
 
-  await execa('pnpm', ['add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
+  await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
   await rimraf(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/3.1.0/node_modules/is-positive/index.js`)
 
@@ -42,9 +43,9 @@ test('CLI does not fail when store status does not find modified packages', asyn
   const project = prepare(t)
   const storeDir = tempy.directory()
 
-  await execa('pnpm', ['add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
+  await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
   // store status does not fail on not installed optional dependencies
-  await execa('pnpm', ['add', 'not-compatible-with-any-os', '--save-optional', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
+  await execa('node', [pnpmBin, 'add', 'not-compatible-with-any-os', '--save-optional', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
   await store.handler({
     dir: process.cwd(),

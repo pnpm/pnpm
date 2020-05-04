@@ -38,6 +38,7 @@ const fetch = createFetcher({
 
 test('request package', async t => {
   const storeDir = tempy.directory()
+  t.comment(storeDir)
   const storeIndex = {}
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
@@ -458,7 +459,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
     const fetchResult = fetchResults[0]
     const files = await fetchResult.files()
 
-    ino1 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'])).ino
+    ino1 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     t.deepEqual(Object.keys(files.filesIndex).sort(),
       ['package.json', 'index.js', 'license', 'readme.md'].sort(),
@@ -473,7 +474,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
     const fetchResult = fetchResults[1]
     const files = await fetchResult.files()
 
-    ino2 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'])).ino
+    ino2 = fs.statSync(getFilePathInCafs(cafsDir, files.filesIndex['package.json'].integrity, 'nonexec')).ino
 
     t.deepEqual(Object.keys(files.filesIndex).sort(),
       ['package.json', 'index.js', 'license', 'readme.md'].sort(),
@@ -682,7 +683,7 @@ test('refetch package to store if it has been modified', async (t) => {
     })
 
     const { filesIndex } = await fetchResult.files()
-    indexJsFile = getFilePathInCafs(cafsDir, filesIndex['index.js'])
+    indexJsFile = getFilePathInCafs(cafsDir, filesIndex['index.js'].integrity, 'nonexec')
   }
 
   // Adding some content to the file to change its integrity

@@ -1,5 +1,7 @@
 import createCafs, {
   checkFilesIntegrity as _checkFilesIntegrity,
+  FileType,
+  getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
@@ -94,6 +96,7 @@ export default function (
     checkFilesIntegrity: _checkFilesIntegrity.bind(null, cafsDir),
     fetch,
     fetchingLocker: new Map(),
+    getFilePathByModeInCafs: _getFilePathByModeInCafs.bind(null, cafsDir),
     getFilePathInCafs,
     requestsQueue,
     storeDir: opts.storeDir,
@@ -258,7 +261,8 @@ function fetchToStore (
       bundledManifest?: Promise<BundledManifest>,
       inStoreLocation: string,
     }>,
-    getFilePathInCafs: (file: { mode: number, integrity: string }) => string,
+    getFilePathInCafs: (integrity: string, fileType: FileType) => string,
+    getFilePathByModeInCafs: (integrity: string, mode: number) => string,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storeDir: string,
@@ -349,7 +353,11 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(({ filesIndex }) => readBundledManifest(ctx.getFilePathInCafs(filesIndex['package.json']))),
+      result.files.then(({ filesIndex }) => {
+        const { integrity, mode } = filesIndex['package.json']
+        const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
+        return readBundledManifest(manifestPath)
+      }),
     )
   }
 
@@ -376,6 +384,9 @@ function fetchToStore (
   ) {
     try {
       const isLocalTarballDep = opts.pkgId.startsWith('file:')
+      const pkgIndexFilePath = opts.resolution['integrity']
+        ? ctx.getFilePathInCafs(opts.resolution['integrity'], 'index')
+        : path.join(target, 'integrity.json')
 
       if (
         !opts.force &&
@@ -386,7 +397,7 @@ function fetchToStore (
       ) {
         let integrity
         try {
-          integrity = await loadJsonFile<Record<string, { size: number, mode: number, integrity: string }>>(path.join(target, 'integrity.json'))
+          integrity = await loadJsonFile<Record<string, { size: number, mode: number, integrity: string }>>(pkgIndexFilePath)
         } catch (err) {
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
@@ -476,10 +487,11 @@ function fetchToStore (
             }
           }),
       )
-      await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: undefined })
+      await writeJsonFile(pkgIndexFilePath, integrity)
       finishing.resolve(undefined)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
+        await fs.mkdir(target, { recursive: true })
         await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal
       }
 

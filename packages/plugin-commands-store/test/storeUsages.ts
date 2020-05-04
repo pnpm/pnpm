@@ -5,6 +5,8 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { stripIndent } from 'common-tags'
 import execa = require('execa')
 import path = require('path')
+import exists = require('path-exists')
+import ssri = require('ssri')
 import test = require('tape')
 
 const STORE_VERSION = 'v3'
@@ -16,14 +18,15 @@ const DEFAULT_OPTS = {
   },
   registries: { default: REGISTRY },
 }
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('find usages for single package in store and in a project', async (t) => {
   const project = prepare(t)
   const storeDir = path.resolve('store')
 
   // Install deps
-  await execa('pnpm', ['add', 'is-negative@2.1.0', 'is-odd@3.0.0', '--store-dir', storeDir, '--registry', REGISTRY])
-  await project.storeHas('is-negative', '2.1.0')
+  await execa('node', [pnpmBin, 'add', 'is-negative@2.1.0', 'is-odd@3.0.0', '--store-dir', storeDir, '--registry', REGISTRY])
+  await project.cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
 
   {
     const output = await store.handler({
@@ -96,7 +99,7 @@ test('find usages for single package in store and in a project', async (t) => {
 test('find usages for package(s) in store but not in any projects', async (t) => {
   prepareEmpty(t)
   const storeDir = path.resolve('store')
-  const { storeHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
+  const { cafsHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
 
   // Add dependency directly to store (not to the project)
   await store.handler({
@@ -104,7 +107,7 @@ test('find usages for package(s) in store but not in any projects', async (t) =>
     dir: process.cwd(),
     storeDir,
   }, ['add', 'is-negative@2.1.0'])
-  await storeHas('is-negative', '2.1.0')
+  await cafsHas(ssri.fromHex('f0d86377aa15a64c34961f38ac2a9be2b40a1187', 'sha1').toString())
 
   {
     const output = await store.handler({
@@ -126,7 +129,7 @@ test('find usages for package(s) in store but not in any projects', async (t) =>
     dir: process.cwd(),
     storeDir,
   }, ['add', 'is-negative@2.0.0'])
-  await storeHas('is-negative', '2.0.0')
+  await cafsHas(ssri.fromHex('09f4cb20dd1bddff37cb6630c618a9bc57915fd6', 'sha1').toString())
   {
     const output = await store.handler({
       ...DEFAULT_OPTS,

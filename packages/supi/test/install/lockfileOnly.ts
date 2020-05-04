@@ -1,3 +1,4 @@
+import assertStore from '@pnpm/assert-store'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -19,9 +20,12 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
 
   const opts = await testDefaults({ lockfileOnly: true, pinnedVersion: 'patch' as const })
   const manifest = await addDependenciesToPackage({}, ['pkg-with-1-dep@100.0.0'], opts)
+  const { cafsHas } = assertStore(t, opts.storeDir)
 
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
+  await cafsHas('pkg-with-1-dep', '100.0.0')
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['index.json'])
+  await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['index.json'])
   await project.hasNot('pkg-with-1-dep')
 
   t.ok(manifest.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
@@ -37,8 +41,10 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   t.comment(`doing repeat install when ${WANTED_LOCKFILE} is available already`)
   await install(manifest, opts)
 
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
+  await cafsHas('pkg-with-1-dep', '100.0.0')
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['index.json'])
+  await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
+  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['index.json'])
   await project.hasNot('pkg-with-1-dep')
 
   t.notOk(await project.readCurrentLockfile(), 'current lockfile not created')

@@ -1994,6 +1994,7 @@ importers:
       tree-kill: ^1.2.2
   packages/plugin-commands-store:
     dependencies:
+      '@pnpm/cafs': 'link:../cafs'
       '@pnpm/check-package': 3.0.1
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/config': 'link:../config'
@@ -2024,14 +2025,17 @@ importers:
       '@types/common-tags': 1.8.0
       '@types/ramda': 0.27.4
       '@types/sinon': 9.0.0
+      '@types/ssri': 6.0.2
       '@zkochan/rimraf': 1.0.0
       execa: 4.0.0
       load-json-file: 6.2.0
       path-exists: 4.0.0
       sinon: 9.0.2
+      ssri: 8.0.0
       tempy: 0.5.0
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.0'
+      '@pnpm/cafs': 'workspace:^1.0.0-alpha.2'
       '@pnpm/check-package': 3.0.1
       '@pnpm/cli-utils': 'workspace:0.4.4'
       '@pnpm/config': 'workspace:8.3.0'
@@ -2053,6 +2057,7 @@ importers:
       '@types/common-tags': ^1.8.0
       '@types/ramda': ^0.27.4
       '@types/sinon': ^9.0.0
+      '@types/ssri': ^6.0.2
       '@zkochan/rimraf': 1.0.0
       archy: 1.0.0
       common-tags: 1.8.0
@@ -2065,6 +2070,7 @@ importers:
       ramda: 0.27.0
       render-help: 1.0.0
       sinon: 9.0.2
+      ssri: ^8.0.0
       tempy: 0.5.0
   packages/pnpm:
     dependencies:
@@ -2864,11 +2870,13 @@ importers:
       write-pkg: 4.0.0
   privatePackages/assert-store:
     dependencies:
+      '@pnpm/cafs': 'link:../../packages/cafs'
       path-exists: 4.0.0
     devDependencies:
       '@pnpm/assert-store': 'link:'
     specifiers:
       '@pnpm/assert-store': 'link:'
+      '@pnpm/cafs': 'workspace:^1.0.0-alpha.2'
       path-exists: 4.0.0
   privatePackages/prepare:
     dependencies:
@@ -8754,6 +8762,14 @@ packages:
     dev: false
     resolution:
       integrity: sha512-wxfUjg9WebH+CUDX/CdbRlh5SmfZiy/hpkxaRI16Y9W56Pa75sWgd/rvFilSgrauD9NyFymP/+JFV3KwzIsJeg==
+  /minipass/3.1.1:
+    dependencies:
+      yallist: 4.0.0
+    dev: true
+    engines:
+      node: '>=8'
+    resolution:
+      integrity: sha512-UFqVihv6PQgwj8/yTGvl9kPz7xIAY+R5z6XYjRInD3Gk3qx6QGSD6zEcpeG4Dy/lQnv1J6zv8ejV90hyYIKf3w==
   /minizlib/1.3.3:
     dependencies:
       minipass: 2.9.0
@@ -11228,6 +11244,14 @@ packages:
     dev: false
     resolution:
       integrity: sha512-3Wge10hNcT1Kur4PDFwEieXSCMCJs/7WvSACcrMYrNp+b8kDL1/0wJch5Ni2WrtwEa2IO8OsVfeKIciKCDx/QA==
+  /ssri/8.0.0:
+    dependencies:
+      minipass: 3.1.1
+    dev: true
+    engines:
+      node: '>= 8'
+    resolution:
+      integrity: sha512-aq/pz989nxVYwn16Tsbj1TqFpD5LLrQxHf5zaHuieFV+R0Bbr4y8qUsOA45hXT/N4/9UNXTarBjnjVmjSOVaAA==
   /stacktracey/1.2.127:
     dependencies:
       as-table: 1.0.55
@@ -12663,6 +12687,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==
+  /yallist/4.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
   /yaml-tag/1.1.0:
     dependencies:
       js-yaml: 3.13.1
