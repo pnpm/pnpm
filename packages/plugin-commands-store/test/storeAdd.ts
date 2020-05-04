@@ -1,7 +1,7 @@
-import { getFilePathInCafs } from '@pnpm/cafs'
+import assertStore from '@pnpm/assert-store'
 import { store } from '@pnpm/plugin-commands-store'
 import { tempDir } from '@pnpm/prepare'
-import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('fs')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
@@ -57,12 +57,8 @@ test('pnpm store add scoped package that uses not the standard registry', async 
     storeDir,
   }, ['add', '@foo/no-deps@1.0.0'])
 
-  const cafsDir = path.join(storeDir, STORE_VERSION, 'files')
-  const pathToCheck = getFilePathInCafs(cafsDir, {
-    integrity: getIntegrity('@foo/no-deps', '1.0.0'),
-    mode: 0,
-  }) + '.json'
-  t.ok(await exists(pathToCheck), `@foo/no-deps@1.0.0 is in store (at ${pathToCheck})`)
+  const { cafsHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
+  await cafsHas('@foo/no-deps', '1.0.0')
 
   const storeIndex = await loadJsonFile(path.join(storeDir, STORE_VERSION, 'store.json'))
   t.deepEqual(
