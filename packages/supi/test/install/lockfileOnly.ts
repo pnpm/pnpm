@@ -4,6 +4,7 @@ import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import fs = require('mz/fs')
 import path = require('path')
+import exists = require('path-exists')
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
@@ -23,9 +24,9 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   const { cafsHas } = assertStore(t, opts.storeDir)
 
   await cafsHas('pkg-with-1-dep', '100.0.0')
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['index.json'])
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`)))
   await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['index.json'])
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`)))
   await project.hasNot('pkg-with-1-dep')
 
   t.ok(manifest.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
@@ -42,9 +43,9 @@ test('install with lockfileOnly = true', async (t: tape.Test) => {
   await install(manifest, opts)
 
   await cafsHas('pkg-with-1-dep', '100.0.0')
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-1-dep')), ['index.json'])
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep.json`)))
   await cafsHas('dep-of-pkg-with-1-dep', '100.1.0')
-  t.deepEqual(await fs.readdir(path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}`, 'dep-of-pkg-with-1-dep')), ['index.json'])
+  t.ok(await exists(path.join(opts.storeDir, `metadata/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep.json`)))
   await project.hasNot('pkg-with-1-dep')
 
   t.notOk(await project.readCurrentLockfile(), 'current lockfile not created')

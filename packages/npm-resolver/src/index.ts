@@ -44,8 +44,8 @@ export {
 // This file contains meta information
 // about all the packages published by the same name, not just the manifest
 // of one package/version
-const META_FILENAME = 'index.json'
-const FULL_META_FILENAME = 'index-full.json'
+const META_DIR = 'metadata'
+const FULL_META_DIR = 'metadata-full'
 
 export interface ResolverFactoryOptions {
   rawConfig: object,
@@ -111,7 +111,7 @@ export default function createResolver (
     pickPackage: pickPackage.bind(null, {
       fetch,
       metaCache: opts.metaCache,
-      metaFileName: opts.fullMetadata ? FULL_META_FILENAME : META_FILENAME,
+      metaDir: opts.fullMetadata ? FULL_META_DIR : META_DIR,
       offline: opts.offline,
       preferOffline: opts.preferOffline,
       storeDir: opts.storeDir,

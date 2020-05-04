@@ -51,7 +51,7 @@ export type PickPackageOptions = {
 export default async (
   ctx: {
     fetch: (pkgName: string, registry: string, authHeaderValue?: string) => Promise<PackageMeta>,
-    metaFileName: string,
+    metaDir: string,
     metaCache: PackageMetaCache,
     storeDir: string,
     offline?: boolean,
@@ -73,12 +73,12 @@ export default async (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(ctx.storeDir, registryName, spec.name)
+  const pkgMirror = path.join(ctx.storeDir, ctx.metaDir, registryName, `${spec.name}.json`)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   let metaCachedInStore: PackageMeta | null | undefined
   if (ctx.offline || ctx.preferOffline) {
-    metaCachedInStore = await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
+    metaCachedInStore = await limit(() => loadMeta(pkgMirror))
 
     if (ctx.offline) {
       if (metaCachedInStore) return {
@@ -101,7 +101,7 @@ export default async (
   }
 
   if (spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
+    metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
     if (metaCachedInStore?.versions?.[spec.fetchSpec]) {
@@ -119,14 +119,14 @@ export default async (
     ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
       // tslint:disable-next-line:no-floating-promises
-      limit(() => saveMeta(pkgMirror, meta, ctx.metaFileName))
+      limit(() => saveMeta(pkgMirror, meta))
     }
     return {
       meta,
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelectors, meta),
     }
   } catch (err) {
-    const meta = await loadMeta(pkgMirror, ctx.metaFileName) // TODO: add test for this usecase
+    const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
     if (!meta) throw err
     logger.error(err, err)
     logger.debug({ message: `Using cached meta from ${pkgMirror}` })
@@ -137,16 +137,16 @@ export default async (
   }
 }
 
-async function loadMeta (pkgMirror: string, metaFileName: string): Promise<PackageMeta | null> {
+async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return await loadJsonFile<PackageMeta>(path.join(pkgMirror, metaFileName))
+    return await loadJsonFile<PackageMeta>(pkgMirror)
   } catch (err) {
     return null
   }
 }
 
-function saveMeta (pkgMirror: string, meta: PackageMeta, metaFileName: string): Promise<void> {
-  return writeJsonFile(path.join(pkgMirror, metaFileName), meta)
+function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
+  return writeJsonFile(pkgMirror, meta)
 }
 
 function validatePackageName (pkgName: string) {
