@@ -3,7 +3,7 @@ import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import ssri = require('ssri')
-import { getFilePathInCafs } from '.'
+import { getFilePathByModeInCafs } from './getFilePathInCafs'
 import { parseJsonBuffer } from './parseJson'
 
 const limit = pLimit(20)
@@ -25,7 +25,7 @@ export default async function (
           }
           if (
             !await verifyFile(
-              getFilePathInCafs(cafsDir, fstat),
+              getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode),
               fstat,
               f === 'package.json' ? manifest : undefined,
             )

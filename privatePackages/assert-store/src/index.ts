@@ -13,10 +13,8 @@ export default (
   const store = {
     async getPkgIndexFilePath (pkgName: string, version?: string): Promise<string> {
       const cafsDir = path.join(await storePath, 'files')
-      return getFilePathInCafs(cafsDir, {
-        integrity: version ? getIntegrity(pkgName, version) : pkgName,
-        mode: 0,
-      }) + '.json'
+      const integrity = version ? getIntegrity(pkgName, version) : pkgName
+      return getFilePathInCafs(cafsDir, integrity, 'index')
     },
     async cafsHas (pkgName: string, version?: string): Promise<void> {
       const pathToCheck = await store.getPkgIndexFilePath(pkgName, version)

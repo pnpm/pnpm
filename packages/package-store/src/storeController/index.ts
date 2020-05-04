@@ -1,4 +1,4 @@
-import { getFilePathInCafs as _getFilePathInCafs } from '@pnpm/cafs'
+import { getFilePathByModeInCafs as _getFilePathByModeInCafs } from '@pnpm/cafs'
 import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
 import { globalInfo, globalWarn } from '@pnpm/logger'
@@ -59,11 +59,11 @@ export default async function (
 
   const impPkg = createImportPackage(initOpts.packageImportMethod)
   const cafsDir = path.join(storeDir, 'files')
-  const getFilePathInCafs = _getFilePathInCafs.bind(null, cafsDir)
+  const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, cafsDir)
   const importPackage: ImportPackageFunction = (to, opts) => {
     const filesMap = {} as Record<string, string>
     for (const [fileName, fileMeta] of Object.entries(opts.filesResponse.filesIndex)) {
-      filesMap[fileName] = getFilePathInCafs(fileMeta)
+      filesMap[fileName] = getFilePathByModeInCafs(fileMeta.integrity, fileMeta.mode)
     }
     return impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
   }

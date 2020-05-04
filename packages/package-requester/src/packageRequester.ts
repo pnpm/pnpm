@@ -1,5 +1,6 @@
 import createCafs, {
   checkFilesIntegrity as _checkFilesIntegrity,
+  FileType,
   getFilePathInCafs as _getFilePathInCafs,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
@@ -258,7 +259,7 @@ function fetchToStore (
       bundledManifest?: Promise<BundledManifest>,
       inStoreLocation: string,
     }>,
-    getFilePathInCafs: (file: { mode: number, integrity: string }) => string,
+    getFilePathInCafs: (integrity: string, fileType?: FileType) => string,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storeDir: string,
@@ -349,7 +350,7 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(
-      result.files.then(({ filesIndex }) => readBundledManifest(ctx.getFilePathInCafs(filesIndex['package.json']))),
+      result.files.then(({ filesIndex }) => readBundledManifest(ctx.getFilePathInCafs(filesIndex['package.json'].integrity))),
     )
   }
 
@@ -377,7 +378,7 @@ function fetchToStore (
     try {
       const isLocalTarballDep = opts.pkgId.startsWith('file:')
       const pkgIndexFilePath = opts.resolution['integrity']
-        ? ctx.getFilePathInCafs({ integrity: opts.resolution['integrity'], mode: 0 }) + '.json'
+        ? ctx.getFilePathInCafs(opts.resolution['integrity'], 'index')
         : path.join(target, 'integrity.json')
 
       if (
