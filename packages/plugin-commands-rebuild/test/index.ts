@@ -1,26 +1,26 @@
 ///<reference path="../../../typings/index.d.ts" />
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { rebuild } from '@pnpm/plugin-commands-rebuild'
-import prepare, { prepareEmpty, preparePackages } from '@pnpm/prepare'
+import prepare, { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { copyFixture } from '@pnpm/test-fixtures'
-import { PackageManifest } from '@pnpm/types'
 import execa = require('execa')
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import test = require('tape')
-import { promisify } from 'util'
 import './recursive'
 import { DEFAULT_OPTS } from './utils'
 
 const REGISTRY = `http://localhost:${REGISTRY_MOCK_PORT}/`
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
 
 test('rebuilds dependencies', async (t) => {
   const project = prepareEmpty(t)
   const storeDir = path.resolve('store')
 
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     '--save-dev',
     'pre-and-postinstall-scripts-example',
@@ -75,7 +75,8 @@ test('rebuild does not fail when a linked package is present', async (t) => {
   const storeDir = path.resolve('store')
   await copyFixture('local-pkg', path.resolve('..', 'local-pkg'))
 
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     'link:../local-pkg',
     'is-positive',
@@ -101,7 +102,8 @@ test('rebuild does not fail when a linked package is present', async (t) => {
 test('rebuilds specific dependencies', async (t) => {
   const project = prepareEmpty(t)
   const storeDir = path.resolve('store')
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     '--save-dev',
     'pre-and-postinstall-scripts-example',
@@ -134,7 +136,8 @@ test('rebuilds specific dependencies', async (t) => {
 test('rebuild with pending option', async (t) => {
   const project = prepareEmpty(t)
   const storeDir = path.resolve('store')
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     'pre-and-postinstall-scripts-example',
     '--registry',
@@ -143,7 +146,8 @@ test('rebuild with pending option', async (t) => {
     storeDir,
     '--ignore-scripts',
   ])
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     'zkochan/install-scripts-example',
     '--registry',
@@ -198,7 +202,8 @@ test('rebuild dependencies in correct order', async (t) => {
   const project = prepareEmpty(t)
   const storeDir = path.resolve('store')
 
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     'with-postinstall-a',
     '--registry',
@@ -212,7 +217,7 @@ test('rebuild dependencies in correct order', async (t) => {
   t.ok(modules)
   t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
-  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
+  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
   await rebuild.handler({
@@ -226,7 +231,7 @@ test('rebuild dependencies in correct order', async (t) => {
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
-  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
   t.end()
 })
 
@@ -234,7 +239,8 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   const project = prepareEmpty(t)
   const storeDir = path.resolve('store')
 
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     'with-postinstall-a',
     '--registry',
@@ -250,7 +256,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   t.ok(modules)
   t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
-  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)
+  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)
   await project.hasNot('with-postinstall-a/output.json')
 
   await rebuild.handler({
@@ -265,7 +271,7 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
-  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
   t.end()
 })
 
@@ -273,7 +279,8 @@ test('rebuild links bins', async (t) => {
   const project = prepareEmpty(t)
   const storeDir = path.resolve('store')
 
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'add',
     'has-generated-bins-as-dep',
     'generated-bins',
@@ -316,7 +323,8 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t) => {
   })
   const storeDir = path.resolve('store')
 
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'install',
     '--registry',
     REGISTRY,

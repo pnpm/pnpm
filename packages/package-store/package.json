@@ -21,7 +21,7 @@
     "@pnpm/fetcher-base": "workspace:7.0.0-alpha.2",
     "@pnpm/fs-locker": "3.0.1",
     "@pnpm/package-requester": "workspace:12.0.0-alpha.2",
-    "@pnpm/pkgid-to-filename": "2.0.0",
+    "@pnpm/pkgid-to-filename": "3.0.0-0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:8.0.0-alpha.2",
     "@pnpm/types": "workspace:5.0.0",

@@ -123,7 +123,7 @@ test('fetchPackage', async t => {
       lockfileDir: process.cwd(),
     }),
     {
-      dir: path.join(storeDir, pkgId, 'node_modules', 'is-positive'),
+      dir: path.join(storeDir, 'registry.npmjs.org/is-positive@1.0.0/node_modules/is-positive'),
       isBuilt: false,
     },
   )

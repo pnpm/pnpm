@@ -4,6 +4,7 @@ import localResolver from '@pnpm/local-resolver'
 import { streamParser } from '@pnpm/logger'
 import createResolver from '@pnpm/npm-resolver'
 import createPackageRequester, { PackageFilesResponse, PackageResponse } from '@pnpm/package-requester'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import createFetcher from '@pnpm/tarball-fetcher'
 import { DependencyManifest } from '@pnpm/types'
@@ -62,7 +63,7 @@ test('request package', async t => {
 
   t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
   t.equal(pkgResponse.body.resolvedVia, 'npm-registry', 'responded with correct resolvedVia')
-  t.equal(pkgResponse.body.inStoreLocation, path.join(storeDir, 'registry.npmjs.org', 'is-positive', '1.0.0'), 'package location in store returned')
+  t.equal(pkgResponse.body.inStoreLocation, path.join(storeDir, 'registry.npmjs.org', 'is-positive@1.0.0'), 'package location in store returned')
   t.equal(pkgResponse.body.isLocal, false, 'package is not local')
   t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
   t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
@@ -108,7 +109,7 @@ test('request package but skip fetching', async t => {
   t.ok(pkgResponse.body, 'response has body')
 
   t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
-  t.equal(pkgResponse.body.inStoreLocation, path.join('.store', 'registry.npmjs.org', 'is-positive', '1.0.0'), 'package location in store returned')
+  t.equal(pkgResponse.body.inStoreLocation, path.join('.store', 'registry.npmjs.org', 'is-positive@1.0.0'), 'package location in store returned')
   t.equal(pkgResponse.body.isLocal, false, 'package is not local')
   t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
   t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
@@ -163,7 +164,7 @@ test('request package but skip fetching, when resolution is already available', 
   t.ok(pkgResponse.body, 'response has body')
 
   t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
-  t.equal(pkgResponse.body.inStoreLocation, path.join('.store', 'registry.npmjs.org', 'is-positive', '1.0.0'), 'package location in store returned')
+  t.equal(pkgResponse.body.inStoreLocation, path.join('.store', 'registry.npmjs.org', 'is-positive@1.0.0'), 'package location in store returned')
   t.equal(pkgResponse.body.isLocal, false, 'package is not local')
   t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
   t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
@@ -717,7 +718,7 @@ test('refetch package to store if it has been modified', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'warn',
-    message: `Refetching ${path.join(storeDir, pkgId)} to store. It was either modified or had no integrity checksums`,
+    message: `Refetching ${path.join(storeDir, pkgIdToFilename(pkgId, process.cwd()))} to store. It was either modified or had no integrity checksums`,
     name: 'pnpm:package-requester',
     prefix: lockfileDir,
   }), 'refetch logged')

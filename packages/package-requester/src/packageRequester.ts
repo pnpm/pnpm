@@ -496,7 +496,7 @@ function fetchToStore (
         await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal
       }
 
-      ctx.storeIndex[targetRelative] = ctx.storeIndex[targetRelative] || []
+      ctx.storeIndex[opts.pkgId] = ctx.storeIndex[opts.pkgId] || []
       files.resolve({
         filesIndex: integrity,
         fromStore: false,

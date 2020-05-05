@@ -2,6 +2,7 @@ import { getFilePathInCafs } from '@pnpm/cafs'
 import { getContextForSingleImporter } from '@pnpm/get-context'
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import { streamParser } from '@pnpm/logger'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import * as dp from 'dependency-path'
 import dint = require('dint')
 import loadJsonFile = require('load-json-file')
@@ -46,7 +47,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
       ? getFilePathInCafs(cafsDir, integrity, 'index')
       : path.join(storeDir, pkgPath, 'integrity.json')
     const pkgIndex = await loadJsonFile(pkgIndexFilePath)
-    return (await dint.check(path.join(virtualStoreDir, pkgPath, 'node_modules', name), pkgIndex)) === false
+    return (await dint.check(path.join(virtualStoreDir, pkgIdToFilename(pkgPath, opts.dir), 'node_modules', name), pkgIndex)) === false
   })
 
   if (reporter) {
