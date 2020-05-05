@@ -32,7 +32,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   const opts = await testDefaults()
   let manifest = await addDependenciesToPackage({}, ['using-ajv'], opts)
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
   const storeIndex = await loadJsonFile<object>(path.join(opts.storeDir, 'store.json'))
@@ -44,7 +44,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   await rimraf(path.resolve('..', '.store'))
   manifest = await install(manifest, await testDefaults())
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
   await addDependenciesToPackage(manifest, ['using-ajv'], await testDefaults({ update: true }))
@@ -66,8 +66,8 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
   const opts = await testDefaults()
   const manifest = await addDependenciesToPackage({}, ['using-ajv', 'ajv-keywords@1.5.0'], opts)
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0/node_modules/ajv-keywords`)), 'root dependency resolution is present')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0/node_modules/ajv-keywords`)), 'root dependency resolution is present')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
   await mutateModules([
@@ -79,8 +79,8 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
     },
   ], opts)
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency link is not removed')
-  t.notOk(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'ajv-keywords', '1.5.0/node_modules/ajv-keywords')), 'root dependency resolution is removed')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency link is not removed')
+  t.notOk(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0/node_modules/ajv-keywords`)), 'root dependency resolution is removed')
 })
 
 test('peer dependency is grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
@@ -94,7 +94,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
   }), 'no warning is logged about unresolved peer dep')
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'ajv-keywords', '1.5.0_ajv@4.10.4/node_modules/ajv-keywords')), 'dependent is grouped with top peer dep')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords`)), 'dependent is grouped with top peer dep')
 })
 
 test('the right peer dependency is used in every workspace package', async (t: tape.Test) => {
@@ -260,8 +260,8 @@ test('top peer dependency is linked on subsequent install', async (t: tape.Test)
 
   await addDependenciesToPackage(manifest, ['ajv-keywords@1.5.0'], await testDefaults())
 
-  t.notOk(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'ajv-keywords', '1.5.0/node_modules/ajv-keywords')), 'dependency without peer is prunned')
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'ajv-keywords', '1.5.0_ajv@4.10.4/node_modules/ajv')), 'peer dependency is linked')
+  t.notOk(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0/node_modules/ajv-keywords`)), 'dependency without peer is prunned')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
 })
 
 async function okFile (t: tape.Test, filename: string) {
@@ -277,7 +277,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
 
-  const pkgVariationsDir = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'abc', '1.0.0')
+  const pkgVariationsDir = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/abc@1.0.0`)
 
   const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
   await okFile(t, path.join(pkgVariation1, 'abc'))
@@ -309,7 +309,7 @@ test('peer dependencies are linked when running two separate named installations
   const manifest = await addDependenciesToPackage({}, ['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
   await addDependenciesToPackage(manifest, ['abc-parent-with-ab'], await testDefaults())
 
-  const pkgVariationsDir = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'abc', '1.0.0')
+  const pkgVariationsDir = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/abc@1.0.0`)
 
   const pkgVariation1 = path.join(pkgVariationsDir + '_165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
   await okFile(t, path.join(pkgVariation1, 'abc'))
@@ -341,7 +341,7 @@ test.skip('peer dependencies are linked', async (t: tape.Test) => {
     },
   }, await testDefaults())
 
-  const pkgVariationsDir = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'abc', '1.0.0')
+  const pkgVariationsDir = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/abc@1.0.0`)
 
   const pkgVariation1 = path.join(pkgVariationsDir, '165e1e08a3f7e7f77ddb572ad0e55660/node_modules')
   await okFile(t, path.join(pkgVariation1, 'abc'))
@@ -367,7 +367,7 @@ test('scoped peer dependency is linked', async (t: tape.Test) => {
   prepareEmpty(t)
   await addDependenciesToPackage({}, ['for-testing-scoped-peers'], await testDefaults())
 
-  const pkgVariation = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, '@having', 'scoped-peer', '1.0.0_@scoped+peer@1.0.0/node_modules')
+  const pkgVariation = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/@having/scoped-peer@1.0.0_@scoped+peer@1.0.0/node_modules`)
   await okFile(t, path.join(pkgVariation, '@having', 'scoped-peer'))
   await okFile(t, path.join(pkgVariation, '@scoped', 'peer'))
 })
@@ -377,7 +377,7 @@ test('peer bins are linked', async (t: tape.Test) => {
 
   await addDependenciesToPackage({}, ['for-testing-peers-having-bins'], await testDefaults({ fastUnpack: false }))
 
-  const pkgVariation = path.join(`.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-peer-having-bin', '1.0.0_peer-with-bin@1.0.0/node_modules')
+  const pkgVariation = path.join(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-peer-having-bin@1.0.0_peer-with-bin@1.0.0/node_modules`)
 
   await project.isExecutable(path.join(pkgVariation, 'pkg-with-peer-having-bin/node_modules/.bin', 'peer-with-bin'))
 
@@ -389,11 +389,11 @@ test('run pre/postinstall scripts of each variations of packages with peer depen
   prepareEmpty(t)
   await addDependenciesToPackage({}, ['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], await testDefaults({ fastUnpack: false }))
 
-  const pkgVariation1 = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-events-and-peers', '1.0.0_peer-c@1.0.0/node_modules')
+  const pkgVariation1 = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-events-and-peers@1.0.0_peer-c@1.0.0/node_modules`)
   await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
   await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 
-  const pkgVariation2 = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'pkg-with-events-and-peers', '1.0.0_peer-c@2.0.0/node_modules')
+  const pkgVariation2 = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-events-and-peers@1.0.0_peer-c@2.0.0/node_modules`)
   await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
   await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 })
@@ -409,7 +409,7 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
 
   t.equal(deepRequireCwd(['pkg-with-resolved-peer', 'peer-c', './package.json']).version, '1.0.0')
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-resolved-peer/1.0.0/node_modules/pkg-with-resolved-peer`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-resolved-peer@1.0.0/node_modules/pkg-with-resolved-peer`)))
 
   const lockfile = await project.readLockfile()
 
@@ -444,10 +444,10 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, lockfileDir: path.resolve('..') }))
 
   t.notOk(reporter.calledWithMatch({
-    message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
+    message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
   }), 'no warning is logged about unresolved peer dep')
 
-  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'ajv-keywords', '1.5.0_ajv@4.10.4/node_modules/ajv-keywords')))
+  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords`)))
 
   const lockfile = await readYamlFile<Lockfile>(path.join('..', WANTED_LOCKFILE))
 
@@ -477,7 +477,7 @@ test('peer dependency is grouped correctly with peer installed via separate inst
   }, await testDefaults({ reporter, lockfileDir }))
   await addDependenciesToPackage(manifest, ['peer-c@2.0.0'], await testDefaults({ reporter, lockfileDir }))
 
-  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'abc', '1.0.0_peer-c@2.0.0/node_modules/dep-of-pkg-with-1-dep')))
+  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/abc@1.0.0_peer-c@2.0.0/node_modules/dep-of-pkg-with-1-dep`)))
 })
 
 test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
@@ -623,7 +623,7 @@ test('external lockfile: peer dependency is grouped with dependent even after a 
     })
   }
 
-  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'abc-parent-with-ab', '1.0.0_peer-c@2.0.0/node_modules/is-positive')))
+  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/abc-parent-with-ab@1.0.0_peer-c@2.0.0/node_modules/is-positive`)))
 })
 
 test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async (t: tape.Test) => {
@@ -639,7 +639,7 @@ test('regular dependencies are not removed on update from transitive packages th
   await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
   await install(manifest, await testDefaults({ lockfileDir, update: true, depth: 2 }))
 
-  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}`, 'abc-parent-with-ab', '1.0.1_peer-c@1.0.1/node_modules/is-positive')))
+  t.ok(await exists(path.join(`../node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/abc-parent-with-ab@1.0.1_peer-c@1.0.1/node_modules/is-positive`)))
 })
 
 test('peer dependency is resolved from parent package', async (t) => {

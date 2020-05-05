@@ -448,7 +448,7 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm'])
 
-  t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1/node_modules/rimraf/package.json`))
+  t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf@2.5.1/node_modules/rimraf/package.json`))
   t.ok(await exists('.pnpm/lock.yaml'))
   t.ok(await exists('.pnpm/node_modules/once/package.json'))
 
@@ -457,7 +457,7 @@ test('using a custom virtual-store-dir location', async (t: tape.Test) => {
 
   await execPnpm(['install', '--virtual-store-dir=.pnpm', '--frozen-lockfile'])
 
-  t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1/node_modules/rimraf/package.json`))
+  t.ok(await exists(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf@2.5.1/node_modules/rimraf/package.json`))
   t.ok(await exists('.pnpm/lock.yaml'))
   t.ok(await exists('.pnpm/node_modules/once/package.json'))
 })
