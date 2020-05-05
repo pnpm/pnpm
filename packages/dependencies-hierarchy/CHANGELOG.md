@@ -1,6 +1,13 @@
 # dependencies-hierarchy
 
+## 8.0.21-alpha.0
+
+### Patch Changes
+
+- @pnpm/lockfile-file@3.0.9-alpha.0
+
 ## 8.0.20
+
 ### Patch Changes
 
 - Updated dependencies [907c63a48]

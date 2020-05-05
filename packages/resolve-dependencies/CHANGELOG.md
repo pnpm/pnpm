@@ -1,5 +1,12 @@
 # @pnpm/resolve-dependencies
 
+## 14.4.5-alpha.3
+
+### Patch Changes
+
+- Updated dependencies [5bc033c43]
+  - @pnpm/npm-resolver@8.0.0-alpha.1
+
 ## 14.4.5-alpha.2
 
 ### Patch Changes

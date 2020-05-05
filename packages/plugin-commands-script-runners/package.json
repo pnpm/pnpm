@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-script-runners",
-  "version": "1.1.0-alpha.0",
+  "version": "1.1.0-alpha.1",
   "description": "Commands for running scripts",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -33,10 +33,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-script-runners#readme",
   "devDependencies": {
-    "@pnpm/filter-workspace-packages": "workspace:2.0.14",
+    "@pnpm/filter-workspace-packages": "workspace:2.0.15-alpha.0",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/plugin-commands-script-runners": "link:",
-    "@pnpm/prepare": "workspace:0.0.1",
+    "@pnpm/prepare": "workspace:0.0.2-alpha.0",
     "@types/common-tags": "^1.8.0",
     "@types/mz": "^2.7.0",
     "@types/ramda": "^0.27.4",
@@ -46,13 +46,13 @@
     "write-yaml-file": "^4.1.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.4",
+    "@pnpm/cli-utils": "workspace:0.4.5-alpha.0",
     "@pnpm/command": "workspace:1.0.0",
     "@pnpm/common-cli-options-help": "workspace:0.1.5",
-    "@pnpm/config": "workspace:8.3.0",
+    "@pnpm/config": "workspace:8.3.1-alpha.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lifecycle": "workspace:8.2.0-alpha.0",
-    "@pnpm/sort-packages": "workspace:1.0.9",
+    "@pnpm/sort-packages": "workspace:1.0.10-alpha.0",
     "@pnpm/types": "workspace:5.0.0",
     "common-tags": "1.8.0",
     "p-limit": "2.3.0",

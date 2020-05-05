@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/build-modules",
-  "version": "4.1.15-alpha.2",
+  "version": "4.1.15-alpha.3",
   "description": "Build packages in node_modules",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/build-modules#readme",
   "dependencies": {
-    "@pnpm/constants": "workspace:3.0.0",
+    "@pnpm/constants": "workspace:4.0.0-alpha.0",
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/lifecycle": "workspace:8.2.0-alpha.0",
     "@pnpm/link-bins": "workspace:5.3.2",

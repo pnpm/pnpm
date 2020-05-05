@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cafs",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/concat-stream": "^1.6.0",
     "@types/mz": "2.7.0",
-    "@types/node": "^13.13.4",
+    "@types/node": "^13.13.5",
     "@types/ssri": "^6.0.2",
     "@types/tar-stream": "^2.1.0",
     "tempy": "^0.5.0"

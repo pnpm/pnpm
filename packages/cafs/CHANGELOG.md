@@ -1,5 +1,12 @@
 # @pnpm/cafs
 
+## 1.0.0-alpha.3
+
+### Major Changes
+
+- 9596774f2: Store the package index files in the CAFS to reduce directory nesting.
+- 7852deea3: Instead of creating a separate subdir for executables in the content-addressable storage, use the directory where all the files are stored but suffix the executable files with `-exec`. Also suffix the package index files with `-index.json`.
+
 ## 1.0.0-alpha.2
 
 ### Minor Changes

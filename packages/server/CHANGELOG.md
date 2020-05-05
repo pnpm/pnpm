@@ -1,5 +1,11 @@
 # @pnpm/server
 
+## 8.0.0-alpha.3
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+
 ## 8.0.0-alpha.2
 
 ### Patch Changes

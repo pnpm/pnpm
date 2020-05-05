@@ -97,11 +97,15 @@
     "@pnpm-private/typings": "0.0.0"
   },
   "changesets": [
+    "afraid-taxis-applaud",
     "angry-mugs-argue",
     "angry-weeks-collect",
     "blue-wombats-help",
+    "breezy-maps-double",
     "dry-swans-fix",
+    "fifty-horses-change",
     "late-dolphins-destroy",
+    "lovely-ducks-judge",
     "mighty-buckets-study",
     "mighty-keys-type",
     "neat-beers-sit",
@@ -111,6 +115,7 @@
     "sharp-coins-enjoy",
     "slow-worms-travel",
     "swift-ties-cross",
+    "tender-tables-sip",
     "thin-beans-taste",
     "unlucky-panthers-fold",
     "violet-trainers-fold"

@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.0-alpha.4
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+  - @pnpm/constants@4.0.0-alpha.0
+  - @pnpm/package-store@9.0.0-alpha.3
+  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.3
+  - supi@0.39.0-alpha.4
+  - @pnpm/config@8.3.1-alpha.0
+  - @pnpm/find-workspace-packages@2.2.2-alpha.0
+  - @pnpm/outdated@7.0.23-alpha.1
+  - @pnpm/store-connection-manager@0.2.32-alpha.3
+  - @pnpm/cli-utils@0.4.5-alpha.0
+  - @pnpm/sort-packages@1.0.10-alpha.0
+  - @pnpm/filter-workspace-packages@2.0.15-alpha.0
+
 ## 2.0.0-alpha.3
 
 ### Patch Changes

@@ -1,5 +1,23 @@
 # @pnpm/headless
 
+## 13.0.0-alpha.3
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [9596774f2]
+  - @pnpm/constants@4.0.0-alpha.0
+  - @pnpm/hoist@3.0.0-alpha.0
+  - @pnpm/modules-cleaner@9.0.0-alpha.3
+  - @pnpm/package-requester@12.0.0-alpha.3
+  - @pnpm/build-modules@4.1.15-alpha.3
+  - @pnpm/filter-lockfile@3.2.3-alpha.0
+  - @pnpm/lockfile-file@3.0.9-alpha.0
+
 ## 12.2.2-alpha.2
 
 ### Patch Changes

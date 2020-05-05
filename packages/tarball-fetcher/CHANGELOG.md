@@ -1,5 +1,11 @@
 # @pnpm/tarball-fetcher
 
+## 6.0.0-alpha.3
+
+### Patch Changes
+
+- 1ae66a0dc: Don't create a directory for the tarball because the tarball is not saved to the filesystem anymore.
+
 ## 6.0.0-alpha.2
 
 ### Major Changes

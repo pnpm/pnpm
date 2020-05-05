@@ -1,5 +1,12 @@
 # @pnpm/default-resolver
 
+## 7.4.10-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [5bc033c43]
+  - @pnpm/npm-resolver@8.0.0-alpha.1
+
 ## 7.4.10-alpha.0
 
 ### Patch Changes

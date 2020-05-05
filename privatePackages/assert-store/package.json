@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.0",
+  "version": "1.0.1-alpha.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -20,9 +20,7 @@
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": [
-    "lib/"
-  ],
+  "files": ["lib/"],
   "directories": {
     "test": "test"
   },
@@ -43,7 +41,7 @@
     "test": "pnpm run tsc && ts-node test"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:^1.0.0-alpha.2",
+    "@pnpm/cafs": "workspace:^1.0.0-alpha.3",
     "path-exists": "4.0.0"
   },
   "devDependencies": {

@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-outdated
 
+## 1.0.10-alpha.1
+
+### Patch Changes
+
+- @pnpm/config@8.3.1-alpha.0
+- @pnpm/lockfile-file@3.0.9-alpha.0
+- @pnpm/outdated@7.0.23-alpha.1
+- @pnpm/default-resolver@7.4.10-alpha.1
+- @pnpm/cli-utils@0.4.5-alpha.0
+
 ## 1.0.10-alpha.0
 
 ### Patch Changes

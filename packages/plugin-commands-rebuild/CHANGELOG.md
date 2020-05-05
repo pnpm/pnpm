@@ -1,5 +1,22 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.0.0-alpha.3
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+  - @pnpm/constants@4.0.0-alpha.0
+  - @pnpm/config@8.3.1-alpha.0
+  - @pnpm/find-workspace-packages@2.2.2-alpha.0
+  - @pnpm/get-context@1.2.2-alpha.0
+  - @pnpm/store-connection-manager@0.2.32-alpha.3
+  - @pnpm/cli-utils@0.4.5-alpha.0
+  - @pnpm/sort-packages@1.0.10-alpha.0
+
 ## 1.0.11-alpha.2
 
 ### Patch Changes

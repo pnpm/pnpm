@@ -1,5 +1,12 @@
 # @pnpm/build-modules
 
+## 4.1.15-alpha.3
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+  - @pnpm/constants@4.0.0-alpha.0
+
 ## 4.1.14-alpha.2
 
 ### Patch Changes

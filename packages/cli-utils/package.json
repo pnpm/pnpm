@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cli-utils",
-  "version": "0.4.4",
+  "version": "0.4.5-alpha.0",
   "description": "Utils for pnpm commands",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.0",
-    "@pnpm/config": "workspace:8.3.0",
+    "@pnpm/config": "workspace:8.3.1-alpha.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/manifest-utils": "workspace:1.0.0",
     "@pnpm/package-is-installable": "workspace:4.0.7",
