@@ -76,13 +76,8 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
 
         'test:e2e': 'registry-mock prepare && run-p -r registry-mock test:tap',
       }
-      if (manifest.name === 'pnpm') {
-        scripts.test = 'pnpm run _test'
-        scripts._test = `pnpm run compile && cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
-      } else {
-        scripts.test = 'pnpm run compile && pnpm run _test'
-        scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
-      }
+      scripts.test = 'pnpm run compile && pnpm run _test'
+      scripts._test = `cross-env PNPM_REGISTRY_MOCK_PORT=${port} pnpm run test:e2e`
       break
     default:
       if (await exists(path.join(dir, 'test'))) {
