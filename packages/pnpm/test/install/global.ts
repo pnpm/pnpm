@@ -41,7 +41,7 @@ test('global installation to custom directory with --global-dir', async (t: tape
 
   await execPnpm(['add', '--global', '--global-dir=../global', 'is-positive'])
 
-  const isPositive = require(path.resolve('../global/3/node_modules/is-positive'))
+  const isPositive = require(path.resolve(`../global/${LAYOUT_VERSION}/node_modules/is-positive`))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 })
 
