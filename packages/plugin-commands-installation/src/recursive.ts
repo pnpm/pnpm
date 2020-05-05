@@ -18,10 +18,7 @@ import {
   ProjectManifest,
 } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
-import isSubdir = require('is-subdir')
 import mem = require('mem')
-import fs = require('mz/fs')
-import pFilter = require('p-filter')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
@@ -171,8 +168,6 @@ export default async function recursive (
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
     let importers = await getImporters()
-    const isFromWorkspace = isSubdir.bind(null, opts.workspaceDir)
-    importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
     const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
