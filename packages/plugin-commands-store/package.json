@@ -62,6 +62,7 @@
     "@pnpm/normalize-registries": "workspace:1.0.0",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
     "@pnpm/pick-registry-for-package": "workspace:1.0.0",
+    "@pnpm/pkgid-to-filename": "^3.0.0-0",
     "@pnpm/store-connection-manager": "workspace:0.3.0-alpha.2",
     "@pnpm/store-controller-types": "workspace:8.0.0-alpha.2",
     "@pnpm/store-path": "^4.0.0-0",

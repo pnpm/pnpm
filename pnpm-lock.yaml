@@ -2006,6 +2006,7 @@ importers:
       '@pnpm/normalize-registries': 'link:../normalize-registries'
       '@pnpm/parse-wanted-dependency': 'link:../parse-wanted-dependency'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
+      '@pnpm/pkgid-to-filename': 3.0.0-0
       '@pnpm/store-connection-manager': 'link:../store-connection-manager'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 4.0.0-0
@@ -2049,6 +2050,7 @@ importers:
       '@pnpm/normalize-registries': 'workspace:1.0.0'
       '@pnpm/parse-wanted-dependency': 'workspace:1.0.0'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.0'
+      '@pnpm/pkgid-to-filename': ^3.0.0-0
       '@pnpm/plugin-commands-store': 'link:'
       '@pnpm/prepare': 'workspace:0.0.1'
       '@pnpm/store-connection-manager': 'workspace:0.3.0-alpha.2'

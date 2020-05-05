@@ -81,7 +81,7 @@ test('request package', async t => {
 
   t.ok(pkgResponse.finishing!())
 
-  t.deepEqual(storeIndex, { 'registry.npmjs.org/is-positive@1.0.0': [] })
+  t.deepEqual(storeIndex, { 'registry.npmjs.org/is-positive/1.0.0': [] })
 
   t.end()
 })

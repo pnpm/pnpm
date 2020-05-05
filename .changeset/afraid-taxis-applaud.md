@@ -5,6 +5,7 @@
 "@pnpm/package-requester": major
 "@pnpm/package-store": major
 "@pnpm/plugin-commands-rebuild": major
+"@pnpm/plugin-commands-store": major
 "pnpm": major
 "supi": minor
 ---
