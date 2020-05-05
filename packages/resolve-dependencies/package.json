@@ -34,6 +34,7 @@
     "@pnpm/npm-resolver": "workspace:8.0.0-alpha.1",
     "@pnpm/package-is-installable": "workspace:4.0.7",
     "@pnpm/pick-registry-for-package": "workspace:1.0.0",
+    "@pnpm/pkgid-to-filename": "^3.0.0-0",
     "@pnpm/resolver-base": "workspace:7.0.0",
     "@pnpm/store-controller-types": "workspace:8.0.0-alpha.2",
     "@pnpm/types": "workspace:5.0.0",

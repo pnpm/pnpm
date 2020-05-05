@@ -17,6 +17,7 @@ import {
 import logger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   DirectoryResolution,
   PreferredVersions,
@@ -503,7 +504,7 @@ async function resolveDependency (
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
     options.relDepPath && options.dependencyLockfile &&
-    await exists(path.join(ctx.virtualStoreDir, `${options.depPath}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
+    await exists(path.join(ctx.virtualStoreDir, `${pkgIdToFilename(options.depPath, ctx.prefix)}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
     (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))))
 
   if (!proceed && depIsLinked) {

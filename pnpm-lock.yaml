@@ -2385,6 +2385,7 @@ importers:
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/pick-registry-for-package': 'link:../pick-registry-for-package'
+      '@pnpm/pkgid-to-filename': 3.0.0-0
       '@pnpm/resolver-base': 'link:../resolver-base'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -2407,6 +2408,7 @@ importers:
       '@pnpm/npm-resolver': 'workspace:8.0.0-alpha.1'
       '@pnpm/package-is-installable': 'workspace:4.0.7'
       '@pnpm/pick-registry-for-package': 'workspace:1.0.0'
+      '@pnpm/pkgid-to-filename': ^3.0.0-0
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 'workspace:7.0.0'
       '@pnpm/store-controller-types': 'workspace:8.0.0-alpha.2'
