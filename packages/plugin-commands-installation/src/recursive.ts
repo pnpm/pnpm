@@ -167,7 +167,7 @@ export default async function recursive (
 
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
-    let importers = await getImporters()
+    const importers = await getImporters()
     if (importers.length === 0) return true
     const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
     const mutation = cmdFullName === 'remove' ? 'uninstallSome' : (params.length === 0 && !updateToLatest ? 'install' : 'installSome')
