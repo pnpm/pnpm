@@ -1,5 +1,12 @@
 # pnpm
 
+## 5.0.0-alpha.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-import@1.0.12-alpha.5
+- @pnpm/plugin-commands-installation@1.2.4-alpha.5
+
 ## 5.0.0-alpha.4
 
 ### Major Changes

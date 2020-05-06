@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.0-alpha.5
+
+### Patch Changes
+
+- supi@0.38.30-alpha.5
+
 ## 2.0.0-alpha.4
 
 ### Patch Changes

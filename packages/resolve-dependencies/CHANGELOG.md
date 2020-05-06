@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 14.4.5-alpha.4
+
+### Patch Changes
+
+- 0730bb938: Check the existense of a dependency in `node_modules` at the right location.
+
 ## 14.4.5-alpha.3
 
 ### Patch Changes

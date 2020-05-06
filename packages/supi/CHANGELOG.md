@@ -1,5 +1,12 @@
 # supi
 
+## 0.39.0-alpha.5
+
+### Patch Changes
+
+- Updated dependencies [0730bb938]
+  - @pnpm/resolve-dependencies@14.4.5-alpha.4
+
 ## 0.39.0-alpha.4
 
 ### Minor Changes
