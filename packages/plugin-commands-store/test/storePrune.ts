@@ -37,7 +37,7 @@ test('remove unreferenced packages', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: 'Removed 1 packages',
+    message: 'Removed 1 package',
   }), 'report removal')
 
   await project.storeHasNot('is-negative', '2.1.0')
