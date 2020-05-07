@@ -1313,6 +1313,7 @@ importers:
       path-temp: 2.0.0
       ramda: 0.27.0
       rename-overwrite: 3.0.0
+      ssri: 8.0.0
       write-json-file: 4.0.0
     devDependencies:
       '@pnpm/logger': 3.2.2
@@ -1323,6 +1324,7 @@ importers:
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.4
       '@types/sinon': 9.0.0
+      '@types/ssri': 6.0.2
       proxyquire: 2.1.3
       sinon: 9.0.2
       tempy: 0.5.0
@@ -1344,6 +1346,7 @@ importers:
       '@types/proxyquire': 1.3.28
       '@types/ramda': ^0.27.4
       '@types/sinon': ^9.0.0
+      '@types/ssri': ^6.0.2
       '@zkochan/rimraf': 1.0.0
       load-json-file: 6.2.0
       make-empty-dir: ^1.0.0
@@ -1356,6 +1359,7 @@ importers:
       ramda: 0.27.0
       rename-overwrite: ^3.0.0
       sinon: 9.0.2
+      ssri: ^8.0.0
       tempy: 0.5.0
       write-json-file: 4.0.0
   packages/parse-cli-args:
@@ -8771,7 +8775,6 @@ packages:
   /minipass/3.1.1:
     dependencies:
       yallist: 4.0.0
-    dev: true
     engines:
       node: '>=8'
     resolution:
@@ -11253,7 +11256,6 @@ packages:
   /ssri/8.0.0:
     dependencies:
       minipass: 3.1.1
-    dev: true
     engines:
       node: '>= 8'
     resolution:
@@ -12694,7 +12696,6 @@ packages:
     resolution:
       integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==
   /yallist/4.0.0:
-    dev: true
     resolution:
       integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==
   /yaml-tag/1.1.0:
