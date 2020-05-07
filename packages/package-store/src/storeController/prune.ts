@@ -40,5 +40,5 @@ export default async function prune (storeDir: string) {
       pkgCounter++
     }
   }
-  globalInfo(`Removed ${pkgCounter} packages`)
+  globalInfo(`Removed ${pkgCounter} package${pkgCounter === 1 ? '' : 's'}`)
 }
