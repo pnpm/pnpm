@@ -56,7 +56,7 @@ test('remove unreferenced packages', async (t) => {
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
-    message: 'Removed 1 packages',
+    message: 'Removed 1 package',
   }))
   t.end()
 })
