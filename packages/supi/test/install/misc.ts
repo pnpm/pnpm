@@ -663,8 +663,12 @@ test('ignores drive case in store path', async (t: tape.Test) => {
   const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase()
   const storePathLower: string = storePathUpper.toLowerCase()
 
-  const manifest = await addDependenciesToPackage({}, ['rimraf@2.5.1'], await testDefaults({ store: storePathUpper }))
-  await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ store: storePathLower }))
+  const manifest = await addDependenciesToPackage(
+    {},
+    ['rimraf@2.5.1'],
+    await testDefaults({ storeDir: storePathUpper }, null, null, { ignoreFile: () => {} }), // tslint:disable-line:no-empty
+  )
+  await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ storeDir: storePathLower }))
   t.pass('Install did not fail')
 })
 

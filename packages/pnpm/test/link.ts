@@ -61,7 +61,7 @@ test('link global bin', async function (t: tape.Test) {
 
   await execPnpm(['link'], { env })
 
-  const globalBin = isWindows() ? path.join(global, 'npm') : path.join(global, 'bin')
+  const globalBin = isWindows() ? global : path.join(global, 'bin')
   await isExecutable(t, path.join(globalBin, 'package-with-bin'))
 })
 
