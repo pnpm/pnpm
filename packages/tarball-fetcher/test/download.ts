@@ -304,11 +304,13 @@ test('fail when integrity check of local file fails', async (t) => {
   t.comment(`testing in ${process.cwd()}`)
 
   const cachedTarballLocation = path.resolve('cached')
-  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
-  const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
+  await cpFile(
+    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+    path.resolve('tar.tgz'),
+  )
   const resolution = {
     integrity: tarballIntegrity,
-    tarball: `file:${tarball}`,
+    tarball: `file:tar.tgz`,
   }
 
   let err: Error | null = null
@@ -325,7 +327,7 @@ test('fail when integrity check of local file fails', async (t) => {
   t.equal(err && err.message, 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY= integrity checksum failed when using sha1: ' +
     'wanted sha1-HssnaJydJVE+rbyZFKc/VAi+enY= but got sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=. (1194 bytes)')
   t.equal(err && err['code'], 'EINTEGRITY')
-  t.equal(err && err['resource'], tarballAbsoluteLocation)
+  t.equal(err && err['resource'], path.resolve('tar.tgz'))
   t.equal(err && err['attempts'], 1)
 
   t.end()
@@ -336,11 +338,14 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
   t.comment(`testing in ${process.cwd()}`)
 
   const cachedTarballLocation = path.resolve('cached')
-  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
-  const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
+  const localTarballLocation = path.resolve('tar.tgz')
+  await cpFile(
+    path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
+    localTarballLocation,
+  )
   const resolution = {
-    integrity: await getFileIntegrity(tarballAbsoluteLocation),
-    tarball: `file:${tarball}`,
+    integrity: await getFileIntegrity(localTarballLocation),
+    tarball: `file:tar.tgz`,
   }
 
   const { filesIndex } = await fetch.tarball(cafs, resolution, {
