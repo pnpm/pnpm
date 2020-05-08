@@ -29,8 +29,12 @@ jobs:
         pnpm --version
     - name: pnpm install
       run: pnpm recursive install --no-lock
-    - name: run tests
+    - name: run tests (master)
+      if: github.ref == 'refs/heads/master'
       run: pnpm run test-master
+    - name: run tests (branch)
+      if: github.ref != 'refs/heads/master'
+      run: pnpm run test-branch
 
 
 # - set PNPM_VERSION=alpha
