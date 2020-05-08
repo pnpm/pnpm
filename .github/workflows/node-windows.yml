@@ -1,0 +1,37 @@
+name: Node
+
+on: [push, pull_request]
+
+jobs:
+  build:
+
+    runs-on: windows-2019
+
+    strategy:
+      matrix:
+        node: [ '14' ]
+
+    name: ${{ matrix.node }} (Windows)
+    steps:
+    - name: Configure git line-breaks
+      run: git config --global core.autocrlf false
+    - name: Checkout Commit
+      uses: actions/checkout@v1
+    - name: Setup Node
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node }}
+    - name: checkout master
+      run: git branch -f master origin/master
+    - name: install pnpm
+      run: |
+        npm install pnpm@alpha -g
+        pnpm --version
+    - name: pnpm install
+      run: pnpm recursive install --no-lock
+    - name: run tests (master)
+      if: github.ref == 'refs/heads/master'
+      run: pnpm run test-master
+    - name: run tests (branch)
+      if: github.ref != 'refs/heads/master'
+      run: pnpm run test-branch
