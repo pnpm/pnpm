@@ -245,6 +245,13 @@ async function resolveAndFetch (
   }
 }
 
+type FetchLock = {
+  finishing: Promise<void>,
+  files: Promise<PackageFilesResponse>,
+  bundledManifest?: Promise<BundledManifest>,
+  inStoreLocation: string,
+}
+
 function fetchToStore (
   ctx: {
     checkFilesIntegrity: (
@@ -256,12 +263,7 @@ function fetchToStore (
       resolution: Resolution,
       opts: FetchOptions,
     ) => Promise<FetchResult>,
-    fetchingLocker: Map<string, {
-      finishing: Promise<void>,
-      files: Promise<PackageFilesResponse>,
-      bundledManifest?: Promise<BundledManifest>,
-      inStoreLocation: string,
-    }>,
+    fetchingLocker: Map<string, FetchLock>,
     getFilePathInCafs: (integrity: string, fileType: FileType) => string,
     getFilePathByModeInCafs: (integrity: string, mode: number) => string,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
@@ -319,12 +321,7 @@ function fetchToStore (
         return
       }
 
-      const tmp = ctx.fetchingLocker.get(opts.pkgId) as {
-        files: Promise<PackageFilesResponse>,
-        bundledManifest?: Promise<BundledManifest>,
-        finishing: Promise<void>,
-        inStoreLocation: string,
-      }
+      const tmp = ctx.fetchingLocker.get(opts.pkgId)
 
       // If fetching failed then it was removed from the cache.
       // It is OK. In that case there is no need to update it.
@@ -345,12 +342,7 @@ function fetchToStore (
     })
   }
 
-  const result = ctx.fetchingLocker.get(opts.pkgId) as {
-    files: Promise<PackageFilesResponse>,
-    bundledManifest?: Promise<BundledManifest>,
-    finishing: Promise<void>,
-    inStoreLocation: string,
-  }
+  const result = ctx.fetchingLocker.get(opts.pkgId)!
 
   if (opts.fetchRawManifest && !result.bundledManifest) {
     result.bundledManifest = removeKeyOnFail(

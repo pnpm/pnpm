@@ -419,8 +419,8 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest,
 
 async function readLocalConfig (prefix: string) {
   try {
-    const ini = await readIniFile(path.join(prefix, '.npmrc')) as { [key: string]: string }
-    const config = camelcaseKeys(ini) as ({ [key: string]: string } & { hoist?: boolean })
+    const ini = await readIniFile(path.join(prefix, '.npmrc')) as Record<string, string>
+    const config = camelcaseKeys(ini) as (Record<string, string> & { hoist?: boolean })
     if (config.shamefullyFlatten) {
       config.hoistPattern = '*'
       // TODO: print a warning

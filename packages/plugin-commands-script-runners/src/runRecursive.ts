@@ -45,7 +45,7 @@ export default async (
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = opts.selectedProjectsGraph[prefix] as {package: {dir: string, manifest: PackageManifest}}
+        const pkg = opts.selectedProjectsGraph[prefix]
         if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
           return
         }

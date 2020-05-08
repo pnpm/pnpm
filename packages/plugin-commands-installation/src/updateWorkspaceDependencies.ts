@@ -8,7 +8,7 @@ export function updateToWorkspacePackagesFromManifest (manifest: ProjectManifest
     ...(include.devDependencies ? manifest.devDependencies : {}),
     ...(include.dependencies ? manifest.dependencies : {}),
     ...(include.optionalDependencies ? manifest.optionalDependencies : {}),
-  } as { [name: string]: string }
+  } as Record<string, string>
   const updateSpecs = []
   for (const depName of Object.keys(allDeps)) {
     if (workspacePackages[depName]) {
