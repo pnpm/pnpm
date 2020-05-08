@@ -35,14 +35,3 @@ jobs:
     - name: run tests (branch)
       if: github.ref != 'refs/heads/master'
       run: pnpm run test-branch
-
-
-# - set PNPM_VERSION=alpha
-# - curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | node
-# - pnpm -v
-# - pnpm recursive install --no-lock
-#
-# - node --version
-# - pnpm --version
-# - IF %APPVEYOR_REPO_BRANCH%==master pnpm run test-master
-# - IF NOT %APPVEYOR_REPO_BRANCH%==master pnpm run test-branch
