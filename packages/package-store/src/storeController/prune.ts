@@ -5,6 +5,8 @@ import fs = require('mz/fs')
 import path = require('path')
 import ssri = require('ssri')
 
+const BIG_ONE = BigInt(1) as unknown
+
 export default async function prune (storeDir: string) {
   const cafsDir = path.join(storeDir, 'files')
   await rimraf(path.join(storeDir, 'metadata'))
@@ -23,7 +25,7 @@ export default async function prune (storeDir: string) {
         continue
       }
       const stat = await fs.stat(filePath)
-      if (stat.nlink === 1) {
+      if (stat.nlink === 1 || stat.nlink === BIG_ONE) {
         await fs.unlink(filePath)
         fileCounter++
         removedHashes.add(ssri.fromHex(`${dir}${fileName}`, 'sha512').toString())
