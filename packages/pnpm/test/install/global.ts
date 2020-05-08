@@ -25,9 +25,7 @@ test('global installation', async (t: tape.Test) => {
   // https://github.com/pnpm/pnpm/issues/808
   await execPnpm(['install', '--global', 'is-negative'], { env })
 
-  const globalPrefix = isWindows()
-    ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
-    : path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
+  const globalPrefix = path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
 
   const isPositive = require(path.join(globalPrefix, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
@@ -58,9 +56,7 @@ test('always install latest when doing global installation without spec', async 
   await execPnpm(['install', '-g', 'peer-c@1'], { env })
   await execPnpm(['install', '-g', 'peer-c'], { env })
 
-  const globalPrefix = isWindows()
-    ? path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}`)
-    : path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
+  const globalPrefix = path.join(global, `pnpm-global/${LAYOUT_VERSION}`)
 
   process.chdir(globalPrefix)
 
