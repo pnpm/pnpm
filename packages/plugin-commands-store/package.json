@@ -44,7 +44,7 @@
     "@types/sinon": "^9.0.0",
     "@types/ssri": "^6.0.2",
     "@zkochan/rimraf": "1.0.0",
-    "execa": "4.0.0",
+    "execa": "^4.0.1",
     "load-json-file": "6.2.0",
     "path-exists": "4.0.0",
     "sinon": "9.0.2",

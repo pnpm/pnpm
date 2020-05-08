@@ -98,7 +98,7 @@
     "cross-spawn": "7.0.2",
     "deep-require-cwd": "1.0.0",
     "dir-is-case-sensitive": "1.0.2",
-    "execa": "4.0.0",
+    "execa": "^4.0.1",
     "exists-link": "2.0.0",
     "fs-extra": "9.0.0",
     "is-ci": "2.0.0",

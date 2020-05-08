@@ -41,7 +41,7 @@
     "@types/common-tags": "1.8.0",
     "@types/mz": "^2.7.0",
     "@types/ramda": "^0.27.4",
-    "execa": "4.0.0",
+    "execa": "^4.0.1",
     "mz": "2.7.0",
     "strip-ansi": "6.0.0",
     "write-yaml-file": "^4.1.0"
