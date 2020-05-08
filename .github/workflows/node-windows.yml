@@ -13,8 +13,11 @@ jobs:
 
     name: ${{ matrix.node }} (Windows)
     steps:
-    - name: Configure git line-breaks
-      run: git config --global core.autocrlf false
+    - name: Configure Git
+      run: |
+        git config --global core.autocrlf false
+        git config --global user.name "xyz"
+        git config --global user.email "x@y.z"
     - name: Checkout Commit
       uses: actions/checkout@v1
     - name: Setup Node
