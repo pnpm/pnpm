@@ -37,7 +37,7 @@ test('remove unreferenced packages', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
-    message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    message: 'Removed 1 package',
   }), 'report removal')
 
   await project.storeHasNot('is-negative', '2.1.0')
@@ -56,7 +56,7 @@ test('remove unreferenced packages', async (t) => {
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
-    message: `- localhost+${REGISTRY_MOCK_PORT}/is-negative/2.1.0`,
+    message: 'Removed 1 package',
   }))
   t.end()
 })

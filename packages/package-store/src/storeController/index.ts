@@ -1,7 +1,7 @@
 import { getFilePathByModeInCafs as _getFilePathByModeInCafs } from '@pnpm/cafs'
 import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
-import { globalInfo, globalWarn } from '@pnpm/logger'
+import { globalWarn } from '@pnpm/logger'
 import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { ResolveFunction } from '@pnpm/resolver-base'
@@ -17,14 +17,14 @@ import pLimit from 'p-limit'
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
-import { promisify } from 'util'
 import writeJsonFile = require('write-json-file')
 import {
   read as readStore,
   save as saveStore,
   saveSync as saveStoreSync,
 } from '../fs/storeIndex'
-import createImportPackage, { copyPkg } from './createImportPackage'
+import createImportPackage from './createImportPackage'
+import prune from './prune'
 
 export default async function (
   resolve: ResolveFunction,
@@ -75,7 +75,7 @@ export default async function (
     findPackageUsages,
     getPackageLocation,
     importPackage,
-    prune,
+    prune: prune.bind(null, storeDir),
     requestPackage: packageRequester.requestPackage,
     saveState: saveStore.bind(null, initOpts.storeDir, storeIndex),
     saveStateSync: saveStoreSync.bind(null, initOpts.storeDir, storeIndex),
@@ -129,21 +129,6 @@ export default async function (
         storeIndex[newDependent].push(prefix)
       }
     })
-  }
-
-  async function prune () {
-    const removedProjects = await getRemovedProject(storeIndex)
-    for (const pkgId in storeIndex) {
-      if (storeIndex.hasOwnProperty(pkgId)) {
-        storeIndex[pkgId] = R.difference(storeIndex[pkgId], removedProjects)
-
-        if (!storeIndex[pkgId].length) {
-          delete storeIndex[pkgId]
-          await rimraf(path.join(storeDir, pkgId))
-          globalInfo(`- ${pkgId}`)
-        }
-      }
-    }
   }
 
   async function findPackageUsages (searchQueries: string[]): Promise<PackageUsagesBySearchQueries> {
