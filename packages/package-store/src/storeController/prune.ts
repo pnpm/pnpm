@@ -30,7 +30,7 @@ export default async function prune (storeDir: string) {
       }
     }
   }
-  globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'`)
+  globalInfo(`Removed ${fileCounter} file${fileCounter === 1 ? '' : 's'}`)
 
   let pkgCounter = 0
   for (const pkgIndexFilePath of pkgIndexFiles) {
