@@ -1,4 +1,4 @@
-storage: ./storage
+storage: ./verdaccio/node_modules/storage-cache
 middlewares:
   audit:
     enabled: true

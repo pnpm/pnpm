@@ -2,6 +2,7 @@
   "private": true,
   "scripts": {
     "preinstall": "npx only-allow pnpm",
+    "prepare": "pnpm install --dir verdaccio --no-lock",
     "lint": "tslint --config tslint.json **/src/**/*.ts **/test/**/*.ts --exclude '**/node_modules/**'",
     "test-master": "pnpm run lint && pnpm run compile && run-p -r verdaccio test-pkgs-master",
     "test-pkgs-master": "cross-env PNPM_REGISTRY_MOCK_UPLINK=http://localhost:7348 pnpm run _test --no-sort --filter=./packages --filter=./privatePackages",
