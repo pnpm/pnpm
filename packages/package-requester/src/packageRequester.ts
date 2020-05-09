@@ -3,6 +3,7 @@ import createCafs, {
   FileType,
   getFilePathByModeInCafs as _getFilePathByModeInCafs,
   getFilePathInCafs as _getFilePathInCafs,
+  PackageFileInfo,
   PackageFilesIndex,
 } from '@pnpm/cafs'
 import { fetchingProgressLogger } from '@pnpm/core-loggers'
@@ -255,7 +256,7 @@ type FetchLock = {
 function fetchToStore (
   ctx: {
     checkFilesIntegrity: (
-      pkgIndex: PackageFilesIndex,
+      pkgIndex: Record<string, PackageFileInfo>,
       manifest?: DeferredManifestPromise,
     ) => Promise<boolean>,
     fetch: (
@@ -396,14 +397,14 @@ function fetchToStore (
         }
         // if target exists and it wasn't modified, then no need to refetch it
 
-        if (pkgFilesIndex) {
+        if (pkgFilesIndex && pkgFilesIndex.files) {
           const manifest = opts.fetchRawManifest
             ? safeDeferredPromise<DependencyManifest>()
             : undefined
-          const verified = await ctx.checkFilesIntegrity(pkgFilesIndex, manifest)
+          const verified = await ctx.checkFilesIntegrity(pkgFilesIndex.files, manifest)
           if (verified) {
             files.resolve({
-              filesIndex: pkgFilesIndex,
+              filesIndex: pkgFilesIndex.files,
               fromStore: true,
             })
             if (manifest) {
@@ -480,7 +481,7 @@ function fetchToStore (
             }
           }),
       )
-      await writeJsonFile(pkgIndexFilePath, integrity)
+      await writeJsonFile(pkgIndexFilePath, { files: integrity }, { indent: undefined })
       finishing.resolve(undefined)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal

@@ -46,8 +46,8 @@ export default async function (maybeOpts: StoreStatusOptions) {
     const pkgIndexFilePath = integrity
       ? getFilePathInCafs(cafsDir, integrity, 'index')
       : path.join(storeDir, pkgPath, 'integrity.json')
-    const pkgIndex = await loadJsonFile(pkgIndexFilePath)
-    return (await dint.check(path.join(virtualStoreDir, pkgIdToFilename(pkgPath, opts.dir), 'node_modules', name), pkgIndex)) === false
+    const { files } = await loadJsonFile(pkgIndexFilePath)
+    return (await dint.check(path.join(virtualStoreDir, pkgIdToFilename(pkgPath, opts.dir), 'node_modules', name), files)) === false
   })
 
   if (reporter) {

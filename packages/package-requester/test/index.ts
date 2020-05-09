@@ -349,8 +349,8 @@ test('refetch local tarball if its integrity has changed. The requester does not
       files: () => Promise<PackageFilesResponse>,
       finishing: () => Promise<void>,
     }
-    await response.files
-    await response.finishing
+    await response.files()
+    await response.finishing()
 
     t.ok((await response.files!()).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
     t.ok(await response.bundledManifest!())
