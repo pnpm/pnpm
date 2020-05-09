@@ -41,20 +41,8 @@ export interface StoreController {
   fetchPackage: FetchPackageToStoreFunction,
   importPackage: ImportPackageFunction,
   close (): Promise<void>,
-  updateConnections (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}): Promise<void>,
   prune (): Promise<void>,
-  saveState (): Promise<void>,
   upload (builtPkgLocation: string, opts: {packageId: string, engine: string}): Promise<void>,
-  findPackageUsages (searchQueries: string[]): Promise<PackageUsagesBySearchQueries>,
-}
-
-export type PackageUsagesBySearchQueries = {
-  [searchQuery: string]: PackageUsages[],
-}
-
-export type PackageUsages = {
-  packageId: string,
-  usages: string[], // paths to node projects
 }
 
 export type FetchPackageToStoreFunction = (

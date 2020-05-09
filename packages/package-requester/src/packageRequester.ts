@@ -31,10 +31,7 @@ import {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/store-controller-types'
-import {
-  DependencyManifest,
-  StoreIndex,
-} from '@pnpm/types'
+import { DependencyManifest } from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import * as fs from 'mz/fs'
 import pDefer = require('p-defer')
@@ -72,7 +69,6 @@ export default function (
     ignoreFile?: (filename: string) => boolean,
     networkConcurrency?: number,
     storeDir: string,
-    storeIndex: StoreIndex,
     verifyStoreIntegrity: boolean,
   },
 ): RequestPackageFunction & {
@@ -101,7 +97,6 @@ export default function (
     getFilePathInCafs,
     requestsQueue,
     storeDir: opts.storeDir,
-    storeIndex: opts.storeIndex,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
   })
   const requestPackage = resolveAndFetch.bind(null, {
@@ -267,7 +262,6 @@ function fetchToStore (
     getFilePathInCafs: (integrity: string, fileType: FileType) => string,
     getFilePathByModeInCafs: (integrity: string, mode: number) => string,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
-    storeIndex: StoreIndex,
     storeDir: string,
     verifyStoreIntegrity: boolean,
   },
@@ -488,7 +482,6 @@ function fetchToStore (
         await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal
       }
 
-      ctx.storeIndex[opts.pkgId] = ctx.storeIndex[opts.pkgId] || []
       files.resolve({
         filesIndex: integrity,
         fromStore: false,

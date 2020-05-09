@@ -480,9 +480,6 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   const outputs = await import(path.resolve('output.json')) as string[]
   t.deepEqual(outputs, ['is-positive', 'project-1'])
 
-  const storeJson = await loadJsonFile<object>(path.resolve('store/v3/store.json'))
-  t.deepEqual(storeJson[`localhost+${REGISTRY_MOCK_PORT}/is-negative/1.0.0`].length, 1, 'new connections saved in store.json')
-
   await execPnpm(['recursive', 'install', 'pkg-with-1-dep', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
 
   {

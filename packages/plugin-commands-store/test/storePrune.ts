@@ -26,7 +26,6 @@ test('remove unreferenced packages', async (t) => {
   const reporter = sinon.spy()
   await store.handler({
     dir: process.cwd(),
-    lock: true,
     rawConfig: {
       registry: REGISTRY,
     },
@@ -45,7 +44,6 @@ test('remove unreferenced packages', async (t) => {
   reporter.resetHistory()
   await store.handler({
     dir: process.cwd(),
-    lock: true,
     rawConfig: {
       registry: REGISTRY,
     },
@@ -75,7 +73,6 @@ test.skip('remove packages that are used by project that no longer exist', async
   const reporter = sinon.spy()
   await store.handler({
     dir: process.cwd(),
-    lock: true,
     rawConfig: {
       registry: REGISTRY,
     },
@@ -116,7 +113,6 @@ test('keep dependencies used by others', async (t) => {
 
   await store.handler({
     dir: process.cwd(),
-    lock: true,
     rawConfig: {
       registry: REGISTRY,
     },
@@ -138,7 +134,6 @@ test('keep dependency used by package', async (t) => {
 
   await store.handler({
     dir: process.cwd(),
-    lock: true,
     rawConfig: {
       registry: REGISTRY,
     },

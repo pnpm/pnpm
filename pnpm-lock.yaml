@@ -1297,7 +1297,6 @@ importers:
       '@pnpm/cafs': 'link:../cafs'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
-      '@pnpm/fs-locker': 3.0.1
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 3.0.0-0
       '@pnpm/resolver-base': 'link:../resolver-base'
@@ -1332,7 +1331,6 @@ importers:
       '@pnpm/cafs': 'workspace:1.0.0-alpha.3'
       '@pnpm/core-loggers': 'workspace:4.0.1'
       '@pnpm/fetcher-base': 'workspace:7.0.0-alpha.2'
-      '@pnpm/fs-locker': 3.0.1
       '@pnpm/logger': 3.2.2
       '@pnpm/npm-resolver': 'workspace:*'
       '@pnpm/package-requester': 'workspace:12.0.0-alpha.3'

@@ -1,17 +1,12 @@
 ///<reference path="../../../typings/index.d.ts"/>
 import createResolver from '@pnpm/npm-resolver'
-import createStore, * as packageStore from '@pnpm/package-store'
+import createStore from '@pnpm/package-store'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
 import './createImportPackage.spec'
-
-test('public API', t => {
-  t.equal(typeof packageStore.read, 'function')
-  t.end()
-})
 
 test('store.importPackage()', async (t) => {
   const storeDir = tempy.directory()
