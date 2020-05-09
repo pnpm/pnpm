@@ -61,7 +61,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string): Pro
       if (!modulesYaml) {
         throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
       }
-      const storePath = modulesYaml.store
+      const storePath = modulesYaml.storeDir
       cachedStore = {
         storePath,
         ...assertStore(t, storePath, ern),

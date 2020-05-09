@@ -842,7 +842,7 @@ async function installInContext (
           registries: ctx.registries,
           shamefullyHoist: ctx.shamefullyHoist,
           skipped: Array.from(ctx.skipped),
-          store: ctx.storeDir,
+          storeDir: ctx.storeDir,
           virtualStoreDir: ctx.virtualStoreDir,
         })
       })(),

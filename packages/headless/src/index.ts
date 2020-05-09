@@ -345,7 +345,7 @@ export default async (opts: HeadlessOptions) => {
     registries: opts.registries,
     shamefullyHoist: opts.shamefullyHoist || false,
     skipped: Array.from(skipped),
-    store: opts.storeDir,
+    storeDir: opts.storeDir,
     virtualStoreDir,
   })
 

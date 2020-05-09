@@ -17,10 +17,10 @@ export default function checkCompatibility (
   // is the only way to compare paths correctly on Windows
   // as of Node.js 4-9
   // See related issue: https://github.com/pnpm/pnpm/issues/996
-  if (path.relative(modules.store, opts.storeDir) !== '') {
+  if (path.relative(modules.storeDir, opts.storeDir) !== '') {
     throw new UnexpectedStoreError({
       actualStorePath: opts.storeDir,
-      expectedStorePath: modules.store,
+      expectedStorePath: modules.storeDir,
       modulesDir: opts.modulesDir,
     })
   }

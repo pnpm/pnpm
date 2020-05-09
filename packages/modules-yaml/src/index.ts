@@ -23,7 +23,7 @@ export interface Modules {
   registries?: Registries, // nullable for backward compatibility
   shamefullyHoist: boolean,
   skipped: string[],
-  store: string,
+  storeDir: string,
   virtualStoreDir: string,
 }
 
