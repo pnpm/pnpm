@@ -2,6 +2,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { Lockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import { pathToLocalPkg } from '@pnpm/test-fixtures'
 import rimraf = require('@zkochan/rimraf')
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile = require('load-json-file')
@@ -840,3 +841,34 @@ test('warning is not reported when cannot resolve optional peer dependency (spec
     },
   })
 })
+
+test('local tarball dependency with peer dependency', async (t: tape.Test) => {
+  prepareEmpty(t)
+
+  const reporter = sinon.spy()
+
+  const manifest = await addDependenciesToPackage({}, [
+    `file:${pathToLocalPkg('tar-pkg-with-peers/tar-pkg-with-peers-1.0.0.tgz')}`,
+    'bar@100.0.0',
+    'foo@100.0.0',
+  ], await testDefaults({ reporter }))
+
+  const localPkgDirs = await fs.readdir('node_modules/.pnpm/local')
+
+  t.equal(localPkgDirs.length, 1)
+  t.ok(localPkgDirs[0].endsWith('_bar@100.0.0+foo@100.0.0'))
+
+  await rimraf('node_modules')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults())
+
+  t.deepEqual(await fs.readdir('node_modules/.pnpm/local'), localPkgDirs)
+})
+

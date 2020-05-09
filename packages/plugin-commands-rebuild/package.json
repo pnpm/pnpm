@@ -61,7 +61,7 @@
     "@pnpm/lockfile-walker": "workspace:2.0.3-alpha.0",
     "@pnpm/modules-yaml": "workspace:7.0.0-alpha.0",
     "@pnpm/normalize-registries": "workspace:1.0.1-alpha.0",
-    "@pnpm/pkgid-to-filename": "3.0.0-0",
+    "@pnpm/pkgid-to-filename": "3.0.0-1",
     "@pnpm/sort-packages": "workspace:1.0.10-alpha.1",
     "@pnpm/store-connection-manager": "workspace:0.3.0-alpha.4",
     "@pnpm/store-controller-types": "workspace:8.0.0-alpha.3",

@@ -1,0 +1,8 @@
+{
+  "name": "tar-pkg-with-peers",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "bar": "^100.0.0",
+    "foo": "^100.0.0"
+  }
+}
