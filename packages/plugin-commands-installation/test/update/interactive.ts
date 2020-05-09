@@ -169,6 +169,7 @@ test('interactive update of dev dependencies only', async (t) => {
       },
     },
   ])
+  const storeDir = path.resolve('store')
 
   prompt.returns({
     updateDependencies: ['is-negative'],
@@ -183,6 +184,7 @@ test('interactive update of dev dependencies only', async (t) => {
     lockfileDir: process.cwd(),
     recursive: true,
     selectedProjectsGraph,
+    storeDir,
     workspaceDir: process.cwd(),
   })
   await update.handler({
@@ -198,6 +200,7 @@ test('interactive update of dev dependencies only', async (t) => {
     production: false,
     recursive: true,
     selectedProjectsGraph,
+    storeDir,
     workspaceDir: process.cwd(),
   })
 

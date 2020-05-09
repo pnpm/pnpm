@@ -63,6 +63,7 @@ test('prune removes dev dependencies', async (t) => {
     ...DEFAULT_OPTIONS,
     dir: process.cwd(),
     linkWorkspacePackages: true,
+    storeDir,
   })
 
   await prune.handler({
