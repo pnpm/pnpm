@@ -116,7 +116,7 @@ export async function handler (
     extraBinPaths: opts.extraBinPaths,
     pkgRoot: dir,
     rawConfig: opts.rawConfig,
-    rootNodeModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
     stdio: 'inherit',
     unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
   }

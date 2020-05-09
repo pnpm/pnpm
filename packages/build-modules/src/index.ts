@@ -25,7 +25,7 @@ export default async (
     userAgent: string,
     sideEffectsCacheWrite: boolean,
     storeController: StoreController,
-    rootNodeModulesDir: string,
+    rootModulesDir: string,
   },
 ) => {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
@@ -66,7 +66,7 @@ async function buildDependency (
     lockfileDir: string,
     optional: boolean,
     rawConfig: object,
-    rootNodeModulesDir: string,
+    rootModulesDir: string,
     sideEffectsCacheWrite: boolean,
     storeController: StoreController,
     unsafePerm: boolean,
@@ -83,7 +83,7 @@ async function buildDependency (
       pkgRoot: depNode.peripheralLocation,
       prepare: depNode.prepare,
       rawConfig: opts.rawConfig,
-      rootNodeModulesDir: opts.rootNodeModulesDir,
+      rootModulesDir: opts.rootModulesDir,
       unsafePerm: opts.unsafePerm || false,
     })
     if (hasSideEffects && opts.sideEffectsCacheWrite) {

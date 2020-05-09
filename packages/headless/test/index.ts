@@ -817,8 +817,8 @@ test('installing in a workspace', async (t) => {
     projects: [projects[0]],
   }))
 
-  const rootNodeModules = assertProject(t, workspaceFixture)
-  const lockfile = await rootNodeModules.readCurrentLockfile()
+  const rootModules = assertProject(t, workspaceFixture)
+  const lockfile = await rootModules.readCurrentLockfile()
   t.deepEqual(Object.keys(lockfile.packages), [
     '/is-negative/1.0.0',
     '/is-positive/1.0.0',

@@ -15,7 +15,7 @@ export async function runPostinstallHooks (
     pkgRoot: string,
     prepare?: boolean,
     rawConfig: object,
-    rootNodeModulesDir: string,
+    rootModulesDir: string,
     unsafePerm: boolean,
   },
 ): Promise<boolean> {

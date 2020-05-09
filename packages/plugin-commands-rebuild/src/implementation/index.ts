@@ -293,7 +293,7 @@ async function _rebuild (
           pkgRoot,
           prepare: pkgSnapshot.prepare,
           rawConfig: opts.rawConfig,
-          rootNodeModulesDir: ctx.rootModulesDir,
+          rootModulesDir: ctx.rootModulesDir,
           unsafePerm: opts.unsafePerm || false,
         })
         pkgsThatWereRebuilt.add(relDepPath)

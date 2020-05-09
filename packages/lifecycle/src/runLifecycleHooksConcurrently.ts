@@ -31,7 +31,7 @@ export default async function runLifecycleHooksConcurrently (
           extraBinPaths: opts.extraBinPaths,
           pkgRoot: rootDir,
           rawConfig: opts.rawConfig,
-          rootNodeModulesDir: modulesDir,
+          rootModulesDir: modulesDir,
           stdio: opts.stdio,
           unsafePerm: opts.unsafePerm,
         }

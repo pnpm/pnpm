@@ -430,9 +430,9 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   ]
   await mutateModules(mutatedProjects, await testDefaults({ hoistPattern: '*' }))
 
-  const rootNodeModules = assertProject(t, process.cwd())
+  const rootModules = assertProject(t, process.cwd())
   {
-    const modulesManifest = await rootNodeModules.readModulesManifest()
+    const modulesManifest = await rootModules.readModulesManifest()
     t.deepEqual(modulesManifest?.hoistedAliases, {
       [`localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.0.0`]: ['dep-of-pkg-with-1-dep'],
       [`localhost+${REGISTRY_MOCK_PORT}/foo/100.0.0`]: ['foo'],
@@ -447,7 +447,7 @@ test('hoist when updating in one of the workspace projects', async (t) => {
     },
   ], await testDefaults({ hoistPattern: '*', pruneLockfileImporters: false }))
 
-  const lockfile = await rootNodeModules.readCurrentLockfile()
+  const lockfile = await rootModules.readCurrentLockfile()
 
   t.deepEqual(
     Object.keys(lockfile.packages),
@@ -460,7 +460,7 @@ test('hoist when updating in one of the workspace projects', async (t) => {
   )
 
   {
-    const modulesManifest = await rootNodeModules.readModulesManifest()
+    const modulesManifest = await rootModules.readModulesManifest()
     t.deepEqual(modulesManifest?.hoistedAliases, {
       [`localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep/100.0.0`]: ['dep-of-pkg-with-1-dep'],
     })

@@ -143,7 +143,7 @@ export async function mutateModules (
   }
 
   const installsOnly = projects.every((project) => project.mutation === 'install')
-  opts['forceNewNodeModules'] = installsOnly
+  opts['forceNewModules'] = installsOnly
   const ctx = await getContext(projects, opts)
 
   for (const { manifest, rootDir } of ctx.projects) {
@@ -771,7 +771,7 @@ async function installInContext (
         lockfileDir: ctx.lockfileDir,
         optional: opts.include.optionalDependencies,
         rawConfig: opts.rawConfig,
-        rootNodeModulesDir: ctx.virtualStoreDir,
+        rootModulesDir: ctx.virtualStoreDir,
         sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
         storeController: opts.storeController,
         unsafePerm: opts.unsafePerm,

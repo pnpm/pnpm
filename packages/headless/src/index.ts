@@ -61,7 +61,7 @@ import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import realpathMissing = require('realpath-missing')
 
-const brokenNodeModulesLogger = logger('_broken_node_modules')
+const brokenModulesLogger = logger('_broken_node_modules')
 
 export type ReporterFunction = (logObj: LogBase) => void
 
@@ -319,7 +319,7 @@ export default async (opts: HeadlessOptions) => {
       lockfileDir,
       optional: opts.include.optionalDependencies,
       rawConfig: opts.rawConfig,
-      rootNodeModulesDir: virtualStoreDir,
+      rootModulesDir: virtualStoreDir,
       sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
       storeController: opts.storeController,
       unsafePerm: opts.unsafePerm,
@@ -512,7 +512,7 @@ async function lockfileToDepGraph (
             return
           }
 
-          brokenNodeModulesLogger.debug({
+          brokenModulesLogger.debug({
             missing: peripheralLocation,
           })
         }

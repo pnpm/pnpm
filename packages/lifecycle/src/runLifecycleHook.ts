@@ -11,7 +11,7 @@ export type RunLifecycleHookOptions = {
   optional?: boolean,
   pkgRoot: string,
   rawConfig: object,
-  rootNodeModulesDir: string,
+  rootModulesDir: string,
   stdio?: string,
   unsafePerm: boolean,
 }
@@ -46,7 +46,7 @@ export default async function runLifecycleHook (
   }
   return lifecycle(m, stage, opts.pkgRoot, {
     config: opts.rawConfig,
-    dir: opts.rootNodeModulesDir,
+    dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths || [],
     log: {
       clearProgress: noop,

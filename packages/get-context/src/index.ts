@@ -58,7 +58,7 @@ export default async function getContext<T> (
   projects: (ProjectOptions & T)[],
   opts: {
     force: boolean,
-    forceNewNodeModules?: boolean,
+    forceNewModules?: boolean,
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDir: string,
@@ -87,9 +87,9 @@ export default async function getContext<T> (
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
   if (importersContext.modules) {
-    const { purged } = await validateNodeModules(importersContext.modules, importersContext.projects, {
+    const { purged } = await validateModules(importersContext.modules, importersContext.projects, {
       currentHoistPattern: importersContext.currentHoistPattern,
-      forceNewNodeModules: opts.forceNewNodeModules === true,
+      forceNewModules: opts.forceNewModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
       modulesDir,
@@ -172,7 +172,7 @@ export default async function getContext<T> (
   return ctx
 }
 
-async function validateNodeModules (
+async function validateModules (
   modules: Modules,
   projects: Array<{
     modulesDir: string,
@@ -181,7 +181,7 @@ async function validateNodeModules (
   }>,
   opts: {
     currentHoistPattern?: string[],
-    forceNewNodeModules: boolean,
+    forceNewModules: boolean,
     include?: IncludedDependencies,
     lockfileDir: string,
     modulesDir: string,
@@ -201,7 +201,7 @@ async function validateNodeModules (
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
   if (opts.forceShamefullyHoist && modules.shamefullyHoist !== opts.shamefullyHoist) {
-    if (opts.forceNewNodeModules && rootProject) {
+    if (opts.forceNewModules && rootProject) {
       await purgeModulesDirsOfImporter(rootProject)
       return { purged: true }
     }
@@ -219,7 +219,7 @@ async function validateNodeModules (
     )
   }
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
-    if (opts.forceNewNodeModules) {
+    if (opts.forceNewModules) {
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       if (!rootProject) {
         await purgeModulesDirsOfImporter({
@@ -260,7 +260,7 @@ async function validateNodeModules (
         )
       }
     } catch (err) {
-      if (!opts.forceNewNodeModules) throw err
+      if (!opts.forceNewModules) throw err
       await purgeModulesDirsOfImporter(rootProject)
       purged = true
     }
@@ -283,13 +283,13 @@ async function validateNodeModules (
         }
       }
     } catch (err) {
-      if (!opts.forceNewNodeModules) throw err
+      if (!opts.forceNewModules) throw err
       await purgeModulesDirsOfImporter(project)
       purged = true
     }
   }))
   if (modules.registries && !R.equals(opts.registries, modules.registries)) {
-    if (opts.forceNewNodeModules) {
+    if (opts.forceNewModules) {
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       return { purged: true }
     }
@@ -355,7 +355,7 @@ export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
     force: boolean,
-    forceNewNodeModules?: boolean,
+    forceNewModules?: boolean,
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDir: string,
@@ -413,9 +413,9 @@ export async function getContextForSingleImporter (
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (modules && !alreadyPurged) {
-    const { purged } = await validateNodeModules(modules, projects, {
+    const { purged } = await validateModules(modules, projects, {
       currentHoistPattern,
-      forceNewNodeModules: opts.forceNewNodeModules === true,
+      forceNewModules: opts.forceNewModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir ?? 'node_modules',

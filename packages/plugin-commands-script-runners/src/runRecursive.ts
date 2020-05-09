@@ -56,7 +56,7 @@ export default async (
             extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,
-            rootNodeModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
+            rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }

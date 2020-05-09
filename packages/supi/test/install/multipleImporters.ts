@@ -65,9 +65,9 @@ test('install only the dependencies of the specified importer', async (t) => {
   await projects['project-1'].has('is-positive')
   await projects['project-2'].hasNot('is-negative')
 
-  const rootNodeModules = assertProject(t, process.cwd())
-  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-  await rootNodeModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+  const rootModules = assertProject(t, process.cwd())
+  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
+  await rootModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
 })
 
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async (t) => {
@@ -138,8 +138,8 @@ test('install only the dependencies of the specified importer. The current lockf
     },
   ], await testDefaults({ hoistPattern: '*' }))
 
-  const rootNodeModules = assertProject(t, process.cwd())
-  const currentLockfile = await rootNodeModules.readCurrentLockfile()
+  const rootModules = assertProject(t, process.cwd())
+  const currentLockfile = await rootModules.readCurrentLockfile()
   t.ok(currentLockfile.importers['project-3'])
   t.ok(currentLockfile.packages['/foobar/100.0.0'])
 })
@@ -193,12 +193,12 @@ test('dependencies of other importers are not pruned when installing for a subse
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const rootNodeModules = assertProject(t, process.cwd())
-  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@2.0.0`)
-  await rootNodeModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+  const rootModules = assertProject(t, process.cwd())
+  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@2.0.0`)
+  await rootModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
+  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
 
-  const lockfile = await rootNodeModules.readCurrentLockfile()
+  const lockfile = await rootModules.readCurrentLockfile()
   t.deepEqual(Object.keys(lockfile.importers), ['project-1', 'project-2'])
   t.deepEqual(Object.keys(lockfile.packages), [
     '/is-negative/1.0.0',
@@ -258,10 +258,10 @@ test('dependencies of other importers are not pruned when (headless) installing 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const rootNodeModules = assertProject(t, process.cwd())
-  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@2.0.0`)
-  await rootNodeModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-  await rootNodeModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+  const rootModules = assertProject(t, process.cwd())
+  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@2.0.0`)
+  await rootModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
+  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
 })
 
 test('adding a new dev dependency to project that uses a shared lockfile', async (t) => {
