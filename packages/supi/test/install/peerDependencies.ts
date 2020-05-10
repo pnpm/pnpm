@@ -35,10 +35,6 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv`)), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  const storeIndex = await loadJsonFile<object>(path.join(opts.storeDir, 'store.json'))
-  t.ok(storeIndex[`localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0`], `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0 added to store index`)
-  t.ok(storeIndex[`localhost+${REGISTRY_MOCK_PORT}/using-ajv/1.0.0`], `localhost+${REGISTRY_MOCK_PORT}/using-ajv/1.0.0 added to store index`)
-
   // testing that peers are reinstalled correctly using info from the lockfile
   await rimraf('node_modules')
   await rimraf(path.resolve('..', '.store'))

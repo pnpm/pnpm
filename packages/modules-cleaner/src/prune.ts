@@ -157,15 +157,6 @@ export default async function prune (
         }
       }))
     }
-
-    const addedDepPaths = R.difference(newDepPaths, oldDepPaths)
-    const addedPkgIds = new Set(R.props<string, string>(addedDepPaths, wantedPkgIdsByDepPaths))
-
-    await opts.storeController.updateConnections(path.dirname(opts.virtualStoreDir), {
-      addDependencies: Array.from(addedPkgIds),
-      prune: opts.pruneStore || false,
-      removeDependencies: Array.from(orphanPkgIds),
-    })
   }
 
   return new Set(orphanDepPaths)

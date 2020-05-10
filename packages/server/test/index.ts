@@ -32,8 +32,6 @@ async function createStoreController (storeDir?: string) {
     strictSsl: true,
   })
   return createStore(resolve, fetchers, {
-    locks: undefined,
-    lockStaleDuration: 100,
     networkConcurrency: 1,
     storeDir,
     verifyStoreIntegrity: true,
@@ -297,58 +295,6 @@ test('disallow store prune', async t => {
 
   await server.close()
   await storeCtrlForServer.close()
-  t.end()
-})
-
-test('find package usages', async t => {
-  const port = 5813
-  const hostname = '127.0.0.1'
-  const remotePrefix = `http://${hostname}:${port}`
-  const storeCtrlForServer = await createStoreController()
-  const server = createServer(storeCtrlForServer, {
-    hostname,
-    port,
-  })
-  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
-
-  const dependency = { alias: 'is-positive', pref: '1.0.0' }
-
-  const projectDir = process.cwd()
-  // First install a dependency
-  const requestResponse = await storeCtrl.requestPackage(
-    dependency,
-    {
-      downloadPriority: 0,
-      lockfileDir: projectDir,
-      preferredVersions: {},
-      projectDir,
-      registry,
-      sideEffectsCache: false,
-    },
-  )
-  await requestResponse.bundledManifest!()
-  await requestResponse.finishing!()
-
-  // For debugging purposes
-  await storeCtrl.saveState()
-
-  // Now check if usages shows up
-  const packageUsagesByPackageSelectors = await storeCtrl.findPackageUsages(['/is-positive/1.0.0'])
-
-  t.deepEqual(
-    packageUsagesByPackageSelectors,
-    {
-      '/is-positive/1.0.0': [
-        {
-          packageId: 'registry.npmjs.org/is-positive/1.0.0',
-          usages: [],
-        },
-      ],
-    },
-  )
-
-  await server.close()
-  await storeCtrl.close()
   t.end()
 })
 

@@ -32,13 +32,11 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store",
   "scripts": {
-    "commit": "commit",
-    "commitmsg": "commitlint -e",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc",
+    "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm run tsc && ts-node test"
+    "test": "pnpm run compile && ts-node test"
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:^1.0.0-alpha.3",

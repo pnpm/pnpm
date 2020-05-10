@@ -126,19 +126,10 @@ export default function (
           delete rawManifestPromises[body.msgId]
           res.end(JSON.stringify(manifestResponse))
           break
-        case '/updateConnections':
-          body = await bodyPromise
-          await store.updateConnections(body.prefix, body.opts)
-          res.end(JSON.stringify('OK'))
-          break
         case '/prune':
           // Disable store pruning when a server is running
           res.statusCode = 403
           res.end()
-          break
-        case '/saveState':
-          await store.saveState()
-          res.end(JSON.stringify('OK'))
           break
         case '/importPackage':
           const importPackageBody = (await bodyPromise) as any // tslint:disable-line:no-any
@@ -173,10 +164,6 @@ export default function (
           res.end(JSON.stringify(pkgLocation))
           break
         }
-        case '/findPackageUsages':
-          body = await bodyPromise
-          res.end(JSON.stringify(await store.findPackageUsages(body.searchQueries)))
-          break
         default:
           res.statusCode = 404
           const error = { error: `${req.url} does not match any route` }

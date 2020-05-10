@@ -13,7 +13,6 @@ export default async function (
     streamParser.on('data', reporter)
   }
   await opts.storeController.prune()
-  await opts.storeController.saveState()
   await opts.storeController.close()
 
   if (reporter) {

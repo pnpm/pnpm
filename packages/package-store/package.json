@@ -19,7 +19,6 @@
     "@pnpm/cafs": "workspace:1.0.0-alpha.3",
     "@pnpm/core-loggers": "workspace:4.0.1",
     "@pnpm/fetcher-base": "workspace:7.0.0-alpha.2",
-    "@pnpm/fs-locker": "3.0.1",
     "@pnpm/package-requester": "workspace:12.0.0-alpha.3",
     "@pnpm/pkgid-to-filename": "3.0.0-0",
     "@pnpm/resolver-base": "workspace:7.0.0",

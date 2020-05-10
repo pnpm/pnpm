@@ -104,16 +104,6 @@ export default async function recursive (
 
   const store = await createOrConnectStoreController(opts)
 
-  // It is enough to save the store.json file once,
-  // once all installations are done.
-  // That's why saveState that is passed to the install engine
-  // does nothing.
-  const saveState = store.ctrl.saveState
-  const storeController = {
-    ...store.ctrl,
-    saveState: async () => undefined,
-  }
-
   const workspacePackages = cmdFullName !== 'unlink'
     ? arrayOfWorkspacePackagesToMap(allProjects)
     : {}
@@ -123,7 +113,7 @@ export default async function recursive (
     peer: opts.savePeer,
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)
       && pkgs.length === allProjects.length,
-    storeController,
+    storeController: store.ctrl,
     storeDir: store.dir,
     targetDependenciesField,
     workspacePackages,
@@ -336,7 +326,7 @@ export default async function recursive (
               ...installOpts.rawConfig,
               ...localConfig,
             },
-            storeController,
+            storeController: store.ctrl,
           },
         )
         if (opts.save !== false) {
@@ -360,11 +350,6 @@ export default async function recursive (
       }
     }),
   ))
-
-  await saveState()
-  // The store should be unlocked because otherwise rebuild will not be able
-  // to access it
-  await storeController.close()
 
   if (
     !opts.lockfileOnly && !opts.ignoreScripts && (

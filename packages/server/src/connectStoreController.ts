@@ -3,7 +3,6 @@ import {
   FetchPackageToStoreOptions,
   PackageFilesResponse,
   PackageResponse,
-  PackageUsagesBySearchQueries,
   RequestPackageOptions,
   StoreController,
   WantedDependency,
@@ -31,9 +30,6 @@ export default function (
     resolve({
       close: async () => { return },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      findPackageUsages: async (searchQueries: string[]): Promise<PackageUsagesBySearchQueries> => {
-        return await limitedFetch(`${remotePrefix}/findPackageUsages`, { searchQueries }) as PackageUsagesBySearchQueries
-      },
       getPackageLocation: async (
         packageId: string,
         packageName: string,
@@ -61,16 +57,7 @@ export default function (
         await limitedFetch(`${remotePrefix}/prune`, {})
       },
       requestPackage: requestPackage.bind(null, remotePrefix, limitedFetch),
-      saveState: async () => {
-        await limitedFetch(`${remotePrefix}/saveState`, {})
-      },
       stop: async () => { await limitedFetch(`${remotePrefix}/stop`, {}) },
-      updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
-        await limitedFetch(`${remotePrefix}/updateConnections`, {
-          opts,
-          prefix,
-        })
-      },
       upload: async (builtPkgLocation: string, opts: {packageId: string, engine: string}) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,

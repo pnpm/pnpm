@@ -45,8 +45,6 @@ export default async function (
     }
   }))
 
-  await opts.storeController.saveState()
-
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }

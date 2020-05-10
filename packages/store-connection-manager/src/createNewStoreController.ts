@@ -7,8 +7,6 @@ import createResolver, { CreateResolverOptions } from './createResolver'
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
     'alwaysAuth' |
-    'lock' |
-    'lockStaleDuration' |
     'networkConcurrency' |
     'packageImportMethod' |
     'registry' |
@@ -22,7 +20,6 @@ export default async (
 ) => {
   // TODO: either print a warning or just log if --no-lock is used
   const sopts = Object.assign(opts, {
-    locks: opts.lock ? path.join(opts.storeDir, '_locks') : undefined,
     registry: opts.registry || 'https://registry.npmjs.org/',
   })
   const resolve = createResolver(sopts)
@@ -31,8 +28,6 @@ export default async (
   return {
     ctrl: await createStore(resolve, fetchers as {}, {
       ignoreFile: sopts.ignoreFile,
-      locks: sopts.locks,
-      lockStaleDuration: sopts.lockStaleDuration,
       networkConcurrency: sopts.networkConcurrency,
       packageImportMethod: sopts.packageImportMethod,
       storeDir: sopts.storeDir,

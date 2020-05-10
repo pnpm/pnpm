@@ -23,7 +23,6 @@ test('CLI fails when store status finds modified packages', async function (t) {
   try {
     await store.handler({
       dir: process.cwd(),
-      lock: false,
       rawConfig: {
         registry: REGISTRY,
       },
@@ -49,7 +48,6 @@ test('CLI does not fail when store status does not find modified packages', asyn
 
   await store.handler({
     dir: process.cwd(),
-    lock: false,
     rawConfig: {
       registry: REGISTRY,
     },
