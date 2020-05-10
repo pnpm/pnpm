@@ -18,14 +18,11 @@ import {
   DEPENDENCIES_FIELDS,
   Registries,
 } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
-import vacuumCB = require('fs-vacuum')
 import path = require('path')
 import R = require('ramda')
-import { promisify } from 'util'
 import removeDirectDependency from './removeDirectDependency'
-
-const vacuum = promisify(vacuumCB)
 
 export default async function prune (
   importers: Array<{
@@ -141,13 +138,10 @@ export default async function prune (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(opts.virtualStoreDir, pkgIdToFilename(orphanDepPath, opts.lockfileDir), 'node_modules')
+        const pathToRemove = path.join(opts.virtualStoreDir, pkgIdToFilename(orphanDepPath, opts.lockfileDir))
         removalLogger.debug(pathToRemove)
         try {
-          await vacuum(pathToRemove, {
-            base: opts.virtualStoreDir,
-            purge: true,
-          })
+          await rimraf(pathToRemove)
         } catch (err) {
           logger.warn({
             error: err,

@@ -998,7 +998,6 @@ importers:
       '@pnpm/types': 'link:../types'
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'link:../dependency-path'
-      fs-vacuum: 1.2.10
       is-windows: 1.0.2
       ramda: 0.27.0
     devDependencies:
@@ -1023,7 +1022,6 @@ importers:
       '@types/ramda': ^0.27.4
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:4.0.6'
-      fs-vacuum: 1.2.10
       is-windows: 1.0.2
       ramda: 0.27.0
   packages/modules-yaml:
@@ -6755,14 +6753,6 @@ packages:
       node: '>= 0.10'
     resolution:
       integrity: sha1-C3gV/DIBxqaeFNuYzgmMFpNSWes=
-  /fs-vacuum/1.2.10:
-    dependencies:
-      graceful-fs: 4.2.4
-      path-is-inside: 1.0.2
-      rimraf: 2.7.1
-    dev: false
-    resolution:
-      integrity: sha1-t2Kb7AekAxolSP35n17PHMizHjY=
   /fs.realpath/1.0.0:
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
@@ -9805,10 +9795,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
-  /path-is-inside/1.0.2:
-    dev: false
-    resolution:
-      integrity: sha1-NlQX3t5EQw0cEa9hAn+s8HS9/FM=
   /path-key/2.0.1:
     dev: true
     engines:
