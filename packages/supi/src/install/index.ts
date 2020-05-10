@@ -742,15 +742,14 @@ async function installInContext (
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds
-    .filter((relDepPath) => !result.removedDepPaths.has(dp.resolve(ctx.registries, relDepPath)))
+    .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     ctx.pendingBuilds = ctx.pendingBuilds
       .concat(
         result.newDepPaths
-          .filter((depPath) => result.depGraph[depPath].requiresBuild)
-          .map((depPath) => dp.relative(ctx.registries, result.depGraph[depPath].name, depPath)),
+          .filter((depPath) => result.depGraph[depPath].requiresBuild),
       )
   }
 

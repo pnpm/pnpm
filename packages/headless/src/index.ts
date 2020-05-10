@@ -489,11 +489,10 @@ async function lockfileToDepGraph (
     const pkgSnapshotByLocation = {}
     await Promise.all(
       Object.keys(lockfile.packages).map(async (relDepPath) => {
-        const depPath = dp.resolve(opts.registries, relDepPath)
         const pkgSnapshot = lockfile.packages![relDepPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
         const packageId = packageIdFromSnapshot(relDepPath, pkgSnapshot, opts.registries)
         const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
           lockfileDir: opts.lockfileDir,
@@ -622,8 +621,8 @@ async function getChildrenPaths (
     }
     const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
     const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
-    if (ctx.graph[childDepPath]) {
-      children[alias] = ctx.graph[childDepPath].peripheralLocation
+    if (ctx.graph[childRelDepPath]) {
+      children[alias] = ctx.graph[childRelDepPath].peripheralLocation
     } else if (childPkgSnapshot) {
       if (ctx.independentLeaves && packageIsIndependent(childPkgSnapshot)) {
         const pkgId = childPkgSnapshot.id || childDepPath
@@ -635,7 +634,7 @@ async function getChildrenPaths (
         children[alias] = pkgLocation.dir
       } else {
         const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childDepPath, ctx.lockfileDir), 'node_modules', pkgName)
+        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
       }
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))

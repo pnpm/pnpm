@@ -128,7 +128,7 @@ export default async function linkPackages (
     : newLockfile
 
   let depNodes = R.values(depGraph).filter(({ absolutePath, name, packageId }) => {
-    const relDepPath = dp.relative(opts.registries, name, absolutePath)
+    const relDepPath = absolutePath // dp.relative(opts.registries, name, absolutePath)
     if (newWantedLockfile.packages?.[relDepPath] && !newWantedLockfile.packages[relDepPath].optional) {
       opts.skipped.delete(relDepPath)
       return true
@@ -243,10 +243,10 @@ export default async function linkPackages (
   }
 
   await Promise.all(pendingRequiresBuilds.map(async ({ absoluteDepPath, relativeDepPath }) => {
-    const depNode = depGraph[absoluteDepPath]
+    const depNode = depGraph[relativeDepPath]
     if (!depNode.fetchingBundledManifest) {
       // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${absoluteDepPath}"`)
+      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${relativeDepPath}"`)
     }
     const filesResponse = await depNode.fetchingFiles()
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
@@ -273,8 +273,7 @@ export default async function linkPackages (
     const packages = opts.currentLockfile.packages || {}
     if (newWantedLockfile.packages) {
       for (const relDepPath in newWantedLockfile.packages) { // tslint:disable-line:forin
-        const depPath = dp.resolve(opts.registries, relDepPath)
-        if (depGraph[depPath]) {
+        if (depGraph[relDepPath]) {
           packages[relDepPath] = newWantedLockfile.packages[relDepPath]
         }
       }
@@ -378,7 +377,6 @@ async function linkNewPackages (
   if (opts.force) {
     newDepPathsSet = new Set(
       wantedRelDepPaths
-        .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
         // when installing a new package, not all the nodes are analyzed
         // just skip the ones that are in the lockfile but were not analyzed
         .filter((depPath) => depGraph[depPath]),
@@ -400,12 +398,11 @@ async function linkNewPackages (
       if (currentLockfile.packages[relDepPath] &&
         (!R.equals(currentLockfile.packages[relDepPath].dependencies, wantedLockfile.packages[relDepPath].dependencies) ||
         !R.equals(currentLockfile.packages[relDepPath].optionalDependencies, wantedLockfile.packages[relDepPath].optionalDependencies))) {
-        const depPath = dp.resolve(opts.registries, relDepPath)
 
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
-        if (depGraph[depPath] && !newDepPathsSet.has(depPath)) {
-          existingWithUpdatedDeps.push(depGraph[depPath])
+        if (depGraph[relDepPath] && !newDepPathsSet.has(relDepPath)) {
+          existingWithUpdatedDeps.push(depGraph[relDepPath])
         }
       }
     }
@@ -446,11 +443,10 @@ async function selectNewFromWantedDeps (
   const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
   await Promise.all(
     wantedRelDepPaths.map(
-      async (wantedRelDepPath: string) => {
-        const depPath = dp.resolve(opts.registries, wantedRelDepPath)
+      async (depPath: string) => {
         const depNode = depGraph[depPath]
         if (!depNode) return
-        if (prevRelDepPaths.has(wantedRelDepPath)) {
+        if (prevRelDepPaths.has(depPath)) {
           if (await fs.exists(depNode.peripheralLocation)) {
             return
           }

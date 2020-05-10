@@ -165,11 +165,10 @@ function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: strin
 function getPkgsDepPaths (
   registries: Registries,
   packages: PackageSnapshots,
-): {[depPath: string]: string} {
+): {[relDepPath: string]: string} {
   const pkgIdsByDepPath = {}
   for (const relDepPath of Object.keys(packages)) {
-    const depPath = dp.resolve(registries, relDepPath)
-    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
+    pkgIdsByDepPath[relDepPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
   }
   return pkgIdsByDepPath
 }

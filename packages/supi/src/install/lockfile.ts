@@ -16,11 +16,11 @@ export function absolutePathToRef (
 
   const registryName = encodeRegistry(getRegistryByPackageName(opts.registries, opts.realName))
   if (absolutePath.startsWith(`${registryName}/`) && !absolutePath.includes('/-/')) {
-    if (opts.alias === opts.realName) {
-      const ref = absolutePath.replace(`${registryName}/${opts.realName}/`, '')
-      if (!ref.includes('/')) return ref
-    }
-    return absolutePath.replace(`${registryName}/`, '/')
+    absolutePath = absolutePath.replace(`${registryName}/`, '/')
+  }
+  if (opts.alias === opts.realName) {
+    const ref = absolutePath.replace(`/${opts.realName}/`, '')
+    if (!ref.includes('/')) return ref
   }
   return absolutePath
 }

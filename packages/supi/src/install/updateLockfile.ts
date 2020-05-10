@@ -29,22 +29,21 @@ export default function (
 } {
   lockfile.packages = lockfile.packages || {}
   const pendingRequiresBuilds = [] as PendingRequiresBuild[]
-  for (const depPath of Object.keys(depGraph)) {
-    const depNode = depGraph[depPath]
-    const relDepPath = dp.relative(registries, depNode.name, depPath)
-    const result = R.partition(
+  for (const relDepPath of Object.keys(depGraph)) {
+    const depNode = depGraph[relDepPath]
+    const [updatedOptionalDeps, updatedDeps] = R.partition(
       (child) => depNode.optionalDependencies.has(depGraph[child.depPath].name),
       Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
     )
     lockfile.packages[relDepPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
       depGraph,
-      depPath,
+      depPath: relDepPath,
       prevSnapshot: lockfile.packages[relDepPath],
       registries,
       registry: dp.getRegistryByPackageName(registries, depNode.name),
       relDepPath,
-      updatedDeps: result[1],
-      updatedOptionalDeps: result[0],
+      updatedDeps,
+      updatedOptionalDeps,
     })
   }
   const warn = (message: string) => logger.warn({ message, prefix })
@@ -131,7 +130,7 @@ function toLockfileDependency (
   if (depNode.optional) {
     result['optional'] = true
   }
-  if (opts.relDepPath[0] !== '/' && opts.depPath !== depNode.packageId) {
+  if (opts.relDepPath[0] !== '/' && !depNode.packageId.endsWith(opts.relDepPath)) {
     result['id'] = depNode.packageId
   }
   if (pkg.peerDependencies) {
