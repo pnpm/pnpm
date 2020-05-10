@@ -36,7 +36,7 @@ export default async function prune (storeDir: string) {
 
   let pkgCounter = 0
   for (const pkgIndexFilePath of pkgIndexFiles) {
-    const pkgFilesIndex = await loadJsonFile<object>(pkgIndexFilePath)
+    const { files: pkgFilesIndex } = await loadJsonFile<{ files: object }>(pkgIndexFilePath)
     if (removedHashes.has(pkgFilesIndex['package.json'].integrity)) {
       await fs.unlink(pkgIndexFilePath)
       pkgCounter++

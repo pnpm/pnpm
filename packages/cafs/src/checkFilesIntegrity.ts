@@ -15,11 +15,11 @@ export type PackageFileInfo = {
   size: number,
 }
 
-export type PackageFilesIndex = Record<string, PackageFileInfo>
+export type PackageFilesIndex = { files: Record<string, PackageFileInfo> }
 
 export default async function (
   cafsDir: string,
-  pkgIndex: PackageFilesIndex,
+  pkgIndex: Record<string, PackageFileInfo>,
   manifest?: DeferredManifestPromise,
 ) {
   let verified = true
