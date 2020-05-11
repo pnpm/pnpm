@@ -15,7 +15,7 @@
     "update-manifests": "ts-node utils/updater/src/index.ts"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.6.5",
+    "@changesets/cli": "^2.7.0",
     "@pnpm/registry-mock": "^2.0.1",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/tslint-config": "workspace:*",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/sort-packages",
-  "version": "1.0.10-alpha.0",
+  "version": "1.0.10-alpha.1",
   "description": "Sort packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,7 +31,7 @@
     "@pnpm/sort-packages": "link:"
   },
   "dependencies": {
-    "@pnpm/config": "workspace:8.3.1-alpha.0",
+    "@pnpm/config": "workspace:8.3.1-alpha.1",
     "graph-sequencer": "2.0.0"
   },
   "funding": "https://opencollective.com/pnpm"

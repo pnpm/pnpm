@@ -1,5 +1,15 @@
 # @pnpm/find-workspace-packages
 
+## 2.2.2-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [da091c71]
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/cli-utils@0.4.5-alpha.1
+  - @pnpm/config@8.3.1-alpha.1
+  - find-packages@7.0.8-alpha.0
+
 ## 2.2.2-alpha.0
 
 ### Patch Changes

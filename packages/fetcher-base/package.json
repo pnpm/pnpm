@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetcher-base",
-  "version": "7.0.0-alpha.2",
+  "version": "7.0.0-alpha.3",
   "description": "Types for pnpm-compatible fetchers",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -30,8 +30,8 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/fetcher-base#readme",
   "dependencies": {
-    "@pnpm/resolver-base": "workspace:7.0.0",
-    "@pnpm/types": "workspace:5.0.0",
+    "@pnpm/resolver-base": "workspace:7.0.1-alpha.0",
+    "@pnpm/types": "workspace:6.0.0-alpha.0",
     "@types/ssri": "^6.0.2"
   },
   "funding": "https://opencollective.com/pnpm"

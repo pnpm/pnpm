@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/cafs",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "description": "A content-addressable filesystem for the packages storage",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -14,7 +14,7 @@
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "dependencies": {
-    "@pnpm/fetcher-base": "workspace:7.0.0-alpha.2",
+    "@pnpm/fetcher-base": "workspace:7.0.0-alpha.3",
     "@zkochan/rimraf": "1.0.0",
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",

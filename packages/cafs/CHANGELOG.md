@@ -1,5 +1,15 @@
 # @pnpm/cafs
 
+## 1.0.0-alpha.4
+
+### Major Changes
+
+- 471149e6: Change the format of the package index file. Move all the files info into a "files" property.
+
+### Patch Changes
+
+- @pnpm/fetcher-base@6.0.1-alpha.3
+
 ## 1.0.0-alpha.3
 
 ### Major Changes

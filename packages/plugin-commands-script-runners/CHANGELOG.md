@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1.1.0-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [da091c71]
+- Updated dependencies [e3990787]
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/lifecycle@9.0.0-alpha.1
+  - @pnpm/cli-utils@0.4.5-alpha.1
+  - @pnpm/config@8.3.1-alpha.1
+  - @pnpm/sort-packages@1.0.10-alpha.1
+
 ## 1.1.0-alpha.1
 
 ### Patch Changes

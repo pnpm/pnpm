@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-utils",
-  "version": "2.0.11",
+  "version": "2.0.12-alpha.0",
   "description": "Utils for dealing with pnpm-lock.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -40,9 +40,9 @@
   },
   "dependencies": {
     "@pnpm/lockfile-types": "workspace:2.0.0",
-    "@pnpm/resolver-base": "workspace:7.0.0",
-    "@pnpm/types": "workspace:5.0.0",
-    "dependency-path": "workspace:4.0.6",
+    "@pnpm/resolver-base": "workspace:7.0.1-alpha.0",
+    "@pnpm/types": "workspace:6.0.0-alpha.0",
+    "dependency-path": "workspace:4.0.7-alpha.0",
     "get-npm-tarball-url": "2.0.1",
     "ramda": "0.27.0"
   },

@@ -1,5 +1,19 @@
 # dependencies-hierarchy
 
+## 8.0.21-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [3f73eaf0]
+- Updated dependencies [da091c71]
+  - @pnpm/modules-yaml@7.0.0-alpha.0
+  - @pnpm/types@6.0.0-alpha.0
+  - dependency-path@4.0.7-alpha.0
+  - @pnpm/lockfile-file@3.0.9-alpha.1
+  - @pnpm/lockfile-utils@2.0.12-alpha.0
+  - @pnpm/normalize-registries@1.0.1-alpha.0
+  - @pnpm/read-package-json@3.1.1-alpha.0
+
 ## 8.0.21-alpha.0
 
 ### Patch Changes

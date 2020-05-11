@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.0-alpha.6
+
+### Major Changes
+
+- da091c71: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+
+### Patch Changes
+
+- Updated dependencies [3f73eaf0]
+- Updated dependencies [ecf2c6b7]
+- Updated dependencies [da091c71]
+- Updated dependencies [9fbb74ec]
+  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.4
+  - supi@0.39.0-alpha.6
+  - @pnpm/package-store@9.0.0-alpha.4
+  - @pnpm/store-connection-manager@0.3.0-alpha.4
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/outdated@7.0.23-alpha.2
+  - @pnpm/cli-utils@0.4.5-alpha.1
+  - @pnpm/config@8.3.1-alpha.1
+  - @pnpm/find-workspace-packages@2.2.2-alpha.1
+  - @pnpm/manifest-utils@1.0.1-alpha.0
+  - @pnpm/pnpmfile@0.1.9-alpha.0
+  - @pnpm/resolver-base@7.0.1-alpha.0
+  - @pnpm/sort-packages@1.0.10-alpha.1
+  - @pnpm/filter-workspace-packages@2.0.15-alpha.1
+
 ## 2.0.0-alpha.5
 
 ### Patch Changes

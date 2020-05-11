@@ -1,5 +1,12 @@
 # @pnpm/tarball-fetcher
 
+## 6.0.0-alpha.4
+
+### Patch Changes
+
+- c47babd5: Fix installation of local dependency from a different disk.
+  - @pnpm/fetcher-base@6.0.1-alpha.3
+
 ## 6.0.0-alpha.3
 
 ### Patch Changes

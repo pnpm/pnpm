@@ -1,5 +1,40 @@
 # @pnpm/headless
 
+## 13.0.0-alpha.4
+
+### Major Changes
+
+- 3f73eaf0: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+- 9fbb74ec: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- Updated dependencies [7179cc56]
+- Updated dependencies [3f73eaf0]
+- Updated dependencies [da091c71]
+- Updated dependencies [471149e6]
+- Updated dependencies [9fbb74ec]
+- Updated dependencies [e3990787]
+  - @pnpm/modules-cleaner@9.0.0-alpha.4
+  - @pnpm/modules-yaml@7.0.0-alpha.0
+  - @pnpm/package-requester@12.0.0-alpha.4
+  - @pnpm/store-controller-types@8.0.0-alpha.3
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/hoist@3.0.0-alpha.1
+  - @pnpm/build-modules@5.0.0-alpha.4
+  - @pnpm/lifecycle@9.0.0-alpha.1
+  - @pnpm/core-loggers@4.0.2-alpha.0
+  - dependency-path@4.0.7-alpha.0
+  - @pnpm/filter-lockfile@3.2.3-alpha.1
+  - @pnpm/link-bins@5.3.3-alpha.0
+  - @pnpm/lockfile-file@3.0.9-alpha.1
+  - @pnpm/lockfile-utils@2.0.12-alpha.0
+  - @pnpm/read-package-json@3.1.1-alpha.0
+  - @pnpm/read-project-manifest@1.0.6-alpha.0
+  - @pnpm/symlink-dependency@3.0.5-alpha.0
+
 ## 13.0.0-alpha.3
 
 ### Major Changes

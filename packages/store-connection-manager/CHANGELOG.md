@@ -1,5 +1,22 @@
 # @pnpm/store-connection-manager
 
+## 0.3.0-alpha.4
+
+### Minor Changes
+
+- da091c71: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+
+### Patch Changes
+
+- Updated dependencies [ecf2c6b7]
+- Updated dependencies [da091c71]
+  - @pnpm/package-store@9.0.0-alpha.4
+  - @pnpm/server@8.0.0-alpha.4
+  - @pnpm/default-fetcher@5.1.19-alpha.4
+  - @pnpm/cli-meta@1.0.0-alpha.0
+  - @pnpm/config@8.3.1-alpha.1
+  - @pnpm/default-resolver@7.4.10-alpha.2
+
 ## 0.3.0-alpha.3
 
 ### Patch Changes

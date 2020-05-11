@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/filter-lockfile",
-  "version": "3.2.3-alpha.0",
+  "version": "3.2.3-alpha.1",
   "description": "Filters a lockfile",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -45,11 +45,11 @@
     "@pnpm/constants": "workspace:4.0.0-alpha.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/lockfile-types": "workspace:2.0.0",
-    "@pnpm/lockfile-utils": "workspace:2.0.11",
-    "@pnpm/lockfile-walker": "workspace:2.0.2",
-    "@pnpm/package-is-installable": "workspace:4.0.7",
-    "@pnpm/types": "workspace:5.0.0",
-    "dependency-path": "workspace:4.0.6",
+    "@pnpm/lockfile-utils": "workspace:2.0.12-alpha.0",
+    "@pnpm/lockfile-walker": "workspace:2.0.3-alpha.0",
+    "@pnpm/package-is-installable": "workspace:4.0.8-alpha.0",
+    "@pnpm/types": "workspace:6.0.0-alpha.0",
+    "dependency-path": "workspace:4.0.7-alpha.0",
     "ramda": "0.27.0"
   },
   "funding": "https://opencollective.com/pnpm"

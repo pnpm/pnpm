@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/npm-resolver",
-  "version": "8.0.0-alpha.1",
+  "version": "8.0.0-alpha.2",
   "description": "Resolver for npm-hosted packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,8 +36,8 @@
   "dependencies": {
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/resolve-workspace-range": "workspace:1.0.1",
-    "@pnpm/resolver-base": "workspace:7.0.0",
-    "@pnpm/types": "workspace:5.0.0",
+    "@pnpm/resolver-base": "workspace:7.0.1-alpha.0",
+    "@pnpm/types": "workspace:6.0.0-alpha.0",
     "credentials-by-uri": "2.0.0",
     "encode-registry": "2.0.2",
     "fetch-from-npm-registry": "workspace:4.0.2",
