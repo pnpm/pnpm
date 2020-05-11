@@ -71,7 +71,7 @@ import linkPackages, {
   DependenciesGraphNode,
   Project as ProjectToLink,
 } from './link'
-import { absolutePathToRef } from './lockfile'
+import { depPathToRef } from './lockfile'
 
 export type DependenciesMutation = (
   {
@@ -960,7 +960,7 @@ function addDirectDependenciesToLockfile (
   for (const alias of allDeps) {
     if (directDependenciesByAlias[alias]) {
       const dep = directDependenciesByAlias[alias]
-      const ref = absolutePathToRef(dep.id, {
+      const ref = depPathToRef(dep.id, {
         alias: dep.alias,
         realName: dep.name,
         registries,

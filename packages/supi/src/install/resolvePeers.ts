@@ -156,8 +156,8 @@ function resolvePeersOfNode (
   },
 ): {[alias: string]: string} {
   const node = ctx.dependenciesTree[nodeId]
-  if (ctx.purePkgs.has(node.resolvedPackage.relDepPath) && ctx.depGraph[node.resolvedPackage.relDepPath].depth <= node.depth) {
-    ctx.pathsByNodeId[nodeId] = node.resolvedPackage.relDepPath
+  if (ctx.purePkgs.has(node.resolvedPackage.depPath) && ctx.depGraph[node.resolvedPackage.depPath].depth <= node.depth) {
+    ctx.pathsByNodeId[nodeId] = node.resolvedPackage.depPath
     return {}
   }
 
@@ -185,13 +185,13 @@ function resolvePeersOfNode (
 
   let modules: string
   let depPath: string
-  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.relDepPath, ctx.lockfileDir))
+  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.depPath, ctx.lockfileDir))
   const isPure = R.isEmpty(allResolvedPeers)
   if (isPure) {
     modules = path.join(localLocation, 'node_modules')
-    depPath = node.resolvedPackage.relDepPath
+    depPath = node.resolvedPackage.depPath
     if (R.isEmpty(node.resolvedPackage.peerDependencies)) {
-      ctx.purePkgs.add(node.resolvedPackage.relDepPath)
+      ctx.purePkgs.add(node.resolvedPackage.depPath)
     }
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
@@ -200,7 +200,7 @@ function resolvePeersOfNode (
         version: ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage.version,
       })))
     modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
-    depPath = `${node.resolvedPackage.relDepPath}${peersFolderSuffix}`
+    depPath = `${node.resolvedPackage.depPath}${peersFolderSuffix}`
   }
 
   ctx.pathsByNodeId[nodeId] = depPath

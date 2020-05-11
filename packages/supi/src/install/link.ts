@@ -25,7 +25,7 @@ import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
-import { absolutePathToRef } from './lockfile'
+import { depPathToRef } from './lockfile'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -106,7 +106,7 @@ export default async function linkPackages (
       if (depNode.isPure) continue
 
       const projectSnapshot = opts.wantedLockfile.importers[id]
-      const ref = absolutePathToRef(depPath, {
+      const ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
         registries: opts.registries,

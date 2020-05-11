@@ -15,7 +15,7 @@ import {
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import R = require('ramda')
-import { absolutePathToRef } from './lockfile'
+import { depPathToRef } from './lockfile'
 import { DependenciesGraph } from './resolvePeers'
 
 export default function (
@@ -199,7 +199,7 @@ function updateResolvedDeps (
         const depNode = depGraph[depPath]
         return [
           alias,
-          absolutePathToRef(depNode.depPath, {
+          depPathToRef(depNode.depPath, {
             alias,
             realName: depNode.name,
             registries,

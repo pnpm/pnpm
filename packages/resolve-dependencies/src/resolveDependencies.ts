@@ -168,7 +168,7 @@ export interface ResolvedPackage {
   hasBundledDependencies: boolean,
   independent: boolean,
   prepare: boolean,
-  relDepPath: string,
+  depPath: string,
   requiresBuild: boolean | undefined, // added to fix issue #1201
   additionalInfo: {
     deprecated?: string,
@@ -696,12 +696,12 @@ async function resolveDependency (
 
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = getResolvedPackage({
       dependencyLockfile: options.dependencyLockfile,
+      depPath: dp.relative(ctx.registries, pkg.name, pkgResponse.body.id),
       force: ctx.force,
       hasBin,
       pkg,
       pkgResponse,
       prepare,
-      relDepPath: dp.relative(ctx.registries, pkg.name, pkgResponse.body.id),
       wantedDependency,
     })
   } else {
@@ -737,12 +737,12 @@ async function resolveDependency (
 function getResolvedPackage (
   options: {
     dependencyLockfile?: PackageSnapshot,
+    depPath: string,
     force: boolean,
     hasBin: boolean,
     pkg: PackageManifest,
     pkgResponse: PackageResponse,
     prepare: boolean,
-    relDepPath: string,
     wantedDependency: WantedDependency,
   },
 ) {
@@ -759,6 +759,7 @@ function getResolvedPackage (
       peerDependencies,
       peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
+    depPath: options.depPath,
     dev: options.wantedDependency.dev,
     engineCache: !options.force && options.pkgResponse.body.cacheByEngine?.[ENGINE_NAME],
     fetchingBundledManifest: options.pkgResponse.bundledManifest,
@@ -777,7 +778,6 @@ function getResolvedPackage (
     peerDependencies: peerDependencies ?? {},
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,
-    relDepPath: options.relDepPath,
     requiresBuild: options.dependencyLockfile && Boolean(options.dependencyLockfile.requiresBuild),
     resolution: options.pkgResponse.body.resolution,
     version: options.pkg.version,
