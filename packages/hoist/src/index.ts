@@ -34,9 +34,10 @@ export default async function hoistByLockfile (
   const deps = [
     {
       children: directDeps
-        .reduce((acc, dep) => {
-          if (acc[dep.alias]) return acc
-          acc[dep.alias] = dep.relDepPath
+        .reduce((acc, { alias, relDepPath }) => {
+          if (!acc[alias]) {
+            acc[alias] = relDepPath
+          }
           return acc
         }, {}),
       depPath: '',
