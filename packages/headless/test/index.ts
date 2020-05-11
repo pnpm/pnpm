@@ -43,7 +43,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors@1.2.0`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -274,10 +274,10 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
   await project.has('.pnpm/node_modules/path-is-absolute')
 
   // wrappy is linked directly from the store
-  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/wrappy@1.0.2`)
+  await project.hasNot(`.pnpm/wrappy@1.0.2`)
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf@2.5.1`)
+  await project.has(`.pnpm/rimraf@2.5.1`)
 
   await project.isExecutable('.bin/rimraf')
 
@@ -556,8 +556,8 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf@2.7.1`) // rimraf is not symlinked from the store
-  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors@1.2.0`) // colors is symlinked from the store
+  await project.has(`.pnpm/rimraf@2.7.1`) // rimraf is not symlinked from the store
+  await project.hasNot(`.pnpm/colors@1.2.0`) // colors is symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -605,7 +605,7 @@ test('installing with hoistPattern=*', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors@1.2.0`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
@@ -645,7 +645,7 @@ test('installing with hoistPattern=*', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases[`localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -665,7 +665,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors@1.2.0`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.bin/hello-world-js-bin')
@@ -705,7 +705,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases[`localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -853,7 +853,7 @@ test('independent-leaves: installing in a workspace', async (t) => {
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
 
   await projectBar.has('foo')
-  t.ok(await exists(path.join(workspaceFixture, `node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/express@4.16.4/node_modules/array-flatten`)), 'independent package linked')
+  t.ok(await exists(path.join(workspaceFixture, `node_modules/.pnpm/express@4.16.4/node_modules/array-flatten`)), 'independent package linked')
 
   t.end()
 })

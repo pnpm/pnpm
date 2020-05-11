@@ -15,7 +15,7 @@ import {
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import R = require('ramda')
-import { absolutePathToRef } from './lockfile'
+import { depPathToRef } from './lockfile'
 import { DependenciesGraph } from './resolvePeers'
 
 export default function (
@@ -25,26 +25,24 @@ export default function (
   registries: Registries,
 ): {
   newLockfile: Lockfile,
-  pendingRequiresBuilds: PendingRequiresBuild[],
+  pendingRequiresBuilds: string[],
 } {
   lockfile.packages = lockfile.packages || {}
-  const pendingRequiresBuilds = [] as PendingRequiresBuild[]
+  const pendingRequiresBuilds = [] as string[]
   for (const depPath of Object.keys(depGraph)) {
     const depNode = depGraph[depPath]
-    const relDepPath = dp.relative(registries, depNode.name, depPath)
-    const result = R.partition(
+    const [updatedOptionalDeps, updatedDeps] = R.partition(
       (child) => depNode.optionalDependencies.has(depGraph[child.depPath].name),
       Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
     )
-    lockfile.packages[relDepPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
+    lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
       depGraph,
       depPath,
-      prevSnapshot: lockfile.packages[relDepPath],
+      prevSnapshot: lockfile.packages[depPath],
       registries,
       registry: dp.getRegistryByPackageName(registries, depNode.name),
-      relDepPath,
-      updatedDeps: result[1],
-      updatedOptionalDeps: result[0],
+      updatedDeps,
+      updatedOptionalDeps,
     })
   }
   const warn = (message: string) => logger.warn({ message, prefix })
@@ -54,13 +52,8 @@ export default function (
   }
 }
 
-export interface PendingRequiresBuild {
-  relativeDepPath: string,
-  absoluteDepPath: string,
-}
-
 function toLockfileDependency (
-  pendingRequiresBuilds: PendingRequiresBuild[],
+  pendingRequiresBuilds: string[],
   pkg: {
     deprecated?: string,
     peerDependencies?: Dependencies,
@@ -76,7 +69,6 @@ function toLockfileDependency (
   },
   opts: {
     depPath: string,
-    relDepPath: string,
     registry: string,
     registries: Registries,
     updatedDeps: Array<{alias: string, depPath: string}>,
@@ -88,7 +80,7 @@ function toLockfileDependency (
   const depNode = opts.depGraph[opts.depPath]
   const lockfileResolution = toLockfileResolution(
     { name: depNode.name, version: depNode.version },
-    opts.relDepPath,
+    opts.depPath,
     depNode.resolution,
     opts.registry,
   )
@@ -108,7 +100,7 @@ function toLockfileDependency (
     resolution: lockfileResolution,
   }
   // tslint:disable:no-string-literal
-  if (dp.isAbsolute(opts.relDepPath)) {
+  if (dp.isAbsolute(opts.depPath)) {
     result['name'] = depNode.name
 
     // There is no guarantee that a non-npmjs.org-hosted package
@@ -131,7 +123,7 @@ function toLockfileDependency (
   if (depNode.optional) {
     result['optional'] = true
   }
-  if (opts.relDepPath[0] !== '/' && opts.depPath !== depNode.packageId) {
+  if (opts.depPath[0] !== '/' && !depNode.packageId.endsWith(opts.depPath)) {
     result['id'] = depNode.packageId
   }
   if (pkg.peerDependencies) {
@@ -185,10 +177,7 @@ function toLockfileDependency (
       result['requiresBuild'] = true
     }
   } else {
-    pendingRequiresBuilds.push({
-      absoluteDepPath: opts.depPath,
-      relativeDepPath: opts.relDepPath,
-    })
+    pendingRequiresBuilds.push(opts.depPath)
   }
   depNode.requiresBuild = result['requiresBuild']
   // tslint:enable:no-string-literal
@@ -210,7 +199,7 @@ function updateResolvedDeps (
         const depNode = depGraph[depPath]
         return [
           alias,
-          absolutePathToRef(depNode.absolutePath, {
+          depPathToRef(depNode.depPath, {
             alias,
             realName: depNode.name,
             registries,
@@ -230,12 +219,12 @@ function toLockfileResolution (
     name: string,
     version: string,
   },
-  relDepPath: string,
+  depPath: string,
   resolution: Resolution,
   registry: string,
 ): LockfileResolution {
   // tslint:disable:no-string-literal
-  if (dp.isAbsolute(relDepPath) || resolution.type !== undefined || !resolution['integrity']) {
+  if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as LockfileResolution
   }
   const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}

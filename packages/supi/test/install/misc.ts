@@ -457,10 +457,10 @@ test('concurrent circular deps', async (t: tape.Test) => {
   const m = project.requireModule('es6-iterator')
 
   t.ok(m, 'es6-iterator is installed')
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/es6-iterator@2.0.0/node_modules/es5-ext`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/es6-iterator@2.0.1/node_modules/es5-ext`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/es5-ext@0.10.31/node_modules/es6-iterator`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/es5-ext@0.10.31/node_modules/es6-symbol`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/es6-iterator@2.0.0/node_modules/es5-ext`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/es6-iterator@2.0.1/node_modules/es5-ext`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-iterator`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-symbol`)))
 })
 
 test('concurrent installation of the same packages', async (t) => {
@@ -737,7 +737,7 @@ test('lockfile locks npm dependencies', async (t: tape.Test) => {
     status: 'found_in_store',
   } as ProgressLog), 'logged that package was found in store')
 
-  const m = project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json`)
+  const m = project.requireModule(`.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json`)
 
   t.equal(m.version, '100.0.0', `dependency specified in ${WANTED_LOCKFILE} is installed`)
 })
@@ -837,7 +837,7 @@ test("don't fail on case insensitive filesystems when package has 2 files with s
 test('reinstalls missing packages to node_modules', async (t) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
-  const depLocation = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0/node_modules/is-positive`)
+  const depLocation = path.resolve(`node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive`)
   const missingDepLog = {
     level: 'debug',
     missing: depLocation,
@@ -873,7 +873,7 @@ test('reinstalls missing packages to node_modules', async (t) => {
 test('reinstalls missing packages to node_modules during headless install', async (t) => {
   prepareEmpty(t)
   const reporter = sinon.spy()
-  const depLocation = path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0/node_modules/is-positive`)
+  const depLocation = path.resolve(`node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive`)
   const missingDepLog = {
     level: 'debug',
     missing: depLocation,
@@ -1002,7 +1002,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
   ], await testDefaults({ preferFrozenLockfile: false }))
 
   t.deepEqual(
-    await fs.readdir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobarqar@1.0.1/node_modules`)),
+    await fs.readdir(path.resolve(`node_modules/.pnpm/foobarqar@1.0.1/node_modules`)),
     [
       'bar',
       'foo',
@@ -1089,7 +1089,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     },
   ], await testDefaults({ preferFrozenLockfile: false }))
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json`)))
 })
 
 test('fail if none of the available resolvers support a version spec', async (t: tape.Test) => {

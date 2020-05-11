@@ -70,7 +70,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
-  t.notOk(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/dep-of-optional-pkg@1.0.0`)), "isn't linked into node_modules")
+  t.notOk(await exists(path.resolve(`node_modules/.pnpm/dep-of-optional-pkg@1.0.0`)), "isn't linked into node_modules")
 
   const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/not-compatible-with-any-os/1.0.0'], 'lockfile contains optional dependency')
@@ -213,8 +213,8 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
     t.deepEqual(modulesInfo.skipped, ['/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
   }
 
-  t.ok(await exists(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-optional@1.0.0`), 'regular dependency linked')
-  t.notOk(await exists(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/not-compatible-with-any-os@1.0.0`), 'optional dependency not linked')
+  t.ok(await exists(`node_modules/.pnpm/pkg-with-optional@1.0.0`), 'regular dependency linked')
+  t.notOk(await exists(`node_modules/.pnpm/not-compatible-with-any-os@1.0.0`), 'optional dependency not linked')
 
   const logMatcher = sinon.match({
     package: {
@@ -240,7 +240,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
     await testDefaults({ force: true, frozenLockfile: true }),
   )
 
-  t.ok(await exists(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/not-compatible-with-any-os@1.0.0`), 'optional dependency linked after forced headless install')
+  t.ok(await exists(`node_modules/.pnpm/not-compatible-with-any-os@1.0.0`), 'optional dependency linked after forced headless install')
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
@@ -354,10 +354,10 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     },
   }, await testDefaults({ fastUnpack: false, preferredVersions }))
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/duplexify@3.6.0`)), 'duplexify is linked into node_modules')
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/stream-shift@1.0.0`)), 'stream-shift is linked into node_modules')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/duplexify@3.6.0`)), 'duplexify is linked into node_modules')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/stream-shift@1.0.0`)), 'stream-shift is linked into node_modules')
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/got@3.3.1/node_modules/duplexify`)), 'duplexify is linked into node_modules of got')
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/got@3.3.1/node_modules/duplexify`)), 'duplexify is linked into node_modules of got')
 })
 
 test('skip optional dependency that does not support the current OS, when doing install on a subset of workspace projects', async (t: tape.Test) => {

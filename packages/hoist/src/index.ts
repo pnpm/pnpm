@@ -33,13 +33,14 @@ export default async function hoistByLockfile (
   )
   const deps = [
     {
-      absolutePath: '',
       children: directDeps
-        .reduce((acc, dep) => {
-          if (acc[dep.alias]) return acc
-          acc[dep.alias] = dp.resolve(opts.registries, dep.relDepPath)
+        .reduce((acc, { alias, relDepPath }) => {
+          if (!acc[alias]) {
+            acc[alias] = relDepPath
+          }
           return acc
         }, {}),
+      depPath: '',
       depth: -1,
       location: '',
     },
@@ -93,18 +94,18 @@ async function getDependencies (
   for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
     const absolutePath = dp.resolve(opts.registries, relDepPath)
     const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(absolutePath, opts.lockfileDir), 'node_modules')
+    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
     const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
     }
     deps.push({
-      absolutePath,
       children: Object.keys(allDeps).reduce((children, alias) => {
-        children[alias] = dp.refToAbsolute(allDeps[alias], alias, opts.registries)
+        children[alias] = dp.refToRelative(allDeps[alias], alias)
         return children
       }, {}),
+      depPath: relDepPath,
       depth,
       location: !independent
         ? path.join(modules, pkgName)
@@ -130,8 +131,8 @@ async function getDependencies (
 export interface Dependency {
   location: string,
   children: {[alias: string]: string},
+  depPath: string,
   depth: number,
-  absolutePath: string,
 }
 
 async function hoistGraph (
@@ -150,7 +151,7 @@ async function hoistGraph (
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? a.absolutePath.localeCompare(b.absolutePath) : depthDiff
+      return depthDiff === 0 ? a.depPath.localeCompare(b.depPath) : depthDiff
     })
     // build the alias map and the id map
     .map((depNode) => {
@@ -170,7 +171,7 @@ async function hoistGraph (
       return depNode
     })
     .map(async (depNode) => {
-      const pkgAliases = aliasesByDependencyPath[depNode.absolutePath]
+      const pkgAliases = aliasesByDependencyPath[depNode.depPath]
       if (!pkgAliases) {
         return
       }

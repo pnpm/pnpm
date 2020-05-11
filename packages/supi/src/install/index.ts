@@ -43,7 +43,6 @@ import {
   Registries,
 } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
-import * as dp from 'dependency-path'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import pFilter = require('p-filter')
@@ -72,7 +71,7 @@ import linkPackages, {
   DependenciesGraphNode,
   Project as ProjectToLink,
 } from './link'
-import { absolutePathToRef } from './lockfile'
+import { depPathToRef } from './lockfile'
 
 export type DependenciesMutation = (
   {
@@ -742,15 +741,14 @@ async function installInContext (
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds
-    .filter((relDepPath) => !result.removedDepPaths.has(dp.resolve(ctx.registries, relDepPath)))
+    .filter((relDepPath) => !result.removedDepPaths.has(relDepPath))
 
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     ctx.pendingBuilds = ctx.pendingBuilds
       .concat(
         result.newDepPaths
-          .filter((depPath) => result.depGraph[depPath].requiresBuild)
-          .map((depPath) => dp.relative(ctx.registries, result.depGraph[depPath].name, depPath)),
+          .filter((depPath) => result.depGraph[depPath].requiresBuild),
       )
   }
 
@@ -962,7 +960,7 @@ function addDirectDependenciesToLockfile (
   for (const alias of allDeps) {
     if (directDependenciesByAlias[alias]) {
       const dep = directDependenciesByAlias[alias]
-      const ref = absolutePathToRef(dep.id, {
+      const ref = depPathToRef(dep.id, {
         alias: dep.alias,
         realName: dep.name,
         registries,

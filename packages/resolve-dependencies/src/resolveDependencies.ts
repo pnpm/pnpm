@@ -168,6 +168,7 @@ export interface ResolvedPackage {
   hasBundledDependencies: boolean,
   independent: boolean,
   prepare: boolean,
+  depPath: string,
   requiresBuild: boolean | undefined, // added to fix issue #1201
   additionalInfo: {
     deprecated?: string,
@@ -504,7 +505,7 @@ async function resolveDependency (
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
     options.relDepPath && options.dependencyLockfile &&
-    await exists(path.join(ctx.virtualStoreDir, `${pkgIdToFilename(options.depPath, ctx.prefix)}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
+    await exists(path.join(ctx.virtualStoreDir, `${pkgIdToFilename(options.relDepPath, ctx.prefix)}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
     (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))))
 
   if (!proceed && depIsLinked) {
@@ -695,6 +696,7 @@ async function resolveDependency (
 
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = getResolvedPackage({
       dependencyLockfile: options.dependencyLockfile,
+      depPath: dp.relative(ctx.registries, pkg.name, pkgResponse.body.id),
       force: ctx.force,
       hasBin,
       pkg,
@@ -735,6 +737,7 @@ async function resolveDependency (
 function getResolvedPackage (
   options: {
     dependencyLockfile?: PackageSnapshot,
+    depPath: string,
     force: boolean,
     hasBin: boolean,
     pkg: PackageManifest,
@@ -756,6 +759,7 @@ function getResolvedPackage (
       peerDependencies,
       peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
+    depPath: options.depPath,
     dev: options.wantedDependency.dev,
     engineCache: !options.force && options.pkgResponse.body.cacheByEngine?.[ENGINE_NAME],
     fetchingBundledManifest: options.pkgResponse.bundledManifest,

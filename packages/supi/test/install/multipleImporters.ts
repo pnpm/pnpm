@@ -66,8 +66,8 @@ test('install only the dependencies of the specified importer', async (t) => {
   await projects['project-2'].hasNot('is-negative')
 
   const rootModules = assertProject(t, process.cwd())
-  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-  await rootModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+  await rootModules.has(`.pnpm/is-positive@1.0.0`)
+  await rootModules.hasNot(`.pnpm/is-negative@1.0.0`)
 })
 
 test('install only the dependencies of the specified importer. The current lockfile has importers that do not exist anymore', async (t) => {
@@ -194,9 +194,9 @@ test('dependencies of other importers are not pruned when installing for a subse
   await projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(t, process.cwd())
-  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@2.0.0`)
-  await rootModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+  await rootModules.has(`.pnpm/is-positive@2.0.0`)
+  await rootModules.hasNot(`.pnpm/is-positive@1.0.0`)
+  await rootModules.has(`.pnpm/is-negative@1.0.0`)
 
   const lockfile = await rootModules.readCurrentLockfile()
   t.deepEqual(Object.keys(lockfile.importers), ['project-1', 'project-2'])
@@ -259,9 +259,9 @@ test('dependencies of other importers are not pruned when (headless) installing 
   await projects['project-2'].has('is-negative')
 
   const rootModules = assertProject(t, process.cwd())
-  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@2.0.0`)
-  await rootModules.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-  await rootModules.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+  await rootModules.has(`.pnpm/is-positive@2.0.0`)
+  await rootModules.hasNot(`.pnpm/is-positive@1.0.0`)
+  await rootModules.has(`.pnpm/is-negative@1.0.0`)
 })
 
 test('adding a new dev dependency to project that uses a shared lockfile', async (t) => {
@@ -532,9 +532,9 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
   ], await testDefaults())
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@2.0.0/node_modules/is-positive`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/is-positive@2.0.0/node_modules/is-positive`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
 })
 
 test('partial installation in a monorepo does not remove dependencies of other workspace projects when lockfile is frozen', async (t: tape.Test) => {
@@ -625,9 +625,9 @@ test('partial installation in a monorepo does not remove dependencies of other w
     },
   ], await testDefaults({ frozenLockfile: true }))
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0/node_modules/is-positive`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep`)))
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/pkg-with-1-dep@100.0.0/node_modules/pkg-with-1-dep`)))
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/dep-of-pkg-with-1-dep@100.1.0/node_modules/dep-of-pkg-with-1-dep`)))
 })
 
 test('adding a new dependency with the workspace: protocol', async (t) => {
@@ -829,8 +829,8 @@ test('remove dependencies of a project that was removed from the workspace (duri
     t.deepEqual(Object.keys(currentLockfile.importers), ['project-1', 'project-2'])
     t.deepEqual(Object.keys(currentLockfile.packages), ['/is-negative/1.0.0', '/is-positive/1.0.0'])
 
-    await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-    await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+    await project.has(`.pnpm/is-positive@1.0.0`)
+    await project.has(`.pnpm/is-negative@1.0.0`)
   }
 
   await mutateModules(importers.slice(0, 1), await testDefaults({ preferFrozenLockfile: false }))
@@ -839,7 +839,7 @@ test('remove dependencies of a project that was removed from the workspace (duri
     t.deepEqual(Object.keys(currentLockfile.importers), ['project-1'])
     t.deepEqual(Object.keys(currentLockfile.packages), ['/is-positive/1.0.0'])
 
-    await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive@1.0.0`)
-    await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-negative@1.0.0`)
+    await project.has(`.pnpm/is-positive@1.0.0`)
+    await project.hasNot(`.pnpm/is-negative@1.0.0`)
   }
 })

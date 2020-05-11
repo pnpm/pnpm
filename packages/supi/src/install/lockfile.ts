@@ -3,8 +3,8 @@ import { Registries } from '@pnpm/types'
 import { getRegistryByPackageName } from 'dependency-path'
 import encodeRegistry = require('encode-registry')
 
-export function absolutePathToRef (
-  absolutePath: string,
+export function depPathToRef (
+  depPath: string,
   opts: {
     alias: string,
     realName: string,
@@ -12,15 +12,15 @@ export function absolutePathToRef (
     resolution: Resolution,
   },
 ) {
-  if (opts.resolution.type) return absolutePath
+  if (opts.resolution.type) return depPath
 
   const registryName = encodeRegistry(getRegistryByPackageName(opts.registries, opts.realName))
-  if (absolutePath.startsWith(`${registryName}/`) && !absolutePath.includes('/-/')) {
-    if (opts.alias === opts.realName) {
-      const ref = absolutePath.replace(`${registryName}/${opts.realName}/`, '')
-      if (!ref.includes('/')) return ref
-    }
-    return absolutePath.replace(`${registryName}/`, '/')
+  if (depPath.startsWith(`${registryName}/`) && !depPath.includes('/-/')) {
+    depPath = depPath.replace(`${registryName}/`, '/')
   }
-  return absolutePath
+  if (opts.alias === opts.realName) {
+    const ref = depPath.replace(`/${opts.realName}/`, '')
+    if (!ref.includes('/')) return ref
+  }
+  return depPath
 }

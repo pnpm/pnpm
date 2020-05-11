@@ -178,14 +178,14 @@ test("reports child's output", async (t: tape.Test) => {
   await addDependenciesToPackage({}, ['count-to-10'], await testDefaults({ fastUnpack: false, reporter }))
 
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     name: 'pnpm:lifecycle',
     script: 'node postinstall',
     stage: 'postinstall',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '1',
     name: 'pnpm:lifecycle',
@@ -193,7 +193,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '2',
     name: 'pnpm:lifecycle',
@@ -201,7 +201,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '6',
     name: 'pnpm:lifecycle',
@@ -209,7 +209,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stderr',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     exitCode: 0,
     level: 'debug',
     name: 'pnpm:lifecycle',
@@ -227,7 +227,7 @@ test("reports child's close event", async (t: tape.Test) => {
     t.fail()
   } catch (err) {
     t.ok(reporter.calledWithMatch({
-      depPath: `localhost+${REGISTRY_MOCK_PORT}/failing-postinstall/1.0.0`,
+      depPath: '/failing-postinstall/1.0.0',
       exitCode: 1,
       level: 'debug',
       name: 'pnpm:lifecycle',
@@ -262,7 +262,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 
   await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false }))
 
-  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule(`.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
 test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
