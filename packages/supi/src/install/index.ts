@@ -43,7 +43,6 @@ import {
   Registries,
 } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
-import * as dp from 'dependency-path'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import pFilter = require('p-filter')
