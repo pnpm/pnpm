@@ -58,7 +58,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ lockfileDir }),
+    await testDefaults({ lockfileDir })
   )
 
   const lockfile = await readYamlFile<Lockfile>(path.resolve('..', WANTED_LOCKFILE))
@@ -76,7 +76,7 @@ test(`tarball location is correctly saved to ${WANTED_LOCKFILE} when a shared ${
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true, lockfileDir }),
+    await testDefaults({ frozenLockfile: true, lockfileDir })
   )
 
   await project.has('tar-pkg-with-dep')

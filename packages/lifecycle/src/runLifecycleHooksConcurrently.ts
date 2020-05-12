@@ -11,7 +11,7 @@ export default async function runLifecycleHooksConcurrently (
     rawConfig: object,
     stdio?: string,
     unsafePerm: boolean,
-  },
+  }
 ) {
   const importersByBuildIndex = new Map<number, Array<{ rootDir: string, manifest: ProjectManifest, modulesDir: string }>>()
   for (const importer of importers) {
@@ -39,7 +39,7 @@ export default async function runLifecycleHooksConcurrently (
           if (!manifest.scripts || !manifest.scripts[stage]) continue
           await runLifecycleHook(stage, manifest, runLifecycleHookOpts)
         }
-      },
+      }
     )
   })
   await runGroups(childConcurrency, groups)

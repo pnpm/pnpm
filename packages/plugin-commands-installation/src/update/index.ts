@@ -152,7 +152,7 @@ export type UpdateCommandOptions = InstallCommandOptions & {
 
 export async function handler (
   opts: UpdateCommandOptions,
-  params: string[] = [],
+  params: string[] = []
 ) {
   if (opts.interactive) {
     return interactiveUpdate(params, opts)
@@ -162,7 +162,7 @@ export async function handler (
 
 async function interactiveUpdate (
   input: string[],
-  opts: UpdateCommandOptions,
+  opts: UpdateCommandOptions
 ) {
   const include = {
     dependencies: opts.production !== false,
@@ -223,7 +223,7 @@ async function interactiveUpdate (
 
 async function update (
   dependencies: string[],
-  opts: UpdateCommandOptions,
+  opts: UpdateCommandOptions
 ) {
   const includeDirect = {
     dependencies: opts.production !== false,

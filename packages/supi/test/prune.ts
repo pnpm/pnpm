@@ -46,7 +46,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
       ...opts,
       pruneStore: true,
       reporter,
-    },
+    }
   )
 
   t.ok(reporter.calledWithMatch({

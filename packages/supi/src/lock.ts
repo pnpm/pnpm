@@ -10,7 +10,7 @@ export default async function withLock<T> (
     storeController: StoreController,
     locks: string,
     prefix: string,
-  },
+  }
 ): Promise<T> {
   const unlock = await lock(dir, {
     locks: opts.locks,

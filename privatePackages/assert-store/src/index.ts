@@ -7,7 +7,7 @@ import { Test } from 'tape'
 export default (
   t: Test,
   storePath: string | Promise<string>,
-  encodedRegistryName?: string,
+  encodedRegistryName?: string
 ) => {
   const ern = encodedRegistryName || `localhost+${REGISTRY_MOCK_PORT}`
   const store = {

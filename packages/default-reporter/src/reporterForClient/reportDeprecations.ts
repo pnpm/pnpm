@@ -9,7 +9,7 @@ export default (
   opts: {
     cwd: string,
     isRecursive: boolean,
-  },
+  }
 ) => {
   return deprecation$
     // print warnings only about deprecated packages from the root

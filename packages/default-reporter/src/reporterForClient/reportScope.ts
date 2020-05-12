@@ -18,7 +18,7 @@ export default (
   opts: {
     isRecursive: boolean,
     cmd: string,
-  },
+  }
 ) => {
   if (!COMMANDS_THAT_REPORT_SCOPE.has(opts.cmd)) {
     return most.never()

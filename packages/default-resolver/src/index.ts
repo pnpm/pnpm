@@ -18,7 +18,7 @@ export {
 }
 
 export default function createResolver (
-  pnpmOpts: ResolverFactoryOptions,
+  pnpmOpts: ResolverFactoryOptions
 ): ResolveFunction {
   const resolveFromNpm = createResolveFromNpm(pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)

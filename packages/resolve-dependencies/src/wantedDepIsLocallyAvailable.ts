@@ -10,7 +10,7 @@ export default function wantedDepIsLocallyAvailable (
   opts: {
     defaultTag: string,
     registry: string,
-  },
+  }
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
   if (!spec || !workspacePackages[spec.name]) return false
@@ -25,7 +25,7 @@ function pickMatchingLocalVersionOrNull (
       manifest: PackageManifest;
     },
   },
-  spec: RegistryPackageSpec,
+  spec: RegistryPackageSpec
 ) {
   const localVersions = Object.keys(versions)
   switch (spec.type) {

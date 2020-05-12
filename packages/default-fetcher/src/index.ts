@@ -19,7 +19,7 @@ export default function (
     fetchRetryMaxtimeout?: number,
     userAgent?: string,
     offline?: boolean,
-  },
+  }
 ) {
   return {
     ...createTarballFetcher(opts),

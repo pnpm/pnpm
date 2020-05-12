@@ -34,7 +34,7 @@ test('from a github repo with different name via named installation', async (t: 
   const manifest = await addDependenciesToPackage(
     {},
     ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'],
-    await testDefaults({ fastUnpack: false, reporter }),
+    await testDefaults({ fastUnpack: false, reporter })
   )
 
   const m = project.requireModule('say-hi')

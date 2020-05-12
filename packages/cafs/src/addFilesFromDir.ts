@@ -15,7 +15,7 @@ export default async function (
     addBuffer: (buffer: Buffer, mode: number) => Promise<ssri.Integrity>,
   },
   dirname: string,
-  manifest?: DeferredManifestPromise,
+  manifest?: DeferredManifestPromise
 ) {
   const index = {}
   await _retrieveFileIntegrities(cafs, dirname, dirname, index, manifest)
@@ -30,7 +30,7 @@ async function _retrieveFileIntegrities (
   rootDir: string,
   currDir: string,
   index: FilesIndex,
-  deferredManifest?: DeferredManifestPromise,
+  deferredManifest?: DeferredManifestPromise
 ) {
   try {
     const files = await fs.readdir(currDir)

@@ -8,7 +8,7 @@ export default async function getPkgInfo (
     version: string,
     path: string,
     resolved?: string,
-  },
+  }
 ) {
   let manifest
   try {

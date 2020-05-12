@@ -25,7 +25,7 @@ export function writeWantedLockfile (
   wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
-  },
+  }
 ) {
   return writeLockfile(WANTED_LOCKFILE, pkgPath, wantedLockfile, opts)
 }
@@ -35,7 +35,7 @@ export async function writeCurrentLockfile (
   currentLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
-  },
+  }
 ) {
   await fs.mkdir(virtualStoreDir, { recursive: true })
   return writeLockfile('lock.yaml', virtualStoreDir, currentLockfile, opts)
@@ -47,7 +47,7 @@ function writeLockfile (
   wantedLockfile: Lockfile,
   opts?: {
     forceSharedFormat?: boolean,
-  },
+  }
 ) {
   const lockfilePath = path.join(pkgPath, lockfileFilename)
 
@@ -112,7 +112,7 @@ export default function writeLockfiles (
     wantedLockfileDir: string,
     currentLockfile: Lockfile,
     currentLockfileDir: string,
-  },
+  }
 ) {
   const wantedLockfilePath = path.join(opts.wantedLockfileDir, WANTED_LOCKFILE)
   const currentLockfilePath = path.join(opts.currentLockfileDir, 'lock.yaml')

@@ -11,7 +11,7 @@ try {
   pkgJson = {
     ...defaultManifest,
     ...loadJsonFile.sync<DependencyManifest>(
-      path.join(path.dirname(require.main!.filename), '../package.json'),
+      path.join(path.dirname(require.main!.filename), '../package.json')
     ),
   }
 } catch (err) {

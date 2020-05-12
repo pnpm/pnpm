@@ -12,7 +12,7 @@ export default async function (
     depth: number,
     long: boolean,
     search: boolean,
-  },
+  }
 ) {
   const jsonArr = await Promise.all(pkgs.map(async (pkg) => {
     const jsonObj = {
@@ -36,7 +36,7 @@ export async function toJsonResult (
   entryNodes: PackageNode[],
   opts: {
     long: boolean,
-  },
+  }
 ): Promise<{}> {
   const dependencies = {}
   await Promise.all(
@@ -52,7 +52,7 @@ export async function toJsonResult (
       const alias = dep.alias
       delete dep.alias
       dependencies[alias] = dep
-    }),
+    })
   )
   return dependencies
 }

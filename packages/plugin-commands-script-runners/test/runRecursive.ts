@@ -295,7 +295,7 @@ test('`pnpm recursive run` succeeds when run against a subset of packages and no
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],
-    { workspaceDir: process.cwd() },
+    { workspaceDir: process.cwd() }
   )
   await run.handler({
     ...DEFAULT_OPTS,
@@ -356,7 +356,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async (t) =
     const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
       allProjects,
       [{ namePattern: 'project-1' }],
-      { workspaceDir: process.cwd() },
+      { workspaceDir: process.cwd() }
     )
     const output = await run.handler({
       ...DEFAULT_OPTS,
@@ -374,7 +374,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async (t) =
 
       Commands available via "pnpm run":
         foo
-          echo hi`,
+          echo hi`
     )
   }
   t.comment('throws an error if several projects are selected')
@@ -382,7 +382,7 @@ test('"pnpm run --filter <pkg>" without specifying the script name', async (t) =
     const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
       allProjects,
       [{ includeDependents: true, namePattern: 'project-1' }],
-      { workspaceDir: process.cwd() },
+      { workspaceDir: process.cwd() }
     )
 
     let err!: PnpmError
@@ -526,7 +526,7 @@ test('pnpm recursive run with filtering', async (t) => {
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],
-    { workspaceDir: process.cwd() },
+    { workspaceDir: process.cwd() }
   )
   await execa('pnpm', [
     'install',

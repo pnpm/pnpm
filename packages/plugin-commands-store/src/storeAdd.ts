@@ -14,7 +14,7 @@ export default async function (
     reporter?: ReporterFunction,
     storeController: StoreController,
     tag?: string,
-  },
+  }
 ) {
   const reporter = opts?.reporter
   if (reporter) {

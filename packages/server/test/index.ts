@@ -58,7 +58,7 @@ test('server', async t => {
       projectDir,
       registry,
       sideEffectsCache: false,
-    },
+    }
   )
 
   t.equal((await response.bundledManifest!()).name, 'is-positive', 'responded with bundledManifest')
@@ -123,7 +123,7 @@ test('fetchPackage', async t => {
     {
       dir: path.join(storeDir, 'registry.npmjs.org/is-positive@1.0.0/node_modules/is-positive'),
       isBuilt: false,
-    },
+    }
   )
 
   await server.close()
@@ -153,7 +153,7 @@ test('server errors should arrive to the client', async t => {
         projectDir,
         registry,
         sideEffectsCache: false,
-      },
+      }
     )
   } catch (e) {
     caught = true

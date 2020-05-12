@@ -48,7 +48,7 @@ function createAutoImporter () {
       filesMap: Record<string, string>,
       force: boolean,
       fromStore: boolean,
-    },
+    }
   ) {
     try {
       await clonePkg(to, opts)
@@ -77,7 +77,7 @@ async function clonePkg (
     filesMap: Record<string, string>,
     fromStore: boolean,
     force: boolean,
-  },
+  }
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
@@ -97,7 +97,7 @@ async function hardlinkPkg (
     filesMap: Record<string, string>,
     force: boolean,
     fromStore: boolean,
-  },
+  }
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 
@@ -110,7 +110,7 @@ async function hardlinkPkg (
 async function pkgLinkedToStore (
   pkgJsonPath: string,
   pkgJsonPathInStore: string,
-  to: string,
+  to: string
 ) {
   if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
   globalInfo(`Relinking ${to} from the store`)
@@ -128,7 +128,7 @@ export async function copyPkg (
     filesMap: Record<string, string>,
     fromStore: boolean,
     force: boolean,
-  },
+  }
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
 

@@ -105,7 +105,7 @@ test('recursive update prod dependencies only', async (t) => {
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
   t.deepEqual(
     Object.keys(lockfile.packages || {}),
-    ['/bar/100.0.0', '/foo/100.1.0'],
+    ['/bar/100.0.0', '/foo/100.1.0']
   )
   t.end()
 })

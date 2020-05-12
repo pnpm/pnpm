@@ -256,7 +256,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
         rootDir: lockfileDir,
       },
     ],
-    { lockfileDir },
+    { lockfileDir }
   )
 
   await headless(await testDefaults({
@@ -264,7 +264,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
     independentLeaves: true,
     lockfileDir: lockfileDir,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
   }))
 
@@ -300,7 +300,7 @@ test('installing with independent-leaves when an optional subdep is skipped', as
       '/dep-of-optional-pkg/1.0.0',
       '/not-compatible-with-any-os/1.0.0',
     ],
-    'optional subdeps skipped',
+    'optional subdeps skipped'
   )
 
   const project = assertProject(t, prefix)
@@ -337,7 +337,7 @@ test('run pre/postinstall scripts', async (t) => {
   t.ok(modulesYaml)
   t.deepEqual(
     modulesYaml!.pendingBuilds,
-    ['.', '/pre-and-postinstall-scripts-example/1.0.0'],
+    ['.', '/pre-and-postinstall-scripts-example/1.0.0']
   )
 
   t.end()
@@ -751,7 +751,7 @@ test.skip('using side effects cache and hoistPattern=*', async (t) => {
         rootDir: lockfileDir,
       },
     ],
-    { lockfileDir },
+    { lockfileDir }
   )
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -760,7 +760,7 @@ test.skip('using side effects cache and hoistPattern=*', async (t) => {
     hoistPattern: '*',
     lockfileDir,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -796,11 +796,11 @@ test('installing in a workspace', async (t) => {
         rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
-    { lockfileDir: workspaceFixture },
+    { lockfileDir: workspaceFixture }
   )
 
   projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
   )
 
   await headless(await testDefaults({
@@ -839,14 +839,14 @@ test('independent-leaves: installing in a workspace', async (t) => {
         rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
-    { lockfileDir: workspaceFixture },
+    { lockfileDir: workspaceFixture }
   )
 
   await headless(await testDefaults({
     independentLeaves: true,
     lockfileDir: workspaceFixture,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
   }))
 

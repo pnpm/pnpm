@@ -79,7 +79,7 @@ export default async function recursive (
     useBetaCli?: boolean,
     selectedProjectsGraph: ProjectsGraph,
   } & Required<Pick<Config, 'workspaceDir'>>,
-  cmdFullName: 'install' | 'add' | 'remove' | 'unlink' | 'update',
+  cmdFullName: 'install' | 'add' | 'remove' | 'unlink' | 'update'
 ): Promise<boolean | string> {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
@@ -143,7 +143,7 @@ export default async function recursive (
             manifest: manifestsByPath[prefix].manifest,
             rootDir: prefix,
           })
-        }),
+        })
       )
     }))
     return importers
@@ -249,7 +249,7 @@ export default async function recursive (
     if (opts.save !== false) {
       await Promise.all(
         mutatedPkgs
-          .map(({ manifest }, index) => writeProjectManifests[index](manifest)),
+          .map(({ manifest }, index) => writeProjectManifests[index](manifest))
       )
     }
     return true
@@ -327,7 +327,7 @@ export default async function recursive (
               ...localConfig,
             },
             storeController: store.ctrl,
-          },
+          }
         )
         if (opts.save !== false) {
           await writeProjectManifest(newManifest)
@@ -348,7 +348,7 @@ export default async function recursive (
         err['prefix'] = rootDir // tslint:disable-line:no-string-literal
         throw err
       }
-    }),
+    })
   ))
 
   if (
@@ -384,7 +384,7 @@ async function unlink (manifest: ProjectManifest, opts: any) { // tslint:disable
         rootDir: opts.dir,
       },
     ],
-    opts,
+    opts
   )
 }
 
@@ -398,7 +398,7 @@ async function unlinkPkgs (dependencyNames: string[], manifest: ProjectManifest,
         rootDir: opts.dir,
       },
     ],
-    opts,
+    opts
   )
 }
 
@@ -423,7 +423,7 @@ async function readLocalConfig (prefix: string) {
 export function matchDependencies (
   match: (input: string) => string | null,
   manifest: ProjectManifest,
-  include: IncludedDependencies,
+  include: IncludedDependencies
 ) {
   const deps = Object.keys(filterDependenciesByType(manifest, include))
   const matchedDeps = []

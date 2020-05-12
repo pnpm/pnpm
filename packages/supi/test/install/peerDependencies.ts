@@ -50,7 +50,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   t.equal(
     lockfile.packages['/using-ajv/1.0.0'].dependencies!['ajv-keywords'],
     '1.5.0_ajv@4.10.4',
-    `${WANTED_LOCKFILE}: correct reference is created to ajv-keywords from using-ajv`,
+    `${WANTED_LOCKFILE}: correct reference is created to ajv-keywords from using-ajv`
   )
   // covers https://github.com/pnpm/pnpm/issues/1150
   t.ok(lockfile.packages['/ajv-keywords/1.5.0_ajv@4.10.4'])
@@ -526,7 +526,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     ],
     await testDefaults({
       lockfileDir,
-    }),
+    })
   )
 
   {
@@ -724,7 +724,7 @@ test('peer dependency is saved', async (t) => {
     await testDefaults({
       peer: true,
       targetDependenciesField: 'devDependencies',
-    }),
+    })
   )
 
   t.deepEqual(
@@ -732,7 +732,7 @@ test('peer dependency is saved', async (t) => {
     {
       devDependencies: { 'is-positive': '1.0.0' },
       peerDependencies: { 'is-positive': '1.0.0' },
-    },
+    }
   )
 
   const [mutatedImporter] = await mutateModules([
@@ -749,7 +749,7 @@ test('peer dependency is saved', async (t) => {
     {
       devDependencies: {},
       peerDependencies: {},
-    },
+    }
   )
 })
 

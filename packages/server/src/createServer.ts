@@ -33,7 +33,7 @@ export default function (
     hostname?: string,
     ignoreStopRequests?: boolean,
     ignoreUploadRequests?: boolean,
-  },
+  }
 ) {
   const rawManifestPromises = {}
   const filesPromises = {}

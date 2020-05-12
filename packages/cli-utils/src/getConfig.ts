@@ -7,7 +7,7 @@ export default async function (
     excludeReporter: boolean,
     rcOptionsTypes: Record<string, unknown>,
     workspaceDir: string | undefined,
-  },
+  }
 ) {
   const { config, warnings } = await getConfig({
     cliOptions,

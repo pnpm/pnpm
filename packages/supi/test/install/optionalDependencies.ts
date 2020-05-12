@@ -119,7 +119,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true }),
+    await testDefaults({ frozenLockfile: true })
   )
 
   await project.hasNot('not-compatible-with-any-os')
@@ -237,7 +237,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ force: true, frozenLockfile: true }),
+    await testDefaults({ force: true, frozenLockfile: true })
   )
 
   t.ok(await exists(`node_modules/.pnpm/not-compatible-with-any-os@1.0.0`), 'optional dependency linked after forced headless install')
@@ -272,7 +272,7 @@ test('only that package is skipped which is an optional dependency only and not 
     ],
     await testDefaults({
       frozenLockfile: true,
-    }),
+    })
   )
 
   {
@@ -299,7 +299,7 @@ test('not installing optional dependencies when optional is false', async (t: ta
         devDependencies: true,
         optionalDependencies: false,
       },
-    }),
+    })
   )
 
   await project.hasNot('is-positive')
@@ -402,7 +402,7 @@ test('skip optional dependency that does not support the current OS, when doing 
     await testDefaults({
       lockfileDir: process.cwd(),
       lockfileOnly: true,
-    }),
+    })
   )
 
   await mutateModules(
@@ -418,7 +418,7 @@ test('skip optional dependency that does not support the current OS, when doing 
       frozenLockfile: false,
       lockfileDir: process.cwd(),
       preferFrozenLockfile: false,
-    }),
+    })
   )
 
   const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))

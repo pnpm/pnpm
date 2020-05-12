@@ -161,7 +161,7 @@ test('pnpm recursive test with filtering', async (t) => {
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
     allProjects,
     [{ namePattern: 'project-1' }],
-    { workspaceDir: process.cwd() },
+    { workspaceDir: process.cwd() }
   )
   await execa('pnpm', [
     'install',

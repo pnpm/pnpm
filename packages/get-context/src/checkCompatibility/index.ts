@@ -11,7 +11,7 @@ export default function checkCompatibility (
     storeDir: string,
     modulesDir: string,
     virtualStoreDir: string,
-  },
+  }
 ) {
   // Important: comparing paths with path.relative()
   // is the only way to compare paths correctly on Windows

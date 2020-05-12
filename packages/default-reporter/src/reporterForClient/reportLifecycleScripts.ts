@@ -21,14 +21,14 @@ export default (
     appendOnly?: boolean,
     cwd: string,
     width: number,
-  },
+  }
 ) => {
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
     return most.of(
       log$.lifecycle
-        .map((log: LifecycleLog) => ({ msg: formatLifecycleHideOverflowForAppendOnly(opts.cwd, log) })),
+        .map((log: LifecycleLog) => ({ msg: formatLifecycleHideOverflowForAppendOnly(opts.cwd, log) }))
     )
   }
   const lifecycleMessages: {
@@ -91,7 +91,7 @@ function renderCollapsedScriptOutput (
     cwd: string,
     exit: boolean,
     maxWidth: number,
-  },
+  }
 ) {
   messageCache['label'] = messageCache['label'] ||
     `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
@@ -122,7 +122,7 @@ function renderScriptOutput (
     cwd: string,
     exit: boolean,
     maxWidth: number,
-  },
+  }
 ) {
   updateMessageCache(log, messageCache, opts)
   if (opts.exit && log['exitCode'] !== 0) {
@@ -160,7 +160,7 @@ function updateMessageCache (
     cwd: string,
     exit: boolean,
     maxWidth: number,
-  },
+  }
 ) {
   if (log['script']) {
     const prefix = formatLifecycleScriptPrefix(opts.cwd, log.wd, log.stage)
@@ -191,7 +191,7 @@ const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
 function formatLifecycleHideOverflowForAppendOnly (
   cwd: string,
-  logObj: LifecycleLog,
+  logObj: LifecycleLog
 ) {
   const prefix = formatLifecycleScriptPrefix(cwd, logObj.wd, logObj.stage)
   if (typeof logObj['exitCode'] === 'number') {

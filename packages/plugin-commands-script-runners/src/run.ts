@@ -90,7 +90,7 @@ export type RunOpts = Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGr
 
 export async function handler (
   opts: RunOpts,
-  params: string[],
+  params: string[]
 ) {
   let dir: string
   const [scriptName, ...passedThruArgs] = params

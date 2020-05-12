@@ -55,7 +55,7 @@ export default async function dependenciesHierarchy (
     registries?: Registries,
     search?: SearchFunction,
     lockfileDir: string,
-  },
+  }
 ): Promise<{ [projectDir: string]: DependenciesHierarchy }> {
   if (!maybeOpts || !maybeOpts.lockfileDir) {
     throw new TypeError('opts.lockfileDir is required')
@@ -112,7 +112,7 @@ async function dependenciesHierarchyForPackage (
     search?: SearchFunction,
     skipped: Set<string>,
     lockfileDir: string,
-  },
+  }
 ) {
   const importerId = getLockfileImporterId(opts.lockfileDir, projectPath)
 
@@ -207,7 +207,7 @@ async function dependenciesHierarchyForPackage (
       }
       result.unsavedDependencies = result.unsavedDependencies || []
       result.unsavedDependencies.push(newEntry)
-    }),
+    })
   )
 
   return result
@@ -238,7 +238,7 @@ type DependencyInfo = { circular?: true, dependencies: PackageNode[] }
 function getTree (
   opts: GetTreeOpts,
   keypath: string[],
-  parentId: string,
+  parentId: string
 ): PackageNode[] {
   const dependenciesCache = new Map<string, PackageNode[]>()
 
@@ -249,7 +249,7 @@ function getTreeHelper (
   dependenciesCache: Map<string, PackageNode[]>,
   opts: GetTreeOpts,
   keypath: string[],
-  parentId: string,
+  parentId: string
 ): DependencyInfo {
   const result: DependencyInfo = { dependencies: [] }
   if (opts.currentDepth > opts.maxDepth || !opts.currentPackages || !opts.currentPackages[parentId]) return result
@@ -344,7 +344,7 @@ function getPkgInfo (
     registries: Registries,
     skipped: Set<string>,
     wantedPackages: PackageSnapshots,
-  },
+  }
 ) {
   let name!: string
   let version!: string

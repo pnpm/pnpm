@@ -38,7 +38,7 @@ test('getLastOption()', t => {
       prev: 'f',
       words: 4,
     }),
-    '--resolution-strategy',
+    '--resolution-strategy'
   )
   t.equal(
     getLastOption({
@@ -50,7 +50,7 @@ test('getLastOption()', t => {
       prev: '--resolution-strategy',
       words: 3,
     }),
-    '--resolution-strategy',
+    '--resolution-strategy'
   )
   t.end()
 })

@@ -20,7 +20,7 @@ Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>
 
 export default async (
   params: string[],
-  opts: RecursiveRunOpts,
+  opts: RecursiveRunOpts
 ) => {
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
@@ -86,7 +86,7 @@ export default async (
           // tslint:enable:no-string-literal
           throw err
         }
-      },
+      }
     )))
   }
 

@@ -396,7 +396,7 @@ test('fetchPackageToStore()', async (t) => {
       scripts: { test: 'node test.js' },
       version: '1.0.0',
     },
-    'full manifest returned',
+    'full manifest returned'
   )
 
   t.end()
@@ -448,7 +448,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
 
     t.deepEqual(Object.keys(files.filesIndex).sort(),
       ['package.json', 'index.js', 'license', 'readme.md'].sort(),
-      'returned info about files after fetch completed',
+      'returned info about files after fetch completed'
     )
     t.notOk(files.fromStore)
 
@@ -463,7 +463,7 @@ test('fetchPackageToStore() concurrency check', async (t) => {
 
     t.deepEqual(Object.keys(files.filesIndex).sort(),
       ['package.json', 'index.js', 'license', 'readme.md'].sort(),
-      'returned info about files after fetch completed',
+      'returned info about files after fetch completed'
     )
     t.notOk(files.fromStore)
 
@@ -530,7 +530,7 @@ test('fetchPackageToStore() does not cache errors', async (t) => {
   const files = await fetchResult.files()
   t.deepEqual(Object.keys(files.filesIndex).sort(),
     [ 'package.json', 'index.js', 'license', 'readme.md' ].sort(),
-    'returned info about files after fetch completed',
+    'returned info about files after fetch completed'
   )
   t.notOk(files.fromStore)
 
@@ -588,7 +588,7 @@ test('always return a package manifest in the response', async t => {
         scripts: { test: 'node test.js' },
         version: '1.0.0',
       },
-      'response has manifest',
+      'response has manifest'
     )
   }
 

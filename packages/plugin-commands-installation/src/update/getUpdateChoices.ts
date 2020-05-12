@@ -16,7 +16,7 @@ export default function (outdatedPkgsOfProjects: OutdatedPackage[]) {
       rows: outdatedPkgsRows(Object.values(outdatedPkgs)),
     }))
   const renderedTable = alignColumns(
-    R.unnest(rowsGroupedByPkgs.map(({ rows }) => rows)),
+    R.unnest(rowsGroupedByPkgs.map(({ rows }) => rows))
   )
 
   const choices = []
@@ -90,6 +90,6 @@ function alignColumns (rows: string[][]) {
         1: { alignment: 'right' },
       },
       drawHorizontalLine: () => false,
-    },
+    }
   ).split('\n')
 }

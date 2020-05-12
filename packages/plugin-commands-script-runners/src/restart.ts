@@ -42,7 +42,7 @@ export function help () {
 
 export async function handler (
   opts: RunOpts,
-  params: string[],
+  params: string[]
 ) {
   await stop(opts, params)
   await run(opts, ['restart', ...params])

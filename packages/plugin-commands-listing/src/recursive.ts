@@ -12,7 +12,7 @@ export default async (
     long?: boolean,
     parseable?: boolean,
     lockfileDir?: string,
-  },
+  }
 ) => {
   const depth = opts.depth ?? 0
   if (opts.lockfileDir) {

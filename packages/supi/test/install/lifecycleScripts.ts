@@ -23,7 +23,7 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({},
     ['pre-and-postinstall-scripts-example'],
-    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }),
+    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' })
   )
 
   {
@@ -299,7 +299,7 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true }),
+    await testDefaults({ frozenLockfile: true })
   )
 
   await project.isExecutable('.bin/cmd1')
@@ -326,7 +326,7 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true, hoistPattern: '*' }),
+    await testDefaults({ frozenLockfile: true, hoistPattern: '*' })
   )
 
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
@@ -344,7 +344,7 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
       'peer-with-bin',
       'pre-and-postinstall-scripts-example',
     ],
-    await testDefaults({ fastUnpack: false, ignoreScripts: true }),
+    await testDefaults({ fastUnpack: false, ignoreScripts: true })
   )
 
   await project.isExecutable('.bin/peer-with-bin')
@@ -365,7 +365,7 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true, ignoreScripts: true }),
+    await testDefaults({ frozenLockfile: true, ignoreScripts: true })
   )
 
   await project.isExecutable('.bin/peer-with-bin')
@@ -387,7 +387,7 @@ test('dependency should not be added to current lockfile if it was not built suc
     await testDefaults({
       ignoreScripts: true,
       lockfileOnly: true,
-    }),
+    })
   )
 
   let err
@@ -401,7 +401,7 @@ test('dependency should not be added to current lockfile if it was not built suc
           rootDir: process.cwd(),
         },
       ],
-      await testDefaults({ frozenLockfile: true }),
+      await testDefaults({ frozenLockfile: true })
     )
   } catch (_err) {
     err = _err
@@ -418,7 +418,7 @@ test('scripts have access to unlisted bins when hoisting is used', async (t: tap
   await addDependenciesToPackage(
     {},
     [ 'pkg-that-calls-unlisted-dep-in-hooks' ],
-    await testDefaults({ fastUnpack: false, hoistPattern: '*' }),
+    await testDefaults({ fastUnpack: false, hoistPattern: '*' })
   )
 
   t.deepEqual(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json'), ['Hello world!'])

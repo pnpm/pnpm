@@ -52,7 +52,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
           'is-subdir': '^1.0.0',
         },
       },
-    },
+    }
   )
 
   process.chdir('project')
@@ -68,7 +68,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
         rootDir: process.cwd(),
       },
     ],
-    opts,
+    opts
   )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
@@ -102,7 +102,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
         rootDir: process.cwd(),
       },
     ],
-    opts,
+    opts
   )
 
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
@@ -139,7 +139,7 @@ test(`don't update package when unlinking. Initial link is done on a package w/o
         rootDir: process.cwd(),
       },
     ],
-    opts,
+    opts
   )
 
   t.equal(project.requireModule('foo/package.json').version, '100.1.0', 'latest foo is installed')
@@ -184,7 +184,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
         rootDir: process.cwd(),
       },
     ],
-    opts,
+    opts
   )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
@@ -228,7 +228,7 @@ test('unlink all packages', async (t: tape.Test) => {
         rootDir: path.resolve('project'),
       },
     ],
-    opts,
+    opts
   )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
@@ -249,7 +249,7 @@ test("don't warn about scoped packages when running unlink w/o params", async (t
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ reporter }),
+    await testDefaults({ reporter })
   )
 
   t.notOk(reporter.calledWithMatch({
@@ -274,7 +274,7 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ reporter }),
+    await testDefaults({ reporter })
   )
 
   t.ok(reporter.calledWithMatch({
@@ -299,7 +299,7 @@ test("don't unlink package that is not a link when independent-leaves = true", a
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ independentLeaves: true, reporter }),
+    await testDefaults({ independentLeaves: true, reporter })
   )
 
   t.ok(reporter.calledWithMatch({

@@ -642,7 +642,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   const manifest = await addDependenciesToPackage(
     {},
     ['inflight@1.0.6'],
-    await testDefaults({ targetDependenciesField: 'devDependencies' }),
+    await testDefaults({ targetDependenciesField: 'devDependencies' })
   )
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
@@ -650,7 +650,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   t.deepEqual(
     R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined'),
     [],
-    `there are 0 packages with dev property in ${WANTED_LOCKFILE}`,
+    `there are 0 packages with dev property in ${WANTED_LOCKFILE}`
   )
 })
 
@@ -847,7 +847,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
       '@zkochan/foo@1.0.0',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ],
-    await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir }),
+    await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir })
   )
 
   t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
@@ -984,7 +984,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     await testDefaults({
       dir: path.resolve('pkg2'),
       lockfileDir: process.cwd(),
-    }),
+    })
   )
 
   const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -1006,7 +1006,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
         rootDir: path.resolve('pkg2'),
       },
     ],
-    await testDefaults(),
+    await testDefaults()
   )
 
   await projects['pkg1'].has('is-negative')
@@ -1084,7 +1084,7 @@ test('lockfile is not getting broken if the used registry changes', async (t: ta
     [
       '/is-negative/1.0.1',
       '/is-positive/1.0.0',
-    ],
+    ]
   )
 })
 

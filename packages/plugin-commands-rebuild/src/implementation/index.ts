@@ -41,7 +41,7 @@ function findPackages (
   searched: PackageSelector[],
   opts: {
     prefix: string,
-  },
+  }
 ): string[] {
   return Object.keys(packages)
     .filter((relativeDepPath) => {
@@ -62,7 +62,7 @@ function findPackages (
 // TODO: move this logic to separate package as this is also used in dependencies-hierarchy
 function matches (
   searched: PackageSelector[],
-  manifest: {name: string, version?: string},
+  manifest: {name: string, version?: string}
 ) {
   return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
@@ -81,7 +81,7 @@ type PackageSelector = string | {
 export async function rebuildPkgs (
   projects: Array<{ manifest: ProjectManifest, rootDir: string }>,
   pkgSpecs: string[],
-  maybeOpts: RebuildOptions,
+  maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {
@@ -120,13 +120,13 @@ export async function rebuildPkgs (
       pkgsToRebuild: new Set(pkgs),
       ...ctx,
     },
-    opts,
+    opts
   )
 }
 
 export async function rebuild (
   projects: Array<{ buildIndex: number, manifest: ProjectManifest, rootDir: string }>,
-  maybeOpts: RebuildOptions,
+  maybeOpts: RebuildOptions
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {
@@ -148,7 +148,7 @@ export async function rebuild (
       pkgsToRebuild: new Set(idsToRebuild),
       ...ctx,
     },
-    opts,
+    opts
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
@@ -162,7 +162,7 @@ export async function rebuild (
     ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
     ctx.projects,
     opts.childConcurrency || 5,
-    scriptsOpts,
+    scriptsOpts
   )
   for (const { id, manifest } of ctx.projects) {
     if (manifest?.scripts && (!opts.pending || ctx.pendingBuilds.includes(id))) {
@@ -192,7 +192,7 @@ function getSubgraphToBuild (
   nodesToBuildAndTransitive: Set<string>,
   opts: {
     pkgsToRebuild: Set<string>,
-  },
+  }
 ) {
   let currentShouldBeBuilt = false
   for (const { relDepPath, next } of step.dependencies) {
@@ -227,7 +227,7 @@ async function _rebuild (
     independentLeaves: boolean,
     extraBinPaths: string[],
   },
-  opts: StrictRebuildOptions,
+  opts: StrictRebuildOptions
 ) {
   const pkgsThatWereRebuilt = new Set()
   const graph = new Map()
@@ -244,10 +244,10 @@ async function _rebuild (
           devDependencies: opts.development,
           optionalDependencies: opts.optional,
         },
-      },
+      }
     ).step,
     nodesToBuildAndTransitive,
-    { pkgsToRebuild: ctx.pkgsToRebuild },
+    { pkgsToRebuild: ctx.pkgsToRebuild }
   )
   const nodesToBuildAndTransitiveArray = Array.from(nodesToBuildAndTransitive)
 
@@ -314,7 +314,7 @@ async function _rebuild (
         }
         throw err
       }
-    },
+    }
   ))
 
   await runGroups(opts.childConcurrency || 5, groups)
@@ -331,7 +331,7 @@ async function _rebuild (
         const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
         const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
         return linkBins(modules, binPath, { warn })
-      })),
+      }))
   )
   await Promise.all(ctx.projects.map(({ rootDir }) => limitLinking(() => {
     const modules = path.join(rootDir, 'node_modules')

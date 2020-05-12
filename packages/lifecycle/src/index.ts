@@ -17,7 +17,7 @@ export async function runPostinstallHooks (
     rawConfig: object,
     rootModulesDir: string,
     unsafePerm: boolean,
-  },
+  }
 ): Promise<boolean> {
   const pkg = await readPackageJsonFromDir(opts.pkgRoot)
   const scripts = pkg?.scripts ?? {}
@@ -49,7 +49,7 @@ export async function runPostinstallHooks (
  */
 async function checkBindingGyp (
   root: string,
-  scripts: {},
+  scripts: {}
 ) {
   if (await exists(path.join(root, 'binding.gyp'))) {
     scripts['install'] = 'node-gyp rebuild' // tslint:disable-line:no-string-literal

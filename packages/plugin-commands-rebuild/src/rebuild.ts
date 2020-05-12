@@ -84,7 +84,7 @@ export async function handler (
       reporter?: (logObj: LogBase) => void,
       pending: boolean,
     },
-  params: string[],
+  params: string[]
 ) {
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
     await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! })
@@ -107,7 +107,7 @@ export async function handler (
           rootDir: rebuildOpts.dir,
         },
       ],
-      rebuildOpts,
+      rebuildOpts
     )
   }
   await rebuildPkgs(
@@ -118,6 +118,6 @@ export async function handler (
       },
     ],
     params,
-    rebuildOpts,
+    rebuildOpts
   )
 }

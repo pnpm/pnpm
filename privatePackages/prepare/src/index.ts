@@ -35,7 +35,7 @@ export function preparePackages (
   opts?: {
     manifestFormat?: ManifestFormat,
     tempDir?: string,
-  },
+  }
 ) {
   const pkgTmpPath = opts?.tempDir ?? path.join(tempDir(t), 'project')
   const manifestFormat = opts?.manifestFormat
@@ -65,7 +65,7 @@ export default function prepare (
   opts?: {
     manifestFormat?: ManifestFormat,
     tempDir?: string,
-  },
+  }
 ) {
   const dir = opts?.tempDir ?? path.join(tempDir(test), 'project')
 

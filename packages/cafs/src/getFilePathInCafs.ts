@@ -9,7 +9,7 @@ export type FileType = 'exec' | 'nonexec' | 'index'
 export function getFilePathByModeInCafs (
   cafsDir: string,
   integrity: string | Hash,
-  mode: number,
+  mode: number
 ) {
   const fileType = modeIsExecutable(mode) ? 'exec' : 'nonexec'
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
@@ -18,14 +18,14 @@ export function getFilePathByModeInCafs (
 export default function getFilePathInCafs (
   cafsDir: string,
   integrity: string | Hash,
-  fileType: FileType,
+  fileType: FileType
 ) {
   return path.join(cafsDir, contentPathFromIntegrity(integrity, fileType))
 }
 
 function contentPathFromIntegrity (
   integrity: string | Hash,
-  fileType: FileType,
+  fileType: FileType
 ) {
   const sri = ssri.parse(integrity, { single: true })
   return contentPathFromHex(fileType, sri.hexDigest())

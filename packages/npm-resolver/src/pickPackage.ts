@@ -58,7 +58,7 @@ export default async (
     preferOffline?: boolean,
   },
   spec: RegistryPackageSpec,
-  opts: PickPackageOptions,
+  opts: PickPackageOptions
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
 

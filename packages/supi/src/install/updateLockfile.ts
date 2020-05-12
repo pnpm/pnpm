@@ -22,7 +22,7 @@ export default function (
   depGraph: DependenciesGraph,
   lockfile: Lockfile,
   prefix: string,
-  registries: Registries,
+  registries: Registries
 ): {
   newLockfile: Lockfile,
   pendingRequiresBuilds: string[],
@@ -33,7 +33,7 @@ export default function (
     const depNode = depGraph[depPath]
     const [updatedOptionalDeps, updatedDeps] = R.partition(
       (child) => depNode.optionalDependencies.has(depGraph[child.depPath].name),
-      Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] })),
+      Object.keys(depNode.children).map((alias) => ({ alias, depPath: depNode.children[alias] }))
     )
     lockfile.packages[depPath] = toLockfileDependency(pendingRequiresBuilds, depNode.additionalInfo, {
       depGraph,
@@ -75,26 +75,26 @@ function toLockfileDependency (
     updatedOptionalDeps: Array<{alias: string, depPath: string}>,
     depGraph: DependenciesGraph,
     prevSnapshot?: PackageSnapshot,
-  },
+  }
 ): PackageSnapshot {
   const depNode = opts.depGraph[opts.depPath]
   const lockfileResolution = toLockfileResolution(
     { name: depNode.name, version: depNode.version },
     opts.depPath,
     depNode.resolution,
-    opts.registry,
+    opts.registry
   )
   const newResolvedDeps = updateResolvedDeps(
     opts.prevSnapshot?.dependencies ?? {},
     opts.updatedDeps,
     opts.registries,
-    opts.depGraph,
+    opts.depGraph
   )
   const newResolvedOptionalDeps = updateResolvedDeps(
     opts.prevSnapshot?.optionalDependencies ?? {},
     opts.updatedOptionalDeps,
     opts.registries,
-    opts.depGraph,
+    opts.depGraph
   )
   const result = {
     resolution: lockfileResolution,
@@ -191,7 +191,7 @@ function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{alias: string, depPath: string}>,
   registries: Registries,
-  depGraph: DependenciesGraph,
+  depGraph: DependenciesGraph
 ) {
   const newResolvedDeps = R.fromPairs<string>(
     updatedDeps
@@ -206,11 +206,11 @@ function updateResolvedDeps (
             resolution: depNode.resolution,
           }),
         ]
-      }),
+      })
   )
   return R.merge(
     prevResolvedDeps,
-    newResolvedDeps,
+    newResolvedDeps
   )
 }
 
@@ -221,7 +221,7 @@ function toLockfileResolution (
   },
   depPath: string,
   resolution: Resolution,
-  registry: string,
+  registry: string
 ): LockfileResolution {
   // tslint:disable:no-string-literal
   if (dp.isAbsolute(depPath) || resolution.type !== undefined || !resolution['integrity']) {

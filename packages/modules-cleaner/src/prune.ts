@@ -46,7 +46,7 @@ export default async function prune (
     virtualStoreDir: string,
     lockfileDir: string,
     storeController: StoreController,
-  },
+  }
 ): Promise<Set<string>> {
   const wantedLockfile = filterLockfile(opts.wantedLockfile, {
     include: opts.include,
@@ -61,7 +61,7 @@ export default async function prune (
     const allCurrentPackages = new Set(
       (pruneDirectDependencies || removePackages?.length)
         ? (await readModulesDir(modulesDir) || [])
-        : [],
+        : []
     )
     const depsToRemove = new Set([
       ...(removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
@@ -158,13 +158,13 @@ export default async function prune (
 
 function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {
   return R.mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] || {}),
+    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] || {})
   )
 }
 
 function getPkgsDepPaths (
   registries: Registries,
-  packages: PackageSnapshots,
+  packages: PackageSnapshots
 ): {[relDepPath: string]: string} {
   const pkgIdsByDepPath = {}
   for (const relDepPath of Object.keys(packages)) {
@@ -178,7 +178,7 @@ function getPkgsDepPathsOwnedOnlyByImporters (
   registries: Registries,
   lockfile: Lockfile,
   include: { [dependenciesField in DependenciesField]: boolean },
-  skipped: Set<string>,
+  skipped: Set<string>
 ) {
   const selected = filterLockfileByImporters(lockfile,
     importerIds,

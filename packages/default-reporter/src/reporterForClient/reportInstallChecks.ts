@@ -7,7 +7,7 @@ export default (
   installCheck$: most.Stream<InstallCheckLog>,
   opts: {
     cwd: string,
-  },
+  }
 ) => {
   return installCheck$
     .map(formatInstallCheck.bind(null, opts.cwd))
@@ -21,7 +21,7 @@ function formatInstallCheck (
   logObj: InstallCheckLog,
   opts?: {
     zoomOutCurrent: boolean,
-  },
+  }
 ) {
   const zoomOutCurrent = opts?.zoomOutCurrent ?? false
   switch (logObj.code) {
@@ -30,7 +30,7 @@ function formatInstallCheck (
         currentPrefix,
         logObj['prefix'],
         formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
-        { zoomOutCurrent },
+        { zoomOutCurrent }
       )
     case 'ENOTSUP':
       return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), { zoomOutCurrent })

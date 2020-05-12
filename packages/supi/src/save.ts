@@ -18,7 +18,7 @@ export default async function save (
   packageSpecs: Array<PackageSpecObject>,
   opts?: {
     dryRun?: boolean,
-  },
+  }
 ): Promise<ProjectManifest> {
   packageSpecs.forEach((packageSpec) => {
     if (packageSpec.saveType) {

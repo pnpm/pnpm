@@ -30,7 +30,7 @@ export default function (
       randomize?: boolean,
     },
     userAgent?: string,
-  },
+  }
 ): FetchFromRegistry {
   return async (url, opts): Promise<Response> => {
     const headers = {
@@ -79,7 +79,7 @@ function getHeaders (
     auth?: string,
     fullMetadata?: boolean,
     userAgent?: string,
-  },
+  }
 ) {
   const headers = {
     accept: opts.fullMetadata === true ? JSON_DOC : CORGI_DOC,

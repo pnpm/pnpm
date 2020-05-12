@@ -25,7 +25,7 @@ export default async function binify (manifest: DependencyManifest, pkgPath: str
         name: file,
         path: path.join(binDir, file),
       })),
-      async (cmd: Command) => (await statP(cmd.path)).isFile(),
+      async (cmd: Command) => (await statP(cmd.path)).isFile()
     )
   }
   return []

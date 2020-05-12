@@ -46,7 +46,7 @@ Partial<Pick<Config,
 }
 
 export default async function (
-  opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>,
+  opts: PublishRecursiveOpts & Required<Pick<Config, 'selectedProjectsGraph'>>
 ) {
   const pkgs = Object.values(opts.selectedProjectsGraph).map((wsPkg) => wsPkg.package)
   const storeDir = await storePath(opts.workspaceDir, opts.storeDir)
@@ -113,7 +113,7 @@ async function isAlreadyPublished (
     resolve: ResolveFunction,
   },
   pkgName: string,
-  pkgVersion: string,
+  pkgVersion: string
 ) {
   try {
     await opts.resolve({ alias: pkgName, pref: pkgVersion }, {

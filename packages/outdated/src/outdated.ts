@@ -40,7 +40,7 @@ export default async function outdated (
     match?: (dependencyName: string) => boolean,
     prefix: string,
     wantedLockfile: Lockfile | null,
-  },
+  }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
   if (!opts.wantedLockfile) {
@@ -112,7 +112,7 @@ export default async function outdated (
           const name = dp.parse(relativeDepPath).name ?? packageName
           const latestManifest = await opts.getLatestManifest(
             name,
-            opts.compatible ? (allDeps[name] ?? 'latest') : 'latest',
+            opts.compatible ? (allDeps[name] ?? 'latest') : 'latest'
           )
 
           if (!latestManifest) return
@@ -138,9 +138,9 @@ export default async function outdated (
               wanted,
             })
           }
-        }),
+        })
       )
-    }),
+    })
   )
 
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))

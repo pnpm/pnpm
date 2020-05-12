@@ -3,7 +3,7 @@ import { DependenciesField } from '@pnpm/types'
 
 export default function filterImporter (
   importer: ProjectSnapshot,
-  include: { [dependenciesField in DependenciesField]: boolean },
+  include: { [dependenciesField in DependenciesField]: boolean }
 ) {
   return {
     dependencies: !include.dependencies ? {} : importer.dependencies || {},

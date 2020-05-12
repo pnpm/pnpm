@@ -299,7 +299,7 @@ export type InstallCommandOptions = Pick<Config,
 }
 
 export function handler (
-  opts: InstallCommandOptions,
+  opts: InstallCommandOptions
 ) {
   const include = {
     dependencies: opts.production !== false,

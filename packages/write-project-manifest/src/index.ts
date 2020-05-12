@@ -11,7 +11,7 @@ const YAML_FORMAT = {
 export default function writeProjectManifest (
   filePath: string,
   manifest: ProjectManifest,
-  opts?: { indent?: string | number | undefined },
+  opts?: { indent?: string | number | undefined }
 ): Promise<void> {
   switch (filePath.substr(filePath.lastIndexOf('.') + 1).toLowerCase()) {
     case 'json5':

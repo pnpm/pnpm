@@ -92,7 +92,7 @@ export async function handler (
     recursive?: boolean,
     workspaceDir?: string,
   } & Pick<Config, 'allProjects' | 'gitChecks' | 'ignoreScripts' | 'publishBranch'>,
-  params: string[],
+  params: string[]
 ) {
   if (opts.gitChecks !== false && await isGitRepo()) {
     const branch = opts.publishBranch ?? 'master'
@@ -162,7 +162,7 @@ export async function handler (
         ], publishManifest)
       }
       _status = status!
-    },
+    }
   )
   if (_status !== 0) {
     process.exit(_status)
@@ -172,7 +172,7 @@ export async function handler (
 async function runScriptsIfPresent (
   opts: RunLifecycleHookOptions,
   scriptNames: string[],
-  manifest: ProjectManifest,
+  manifest: ProjectManifest
 ) {
   for (const scriptName of scriptNames) {
     if (!manifest.scripts?.[scriptName]) continue
@@ -206,7 +206,7 @@ export async function fakeRegularManifest (
     dir: string,
     workspaceDir: string,
   },
-  fn: (publishManifest: ProjectManifest) => Promise<void>,
+  fn: (publishManifest: ProjectManifest) => Promise<void>
 ) {
   // If a workspace package has no License of its own,
   // license files from the root of the workspace are used
@@ -226,7 +226,7 @@ export async function fakeRegularManifest (
     await writeProjectManifest(manifest, true)
   }
   await Promise.all(
-    copiedLicenses.map((copiedLicense) => fs.unlink(copiedLicense)),
+    copiedLicenses.map((copiedLicense) => fs.unlink(copiedLicense))
   )
 }
 
@@ -258,7 +258,7 @@ async function makePublishDependencies (dir: string, dependencies: Dependencies 
         .map(async ([depName, depSpec]) => [
           depName,
           await makePublishDependency(depName, depSpec, dir),
-        ]),
+        ])
     ) as any, // tslint:disable-line
   )
   return publishDependencies
@@ -274,7 +274,7 @@ async function makePublishDependency (depName: string, depSpec: string, dir: str
       throw new PnpmError(
         'CANNOT_RESOLVE_WORKSPACE_PROTOCOL',
         `Cannot resolve workspace protocol of dependency "${depName}" ` +
-          `because this dependency is not installed. Try running "pnpm install".`,
+          `because this dependency is not installed. Try running "pnpm install".`
       )
     }
     return manifest.version
@@ -294,7 +294,7 @@ async function copyLicenses (sourceDir: string, destDir: string) {
         const licenseCopyDest = path.join(destDir, path.basename(licensePath))
         copiedLicenses.push(licenseCopyDest)
         return cpFile(licensePath, licenseCopyDest)
-      }),
+      })
   )
   return copiedLicenses
 }

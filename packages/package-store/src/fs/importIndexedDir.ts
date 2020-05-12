@@ -13,7 +13,7 @@ type ImportFile = (src: string, dest: string) => Promise<void>
 export default async function importIndexedDir (
   importFile: ImportFile,
   newDir: string,
-  filenames: Record<string, string>,
+  filenames: Record<string, string>
 ) {
   const stage = pathTemp(path.dirname(newDir))
   try {
@@ -33,7 +33,7 @@ export default async function importIndexedDir (
       `Not all files were linked to "${path.relative(process.cwd(), newDir)}". ` +
       'Some of the files have equal names in different case, ' +
       'which is an issue on case-insensitive filesystems. ' +
-      `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`,
+      `The conflicting file names are: ${JSON.stringify(conflictingFileNames)}`
     )
     await importIndexedDir(importFile, newDir, uniqueFileMap)
   }
@@ -51,14 +51,14 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
   await Promise.all(
     Array.from(alldirs)
       .sort((d1, d2) => d1.length - d2.length)
-      .map((dir) => fs.mkdir(dir, { recursive: true })),
+      .map((dir) => fs.mkdir(dir, { recursive: true }))
   )
   await Promise.all(
     Object.entries(filenames)
       .map(async ([f, src]: [string, string]) => {
         const dest = path.join(newDir, f)
         await importFile(src, dest)
-      }),
+      })
   )
 }
 

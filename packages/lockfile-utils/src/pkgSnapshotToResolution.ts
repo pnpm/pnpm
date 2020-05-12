@@ -9,7 +9,7 @@ import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 export default (
   relDepPath: string,
   pkgSnapshot: PackageSnapshot,
-  registries: Registries,
+  registries: Registries
 ): Resolution => {
   // tslint:disable:no-string-literal
   if (pkgSnapshot.resolution['type']) {

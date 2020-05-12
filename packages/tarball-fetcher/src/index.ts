@@ -32,7 +32,7 @@ export default function (
     fetchRetryMaxtimeout?: number,
     userAgent?: string,
     offline?: boolean,
-  },
+  }
 ): { tarball: FetchFunction } {
   const download = createDownloader({
     alwaysAuth: opts.alwaysAuth || false,
@@ -76,7 +76,7 @@ function fetchFromTarball (
         registry?: string,
         tarball: string,
       },
-      opts: FetchOptions,
+      opts: FetchOptions
     ) => Promise<FetchResult>,
   },
   cafs: Cafs,
@@ -85,7 +85,7 @@ function fetchFromTarball (
     registry?: string,
     tarball: string,
   },
-  opts: FetchOptions,
+  opts: FetchOptions
 ) {
   if (resolution.tarball.startsWith('file:')) {
     const tarball = resolvePath(opts.lockfileDir, resolution.tarball.slice(5))
@@ -119,7 +119,7 @@ async function fetchFromRemoteTarball (
     registry?: string,
     tarball: string,
   },
-  opts: FetchOptions,
+  opts: FetchOptions
 ) {
   try {
     return await fetchFromLocalTarball(cafs, opts.cachedTarballLocation, {
@@ -133,7 +133,7 @@ async function fetchFromRemoteTarball (
         if (ctx.offline) {
           throw new PnpmError(
             'CORRUPTED_TARBALL',
-            `The cached tarball at "${opts.cachedTarballLocation}" is corrupted. Cannot redownload it as offline mode was requested.`,
+            `The cached tarball at "${opts.cachedTarballLocation}" is corrupted. Cannot redownload it as offline mode was requested.`
           )
         }
         globalWarn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`)
@@ -142,7 +142,7 @@ async function fetchFromRemoteTarball (
         if (ctx.offline) {
           throw new PnpmError(
             'BAD_TARBALL_CHECKSUM',
-            `The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Cannot redownload it as offline mode was requested.`,
+            `The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Cannot redownload it as offline mode was requested.`
           )
         }
         globalWarn(`The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Redownloading.`)
@@ -175,7 +175,7 @@ async function fetchFromLocalTarball (
   opts: {
     integrity?: string,
     manifest?: DeferredManifestPromise,
-  },
+  }
 ): Promise<FetchResult> {
   try {
     const tarballStream = fs.createReadStream(tarball)

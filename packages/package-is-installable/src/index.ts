@@ -29,7 +29,7 @@ export default function packageIsInstallable (
     optional: boolean,
     pnpmVersion?: string,
     lockfileDir: string,
-  },
+  }
 ): boolean | null {
   const warn = checkPackage(pkgId, pkg, options)
 
@@ -70,7 +70,7 @@ export function checkPackage (
   options: {
     nodeVersion?: string,
     pnpmVersion?: string,
-  },
+  }
 ): null | UnsupportedEngineError | UnsupportedPlatformError {
   return checkPlatform(pkgId, {
     cpu: manifest.cpu || ['any'],

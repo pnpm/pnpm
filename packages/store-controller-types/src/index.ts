@@ -35,7 +35,7 @@ export interface StoreController {
     opts: {
       lockfileDir: string,
       targetEngine?: string,
-    },
+    }
   ): Promise<{ dir: string, isBuilt: boolean }>,
   requestPackage: RequestPackageFunction,
   fetchPackage: FetchPackageToStoreFunction,
@@ -46,7 +46,7 @@ export interface StoreController {
 }
 
 export type FetchPackageToStoreFunction = (
-  opts: FetchPackageToStoreOptions,
+  opts: FetchPackageToStoreOptions
 ) => {
   bundledManifest?: () => Promise<BundledManifest>,
   files: () => Promise<PackageFilesResponse>,
@@ -67,7 +67,7 @@ export type ImportPackageFunction = (
   opts: {
     filesResponse: PackageFilesResponse,
     force: boolean,
-  },
+  }
 ) => Promise<void>
 
 export interface PackageFilesResponse {
@@ -77,7 +77,7 @@ export interface PackageFilesResponse {
 
 export type RequestPackageFunction = (
   wantedDependency: WantedDependency,
-  options: RequestPackageOptions,
+  options: RequestPackageOptions
 ) => Promise<PackageResponse>
 
 export interface RequestPackageOptions {

@@ -69,7 +69,7 @@ export interface ResolverFactoryOptions {
 }
 
 export default function createResolver (
-  opts: ResolverFactoryOptions,
+  opts: ResolverFactoryOptions
 ) {
   if (typeof opts.rawConfig !== 'object') { // tslint:disable-line
     throw new TypeError('`opts.rawConfig` is required and needs to be an object')
@@ -104,7 +104,7 @@ export default function createResolver (
   })
   const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
   const getAuthHeaderValueByURI = mem(
-    (registry: string) => getCreds(registry).authHeaderValue,
+    (registry: string) => getCreds(registry).authHeaderValue
   )
   return resolveNpm.bind(null, {
     getAuthHeaderValueByURI,
@@ -139,7 +139,7 @@ async function resolveNpm (
     getAuthHeaderValueByURI: (registry: string) => string | undefined,
   },
   wantedDependency: WantedDependency,
-  opts: ResolveFromNpmOptions,
+  opts: ResolveFromNpmOptions
 ): Promise<ResolveResult | null> {
   const defaultTag = opts.defaultTag || 'latest'
   const resolvedFromWorkspace = tryResolveFromWorkspace(wantedDependency, {
@@ -222,7 +222,7 @@ function tryResolveFromWorkspace (
     projectDir?: string,
     registry: string,
     workspacePackages?: WorkspacePackages,
-  },
+  }
 ) {
   if (!wantedDependency.pref?.startsWith('workspace:')) {
     return null
@@ -240,7 +240,7 @@ function tryResolveFromWorkspace (
   if (!resolvedFromLocal) {
     throw new PnpmError(
       'NO_MATCHING_VERSION_INSIDE_WORKSPACE',
-      `No matching version found for ${wantedDependency.alias}@${pref} inside the workspace`,
+      `No matching version found for ${wantedDependency.alias}@${pref} inside the workspace`
     )
   }
   return resolvedFromLocal
@@ -249,7 +249,7 @@ function tryResolveFromWorkspace (
 function tryResolveFromWorkspacePackages (
   workspacePackages: WorkspacePackages,
   spec: RegistryPackageSpec,
-  projectDir: string,
+  projectDir: string
 ) {
   if (!workspacePackages[spec.name]) return null
   const localVersion = pickMatchingLocalVersionOrNull(workspacePackages[spec.name], spec)
@@ -264,7 +264,7 @@ function pickMatchingLocalVersionOrNull (
       manifest: DependencyManifest;
     },
   },
-  spec: RegistryPackageSpec,
+  spec: RegistryPackageSpec
 ) {
   const localVersions = Object.keys(versions)
   switch (spec.type) {
@@ -285,7 +285,7 @@ function resolveFromLocalPackage (
     manifest: DependencyManifest,
   },
   normalizedPref: string | undefined,
-  projectDir: string,
+  projectDir: string
 ) {
   return {
     id: `link:${normalize(path.relative(projectDir, localPackage.dir))}`,

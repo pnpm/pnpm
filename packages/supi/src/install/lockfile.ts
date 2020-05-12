@@ -10,7 +10,7 @@ export function depPathToRef (
     realName: string,
     registries: Registries,
     resolution: Resolution,
-  },
+  }
 ) {
   if (opts.resolution.type) return depPath
 

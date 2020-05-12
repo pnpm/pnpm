@@ -27,7 +27,7 @@ class RemoveMissingDepsError extends PnpmError {
       availableDependencies: string[],
       nonMatchedDependencies: string[],
       targetDependenciesField?: DependenciesField,
-    },
+    }
   ) {
     let message = 'Cannot remove '
     message += `${opts.nonMatchedDependencies.map(dep => `'${dep}'`).join(', ')}: `
@@ -147,7 +147,7 @@ export async function handler (
   > & {
     recursive?: boolean,
   },
-  params: string[],
+  params: string[]
 ) {
   if (params.length === 0) throw new PnpmError('MUST_REMOVE_SOMETHING', 'At least one dependency name should be specified for removal')
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
@@ -173,7 +173,7 @@ export async function handler (
   const availableDependencies = Object.keys(
     targetDependenciesField === undefined
     ? getAllDependenciesFromManifest(currentManifest)
-    : currentManifest[targetDependenciesField] ?? {},
+    : currentManifest[targetDependenciesField] ?? {}
   )
   const nonMatchedDependencies = R.without(availableDependencies, params)
   if (nonMatchedDependencies.length !== 0) {
@@ -194,7 +194,7 @@ export async function handler (
         targetDependenciesField,
       },
     ],
-    removeOpts,
+    removeOpts
   )
   await writeProjectManifest(mutationResult.manifest)
 }

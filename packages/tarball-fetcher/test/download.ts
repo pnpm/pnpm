@@ -84,7 +84,7 @@ test('redownload the tarball when the one in cache does not satisfy integrity', 
   const cachedTarballLocation = path.join(cacheDir, 'cache.tgz')
   await cpFile(
     path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
-    cachedTarballLocation,
+    cachedTarballLocation
   )
 
   const resolution = {
@@ -119,7 +119,7 @@ test('fail when the tarball in the cache does not pass integrity check in offlin
   const cachedTarballLocation = path.join(cacheDir, 'cache.tgz')
   await cpFile(
     path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
-    cachedTarballLocation,
+    cachedTarballLocation
   )
 
   const resolution = {
@@ -306,7 +306,7 @@ test('fail when integrity check of local file fails', async (t) => {
   const cachedTarballLocation = path.resolve('cached')
   await cpFile(
     path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
-    path.resolve('tar.tgz'),
+    path.resolve('tar.tgz')
   )
   const resolution = {
     integrity: tarballIntegrity,
@@ -341,7 +341,7 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
   const localTarballLocation = path.resolve('tar.tgz')
   await cpFile(
     path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'),
-    localTarballLocation,
+    localTarballLocation
   )
   const resolution = {
     integrity: await getFileIntegrity(localTarballLocation),
@@ -495,7 +495,7 @@ test('accessing private packages', async t => {
       reqheaders: {
         'authorization': 'Bearer ofjergrg349gj3f2',
       },
-    },
+    }
   )
   .get('/foo.tgz')
   .replyWithFile(200, tarballPath, {

@@ -19,7 +19,7 @@ test('run completion', async (t) => {
       {
         name: 'test',
       },
-    ],
+    ]
   )
 
   t.deepEqual(await run.completion({}, ['test']), [],

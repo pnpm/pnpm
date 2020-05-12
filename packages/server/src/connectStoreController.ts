@@ -21,7 +21,7 @@ export default function (
   initOpts: {
     remotePrefix: string,
     concurrency?: number,
-  },
+  }
 ): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
   const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency || 100))
@@ -36,7 +36,7 @@ export default function (
         opts: {
           lockfileDir: string,
           targetEngine?: string,
-        },
+        }
       ): Promise<{ dir: string, isBuilt: boolean }> => {
         return await limitedFetch(`${remotePrefix}/getPackageLocation`, {
           opts,
@@ -98,7 +98,7 @@ function requestPackage (
   remotePrefix: string,
   limitedFetch: (url: string, body: object) => any, // tslint:disable-line
   wantedDependency: WantedDependency,
-  options: RequestPackageOptions,
+  options: RequestPackageOptions
 ): Promise<PackageResponse> {
   const msgId = uuid.v4()
 
@@ -137,7 +137,7 @@ function requestPackage (
 function fetchPackage (
   remotePrefix: string,
   limitedFetch: (url: string, body: object) => any, // tslint:disable-line
-  options: FetchPackageToStoreOptions,
+  options: FetchPackageToStoreOptions
 ): {
   files: () => Promise<PackageFilesResponse>,
   bundledManifest?: () => Promise<DependencyManifest>,

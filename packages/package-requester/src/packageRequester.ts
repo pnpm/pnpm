@@ -71,7 +71,7 @@ export default function (
     networkConcurrency?: number,
     storeDir: string,
     verifyStoreIntegrity: boolean,
-  },
+  }
 ): RequestPackageFunction & {
   cafs: Cafs,
   fetchPackageToStore: FetchPackageToStoreFunction,
@@ -120,7 +120,7 @@ async function resolveAndFetch (
     verifyStoreIntegrity: boolean,
   },
   wantedDependency: WantedDependency,
-  options: RequestPackageOptions,
+  options: RequestPackageOptions
 ): Promise<PackageResponse> {
   try {
     let latest: string | undefined
@@ -158,7 +158,7 @@ async function resolveAndFetch (
       forceFetch = Boolean(
         options.currentResolution &&
         pkgId?.startsWith('file:') &&
-        options.currentResolution['integrity'] !== resolveResult.resolution['integrity'], // tslint:disable-line:no-string-literal
+        options.currentResolution['integrity'] !== resolveResult.resolution['integrity'] // tslint:disable-line:no-string-literal
       )
 
       if (!skipResolution || forceFetch) {
@@ -252,12 +252,12 @@ function fetchToStore (
   ctx: {
     checkFilesIntegrity: (
       pkgIndex: Record<string, PackageFileInfo>,
-      manifest?: DeferredManifestPromise,
+      manifest?: DeferredManifestPromise
     ) => Promise<boolean>,
     fetch: (
       packageId: string,
       resolution: Resolution,
-      opts: FetchOptions,
+      opts: FetchOptions
     ) => Promise<FetchResult>,
     fetchingLocker: Map<string, FetchLock>,
     getFilePathInCafs: (integrity: string, fileType: FileType) => string,
@@ -272,7 +272,7 @@ function fetchToStore (
     pkgId: string,
     lockfileDir: string,
     resolution: Resolution,
-  },
+  }
 ): {
   files: () => Promise<PackageFilesResponse>,
   bundledManifest?: () => Promise<BundledManifest>,
@@ -345,7 +345,7 @@ function fetchToStore (
         const { integrity, mode } = filesIndex['package.json']
         const manifestPath = ctx.getFilePathByModeInCafs(integrity, mode)
         return readBundledManifest(manifestPath)
-      }),
+      })
     )
   }
 
@@ -368,7 +368,7 @@ function fetchToStore (
   async function doFetchToStore (
     bundledManifest: pDefer.DeferredPromise<BundledManifest>,
     files: pDefer.DeferredPromise<PackageFilesResponse>,
-    finishing: pDefer.DeferredPromise<void>,
+    finishing: pDefer.DeferredPromise<void>
   ) {
     try {
       const isLocalTarballDep = opts.pkgId.startsWith('file:')
@@ -455,7 +455,7 @@ function fetchToStore (
               status: 'started',
             })
           },
-        },
+        }
       ), { priority })
 
       const filesIndex = fetchedPackage.filesIndex
@@ -473,7 +473,7 @@ function fetchToStore (
               mode: filesIndex[filename].mode,
               size: filesIndex[filename].size,
             }
-          }),
+          })
       )
       await writeJsonFile(pkgIndexFilePath, { files: integrity }, { indent: undefined })
       finishing.resolve(undefined)
@@ -507,7 +507,7 @@ async function tarballIsUpToDate (
     tarball: string,
   },
   pkgInStoreLocation: string,
-  lockfileDir: string,
+  lockfileDir: string
 ) {
   let currentIntegrity!: string
   try {
@@ -531,7 +531,7 @@ async function fetcher (
   cafs: Cafs,
   packageId: string,
   resolution: Resolution,
-  opts: FetchOptions,
+  opts: FetchOptions
 ): Promise<FetchResult> {
   const fetch = fetcherByHostingType[resolution.type || 'tarball']
   if (!fetch) {

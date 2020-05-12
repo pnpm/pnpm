@@ -455,7 +455,7 @@ test('hoist when updating in one of the workspace projects', async (t) => {
       '/foo/100.0.0',
       '/foo/100.1.0',
       '/pkg-with-1-dep/100.0.0',
-    ],
+    ]
   )
 
   {

@@ -132,7 +132,7 @@ test('relative link is rewritten by named installation to regular dependency', a
       dir: process.cwd(),
       manifest: {},
       reporter,
-    },
+    }
   )
 
   t.ok(reporter.calledWithMatch({

@@ -12,7 +12,7 @@ export default async function readModulesDir (modulesDir: string) {
 
 async function _readModulesDir (
   modulesDir: string,
-  scope?: string,
+  scope?: string
 ) {
   let pkgNames: string[] = []
   const parentDir = scope ? path.join(modulesDir, scope) : modulesDir

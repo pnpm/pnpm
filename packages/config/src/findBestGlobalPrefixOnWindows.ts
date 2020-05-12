@@ -3,7 +3,7 @@ import path = require('path')
 
 export default function findBestGlobalPrefixOnWindows (
   defaultNpmGlobalPrefix: string,
-  env: { [key: string]: string | undefined },
+  env: { [key: string]: string | undefined }
 ) {
   if (
     env.LOCALAPPDATA && isSubdir(env.LOCALAPPDATA, defaultNpmGlobalPrefix) ||

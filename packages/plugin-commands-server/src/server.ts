@@ -103,7 +103,7 @@ export async function handler (
     port?: number,
     unstoppable?: boolean,
   },
-  params: string[],
+  params: string[]
 ) {
   switch (params[0]) {
     case 'start':

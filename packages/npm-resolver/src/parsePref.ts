@@ -12,7 +12,7 @@ export default function parsePref (
   pref: string,
   alias: string | undefined,
   defaultTag: string,
-  registry: string,
+  registry: string
 ): RegistryPackageSpec | null {
   let name = alias
   if (pref.startsWith('npm:')) {

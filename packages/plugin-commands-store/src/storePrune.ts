@@ -6,7 +6,7 @@ export default async function (
   opts: {
     reporter?: ReporterFunction,
     storeController: StoreController,
-  },
+  }
 ) {
   const reporter = opts?.reporter
   if (reporter) {

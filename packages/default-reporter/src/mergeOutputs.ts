@@ -32,7 +32,7 @@ export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{ms
             prevFixedBlockNo: currentFixedBlockNo,
           }
         })
-    }),
+    })
   )
   .scan((acc, log) => {
     if (log.fixed === true) {

@@ -18,7 +18,7 @@ export default async function resolveLocal (
   opts: {
     lockfileDir?: string,
     projectDir: string,
-  },
+  }
 ): Promise<
   (
     ResolveResult &

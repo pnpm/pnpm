@@ -26,7 +26,7 @@ export default async (
     sideEffectsCacheWrite: boolean,
     storeController: StoreController,
     rootModulesDir: string,
-  },
+  }
 ) => {
   const warn = (message: string) => logger.warn({ message, prefix: opts.lockfileDir })
   // postinstall hooks
@@ -37,7 +37,7 @@ export default async (
   const nodesToBuildArray = Array.from(nodesToBuild)
   const graph = new Map(
     nodesToBuildArray
-      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))]) as Array<[string, string[]]>,
+      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))]) as Array<[string, string[]]>
   )
   const graphSequencerResult = graphSequencer({
     graph,
@@ -52,7 +52,7 @@ export default async (
     }
 
     return chunk.map((depPath: string) =>
-      async () => buildDependency(depPath, depGraph, buildDepOpts),
+      async () => buildDependency(depPath, depGraph, buildDepOpts)
     )
   })
   await runGroups(opts.childConcurrency || 4, groups)
@@ -71,7 +71,7 @@ async function buildDependency (
     storeController: StoreController,
     unsafePerm: boolean,
     warn: (message: string) => void,
-  },
+  }
 ) {
   const depNode = depGraph[depPath]
   try {
@@ -131,7 +131,7 @@ function getSubgraphToBuild (
   graph: DependenciesGraph,
   entryNodes: string[],
   nodesToBuild: Set<string>,
-  walked: Set<string>,
+  walked: Set<string>
 ) {
   let currentShouldBeBuilt = false
   for (const depPath of entryNodes) {
@@ -176,7 +176,7 @@ export async function linkBinsOfDependencies (
   opts: {
     optional: boolean,
     warn: (message: string) => void,
-  },
+  }
 ) {
   const childrenToLink = opts.optional
     ? depNode.children
@@ -207,7 +207,7 @@ export async function linkBinsOfDependencies (
           location: dep.peripheralLocation,
           manifest: await dep.fetchingBundledManifest?.() || (await readPackageFromDir(dep.peripheralLocation) as DependencyManifest),
         }
-      }),
+      })
   )
 
   await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })

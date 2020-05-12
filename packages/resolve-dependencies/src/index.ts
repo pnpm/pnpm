@@ -65,7 +65,7 @@ export default async function (
     wantedLockfile: Lockfile,
     updateLockfile: boolean,
     workspacePackages: WorkspacePackages,
-  },
+  }
 ) {
   const directDepsByImporterId = {} as {[id: string]: Array<PkgAddress | LinkedDependency>}
 
@@ -124,7 +124,7 @@ export default async function (
     directDepsByImporterId[importer.id] = await resolveDependencies(
       resolveCtx,
       importer.wantedDependencies,
-      resolveOpts,
+      resolveOpts
     )
   }))
 
@@ -193,7 +193,7 @@ function buildTree (
   parentId: string,
   children: Array<{alias: string, pkgId: string}>,
   depth: number,
-  installable: boolean,
+  installable: boolean
 ) {
   const childrenNodeIds = {}
   for (const child of children) {

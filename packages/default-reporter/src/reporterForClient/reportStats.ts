@@ -19,7 +19,7 @@ export default (
     cwd: string,
     isRecursive: boolean,
     width: number,
-  },
+  }
 ) => {
   const stats$ = opts.isRecursive
     ? log$.stats
@@ -50,7 +50,7 @@ function statsForCurrentPackage (
     cmd: string,
     currentPrefix: string,
     width: number,
-  },
+  }
 ) {
   return most.fromPromise(
     stats$
@@ -63,7 +63,7 @@ function statsForCurrentPackage (
           acc['removed'] = log['removed']
         }
         return acc
-      }, {}),
+      }, {})
   )
   .map((stats) => {
     if (!stats['removed'] && !stats['added']) {
@@ -91,7 +91,7 @@ function statsForNotCurrentPackage (
     cmd: string,
     currentPrefix: string,
     width: number,
-  },
+  }
 ) {
   const cookedStats$ = (
     opts.cmd !== 'remove'

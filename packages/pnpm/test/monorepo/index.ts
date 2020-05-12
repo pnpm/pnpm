@@ -461,12 +461,12 @@ test('recursive install with link-workspace-packages and shared-workspace-lockfi
   await fs.writeFile(
     'is-positive/.npmrc',
     'save-exact = true',
-    'utf8',
+    'utf8'
   )
   await fs.writeFile(
     'project-1/.npmrc',
     'save-prefix = ~',
-    'utf8',
+    'utf8'
   )
 
   await execPnpm(['recursive', 'install', '--link-workspace-packages', '--shared-workspace-lockfile=true', '--store-dir', 'store'])
@@ -564,7 +564,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
         'project-1-postinstall',
         'project-1-prepublish',
         'project-1-prepare',
-      ],
+      ]
     )
 
     const outputs2 = await import(path.resolve('output2.json')) as string[]
@@ -579,7 +579,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
         'project-2-postinstall',
         'project-2-prepublish',
         'project-2-prepare',
-      ],
+      ]
     )
   }
 
@@ -603,7 +603,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
         'project-1-postinstall',
         'project-1-prepublish',
         'project-1-prepare',
-      ],
+      ]
     )
 
     const outputs2 = await import(path.resolve('output2.json')) as string[]
@@ -618,7 +618,7 @@ test('recursive install with shared-workspace-lockfile builds workspace projects
         'project-2-postinstall',
         'project-2-prepublish',
         'project-2-prepare',
-      ],
+      ]
     )
   }
 })
@@ -1067,8 +1067,8 @@ test('root package is included when not specified', async (t: tape.Test) => {
           version: '4.0.0',
         },
       ],
-      { tempDir: `${tempDir}/project` },
-    ),
+      { tempDir: `${tempDir}/project` }
+    )
   )
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!store/**'] })
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })
@@ -1105,8 +1105,8 @@ test("root package can't be ignored using '!.' (or any other such glob)", async 
           version: '4.0.0',
         },
       ],
-      { tempDir: `${tempDir}/project` },
-    ),
+      { tempDir: `${tempDir}/project` }
+    )
   )
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-', '!.', '!./', '!store/**'] })
   const workspacePackages = await findWorkspacePackages(tempDir, { engineStrict: false })

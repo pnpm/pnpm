@@ -4,7 +4,7 @@ import { packageIsInstallable } from './packageIsInstallable'
 
 export async function readProjectManifest (
   projectDir: string,
-  opts: { engineStrict?: boolean },
+  opts: { engineStrict?: boolean }
 ): Promise<{
   fileName: string,
   manifest: ProjectManifest,
@@ -17,7 +17,7 @@ export async function readProjectManifest (
 
 export async function readProjectManifestOnly (
   projectDir: string,
-  opts: { engineStrict?: boolean },
+  opts: { engineStrict?: boolean }
 ): Promise<ProjectManifest> {
   const manifest = await utils.readProjectManifestOnly(projectDir)
   packageIsInstallable(projectDir, manifest as any, opts) // tslint:disable-line:no-any
@@ -26,7 +26,7 @@ export async function readProjectManifestOnly (
 
 export async function tryReadProjectManifest (
   projectDir: string,
-  opts: { engineStrict?: boolean },
+  opts: { engineStrict?: boolean }
 ): Promise<{
   fileName: string,
   manifest: ProjectManifest | null,

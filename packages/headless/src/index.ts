@@ -153,7 +153,7 @@ export default async (opts: HeadlessOptions) => {
       ['preinstall'],
       opts.projects,
       opts.childConcurrency || 5,
-      scriptsOpts,
+      scriptsOpts
     )
   }
 
@@ -174,7 +174,7 @@ export default async (opts: HeadlessOptions) => {
         storeController: opts.storeController,
         virtualStoreDir,
         wantedLockfile,
-      },
+      }
     )
   } else {
     statsLogger.debug({
@@ -210,7 +210,7 @@ export default async (opts: HeadlessOptions) => {
       lockfileDir,
       skipped,
       virtualStoreDir,
-    } as LockfileToDepGraphOptions,
+    } as LockfileToDepGraphOptions
   )
   const depNodes = R.values(graph)
 
@@ -297,7 +297,7 @@ export default async (opts: HeadlessOptions) => {
       .concat(
         depNodes
           .filter(({ requiresBuild }) => requiresBuild)
-          .map(({ depPath }) => depPath),
+          .map(({ depPath }) => depPath)
       )
   } else {
     const directNodes = new Set<string>()
@@ -361,7 +361,7 @@ export default async (opts: HeadlessOptions) => {
       ['install', 'postinstall', 'prepublish', 'prepare'],
       opts.projects,
       opts.childConcurrency || 5,
-      scriptsOpts,
+      scriptsOpts
     )
   }
 
@@ -375,7 +375,7 @@ function linkBinsOfImporter (
     binsDir: string,
     modulesDir: string,
     rootDir: string,
-  },
+  }
 ) {
   const warn = (message: string) => logger.warn({ message, prefix: rootDir })
   return linkBins(modulesDir, binsDir, {
@@ -394,7 +394,7 @@ async function linkRootPackages (
     projects: Array<{ id: string, manifest: ProjectManifest }>,
     lockfileDir: string,
     rootDependencies: {[alias: string]: string},
-  },
+  }
 ) {
   const importerManifestsByImporterId = {} as { [id: string]: ProjectManifest }
   for (const { id, manifest } of opts.projects) {
@@ -458,7 +458,7 @@ async function linkRootPackages (
           },
           prefix: opts.projectDir,
         })
-      }),
+      })
   )
 }
 
@@ -479,7 +479,7 @@ interface LockfileToDepGraphOptions {
 async function lockfileToDepGraph (
   lockfile: Lockfile,
   currentLockfile: Lockfile | null,
-  opts: LockfileToDepGraphOptions,
+  opts: LockfileToDepGraphOptions
 ) {
   const currentPackages = currentLockfile?.packages ?? {}
   const graph: DependenciesGraph = {}
@@ -558,7 +558,7 @@ async function lockfileToDepGraph (
           requiresBuild: pkgSnapshot.requiresBuild === true,
         }
         pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
-      }),
+      })
     )
     const ctx = {
       force: opts.force,
@@ -609,7 +609,7 @@ async function getChildrenPaths (
     sideEffectsCacheRead: boolean,
     storeController: StoreController,
   },
-  allDeps: {[alias: string]: string},
+  allDeps: {[alias: string]: string}
 ) {
   const children: {[alias: string]: string} = {}
   for (const alias of Object.keys(allDeps)) {
@@ -676,7 +676,7 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
-  },
+  }
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
@@ -686,7 +686,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
       })
-    }),
+    })
   )
 }
 
@@ -695,7 +695,7 @@ async function linkAllBins (
   opts: {
     optional: boolean,
     warn: (message: string) => void,
-  },
+  }
 ) {
   return Promise.all(
     R.values(depGraph)
@@ -722,7 +722,7 @@ async function linkAllBins (
               .map(async ({ peripheralLocation }) => ({
                 location: peripheralLocation,
                 manifest: await readPackageFromDir(peripheralLocation) as DependencyManifest,
-              })),
+              }))
           )
 
           await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
@@ -733,7 +733,7 @@ async function linkAllBins (
           const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
           await linkBins(bundledModules, binPath, { warn: opts.warn })
         }
-      })),
+      }))
   )
 }
 
@@ -742,7 +742,7 @@ async function linkAllModules (
   opts: {
     optional: boolean,
     lockfileDir: string,
-  },
+  }
 ) {
   return Promise.all(
     depNodes
@@ -770,8 +770,8 @@ async function linkAllModules (
                 return
               }
               await limitLinking(() => symlinkDependency(childrenToLink[alias], depNode.modules, alias))
-            }),
+            })
         )
-      }),
+      })
   )
 }

@@ -3,6 +3,6 @@ export type Completion = { name: string, description?: string }
 export type CompletionFunc = {
   (
     options: Record<string, unknown>,
-    params: string[],
+    params: string[]
   ): Promise<Completion[]>,
 }

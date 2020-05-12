@@ -20,7 +20,7 @@ export type PackageFilesIndex = { files: Record<string, PackageFileInfo> }
 export default async function (
   cafsDir: string,
   pkgIndex: Record<string, PackageFileInfo>,
-  manifest?: DeferredManifestPromise,
+  manifest?: DeferredManifestPromise
 ) {
   let verified = true
   await Promise.all(
@@ -35,13 +35,13 @@ export default async function (
             !await verifyFile(
               getFilePathByModeInCafs(cafsDir, fstat.integrity, fstat.mode),
               fstat,
-              f === 'package.json' ? manifest : undefined,
+              f === 'package.json' ? manifest : undefined
             )
           ) {
             verified = false
           }
-        }),
-      ),
+        })
+      )
   )
   return verified
 }
@@ -49,7 +49,7 @@ export default async function (
 async function verifyFile (
   filename: string,
   fstat: { size: number, integrity: string },
-  deferredManifest?: DeferredManifestPromise,
+  deferredManifest?: DeferredManifestPromise
 ) {
   if (fstat.size > MAX_BULK_SIZE && !deferredManifest) {
     try {

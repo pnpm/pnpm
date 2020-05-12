@@ -38,7 +38,7 @@ export default async function recursive (
   params: string[],
   opts: RecursiveRebuildOpts & {
     ignoredPackages?: Set<string>,
-  } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>,
+  } & Required<Pick<Config, 'selectedProjectsGraph' | 'workspaceDir'>>
 ) {
   if (allProjects.length === 0) {
     // It might make sense to throw an exception in this case
@@ -93,7 +93,7 @@ export default async function recursive (
             manifest: manifestsByPath[prefix].manifest,
             rootDir: prefix,
           })
-        }),
+        })
       )
     }))
     return importers
@@ -111,7 +111,7 @@ export default async function recursive (
       {
         ...rebuildOpts,
         pending: opts.pending === true,
-      },
+      }
     )
     return
   }
@@ -141,7 +141,7 @@ export default async function recursive (
                 ...rebuildOpts.rawConfig,
                 ...localConfig,
               },
-            },
+            }
           )
           result.passes++
         } catch (err) {
@@ -159,7 +159,7 @@ export default async function recursive (
           err['prefix'] = rootDir // tslint:disable-line:no-string-literal
           throw err
         }
-      }),
+      })
     ))
   }
 

@@ -56,7 +56,7 @@ export async function handler (
     > & {
       recursive?: boolean,
     },
-  params: string[],
+  params: string[]
 ) {
   if (opts.recursive && opts.allProjects && opts.selectedProjectsGraph && opts.workspaceDir) {
     await recursive(opts.allProjects, params, { ...opts, selectedProjectsGraph: opts.selectedProjectsGraph!, workspaceDir: opts.workspaceDir! }, 'unlink')

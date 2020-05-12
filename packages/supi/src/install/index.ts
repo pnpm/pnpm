@@ -106,7 +106,7 @@ export async function install (
   manifest: ProjectManifest,
   opts: InstallOptions & {
     preferredVersions?: PreferredVersions,
-  },
+  }
 ) {
   const projects = await mutateModules(
     [
@@ -117,7 +117,7 @@ export async function install (
         rootDir: opts.dir || process.cwd(),
       },
     ],
-    opts,
+    opts
   )
   return projects[0].manifest
 }
@@ -128,7 +128,7 @@ export async function mutateModules (
   projects: MutatedProject[],
   maybeOpts: InstallOptions & {
     preferredVersions?: PreferredVersions,
-  },
+  }
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {
@@ -261,7 +261,7 @@ export async function mutateModules (
         ['preinstall'],
         projectsToBeInstalled,
         opts.childConcurrency,
-        scriptsOpts,
+        scriptsOpts
       )
     }
 
@@ -295,7 +295,7 @@ export async function mutateModules (
           const packageDirs = await readModulesDirs(project.modulesDir)
           const externalPackages = await pFilter(
             packageDirs!,
-            (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir),
+            (packageDir: string) => isExternalLink(ctx.storeDir, project.modulesDir, packageDir)
           )
           const allDeps = getAllDependenciesFromManifest(project.manifest)
           const packagesToInstall: string[] = []
@@ -406,7 +406,7 @@ export async function mutateModules (
       {
         skippedPkgIds: Array.from(ctx.skipped),
         wantedLockfile: ctx.wantedLockfile,
-      },
+      }
     )
     // Unfortunately, the private lockfile may differ from the public one.
     // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
@@ -428,7 +428,7 @@ export async function mutateModules (
       await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
         projectsToBeInstalled,
         opts.childConcurrency,
-        scriptsOpts,
+        scriptsOpts
       )
     }
 
@@ -448,7 +448,7 @@ function pkgHasDependencies (manifest: ProjectManifest) {
   return Boolean(
     R.keys(manifest.dependencies).length ||
     R.keys(manifest.devDependencies).length ||
-    R.keys(manifest.optionalDependencies).length,
+    R.keys(manifest.optionalDependencies).length
   )
 }
 
@@ -461,7 +461,7 @@ async function partitionLinkedPackages (
     storeDir: string,
     virtualStoreDir: string,
     workspacePackages?: WorkspacePackages,
-  },
+  }
 ) {
   const nonLinkedDependencies: WantedDependency[] = []
   const linkedAliases = new Set<string>()
@@ -519,7 +519,7 @@ export async function addDependenciesToPackage (
     peer?: boolean,
     pinnedVersion?: 'major' | 'minor' | 'patch',
     targetDependenciesField?: DependenciesField,
-  },
+  }
 ) {
   const projects = await mutateModules(
     [
@@ -561,7 +561,7 @@ async function installInContext (
     updateLockfileMinorVersion: boolean,
     preferredVersions?: PreferredVersions,
     currentLockfileIsUpToDate: boolean,
-  },
+  }
 ) {
   if (opts.lockfileOnly && ctx.existsCurrentLockfile) {
     logger.warn({
@@ -593,7 +593,7 @@ async function installInContext (
           prefix: project.rootDir,
           saveType: project.targetDependenciesField,
         })
-      }),
+      })
   )
 
   stageLogger.debug({
@@ -650,7 +650,7 @@ async function installInContext (
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
-    },
+    }
   )
 
   stageLogger.debug({
@@ -681,7 +681,7 @@ async function installInContext (
         projectSnapshot,
         resolvedImporter.linkedDependencies,
         resolvedImporter.directDependencies,
-        ctx.registries,
+        ctx.registries
       )
     }
 
@@ -691,9 +691,9 @@ async function installInContext (
             Object.keys(getAllDependenciesFromManifest(project.manifest)),
             resolvedImporter.directDependencies
               .filter((dep, index) => project.wantedDependencies[index].isNew === true)
-              .map(({ alias }) => alias) || [],
+              .map(({ alias }) => alias) || []
           ),
-          project.modulesDir,
+          project.modulesDir
         )
       : []
 
@@ -737,7 +737,7 @@ async function installInContext (
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       wantedToBeSkippedPackageIds,
-    },
+    }
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds
@@ -748,7 +748,7 @@ async function installInContext (
     ctx.pendingBuilds = ctx.pendingBuilds
       .concat(
         result.newDepPaths
-          .filter((depPath) => result.depGraph[depPath].requiresBuild),
+          .filter((depPath) => result.depGraph[depPath].requiresBuild)
       )
   }
 
@@ -800,7 +800,7 @@ async function installInContext (
       // skipped packages might have not been reanalized on a repeat install
       // so lets just ignore those by excluding nulls
       .filter(Boolean)
-      .map(({ fetchingFiles }) => fetchingFiles()),
+      .map(({ fetchingFiles }) => fetchingFiles())
   )
 
   // waiting till package requests are finished
@@ -859,7 +859,7 @@ async function toResolveImporter (
     preferredVersions?: PreferredVersions,
     workspacePackages: WorkspacePackages,
   },
-  project: ImporterToUpdate,
+  project: ImporterToUpdate
 ) {
   const allDeps = getWantedDependencies(project.manifest)
   const { linkedAliases, nonLinkedDependencies } = await partitionLinkedPackages(allDeps, {
@@ -909,10 +909,10 @@ async function linkAllBins (
   opts: {
     optional: boolean,
     warn: (message: string) => void,
-  },
+  }
 ) {
   return Promise.all(
-    depNodes.map((depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts)))),
+    depNodes.map((depNode => limitLinking(async () => linkBinsOfDependencies(depNode, depGraph, opts))))
   )
 }
 
@@ -930,7 +930,7 @@ function addDirectDependenciesToLockfile (
     name: string,
     normalizedPref?: string,
   }>,
-  registries: Registries,
+  registries: Registries
 ): ProjectSnapshot {
   const newProjectSnapshot = {
     dependencies: {},
@@ -1020,7 +1020,7 @@ function getAliasToDependencyTypeMap (manifest: ProjectManifest) {
 
 async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
-    pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir),
+    pkgNames.map((pkgName) => path.join(modules, pkgName)).map(safeReadPkgFromDir)
   )
   return (
     pkgs

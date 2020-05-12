@@ -19,7 +19,7 @@ export type RunLifecycleHookOptions = {
 export default async function runLifecycleHook (
   stage: string,
   manifest: ProjectManifest | DependencyManifest,
-  opts: RunLifecycleHookOptions,
+  opts: RunLifecycleHookOptions
 ) {
   const optional = opts.optional === true
 

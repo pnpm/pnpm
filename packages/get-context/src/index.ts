@@ -80,7 +80,7 @@ export default async function getContext<T> (
 
     shamefullyHoist?: boolean,
     forceShamefullyHoist?: boolean,
-  },
+  }
 ): Promise<PnpmContext<T>> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   let importersContext = await readProjectsContext(projects, { lockfileDir: opts.lockfileDir, modulesDir })
@@ -197,7 +197,7 @@ async function validateModules (
 
     shamefullyHoist?: boolean | undefined,
     forceShamefullyHoist?: boolean,
-  },
+  }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
   if (opts.forceShamefullyHoist && modules.shamefullyHoist !== opts.shamefullyHoist) {
@@ -209,13 +209,13 @@ async function validateModules (
       throw new PnpmError(
         'SHAMEFULLY_HOIST_WANTED',
         'This modules directory was created using the --shamefully-hoist option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.',
+        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.'
       )
     }
     throw new PnpmError(
       'SHAMEFULLY_HOIST_NOT_WANTED',
       'This modules directory was created without the --shamefully-hoist option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.',
+      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.'
     )
   }
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
@@ -233,13 +233,13 @@ async function validateModules (
       throw new PnpmError(
         'INDEPENDENT_LEAVES_WANTED',
         'This modules directory was created using the --independent-leaves option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.',
+        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.'
       )
     }
     throw new PnpmError(
       'INDEPENDENT_LEAVES_NOT_WANTED',
       'This modules directory was created without the --independent-leaves option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.',
+      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.'
     )
   }
   let purged = false
@@ -250,13 +250,13 @@ async function validateModules (
           throw new PnpmError(
             'HOISTING_WANTED',
             'This modules directory was created using the --hoist-pattern option.'
-            + ' You must add this option, or else add the --force option to recreate the modules directory.',
+            + ' You must add this option, or else add the --force option to recreate the modules directory.'
           )
         }
         throw new PnpmError(
           'HOISTING_NOT_WANTED',
           'This modules directory was created without the --hoist-pattern option.'
-          + ' You must remove that option, or else run "pnpm install" to recreate the modules directory.',
+          + ' You must remove that option, or else run "pnpm install" to recreate the modules directory.'
         )
       }
     } catch (err) {
@@ -277,7 +277,7 @@ async function validateModules (
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('INCLUDED_DEPS_CONFLICT',
               `modules directory (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
-              `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
+              `Current install wants ${stringifyIncludedDeps(opts.include)}.`
             )
           }
         }
@@ -308,7 +308,7 @@ async function purgeModulesDirsOfImporter (
   importer: {
     modulesDir: string,
     rootDir: string,
-  },
+  }
 ) {
   logger.info({
     message: `Recreating ${importer.modulesDir}`,
@@ -379,7 +379,7 @@ export async function getContextForSingleImporter (
     independentLeaves?: boolean,
     forceIndependentLeaves?: boolean,
   },
-  alreadyPurged: boolean = false,
+  alreadyPurged: boolean = false
 ): Promise<PnpmSingleContext> {
   const {
     currentHoistPattern,
@@ -402,7 +402,7 @@ export async function getContextForSingleImporter (
     {
       lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir,
-    },
+    }
   )
 
   const storeDir = opts.storeDir

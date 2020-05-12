@@ -17,7 +17,7 @@ export class UnsupportedEngineError extends PnpmError {
 export default function checkEngine (
   packageId: string,
   wantedEngine: WantedEngine,
-  currentEngine: Engine,
+  currentEngine: Engine
 ) {
   if (!wantedEngine) return null
   const unsatisfiedWanted: WantedEngine = {}

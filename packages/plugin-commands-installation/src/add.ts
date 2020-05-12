@@ -159,7 +159,7 @@ export async function handler (
     update?: boolean,
     useBetaCli?: boolean,
   },
-  params: string[],
+  params: string[]
 ) {
   if (opts.cliOptions['save'] === false) {
     throw new PnpmError('OPTION_NOT_SUPPORTED', 'The "add" command currently does not support the no-save option')
@@ -175,7 +175,7 @@ export async function handler (
     throw new PnpmError('ADDING_TO_ROOT',
       'Running this command will add the dependency to the workspace root, ' +
       'which might not be what you want - if you really meant it, ' +
-      'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).',
+      'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'
     )
   }
 

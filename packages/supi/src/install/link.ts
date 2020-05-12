@@ -79,7 +79,7 @@ export default async function linkPackages (
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
     wantedToBeSkippedPackageIds: Set<string>,
-  },
+  }
 ): Promise<{
   currentLockfile: Lockfile,
   depGraph: DependenciesGraph,
@@ -192,7 +192,7 @@ export default async function linkPackages (
       registries: opts.registries,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
-    },
+    }
   )
 
   stageLogger.debug({
@@ -232,7 +232,7 @@ export default async function linkPackages (
             },
             prefix: rootDir,
           })
-        }),
+        })
     )
   }))
 
@@ -252,7 +252,7 @@ export default async function linkPackages (
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
       filesResponse.filesIndex['binding.gyp'] ||
-        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
+        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
     )
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
@@ -289,7 +289,7 @@ export default async function linkPackages (
       Object.keys(projects), {
         ...filterOpts,
         failOnMissingDependencies: false,
-      },
+      }
     )
   } else if (
     opts.include.dependencies &&
@@ -332,8 +332,8 @@ export default async function linkPackages (
             linkedPackage: linkedDependency,
             prefix: project.rootDir,
           })
-        })),
-      ),
+        }))
+      )
     )
   }
 
@@ -367,7 +367,7 @@ async function linkNewPackages (
     lockfileDir: string,
     storeController: StoreController,
     virtualStoreDir: string,
-  },
+  }
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedLockfile.packages)
 
@@ -377,7 +377,7 @@ async function linkNewPackages (
       wantedRelDepPaths
         // when installing a new package, not all the nodes are analyzed
         // just skip the ones that are in the lockfile but were not analyzed
-        .filter((depPath) => depGraph[depPath]),
+        .filter((depPath) => depGraph[depPath])
     )
   } else {
     newDepPathsSet = await selectNewFromWantedDeps(wantedRelDepPaths, currentLockfile, depGraph, opts)
@@ -435,7 +435,7 @@ async function selectNewFromWantedDeps (
   depGraph: DependenciesGraph,
   opts: {
     registries: Registries,
-  },
+  }
 ) {
   const newDeps = new Set<string>()
   const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
@@ -453,8 +453,8 @@ async function selectNewFromWantedDeps (
           })
         }
         newDeps.add(depPath)
-      },
-    ),
+      }
+    )
   )
   return newDeps
 }
@@ -466,7 +466,7 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
-  },
+  }
 ) {
   return Promise.all(
     depNodes.map(async ({ fetchingFiles, independent, peripheralLocation }) => {
@@ -476,7 +476,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
       })
-    }),
+    })
   )
 }
 
@@ -486,7 +486,7 @@ async function linkAllModules (
   opts: {
     lockfileDir: string,
     optional: boolean,
-  },
+  }
 ) {
   return Promise.all(
     depNodes
@@ -515,8 +515,8 @@ async function linkAllModules (
                 return
               }
               await limitLinking(() => symlinkDependency(pkg.peripheralLocation, modules, childAlias))
-            }),
+            })
         )
-      }),
+      })
   )
 }

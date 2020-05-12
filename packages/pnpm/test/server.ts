@@ -217,7 +217,7 @@ async function testParallelServerStart (
     timeoutMillis?: number,
     onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => void,
     n: number,
-  },
+  }
 ) {
   let stopped = false
   const serverProcessList: ServerProcess[] = []

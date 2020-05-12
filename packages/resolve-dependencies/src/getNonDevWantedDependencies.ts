@@ -16,7 +16,7 @@ export default function getNonDevWantedDependencies (pkg: DependencyManifest) {
     {
       devDependencies: {},
       optionalDependencies: pkg.optionalDependencies || {},
-    },
+    }
   )
 }
 
@@ -25,7 +25,7 @@ function getWantedDependenciesFromGivenSet (
   opts: {
     devDependencies: Dependencies,
     optionalDependencies: Dependencies,
-  },
+  }
 ): WantedDependency[] {
   if (!deps) return []
   return Object.keys(deps).map((alias) => ({

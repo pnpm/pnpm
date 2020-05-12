@@ -70,7 +70,7 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(),
-    },
+    }
   )
 
   t.deepEqual(filteredLockfile, {
@@ -158,7 +158,7 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
           default: 'https://registry.npmjs.org/',
         },
         skipped: new Set<string>(),
-      },
+      }
     )
   } catch (_) {
     err = _
@@ -208,7 +208,7 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(),
-    },
+    }
   )
 
   t.deepEqual(filteredLockfile, {
@@ -309,7 +309,7 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(['/optional-dep/1.0.0']),
-    },
+    }
   )
 
   t.deepEqual(filteredLockfile, {
@@ -414,7 +414,7 @@ test('filterByImporters(): exclude orphan packages', (t) => {
         default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(),
-    },
+    }
   )
 
   t.deepEqual(filteredLockfile, {

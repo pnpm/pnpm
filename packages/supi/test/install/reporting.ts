@@ -34,7 +34,7 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
   t.equal(
     lockfile.packages['/express/0.14.1'].deprecated,
     'express 0.x series is deprecated',
-    `deprecated field added to ${WANTED_LOCKFILE}`,
+    `deprecated field added to ${WANTED_LOCKFILE}`
   )
 
   {

@@ -97,7 +97,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         default: 'https://registry.npmjs.org/',
       },
       skipped: skippedPackages,
-    },
+    }
   )
 
   t.deepEqual(filteredLockfile, {

@@ -89,7 +89,7 @@ test('getUpdateChoices()', (t) => {
         message: chalk`zoo (dev)      1.1.0 ❯ 1.{yellowBright.bold 2.0} `,
         name: 'zoo',
       },
-    ],
+    ]
   )
   t.end()
 })

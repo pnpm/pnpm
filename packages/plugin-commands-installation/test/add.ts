@@ -224,7 +224,7 @@ test('pnpm add --save-peer', async (t) => {
 
         devDependencies: { 'is-positive': '1.0.0' },
         peerDependencies: { 'is-positive': '1.0.0' },
-      },
+      }
     )
   }
 
@@ -246,7 +246,7 @@ test('pnpm add --save-peer', async (t) => {
       {
         name: 'project',
         version: '0.0.0',
-      },
+      }
     )
   }
 

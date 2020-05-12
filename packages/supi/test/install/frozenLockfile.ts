@@ -22,7 +22,7 @@ test(`frozen-lockfile: installation fails if specs in package.json don't match t
         'is-positive': '^3.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   try {

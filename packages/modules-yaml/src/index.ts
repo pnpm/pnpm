@@ -49,7 +49,7 @@ const YAML_OPTS = { sortKeys: true }
 
 export function write (
   modulesDir: string,
-  modules: Modules & { registries: Registries },
+  modules: Modules & { registries: Registries }
 ) {
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   const saveModules = { ...modules }

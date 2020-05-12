@@ -10,7 +10,7 @@ export default (
   opts: {
     cmd: string | null,
     config: Config,
-  },
+  }
 ) => {
   switch (reporterType) {
     case 'default':

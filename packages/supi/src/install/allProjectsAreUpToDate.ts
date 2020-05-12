@@ -21,7 +21,7 @@ export default async function allProjectsAreUpToDate (
   opts: {
     wantedLockfile: Lockfile,
     workspacePackages: WorkspacePackages,
-  },
+  }
 ) {
   const manifestsByDir = opts.workspacePackages ? getWorkspacePackagesByDirectory(opts.workspacePackages) : {}
   const _satisfiesPackageManifest = satisfiesPackageManifest.bind(null, opts.wantedLockfile)
@@ -49,7 +49,7 @@ async function linkedPackagesAreUpToDate (
   workspacePackages: WorkspacePackages,
   manifest: ProjectManifest,
   projectSnapshot: ProjectSnapshot,
-  projectDir: string,
+  projectDir: string
 ) {
   for (const depField of DEPENDENCIES_FIELDS) {
     const lockfileDeps = projectSnapshot[depField]

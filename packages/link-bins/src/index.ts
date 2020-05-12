@@ -28,7 +28,7 @@ export default async (
   opts: {
     allowExoticManifests?: boolean,
     warn: WarnFunction,
-  },
+  }
 ) => {
   const allDeps = await readModulesDir(modulesDir)
   // If the modules dir does not exist, do nothing
@@ -43,9 +43,9 @@ export default async (
         .map((depName) => path.resolve(modulesDir, depName))
         .filter((depDir) => !isSubdir(depDir, binsDir)) // Don't link own bins
         .map((depDir) => normalizePath(depDir))
-        .map(getPackageBins.bind(null, pkgBinOpts)),
+        .map(getPackageBins.bind(null, pkgBinOpts))
     ))
-    .filter((cmds: Command[]) => cmds.length),
+    .filter((cmds: Command[]) => cmds.length)
   )
 
   return linkBins(allCmds, binsDir, opts)
@@ -59,16 +59,16 @@ export async function linkBinsOfPackages (
   binsTarget: string,
   opts: {
     warn: WarnFunction,
-  },
+  }
 ) {
   if (!pkgs.length) return
 
   const allCmds = R.unnest(
     (await Promise.all(
       pkgs
-        .map((pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location)),
+        .map((pkg) => getPackageBinsFromManifest(pkg.manifest, pkg.location))
     ))
-    .filter((cmds: Command[]) => cmds.length),
+    .filter((cmds: Command[]) => cmds.length)
   )
 
   return linkBins(allCmds, binsTarget, opts)
@@ -82,7 +82,7 @@ async function linkBins (
   binsDir: string,
   opts: {
     warn: WarnFunction,
-  },
+  }
 ) {
   if (!allCmds.length) return [] as string[]
 
@@ -122,7 +122,7 @@ async function getPackageBins (
     allowExoticManifests: boolean,
     warn: WarnFunction,
   },
-  target: string,
+  target: string
 ) {
   const manifest = opts.allowExoticManifests
     ? await safeReadProjectManifestOnly(target) : await safeReadPkgJson(target)
@@ -171,7 +171,7 @@ async function getBinNodePaths (target: string): Promise<string[]> {
 
   return R.union(
     Module._nodeModulePaths(targetRealPath),
-    Module._nodeModulePaths(target),
+    Module._nodeModulePaths(target)
   )
 }
 

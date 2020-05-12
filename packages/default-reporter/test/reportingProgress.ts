@@ -287,7 +287,7 @@ test('prints progress of big files download', async t => {
 
   stream$.push(
     output$.take(1)
-      .tap(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)),
+      .tap(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`))
   )
 
   output$ = output$.skip(1)
@@ -297,7 +297,7 @@ test('prints progress of big files download', async t => {
       .tap(output => t.equal(output, stripIndents`
         Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
         Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}
-      `)),
+      `))
   )
 
   output$ = output$.skip(1)
@@ -307,7 +307,7 @@ test('prints progress of big files download', async t => {
       .tap(output => t.equal(output, stripIndents`
         Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
         Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}
-      `)),
+      `))
   )
 
   output$ = output$.skip(2)
@@ -317,7 +317,7 @@ test('prints progress of big files download', async t => {
       .tap(output => t.equal(output, stripIndents`
         Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
         Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-      `, 'downloading of small package not reported')),
+      `, 'downloading of small package not reported'))
   )
 
   output$ = output$.skip(3)
@@ -328,7 +328,7 @@ test('prints progress of big files download', async t => {
         Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
         Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
         Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `)),
+      `))
   )
 
   output$ = output$.skip(1)
@@ -339,7 +339,7 @@ test('prints progress of big files download', async t => {
         Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
         Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
         Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `)),
+      `))
   )
 
   most.mergeArray(stream$)

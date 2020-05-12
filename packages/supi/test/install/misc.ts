@@ -75,7 +75,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
       version: '0.0.0',
     },
     ['lodash@4.0.0'],
-    await testDefaults({ fastUnpack: false, reporter }),
+    await testDefaults({ fastUnpack: false, reporter })
   )
 
   t.equal(reporter.withArgs(sinon.match({
@@ -494,7 +494,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async (t: tape
   t.deepEqual(
     lockfile.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
-    `bundledDependencies added to ${WANTED_LOCKFILE}`,
+    `bundledDependencies added to ${WANTED_LOCKFILE}`
   )
 })
 
@@ -509,7 +509,7 @@ test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async (t: tape.T
   t.deepEqual(
     lockfile.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies,
     ['hello-world-js-bin'],
-    `bundledDependencies added to ${WANTED_LOCKFILE}`,
+    `bundledDependencies added to ${WANTED_LOCKFILE}`
   )
 })
 
@@ -666,7 +666,7 @@ test('ignores drive case in store path', async (t: tape.Test) => {
   const manifest = await addDependenciesToPackage(
     {},
     ['rimraf@2.5.1'],
-    await testDefaults({ storeDir: storePathUpper }, null, null, { ignoreFile: () => {} }), // tslint:disable-line:no-empty
+    await testDefaults({ storeDir: storePathUpper }, null, null, { ignoreFile: () => {} }) // tslint:disable-line:no-empty
   )
   await addDependenciesToPackage(manifest, ['is-negative'], await testDefaults({ storeDir: storePathLower }))
   t.pass('Install did not fail')
@@ -1008,7 +1008,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       'foo',
       'foobarqar',
       'is-positive',
-    ],
+    ]
   )
 })
 
@@ -1037,7 +1037,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
       '/dep-of-pkg-with-1-dep/100.0.0',
       '/parent-of-pkg-with-1-dep/1.0.0',
       '/pkg-with-1-dep/100.0.0',
-    ],
+    ]
   )
 
   await writeYamlFile(path.resolve('pnpm-lock.yaml'), {
@@ -1122,7 +1122,7 @@ test('fail if none of the available resolvers support a version spec', async (t:
         name: '@types/plotly.js',
         version: '1.44.29',
       },
-    ],
+    ]
   )
 })
 

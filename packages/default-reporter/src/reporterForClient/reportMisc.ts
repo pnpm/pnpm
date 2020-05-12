@@ -24,7 +24,7 @@ export default (
     cwd: string,
     logLevel?: LogLevel,
     zoomOutCurrent: boolean,
-  },
+  }
 ) => {
   const maxLogLevel = LOG_LEVEL_NUMBER[opts.logLevel ?? 'info'] ?? LOG_LEVEL_NUMBER['info']
   return most.merge(log$.registry, log$.other)

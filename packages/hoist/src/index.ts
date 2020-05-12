@@ -23,13 +23,13 @@ export default async function hoistByLockfile (
     modulesDir: string,
     registries: Registries,
     virtualStoreDir: string,
-  },
+  }
 ) {
   if (!opts.lockfile.packages) return {}
 
   const { directDeps, step } = lockfileWalker(
     opts.lockfile,
-    Object.keys(opts.lockfile.importers),
+    Object.keys(opts.lockfile.importers)
   )
   const deps = [
     {
@@ -52,7 +52,7 @@ export default async function hoistByLockfile (
         lockfileDir: opts.lockfileDir,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
-      },
+      }
     ),
   ]
 
@@ -87,7 +87,7 @@ async function getDependencies (
     registries: Registries,
     lockfileDir: string,
     virtualStoreDir: string,
-  },
+  }
 ): Promise<Dependency[]> {
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
@@ -123,7 +123,7 @@ async function getDependencies (
 
   return (
     await Promise.all(
-      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1, opts)),
+      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1, opts))
     )
   ).reduce((acc, deps) => [...acc, ...deps], deps)
 }
@@ -142,7 +142,7 @@ async function hoistGraph (
     match: (dependencyName: string) => boolean,
     modulesDir: string,
     dryRun: boolean,
-  },
+  }
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
   const aliasesByDependencyPath: {[depPath: string]: string[]} = {}

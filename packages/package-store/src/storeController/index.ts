@@ -25,7 +25,7 @@ export default async function (
     networkConcurrency?: number,
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
     verifyStoreIntegrity: boolean,
-  },
+  }
 ): Promise<StoreController> {
   const storeDir = initOpts.storeDir
   const packageRequester = createPackageRequester(resolve, fetchers, {
@@ -62,7 +62,7 @@ export default async function (
     opts: {
       lockfileDir: string,
       targetEngine?: string,
-    },
+    }
   ) {
     if (opts.targetEngine) {
       const sideEffectsCacheLocation = (await getCacheByEngine(initOpts.storeDir, packageId))[opts.targetEngine]
@@ -94,7 +94,7 @@ export default async function (
             mode: filesIndex[filename].mode,
             size: filesIndex[filename].size,
           }
-        }),
+        })
     )
     const cachePath = path.join(storeDir, opts.packageId, 'side_effects', opts.engine)
     await writeJsonFile(path.join(cachePath, 'integrity.json'), integrity, { indent: undefined })

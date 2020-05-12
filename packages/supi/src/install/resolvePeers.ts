@@ -77,7 +77,7 @@ export default function (
     virtualStoreDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {
   depGraph: DependenciesGraph,
   projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}},
@@ -94,7 +94,7 @@ export default function (
             depth: 0,
             version,
           },
-        ]),
+        ])
       ),
       toPkgByName(
         Object
@@ -103,8 +103,8 @@ export default function (
             alias,
             node: opts.dependenciesTree[directNodeIdsByAlias[alias]],
             nodeId: directNodeIdsByAlias[alias],
-          })),
-      ),
+          }))
+      )
     )
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
@@ -153,7 +153,7 @@ function resolvePeersOfNode (
     rootDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {[alias: string]: string} {
   const node = ctx.dependenciesTree[nodeId]
   if (ctx.purePkgs.has(node.resolvedPackage.depPath) && ctx.depGraph[node.resolvedPackage.depPath].depth <= node.depth) {
@@ -267,7 +267,7 @@ function resolvePeersOfChildren (
     rootDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
 
@@ -293,7 +293,7 @@ function resolvePeers (
     dependenciesTree: DependenciesTree,
     rootDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {
   [alias: string]: string,
 } {
