@@ -108,7 +108,7 @@ test('do not fail on non-compatible store when forced during named installation'
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
   await fs.mkdir('node_modules')
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storeDir}\nindependentLeaves: false`)
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}\nindependentLeaves: false`)
 }
 
 test(`fail on non-compatible ${WANTED_LOCKFILE}`, async (t: tape.Test) => {

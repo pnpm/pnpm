@@ -32,7 +32,7 @@ export default async function (
     registry: string,
     useLockfile: boolean,
     virtualStoreDir: string,
-  },
+  }
 ): Promise<{
   currentLockfile: Lockfile,
   existsCurrentLockfile: boolean,

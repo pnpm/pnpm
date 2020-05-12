@@ -42,13 +42,13 @@ test.skip('recursive update --latest should update deps with correct specs', asy
   await fs.writeFile(
     'project-2/.npmrc',
     'save-exact = true',
-    'utf8',
+    'utf8'
   )
 
   await fs.writeFile(
     'project-3/.npmrc',
     'save-prefix = ~',
-    'utf8',
+    'utf8'
   )
 
   await execPnpm(['recursive', 'update', '--latest'])

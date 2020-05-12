@@ -22,7 +22,7 @@ export type CreateResolverOptions = Pick<Config,
   'verifyStoreIntegrity'> & Required<Pick<Config, 'storeDir'>>
 
 export default function (
-  opts: CreateResolverOptions,
+  opts: CreateResolverOptions
 ) {
   return createResolver(Object.assign(opts, {
     fullMetadata: false,

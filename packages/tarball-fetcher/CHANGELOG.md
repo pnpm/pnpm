@@ -1,5 +1,18 @@
 # @pnpm/tarball-fetcher
 
+## 6.0.0-alpha.4
+
+### Patch Changes
+
+- c47babd5: Fix installation of local dependency from a different disk.
+  - @pnpm/fetcher-base@6.0.1-alpha.3
+
+## 6.0.0-alpha.3
+
+### Patch Changes
+
+- 1ae66a0dc: Don't create a directory for the tarball because the tarball is not saved to the filesystem anymore.
+
 ## 6.0.0-alpha.2
 
 ### Major Changes

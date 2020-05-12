@@ -41,7 +41,7 @@ export default function createCafs (cafsDir: string, ignore?: ((filename: string
 async function addStreamToCafs (
   writeBufferToCafs: WriteBufferToCafs,
   fileStream: NodeJS.ReadableStream,
-  mode: number,
+  mode: number
 ): Promise<ssri.Integrity> {
   const buffer = await getStream.buffer(fileStream)
   return addBufferToCafs(writeBufferToCafs, buffer, mode)
@@ -52,7 +52,7 @@ type WriteBufferToCafs = (buffer: Buffer, fileDest: string, mode: number | undef
 async function addBufferToCafs (
   writeBufferToCafs: WriteBufferToCafs,
   buffer: Buffer,
-  mode: number,
+  mode: number
 ): Promise<ssri.Integrity> {
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
@@ -66,7 +66,7 @@ async function writeBufferToCafs (
   cafsDir: string,
   buffer: Buffer,
   fileDest: string,
-  mode: number | undefined,
+  mode: number | undefined
 ) {
   fileDest = path.join(cafsDir, fileDest)
   if (locker.has(fileDest)) {

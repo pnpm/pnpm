@@ -22,7 +22,7 @@ export default function getAgent (
     timeout?: number,
     proxy: string,
     noProxy: boolean,
-  },
+  }
 ) {
   const parsedUri = new URL(uri)
   const isHttps = parsedUri.protocol === 'https:'
@@ -100,7 +100,7 @@ function getProxyUri (
   opts: {
     proxy?: string,
     noProxy?: boolean,
-  },
+  }
 ) {
   const { protocol } = new URL(uri)
 
@@ -131,7 +131,7 @@ function getProxy (
     maxSockets?: number,
     strictSSL?: boolean,
   },
-  isHttps: boolean,
+  isHttps: boolean
 ) {
   let popts = {
     auth: (proxyUrl.username ? (proxyUrl.password ? `${proxyUrl.username}:${proxyUrl.password}` : proxyUrl.username) : undefined),

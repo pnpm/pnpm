@@ -4,7 +4,7 @@ import { PassThrough } from 'stream'
 
 export function parseJsonBuffer (
   buffer: Buffer,
-  deferred: DeferredManifestPromise,
+  deferred: DeferredManifestPromise
 ) {
   try {
     deferred.resolve(JSON.parse(buffer.toString()))
@@ -15,9 +15,9 @@ export function parseJsonBuffer (
 
 export function parseJsonStream (
   stream: PassThrough,
-  deferred: DeferredManifestPromise,
+  deferred: DeferredManifestPromise
 ) {
   stream.pipe(
-    concatStream((buffer) => parseJsonBuffer(buffer, deferred)),
+    concatStream((buffer) => parseJsonBuffer(buffer, deferred))
   )
 }

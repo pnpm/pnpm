@@ -165,7 +165,7 @@ function createManifestWriter (
     initialManifest: ProjectManifest,
     indent?: string | number | undefined,
     manifestPath: string,
-  },
+  }
 ): (WriteProjectManifest) {
   const initialManifest = normalize(JSON.parse(JSON.stringify(opts.initialManifest)))
   return async (updatedManifest: ProjectManifest, force?: boolean) => {

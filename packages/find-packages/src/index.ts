@@ -37,7 +37,7 @@ export default async function findPkgs (root: string, opts?: findPkgs.Options): 
     // Always include the workspace root (https://github.com/pnpm/pnpm/issues/1986)
     Array.prototype.push.apply(
       paths,
-      await fastGlob(normalizePatterns(['.']), globOpts),
+      await fastGlob(normalizePatterns(['.']), globOpts)
     )
   }
 
@@ -50,8 +50,8 @@ export default async function findPkgs (root: string, opts?: findPkgs.Options): 
         paths
           .map(manifestPath => path.join(root, manifestPath))
           .sort((path1, path2) =>
-            path.dirname(path1).localeCompare(path.dirname(path2)),
-          ),
+            path.dirname(path1).localeCompare(path.dirname(path2))
+          )
       ),
       async manifestPath => {
         try {
@@ -66,7 +66,7 @@ export default async function findPkgs (root: string, opts?: findPkgs.Options): 
           throw err
         }
       }),
-    Boolean,
+    Boolean
   )
 }
 
@@ -76,13 +76,13 @@ function normalizePatterns (patterns: readonly string[]) {
     // We should add separate pattern for each extension
     // for some reason, fast-glob is buggy with /package.{json,yaml,json5} pattern
     normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.json'),
+      pattern.replace(/\/?$/, '/package.json')
     )
     normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.json5'),
+      pattern.replace(/\/?$/, '/package.json5')
     )
     normalizedPatterns.push(
-      pattern.replace(/\/?$/, '/package.yaml'),
+      pattern.replace(/\/?$/, '/package.yaml')
     )
   }
   return normalizedPatterns

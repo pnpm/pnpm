@@ -25,7 +25,7 @@ await runLifecycleHook('preinstall', pkg, {
   pkgId: 'target-pkg/1.0.0',
   pkgRoot: targetPkgRoot,
   rawConfig: {},
-  rootNodeModulesDir: path.resolve('node_modules'),
+  rootModulesDir: path.resolve('node_modules'),
   unsafePerm: true,
 })
 
@@ -34,7 +34,7 @@ await runPostinstallHooks({
   pkgId: 'target-pkg/1.0.0',
   pkgRoot: targetPkgRoot,
   rawConfig: {},
-  rootNodeModulesDir: path.resolve('node_modules'),
+  rootModulesDir: path.resolve('node_modules'),
   unsafePerm: true,
 })
 ```

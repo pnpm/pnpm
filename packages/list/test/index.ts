@@ -114,7 +114,7 @@ test('list dev only', async t => {
 
       ${DEV_DEPENDENCIES}
       ${DEV_DEP_ONLY_CLR('is-positive')} ${VERSION_CLR('3.1.0')}
-    `,
+    `
   )
 
   t.end()
@@ -133,7 +133,7 @@ test('list prod only', async t => {
 
       ${DEPENDENCIES}
       write-json-file ${VERSION_CLR('2.3.0')}
-    `,
+    `
   )
 
   t.end()
@@ -164,7 +164,7 @@ test('list prod only with depth 2', async t => {
         ├── graceful-fs ${VERSION_CLR('4.2.2')}
         ├── imurmurhash ${VERSION_CLR('0.1.4')}
         └── signal-exit ${VERSION_CLR('3.0.2')}
-    `,
+    `
   )
 
   t.end()
@@ -216,7 +216,7 @@ test('list with depth 1 and selected packages', async t => {
 
       ${OPTIONAL_DEPENDENCIES}
       ${highlighted(OPTIONAL_DEP_CLR('is-negative') + ' ' + VERSION_CLR('2.1.0'))}
-    `,
+    `
   )
 
   t.end()
@@ -361,7 +361,7 @@ test('JSON list with aliased dep', async t => {
           },
         },
       },
-    ], null, 2),
+    ], null, 2)
   )
   t.equal(
     await list([fixtureWithAliasedDep], { lockfileDir: fixtureWithAliasedDep, long: true, reportAs: 'json' }),
@@ -382,7 +382,7 @@ test('JSON list with aliased dep', async t => {
         },
       },
     }], null, 2),
-    'with long info',
+    'with long info'
   )
   t.end()
 })
@@ -398,7 +398,7 @@ test('parseable list with depth 1 and dev only', async t => {
     stripIndent`
       ${fixture}
       ${path.join(fixture, 'node_modules/.pnpm/registry.npmjs.org/is-positive/3.1.0')}
-    `,
+    `
   )
 
   t.end()
@@ -442,7 +442,7 @@ test('long parseable list with depth 1 when package has no name and no version',
   t.equal(
     await list(
       [fixtureWithNoPkgNameAndNoVersion],
-      { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true },
+      { reportAs: 'parseable', depth: 1, lockfileDir: fixtureWithNoPkgNameAndNoVersion, long: true }
     ),
     stripIndent`
       ${fixtureWithNoPkgNameAndNoVersion}
@@ -455,7 +455,7 @@ test('long parseable list with depth 1 when package has no name and no version',
       ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/sort-keys/2.0.0')}:sort-keys@2.0.0
       ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/write-file-atomic/2.4.3')}:write-file-atomic@2.4.3
       ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.pnpm/registry.npmjs.org/write-json-file/2.3.0')}:write-json-file@2.3.0
-    `,
+    `
   )
 
   t.end()
@@ -497,7 +497,7 @@ test('unsaved dependencies are marked', async (t) => {
       depth: 0,
       long: false,
       search: true,
-    },
+    }
   ), stripIndent`
     ${LEGEND}
 
@@ -625,7 +625,7 @@ test('write long lists in columns', async (t) => {
       depth: 0,
       long: false,
       search: false,
-    },
+    }
   ), stripIndent`
     ${LEGEND}
 
@@ -695,7 +695,7 @@ test('sort list items', async (t) => {
       depth: 0,
       long: false,
       search: false,
-    },
+    }
   ), stripIndent`
     ${LEGEND}
 

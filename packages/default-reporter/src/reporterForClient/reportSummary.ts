@@ -30,7 +30,7 @@ export default (
   opts: {
     cwd: string,
     pnpmConfig?: Config,
-  },
+  }
 ) => {
   const pkgsDiff$ = getPkgsDiff(log$, { prefix: opts.cwd })
 
@@ -57,7 +57,7 @@ export default (
       return { msg }
     },
     pkgsDiff$,
-    summaryLog$,
+    summaryLog$
   )
   .take(1)
   .map(most.of)
@@ -67,7 +67,7 @@ function printDiffs (
   pkgsDiff: PackageDiff[],
   opts: {
     prefix: string,
-  },
+  }
 ) {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0

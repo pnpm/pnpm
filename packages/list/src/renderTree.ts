@@ -24,7 +24,7 @@ export default async function (
     depth: number,
     long: boolean,
     search: boolean,
-  },
+  }
 ) {
   return (await Promise.all(packages.map((pkg) => renderTreeForPackage(pkg, opts)))).filter(Boolean).join('\n\n')
 }
@@ -36,7 +36,7 @@ async function renderTreeForPackage (
     depth: number,
     long: boolean,
     search: boolean,
-  },
+  }
 ) {
   if (
     !opts.alwaysPrintRootPackage &&
@@ -62,7 +62,7 @@ async function renderTreeForPackage (
       const depsLabel = chalk.cyanBright(
         dependenciesField !== 'unsavedDependencies'
           ? `${dependenciesField}:`
-          : 'not saved (you should add these dependencies to package.json if you need them):',
+          : 'not saved (you should add these dependencies to package.json if you need them):'
       )
       output += `\n${depsLabel}\n`
       const gPkgColor = dependenciesField === 'unsavedDependencies' ? () => NOT_SAVED_DEP_CLR : getPkgColor
@@ -91,7 +91,7 @@ export async function toArchyTree (
   opts: {
     long: boolean,
     modules: string,
-  },
+  }
 ): Promise<archy.Data[]> {
   return Promise.all(
     sortPackages(entryNodes).map(async (node) => {
@@ -117,7 +117,7 @@ export async function toArchyTree (
         label: printLabel(getPkgColor, node),
         nodes,
       }
-    }),
+    })
   )
 }
 

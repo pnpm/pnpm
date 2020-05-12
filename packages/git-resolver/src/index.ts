@@ -6,10 +6,10 @@ import parsePref, { HostedPackageSpec } from './parsePref'
 export { HostedPackageSpec }
 
 export default function (
-  opts: {},
+  opts: {}
 ) {
   return async function resolveGit (
-    wantedDependency: {pref: string},
+    wantedDependency: {pref: string}
   ): Promise<ResolveResult | null> {
     const parsedSpec = await parsePref(wantedDependency.pref)
 

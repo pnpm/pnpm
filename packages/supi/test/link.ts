@@ -132,7 +132,7 @@ test('relative link is rewritten by named installation to regular dependency', a
       dir: process.cwd(),
       manifest: {},
       reporter,
-    },
+    }
   )
 
   t.ok(reporter.calledWithMatch({
@@ -210,11 +210,11 @@ test('node_modules is pruned after linking', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({}, ['is-positive@1.0.0'], await testDefaults())
 
-  t.ok(await exists(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0/node_modules/is-positive/package.json`))
+  t.ok(await exists(`node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json`))
 
   await link(['../is-positive'], path.resolve('node_modules'), await testDefaults({ manifest, dir: process.cwd() }))
 
-  t.notOk(await exists(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/1.0.0/node_modules/is-positive/package.json`), 'pruned')
+  t.notOk(await exists(`node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive/package.json`), 'pruned')
 })
 
 test('relative link uses realpath when contained in a symlinked dir', async (t: tape.Test) => {

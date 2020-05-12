@@ -9,7 +9,7 @@ export default class UnexpectedVirtualStoreDirError extends PnpmError {
       expected: string,
       actual: string,
       modulesDir: string,
-    },
+    }
   ) {
     super('UNEXPECTED_VIRTUAL_STORE', 'Unexpected virtual store location')
     this.expected = opts.expected

@@ -245,7 +245,7 @@ function reportLifecycleError (
   msg: {
     stage: string,
     errno?: number | string,
-  },
+  }
 ) {
   if (msg.stage === 'test') {
     return formatErrorSummary('Test failed. See above for more details.')
@@ -269,7 +269,7 @@ function reportEngineError (
       node?: string,
       pnpm?: string,
     },
-  },
+  }
 ) {
   let output = ''
   if (msg.wanted.pnpm) {

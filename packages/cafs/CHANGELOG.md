@@ -1,5 +1,22 @@
 # @pnpm/cafs
 
+## 1.0.0-alpha.4
+
+### Major Changes
+
+- 471149e6: Change the format of the package index file. Move all the files info into a "files" property.
+
+### Patch Changes
+
+- @pnpm/fetcher-base@6.0.1-alpha.3
+
+## 1.0.0-alpha.3
+
+### Major Changes
+
+- 9596774f2: Store the package index files in the CAFS to reduce directory nesting.
+- 7852deea3: Instead of creating a separate subdir for executables in the content-addressable storage, use the directory where all the files are stored but suffix the executable files with `-exec`. Also suffix the package index files with `-index.json`.
+
 ## 1.0.0-alpha.2
 
 ### Minor Changes

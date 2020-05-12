@@ -8,7 +8,7 @@ export function autozoom (
   line: string,
   opts: {
     zoomOutCurrent: boolean,
-  },
+  }
 ) {
   if (!logPrefix || !opts.zoomOutCurrent && currentPrefix === logPrefix) {
     return line

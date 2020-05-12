@@ -6,7 +6,7 @@ import { PackageInRegistry, PackageMeta } from './pickPackage'
 export default function (
   spec: RegistryPackageSpec,
   preferredVersionSelectors: VersionSelectors | undefined,
-  meta: PackageMeta,
+  meta: PackageMeta
 ): PackageInRegistry {
   let version!: string
   switch (spec.type) {
@@ -26,7 +26,7 @@ export default function (
 function pickVersionByVersionRange (
   meta: PackageMeta,
   versionRange: string,
-  preferredVerSels?: VersionSelectors,
+  preferredVerSels?: VersionSelectors
 ) {
   let versions: string[] | undefined
   const latest = meta['dist-tags'].latest

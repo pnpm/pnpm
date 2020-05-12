@@ -44,15 +44,15 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     const manifest = (await import(path.resolve('project-1/package.json')))
     t.deepEqual(
       manifest.devDependencies,
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     t.deepEqual(
       manifest.peerDependencies,
-      { 'is-negative': '1.0.0' },
+      { 'is-negative': '1.0.0' }
     )
     t.deepEqual(
       (await projects['project-1'].readLockfile()).devDependencies,
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
   }
 
@@ -60,15 +60,15 @@ test('recursive add --save-dev, --save-peer on workspace with multiple lockfiles
     const manifest = (await import(path.resolve('project-2/package.json')))
     t.deepEqual(
       manifest.devDependencies,
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     t.deepEqual(
       manifest.peerDependencies,
-      { 'is-negative': '1.0.0' },
+      { 'is-negative': '1.0.0' }
     )
     t.deepEqual(
       (await projects['project-2'].readLockfile()).devDependencies,
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
   }
   t.end()
@@ -113,11 +113,11 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     const manifest = (await import(path.resolve('project-1/package.json')))
     t.deepEqual(
       manifest.devDependencies,
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     t.deepEqual(
       manifest.peerDependencies,
-      { 'is-negative': '1.0.0' },
+      { 'is-negative': '1.0.0' }
     )
   }
 
@@ -125,18 +125,18 @@ test('recursive add --save-dev, --save-peer on workspace with single lockfile', 
     const manifest = (await import(path.resolve('project-2/package.json')))
     t.deepEqual(
       manifest.devDependencies,
-      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+      { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
     )
     t.deepEqual(
       manifest.peerDependencies,
-      { 'is-negative': '1.0.0' },
+      { 'is-negative': '1.0.0' }
     )
   }
 
   const lockfile = await readYamlFile<Lockfile>('./pnpm-lock.yaml')
   t.deepEqual(
     lockfile.importers['project-1'].devDependencies,
-    { 'is-positive': '1.0.0', 'is-negative': '1.0.0' },
+    { 'is-positive': '1.0.0', 'is-negative': '1.0.0' }
   )
   t.end()
 })

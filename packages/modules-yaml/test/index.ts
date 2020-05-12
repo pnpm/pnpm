@@ -24,7 +24,7 @@ test('write() and read()', async (t) => {
     },
     shamefullyHoist: false,
     skipped: [],
-    store: '/.pnpm-store',
+    storeDir: '/.pnpm-store',
     virtualStoreDir: path.join(modulesDir, '.pnpm'),
   }
   await write(modulesDir, modulesYaml)

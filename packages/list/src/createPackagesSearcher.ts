@@ -17,7 +17,7 @@ function search (
     matchName: MatchFunction,
     matchVersion?: MatchFunction,
   },
-  pkg: { name: string, version: string },
+  pkg: { name: string, version: string }
 ) {
   if (!packageSelector.matchName(pkg.name)) {
     return false

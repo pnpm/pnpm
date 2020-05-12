@@ -1,5 +1,22 @@
 # @pnpm/default-resolver
 
+## 7.4.10-alpha.2
+
+### Patch Changes
+
+- @pnpm/local-resolver@5.0.6-alpha.0
+- @pnpm/npm-resolver@7.3.12-alpha.2
+- @pnpm/resolver-base@7.0.1-alpha.0
+- @pnpm/git-resolver@4.0.12-alpha.0
+- @pnpm/tarball-resolver@3.0.5-alpha.0
+
+## 7.4.10-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [5bc033c43]
+  - @pnpm/npm-resolver@8.0.0-alpha.1
+
 ## 7.4.10-alpha.0
 
 ### Patch Changes

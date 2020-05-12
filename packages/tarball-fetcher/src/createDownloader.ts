@@ -95,7 +95,7 @@ export default (
       randomize?: boolean,
     },
     userAgent?: string,
-  },
+  }
 ): DownloadFunction => {
   const fetchFromNpmRegistry = createFetcher(gotOpts)
 
@@ -218,7 +218,7 @@ function waitTillClosed (
     size: null | number,
     getDownloaded: () => number,
     url: string,
-  },
+  }
 ) {
   return new Promise((resolve, reject) => {
     opts.stream.on('end', () => {

@@ -29,7 +29,7 @@ export default function filterByImportersAndEngine (
     failOnMissingDependencies: boolean,
     lockfileDir: string,
     skipped: Set<string>,
-  },
+  }
 ): Lockfile {
   const importerDeps = importerIds
     .map((importerId) => lockfile.importers[importerId])
@@ -90,7 +90,7 @@ function pickPkgsWithAllDeps (
     lockfileDir: string,
     registries: Registries,
     skipped: Set<string>,
-  },
+  }
 ) {
   const pickedPackages = {} as PackageSnapshots
   pkgAllDeps({ pkgSnapshots, pickedPackages }, relDepPaths, true, opts)
@@ -116,7 +116,7 @@ function pkgAllDeps (
     lockfileDir: string,
     registries: Registries,
     skipped: Set<string>,
-  },
+  }
 ) {
   for (const relDepPath of relDepPaths) {
     if (ctx.pickedPackages[relDepPath]) continue

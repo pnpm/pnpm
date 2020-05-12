@@ -23,7 +23,7 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   const manifest = await addDependenciesToPackage({},
     ['pre-and-postinstall-scripts-example'],
-    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }),
+    await testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' })
   )
 
   {
@@ -178,14 +178,14 @@ test("reports child's output", async (t: tape.Test) => {
   await addDependenciesToPackage({}, ['count-to-10'], await testDefaults({ fastUnpack: false, reporter }))
 
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     name: 'pnpm:lifecycle',
     script: 'node postinstall',
     stage: 'postinstall',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '1',
     name: 'pnpm:lifecycle',
@@ -193,7 +193,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '2',
     name: 'pnpm:lifecycle',
@@ -201,7 +201,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     level: 'debug',
     line: '6',
     name: 'pnpm:lifecycle',
@@ -209,7 +209,7 @@ test("reports child's output", async (t: tape.Test) => {
     stdio: 'stderr',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    depPath: `localhost+${REGISTRY_MOCK_PORT}/count-to-10/1.0.0`,
+    depPath: '/count-to-10/1.0.0',
     exitCode: 0,
     level: 'debug',
     name: 'pnpm:lifecycle',
@@ -227,7 +227,7 @@ test("reports child's close event", async (t: tape.Test) => {
     t.fail()
   } catch (err) {
     t.ok(reporter.calledWithMatch({
-      depPath: `localhost+${REGISTRY_MOCK_PORT}/failing-postinstall/1.0.0`,
+      depPath: '/failing-postinstall/1.0.0',
       exitCode: 1,
       level: 'debug',
       name: 'pnpm:lifecycle',
@@ -262,7 +262,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 
   await addDependenciesToPackage({}, ['with-postinstall-a'], await testDefaults({ fastUnpack: false }))
 
-  t.ok(+project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+  t.ok(+project.requireModule(`.pnpm/with-postinstall-b@1.0.0/node_modules/with-postinstall-b/output.json`)[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
 
 test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
@@ -299,7 +299,7 @@ test('lifecycle scripts run before linking bins', async (t: tape.Test) => {
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true }),
+    await testDefaults({ frozenLockfile: true })
   )
 
   await project.isExecutable('.bin/cmd1')
@@ -326,7 +326,7 @@ test('hoisting does not fail on commands that will be created by lifecycle scrip
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true, hoistPattern: '*' }),
+    await testDefaults({ frozenLockfile: true, hoistPattern: '*' })
   )
 
   // await project.isExecutable('.pnpm/node_modules/.bin/cmd1')
@@ -344,7 +344,7 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
       'peer-with-bin',
       'pre-and-postinstall-scripts-example',
     ],
-    await testDefaults({ fastUnpack: false, ignoreScripts: true }),
+    await testDefaults({ fastUnpack: false, ignoreScripts: true })
   )
 
   await project.isExecutable('.bin/peer-with-bin')
@@ -365,7 +365,7 @@ test('bins are linked even if lifecycle scripts are ignored', async (t: tape.Tes
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults({ frozenLockfile: true, ignoreScripts: true }),
+    await testDefaults({ frozenLockfile: true, ignoreScripts: true })
   )
 
   await project.isExecutable('.bin/peer-with-bin')
@@ -387,7 +387,7 @@ test('dependency should not be added to current lockfile if it was not built suc
     await testDefaults({
       ignoreScripts: true,
       lockfileOnly: true,
-    }),
+    })
   )
 
   let err
@@ -401,7 +401,7 @@ test('dependency should not be added to current lockfile if it was not built suc
           rootDir: process.cwd(),
         },
       ],
-      await testDefaults({ frozenLockfile: true }),
+      await testDefaults({ frozenLockfile: true })
     )
   } catch (_err) {
     err = _err
@@ -418,7 +418,7 @@ test('scripts have access to unlisted bins when hoisting is used', async (t: tap
   await addDependenciesToPackage(
     {},
     [ 'pkg-that-calls-unlisted-dep-in-hooks' ],
-    await testDefaults({ fastUnpack: false, hoistPattern: '*' }),
+    await testDefaults({ fastUnpack: false, hoistPattern: '*' })
   )
 
   t.deepEqual(project.requireModule('pkg-that-calls-unlisted-dep-in-hooks/output.json'), ['Hello world!'])

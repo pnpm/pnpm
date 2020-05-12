@@ -13,6 +13,8 @@ import writeYamlFile = require('write-yaml-file')
 import './recursive'
 import './why'
 
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
+
 test('listing packages', async (t) => {
   prepare(t, {
     dependencies: {
@@ -23,7 +25,7 @@ test('listing packages', async (t) => {
     },
   })
 
-  await execa('pnpm', ['install'])
+  await execa('node', [pnpmBin, 'install'])
 
   {
     const output = await list.handler({
@@ -89,7 +91,7 @@ test('independent-leaves=true: pnpm list --long', async (t) => {
     },
   })
 
-  await execa('pnpm', ['install', '--independent-leaves', '--no-hoist'])
+  await execa('node', [pnpmBin, 'install', '--independent-leaves', '--no-hoist'])
 
   const output = await list.handler({
     dir: process.cwd(),
@@ -128,7 +130,7 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('.npmrc', 'shared-workspace-lockfile = true', 'utf8')
 
-  await execa('pnpm', ['recursive', 'install'])
+  await execa('node', [pnpmBin, 'recursive', 'install'])
 
   process.chdir('pkg')
 
@@ -153,7 +155,7 @@ test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, as
 test.skip('list on a project with skipped optional dependencies', async (t) => {
   prepare(t)
 
-  await execa('pnpm', ['add', '--no-optional', 'pkg-with-optional', 'is-positive@1.0.0'])
+  await execa('node', [pnpmBin, 'add', '--no-optional', 'pkg-with-optional', 'is-positive@1.0.0'])
 
   {
     const output = await list.handler({

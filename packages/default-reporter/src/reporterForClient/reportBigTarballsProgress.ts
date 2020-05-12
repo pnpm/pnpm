@@ -11,14 +11,14 @@ const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 export default (
   log$: {
     fetchingProgress: most.Stream<FetchingProgressLog>,
-  },
+  }
 ) => {
   return log$.fetchingProgress
     .filter((log) => log.status === 'started' &&
       typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE &&
       // When retrying the download, keep the existing progress line.
       // Fixing issue: https://github.com/pnpm/pnpm/issues/1013
-      log.attempt === 1,
+      log.attempt === 1
     )
     .map((startedLog) => {
       const size = prettyBytes(startedLog['size'])

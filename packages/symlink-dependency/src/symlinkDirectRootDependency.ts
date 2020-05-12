@@ -24,7 +24,7 @@ export default async function symlinkDirectRootDependency (
       version: string,
     },
     prefix: string,
-  },
+  }
 ) {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir
   // so `fs.realpath` would throw.

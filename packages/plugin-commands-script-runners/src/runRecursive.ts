@@ -20,7 +20,7 @@ Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>
 
 export default async (
   params: string[],
-  opts: RecursiveRunOpts,
+  opts: RecursiveRunOpts
 ) => {
   const [scriptName, ...passedThruArgs] = params
   if (!scriptName) {
@@ -45,7 +45,7 @@ export default async (
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = opts.selectedProjectsGraph[prefix] as {package: {dir: string, manifest: PackageManifest}}
+        const pkg = opts.selectedProjectsGraph[prefix]
         if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
           return
         }
@@ -56,7 +56,7 @@ export default async (
             extraBinPaths: opts.extraBinPaths,
             pkgRoot: prefix,
             rawConfig: opts.rawConfig,
-            rootNodeModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
+            rootModulesDir: await realpathMissing(path.join(prefix, 'node_modules')),
             stdio,
             unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
           }
@@ -86,7 +86,7 @@ export default async (
           // tslint:enable:no-string-literal
           throw err
         }
-      },
+      }
     )))
   }
 

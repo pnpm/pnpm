@@ -13,7 +13,7 @@ export class UnsupportedPlatformError extends PnpmError {
 
 export default function checkPlatform (
   packageId: string,
-  wantedPlatform: WantedPlatform,
+  wantedPlatform: WantedPlatform
 ) {
   const platform = process.platform
   const arch = process.arch

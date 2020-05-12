@@ -55,7 +55,7 @@ export function help () {
 
 export async function handler (
   opts: RunOpts,
-  params: string[] = [],
+  params: string[] = []
 ) {
   return run(opts, ['test', ...params])
 }

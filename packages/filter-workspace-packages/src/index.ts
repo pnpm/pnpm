@@ -18,7 +18,7 @@ interface Graph {
 
 export async function readProjects (
   workspaceDir: string,
-  pkgSelectors: PackageSelector[],
+  pkgSelectors: PackageSelector[]
 ) {
   const allProjects = await findWorkspacePackages(workspaceDir, {})
   const { selectedProjectsGraph } = await filterPkgsBySelectorObjects(
@@ -26,7 +26,7 @@ export async function readProjects (
     pkgSelectors,
     {
       workspaceDir,
-    },
+    }
   )
   return { allProjects, selectedProjectsGraph }
 }
@@ -37,7 +37,7 @@ export async function filterPackages<T> (
   opts: {
     prefix: string,
     workspaceDir: string,
-  },
+  }
 ): Promise<{
   selectedProjectsGraph: PackageGraph<T>,
   unmatchedFilters: string[],
@@ -53,7 +53,7 @@ export async function filterPkgsBySelectorObjects<T> (
   packageSelectors: PackageSelector[],
   opts: {
     workspaceDir: string,
-  },
+  }
 ): Promise<{
   selectedProjectsGraph: PackageGraph<T>,
   unmatchedFilters: string[],
@@ -73,7 +73,7 @@ export default async function filterGraph<T> (
   packageSelectors: PackageSelector[],
   opts: {
     workspaceDir: string,
-  },
+  }
 ): Promise<{
   selectedProjectsGraph: PackageGraph<T>,
   unmatchedFilters: string[],
@@ -158,7 +158,7 @@ function reverseGraph (graph: Graph): Graph {
 
 function matchPackages<T> (
   graph: PackageGraph<T>,
-  pattern: string,
+  pattern: string
 ) {
   const match = matcher(pattern)
   return Object.keys(graph).filter((id) => graph[id].package.manifest.name && match(graph[id].package.manifest.name!))
@@ -166,7 +166,7 @@ function matchPackages<T> (
 
 function matchPackagesByPath<T> (
   graph: PackageGraph<T>,
-  pathStartsWith: string,
+  pathStartsWith: string
 ) {
   return Object.keys(graph).filter((parentDir) => isSubdir(pathStartsWith, parentDir))
 }
@@ -177,7 +177,7 @@ function pickSubgraph (
   walked: Set<string>,
   opts: {
     includeRoot: boolean,
-  },
+  }
 ) {
   for (const nextNodeId of nextNodeIds) {
     if (!walked.has(nextNodeId)) {

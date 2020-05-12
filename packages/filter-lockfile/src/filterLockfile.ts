@@ -9,7 +9,7 @@ export default function filterLockfile (
     include: { [dependenciesField in DependenciesField]: boolean },
     registries: Registries,
     skipped: Set<string>,
-  },
+  }
 ): Lockfile {
   let pairs = R.toPairs(lockfile.packages || {})
     .filter(([relDepPath, pkg]) => !opts.skipped.has(relDepPath))

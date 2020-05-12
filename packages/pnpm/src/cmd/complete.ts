@@ -19,7 +19,7 @@ export default async function complete (
     currentTypedWordType: 'option' | 'value' | null,
     lastOption: string | null,
     options: Record<string, unknown>,
-  },
+  }
 ) {
   if (input.options.version) return []
   const optionTypes = {
@@ -42,7 +42,7 @@ export default async function complete (
           ...universalShorthands,
           ...(input.cmd && ctx.shorthandsByCommandName[input.cmd] || {}),
         },
-        input.lastOption,
+        input.lastOption
       )
       if (optionCompletions !== undefined) {
         return optionCompletions.map((name) => ({ name }))

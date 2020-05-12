@@ -81,7 +81,7 @@ export type InstallDepsOptions = Pick<Config,
 
 export default async function handler (
   opts: InstallDepsOptions,
-  params: string[],
+  params: string[]
 ) {
   if (opts.workspace) {
     if (opts.latest) {
@@ -115,7 +115,7 @@ export default async function handler (
         selectedProjectsGraph: opts.selectedProjectsGraph!,
         workspaceDir: opts.workspaceDir!,
       },
-      opts.update ? 'update' : (params.length === 0 ? 'install' : 'add'),
+      opts.update ? 'update' : (params.length === 0 ? 'install' : 'add')
     )
     return
   }
@@ -239,7 +239,7 @@ export default async function handler (
         pending: true,
         storeController: store.ctrl,
         storeDir: store.dir,
-      },
+      }
     )
   }
 }

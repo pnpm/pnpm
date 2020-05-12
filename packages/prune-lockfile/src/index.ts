@@ -15,7 +15,7 @@ export function pruneSharedLockfile (
   lockfile: Lockfile,
   opts?: {
     warn?: (msg: string) => void,
-  },
+  }
 ) {
   const copiedPackages = !lockfile.packages ? {} : copyPackageSnapshots(lockfile.packages, {
     devRelPaths: R.unnest(R.values(lockfile.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
@@ -40,7 +40,7 @@ export function pruneLockfile (
   importerId: string,
   opts?: {
     warn?: (msg: string) => void,
-  },
+  }
 ): Lockfile {
   const packages: PackageSnapshots = {}
   const importer = lockfile.importers[importerId]
@@ -115,7 +115,7 @@ function copyPackageSnapshots (
     optionalRelPaths: string[],
     prodRelPaths: string[],
     warn: (msg: string) => void,
-  },
+  }
 ): PackageSnapshots {
   const copiedPackages: PackageSnapshots = {}
   const nonOptional = new Set<string>()
@@ -172,7 +172,7 @@ function copyDependencySubGraph (
     nonOptional: Set<string>,
     notProdOnly: Set<string>,
     walkOptionals?: boolean,
-  },
+  }
 ) {
   for (const depRalativePath of depRelativePaths) {
     if (walked.has(depRalativePath)) continue

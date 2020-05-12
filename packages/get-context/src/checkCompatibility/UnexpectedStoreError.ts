@@ -9,7 +9,7 @@ export default class UnexpectedStoreError extends PnpmError {
       expectedStorePath: string,
       actualStorePath: string,
       modulesDir: string,
-    },
+    }
   ) {
     super('UNEXPECTED_STORE', 'Unexpected store location')
     this.expectedStorePath = opts.expectedStorePath

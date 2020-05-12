@@ -34,7 +34,7 @@ export async function handler (
     engineStrict?: boolean,
     npmPath?: string,
     workspaceDir?: string,
-  },
+  }
 ) {
   let _status!: number
   await fakeRegularManifest({

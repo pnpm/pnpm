@@ -39,7 +39,7 @@ export async function handler (
     sort?: boolean,
     workspaceConcurrency?: number,
   } & Pick<Config, 'recursive'>,
-  params: string[],
+  params: string[]
 ) {
   if (!opts.recursive) {
     throw new PnpmError('EXEC_NOT_RECURSIVE', 'The "pnpm exec" command currently only works with the "-r" option')
@@ -86,7 +86,7 @@ export async function handler (
           // tslint:enable:no-string-literal
           throw err
         }
-      },
+      }
     )))
   }
 

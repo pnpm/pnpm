@@ -3,7 +3,7 @@ import * as dp from 'dependency-path'
 
 export default (
   relDepPath: string,
-  pkgSnapshot: PackageSnapshot,
+  pkgSnapshot: PackageSnapshot
 ) => {
   if (!pkgSnapshot.name) {
     const pkgInfo = dp.parse(relDepPath)

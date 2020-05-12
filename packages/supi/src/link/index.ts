@@ -39,7 +39,7 @@ export default async function link (
   maybeOpts: LinkOptions & {
     linkToBin?: string,
     dir: string,
-  },
+  }
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {
@@ -119,7 +119,7 @@ export default async function link (
       storeController: opts.storeController,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: updatedCurrentLockfile,
-    },
+    }
   )
 
   // Linking should happen after removing orphans
@@ -176,7 +176,7 @@ function addLinkToLockfile (
     linkedPkgName: string,
     packagePath: string,
     manifest?: ProjectManifest,
-  },
+  }
 ) {
   const id = `link:${opts.packagePath}`
   let addedTo: DependenciesField | undefined
@@ -204,7 +204,7 @@ function addLinkToLockfile (
 export async function linkFromGlobal (
   pkgNames: string[],
   linkTo: string,
-  maybeOpts: LinkOptions & {globalDir: string},
+  maybeOpts: LinkOptions & {globalDir: string}
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {
@@ -227,7 +227,7 @@ export async function linkToGlobal (
   maybeOpts: LinkOptions & {
     globalBin: string,
     globalDir: string,
-  },
+  }
 ) {
   const reporter = maybeOpts?.reporter
   if (reporter) {

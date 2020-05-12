@@ -27,7 +27,7 @@ export async function forPackages (
     include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
     registries?: Registries,
-  },
+  }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
@@ -50,7 +50,7 @@ export async function forPackages (
         path: projectPath,
         ...dependenciesHierarchy,
       } as PackageDependencyHierarchy
-    }),
+    })
   )
 
   const print = getPrinter(opts.reportAs)
@@ -72,7 +72,7 @@ export default async function (
     include?: { [dependenciesField in DependenciesField]: boolean },
     reportAs?: 'parseable' | 'tree' | 'json',
     registries?: Registries,
-  },
+  }
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
@@ -88,7 +88,7 @@ export default async function (
         include: maybeOpts?.include,
         lockfileDir: maybeOpts?.lockfileDir,
         registries: opts.registries,
-      }),
+      })
     )
     .map(async ([projectPath, dependenciesHierarchy]) => {
       const entryPkg = await readProjectManifestOnly(projectPath)
@@ -99,7 +99,7 @@ export default async function (
         path: projectPath,
         ...dependenciesHierarchy,
       } as PackageDependencyHierarchy
-    }),
+    })
   )
 
   const print = getPrinter(opts.reportAs)

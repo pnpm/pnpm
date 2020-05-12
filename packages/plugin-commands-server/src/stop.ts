@@ -14,7 +14,7 @@ export default async (
   opts: {
     storeDir?: string,
     dir: string,
-  },
+  }
 ) => {
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)

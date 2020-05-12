@@ -24,7 +24,7 @@ export default (lockfile: Lockfile, pkg: ProjectManifest, importerId: string) =>
         pkgDepNames = Object.keys(pkgDeps)
           .filter((depName) =>
             (!pkg.optionalDependencies || !pkg.optionalDependencies[depName]) &&
-            (!pkg.dependencies || !pkg.dependencies[depName]),
+            (!pkg.dependencies || !pkg.dependencies[depName])
           )
         break
       case 'dependencies':

@@ -6,7 +6,7 @@ import rimraf = require('rimraf')
 import test = require('tape')
 
 const fixtures = path.join(__dirname, 'fixtures')
-const rootNodeModulesDir = path.join(__dirname, '..', 'node_modules')
+const rootModulesDir = path.join(__dirname, '..', 'node_modules')
 
 test('runLifecycleHook()', async (t) => {
   const pkgRoot = path.join(fixtures, 'simple')
@@ -16,7 +16,7 @@ test('runLifecycleHook()', async (t) => {
     optional: false,
     pkgRoot,
     rawConfig: {},
-    rootNodeModulesDir,
+    rootModulesDir,
     unsafePerm: true,
   })
 
@@ -34,7 +34,7 @@ test('runPostinstallHooks()', async (t) => {
     optional: false,
     pkgRoot,
     rawConfig: {},
-    rootNodeModulesDir,
+    rootModulesDir,
     unsafePerm: true,
   })
 
@@ -53,7 +53,7 @@ test('runPostinstallHooks() with prepare = true', async (t) => {
     pkgRoot,
     prepare: true,
     rawConfig: {},
-    rootNodeModulesDir,
+    rootModulesDir,
     unsafePerm: true,
   })
 

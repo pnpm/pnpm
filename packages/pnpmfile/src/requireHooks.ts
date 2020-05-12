@@ -10,7 +10,7 @@ export default function requireHooks (
   opts: {
     globalPnpmfile?: string,
     pnpmfile?: string,
-  },
+  }
 ) {
   const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
   let globalHooks = globalPnpmfile?.hooks
@@ -37,7 +37,7 @@ export default function requireHooks (
       cookedHooks[hookName] = (arg: object) => {
         return hooks[hookName](
           globalHooks[hookName](arg, globalHookContext),
-          localHookContext,
+          localHookContext
         )
       }
     } else if (globalHooks[hookName]) {

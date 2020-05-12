@@ -6,14 +6,13 @@ export default async function (
   opts: {
     reporter?: ReporterFunction,
     storeController: StoreController,
-  },
+  }
 ) {
   const reporter = opts?.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
   await opts.storeController.prune()
-  await opts.storeController.saveState()
   await opts.storeController.close()
 
   if (reporter) {

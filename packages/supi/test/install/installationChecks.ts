@@ -60,7 +60,7 @@ test(`save cpu field to ${WANTED_LOCKFILE}`, async (t: tape.Test) => {
   t.deepEqual(
     lockfile.packages['/has-cpu-specified/1.0.0'].cpu,
     ['x64', 'ia32'],
-    `cpu field added to ${WANTED_LOCKFILE}`,
+    `cpu field added to ${WANTED_LOCKFILE}`
   )
 })
 
@@ -73,6 +73,6 @@ test(`engines field is not added to ${WANTED_LOCKFILE} when "node": "*" is in "e
 
   t.notOk(
     lockfile.packages['/jsonify/0.0.0'].engines,
-    `engines field is not added to ${WANTED_LOCKFILE}`,
+    `engines field is not added to ${WANTED_LOCKFILE}`
   )
 })

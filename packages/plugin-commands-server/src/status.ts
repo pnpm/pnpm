@@ -6,7 +6,7 @@ import { stripIndents } from 'common-tags'
 import path = require('path')
 
 export default async (
-  opts: Pick<Config, 'dir' | 'storeDir'>,
+  opts: Pick<Config, 'dir' | 'storeDir'>
 ) => {
   const storeDir = await storePath(opts.dir, opts.storeDir)
   const connectionInfoDir = serverConnectionInfoDir(storeDir)

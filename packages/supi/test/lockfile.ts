@@ -161,7 +161,7 @@ test("lockfile doesn't lock subdependencies that don't satisfy the new specs", a
   await addDependenciesToPackage(manifest, ['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   t.equal(
-    project.requireModule(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json`).version,
+    project.requireModule(`.pnpm/react-datetime@1.3.0/node_modules/react-onclickoutside/package.json`).version,
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
 
@@ -335,8 +335,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/foo`))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/bar`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/foo`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/bar`))).version, '100.0.0')
 
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
@@ -361,8 +361,8 @@ test(`respects ${WANTED_LOCKFILE} for top dependencies`, async (t: tape.Test) =>
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/foo`))).version, '100.0.0')
-  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/foobar/100.0.0/node_modules/bar`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/foo`))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve(`node_modules/.pnpm/foobar@100.0.0/node_modules/bar`))).version, '100.0.0')
 })
 
 test(`subdeps are updated on repeat install if outer ${WANTED_LOCKFILE} does not match the inner one`, async (t: tape.Test) => {
@@ -642,7 +642,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   const manifest = await addDependenciesToPackage(
     {},
     ['inflight@1.0.6'],
-    await testDefaults({ targetDependenciesField: 'devDependencies' }),
+    await testDefaults({ targetDependenciesField: 'devDependencies' })
   )
   await addDependenciesToPackage(manifest, ['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
@@ -650,7 +650,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   t.deepEqual(
     R.values(lockfile.packages).filter((dep) => typeof dep.dev !== 'undefined'),
     [],
-    `there are 0 packages with dev property in ${WANTED_LOCKFILE}`,
+    `there are 0 packages with dev property in ${WANTED_LOCKFILE}`
   )
 })
 
@@ -847,7 +847,7 @@ test('lockfile file has correct format when lockfile directory does not equal th
       '@zkochan/foo@1.0.0',
       'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
     ],
-    await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir }),
+    await testDefaults({ save: true, lockfileDir: path.resolve('..'), storeDir })
   )
 
   t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
@@ -984,7 +984,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
     await testDefaults({
       dir: path.resolve('pkg2'),
       lockfileDir: process.cwd(),
-    }),
+    })
   )
 
   const currentLockfile = await readYamlFile<Lockfile>(path.resolve('node_modules/.pnpm/lock.yaml'))
@@ -1006,7 +1006,7 @@ test(`doing named installation when shared ${WANTED_LOCKFILE} exists already`, a
         rootDir: path.resolve('pkg2'),
       },
     ],
-    await testDefaults(),
+    await testDefaults()
   )
 
   await projects['pkg1'].has('is-negative')
@@ -1084,7 +1084,7 @@ test('lockfile is not getting broken if the used registry changes', async (t: ta
     [
       '/is-negative/1.0.1',
       '/is-positive/1.0.0',
-    ],
+    ]
   )
 })
 

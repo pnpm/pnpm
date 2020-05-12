@@ -24,7 +24,7 @@ test('extracts process env variables', t => {
   t.deepEqual(
     getProcessEnv(['not_existing_env', 'test_ENV', 'another_env']),
     'test',
-    'extracts env from array of env names',
+    'extracts env from array of env names'
   )
   t.end()
 })

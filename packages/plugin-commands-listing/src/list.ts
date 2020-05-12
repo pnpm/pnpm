@@ -127,7 +127,7 @@ export type ListCommandOptions = Pick<Config,
 
 export function handler (
   opts: ListCommandOptions,
-  params: string[],
+  params: string[]
 ) {
   const include = {
     dependencies: opts.production !== false,
@@ -158,7 +158,7 @@ export async function render (
     long?: boolean,
     json?: boolean,
     parseable?: boolean,
-  },
+  }
 ) {
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,

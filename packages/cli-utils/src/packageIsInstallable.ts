@@ -11,7 +11,7 @@ export function packageIsInstallable (
   },
   opts: {
     engineStrict?: boolean,
-  },
+  }
 ) {
   const pnpmVersion = packageManager.name === 'pnpm'
     ? packageManager.stableVersion : undefined

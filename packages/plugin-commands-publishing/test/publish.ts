@@ -334,7 +334,7 @@ test.skip('publish package that calls executable from the workspace .bin folder 
       'postpack',
       'publish',
       'postpublish',
-    ],
+    ]
   )
 })
 
@@ -400,7 +400,7 @@ test('convert specs with workspace protocols to regular version ranges', async (
   t.equal(err.code, 'ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL', 'publish fails if cannot resolve workspace:*')
   t.ok(
     err.message.includes('Cannot resolve workspace protocol of dependency "is-negative"'),
-    'publish fails with the correct error message',
+    'publish fails with the correct error message'
   )
 
   process.chdir('..')

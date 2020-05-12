@@ -59,7 +59,7 @@ test('updateToWorkspacePackagesFromManifest()', t => {
   t.deepEqual(updateToWorkspacePackagesFromManifest(
     manifest,
     INCLUDE_ALL,
-    WORKSPACE_PACKAGES,
+    WORKSPACE_PACKAGES
   ), ['bar@workspace:*', 'foo@workspace:*', 'qar@workspace:*'])
   t.deepEqual(updateToWorkspacePackagesFromManifest(
     manifest,
@@ -68,7 +68,7 @@ test('updateToWorkspacePackagesFromManifest()', t => {
       devDependencies: false,
       optionalDependencies: false,
     },
-    WORKSPACE_PACKAGES,
+    WORKSPACE_PACKAGES
   ), ['foo@workspace:*'])
   t.end()
 })

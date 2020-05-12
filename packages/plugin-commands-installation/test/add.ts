@@ -5,6 +5,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import test = require('tape')
+import tempy = require('tempy')
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -27,6 +28,7 @@ const DEFAULT_OPTIONS = {
     default: REGISTRY_URL,
   },
   sort: true,
+  storeDir: tempy.directory(),
   workspaceConcurrency: 1,
 }
 
@@ -222,7 +224,7 @@ test('pnpm add --save-peer', async (t) => {
 
         devDependencies: { 'is-positive': '1.0.0' },
         peerDependencies: { 'is-positive': '1.0.0' },
-      },
+      }
     )
   }
 
@@ -244,7 +246,7 @@ test('pnpm add --save-peer', async (t) => {
       {
         name: 'project',
         version: '0.0.0',
-      },
+      }
     )
   }
 

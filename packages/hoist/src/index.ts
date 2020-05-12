@@ -23,23 +23,24 @@ export default async function hoistByLockfile (
     modulesDir: string,
     registries: Registries,
     virtualStoreDir: string,
-  },
+  }
 ) {
   if (!opts.lockfile.packages) return {}
 
   const { directDeps, step } = lockfileWalker(
     opts.lockfile,
-    Object.keys(opts.lockfile.importers),
+    Object.keys(opts.lockfile.importers)
   )
   const deps = [
     {
-      absolutePath: '',
       children: directDeps
-        .reduce((acc, dep) => {
-          if (acc[dep.alias]) return acc
-          acc[dep.alias] = dp.resolve(opts.registries, dep.relDepPath)
+        .reduce((acc, { alias, relDepPath }) => {
+          if (!acc[alias]) {
+            acc[alias] = relDepPath
+          }
           return acc
         }, {}),
+      depPath: '',
       depth: -1,
       location: '',
     },
@@ -51,7 +52,7 @@ export default async function hoistByLockfile (
         lockfileDir: opts.lockfileDir,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
-      },
+      }
     ),
   ]
 
@@ -86,25 +87,25 @@ async function getDependencies (
     registries: Registries,
     lockfileDir: string,
     virtualStoreDir: string,
-  },
+  }
 ): Promise<Dependency[]> {
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
     const absolutePath = dp.resolve(opts.registries, relDepPath)
     const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(absolutePath, opts.lockfileDir), 'node_modules')
+    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
     const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
     }
     deps.push({
-      absolutePath,
       children: Object.keys(allDeps).reduce((children, alias) => {
-        children[alias] = dp.refToAbsolute(allDeps[alias], alias, opts.registries)
+        children[alias] = dp.refToRelative(allDeps[alias], alias)
         return children
       }, {}),
+      depPath: relDepPath,
       depth,
       location: !independent
         ? path.join(modules, pkgName)
@@ -122,7 +123,7 @@ async function getDependencies (
 
   return (
     await Promise.all(
-      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1, opts)),
+      nextSteps.map((nextStep) => getDependencies(nextStep, depth + 1, opts))
     )
   ).reduce((acc, deps) => [...acc, ...deps], deps)
 }
@@ -130,8 +131,8 @@ async function getDependencies (
 export interface Dependency {
   location: string,
   children: {[alias: string]: string},
+  depPath: string,
   depth: number,
-  absolutePath: string,
 }
 
 async function hoistGraph (
@@ -141,7 +142,7 @@ async function hoistGraph (
     match: (dependencyName: string) => boolean,
     modulesDir: string,
     dryRun: boolean,
-  },
+  }
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
   const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
@@ -150,7 +151,7 @@ async function hoistGraph (
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? a.absolutePath.localeCompare(b.absolutePath) : depthDiff
+      return depthDiff === 0 ? a.depPath.localeCompare(b.depPath) : depthDiff
     })
     // build the alias map and the id map
     .map((depNode) => {
@@ -170,7 +171,7 @@ async function hoistGraph (
       return depNode
     })
     .map(async (depNode) => {
-      const pkgAliases = aliasesByDependencyPath[depNode.absolutePath]
+      const pkgAliases = aliasesByDependencyPath[depNode.depPath]
       if (!pkgAliases) {
         return
       }

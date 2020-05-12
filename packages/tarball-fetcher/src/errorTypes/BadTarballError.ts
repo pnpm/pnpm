@@ -8,7 +8,7 @@ export default class BadTarballError extends PnpmError {
       expectedSize: number,
       receivedSize: number,
       tarballUrl: string,
-    },
+    }
   ) {
     const message = `Actual size (${opts.receivedSize}) of tarball (${opts.tarballUrl}) did not match the one specified in \'Content-Length\' header (${opts.expectedSize})`
     super('BAD_TARBALL_SIZE', message)

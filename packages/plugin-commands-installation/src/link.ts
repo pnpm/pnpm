@@ -79,7 +79,7 @@ export async function handler (
     'saveProd' |
     'workspaceDir'
   > & Partial<Pick<Config, 'globalBin' | 'globalDir' | 'linkWorkspacePackages'>>,
-  params: string[],
+  params: string[]
 ) {
   const cwd = opts?.dir ?? process.cwd()
 
@@ -147,7 +147,7 @@ export async function handler (
           excludeReporter: true,
           rcOptionsTypes: installCommand.rcOptionsTypes(),
           workspaceDir: await findWorkspaceDir(dir),
-        },
+        }
       )
       await install(
         await readProjectManifestOnly(dir, opts), {
@@ -160,9 +160,9 @@ export async function handler (
           storeController: s.ctrl,
           storeDir: s.dir,
           workspacePackages,
-        } as InstallOptions,
+        } as InstallOptions
       )
-    })),
+    }))
   )
   const { manifest, writeProjectManifest } = await readProjectManifest(cwd, opts)
 
@@ -177,6 +177,6 @@ export async function handler (
       .map(async (storeControllerPromise) => {
         const storeControllerHolder = await storeControllerPromise
         await storeControllerHolder.ctrl.close()
-      }),
+      })
   )
 }

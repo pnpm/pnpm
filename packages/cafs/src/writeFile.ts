@@ -6,7 +6,7 @@ const dirs = new Set()
 export default async function (
   fileDest: string,
   buffer: Buffer,
-  mode?: number,
+  mode?: number
 ) {
   await makeDirForFile(fileDest)
   await fs.writeFile(fileDest, buffer, { mode })

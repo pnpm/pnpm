@@ -5,7 +5,7 @@ import { Dependencies, ProjectManifest } from '@pnpm/types'
 import getVerSelType = require('version-selector-type')
 
 export default function getPreferredVersionsFromPackage (
-  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>,
+  pkg: Pick<ProjectManifest, 'devDependencies' | 'dependencies' | 'optionalDependencies'>
 ): PreferredVersions {
   return getVersionSpecsByRealNames(getAllDependenciesFromManifest(pkg))
 }

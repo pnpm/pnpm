@@ -17,13 +17,12 @@ test('CLI fails when store status finds modified packages', async function (t) {
 
   await execa('node', [pnpmBin, 'add', 'is-positive@3.1.0', '--store-dir', storeDir, '--registry', REGISTRY, '--verify-store-integrity'])
 
-  await rimraf(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/is-positive/3.1.0/node_modules/is-positive/index.js`)
+  await rimraf(`node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive/index.js`)
 
   let err!: PnpmError
   try {
     await store.handler({
       dir: process.cwd(),
-      lock: false,
       rawConfig: {
         registry: REGISTRY,
       },
@@ -49,7 +48,6 @@ test('CLI does not fail when store status does not find modified packages', asyn
 
   await store.handler({
     dir: process.cwd(),
-    lock: false,
     rawConfig: {
       registry: REGISTRY,
     },

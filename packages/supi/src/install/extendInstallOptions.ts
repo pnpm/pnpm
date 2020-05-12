@@ -147,7 +147,7 @@ const defaults = async (opts: InstallOptions) => {
 }
 
 export default async (
-  opts: InstallOptions,
+  opts: InstallOptions
 ): Promise<StrictInstallOptions> => {
   if (opts) {
     for (const key in opts) {

@@ -24,7 +24,7 @@ export default async (
     port?: number,
     ignoreStopRequests?: boolean,
     ignoreUploadRequests?: boolean,
-  },
+  }
 ) => {
   if (opts.protocol === 'ipc' && opts.port) {
     throw new Error('Port cannot be selected when server communicates via IPC')
@@ -110,7 +110,7 @@ async function getServerOptions (
   opts: {
     protocol: 'auto' | 'tcp' | 'ipc',
     port?: number,
-  },
+  }
 ): Promise<{hostname?: string, port?: number, path?: string}> {
   switch (opts.protocol) {
     case 'tcp':

@@ -15,7 +15,7 @@ export default function (
     initialCompletion: () => Completion[],
     shorthandsByCommandName: Record<string, Record<string, string>>,
     universalOptionsTypes: Record<string, Object>,
-  },
+  }
 ) {
   return async () => {
     const env = tabtab.parseEnv(process.env)
@@ -37,8 +37,8 @@ export default function (
           lastOption: getLastOption(env),
           options,
           params,
-        },
-      ),
+        }
+      )
     )
   }
 }

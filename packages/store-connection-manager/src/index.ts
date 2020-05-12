@@ -23,7 +23,7 @@ export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions,
 
 export async function createOrConnectStoreControllerCached (
   storeControllerCache: Map<string, Promise<{ctrl: StoreController, dir: string}>>,
-  opts: CreateStoreControllerOptions,
+  opts: CreateStoreControllerOptions
 ) {
   const storeDir = await storePath(opts.dir, opts.storeDir)
   if (!storeControllerCache.has(storeDir)) {
@@ -33,7 +33,7 @@ export async function createOrConnectStoreControllerCached (
 }
 
 export async function createOrConnectStoreController (
-  opts: CreateStoreControllerOptions,
+  opts: CreateStoreControllerOptions
 ): Promise<{
   ctrl: StoreController,
   dir: string,
@@ -82,7 +82,7 @@ export async function tryLoadServerJson (
   options: {
     serverJsonPath: string;
     shouldRetryOnNoent: boolean;
-  },
+  }
 ): Promise<null | {
   connectionOptions: {
     remotePrefix: string,

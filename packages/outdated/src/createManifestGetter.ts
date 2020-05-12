@@ -12,7 +12,7 @@ type GetManifestOpts = {
 export type ManifestGetterOptions = Omit<ResolverFactoryOptions, 'metaCache'> & GetManifestOpts
 
 export function createManifestGetter (
-  opts: ManifestGetterOptions,
+  opts: ManifestGetterOptions
 ): (packageName: string, pref: string) => Promise<DependencyManifest | null> {
   const resolve = createResolver(Object.assign(opts, {
     fullMetadata: true,
@@ -28,7 +28,7 @@ export async function getManifest (
   resolve: ResolveFunction,
   opts: GetManifestOpts,
   packageName: string,
-  pref: string,
+  pref: string
 ) {
   const resolution = await resolve({ alias: packageName, pref }, {
     lockfileDir: opts.lockfileDir,

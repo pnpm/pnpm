@@ -11,7 +11,7 @@ export async function execPnpm (
   args: string[],
   opts?: {
     env: Object,
-  },
+  }
 ): Promise<void> {
   await new Promise((resolve, reject) => {
     const proc = spawnPnpm(args, opts)
@@ -30,7 +30,7 @@ export function spawnPnpm (
   opts?: {
     env?: Object,
     storeDir?: string,
-  },
+  }
 ): NodeChildProcess {
   return crossSpawn.spawn('node', [pnpmBinLocation, ...args], {
     env: {

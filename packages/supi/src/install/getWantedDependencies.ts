@@ -22,7 +22,7 @@ export default function getWantedDependencies (
   opts?: {
     includeDirect?: IncludedDependencies,
     updateWorkspaceDependencies?: boolean,
-  },
+  }
 ): WantedDependency[] {
   const depsToInstall = filterDependenciesByType(pkg,
     opts?.includeDirect ?? {
@@ -49,7 +49,7 @@ function getWantedDependenciesFromGivenSet (
     devDependencies: Dependencies,
     optionalDependencies: Dependencies,
     updatePref: (pref: string) => string,
-  },
+  }
 ): WantedDependency[] {
   if (!deps) return []
   return Object.keys(deps).map((alias) => {

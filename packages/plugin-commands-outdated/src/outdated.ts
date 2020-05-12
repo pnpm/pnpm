@@ -157,7 +157,7 @@ export type OutdatedCommandOptions = {
 
 export async function handler (
   opts: OutdatedCommandOptions,
-  params: string[] = [],
+  params: string[] = []
 ) {
   const include = {
     dependencies: opts.production !== false,
@@ -237,7 +237,7 @@ function renderOutdatedList (outdatedPackages: ReadonlyArray<OutdatedPackage>, o
 function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedPackage>) {
   return R.sortWith(
     DEFAULT_COMPARATORS,
-    outdatedPackages.map(toOutdatedWithVersionDiff),
+    outdatedPackages.map(toOutdatedWithVersionDiff)
   )
 }
 

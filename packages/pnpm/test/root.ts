@@ -1,3 +1,4 @@
+import { LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
 import isWindows = require('is-windows')
 import path = require('path')
@@ -30,8 +31,8 @@ test('pnpm root -g', async (t: tape.Test) => {
   t.equal(result.status, 0)
 
   if (isWindows()) {
-    t.equal(result.stdout.toString(), path.join(global, 'npm/pnpm-global/3/node_modules') + '\n')
+    t.equal(result.stdout.toString(), path.join(global, `npm/pnpm-global/${LAYOUT_VERSION}/node_modules`) + '\n')
   } else {
-    t.equal(result.stdout.toString(), path.join(global, 'pnpm-global/3/node_modules') + '\n')
+    t.equal(result.stdout.toString(), path.join(global, `pnpm-global/${LAYOUT_VERSION}/node_modules`) + '\n')
   }
 })

@@ -16,6 +16,21 @@ const sindresorhusIsMeta = loadJsonFile.sync<any>(path.join(__dirname, 'meta', '
 
 const registry = 'https://registry.npmjs.org/'
 
+const delay = (time) => new Promise((resolve) => setTimeout(() => resolve(), time))
+
+async function retryLoadJsonFile<T> (filePath: string) {
+  let retry = 0
+  while (true) {
+    await delay(500)
+    try {
+      return await loadJsonFile<T>(filePath)
+    } catch (err) {
+      if (retry > 2) throw err
+      retry++
+    }
+  }
+}
+
 test('resolveFromNpm()', async t => {
   nock(registry)
     .get('/is-positive')
@@ -45,13 +60,11 @@ test('resolveFromNpm()', async t => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  setTimeout(async () => {
-    const meta = await loadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
-    t.ok(meta.name)
-    t.ok(meta.versions)
-    t.ok(meta['dist-tags'])
-    t.end()
-  }, 500)
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  t.ok(meta.name)
+  t.ok(meta.versions)
+  t.ok(meta['dist-tags'])
+  t.end()
 })
 
 test('dry run', async t => {
@@ -894,13 +907,11 @@ test('resolve when tarball URL is requested from the registry', async t => {
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  setTimeout(async () => {
-    const meta = await loadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
-    t.ok(meta.name)
-    t.ok(meta.versions)
-    t.ok(meta['dist-tags'])
-    t.end()
-  }, 500)
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  t.ok(meta.name)
+  t.ok(meta.versions)
+  t.ok(meta['dist-tags'])
+  t.end()
 })
 
 test('resolve when tarball URL is requested from the registry and alias is not specified', async t => {
@@ -933,13 +944,11 @@ test('resolve when tarball URL is requested from the registry and alias is not s
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
-  setTimeout(async () => {
-    const meta = await loadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
-    t.ok(meta.name)
-    t.ok(meta.versions)
-    t.ok(meta['dist-tags'])
-    t.end()
-  }, 500)
+  const meta = await retryLoadJsonFile<any>(path.join(storeDir, 'metadata/registry.npmjs.org/is-positive.json')) // tslint:disable-line:no-any
+  t.ok(meta.name)
+  t.ok(meta.versions)
+  t.ok(meta['dist-tags'])
+  t.end()
 })
 
 test('resolve from local directory when it matches the latest version of the package', async t => {

@@ -12,7 +12,7 @@ export default async function safeIsInnerLink (
     projectDir: string,
     storeDir: string,
     virtualStoreDir: string,
-  },
+  }
 ): Promise<true | string> {
   try {
     const link = await isInnerLink(projectModulesDir, depName)
@@ -34,7 +34,7 @@ export default async function safeIsInnerLink (
       await fs.mkdir(path.dirname(ignoredDir), { recursive: true })
       await fs.rename(
         path.join(projectModulesDir, depName),
-        ignoredDir,
+        ignoredDir
       )
     }
     return true

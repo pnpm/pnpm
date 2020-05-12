@@ -14,7 +14,7 @@ export default () => {
       opts: {
         cafs: Cafs,
         manifest?: DeferredManifestPromise,
-      },
+      }
     ) {
       const tempLocation = tempy.directory()
       await execGit(['clone', resolution.repo, tempLocation])

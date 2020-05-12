@@ -23,7 +23,7 @@ export type DeferredManifestPromise = {
 export type FetchFunction = (
   cafs: Cafs,
   resolution: Resolution,
-  opts: FetchOptions,
+  opts: FetchOptions
 ) => Promise<FetchResult>
 
 export interface FetchResult {

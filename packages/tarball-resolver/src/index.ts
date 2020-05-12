@@ -1,7 +1,7 @@
 import { ResolveResult } from '@pnpm/resolver-base'
 
 export default async function resolveTarball (
-  wantedDependency: {pref: string},
+  wantedDependency: {pref: string}
 ): Promise<ResolveResult | null> {
   if (!wantedDependency.pref.startsWith('http:') && !wantedDependency.pref.startsWith('https:')) {
     return null

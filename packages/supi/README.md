@@ -26,14 +26,14 @@ It also depends on `@pnpm/logger` version `1`, so install it as well via:
 
 TODO
 
-### `supi.link(linkFromPkgs, linkToNodeModules, [options])`
+### `supi.link(linkFromPkgs, linkToModules, [options])`
 
 Create symbolic links from the linked packages to the target package's `node_modules` (and its `node_modules/.bin`).
 
 **Arguments:**
 
 * `linkFromPkgs` - *String[]* - paths to the packages that should be linked.
-* `linkToNodeModules` - *String* - path to the dependent package's `node_modules` directory.
+* `linkToModules` - *String* - path to the dependent package's `node_modules` directory.
 * `options.reporter` - *Function* - A function that listens for logs.
 
 ### `supi.linkToGlobal(linkFrom, options)`

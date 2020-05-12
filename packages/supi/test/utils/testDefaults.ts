@@ -61,7 +61,7 @@ export default async function testDefaults<T> (
       storeDir,
       verifyStoreIntegrity: true,
       ...storeOpts,
-    },
+    }
   )
   return {
     registries: {

@@ -7,7 +7,7 @@ import path = require('path')
 export default async function changedSince (packageDirs: string[], commit: string, opts: { workspaceDir: string }): Promise<string[]> {
   const repoRoot = path.resolve(await findUp('.git', { cwd: opts.workspaceDir, type: 'directory' }) || opts.workspaceDir, '..')
   let changedDirs = Array.from(
-    await getChangedDirsSinceCommit(commit, opts.workspaceDir),
+    await getChangedDirsSinceCommit(commit, opts.workspaceDir)
   ).map(changedDir => path.join(repoRoot, changedDir))
   const changedPkgs = []
   for (const packageDir of packageDirs.sort((pkgDir1, pkgDir2) => pkgDir2.length - pkgDir1.length)) {

@@ -32,7 +32,7 @@ export default async function testDefaults (
         rootDir: lockfileDir,
       },
     ],
-    { lockfileDir },
+    { lockfileDir }
   )
   storeDir = await storePath(lockfileDir, storeDir)
   const rawConfig = { registry }
@@ -56,7 +56,7 @@ export default async function testDefaults (
       locks: path.join(storeDir, '_locks'),
       storeDir,
       ...storeOpts,
-    },
+    }
   )
   return {
     currentEngine: {
@@ -74,7 +74,7 @@ export default async function testDefaults (
     },
     pendingBuilds,
     projects: opts.projects ? opts.projects : await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
     rawConfig: {},
     registries: registries || {

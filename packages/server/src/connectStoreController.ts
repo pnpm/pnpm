@@ -3,7 +3,6 @@ import {
   FetchPackageToStoreOptions,
   PackageFilesResponse,
   PackageResponse,
-  PackageUsagesBySearchQueries,
   RequestPackageOptions,
   StoreController,
   WantedDependency,
@@ -22,7 +21,7 @@ export default function (
   initOpts: {
     remotePrefix: string,
     concurrency?: number,
-  },
+  }
 ): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
   const limitedFetch = limitFetch.bind(null, pLimit(initOpts.concurrency || 100))
@@ -31,16 +30,13 @@ export default function (
     resolve({
       close: async () => { return },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      findPackageUsages: async (searchQueries: string[]): Promise<PackageUsagesBySearchQueries> => {
-        return await limitedFetch(`${remotePrefix}/findPackageUsages`, { searchQueries }) as PackageUsagesBySearchQueries
-      },
       getPackageLocation: async (
         packageId: string,
         packageName: string,
         opts: {
           lockfileDir: string,
           targetEngine?: string,
-        },
+        }
       ): Promise<{ dir: string, isBuilt: boolean }> => {
         return await limitedFetch(`${remotePrefix}/getPackageLocation`, {
           opts,
@@ -61,16 +57,7 @@ export default function (
         await limitedFetch(`${remotePrefix}/prune`, {})
       },
       requestPackage: requestPackage.bind(null, remotePrefix, limitedFetch),
-      saveState: async () => {
-        await limitedFetch(`${remotePrefix}/saveState`, {})
-      },
       stop: async () => { await limitedFetch(`${remotePrefix}/stop`, {}) },
-      updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
-        await limitedFetch(`${remotePrefix}/updateConnections`, {
-          opts,
-          prefix,
-        })
-      },
       upload: async (builtPkgLocation: string, opts: {packageId: string, engine: string}) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
@@ -111,7 +98,7 @@ function requestPackage (
   remotePrefix: string,
   limitedFetch: (url: string, body: object) => any, // tslint:disable-line
   wantedDependency: WantedDependency,
-  options: RequestPackageOptions,
+  options: RequestPackageOptions
 ): Promise<PackageResponse> {
   const msgId = uuid.v4()
 
@@ -150,7 +137,7 @@ function requestPackage (
 function fetchPackage (
   remotePrefix: string,
   limitedFetch: (url: string, body: object) => any, // tslint:disable-line
-  options: FetchPackageToStoreOptions,
+  options: FetchPackageToStoreOptions
 ): {
   files: () => Promise<PackageFilesResponse>,
   bundledManifest?: () => Promise<DependencyManifest>,

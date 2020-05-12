@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "storage-cache": "file:storage-1.0.0.tgz"
+  }
+}

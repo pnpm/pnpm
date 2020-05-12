@@ -23,7 +23,7 @@ export function createLatestSpecs (specs: string[], manifest: ProjectManifest) {
   return specs
     .filter((selector) => selector.includes('@', 1)
       ? allDeps[selector.substr(0, selector.indexOf('@', 1))]
-      : allDeps[selector],
+      : allDeps[selector]
     )
     .map((selector) => {
       if (selector.includes('@', 1)) {

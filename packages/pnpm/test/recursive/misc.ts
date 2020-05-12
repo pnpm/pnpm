@@ -378,8 +378,8 @@ test('adding new dependency in the root should fail if --ignore-workspace-root-c
       stdout.toString().includes(
         'Running this command will add the dependency to the workspace root, ' +
         'which might not be what you want - if you really meant it, ' +
-        'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).',
-      ),
+        'make it explicit by running this command again with the -W flag (or --ignore-workspace-root-check).'
+      )
     )
   }
 

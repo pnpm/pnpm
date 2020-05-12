@@ -34,7 +34,7 @@ test('from a github repo with different name via named installation', async (t: 
   const manifest = await addDependenciesToPackage(
     {},
     ['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'],
-    await testDefaults({ fastUnpack: false, reporter }),
+    await testDefaults({ fastUnpack: false, reporter })
   )
 
   const m = project.requireModule('say-hi')
@@ -119,7 +119,7 @@ test('a subdependency is from a github repo with different name', async (t: tape
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/hi')
   await project.isExecutable('has-aliased-git-dependency/node_modules/.bin/szia')
 
-  t.ok(await exists(path.resolve(`node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/has-say-hi-peer/1.0.0_say-hi@1.0.0/node_modules/has-say-hi-peer`)),
+  t.ok(await exists(path.resolve(`node_modules/.pnpm/has-say-hi-peer@1.0.0_say-hi@1.0.0/node_modules/has-say-hi-peer`)),
     'aliased name used to resolve a peer dependency')
 })
 

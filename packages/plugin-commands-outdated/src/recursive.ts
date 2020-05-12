@@ -48,7 +48,7 @@ interface OutdatedInWorkspace extends OutdatedPackage {
 export default async (
   pkgs: Array<{ dir: string, manifest: ProjectManifest }>,
   params: string[],
-  opts: OutdatedCommandOptions & { include: IncludedDependencies },
+  opts: OutdatedCommandOptions & { include: IncludedDependencies }
 ) => {
   const outdatedMap = {} as Record<string, OutdatedInWorkspace>
   const outdatedPackagesByProject = await outdatedDepsOfProjects(pkgs, params, opts)
@@ -126,7 +126,7 @@ function renderOutdatedList (outdatedMap: Record<string, OutdatedInWorkspace>, o
         info += `\n${chalk.bold(
             outdatedPkg.dependentPkgs.length > 1
               ? 'Dependents:'
-              : 'Dependent:',
+              : 'Dependent:'
           )} ${dependents}`
       }
 
@@ -153,6 +153,6 @@ function dependentPackages ({ dependentPkgs }: OutdatedInWorkspace) {
 function sortOutdatedPackages (outdatedPackages: ReadonlyArray<OutdatedInWorkspace>) {
   return R.sortWith(
     COMPARATORS,
-    outdatedPackages.map(toOutdatedWithVersionDiff),
+    outdatedPackages.map(toOutdatedWithVersionDiff)
   )
 }

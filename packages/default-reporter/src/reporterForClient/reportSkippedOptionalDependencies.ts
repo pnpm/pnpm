@@ -5,7 +5,7 @@ export default (
   skippedOptionalDependency$: most.Stream<SkippedOptionalDependencyLog>,
   opts: {
     cwd: string,
-  },
+  }
 ) => {
   return skippedOptionalDependency$
     .filter((log) => Boolean(log['prefix'] === opts.cwd && log.parents && log.parents.length === 0))

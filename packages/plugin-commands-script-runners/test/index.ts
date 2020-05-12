@@ -243,7 +243,7 @@ test('"pnpm run" prints the list of available commands', async (t) => {
 
     Commands available via "pnpm run":
       foo
-        echo hi`,
+        echo hi`
   )
   t.end()
 })

@@ -40,7 +40,7 @@ export default async function fromRegistry (
   fetch: FetchFromRegistry,
   pkgName: string,
   registry: string,
-  authHeaderValue?: string,
+  authHeaderValue?: string
 ) {
   const uri = toUri(pkgName, registry)
   const response = await fetch(uri, { authHeaderValue }) as RegistryResponse

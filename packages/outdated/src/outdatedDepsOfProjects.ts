@@ -20,13 +20,13 @@ export default async function outdatedDepsOfProjects (
   opts: Omit<ManifestGetterOptions, 'storeDir' | 'lockfileDir'> & {
     compatible?: boolean,
     include: IncludedDependencies,
-  } & Partial<Pick<ManifestGetterOptions, 'storeDir' | 'lockfileDir'>>,
+  } & Partial<Pick<ManifestGetterOptions, 'storeDir' | 'lockfileDir'>>
 ): Promise<OutdatedPackage[][]> {
   if (!opts.lockfileDir) {
     return R.unnest(await Promise.all(
       pkgs.map((pkg) =>
-        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.dir }),
-      ),
+        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.dir })
+      )
     ))
   }
   const lockfileDir = opts.lockfileDir ?? opts.dir

@@ -22,7 +22,7 @@ export default function (
       argv: string[],
       config?: Config,
     },
-  },
+  }
 ) {
   if (opts.context.argv[0] === 'server') {
     const log$ = most.fromEvent<logs.Log>('data', opts.streamParser)
@@ -72,7 +72,7 @@ export function toOutput$ (
       argv: string[],
       config?: Config,
     },
-  },
+  }
 ): most.Stream<string> {
   opts = opts || {}
   const fetchingProgressPushStream = new PushStream()
@@ -176,13 +176,13 @@ export function toOutput$ (
       pnpmConfig: opts.context.config,
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
-    },
+    }
   )
 
   if (opts.reportingOptions?.appendOnly) {
     return most.join(
       most.mergeArray(outputs)
-      .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg)),
+      .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg))
     )
   }
   return mergeOutputs(outputs).multicast()

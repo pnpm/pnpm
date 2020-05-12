@@ -182,17 +182,17 @@ test('parsePackageSelector()', (t) => {
     t.deepEqual(
       parsePackageSelector(fixture[0], process.cwd()),
       fixture[1],
-      `parsing ${fixture[0]}`,
+      `parsing ${fixture[0]}`
     )
   }
   if (isWindows()) {
     t.deepEqual(
       parsePackageSelector('.\\foo', process.cwd()),
-      { excludeSelf: false, parentDir: path.resolve('foo') },
+      { excludeSelf: false, parentDir: path.resolve('foo') }
     )
     t.deepEqual(
       parsePackageSelector('..\\foo', process.cwd()),
-      { excludeSelf: false, parentDir: path.resolve('../foo') },
+      { excludeSelf: false, parentDir: path.resolve('../foo') }
     )
   }
   t.end()

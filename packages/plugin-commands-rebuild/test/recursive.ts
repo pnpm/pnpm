@@ -8,6 +8,8 @@ import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
+
 test('pnpm recursive rebuild', async (t) => {
   const projects = preparePackages(t, [
     {
@@ -29,7 +31,8 @@ test('pnpm recursive rebuild', async (t) => {
   ])
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'install',
     '-r',
     '--registry',
@@ -109,7 +112,8 @@ test.skip('rebuild multiple packages in correct order', async (t) => {
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['project-1'] })
 
   const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [])
-  await execa('pnpm', [
+  await execa('node', [
+    pnpmBin,
     'install',
     '-r',
     '--registry',

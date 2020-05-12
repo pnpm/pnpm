@@ -6,7 +6,7 @@ export default function (
   opts: {
     skippedPkgIds: string[],
     wantedLockfile: Lockfile,
-  },
+  }
 ) {
   const importers1 = R.keys(opts.wantedLockfile.importers)
   const importers2 = R.keys(currentLockfile.importers)

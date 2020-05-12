@@ -1,5 +1,69 @@
 # pnpm
 
+## 5.0.0-alpha.6
+
+### Major Changes
+
+- 9fbb74ec: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- Updated dependencies [3f73eaf0]
+- Updated dependencies [da091c71]
+- Updated dependencies [471149e6]
+- Updated dependencies [9fbb74ec]
+  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.4
+  - @pnpm/plugin-commands-installation@2.0.0-alpha.6
+  - @pnpm/plugin-commands-store@2.0.0-alpha.4
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/plugin-commands-outdated@1.0.10-alpha.2
+  - @pnpm/plugin-commands-import@1.0.12-alpha.6
+  - @pnpm/plugin-commands-server@1.0.11-alpha.4
+  - @pnpm/cli-meta@1.0.0-alpha.0
+  - @pnpm/cli-utils@0.4.5-alpha.1
+  - @pnpm/config@8.3.1-alpha.1
+  - @pnpm/core-loggers@4.0.2-alpha.0
+  - @pnpm/default-reporter@7.2.5-alpha.1
+  - @pnpm/plugin-commands-audit@1.0.9-alpha.1
+  - @pnpm/plugin-commands-listing@1.0.10-alpha.1
+  - @pnpm/plugin-commands-publishing@1.0.12-alpha.3
+  - @pnpm/plugin-commands-script-runners@1.0.9-alpha.2
+  - @pnpm/filter-workspace-packages@2.0.15-alpha.1
+
+## 5.0.0-alpha.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-import@1.0.12-alpha.5
+- @pnpm/plugin-commands-installation@1.2.4-alpha.5
+
+## 5.0.0-alpha.4
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [9596774f2]
+  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.3
+  - @pnpm/plugin-commands-store@2.0.0-alpha.3
+  - @pnpm/config@8.3.1-alpha.0
+  - @pnpm/plugin-commands-audit@1.0.9-alpha.0
+  - @pnpm/plugin-commands-import@1.0.12-alpha.4
+  - @pnpm/plugin-commands-installation@1.2.4-alpha.4
+  - @pnpm/plugin-commands-listing@1.0.10-alpha.0
+  - @pnpm/plugin-commands-outdated@1.0.10-alpha.1
+  - @pnpm/plugin-commands-server@1.0.11-alpha.3
+  - @pnpm/plugin-commands-publishing@1.0.12-alpha.2
+  - @pnpm/cli-utils@0.4.5-alpha.0
+  - @pnpm/default-reporter@7.2.5-alpha.0
+  - @pnpm/plugin-commands-script-runners@1.0.9-alpha.1
+  - @pnpm/filter-workspace-packages@2.0.15-alpha.0
+
 ## 5.0.0-alpha.3
 
 ### Minor Changes

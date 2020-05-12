@@ -29,7 +29,7 @@ export function help () {
 export const commandNames = ['import']
 
 export async function handler (
-  opts: CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>,
+  opts: CreateStoreControllerOptions & Omit<InstallOptions, 'storeController' | 'lockfileOnly' | 'preferredVersions'>
 ) {
   // Removing existing pnpm lockfile
   // it should not influence the new one
@@ -66,7 +66,7 @@ async function readNpmLockfile (dir: string) {
 function getPreferredVersions (
   versionsByPackageNames: {
     [packageName: string]: Set<string>,
-  },
+  }
 ) {
   const preferredVersions = {}
   for (const packageName of Object.keys(versionsByPackageNames)) {
@@ -82,7 +82,7 @@ function getAllVersionsByPackageNames (
   npmPackageLock: NpmPackageLock | LockedPackage,
   versionsByPackageNames: {
     [packageName: string]: Set<string>,
-  },
+  }
 ) {
   if (!npmPackageLock.dependencies) return
   for (const packageName of Object.keys(npmPackageLock.dependencies)) {

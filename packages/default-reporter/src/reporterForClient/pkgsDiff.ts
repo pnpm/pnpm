@@ -34,7 +34,7 @@ export default function (
   },
   opts: {
     prefix: string,
-  },
+  }
 ) {
   const deprecationSet$ = log$.deprecation
     .filter((log) => log.prefix === opts.prefix)
@@ -46,7 +46,7 @@ export default function (
   const pkgsDiff$ = most.combine(
     (rootLog, deprecationSet) => [rootLog, deprecationSet],
     log$.root.filter((log) => log.prefix === opts.prefix),
-    deprecationSet$,
+    deprecationSet$
   )
   .scan((pkgsDiff, args) => {
     const rootLog = args[0]
@@ -88,10 +88,10 @@ export default function (
   const packageManifest$ = most.fromPromise(
     most.merge(
       log$.packageManifest.filter((log) => log.prefix === opts.prefix),
-      log$.summary.filter((log) => log.prefix === opts.prefix).constant({}),
+      log$.summary.filter((log) => log.prefix === opts.prefix).constant({})
     )
     .take(2)
-    .reduce(R.merge, {} as any), // tslint:disable-line:no-any
+    .reduce(R.merge, {} as any) // tslint:disable-line:no-any
   )
 
   return most.combine(
@@ -132,7 +132,7 @@ export default function (
       return pkgsDiff
     },
     pkgsDiff$,
-    packageManifest$,
+    packageManifest$
   )
 }
 

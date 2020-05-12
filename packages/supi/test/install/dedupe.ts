@@ -20,7 +20,7 @@ test('prefer version ranges specified for top dependencies', async (t: tape.Test
         'pkg-with-1-dep': '*',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -39,7 +39,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
         'dep-of-pkg-with-1-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
   await addDependenciesToPackage(manifest, ['pkg-with-1-dep'], await testDefaults())
 
@@ -60,7 +60,7 @@ test('prefer version ranges specified for top dependencies, even if they are ali
         'pkg-with-1-dep': '*',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -80,7 +80,7 @@ test('prefer version ranges specified for top dependencies, even if the subdepen
         'pkg-with-1-aliased-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -100,7 +100,7 @@ test('ignore version of root dependency when it is incompatible with the indirec
         'pkg-with-1-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -121,7 +121,7 @@ test('prefer dist-tag specified for top dependency', async (t: tape.Test) => {
         'pkg-with-1-dep': '100.0.0',
       },
     },
-    await testDefaults(),
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -148,8 +148,8 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
             '100.0.0': 'version',
           },
         },
-      },
-    ),
+      }
+    )
   )
 
   const lockfile = await project.readLockfile()
@@ -165,7 +165,7 @@ test('resolution-strategy=fewer-dependencies: prefer version of package that als
   await addDependenciesToPackage(
     {},
     ['has-foo-as-dep-and-subdep'],
-    await testDefaults({ resolutionStrategy: 'fewer-dependencies' }),
+    await testDefaults({ resolutionStrategy: 'fewer-dependencies' })
   )
 
   const lockfile = await project.readLockfile()
@@ -176,7 +176,7 @@ test('resolution-strategy=fewer-dependencies: prefer version of package that als
       '/foo/100.0.0',
       '/has-foo-as-dep-and-subdep/1.0.0',
       '/requires-any-foo/1.0.0',
-    ],
+    ]
   )
 })
 
@@ -187,7 +187,7 @@ test('resolution-strategy=fast: always prefer the latest version', async (t: tap
   await addDependenciesToPackage(
     {},
     ['has-foo-as-dep-and-subdep'],
-    await testDefaults({ resolutionStrategy: 'fast' }),
+    await testDefaults({ resolutionStrategy: 'fast' })
   )
 
   const lockfile = await project.readLockfile()
@@ -199,6 +199,6 @@ test('resolution-strategy=fast: always prefer the latest version', async (t: tap
       '/foo/100.1.0',
       '/has-foo-as-dep-and-subdep/1.0.0',
       '/requires-any-foo/1.0.0',
-    ],
+    ]
   )
 })

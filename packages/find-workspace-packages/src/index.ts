@@ -12,7 +12,7 @@ export default async (
   opts?: {
     engineStrict?: boolean,
     patterns?: string[],
-  },
+  }
 ) => {
   let patterns = opts?.patterns
   if (!patterns) {
@@ -47,7 +47,7 @@ async function requirePackagesManifest (dir: string): Promise<{packages?: string
 }
 
 export function arrayOfWorkspacePackagesToMap (
-  pkgs: Project[],
+  pkgs: Project[]
 ) {
   return pkgs.reduce((acc, pkg) => {
     if (!pkg.manifest.name || !pkg.manifest.version) return acc

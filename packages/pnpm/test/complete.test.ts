@@ -20,7 +20,7 @@ test('complete an option value', async (t) => {
       lastOption: '--resolution-strategy',
       options: {},
       params: [],
-    },
+    }
   )
   t.deepEqual(completions, [
     { name: 'fast' },
@@ -53,9 +53,9 @@ test('complete a command', async (t) => {
         lastOption: null,
         options: {},
         params: [],
-      },
+      }
     ),
-    [{ name: 'test' }],
+    [{ name: 'test' }]
   )
   t.deepEqual(
     await complete(ctx,
@@ -65,14 +65,14 @@ test('complete a command', async (t) => {
         lastOption: null,
         options: {},
         params: [],
-      },
+      }
     ),
     [
       { name: 'test' },
       { name: '--filter' },
       { name: '--if-present' },
       { name: '--no-if-present' },
-    ],
+    ]
   )
   t.deepEqual(
     await complete(ctx,
@@ -82,13 +82,13 @@ test('complete a command', async (t) => {
         lastOption: null,
         options: {},
         params: [],
-      },
+      }
     ),
     [
       { name: '--filter' },
       { name: '--if-present' },
       { name: '--no-if-present' },
-    ],
+    ]
   )
   t.end()
 })
@@ -113,9 +113,9 @@ test('if command completion fails, return empty array', async (t) => {
         lastOption: null,
         options: {},
         params: [],
-      },
+      }
     ),
-    [],
+    []
   )
   t.end()
 })
@@ -141,13 +141,13 @@ test('initial completion', async (t) => {
         lastOption: null,
         options: {},
         params: [],
-      },
+      }
     ), [
       { name: 'add' },
       { name: 'install' },
       { name: '--filter' },
       { name: '--version' },
-    ],
+    ]
   )
   t.deepEqual(
     await complete(ctx,
@@ -157,11 +157,11 @@ test('initial completion', async (t) => {
         lastOption: null,
         options: {},
         params: [],
-      },
+      }
     ), [
       { name: 'add' },
       { name: 'install' },
-    ],
+    ]
   )
   t.deepEqual(
     await complete(ctx,
@@ -171,11 +171,11 @@ test('initial completion', async (t) => {
         lastOption: null,
         options: {},
         params: [],
-      },
+      }
     ), [
       { name: '--filter' },
       { name: '--version' },
-    ],
+    ]
   )
   t.end()
 })
@@ -199,8 +199,8 @@ test('suggest no completions for after --version', async (t) => {
         lastOption: null,
         options: { version: true },
         params: [],
-      },
-    ), [],
+      }
+    ), []
   )
   t.end()
 })

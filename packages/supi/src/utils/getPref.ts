@@ -11,7 +11,7 @@ export async function updateProjectManifest (
     directDependencies: ResolvedDirectDependency[],
     preserveWorkspaceProtocol: boolean,
     saveWorkspaceProtocol: boolean,
-  },
+  }
 ) {
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
@@ -39,7 +39,7 @@ export async function updateProjectManifest (
     importer.rootDir,
     importer.manifest,
     specsToUpsert,
-    { dryRun: true },
+    { dryRun: true }
   )
 }
 
@@ -58,7 +58,7 @@ function resolvedDirectDepToSpecObject (
     pinnedVersion: PinnedVersion,
     preserveWorkspaceProtocol: boolean,
     saveWorkspaceProtocol: boolean,
-  },
+  }
 ): PackageSpecObject {
   let pref!: string
   if (normalizedPref) {
@@ -105,7 +105,7 @@ export default function getPref (
   version: string,
   opts: {
     pinnedVersion?: PinnedVersion,
-  },
+  }
 ) {
   const prefix = getPrefix(alias, name)
   return `${prefix}${createVersionSpec(version, opts.pinnedVersion)}`
@@ -118,7 +118,7 @@ function getPrefPreferSpecifiedSpec (
     version: string,
     specRaw: string,
     pinnedVersion?: PinnedVersion,
-  },
+  }
  ) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`)) {
@@ -137,7 +137,7 @@ function getPrefPreferSpecifiedExoticSpec (
     version: string,
     specRaw: string,
     pinnedVersion: PinnedVersion,
-  },
+  }
 ) {
   const prefix = getPrefix(opts.alias, opts.name)
   if (opts.specRaw?.startsWith(`${opts.alias}@${prefix}`) && opts.specRaw !== `${opts.alias}@workspace:*`) {

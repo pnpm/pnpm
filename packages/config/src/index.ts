@@ -100,7 +100,7 @@ export default async (
     },
     rcOptionsTypes?: Record<string, unknown>,
     workspaceDir?: string | undefined,
-  },
+  }
 ): Promise<{ config: Config, warnings: string[] }> => {
   const packageManager = opts.packageManager ?? { name: 'pnpm', version: 'undefined' }
   const cliOptions = opts.cliOptions ?? {}

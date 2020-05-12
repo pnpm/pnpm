@@ -42,7 +42,7 @@ const defaults = async (opts: StoreStatusOptions) => {
 }
 
 export default async (
-  opts: StoreStatusOptions,
+  opts: StoreStatusOptions
 ): Promise<StrictStoreStatusOptions> => {
   if (opts) {
     for (const key in opts) {

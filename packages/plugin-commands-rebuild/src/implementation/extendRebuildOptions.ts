@@ -68,7 +68,7 @@ const defaults = async (opts: RebuildOptions) => {
 }
 
 export default async (
-  opts: RebuildOptions,
+  opts: RebuildOptions
 ): Promise<StrictRebuildOptions> => {
   if (opts) {
     for (const key in opts) {

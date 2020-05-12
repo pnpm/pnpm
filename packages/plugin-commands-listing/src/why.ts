@@ -89,7 +89,7 @@ export function help () {
 
 export function handler (
   opts: ListCommandOptions,
-  params: string[],
+  params: string[]
 ) {
   if (!params.length) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm why` requires the package name')

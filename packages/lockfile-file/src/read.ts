@@ -15,7 +15,7 @@ export async function readCurrentLockfile (
   opts: {
     wantedVersion?: number,
     ignoreIncompatible: boolean,
-  },
+  }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(virtualStoreDir, 'lock.yaml')
   return _read(lockfilePath, virtualStoreDir, opts)
@@ -26,7 +26,7 @@ export async function readWantedLockfile (
   opts: {
     wantedVersion?: number,
     ignoreIncompatible: boolean,
-  },
+  }
 ): Promise<Lockfile | null> {
   const lockfilePath = path.join(pkgPath, WANTED_LOCKFILE)
   return _read(lockfilePath, pkgPath, opts)
@@ -38,7 +38,7 @@ async function _read (
   opts: {
     wantedVersion?: number,
     ignoreIncompatible: boolean,
-  },
+  }
 ): Promise<Lockfile | null> {
   let lockfile
   try {
@@ -91,7 +91,7 @@ export function createLockfileObject (
   importerIds: string[],
   opts: {
     lockfileVersion: number,
-  },
+  }
 ) {
   const importers = importerIds.reduce((acc, importerId) => {
     acc[importerId] = {

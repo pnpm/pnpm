@@ -20,7 +20,7 @@ export interface LocalPackageSpec {
 export default function parsePref (
   pref: string,
   projectDir: string,
-  lockfileDir: string,
+  lockfileDir: string
 ): LocalPackageSpec | null {
   if (pref.startsWith('link:')) {
     return fromLocal(pref, projectDir, lockfileDir, 'directory')
@@ -51,7 +51,7 @@ function fromLocal (
   pref: string,
   projectDir: string,
   lockfileDir: string,
-  type: 'file' | 'directory',
+  type: 'file' | 'directory'
 ): LocalPackageSpec {
   const spec = pref.replace(/\\/g, '/')
     .replace(/^(file|link):[/]*([A-Za-z]:)/, '$2') // drive name paths on windows

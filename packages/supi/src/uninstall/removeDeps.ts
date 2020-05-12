@@ -11,7 +11,7 @@ export default async function (
   opts: {
     saveType?: DependenciesField,
     prefix: string,
-  },
+  }
 ): Promise<ProjectManifest> {
   if (opts.saveType) {
     if (!packageManifest[opts.saveType]) return packageManifest

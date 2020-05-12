@@ -26,7 +26,7 @@ export default async function parseCliArgs (
     universalOptionsTypes: Record<string, unknown>,
     universalShorthands: Record<string, string>,
   },
-  inputArgv: string[],
+  inputArgv: string[]
 ): Promise<ParsedCliArgs> {
   const noptExploratoryResults = nopt(
     {
@@ -42,7 +42,7 @@ export default async function parseCliArgs (
       ...opts.universalShorthands,
     },
     inputArgv,
-    0,
+    0
   )
   if (noptExploratoryResults['help']) {
     return {
@@ -82,7 +82,7 @@ export default async function parseCliArgs (
       ...opts.shorthandsByCommandName[commandName],
     },
     inputArgv,
-    0,
+    0
   )
 
   if (opts.renamedOptions) {

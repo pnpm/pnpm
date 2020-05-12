@@ -34,7 +34,7 @@ test('authorization headers are removed before redirection', async (t) => {
   const fetchFromNpmRegistry = createRegClient({ fullMetadata: true })
   const res = await fetchFromNpmRegistry(
     'http://registry.pnpm.js.org/is-positive',
-    { authHeaderValue: 'Bearer 123' },
+    { authHeaderValue: 'Bearer 123' }
   )
 
   t.deepEqual(await res.json(), { ok: true })

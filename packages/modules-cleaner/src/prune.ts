@@ -10,6 +10,7 @@ import {
 } from '@pnpm/lockfile-types'
 import { packageIdFromSnapshot } from '@pnpm/lockfile-utils'
 import logger from '@pnpm/logger'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
@@ -17,14 +18,11 @@ import {
   DEPENDENCIES_FIELDS,
   Registries,
 } from '@pnpm/types'
+import rimraf = require('@zkochan/rimraf')
 import * as dp from 'dependency-path'
-import vacuumCB = require('fs-vacuum')
 import path = require('path')
 import R = require('ramda')
-import { promisify } from 'util'
 import removeDirectDependency from './removeDirectDependency'
-
-const vacuum = promisify(vacuumCB)
 
 export default async function prune (
   importers: Array<{
@@ -48,7 +46,7 @@ export default async function prune (
     virtualStoreDir: string,
     lockfileDir: string,
     storeController: StoreController,
-  },
+  }
 ): Promise<Set<string>> {
   const wantedLockfile = filterLockfile(opts.wantedLockfile, {
     include: opts.include,
@@ -63,7 +61,7 @@ export default async function prune (
     const allCurrentPackages = new Set(
       (pruneDirectDependencies || removePackages?.length)
         ? (await readModulesDir(modulesDir) || [])
-        : [],
+        : []
     )
     const depsToRemove = new Set([
       ...(removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
@@ -140,13 +138,10 @@ export default async function prune (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(opts.virtualStoreDir, orphanDepPath, 'node_modules')
+        const pathToRemove = path.join(opts.virtualStoreDir, pkgIdToFilename(orphanDepPath, opts.lockfileDir))
         removalLogger.debug(pathToRemove)
         try {
-          await vacuum(pathToRemove, {
-            base: opts.virtualStoreDir,
-            purge: true,
-          })
+          await rimraf(pathToRemove)
         } catch (err) {
           logger.warn({
             error: err,
@@ -156,15 +151,6 @@ export default async function prune (
         }
       }))
     }
-
-    const addedDepPaths = R.difference(newDepPaths, oldDepPaths)
-    const addedPkgIds = new Set(R.props<string, string>(addedDepPaths, wantedPkgIdsByDepPaths))
-
-    await opts.storeController.updateConnections(path.dirname(opts.virtualStoreDir), {
-      addDependencies: Array.from(addedPkgIds),
-      prune: opts.pruneStore || false,
-      removeDependencies: Array.from(orphanPkgIds),
-    })
   }
 
   return new Set(orphanDepPaths)
@@ -172,18 +158,17 @@ export default async function prune (
 
 function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: string]: string } {
   return R.mergeAll(
-    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] || {}),
+    DEPENDENCIES_FIELDS.map((depType) => projectSnapshot[depType] || {})
   )
 }
 
 function getPkgsDepPaths (
   registries: Registries,
-  packages: PackageSnapshots,
-): {[depPath: string]: string} {
+  packages: PackageSnapshots
+): {[relDepPath: string]: string} {
   const pkgIdsByDepPath = {}
   for (const relDepPath of Object.keys(packages)) {
-    const depPath = dp.resolve(registries, relDepPath)
-    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
+    pkgIdsByDepPath[relDepPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
   }
   return pkgIdsByDepPath
 }
@@ -193,7 +178,7 @@ function getPkgsDepPathsOwnedOnlyByImporters (
   registries: Registries,
   lockfile: Lockfile,
   include: { [dependenciesField in DependenciesField]: boolean },
-  skipped: Set<string>,
+  skipped: Set<string>
 ) {
   const selected = filterLockfileByImporters(lockfile,
     importerIds,

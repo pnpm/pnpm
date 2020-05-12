@@ -12,7 +12,7 @@ test('getBinsFromPkg()', async (t) => {
     [{
       name: 'one-bin',
       path: path.resolve('one-bin'),
-    }],
+    }]
   )
   t.end()
 })
@@ -27,7 +27,7 @@ test('get bin of scoped package', async (t) => {
     [{
       name: 'bar',
       path: path.resolve('bin.js'),
-    }],
+    }]
   )
   t.end()
 })
@@ -50,7 +50,7 @@ test('skip dangerous bin names', async (t) => {
         name: 'good',
         path: path.resolve('good'),
       },
-    ],
+    ]
   )
   t.end()
 })
@@ -71,7 +71,7 @@ test('skip dangerous bin locations', async (t) => {
         name: 'good',
         path: path.resolve('good'),
       },
-    ],
+    ]
   )
   t.end()
 })

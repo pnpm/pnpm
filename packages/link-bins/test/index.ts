@@ -148,7 +148,7 @@ test('linkBinsOfPackages()', async (t) => {
       },
     ],
     binTarget,
-    { warn },
+    { warn }
   )
 
   t.notOk(warn.called)
@@ -206,7 +206,7 @@ test('linkBinsOfPackages() resolves conflicts. Prefer packages that use their na
       },
     ],
     binTarget,
-    { warn },
+    { warn }
   )
 
   t.equal(warn.args[0][0], `Cannot link binary 'bar' of 'foo' to '${binTarget}': binary of 'bar' is already linked`)

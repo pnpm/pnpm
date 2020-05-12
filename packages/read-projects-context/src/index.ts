@@ -16,7 +16,7 @@ export default async function <T>(
   opts: {
     lockfileDir: string,
     modulesDir?: string,
-  },
+  }
 ): Promise<{
   currentHoistPattern?: string[],
   hoist?: boolean,

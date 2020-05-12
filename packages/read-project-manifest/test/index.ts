@@ -15,22 +15,22 @@ const fixtures = path.join(__dirname, 'fixtures')
 test('readProjectManifest()', async (t) => {
   t.deepEqual(
     (await tryReadProjectManifest(path.join(fixtures, 'package-json'))).manifest,
-    { name: 'foo', version: '1.0.0' },
+    { name: 'foo', version: '1.0.0' }
   )
 
   t.deepEqual(
     (await tryReadProjectManifest(path.join(fixtures, 'package-json5'))).manifest,
-    { name: 'foo', version: '1.0.0' },
+    { name: 'foo', version: '1.0.0' }
   )
 
   t.deepEqual(
     (await tryReadProjectManifest(path.join(fixtures, 'package-yaml'))).manifest,
-    { name: 'foo', version: '1.0.0' },
+    { name: 'foo', version: '1.0.0' }
   )
 
   t.deepEqual(
     (await tryReadProjectManifest(fixtures)).manifest,
-    null,
+    null
   )
 
   t.end()
@@ -101,7 +101,7 @@ test('do not save manifest if it had no changes', async (t) => {
       dependencies: { foo: '*', bar: '*' },
       devDependencies: {},
     }),
-    'utf8',
+    'utf8'
   )
 
   const { writeProjectManifest } = await readProjectManifest(process.cwd())

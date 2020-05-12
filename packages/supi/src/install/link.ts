@@ -21,19 +21,18 @@ import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { ProjectManifest, Registries } from '@pnpm/types'
-import * as dp from 'dependency-path'
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
-import { absolutePathToRef } from './lockfile'
+import { depPathToRef } from './lockfile'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
 } from './resolvePeers'
 import updateLockfile from './updateLockfile'
 
-const brokenNodeModulesLogger = logger('_broken_node_modules')
+const brokenModulesLogger = logger('_broken_node_modules')
 
 export {
   DependenciesGraph,
@@ -80,7 +79,7 @@ export default async function linkPackages (
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
     wantedToBeSkippedPackageIds: Set<string>,
-  },
+  }
 ): Promise<{
   currentLockfile: Lockfile,
   depGraph: DependenciesGraph,
@@ -93,7 +92,7 @@ export default async function linkPackages (
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
-  const { depGraph, projectsDirectAbsolutePathsByAlias } = resolvePeers({
+  const { depGraph, projectsDirectPathsByAlias } = resolvePeers({
     dependenciesTree,
     independentLeaves: opts.independentLeaves,
     lockfileDir: opts.lockfileDir,
@@ -102,12 +101,12 @@ export default async function linkPackages (
     virtualStoreDir: opts.virtualStoreDir,
   })
   for (const { id } of projects) {
-    for (const [alias, depPath] of R.toPairs(projectsDirectAbsolutePathsByAlias[id])) {
+    for (const [alias, depPath] of R.toPairs(projectsDirectPathsByAlias[id])) {
       const depNode = depGraph[depPath]
       if (depNode.isPure) continue
 
       const projectSnapshot = opts.wantedLockfile.importers[id]
-      const ref = absolutePathToRef(depPath, {
+      const ref = depPathToRef(depPath, {
         alias,
         realName: depNode.name,
         registries: opts.registries,
@@ -127,17 +126,16 @@ export default async function linkPackages (
     ? opts.afterAllResolvedHook(newLockfile)
     : newLockfile
 
-  let depNodes = R.values(depGraph).filter(({ absolutePath, name, packageId }) => {
-    const relDepPath = dp.relative(opts.registries, name, absolutePath)
-    if (newWantedLockfile.packages?.[relDepPath] && !newWantedLockfile.packages[relDepPath].optional) {
-      opts.skipped.delete(relDepPath)
+  let depNodes = R.values(depGraph).filter(({ depPath, packageId }) => {
+    if (newWantedLockfile.packages?.[depPath] && !newWantedLockfile.packages[depPath].optional) {
+      opts.skipped.delete(depPath)
       return true
     }
     if (opts.wantedToBeSkippedPackageIds.has(packageId)) {
-      opts.skipped.add(relDepPath)
+      opts.skipped.add(depPath)
       return false
     }
-    opts.skipped.delete(relDepPath)
+    opts.skipped.delete(depPath)
     return true
   })
   if (!opts.include.dependencies) {
@@ -194,7 +192,7 @@ export default async function linkPackages (
       registries: opts.registries,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
-    },
+    }
   )
 
   stageLogger.debug({
@@ -205,15 +203,15 @@ export default async function linkPackages (
   const rootDepsByDepPath = depNodes
     .filter(({ depth }) => depth === 0)
     .reduce((acc, depNode) => {
-      acc[depNode.absolutePath] = depNode
+      acc[depNode.depPath] = depNode
       return acc
-    }, {}) as {[absolutePath: string]: DependenciesGraphNode}
+    }, {})
 
   await Promise.all(projects.map(({ id, manifest, modulesDir, rootDir }) => {
-    const directAbsolutePathsByAlias = projectsDirectAbsolutePathsByAlias[id]
+    const directPathsByAlias = projectsDirectPathsByAlias[id]
     return Promise.all(
-      Object.keys(directAbsolutePathsByAlias)
-        .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
+      Object.keys(directPathsByAlias)
+        .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directPathsByAlias[rootAlias]] }))
         .filter(({ depGraphNode }) => depGraphNode)
         .map(async ({ rootAlias, depGraphNode }) => {
           if (
@@ -234,7 +232,7 @@ export default async function linkPackages (
             },
             prefix: rootDir,
           })
-        }),
+        })
     )
   }))
 
@@ -242,11 +240,11 @@ export default async function linkPackages (
     newWantedLockfile.lockfileVersion = LOCKFILE_VERSION
   }
 
-  await Promise.all(pendingRequiresBuilds.map(async ({ absoluteDepPath, relativeDepPath }) => {
-    const depNode = depGraph[absoluteDepPath]
+  await Promise.all(pendingRequiresBuilds.map(async (depPath) => {
+    const depNode = depGraph[depPath]
     if (!depNode.fetchingBundledManifest) {
       // This should never ever happen
-      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${absoluteDepPath}"`)
+      throw new Error(`Cannot create ${WANTED_LOCKFILE} because raw manifest (aka package.json) wasn't fetched for "${depPath}"`)
     }
     const filesResponse = await depNode.fetchingFiles()
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
@@ -254,13 +252,13 @@ export default async function linkPackages (
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
       filesResponse.filesIndex['binding.gyp'] ||
-        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
+        Object.keys(filesResponse.filesIndex).some((filename) => !!filename.match(/^[.]hooks[\\/]/)) // TODO: optimize this
     )
 
     // TODO: try to cover with unit test the case when entry is no longer available in lockfile
     // It is an edge that probably happens if the entry is removed during lockfile prune
-    if (depNode.requiresBuild && newWantedLockfile.packages![relativeDepPath]) {
-      newWantedLockfile.packages![relativeDepPath].requiresBuild = true
+    if (depNode.requiresBuild && newWantedLockfile.packages![depPath]) {
+      newWantedLockfile.packages![depPath].requiresBuild = true
     }
   }))
 
@@ -272,10 +270,9 @@ export default async function linkPackages (
   ) {
     const packages = opts.currentLockfile.packages || {}
     if (newWantedLockfile.packages) {
-      for (const relDepPath in newWantedLockfile.packages) { // tslint:disable-line:forin
-        const depPath = dp.resolve(opts.registries, relDepPath)
+      for (const depPath in newWantedLockfile.packages) { // tslint:disable-line:forin
         if (depGraph[depPath]) {
-          packages[relDepPath] = newWantedLockfile.packages[relDepPath]
+          packages[depPath] = newWantedLockfile.packages[depPath]
         }
       }
     }
@@ -292,7 +289,7 @@ export default async function linkPackages (
       Object.keys(projects), {
         ...filterOpts,
         failOnMissingDependencies: false,
-      },
+      }
     )
   } else if (
     opts.include.dependencies &&
@@ -335,8 +332,8 @@ export default async function linkPackages (
             linkedPackage: linkedDependency,
             prefix: project.rootDir,
           })
-        })),
-      ),
+        }))
+      )
     )
   }
 
@@ -370,7 +367,7 @@ async function linkNewPackages (
     lockfileDir: string,
     storeController: StoreController,
     virtualStoreDir: string,
-  },
+  }
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedLockfile.packages)
 
@@ -378,10 +375,9 @@ async function linkNewPackages (
   if (opts.force) {
     newDepPathsSet = new Set(
       wantedRelDepPaths
-        .map((relDepPath) => dp.resolve(opts.registries, relDepPath))
         // when installing a new package, not all the nodes are analyzed
         // just skip the ones that are in the lockfile but were not analyzed
-        .filter((depPath) => depGraph[depPath]),
+        .filter((depPath) => depGraph[depPath])
     )
   } else {
     newDepPathsSet = await selectNewFromWantedDeps(wantedRelDepPaths, currentLockfile, depGraph, opts)
@@ -396,11 +392,10 @@ async function linkNewPackages (
   if (!opts.force && currentLockfile.packages && wantedLockfile.packages) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
-    for (const relDepPath of wantedRelDepPaths) {
-      if (currentLockfile.packages[relDepPath] &&
-        (!R.equals(currentLockfile.packages[relDepPath].dependencies, wantedLockfile.packages[relDepPath].dependencies) ||
-        !R.equals(currentLockfile.packages[relDepPath].optionalDependencies, wantedLockfile.packages[relDepPath].optionalDependencies))) {
-        const depPath = dp.resolve(opts.registries, relDepPath)
+    for (const depPath of wantedRelDepPaths) {
+      if (currentLockfile.packages[depPath] &&
+        (!R.equals(currentLockfile.packages[depPath].dependencies, wantedLockfile.packages[depPath].dependencies) ||
+        !R.equals(currentLockfile.packages[depPath].optionalDependencies, wantedLockfile.packages[depPath].optionalDependencies))) {
 
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
@@ -440,27 +435,26 @@ async function selectNewFromWantedDeps (
   depGraph: DependenciesGraph,
   opts: {
     registries: Registries,
-  },
+  }
 ) {
   const newDeps = new Set<string>()
   const prevRelDepPaths = new Set(R.keys(currentLockfile.packages))
   await Promise.all(
     wantedRelDepPaths.map(
-      async (wantedRelDepPath: string) => {
-        const depPath = dp.resolve(opts.registries, wantedRelDepPath)
+      async (depPath: string) => {
         const depNode = depGraph[depPath]
         if (!depNode) return
-        if (prevRelDepPaths.has(wantedRelDepPath)) {
+        if (prevRelDepPaths.has(depPath)) {
           if (await fs.exists(depNode.peripheralLocation)) {
             return
           }
-          brokenNodeModulesLogger.debug({
+          brokenModulesLogger.debug({
             missing: depNode.peripheralLocation,
           })
         }
         newDeps.add(depPath)
-      },
-    ),
+      }
+    )
   )
   return newDeps
 }
@@ -472,7 +466,7 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
-  },
+  }
 ) {
   return Promise.all(
     depNodes.map(async ({ fetchingFiles, independent, peripheralLocation }) => {
@@ -482,7 +476,7 @@ async function linkAllPkgs (
         filesResponse,
         force: opts.force,
       })
-    }),
+    })
   )
 }
 
@@ -492,7 +486,7 @@ async function linkAllModules (
   opts: {
     lockfileDir: string,
     optional: boolean,
-  },
+  }
 ) {
   return Promise.all(
     depNodes
@@ -521,8 +515,8 @@ async function linkAllModules (
                 return
               }
               await limitLinking(() => symlinkDependency(pkg.peripheralLocation, modules, childAlias))
-            }),
+            })
         )
-      }),
+      })
   )
 }

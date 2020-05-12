@@ -58,7 +58,7 @@ export default async function getContext<T> (
   projects: (ProjectOptions & T)[],
   opts: {
     force: boolean,
-    forceNewNodeModules?: boolean,
+    forceNewModules?: boolean,
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDir: string,
@@ -80,16 +80,16 @@ export default async function getContext<T> (
 
     shamefullyHoist?: boolean,
     forceShamefullyHoist?: boolean,
-  },
+  }
 ): Promise<PnpmContext<T>> {
   const modulesDir = opts.modulesDir ?? 'node_modules'
   let importersContext = await readProjectsContext(projects, { lockfileDir: opts.lockfileDir, modulesDir })
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? path.join(modulesDir, '.pnpm'), opts.lockfileDir)
 
   if (importersContext.modules) {
-    const { purged } = await validateNodeModules(importersContext.modules, importersContext.projects, {
+    const { purged } = await validateModules(importersContext.modules, importersContext.projects, {
       currentHoistPattern: importersContext.currentHoistPattern,
-      forceNewNodeModules: opts.forceNewNodeModules === true,
+      forceNewModules: opts.forceNewModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
       modulesDir,
@@ -172,7 +172,7 @@ export default async function getContext<T> (
   return ctx
 }
 
-async function validateNodeModules (
+async function validateModules (
   modules: Modules,
   projects: Array<{
     modulesDir: string,
@@ -181,7 +181,7 @@ async function validateNodeModules (
   }>,
   opts: {
     currentHoistPattern?: string[],
-    forceNewNodeModules: boolean,
+    forceNewModules: boolean,
     include?: IncludedDependencies,
     lockfileDir: string,
     modulesDir: string,
@@ -197,11 +197,11 @@ async function validateNodeModules (
 
     shamefullyHoist?: boolean | undefined,
     forceShamefullyHoist?: boolean,
-  },
+  }
 ): Promise<{ purged: boolean }> {
   const rootProject = projects.find(({ id }) => id === '.')
   if (opts.forceShamefullyHoist && modules.shamefullyHoist !== opts.shamefullyHoist) {
-    if (opts.forceNewNodeModules && rootProject) {
+    if (opts.forceNewModules && rootProject) {
       await purgeModulesDirsOfImporter(rootProject)
       return { purged: true }
     }
@@ -209,17 +209,17 @@ async function validateNodeModules (
       throw new PnpmError(
         'SHAMEFULLY_HOIST_WANTED',
         'This modules directory was created using the --shamefully-hoist option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.',
+        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.'
       )
     }
     throw new PnpmError(
       'SHAMEFULLY_HOIST_NOT_WANTED',
       'This modules directory was created without the --shamefully-hoist option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.',
+      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.'
     )
   }
   if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
-    if (opts.forceNewNodeModules) {
+    if (opts.forceNewModules) {
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       if (!rootProject) {
         await purgeModulesDirsOfImporter({
@@ -233,13 +233,13 @@ async function validateNodeModules (
       throw new PnpmError(
         'INDEPENDENT_LEAVES_WANTED',
         'This modules directory was created using the --independent-leaves option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.',
+        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.'
       )
     }
     throw new PnpmError(
       'INDEPENDENT_LEAVES_NOT_WANTED',
       'This modules directory was created without the --independent-leaves option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.',
+      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.'
     )
   }
   let purged = false
@@ -250,17 +250,17 @@ async function validateNodeModules (
           throw new PnpmError(
             'HOISTING_WANTED',
             'This modules directory was created using the --hoist-pattern option.'
-            + ' You must add this option, or else add the --force option to recreate the modules directory.',
+            + ' You must add this option, or else add the --force option to recreate the modules directory.'
           )
         }
         throw new PnpmError(
           'HOISTING_NOT_WANTED',
           'This modules directory was created without the --hoist-pattern option.'
-          + ' You must remove that option, or else run "pnpm install" to recreate the modules directory.',
+          + ' You must remove that option, or else run "pnpm install" to recreate the modules directory.'
         )
       }
     } catch (err) {
-      if (!opts.forceNewNodeModules) throw err
+      if (!opts.forceNewModules) throw err
       await purgeModulesDirsOfImporter(rootProject)
       purged = true
     }
@@ -277,19 +277,19 @@ async function validateNodeModules (
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('INCLUDED_DEPS_CONFLICT',
               `modules directory (at "${opts.lockfileDir}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
-              `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
+              `Current install wants ${stringifyIncludedDeps(opts.include)}.`
             )
           }
         }
       }
     } catch (err) {
-      if (!opts.forceNewNodeModules) throw err
+      if (!opts.forceNewModules) throw err
       await purgeModulesDirsOfImporter(project)
       purged = true
     }
   }))
   if (modules.registries && !R.equals(opts.registries, modules.registries)) {
-    if (opts.forceNewNodeModules) {
+    if (opts.forceNewModules) {
       await Promise.all(projects.map(purgeModulesDirsOfImporter))
       return { purged: true }
     }
@@ -308,7 +308,7 @@ async function purgeModulesDirsOfImporter (
   importer: {
     modulesDir: string,
     rootDir: string,
-  },
+  }
 ) {
   logger.info({
     message: `Recreating ${importer.modulesDir}`,
@@ -355,7 +355,7 @@ export async function getContextForSingleImporter (
   manifest: ProjectManifest,
   opts: {
     force: boolean,
-    forceNewNodeModules?: boolean,
+    forceNewModules?: boolean,
     forceSharedLockfile: boolean,
     extraBinPaths: string[],
     lockfileDir: string,
@@ -379,7 +379,7 @@ export async function getContextForSingleImporter (
     independentLeaves?: boolean,
     forceIndependentLeaves?: boolean,
   },
-  alreadyPurged: boolean = false,
+  alreadyPurged: boolean = false
 ): Promise<PnpmSingleContext> {
   const {
     currentHoistPattern,
@@ -402,7 +402,7 @@ export async function getContextForSingleImporter (
     {
       lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir,
-    },
+    }
   )
 
   const storeDir = opts.storeDir
@@ -413,9 +413,9 @@ export async function getContextForSingleImporter (
   const virtualStoreDir = pathAbsolute(opts.virtualStoreDir ?? 'node_modules/.pnpm', opts.lockfileDir)
 
   if (modules && !alreadyPurged) {
-    const { purged } = await validateNodeModules(modules, projects, {
+    const { purged } = await validateModules(modules, projects, {
       currentHoistPattern,
-      forceNewNodeModules: opts.forceNewNodeModules === true,
+      forceNewModules: opts.forceNewModules === true,
       include: opts.include,
       lockfileDir: opts.lockfileDir,
       modulesDir: opts.modulesDir ?? 'node_modules',

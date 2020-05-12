@@ -14,7 +14,7 @@ export default function parseWantedDependencies (
     optional: boolean,
     optionalDependencies: Dependencies,
     updateWorkspaceDependencies?: boolean,
-  },
+  }
 ): WantedDependency[] {
   return rawWantedDependencies
     .map((rawWantedDependency) => {

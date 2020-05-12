@@ -179,7 +179,7 @@ test('only prod depth 0', async t => {
         optionalDependencies: false,
       },
       lockfileDir: generalFixture,
-    },
+    }
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
@@ -226,7 +226,7 @@ test('only dev depth 0', async t => {
         optionalDependencies: false,
       },
       lockfileDir: generalFixture,
-    },
+    }
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
@@ -276,7 +276,7 @@ test('filter 1 package with depth 0', async t => {
       depth: 0,
       lockfileDir: generalFixture,
       search: ({ name }) => name === 'rimraf',
-    },
+    }
   )
   const modulesDir = path.join(generalFixture, 'node_modules')
 
@@ -440,7 +440,7 @@ test('unsaved dependencies are listed', async t => {
           },
         ],
       },
-    },
+    }
   )
   t.end()
 })
@@ -454,7 +454,7 @@ test('unsaved dependencies are listed and filtered', async t => {
         depth: 0,
         lockfileDir: withUnsavedDepsFixture,
         search: ({ name }) => name === 'symlink-dir',
-      },
+      }
     ),
     {
       [withUnsavedDepsFixture]: {
@@ -475,7 +475,7 @@ test('unsaved dependencies are listed and filtered', async t => {
         devDependencies: [],
         optionalDependencies: [],
       },
-    },
+    }
   )
   t.end()
 })
@@ -508,7 +508,7 @@ test('dependency with an alias', async t => {
         devDependencies: [],
         optionalDependencies: [],
       },
-    },
+    }
   )
   t.end()
 })

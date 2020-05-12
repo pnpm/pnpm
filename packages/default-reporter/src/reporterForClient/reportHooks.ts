@@ -8,7 +8,7 @@ export default (
   opts: {
     cwd: string,
     isRecursive: boolean,
-  },
+  }
 ) => {
   return hook$
     .map((log) => ({
@@ -18,7 +18,7 @@ export default (
         `${chalk.magentaBright(log.hook)}: ${log.message}`,
         {
           zoomOutCurrent: opts.isRecursive,
-        },
+        }
       ),
     }))
     .map(most.of)

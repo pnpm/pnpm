@@ -43,7 +43,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -256,7 +256,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
         rootDir: lockfileDir,
       },
     ],
-    { lockfileDir },
+    { lockfileDir }
   )
 
   await headless(await testDefaults({
@@ -264,7 +264,7 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
     independentLeaves: true,
     lockfileDir: lockfileDir,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
   }))
 
@@ -274,10 +274,10 @@ test('installing with independent-leaves and hoistPattern=*', async (t) => {
   await project.has('.pnpm/node_modules/path-is-absolute')
 
   // wrappy is linked directly from the store
-  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/wrappy/1.0.2`)
+  await project.hasNot(`.pnpm/wrappy@1.0.2`)
   await project.storeHas('wrappy', '1.0.2')
 
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf/2.5.1`)
+  await project.has(`.pnpm/rimraf@2.5.1`)
 
   await project.isExecutable('.bin/rimraf')
 
@@ -300,7 +300,7 @@ test('installing with independent-leaves when an optional subdep is skipped', as
       '/dep-of-optional-pkg/1.0.0',
       '/not-compatible-with-any-os/1.0.0',
     ],
-    'optional subdeps skipped',
+    'optional subdeps skipped'
   )
 
   const project = assertProject(t, prefix)
@@ -337,7 +337,7 @@ test('run pre/postinstall scripts', async (t) => {
   t.ok(modulesYaml)
   t.deepEqual(
     modulesYaml!.pendingBuilds,
-    ['.', '/pre-and-postinstall-scripts-example/1.0.0'],
+    ['.', '/pre-and-postinstall-scripts-example/1.0.0']
   )
 
   t.end()
@@ -556,8 +556,8 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/rimraf`) // rimraf is not symlinked from the store
-  await project.hasNot(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is symlinked from the store
+  await project.has(`.pnpm/rimraf@2.7.1`) // rimraf is not symlinked from the store
+  await project.hasNot(`.pnpm/colors@1.2.0`) // colors is symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
 
@@ -605,7 +605,7 @@ test('installing with hoistPattern=*', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
@@ -645,7 +645,7 @@ test('installing with hoistPattern=*', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases[`localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -665,7 +665,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
   // test that independent leaves is false by default
-  await project.has(`.pnpm/localhost+${REGISTRY_MOCK_PORT}/colors`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.bin/hello-world-js-bin')
@@ -705,7 +705,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
 
   const modules = await project.readModulesManifest()
 
-  t.deepEqual(modules!.hoistedAliases[`localhost+${REGISTRY_MOCK_PORT}/balanced-match/1.0.0`], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+  t.deepEqual(modules!.hoistedAliases['/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
 
   t.end()
 })
@@ -725,7 +725,7 @@ test.skip('using side effects cache', async (t) => {
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
 
-  const cacheIntegrityPath = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/integrity.json`)
+  const cacheIntegrityPath = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage@1.1.3/side_effects/${ENGINE_DIR}/integrity.json`)
   const cacheIntegrity = await loadJsonFile(cacheIntegrityPath)
   t.ok(cacheIntegrity['build/Makefile'])
   delete cacheIntegrity['build/Makefile']
@@ -751,7 +751,7 @@ test.skip('using side effects cache and hoistPattern=*', async (t) => {
         rootDir: lockfileDir,
       },
     ],
-    { lockfileDir },
+    { lockfileDir }
   )
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -760,7 +760,7 @@ test.skip('using side effects cache and hoistPattern=*', async (t) => {
     hoistPattern: '*',
     lockfileDir,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
     sideEffectsCacheRead: true,
     sideEffectsCacheWrite: true,
@@ -771,7 +771,7 @@ test.skip('using side effects cache and hoistPattern=*', async (t) => {
   const project = assertProject(t, lockfileDir)
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
+  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
   fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(lockfileDir, 'node_modules'))
@@ -796,11 +796,11 @@ test('installing in a workspace', async (t) => {
         rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
-    { lockfileDir: workspaceFixture },
+    { lockfileDir: workspaceFixture }
   )
 
   projects = await Promise.all(
-    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+    projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
   )
 
   await headless(await testDefaults({
@@ -817,8 +817,8 @@ test('installing in a workspace', async (t) => {
     projects: [projects[0]],
   }))
 
-  const rootNodeModules = assertProject(t, workspaceFixture)
-  const lockfile = await rootNodeModules.readCurrentLockfile()
+  const rootModules = assertProject(t, workspaceFixture)
+  const lockfile = await rootModules.readCurrentLockfile()
   t.deepEqual(Object.keys(lockfile.packages), [
     '/is-negative/1.0.0',
     '/is-positive/1.0.0',
@@ -839,21 +839,21 @@ test('independent-leaves: installing in a workspace', async (t) => {
         rootDir: path.join(workspaceFixture, 'bar'),
       },
     ],
-    { lockfileDir: workspaceFixture },
+    { lockfileDir: workspaceFixture }
   )
 
   await headless(await testDefaults({
     independentLeaves: true,
     lockfileDir: workspaceFixture,
     projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) })),
+      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
     ),
   }))
 
   const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
 
   await projectBar.has('foo')
-  t.ok(await exists(path.join(workspaceFixture, `node_modules/.pnpm/localhost+${REGISTRY_MOCK_PORT}/express/4.16.4/node_modules/array-flatten`)), 'independent package linked')
+  t.ok(await exists(path.join(workspaceFixture, `node_modules/.pnpm/express@4.16.4/node_modules/array-flatten`)), 'independent package linked')
 
   t.end()
 })

@@ -1,5 +1,18 @@
 # @pnpm/lifecycle
 
+## 9.0.0-alpha.1
+
+### Major Changes
+
+- e3990787: Rename NodeModules to Modules in option names.
+
+### Patch Changes
+
+- Updated dependencies [da091c71]
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/core-loggers@4.0.2-alpha.0
+  - @pnpm/read-package-json@3.1.1-alpha.0
+
 ## 8.2.0-alpha.0
 
 ### Minor Changes

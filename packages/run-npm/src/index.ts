@@ -18,7 +18,7 @@ export function runScriptSync (
     cwd: string,
     stdio: string,
     userAgent?: string,
-  },
+  }
 ) {
   opts = Object.assign({}, opts)
   return spawn.sync(command, args, Object.assign({}, opts, {
@@ -30,7 +30,7 @@ function createEnv (
   opts: {
     cwd: string,
     userAgent?: string,
-  },
+  }
 ) {
   const env = Object.create(process.env)
 

@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 2.0.11-alpha.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@6.0.1-alpha.3
+
 ## 3.0.0-alpha.2
 
 ### Minor Changes

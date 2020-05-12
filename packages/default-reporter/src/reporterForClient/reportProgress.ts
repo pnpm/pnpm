@@ -24,7 +24,7 @@ export default (
   opts: {
     cwd: string,
     throttleProgress?: number,
-  },
+  }
 ) => {
   const progressOutput = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
     ? throttledProgressOutput.bind(null, opts.throttleProgress)
@@ -47,19 +47,19 @@ export default (
 function throttledProgressOutput (
   throttleProgress: number,
   importingDone$: most.Stream<boolean>,
-  progress$: most.Stream<ProgressStats>,
+  progress$: most.Stream<ProgressStats>
 ) {
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
   const sampler = most.merge(
     most.periodic(throttleProgress).until(importingDone$.skip(1)),
-    importingDone$,
+    importingDone$
   )
   return most.sample(
     createStatusMessage,
     sampler,
     progress$,
-    importingDone$,
+    importingDone$
   )
   // Avoid logs after all resolved packages were downloaded.
   // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
@@ -68,18 +68,18 @@ function throttledProgressOutput (
 
 function nonThrottledProgressOutput (
   importingDone$: most.Stream<boolean>,
-  progress$: most.Stream<ProgressStats>,
+  progress$: most.Stream<ProgressStats>
 ) {
   return most.combine(
     createStatusMessage,
     progress$,
-    importingDone$,
+    importingDone$
   )
 }
 
 function getModulesInstallProgress$ (
   stage$: most.Stream<StageLog>,
-  progress$: most.Stream<ProgressLog>,
+  progress$: most.Stream<ProgressLog>
 ): most.Stream<ModulesInstallProgress> {
   const modulesInstallProgressPushStream = new PushStream<ModulesInstallProgress>()
   const progessStatsPushStreamByRequirer = getProgessStatsPushStreamByRequirer(progress$)
@@ -157,7 +157,7 @@ function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog
 
 function createStatusMessage (
   progress: ProgressStats,
-  importingDone: boolean,
+  importingDone: boolean
 ) {
   const msg = `Resolving: total ${hlValue(progress.resolved.toString())}, reused ${hlValue(progress.reused.toString())}, downloaded ${hlValue(progress.fetched.toString())}`
   if (importingDone) {

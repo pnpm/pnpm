@@ -14,7 +14,7 @@ export default async function (
     reporter?: ReporterFunction,
     storeController: StoreController,
     tag?: string,
-  },
+  }
 ) {
   const reporter = opts?.reporter
   if (reporter) {
@@ -44,8 +44,6 @@ export default async function (
       logger('store').error(e)
     }
   }))
-
-  await opts.storeController.saveState()
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

@@ -34,7 +34,7 @@ export interface DependenciesGraphNode {
   independent: boolean,
   optionalDependencies: Set<string>,
   depth: number,
-  absolutePath: string,
+  depPath: string,
   prod: boolean,
   dev: boolean,
   optional: boolean,
@@ -77,13 +77,13 @@ export default function (
     virtualStoreDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {
   depGraph: DependenciesGraph,
-  projectsDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}},
+  projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}},
 } {
   const depGraph: DependenciesGraph = {}
-  const absolutePathsByNodeId = {}
+  const pathsByNodeId = {}
 
   for (const { directNodeIdsByAlias, topParents, rootDir } of opts.projects) {
     const pkgsByName = Object.assign(
@@ -94,7 +94,7 @@ export default function (
             depth: 0,
             version,
           },
-        ]),
+        ])
       ),
       toPkgByName(
         Object
@@ -103,16 +103,16 @@ export default function (
             alias,
             node: opts.dependenciesTree[directNodeIdsByAlias[alias]],
             nodeId: directNodeIdsByAlias[alias],
-          })),
-      ),
+          }))
+      )
     )
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
-      absolutePathsByNodeId,
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       independentLeaves: opts.independentLeaves,
       lockfileDir: opts.lockfileDir,
+      pathsByNodeId,
       purePkgs: new Set(),
       rootDir,
       strictPeerDependencies: opts.strictPeerDependencies,
@@ -122,21 +122,21 @@ export default function (
 
   R.values(depGraph).forEach((node) => {
     node.children = R.keys(node.children).reduce((acc, alias) => {
-      acc[alias] = absolutePathsByNodeId[node.children[alias]]
+      acc[alias] = pathsByNodeId[node.children[alias]]
       return acc
     }, {})
   })
 
-  const projectsDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}} = {}
+  const projectsDirectPathsByAlias: {[id: string]: {[alias: string]: string}} = {}
   for (const { directNodeIdsByAlias, id } of opts.projects) {
-    projectsDirectAbsolutePathsByAlias[id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
-      rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[directNodeIdsByAlias[alias]]
-      return rootAbsolutePathsByAlias
+    projectsDirectPathsByAlias[id] = R.keys(directNodeIdsByAlias).reduce((rootPathsByAlias, alias) => {
+      rootPathsByAlias[alias] = pathsByNodeId[directNodeIdsByAlias[alias]]
+      return rootPathsByAlias
     }, {})
   }
   return {
     depGraph,
-    projectsDirectAbsolutePathsByAlias,
+    projectsDirectPathsByAlias,
   }
 }
 
@@ -145,7 +145,7 @@ function resolvePeersOfNode (
   parentParentPkgs: ParentRefs,
   ctx: {
     dependenciesTree: DependenciesTree,
-    absolutePathsByNodeId: {[nodeId: string]: string},
+    pathsByNodeId: {[nodeId: string]: string},
     depGraph: DependenciesGraph,
     independentLeaves: boolean,
     virtualStoreDir: string,
@@ -153,11 +153,11 @@ function resolvePeersOfNode (
     rootDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {[alias: string]: string} {
   const node = ctx.dependenciesTree[nodeId]
-  if (ctx.purePkgs.has(node.resolvedPackage.id) && ctx.depGraph[node.resolvedPackage.id].depth <= node.depth) {
-    ctx.absolutePathsByNodeId[nodeId] = node.resolvedPackage.id
+  if (ctx.purePkgs.has(node.resolvedPackage.depPath) && ctx.depGraph[node.resolvedPackage.depPath].depth <= node.depth) {
+    ctx.pathsByNodeId[nodeId] = node.resolvedPackage.depPath
     return {}
   }
 
@@ -184,14 +184,14 @@ function resolvePeersOfNode (
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
 
   let modules: string
-  let absolutePath: string
-  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.id, ctx.lockfileDir))
+  let depPath: string
+  const localLocation = path.join(ctx.virtualStoreDir, pkgIdToFilename(node.resolvedPackage.depPath, ctx.lockfileDir))
   const isPure = R.isEmpty(allResolvedPeers)
   if (isPure) {
     modules = path.join(localLocation, 'node_modules')
-    absolutePath = node.resolvedPackage.id
+    depPath = node.resolvedPackage.depPath
     if (R.isEmpty(node.resolvedPackage.peerDependencies)) {
-      ctx.purePkgs.add(node.resolvedPackage.id)
+      ctx.purePkgs.add(node.resolvedPackage.depPath)
     }
   } else {
     const peersFolderSuffix = createPeersFolderSuffix(
@@ -200,11 +200,11 @@ function resolvePeersOfNode (
         version: ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage.version,
       })))
     modules = path.join(`${localLocation}${peersFolderSuffix}`, 'node_modules')
-    absolutePath = `${node.resolvedPackage.id}${peersFolderSuffix}`
+    depPath = `${node.resolvedPackage.depPath}${peersFolderSuffix}`
   }
 
-  ctx.absolutePathsByNodeId[nodeId] = absolutePath
-  if (!ctx.depGraph[absolutePath] || ctx.depGraph[absolutePath].depth > node.depth) {
+  ctx.pathsByNodeId[nodeId] = depPath
+  if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
     const independent = ctx.independentLeaves && node.resolvedPackage.independent
     const centralLocation = node.resolvedPackage.engineCache || path.join(node.resolvedPackage.path, 'node_modules', node.resolvedPackage.name)
     const peripheralLocation = !independent
@@ -222,10 +222,10 @@ function resolvePeersOfNode (
         }
       }
     }
-    ctx.depGraph[absolutePath] = {
-      absolutePath,
+    ctx.depGraph[depPath] = {
       additionalInfo: node.resolvedPackage.additionalInfo,
       children: Object.assign(children, resolvedPeers),
+      depPath,
       depth: node.depth,
       dev: node.resolvedPackage.dev,
       fetchingBundledManifest: node.resolvedPackage.fetchingBundledManifest,
@@ -258,7 +258,7 @@ function resolvePeersOfChildren (
   },
   parentPkgs: ParentRefs,
   ctx: {
-    absolutePathsByNodeId: {[nodeId: string]: string},
+    pathsByNodeId: {[nodeId: string]: string},
     independentLeaves: boolean,
     virtualStoreDir: string,
     purePkgs: Set<string>,
@@ -267,7 +267,7 @@ function resolvePeersOfChildren (
     rootDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
 
@@ -293,7 +293,7 @@ function resolvePeers (
     dependenciesTree: DependenciesTree,
     rootDir: string,
     strictPeerDependencies: boolean,
-  },
+  }
 ): {
   [alias: string]: string,
 } {

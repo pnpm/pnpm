@@ -17,7 +17,6 @@ test('pnpm store add express@4.16.3', async function (t) {
 
   await store.handler({
     dir: process.cwd(),
-    lock: true,
     rawConfig: {
       registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     },
@@ -28,14 +27,6 @@ test('pnpm store add express@4.16.3', async function (t) {
   const { cafsHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
   await cafsHas('sha1-avilAjUNsyRuzEvs9rWjTSL37VM=')
 
-  const storeIndex = await loadJsonFile(path.join(storeDir, STORE_VERSION, 'store.json'))
-  t.deepEqual(
-    storeIndex,
-    {
-      [`localhost+${REGISTRY_MOCK_PORT}/express/4.16.3`]: [],
-    },
-    'package has been added to the store index',
-  )
   t.end()
 })
 
@@ -46,7 +37,6 @@ test('pnpm store add scoped package that uses not the standard registry', async 
 
   await store.handler({
     dir: process.cwd(),
-    lock: true,
     rawConfig: {
       registry: 'https://registry.npmjs.org/',
     },
@@ -60,14 +50,6 @@ test('pnpm store add scoped package that uses not the standard registry', async 
   const { cafsHas } = assertStore(t, path.join(storeDir, STORE_VERSION))
   await cafsHas('@foo/no-deps', '1.0.0')
 
-  const storeIndex = await loadJsonFile(path.join(storeDir, STORE_VERSION, 'store.json'))
-  t.deepEqual(
-    storeIndex,
-    {
-      [`localhost+${REGISTRY_MOCK_PORT}/@foo/no-deps/1.0.0`]: [],
-    },
-    'package has been added to the store index',
-  )
   t.end()
 })
 
@@ -81,7 +63,6 @@ test('should fail if some packages can not be added', async (t) => {
   try {
     await store.handler({
       dir: process.cwd(),
-      lock: true,
       rawConfig: {
         registry: 'https://registry.npmjs.org/',
       },

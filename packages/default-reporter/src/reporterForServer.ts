@@ -4,7 +4,7 @@ import most = require('most')
 import reportError from './reportError'
 
 export default function (
-  log$: most.Stream<Log>,
+  log$: most.Stream<Log>
 ) {
   log$.subscribe({
     complete: () => undefined,

@@ -38,7 +38,7 @@ export type RequestInfo = string | URLLike | Request
 
 declare function fetch (
   url: RequestInfo,
-  init?: RequestInit,
+  init?: RequestInit
 ): Promise<Response>
 
 declare namespace fetch {

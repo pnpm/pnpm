@@ -20,7 +20,7 @@ export default function filterByImporters (
     registries: Registries,
     skipped: Set<string>,
     failOnMissingDependencies: boolean,
-  },
+  }
 ): Lockfile {
   const packages = {} as PackageSnapshots
   if (lockfile.packages) {
@@ -28,12 +28,12 @@ export default function filterByImporters (
       lockfileWalker(
         lockfile,
         importerIds,
-        { include: opts.include, skipped: opts.skipped },
+        { include: opts.include, skipped: opts.skipped }
       ).step,
       packages,
       {
         failOnMissingDependencies: opts.failOnMissingDependencies,
-      },
+      }
     )
   }
 
@@ -54,7 +54,7 @@ function pkgAllDeps (
   pickedPackages: PackageSnapshots,
   opts: {
     failOnMissingDependencies: boolean,
-  },
+  }
 ) {
   for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
     pickedPackages[relDepPath] = pkgSnapshot

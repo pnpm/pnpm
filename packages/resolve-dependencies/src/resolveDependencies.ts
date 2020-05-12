@@ -17,6 +17,7 @@ import {
 import logger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
 import pickRegistryForPackage from '@pnpm/pick-registry-for-package'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   DirectoryResolution,
   PreferredVersions,
@@ -54,7 +55,7 @@ const dependencyResolvedLogger = logger('_dependency_resolved')
 
 export function nodeIdToParents (
   nodeId: string,
-  resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
+  resolvedPackagesByPackageId: ResolvedPackagesByPackageId
 ) {
   return splitNodeId(nodeId).slice(1)
     .map((pkgId) => {
@@ -167,6 +168,7 @@ export interface ResolvedPackage {
   hasBundledDependencies: boolean,
   independent: boolean,
   prepare: boolean,
+  depPath: string,
   requiresBuild: boolean | undefined, // added to fix issue #1201
   additionalInfo: {
     deprecated?: string,
@@ -204,7 +206,7 @@ export default async function resolveDependencies (
     parentIsInstallable?: boolean,
     readPackageHook?: ReadPackageHook,
     workspacePackages?: WorkspacePackages,
-  },
+  }
 ): Promise<Array<PkgAddress | LinkedDependency>> {
   const extendedWantedDeps = getDepsToResolve(wantedDependencies, ctx.wantedLockfile, {
     parentDependsOnPeers: options.parentDependsOnPeers,
@@ -264,7 +266,7 @@ export default async function resolveDependencies (
                 currentDepth: options.currentDepth + 1,
                 dependentId: resolveDependencyResult.pkgId,
                 parentDependsOnPeers: Boolean(
-                  Object.keys(resolveDependencyOpts.dependencyLockfile?.peerDependencies ?? resolveDependencyResult.pkg.peerDependencies ?? {}).length,
+                  Object.keys(resolveDependencyOpts.dependencyLockfile?.peerDependencies ?? resolveDependencyResult.pkg.peerDependencies ?? {}).length
                 ),
                 parentIsInstallable: resolveDependencyResult.installable,
                 parentNodeId: resolveDependencyResult.nodeId,
@@ -277,7 +279,7 @@ export default async function resolveDependencies (
                 proceed: !resolveDependencyResult.depIsLinked,
                 resolvedDependencies,
                 updateDepth,
-              },
+              }
             ) as PkgAddress[]
             ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
               alias: child.alias,
@@ -301,7 +303,7 @@ export default async function resolveDependencies (
           await resolveChildren(options.preferredVersions)
 
           return resolveDependencyResult
-        }),
+        })
     )
   )
   .filter(Boolean) as PkgAddress[]
@@ -335,7 +337,7 @@ function getDepsToResolve (
     registries: Registries,
     resolvedDependencies?: ResolvedDependencies,
     updateLockfile: boolean,
-  },
+  }
 ) {
   const resolvedDependencies = options.resolvedDependencies ?? {}
   const preferredDependencies = options.preferredDependencies ?? {}
@@ -363,7 +365,7 @@ function getDepsToResolve (
         wantedLockfile,
         {
           prefix: options.prefix,
-        },
+        }
       )
     ) {
       proceed = true
@@ -401,7 +403,7 @@ function preferedSatisfiesWanted (
   lockfile: Lockfile,
   opts: {
     prefix: string,
-  },
+  }
 ) {
   const relDepPath = dp.refToRelative(preferredRef, wantedDep.alias)
   if (relDepPath === null) return false
@@ -421,7 +423,7 @@ function getInfoFromLockfile (
   lockfile: Lockfile,
   registries: Registries,
   reference: string | undefined,
-  pkgName: string | undefined,
+  pkgName: string | undefined
 ) {
   if (!reference || !pkgName) {
     return null
@@ -488,7 +490,7 @@ type ResolveDependencyOptions = {
 async function resolveDependency (
   wantedDependency: WantedDependency,
   ctx: ResolutionContext,
-  options: ResolveDependencyOptions,
+  options: ResolveDependencyOptions
 ): Promise<PkgAddress | LinkedDependency | null> {
   const update = Boolean(
     options.update ||
@@ -503,7 +505,7 @@ async function resolveDependency (
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
     options.relDepPath && options.dependencyLockfile &&
-    await exists(path.join(ctx.virtualStoreDir, `${options.depPath}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
+    await exists(path.join(ctx.virtualStoreDir, `${pkgIdToFilename(options.relDepPath, ctx.prefix)}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
     (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))))
 
   if (!proceed && depIsLinked) {
@@ -613,7 +615,7 @@ async function resolveDependency (
     hasBin = options.dependencyLockfile.hasBin === true
     pkg = Object.assign(
       nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile),
-      options.dependencyLockfile,
+      options.dependencyLockfile
     )
   } else {
     // tslint:disable:no-string-literal
@@ -623,7 +625,7 @@ async function resolveDependency (
 
     prepare = Boolean(
       pkgResponse.body.resolvedVia === 'git-repository' &&
-      typeof pkg.scripts?.prepare === 'string',
+      typeof pkg.scripts?.prepare === 'string'
     )
 
     if (
@@ -694,6 +696,7 @@ async function resolveDependency (
 
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = getResolvedPackage({
       dependencyLockfile: options.dependencyLockfile,
+      depPath: dp.relative(ctx.registries, pkg.name, pkgResponse.body.id),
       force: ctx.force,
       hasBin,
       pkg,
@@ -734,13 +737,14 @@ async function resolveDependency (
 function getResolvedPackage (
   options: {
     dependencyLockfile?: PackageSnapshot,
+    depPath: string,
     force: boolean,
     hasBin: boolean,
     pkg: PackageManifest,
     pkgResponse: PackageResponse,
     prepare: boolean,
     wantedDependency: WantedDependency,
-  },
+  }
 ) {
   const peerDependencies = peerDependenciesWithoutOwn(options.pkg)
 
@@ -755,6 +759,7 @@ function getResolvedPackage (
       peerDependencies,
       peerDependenciesMeta: options.pkg.peerDependenciesMeta,
     },
+    depPath: options.depPath,
     dev: options.wantedDependency.dev,
     engineCache: !options.force && options.pkgResponse.body.cacheByEngine?.[ENGINE_NAME],
     fetchingBundledManifest: options.pkgResponse.bundledManifest,
@@ -782,7 +787,7 @@ function getResolvedPackage (
 function peerDependenciesWithoutOwn (pkg: PackageManifest) {
   if (!pkg.peerDependencies && !pkg.peerDependenciesMeta) return pkg.peerDependencies
   const ownDeps = new Set(
-    R.keys(pkg.dependencies).concat(R.keys(pkg.optionalDependencies)),
+    R.keys(pkg.dependencies).concat(R.keys(pkg.optionalDependencies))
   )
   const result = {}
   if (pkg.peerDependencies) {
@@ -807,7 +812,7 @@ function getWantedDependencies (
     resolvedDependencies?: ResolvedDependencies,
     optionalDependencyNames?: string[],
     useManifestInfoFromLockfile: boolean,
-  },
+  }
 ) {
   let deps = getNonDevWantedDependencies(pkg)
   if (!deps.length && opts.resolvedDependencies && opts.useManifestInfoFromLockfile) {

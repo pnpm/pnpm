@@ -9,7 +9,7 @@ export default async function (
   addStreamToCafs: (fileStream: PassThrough, mode: number) => Promise<ssri.Integrity>,
   _ignore: null | ((filename: string) => Boolean),
   stream: NodeJS.ReadableStream,
-  manifest?: DeferredManifestPromise,
+  manifest?: DeferredManifestPromise
 ): Promise<FilesIndex> {
   const ignore = _ignore ? _ignore : () => false
   const extract = tar.extract()

@@ -13,7 +13,7 @@ export default async function audit (
     include?: { [dependenciesField in DependenciesField]: boolean },
     registry: string,
     retry?: RetryOpts,
-  },
+  }
 ) {
   const auditTree = lockfileToAuditTree(lockfile, { include: opts.include })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`

@@ -13,7 +13,7 @@ export const help = list.help()
 
 export function handler (
   opts: list.ListCommandOptions,
-  params: string[],
+  params: string[]
 ) {
   return list.handler({ ...opts, long: true }, params)
 }

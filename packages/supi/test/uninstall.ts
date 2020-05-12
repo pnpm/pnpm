@@ -229,7 +229,7 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
 
   const manifest = await addDependenciesToPackage({},
     ['pre-and-postinstall-scripts-example', 'with-postinstall-b'],
-    await testDefaults({ fastUnpack: false, save: true, ignoreScripts: true }),
+    await testDefaults({ fastUnpack: false, save: true, ignoreScripts: true })
   )
 
   const modules1 = await project.readModulesManifest()
@@ -306,7 +306,7 @@ test('uninstalling a dependency from package that uses shared lockfile', async (
           },
         },
       },
-    }),
+    })
   )
 
   await projects['project-1'].has('is-positive')
@@ -374,7 +374,7 @@ test('uninstall remove modules that is not in package.json', async (t) => {
         rootDir: process.cwd(),
       },
     ],
-    await testDefaults(),
+    await testDefaults()
   )
 
   await project.hasNot('foo')

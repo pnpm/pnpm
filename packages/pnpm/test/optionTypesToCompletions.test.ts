@@ -16,7 +16,7 @@ test('optionTypesToCompletions()', t => {
       {
         name: '--no-foo',
       },
-    ],
+    ]
   )
   t.end()
 })

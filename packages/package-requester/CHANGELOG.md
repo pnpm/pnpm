@@ -1,5 +1,37 @@
 # @pnpm/package-requester
 
+## 12.0.0-alpha.4
+
+### Major Changes
+
+- da091c71: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+- 471149e6: Change the format of the package index file. Move all the files info into a "files" property.
+
+### Patch Changes
+
+- Updated dependencies [da091c71]
+- Updated dependencies [471149e6]
+  - @pnpm/store-controller-types@8.0.0-alpha.3
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/cafs@1.0.0-alpha.4
+  - @pnpm/core-loggers@4.0.2-alpha.0
+  - @pnpm/fetcher-base@6.0.1-alpha.3
+  - @pnpm/read-package-json@3.1.1-alpha.0
+  - @pnpm/resolver-base@7.0.1-alpha.0
+
+## 12.0.0-alpha.3
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- 9596774f2: Store the package index files in the CAFS to reduce directory nesting.
+
+### Patch Changes
+
+- Updated dependencies [9596774f2]
+- Updated dependencies [7852deea3]
+  - @pnpm/cafs@1.0.0-alpha.3
+
 ## 12.0.0-alpha.2
 
 ### Minor Changes

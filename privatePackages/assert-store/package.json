@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.0",
+  "version": "1.0.1-alpha.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -20,9 +20,7 @@
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
-  "files": [
-    "lib/"
-  ],
+  "files": ["lib/"],
   "directories": {
     "test": "test"
   },
@@ -34,16 +32,14 @@
   },
   "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store",
   "scripts": {
-    "commit": "commit",
-    "commitmsg": "commitlint -e",
+    "compile": "rimraf lib tsconfig.tsbuildinfo && tsc --build",
     "lint": "tslint -c ../../tslint.json src/**/*.ts test/**/*.ts",
-    "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "pnpm run tsc",
+    "prepublishOnly": "pnpm run compile",
     "pretest": "pnpm install -C test/fixture/project --force --no-shared-workspace-lockfile",
-    "test": "pnpm run tsc && ts-node test"
+    "test": "pnpm run compile && ts-node test"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:^1.0.0-alpha.2",
+    "@pnpm/cafs": "workspace:^1.0.0-alpha.4",
     "path-exists": "4.0.0"
   },
   "devDependencies": {

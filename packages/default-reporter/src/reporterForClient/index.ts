@@ -41,7 +41,7 @@ export default function (
     pnpmConfig?: Config,
     throttleProgress?: number,
     width?: number,
-  },
+  }
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = opts.width ?? process.stdout.columns ?? 80
   const cwd = opts.pnpmConfig?.dir ?? process.cwd()
@@ -63,7 +63,7 @@ export default function (
         cwd,
         logLevel: opts.logLevel,
         zoomOutCurrent: opts.isRecursive,
-      },
+      }
     ),
     ...reportStats(log$, {
       cmd: opts.cmd,
