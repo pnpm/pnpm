@@ -104,7 +104,7 @@ export interface Config {
   workspaceConcurrency: number,
   workspaceDir?: string,
   reporter?: string,
-  linkWorkspacePackages: boolean,
+  linkWorkspacePackages: boolean | 'deep',
   sort: boolean,
   strictPeerDependencies: boolean,
   lockfileDir?: string,

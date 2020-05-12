@@ -45,7 +45,7 @@ export const types = Object.assign({
   'ignore-pnpmfile': Boolean,
   'ignore-workspace-root-check': Boolean,
   'independent-leaves': Boolean,
-  'link-workspace-packages': Boolean,
+  'link-workspace-packages': [Boolean, 'deep'],
   'lockfile': Boolean,
   'lockfile-dir': String,
   'lockfile-directory': String, // TODO: deprecate

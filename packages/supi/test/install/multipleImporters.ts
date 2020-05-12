@@ -2,7 +2,7 @@ import assertProject from '@pnpm/assert-project'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
-import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
+import rimraf = require('@zkochan/rimraf')
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
@@ -842,4 +842,193 @@ test('remove dependencies of a project that was removed from the workspace (duri
     await project.has(`.pnpm/is-positive@1.0.0`)
     await project.hasNot(`.pnpm/is-negative@1.0.0`)
   }
+})
+
+test('do not resolve a subdependency from the workspace by default', async (t) => {
+  preparePackages(t, [
+    {
+      location: 'project',
+      package: { name: 'project' },
+    },
+    {
+      location: 'dep-of-pkg-with-1-dep',
+      package: { name: 'dep-of-pkg-with-1-dep' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        version: '1.0.0',
+
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'dep-of-pkg-with-1-dep',
+        version: '100.1.0',
+      },
+      mutation: 'install',
+      rootDir: path.resolve('dep-of-pkg-with-1-dep'),
+    },
+  ]
+  const workspacePackages = {
+    'dep-of-pkg-with-1-dep': {
+      '100.1.0': {
+        dir: path.resolve('dep-of-pkg-with-1-dep'),
+        manifest: {
+          name: 'dep-of-pkg-with-1-dep',
+          version: '100.1.0',
+        },
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ workspacePackages }))
+
+  const project = assertProject(t, process.cwd())
+
+  const wantedLockfile = await project.readLockfile()
+  t.equal(wantedLockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'], '100.1.0')
+})
+
+test('resolve a subdependency from the workspace', async (t) => {
+  preparePackages(t, [
+    {
+      location: 'project',
+      package: { name: 'project' },
+    },
+    {
+      location: 'dep-of-pkg-with-1-dep',
+      package: { name: 'dep-of-pkg-with-1-dep' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        version: '1.0.0',
+
+        dependencies: {
+          'pkg-with-1-dep': '100.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'dep-of-pkg-with-1-dep',
+        version: '100.1.0',
+      },
+      mutation: 'install',
+      rootDir: path.resolve('dep-of-pkg-with-1-dep'),
+    },
+  ]
+  const workspacePackages = {
+    'dep-of-pkg-with-1-dep': {
+      '100.1.0': {
+        dir: path.resolve('dep-of-pkg-with-1-dep'),
+        manifest: {
+          name: 'dep-of-pkg-with-1-dep',
+          version: '100.1.0',
+        },
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: Infinity, workspacePackages }))
+
+  const project = assertProject(t, process.cwd())
+
+  const wantedLockfile = await project.readLockfile()
+  t.equal(wantedLockfile.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'], 'link:dep-of-pkg-with-1-dep')
+
+  await rimraf('node_modules')
+
+  // Testing that headless installation does not fail with links in subdeps
+  await mutateModules(importers, await testDefaults({
+    frozenLockfile: true,
+    workspacePackages,
+  }))
+})
+
+test('resolve a subdependency from the workspace and use it as a peer', async (t) => {
+  preparePackages(t, [
+    {
+      location: 'project',
+      package: { name: 'project' },
+    },
+    {
+      location: 'peer-a',
+      package: { name: 'peer-a' },
+    },
+  ])
+
+  const importers: MutatedProject[] = [
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'project',
+        version: '1.0.0',
+
+        dependencies: {
+          'abc-grand-parent-with-c': '1.0.0',
+          'abc-parent-with-ab': '1.0.0',
+        },
+      },
+      mutation: 'install',
+      rootDir: path.resolve('project'),
+    },
+    {
+      buildIndex: 0,
+      manifest: {
+        name: 'peer-a',
+        version: '1.0.1',
+      },
+      mutation: 'install',
+      rootDir: path.resolve('peer-a'),
+    },
+  ]
+  const workspacePackages = {
+    'peer-a': {
+      '1.0.1': {
+        dir: path.resolve('peer-a'),
+        manifest: {
+          name: 'peer-a',
+          version: '1.0.1',
+        },
+      },
+    },
+  }
+  await mutateModules(importers, await testDefaults({ linkWorkspacePackagesDepth: Infinity, workspacePackages }))
+
+  const project = assertProject(t, process.cwd())
+
+  const wantedLockfile = await project.readLockfile()
+  t.deepEqual(
+    Object.keys(wantedLockfile.packages),
+    [
+      '/abc-grand-parent-with-c/1.0.0',
+      '/abc-parent-with-ab/1.0.0',
+      '/abc-parent-with-ab/1.0.0_peer-c@1.0.1',
+      '/abc/1.0.0_20890f3ae006d9839e924c7177030952',
+      '/abc/1.0.0_peer-a@1.0.1+peer-b@1.0.0',
+      '/dep-of-pkg-with-1-dep/100.0.0',
+      '/is-positive/1.0.0',
+      '/peer-b/1.0.0',
+      '/peer-c/1.0.1',
+    ]
+  )
+  t.equal(wantedLockfile.packages['/abc-parent-with-ab/1.0.0'].dependencies['peer-a'], 'link:peer-a')
+  t.equal(wantedLockfile.packages['/abc/1.0.0_peer-a@1.0.1+peer-b@1.0.0'].dependencies['peer-a'], 'link:peer-a')
 })

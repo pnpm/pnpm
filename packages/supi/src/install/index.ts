@@ -28,11 +28,11 @@ import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDirs from '@pnpm/read-modules-dir'
 import { safeReadPackageFromDir as safeReadPkgFromDir } from '@pnpm/read-package-json'
 import resolveDependencies, {
+  ResolvedDirectDependency,
   ResolvedPackage,
 } from '@pnpm/resolve-dependencies'
 import {
   PreferredVersions,
-  Resolution,
   WorkspacePackages,
 } from '@pnpm/resolver-base'
 import {
@@ -621,12 +621,12 @@ async function installInContext (
   } = await resolveDependencies(
     projectsToResolve,
     {
-      alwaysTryWorkspacePackages: opts.linkWorkspacePackages,
       currentLockfile: ctx.currentLockfile,
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       force: opts.force,
       hooks: opts.hooks,
+      linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
@@ -909,16 +909,7 @@ function addDirectDependenciesToLockfile (
   newManifest: ProjectManifest,
   projectSnapshot: ProjectSnapshot,
   linkedPackages: Array<{alias: string}>,
-  directDependencies: Array<{
-    alias: string,
-    optional: boolean,
-    dev: boolean,
-    resolution: Resolution,
-    id: string,
-    version: string,
-    name: string,
-    normalizedPref?: string,
-  }>,
+  directDependencies: ResolvedDirectDependency[],
   registries: Registries
 ): ProjectSnapshot {
   const newProjectSnapshot = {
@@ -937,19 +928,12 @@ function addDirectDependenciesToLockfile (
     return acc
   }, {})
 
-  const optionalDependencies = R.keys(newManifest.optionalDependencies)
-  const dependencies = R.difference(R.keys(newManifest.dependencies), optionalDependencies)
-  const devDependencies = R.difference(R.difference(R.keys(newManifest.devDependencies), optionalDependencies), dependencies)
-  const allDeps = [
-    ...optionalDependencies,
-    ...devDependencies,
-    ...dependencies,
-  ]
+  const allDeps = Array.from(new Set(Object.keys(getAllDependenciesFromManifest(newManifest))))
 
   for (const alias of allDeps) {
     if (directDependenciesByAlias[alias]) {
       const dep = directDependenciesByAlias[alias]
-      const ref = depPathToRef(dep.id, {
+      const ref = depPathToRef(dep.pkgId, {
         alias: dep.alias,
         realName: dep.name,
         registries,

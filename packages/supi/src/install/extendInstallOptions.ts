@@ -14,12 +14,12 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface StrictInstallOptions {
-  linkWorkspacePackages?: boolean,
   forceSharedLockfile: boolean,
   frozenLockfile: boolean,
   frozenLockfileIfExists: boolean,
   extraBinPaths: string[],
   useLockfile: boolean,
+  linkWorkspacePackagesDepth: number,
   lockfileOnly: boolean,
   preferFrozenLockfile: boolean,
   saveWorkspaceProtocol: boolean,

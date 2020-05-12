@@ -64,12 +64,21 @@ export function nodeIdToParents (
     })
 }
 
-export interface DependenciesTreeNode {
-  children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
+// child nodeId by child alias name in case of non-linked deps
+export type ChildrenMap = {
+  [alias: string]: string,
+}
+
+export type DependenciesTreeNode = {
+  children: (() => ChildrenMap) | ChildrenMap,
+  installable: boolean,
+} & ({
   resolvedPackage: ResolvedPackage,
   depth: number,
-  installable: boolean,
-}
+} | {
+  resolvedPackage: { version: string },
+  depth: -1,
+})
 
 export interface DependenciesTree {
   // a node ID is the join of the package's keypath with a colon
@@ -87,7 +96,7 @@ export interface LinkedDependency {
   optional: boolean,
   dev: boolean,
   resolution: DirectoryResolution,
-  id: string,
+  pkgId: string,
   version: string,
   name: string,
   normalizedPref?: string,
@@ -103,7 +112,10 @@ export interface PendingNode {
 }
 
 export interface ChildrenByParentId {
-  [parentId: string]: Array<{alias: string, pkgId: string}>,
+  [parentId: string]: Array<{
+    alias: string,
+    pkgId: string,
+  }>,
 }
 
 export interface ResolutionContext {
@@ -116,6 +128,7 @@ export interface ResolutionContext {
   wantedLockfile: Lockfile,
   updateLockfile: boolean,
   currentLockfile: Lockfile,
+  linkWorkspacePackagesDepth: number,
   lockfileDir: string,
   sideEffectsCache: boolean,
   storeController: StoreController,
@@ -136,7 +149,7 @@ export interface ResolutionContext {
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-export interface PkgAddress {
+export type PkgAddress = {
   alias: string,
   depIsLinked: boolean,
   isNew: boolean,
@@ -146,9 +159,15 @@ export interface PkgAddress {
   normalizedPref?: string, // is returned only for root dependencies
   installable: boolean,
   pkg: PackageManifest,
+  version?: string,
   updated: boolean,
   useManifestInfoFromLockfile: boolean,
-}
+} & ({
+  isLinkedDependency: true,
+  version: string,
+} | {
+  isLinkedDependency: void,
+})
 
 export interface ResolvedPackage {
   id: string,
@@ -246,7 +265,18 @@ export default async function resolveDependencies (
           const resolveDependencyResult = await resolveDependency(extendedWantedDep.wantedDependency, ctx, resolveDependencyOpts)
 
           if (!resolveDependencyResult) return null
-          if (resolveDependencyResult.isLinkedDependency || !resolveDependencyResult.isNew) return resolveDependencyResult
+          if (resolveDependencyResult.isLinkedDependency) {
+            ctx.dependenciesTree[resolveDependencyResult.pkgId] = {
+              children: {},
+              depth: -1,
+              installable: true,
+              resolvedPackage: {
+                version: resolveDependencyResult.version,
+              },
+            }
+            return resolveDependencyResult
+          }
+          if (!resolveDependencyResult.isNew) return resolveDependencyResult
 
           const resolveChildren = async function (preferredVersions: PreferredVersions) {
             const resolvedPackage = ctx.resolvedPackagesByPackageId[resolveDependencyResult.pkgId]
@@ -254,6 +284,8 @@ export default async function resolveDependencies (
               ? undefined
               : extendedWantedDep.infoFromLockfile?.resolvedDependencies
             const optionalDependencyNames = extendedWantedDep.infoFromLockfile?.optionalDependencyNames
+            const workspacePackages = options.workspacePackages && ctx.linkWorkspacePackagesDepth > options.currentDepth
+              ? options.workspacePackages : undefined
             const children = await resolveDependencies(
               ctx,
               getWantedDependencies(resolveDependencyResult.pkg, {
@@ -279,6 +311,7 @@ export default async function resolveDependencies (
                 proceed: !resolveDependencyResult.depIsLinked,
                 resolvedDependencies,
                 updateDepth,
+                workspacePackages,
               }
             ) as PkgAddress[]
             ctx.childrenByParentId[resolveDependencyResult.pkgId] = children.map((child) => ({
@@ -287,7 +320,7 @@ export default async function resolveDependencies (
             }))
             ctx.dependenciesTree[resolveDependencyResult.nodeId] = {
               children: children.reduce((chn, child) => {
-                chn[child.alias] = child.nodeId
+                chn[child.alias] = child.nodeId ?? child.pkgId
                 return chn
               }, {}),
               depth: options.currentDepth,
@@ -313,8 +346,8 @@ export default async function resolveDependencies (
       ...options.preferredVersions,
     }
     for (const { pkgId } of pkgAddresses) {
-      if (!pkgId) continue // This will happen only with linked dependencies
       const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
+      if (!resolvedPackage) continue // This will happen only with linked dependencies
       if (!newPreferredVersions[resolvedPackage.name]) {
         newPreferredVersions[resolvedPackage.name] = {}
       }
@@ -522,7 +555,7 @@ async function resolveDependency (
       downloadPriority: -options.currentDepth,
       lockfileDir: ctx.lockfileDir,
       preferredVersions: options.preferredVersions,
-      projectDir: ctx.prefix,
+      projectDir: options.currentDepth > 0 ? ctx.lockfileDir : ctx.prefix,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
       sideEffectsCache: ctx.sideEffectsCache,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
@@ -571,24 +604,16 @@ async function resolveDependency (
 
   if (pkgResponse.body.isLocal) {
     const manifest = pkgResponse.body.manifest || await pkgResponse.bundledManifest!() // tslint:disable-line:no-string-literal
-    if (options.currentDepth > 0) {
-      logger.warn({
-        message: `Ignoring file dependency because it is not a root dependency ${wantedDependency}`,
-        prefix: ctx.prefix,
-      })
-      return null
-    } else {
-      return {
-        alias: wantedDependency.alias || manifest.name,
-        dev: wantedDependency.dev,
-        id: pkgResponse.body.id,
-        isLinkedDependency: true,
-        name: manifest.name,
-        normalizedPref: pkgResponse.body.normalizedPref,
-        optional: wantedDependency.optional,
-        resolution: pkgResponse.body.resolution,
-        version: manifest.version,
-      }
+    return {
+      alias: wantedDependency.alias || manifest.name,
+      dev: wantedDependency.dev,
+      isLinkedDependency: true,
+      name: manifest.name,
+      normalizedPref: pkgResponse.body.normalizedPref,
+      optional: wantedDependency.optional,
+      pkgId: pkgResponse.body.id,
+      resolution: pkgResponse.body.resolution,
+      version: manifest.version,
     }
   }
 
@@ -728,6 +753,7 @@ async function resolveDependency (
 
     // Next fields are actually only needed when isNew = true
     installable,
+    isLinkedDependency: undefined,
     pkg,
     updated: pkgResponse.body.updated,
     useManifestInfoFromLockfile,
