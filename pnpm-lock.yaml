@@ -2137,7 +2137,7 @@ importers:
       '@pnpm/parse-cli-args': 'workspace:1.0.0'
       '@pnpm/plugin-commands-audit': 'workspace:1.0.8'
       '@pnpm/plugin-commands-import': 'workspace:1.0.11'
-      '@pnpm/plugin-commands-installation': 'workspace:1.2.4'
+      '@pnpm/plugin-commands-installation': 'workspace:1.2.5'
       '@pnpm/plugin-commands-listing': 'workspace:1.0.9'
       '@pnpm/plugin-commands-outdated': 'workspace:1.0.9'
       '@pnpm/plugin-commands-publishing': 'workspace:1.0.12'
