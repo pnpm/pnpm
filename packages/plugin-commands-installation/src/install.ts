@@ -24,7 +24,6 @@ export function rcOptionsTypes () {
     'ignore-scripts',
     'independent-leaves',
     'link-workspace-packages',
-    'lock',
     'lockfile-dir',
     'lockfile-directory',
     'lockfile-only',
@@ -165,9 +164,6 @@ export function help () {
           {
             description: "If false, doesn't check whether packages in the store were mutated",
             name: '--[no-]verify-store-integrity',
-          },
-          {
-            name: '--[no-]lock',
           },
           {
             description: 'Fail on missing or invalid peer dependencies',

@@ -22,7 +22,6 @@
     "@pnpm/core-loggers": "workspace:4.0.2-alpha.0",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/filter-lockfile": "workspace:3.2.3-alpha.1",
-    "@pnpm/fs-locker": "3.0.1",
     "@pnpm/get-context": "workspace:2.0.0-alpha.1",
     "@pnpm/headless": "workspace:13.0.0-alpha.4",
     "@pnpm/hoist": "workspace:3.0.0-alpha.1",

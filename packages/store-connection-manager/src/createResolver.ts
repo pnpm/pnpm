@@ -13,7 +13,6 @@ export type CreateResolverOptions = Pick<Config,
   'httpsProxy' |
   'key' |
   'localAddress' |
-  'lockStaleDuration' |
   'offline' |
   'proxy' |
   'rawConfig' |

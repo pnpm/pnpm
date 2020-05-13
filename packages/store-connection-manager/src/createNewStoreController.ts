@@ -18,7 +18,6 @@ export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Confi
 export default async (
   opts: CreateNewStoreControllerOptions
 ) => {
-  // TODO: either print a warning or just log if --no-lock is used
   const sopts = Object.assign(opts, {
     registry: opts.registry || 'https://registry.npmjs.org/',
   })

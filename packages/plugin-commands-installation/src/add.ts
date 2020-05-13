@@ -23,7 +23,6 @@ export function rcOptionsTypes () {
     'ignore-workspace-root-check',
     'independent-leaves',
     'link-workspace-packages',
-    'lock',
     'lockfile-dir',
     'lockfile-directory',
     'lockfile-only',

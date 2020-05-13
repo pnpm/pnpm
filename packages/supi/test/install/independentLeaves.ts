@@ -43,7 +43,6 @@ test('--independent-leaves throws exception when executed on node_modules instal
     ...opts,
     forceIndependentLeaves: false,
     independentLeaves: true,
-    lock: false,
   })
 
   await project.has('is-negative')
