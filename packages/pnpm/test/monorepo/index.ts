@@ -780,6 +780,110 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
   }, `correct ${WANTED_LOCKFILE} created`)
 })
 
+test('shared-workspace-lockfile: install dependencies in projects that are relative to the workspace directory', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      location: 'monorepo/workspace',
+      package: {
+        name: 'root-package',
+        version: '1.0.0',
+
+        dependencies: {
+          'package-1': '1.0.0',
+          'package-2': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'monorepo/package-1',
+      package: {
+        name: 'package-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+          'package-2': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'monorepo/package-2',
+      package: {
+        name:  'package-2',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  process.chdir('..')
+
+  await writeYamlFile('monorepo/workspace/pnpm-workspace.yaml', { packages: ['../**', '!store/**'] })
+
+  process.chdir('monorepo/workspace')
+
+  await execPnpm(['recursive', 'install', '--store-dir', 'store', '--shared-workspace-lockfile', '--link-workspace-packages'])
+
+  const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
+
+  t.deepEqual(lockfile, {
+    importers: {
+      '.': {
+        dependencies: {
+          'package-1': 'link:../package-1',
+          'package-2': 'link:../package-2',
+        },
+        specifiers: {
+          'package-1': '1.0.0',
+          'package-2': '1.0.0',
+        },
+      },
+      '../package-1': {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'package-2': 'link:../package-2',
+        },
+        specifiers: {
+          'is-positive': '1.0.0',
+          'package-2': '1.0.0',
+        },
+      },
+      '../package-2': {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+    lockfileVersion: 5.1,
+    packages: {
+      '/is-negative/1.0.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
+        },
+      },
+      '/is-positive/1.0.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        },
+      },
+    },
+  }, `correct ${WANTED_LOCKFILE} created`)
+})
+
 test('shared-workspace-lockfile: entries of removed projects should be removed from shared lockfile', async (t) => {
   const projects = preparePackages(t, [
     {

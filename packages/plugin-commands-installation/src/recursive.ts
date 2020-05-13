@@ -161,7 +161,8 @@ export default async function recursive (
   // For a workspace with shared lockfile
   if (opts.lockfileDir && ['add', 'install', 'remove', 'update'].includes(cmdFullName)) {
     let importers = await getImporters()
-    const isFromWorkspace = isSubdir.bind(null, opts.workspaceDir)
+    const calculatedRepositoryRoot = calculateRepositoryRoot(opts.workspaceDir, importers.map(x => x.rootDir))
+    const isFromWorkspace = isSubdir.bind(null, calculatedRepositoryRoot)
     importers = await pFilter(importers, async ({ rootDir }: { rootDir: string }) => isFromWorkspace(await fs.realpath(rootDir)))
     if (importers.length === 0) return true
     const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.lockfileDir, opts)
@@ -418,6 +419,25 @@ async function readLocalConfig (prefix: string) {
     if (err.code !== 'ENOENT') throw err
     return {}
   }
+}
+
+function calculateRepositoryRoot (
+  workspaceDir: string,
+  projectDirs: string[]
+) {
+  // assume repo root is workspace dir
+  let relativeRepoRoot = '.'
+  for (const rootDir of projectDirs) {
+    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`)
+    const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir))
+    if (relativePartMatch) {
+      const relativePart = relativePartMatch[0]
+      if (relativePart.length > relativeRepoRoot.length) {
+        relativeRepoRoot = relativePart
+      }
+    }
+  }
+  return path.resolve(workspaceDir, relativeRepoRoot)
 }
 
 export function matchDependencies (
