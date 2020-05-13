@@ -421,23 +421,23 @@ async function readLocalConfig (prefix: string) {
   }
 }
 
-function calculateRepositoryRoot(
+function calculateRepositoryRoot (
   workspaceDir: string,
   projectDirs: string[]
 ) {
   // assume repo root is workspace dir
   let relativeRepoRoot = '.'
   for (const rootDir of projectDirs) {
-    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`);
-    const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir));
+    const relativePartRegExp = new RegExp(`^(\\.\\.\\${path.sep})+`)
+    const relativePartMatch = relativePartRegExp.exec(path.relative(workspaceDir, rootDir))
     if (relativePartMatch) {
-      const relativePart = relativePartMatch[0];
+      const relativePart = relativePartMatch[0]
       if (relativePart.length > relativeRepoRoot.length) {
-        relativeRepoRoot = relativePart;
+        relativeRepoRoot = relativePart
       }
     }
   }
-  return path.resolve(workspaceDir, relativeRepoRoot);
+  return path.resolve(workspaceDir, relativeRepoRoot)
 }
 
 export function matchDependencies (
