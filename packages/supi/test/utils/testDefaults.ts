@@ -57,7 +57,6 @@ export default async function testDefaults<T> (
     }) as {},
     {
       ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
-      locks: path.join(storeDir, '_locks'),
       storeDir,
       verifyStoreIntegrity: true,
       ...storeOpts,
