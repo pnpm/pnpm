@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-installation
 
+## 1.2.5
+
+### Patch Changes
+
+- c8bf897b7: Allow referencing packages not under the directory containing `pnpm-workspace.yaml`.
+
 ## 1.2.4
 
 ### Patch Changes

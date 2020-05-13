@@ -1,5 +1,12 @@
 # pnpm
 
+## 4.14.3
+
+### Patch Changes
+
+- Updated dependencies [c8bf897b7]
+  - @pnpm/plugin-commands-installation@1.2.5
+
 ## 4.14.2
 
 ### Patch Changes
