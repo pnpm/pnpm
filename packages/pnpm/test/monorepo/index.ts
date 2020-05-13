@@ -791,7 +791,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
         dependencies: {
           'package-1': '1.0.0',
           'package-2': '1.0.0',
-        }
+        },
       },
     },
     {
