@@ -529,23 +529,6 @@ test('compiled modules (ursa@0.9.1)', async (t) => {
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-test('support installing into the same store simultaneously', async (t) => {
-  const project = prepareEmpty(t)
-  await Promise.all([
-    addDependenciesToPackage({}, ['pkg-that-installs-slowly'], await testDefaults({ fastUnpack: false })),
-    wait(500) // to be sure that lock was created
-      .then(async () => {
-        await project.storeHasNot('pkg-that-installs-slowly')
-        await addDependenciesToPackage({ dependencies: { 'pkg-that-installs-slowly': '*' } }, ['rimraf@2.5.1'], await testDefaults({ fastUnpack: false }))
-      })
-      .then(async () => {
-        await project.has('pkg-that-installs-slowly')
-        await project.has('rimraf')
-      })
-      .catch((err) => t.notOk(err)),
-  ])
-})
-
 test('bin specified in the directories property linked to .bin folder', async (t) => {
   const project = prepareEmpty(t)
 
