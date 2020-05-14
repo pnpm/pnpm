@@ -28,41 +28,41 @@ const OVERWRITE_UPDATE_OPTIONS = {
 }
 
 export type InstallDepsOptions = Pick<Config,
-  'allProjects' |
-  'bail' |
-  'bin' |
-  'cliOptions' |
-  'dev' |
-  'engineStrict' |
-  'global' |
-  'globalPnpmfile' |
-  'ignorePnpmfile' |
-  'ignoreScripts' |
-  'independentLeaves' |
-  'linkWorkspacePackages' |
-  'lockfileDir' |
-  'lockfileOnly' |
-  'pnpmfile' |
-  'production' |
-  'rawLocalConfig' |
-  'registries' |
-  'save' |
-  'saveDev' |
-  'saveExact' |
-  'saveOptional' |
-  'savePeer' |
-  'savePrefix' |
-  'saveProd' |
-  'saveWorkspaceProtocol' |
-  'selectedProjectsGraph' |
-  'sideEffectsCache' |
-  'sideEffectsCacheReadonly' |
-  'sort' |
-  'sharedWorkspaceLockfile' |
-  'tag' |
-  'optional' |
-  'workspaceConcurrency' |
-  'workspaceDir'
+  | 'allProjects'
+  | 'bail'
+  | 'bin'
+  | 'cliOptions'
+  | 'dev'
+  | 'engineStrict'
+  | 'global'
+  | 'globalPnpmfile'
+  | 'ignorePnpmfile'
+  | 'ignoreScripts'
+  | 'independentLeaves'
+  | 'linkWorkspacePackages'
+  | 'lockfileDir'
+  | 'lockfileOnly'
+  | 'pnpmfile'
+  | 'production'
+  | 'rawLocalConfig'
+  | 'registries'
+  | 'save'
+  | 'saveDev'
+  | 'saveExact'
+  | 'saveOptional'
+  | 'savePeer'
+  | 'savePrefix'
+  | 'saveProd'
+  | 'saveWorkspaceProtocol'
+  | 'selectedProjectsGraph'
+  | 'sideEffectsCache'
+  | 'sideEffectsCacheReadonly'
+  | 'sort'
+  | 'sharedWorkspaceLockfile'
+  | 'tag'
+  | 'optional'
+  | 'workspaceConcurrency'
+  | 'workspaceDir'
 > & CreateStoreControllerOptions & {
   argv: {
     original: string[],

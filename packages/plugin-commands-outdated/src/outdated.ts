@@ -124,35 +124,36 @@ export type OutdatedCommandOptions = {
   long?: boolean
   recursive?: boolean,
   table?: boolean,
-} & Pick<Config, 'allProjects' |
-  'alwaysAuth' |
-  'ca' |
-  'cert' |
-  'dev' |
-  'dir' |
-  'engineStrict' |
-  'fetchRetries' |
-  'fetchRetryFactor' |
-  'fetchRetryMaxtimeout' |
-  'fetchRetryMintimeout' |
-  'global' |
-  'httpsProxy' |
-  'independentLeaves' |
-  'key' |
-  'localAddress' |
-  'lockfileDir' |
-  'networkConcurrency' |
-  'offline' |
-  'optional' |
-  'production' |
-  'proxy' |
-  'rawConfig' |
-  'registries' |
-  'selectedProjectsGraph' |
-  'storeDir' |
-  'strictSsl' |
-  'tag' |
-  'userAgent'
+} & Pick<Config,
+  | 'allProjects'
+  | 'alwaysAuth'
+  | 'ca'
+  | 'cert'
+  | 'dev'
+  | 'dir'
+  | 'engineStrict'
+  | 'fetchRetries'
+  | 'fetchRetryFactor'
+  | 'fetchRetryMaxtimeout'
+  | 'fetchRetryMintimeout'
+  | 'global'
+  | 'httpsProxy'
+  | 'independentLeaves'
+  | 'key'
+  | 'localAddress'
+  | 'lockfileDir'
+  | 'networkConcurrency'
+  | 'offline'
+  | 'optional'
+  | 'production'
+  | 'proxy'
+  | 'rawConfig'
+  | 'registries'
+  | 'selectedProjectsGraph'
+  | 'storeDir'
+  | 'strictSsl'
+  | 'tag'
+  | 'userAgent'
 >
 
 export async function handler (

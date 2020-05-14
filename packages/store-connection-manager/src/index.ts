@@ -15,10 +15,10 @@ import serverConnectionInfoDir from './serverConnectionInfoDir'
 export { createNewStoreController, serverConnectionInfoDir }
 
 export type CreateStoreControllerOptions = Omit<CreateNewStoreControllerOptions, 'storeDir'> & Pick<Config,
-  'storeDir' |
-  'dir' |
-  'useRunningStoreServer' |
-  'useStoreServer'
+  | 'storeDir'
+  | 'dir'
+  | 'useRunningStoreServer'
+  | 'useStoreServer'
 >
 
 export async function createOrConnectStoreControllerCached (

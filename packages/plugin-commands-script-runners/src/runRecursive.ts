@@ -10,8 +10,8 @@ import path = require('path')
 import realpathMissing = require('realpath-missing')
 
 export type RecursiveRunOpts = Pick<Config,
-  'unsafePerm' |
-  'rawConfig'
+  | 'unsafePerm'
+  | 'rawConfig'
 > & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'bail' | 'sort' | 'workspaceConcurrency'>> &
 {

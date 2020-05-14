@@ -44,15 +44,15 @@ export function help () {
 export async function handler (
   opts: CreateStoreControllerOptions &
     Pick<Config,
-      'allProjects' |
-      'bail' |
-      'engineStrict' |
-      'linkWorkspacePackages' |
-      'selectedProjectsGraph' |
-      'rawLocalConfig' |
-      'registries' |
-      'pnpmfile' |
-      'workspaceDir'
+      | 'allProjects'
+      | 'bail'
+      | 'engineStrict'
+      | 'linkWorkspacePackages'
+      | 'selectedProjectsGraph'
+      | 'rawLocalConfig'
+      | 'registries'
+      | 'pnpmfile'
+      | 'workspaceDir'
     > & {
       recursive?: boolean,
     },

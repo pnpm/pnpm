@@ -6,11 +6,11 @@ import path = require('path')
 import createResolver, { CreateResolverOptions } from './createResolver'
 
 export type CreateNewStoreControllerOptions = CreateResolverOptions & Pick<Config,
-    'alwaysAuth' |
-    'networkConcurrency' |
-    'packageImportMethod' |
-    'registry' |
-    'verifyStoreIntegrity'
+    | 'alwaysAuth'
+    | 'networkConcurrency'
+    | 'packageImportMethod'
+    | 'registry'
+    | 'verifyStoreIntegrity'
   > & {
     ignoreFile?: (filename: string) => boolean,
   }

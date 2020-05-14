@@ -110,12 +110,12 @@ export function help () {
 }
 
 export type ListCommandOptions = Pick<Config,
-  'allProjects' |
-  'dev' |
-  'dir' |
-  'optional' |
-  'production' |
-  'selectedProjectsGraph'
+  | 'allProjects'
+  | 'dev'
+  | 'dir'
+  | 'optional'
+  | 'production'
+  | 'selectedProjectsGraph'
 > & Partial<Pick<Config, 'cliOptions'>> & {
   alwaysPrintRootPackage?: boolean,
   depth?: number,

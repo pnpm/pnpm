@@ -67,16 +67,16 @@ export function help () {
 
 export async function handler (
   opts: Pick<Config,
-    'allProjects' |
-    'dir' |
-    'engineStrict' |
-    'independentLeaves' |
-    'rawLocalConfig' |
-    'registries' |
-    'selectedProjectsGraph' |
-    'sideEffectsCache' |
-    'sideEffectsCacheReadonly' |
-    'workspaceDir'
+    | 'allProjects'
+    | 'dir'
+    | 'engineStrict'
+    | 'independentLeaves'
+    | 'rawLocalConfig'
+    | 'registries'
+    | 'selectedProjectsGraph'
+    | 'sideEffectsCache'
+    | 'sideEffectsCacheReadonly'
+    | 'workspaceDir'
   > &
     CreateStoreControllerOptions &
     {

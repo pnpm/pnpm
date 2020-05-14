@@ -21,14 +21,14 @@ import readIniFile = require('read-ini-file')
 import { rebuild as rebuildAll, RebuildOptions, rebuildPkgs } from './implementation'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
-  'hoistPattern' |
-  'ignorePnpmfile' |
-  'ignoreScripts' |
-  'lockfileDir' |
-  'lockfileOnly' |
-  'rawLocalConfig' |
-  'registries' |
-  'sharedWorkspaceLockfile'
+  | 'hoistPattern'
+  | 'ignorePnpmfile'
+  | 'ignoreScripts'
+  | 'lockfileDir'
+  | 'lockfileOnly'
+  | 'rawLocalConfig'
+  | 'registries'
+  | 'sharedWorkspaceLockfile'
 > & {
   pending?: boolean,
 } & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency'>>

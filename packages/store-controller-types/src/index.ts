@@ -13,19 +13,19 @@ import {
 export * from '@pnpm/resolver-base'
 export type BundledManifest = Pick<
   DependencyManifest,
-  'bin' |
-  'bundledDependencies' |
-  'bundleDependencies' |
-  'dependencies' |
-  'directories' |
-  'engines' |
-  'name' |
-  'optionalDependencies' |
-  'os' |
-  'peerDependencies' |
-  'peerDependenciesMeta' |
-  'scripts' |
-  'version'
+  | 'bin'
+  | 'bundledDependencies'
+  | 'bundleDependencies'
+  | 'dependencies'
+  | 'directories'
+  | 'engines'
+  | 'name'
+  | 'optionalDependencies'
+  | 'os'
+  | 'peerDependencies'
+  | 'peerDependenciesMeta'
+  | 'scripts'
+  | 'version'
 >
 
 export interface StoreController {

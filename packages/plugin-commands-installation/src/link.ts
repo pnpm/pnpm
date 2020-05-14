@@ -72,12 +72,12 @@ export function help () {
 
 export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
-    'cliOptions' |
-    'engineStrict' |
-    'saveDev' |
-    'saveOptional' |
-    'saveProd' |
-    'workspaceDir'
+    | 'cliOptions'
+    | 'engineStrict'
+    | 'saveDev'
+    | 'saveOptional'
+    | 'saveProd'
+    | 'workspaceDir'
   > & Partial<Pick<Config, 'globalBin' | 'globalDir' | 'linkWorkspacePackages'>>,
   params: string[]
 ) {

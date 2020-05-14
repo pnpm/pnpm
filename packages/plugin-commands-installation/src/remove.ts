@@ -128,22 +128,22 @@ export const completion: CompletionFunc = (cliOpts, params) => {
 
 export async function handler (
   opts: CreateStoreControllerOptions & Pick<Config,
-    'allProjects' |
-    'bail' |
-    'bin' |
-    'engineStrict' |
-    'globalPnpmfile' |
-    'ignorePnpmfile' |
-    'lockfileDir' |
-    'linkWorkspacePackages' |
-    'pnpmfile' |
-    'rawLocalConfig' |
-    'registries' |
-    'saveDev' |
-    'saveOptional' |
-    'saveProd' |
-    'selectedProjectsGraph' |
-    'workspaceDir'
+    | 'allProjects'
+    | 'bail'
+    | 'bin'
+    | 'engineStrict'
+    | 'globalPnpmfile'
+    | 'ignorePnpmfile'
+    | 'lockfileDir'
+    | 'linkWorkspacePackages'
+    | 'pnpmfile'
+    | 'rawLocalConfig'
+    | 'registries'
+    | 'saveDev'
+    | 'saveOptional'
+    | 'saveProd'
+    | 'selectedProjectsGraph'
+    | 'workspaceDir'
   > & {
     recursive?: boolean,
   },

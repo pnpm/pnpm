@@ -11,33 +11,33 @@ import pFilter = require('p-filter')
 import { handler as publish } from './publish'
 
 export type PublishRecursiveOpts = Required<Pick<Config,
-  'cliOptions' |
-  'dir' |
-  'rawConfig' |
-  'registries' |
-  'workspaceDir'
+  | 'cliOptions'
+  | 'dir'
+  | 'rawConfig'
+  | 'registries'
+  | 'workspaceDir'
 >> &
 Partial<Pick<Config,
-  'tag' |
-  'ca' |
-  'cert' |
-  'extraBinPaths' |
-  'fetchRetries' |
-  'fetchRetryFactor' |
-  'fetchRetryMaxtimeout' |
-  'fetchRetryMintimeout' |
-  'httpsProxy' |
-  'key' |
-  'localAddress' |
-  'lockfileDir' |
-  'npmPath' |
-  'offline' |
-  'proxy' |
-  'selectedProjectsGraph' |
-  'storeDir' |
-  'strictSsl' |
-  'userAgent' |
-  'verifyStoreIntegrity'
+  | 'tag'
+  | 'ca'
+  | 'cert'
+  | 'extraBinPaths'
+  | 'fetchRetries'
+  | 'fetchRetryFactor'
+  | 'fetchRetryMaxtimeout'
+  | 'fetchRetryMintimeout'
+  | 'httpsProxy'
+  | 'key'
+  | 'localAddress'
+  | 'lockfileDir'
+  | 'npmPath'
+  | 'offline'
+  | 'proxy'
+  | 'selectedProjectsGraph'
+  | 'storeDir'
+  | 'strictSsl'
+  | 'userAgent'
+  | 'verifyStoreIntegrity'
 >> & {
   access?: 'public' | 'restricted',
   argv: {

@@ -39,28 +39,28 @@ import updateToLatestSpecsFromManifest, { createLatestSpecs } from './updateToLa
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies'
 
 type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
-  'bail' |
-  'globalPnpmfile' |
-  'hoistPattern' |
-  'ignorePnpmfile' |
-  'ignoreScripts' |
-  'linkWorkspacePackages' |
-  'lockfileDir' |
-  'lockfileOnly' |
-  'modulesDir' |
-  'pnpmfile' |
-  'rawLocalConfig' |
-  'registries' |
-  'save' |
-  'saveDev' |
-  'saveExact' |
-  'saveOptional' |
-  'savePeer' |
-  'savePrefix' |
-  'saveProd' |
-  'saveWorkspaceProtocol' |
-  'sharedWorkspaceLockfile' |
-  'tag'
+  | 'bail'
+  | 'globalPnpmfile'
+  | 'hoistPattern'
+  | 'ignorePnpmfile'
+  | 'ignoreScripts'
+  | 'linkWorkspacePackages'
+  | 'lockfileDir'
+  | 'lockfileOnly'
+  | 'modulesDir'
+  | 'pnpmfile'
+  | 'rawLocalConfig'
+  | 'registries'
+  | 'save'
+  | 'saveDev'
+  | 'saveExact'
+  | 'saveOptional'
+  | 'savePeer'
+  | 'savePrefix'
+  | 'saveProd'
+  | 'saveWorkspaceProtocol'
+  | 'sharedWorkspaceLockfile'
+  | 'tag'
 > & {
   include?: IncludedDependencies,
   includeDirect?: IncludedDependencies,

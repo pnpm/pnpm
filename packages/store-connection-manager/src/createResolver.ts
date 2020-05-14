@@ -3,22 +3,23 @@ import createResolver from '@pnpm/default-resolver'
 import LRU = require('lru-cache')
 
 export type CreateResolverOptions = Pick<Config,
-  'ca' |
-  'cert' |
-  'fetchRetries' |
-  'fetchRetryFactor' |
-  'fetchRetryMaxtimeout' |
-  'fetchRetryMintimeout' |
-  'fetchRetryMintimeout' |
-  'httpsProxy' |
-  'key' |
-  'localAddress' |
-  'offline' |
-  'proxy' |
-  'rawConfig' |
-  'strictSsl' |
-  'userAgent' |
-  'verifyStoreIntegrity'> & Required<Pick<Config, 'storeDir'>>
+  | 'ca'
+  | 'cert'
+  | 'fetchRetries'
+  | 'fetchRetryFactor'
+  | 'fetchRetryMaxtimeout'
+  | 'fetchRetryMintimeout'
+  | 'fetchRetryMintimeout'
+  | 'httpsProxy'
+  | 'key'
+  | 'localAddress'
+  | 'offline'
+  | 'proxy'
+  | 'rawConfig'
+  | 'strictSsl'
+  | 'userAgent'
+  | 'verifyStoreIntegrity'
+> & Required<Pick<Config, 'storeDir'>>
 
 export default function (
   opts: CreateResolverOptions
