@@ -15,7 +15,7 @@
     "update-manifests": "ts-node utils/updater/src/index.ts"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.7.0",
+    "@changesets/cli": "^2.7.1",
     "@pnpm/registry-mock": "^2.0.1",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/tslint-config": "workspace:*",
@@ -32,7 +32,7 @@
     "tape": "^4.13.2",
     "ts-node": "^8.10.1",
     "tslint": "^6.1.2",
-    "typescript": "^3.8.3",
+    "typescript": "^3.9.2",
     "verdaccio": "^4.6.2"
   },
   "engines": {

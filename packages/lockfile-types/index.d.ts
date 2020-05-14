@@ -76,9 +76,7 @@ export interface PackageSnapshot {
       optional: true,
     },
   },
-  bundledDependencies?: {
-    [name: string]: string,
-  },
+  bundledDependencies?: string[],
   engines?: {
     node: string,
   },

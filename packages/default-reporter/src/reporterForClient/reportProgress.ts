@@ -129,11 +129,12 @@ function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog
   const previousProgressStatsByRequirer: { [requirer: string]: ProgressStats } = {}
   progress$
     .forEach((log: ProgressLog) => {
-      previousProgressStatsByRequirer[log.requester] = {
-        fetched: 0,
-        resolved: 0,
-        reused: 0,
-        ...previousProgressStatsByRequirer[log.requester],
+      if (!previousProgressStatsByRequirer[log.requester]) {
+        previousProgressStatsByRequirer[log.requester] = {
+          fetched: 0,
+          resolved: 0,
+          reused: 0,
+        }
       }
       switch (log.status) {
         case 'resolved':

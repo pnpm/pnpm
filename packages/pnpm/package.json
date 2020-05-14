@@ -77,7 +77,7 @@
     "@types/ncp": "2.0.3",
     "@types/ramda": "^0.27.4",
     "@types/retry": "0.12.0",
-    "@types/semver": "^7.1.0",
+    "@types/semver": "^7.2.0",
     "@types/table": "^5.0.0",
     "@types/tape-promise": "4.0.0",
     "@types/update-notifier": "4.1.0",

@@ -1,3 +1,4 @@
+import childProcess = require('child_process')
 import spawn = require('cross-spawn')
 import path = require('path')
 import PATH = require('path-name')
@@ -16,7 +17,7 @@ export function runScriptSync (
   args: string[],
   opts: {
     cwd: string,
-    stdio: string,
+    stdio: childProcess.StdioOptions,
     userAgent?: string,
   }
 ) {
