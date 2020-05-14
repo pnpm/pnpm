@@ -53,7 +53,6 @@ export default async function testDefaults (
       ...fetchOpts,
     }) as {},
     {
-      locks: path.join(storeDir, '_locks'),
       storeDir,
       ...storeOpts,
     }

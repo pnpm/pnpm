@@ -46,8 +46,6 @@ export const types = Object.assign({
   'ignore-workspace-root-check': Boolean,
   'independent-leaves': Boolean,
   'link-workspace-packages': Boolean,
-  'lock': Boolean,
-  'lock-stale-duration': Number,
   'lockfile': Boolean,
   'lockfile-dir': String,
   'lockfile-directory': String, // TODO: deprecate
@@ -147,7 +145,6 @@ export default async (
     'hoist-pattern': ['*'],
     'ignore-workspace-root-check': false,
     'link-workspace-packages': true,
-    'lock': true,
     'package-lock': npmDefaults['package-lock'],
     'pending': false,
     'registry': npmDefaults.registry,

@@ -2558,7 +2558,6 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/filter-lockfile': 'link:../filter-lockfile'
-      '@pnpm/fs-locker': 3.0.1
       '@pnpm/get-context': 'link:../get-context'
       '@pnpm/headless': 'link:../headless'
       '@pnpm/hoist': 'link:../hoist'
@@ -2661,7 +2660,6 @@ importers:
       '@pnpm/default-resolver': 'workspace:*'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/filter-lockfile': 'workspace:3.2.3-alpha.1'
-      '@pnpm/fs-locker': 3.0.1
       '@pnpm/get-context': 'workspace:2.0.0-alpha.1'
       '@pnpm/headless': 'workspace:13.0.0-alpha.4'
       '@pnpm/hoist': 'workspace:3.0.0-alpha.1'
@@ -3421,15 +3419,6 @@ packages:
       node: '>=8.15'
     resolution:
       integrity: sha512-CMPclTpDRqgT241w6yKt/e3Mer/L5wFCAKTG5rGlhRz7f3BGhbuj4nblIVB/BTXhJty34Y57gKg4gbu3FVeQIA==
-  /@pnpm/fs-locker/3.0.1:
-    dependencies:
-      make-dir: 3.1.0
-      proper-lockfile: 3.2.0
-    dev: false
-    engines:
-      node: '>=8.15'
-    resolution:
-      integrity: sha512-o9d47i3E6XtVDIjxPjl9mg+phHnjScYtjhx5KiAZEcgV4nEjXCtnrQ8MjH8yjN8JVeCQH3FiioR1i+iD9DzkRw==
   /@pnpm/logger/3.2.2:
     dependencies:
       bole: 3.0.2
@@ -10112,14 +10101,6 @@ packages:
       node: '>= 8'
     resolution:
       integrity: sha512-vGrhOavPSTz4QVNuBNdcNXePNdNMaO1xj9yBeH1ScQPjk/rhg9sSlCXPhMkFuaNNW/syTvYqsnbIJxMBfRbbag==
-  /proper-lockfile/3.2.0:
-    dependencies:
-      graceful-fs: 4.2.1
-      retry: 0.12.0
-      signal-exit: 3.0.3
-    dev: false
-    resolution:
-      integrity: sha512-iMghHHXv2bsxl6NchhEaFck8tvX3F9cknEEh1SUpguUOBjN7PAAW9BLzmbc1g/mCD1gY3EE2EABBHPJfFdHFmA==
   /proto-list/1.2.4:
     dev: false
     resolution:

@@ -50,7 +50,6 @@ import pLimit from 'p-limit'
 import path = require('path')
 import R = require('ramda')
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'
-import lock from '../lock'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeDeps from '../uninstall/removeDeps'
@@ -151,17 +150,7 @@ export async function mutateModules (
     }
   }
 
-  let result!: Array<{ rootDir: string, manifest: ProjectManifest }>
-  if (opts.lock) {
-    result = await lock(ctx.lockfileDir, _install, {
-      locks: opts.locks,
-      prefix: ctx.lockfileDir,
-      stale: opts.lockStaleDuration,
-      storeController: opts.storeController,
-    })
-  } else {
-    result = await _install()
-  }
+  const result = await _install()
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

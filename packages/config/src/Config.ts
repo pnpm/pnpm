@@ -91,8 +91,6 @@ export interface Config {
   verifyStoreIntegrity?: boolean,
   networkConcurrency?: number,
   fetchingConcurrency?: number,
-  lockStaleDuration?: number,
-  lock: boolean,
   lockfileOnly?: boolean, // like npm's --package-lock-only
   childConcurrency?: number,
   repeatInstallDepth?: number,
