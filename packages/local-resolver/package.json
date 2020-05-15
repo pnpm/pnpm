@@ -42,8 +42,8 @@
   },
   "devDependencies": {
     "@pnpm/local-resolver": "link:",
-    "@types/graceful-fs": "4.1.3",
-    "@types/normalize-path": "3.0.0",
+    "@types/graceful-fs": "^4.1.3",
+    "@types/normalize-path": "^3.0.0",
     "@types/ssri": "^6.0.2"
   },
   "funding": "https://opencollective.com/pnpm"
