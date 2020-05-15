@@ -41,7 +41,7 @@
     "@types/common-tags": "^1.8.0",
     "@types/ramda": "^0.27.4",
     "@types/semver": "^7.2.0",
-    "@types/sinon": "^9.0.0",
+    "@types/sinon": "^9.0.1",
     "execa": "^4.0.1",
     "path-exists": "4.0.0",
     "sinon": "9.0.2",

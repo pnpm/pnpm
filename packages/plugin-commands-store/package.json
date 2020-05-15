@@ -41,7 +41,7 @@
     "@types/archy": "0.0.31",
     "@types/common-tags": "^1.8.0",
     "@types/ramda": "^0.27.4",
-    "@types/sinon": "^9.0.0",
+    "@types/sinon": "^9.0.1",
     "@types/ssri": "^6.0.2",
     "@zkochan/rimraf": "1.0.0",
     "execa": "^4.0.1",
