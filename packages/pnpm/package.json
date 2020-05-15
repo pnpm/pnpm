@@ -67,7 +67,7 @@
     "@pnpm/read-package-json": "workspace:*",
     "@pnpm/read-project-manifest": "workspace:*",
     "@pnpm/write-project-manifest": "workspace:*",
-    "@types/byline": "4.2.31",
+    "@types/byline": "4.2.32",
     "@types/common-tags": "1.8.0",
     "@types/cross-spawn": "6.0.1",
     "@types/graceful-fs": "4.1.3",
