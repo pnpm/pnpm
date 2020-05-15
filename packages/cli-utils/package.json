@@ -31,7 +31,7 @@
     "@pnpm/cli-utils": "link:",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/types": "workspace:6.0.0-alpha.0",
-    "@types/ramda": "^0.27.4"
+    "@types/ramda": "^0.27.5"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.0-alpha.0",

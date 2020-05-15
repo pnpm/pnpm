@@ -44,7 +44,7 @@
   "devDependencies": {
     "@pnpm/build-modules": "link:",
     "@pnpm/logger": "3.2.2",
-    "@types/ramda": "^0.27.4"
+    "@types/ramda": "^0.27.5"
   },
   "funding": "https://opencollective.com/pnpm"
 }

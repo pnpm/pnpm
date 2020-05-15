@@ -39,7 +39,7 @@
     "@pnpm/prepare": "workspace:0.0.2-alpha.1",
     "@pnpm/test-fixtures": "workspace:0.0.0",
     "@types/common-tags": "^1.8.0",
-    "@types/ramda": "^0.27.4",
+    "@types/ramda": "^0.27.5",
     "@types/semver": "^7.2.0",
     "@types/sinon": "^9.0.1",
     "execa": "^4.0.1",

@@ -36,10 +36,10 @@
   "devDependencies": {
     "@pnpm/lockfile-file": "link:",
     "@pnpm/logger": "^3.2.2",
-    "@types/js-yaml": "^3.12.3",
+    "@types/js-yaml": "^3.12.4",
     "@types/mz": "^2.7.1",
     "@types/normalize-path": "^3.0.0",
-    "@types/ramda": "^0.27.4",
+    "@types/ramda": "^0.27.5",
     "@types/write-file-atomic": "^3.0.0",
     "tempy": "^0.5.0",
     "write-yaml-file": "^4.1.0",

@@ -55,7 +55,7 @@
     "@types/common-tags": "^1.8.0",
     "@types/normalize-path": "^3.0.0",
     "@types/pretty-time": "^1.1.0",
-    "@types/ramda": "^0.27.4",
+    "@types/ramda": "^0.27.5",
     "@types/semver": "^7.2.0",
     "delay": "4.3.0",
     "ghooks": "2.0.4",
