@@ -39,7 +39,7 @@
     "@pnpm/package-store": "workspace:*",
     "@pnpm/server": "link:",
     "@pnpm/tarball-fetcher": "workspace:*",
-    "@types/mz": "^2.7.0",
+    "@types/mz": "^2.7.1",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "^7.0.3",
     "@zkochan/rimraf": "1.0.0",

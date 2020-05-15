@@ -41,7 +41,7 @@
     "@pnpm/types": "workspace:6.0.0-alpha.0",
     "@types/common-tags": "^1.8.0",
     "@types/lru-cache": "^5.1.0",
-    "@types/mz": "^2.7.0",
+    "@types/mz": "^2.7.1",
     "@types/ramda": "^0.27.4",
     "@types/table": "^5.0.0",
     "@types/wrap-ansi": "^3.0.0",

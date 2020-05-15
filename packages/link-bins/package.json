@@ -50,7 +50,7 @@
   "devDependencies": {
     "@pnpm/link-bins": "link:",
     "@types/is-windows": "^1.0.0",
-    "@types/mz": "^2.7.0",
+    "@types/mz": "^2.7.1",
     "@types/ncp": "^2.0.3",
     "@types/node": "^12.12.39",
     "@types/normalize-path": "^3.0.0",

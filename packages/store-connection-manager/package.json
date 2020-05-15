@@ -32,7 +32,7 @@
     "@pnpm/logger": "3.2.2",
     "@pnpm/store-connection-manager": "link:",
     "@types/lru-cache": "5.1.0",
-    "@types/mz": "^2.7.0"
+    "@types/mz": "^2.7.1"
   },
   "dependencies": {
     "@pnpm/cli-meta": "workspace:1.0.0-alpha.0",

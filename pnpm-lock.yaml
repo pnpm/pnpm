@@ -108,7 +108,7 @@ importers:
       tar-stream: 2.1.2
     devDependencies:
       '@types/concat-stream': 1.6.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/node': 13.13.6
       '@types/ssri': 6.0.2
       '@types/tar-stream': 2.1.0
@@ -116,7 +116,7 @@ importers:
     specifiers:
       '@pnpm/fetcher-base': 'workspace:7.0.0-alpha.3'
       '@types/concat-stream': ^1.6.0
-      '@types/mz': 2.7.0
+      '@types/mz': ^2.7.1
       '@types/node': ^13.13.6
       '@types/ssri': ^6.0.2
       '@types/tar-stream': ^2.1.0
@@ -186,7 +186,7 @@ importers:
       which: 2.0.2
     devDependencies:
       '@pnpm/config': 'link:'
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ramda': 0.27.4
       '@types/which': 1.3.2
       mz: 2.7.0
@@ -196,7 +196,7 @@ importers:
       '@pnpm/constants': 'workspace:4.0.0-alpha.0'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.4
       '@types/which': 1.3.2
       '@zkochan/npm-conf': 2.0.0
@@ -524,7 +524,7 @@ importers:
       '@pnpm/get-context': 'link:'
       '@pnpm/logger': 3.2.2
       '@types/is-ci': 2.0.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ramda': 0.27.4
     specifiers:
       '@pnpm/constants': 'workspace:4.0.0-alpha.0'
@@ -537,7 +537,7 @@ importers:
       '@pnpm/read-projects-context': 'workspace:2.0.2-alpha.1'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/is-ci': ^2.0.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.4
       '@zkochan/rimraf': 1.0.0
       is-ci: 2.0.0
@@ -626,7 +626,7 @@ importers:
       '@pnpm/read-projects-context': 'link:../read-projects-context'
       '@pnpm/store-path': 4.0.0-0
       '@types/fs-extra': 8.1.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ramda': 0.27.4
       '@types/rimraf': 3.0.0
       '@types/sinon': 9.0.0
@@ -673,7 +673,7 @@ importers:
       '@pnpm/symlink-dependency': 'workspace:3.0.5-alpha.0'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/fs-extra': ^8.1.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.4
       '@types/rimraf': ^3.0.0
       '@types/sinon': ^9.0.0
@@ -768,7 +768,7 @@ importers:
     devDependencies:
       '@pnpm/link-bins': 'link:'
       '@types/is-windows': 1.0.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ncp': 2.0.3
       '@types/node': 12.12.39
       '@types/normalize-path': 3.0.0
@@ -788,7 +788,7 @@ importers:
       '@pnpm/read-project-manifest': 'workspace:1.0.6-alpha.0'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/is-windows': ^1.0.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.3
       '@types/node': ^12.12.39
       '@types/normalize-path': ^3.0.0
@@ -891,7 +891,7 @@ importers:
       '@pnpm/lockfile-file': 'link:'
       '@pnpm/logger': 3.2.2
       '@types/js-yaml': 3.12.3
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.4
       '@types/write-file-atomic': 3.0.0
@@ -906,7 +906,7 @@ importers:
       '@pnpm/logger': ^3.2.2
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/js-yaml': ^3.12.3
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.4
       '@types/write-file-atomic': ^3.0.0
@@ -1241,7 +1241,7 @@ importers:
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-requester': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.4
@@ -1267,7 +1267,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:8.0.0-alpha.3'
       '@pnpm/tarball-fetcher': 'workspace:*'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.3
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.4
@@ -1317,7 +1317,7 @@ importers:
       '@pnpm/npm-resolver': 'link:../npm-resolver'
       '@pnpm/package-store': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.4
       '@types/sinon': 9.0.0
@@ -1338,7 +1338,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:8.0.0-alpha.3'
       '@pnpm/tarball-fetcher': 'workspace:*'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/proxyquire': 1.3.28
       '@types/ramda': ^0.27.4
       '@types/sinon': ^9.0.0
@@ -1522,7 +1522,7 @@ importers:
       '@pnpm/test-fixtures': 'link:../../privatePackages/test-fixtures'
       '@types/common-tags': 1.8.0
       '@types/is-ci': 2.0.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.4
       '@types/sinon': 9.0.0
@@ -1564,7 +1564,7 @@ importers:
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/common-tags': ^1.8.0
       '@types/is-ci': ^2.0.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/proxyquire': 1.3.28
       '@types/ramda': ^0.27.4
       '@types/sinon': ^9.0.0
@@ -1613,7 +1613,7 @@ importers:
       '@pnpm/plugin-commands-listing': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/common-tags': 1.8.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ramda': 0.27.4
       execa: 4.0.1
       mz: 2.7.0
@@ -1633,7 +1633,7 @@ importers:
       '@pnpm/prepare': 'workspace:0.0.2-alpha.1'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/common-tags': ^1.8.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.4
       common-tags: 1.8.0
       execa: ^4.0.1
@@ -1673,7 +1673,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@types/common-tags': 1.8.0
       '@types/lru-cache': 5.1.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ramda': 0.27.4
       '@types/table': 5.0.0
       '@types/wrap-ansi': 3.0.0
@@ -1701,7 +1701,7 @@ importers:
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/common-tags': ^1.8.0
       '@types/lru-cache': ^5.1.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.4
       '@types/table': ^5.0.0
       '@types/wrap-ansi': ^3.0.0
@@ -1745,7 +1745,7 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/cross-spawn': 6.0.2
       '@types/lru-cache': 5.1.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/proxyquire': 1.3.28
       '@types/ramda': 0.27.4
       '@types/sinon': 9.0.0
@@ -1774,7 +1774,7 @@ importers:
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/cross-spawn': ^6.0.2
       '@types/lru-cache': ^5.1.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/proxyquire': 1.3.28
       '@types/ramda': ^0.27.4
       '@types/sinon': 9.0.0
@@ -1909,7 +1909,7 @@ importers:
       '@pnpm/plugin-commands-script-runners': 'link:'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@types/common-tags': 1.8.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ramda': 0.27.4
       '@zkochan/rimraf': 1.0.0
       execa: 4.0.1
@@ -1929,7 +1929,7 @@ importers:
       '@pnpm/sort-packages': 'workspace:1.0.10-alpha.1'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
       '@types/common-tags': ^1.8.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.4
       '@zkochan/rimraf': 1.0.0
       common-tags: 1.8.0
@@ -1966,7 +1966,7 @@ importers:
       '@pnpm/plugin-commands-server': 'link:'
       '@types/common-tags': 1.8.0
       '@types/is-windows': 1.0.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ramda': 0.27.4
       '@types/signal-exit': 3.0.0
     specifiers:
@@ -1982,7 +1982,7 @@ importers:
       '@pnpm/store-path': ^4.0.0-0
       '@types/common-tags': ^1.8.0
       '@types/is-windows': ^1.0.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ramda': ^0.27.4
       '@types/signal-exit': ^3.0.0
       common-tags: ^1.8.0
@@ -2135,7 +2135,7 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
       '@types/is-windows': 1.0.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ncp': 2.0.3
       '@types/ramda': 0.27.4
       '@types/retry': 0.12.0
@@ -2212,7 +2212,7 @@ importers:
       '@types/graceful-fs': ^4.1.3
       '@types/is-ci': ^2.0.0
       '@types/is-windows': ^1.0.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.3
       '@types/nopt': ^3.0.29
       '@types/ramda': ^0.27.4
@@ -2308,9 +2308,9 @@ importers:
     dependencies:
       mz: 2.7.0
     devDependencies:
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
     specifiers:
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       mz: 2.7.0
   packages/read-package-json:
     dependencies:
@@ -2464,7 +2464,7 @@ importers:
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:'
       '@pnpm/tarball-fetcher': 'link:../tarball-fetcher'
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/node-fetch': 2.5.7
       '@types/uuid': 7.0.3
       '@zkochan/rimraf': 1.0.0
@@ -2483,7 +2483,7 @@ importers:
       '@pnpm/store-controller-types': 'workspace:8.0.0-alpha.3'
       '@pnpm/tarball-fetcher': 'workspace:*'
       '@pnpm/types': 'workspace:6.0.0-alpha.0'
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/node-fetch': ^2.5.7
       '@types/uuid': ^7.0.3
       '@zkochan/rimraf': 1.0.0
@@ -2524,7 +2524,7 @@ importers:
       '@pnpm/logger': 3.2.2
       '@pnpm/store-connection-manager': 'link:'
       '@types/lru-cache': 5.1.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
     specifiers:
       '@pnpm/cli-meta': 'workspace:1.0.0-alpha.0'
       '@pnpm/config': 'workspace:8.3.1-alpha.1'
@@ -2537,7 +2537,7 @@ importers:
       '@pnpm/store-connection-manager': 'link:'
       '@pnpm/store-path': ^4.0.0-0
       '@types/lru-cache': 5.1.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       delay: ^4.3.0
       diable: ^4.0.2
       dir-is-case-sensitive: ^1.0.2
@@ -2621,7 +2621,7 @@ importers:
       '@types/graceful-fs': 4.1.3
       '@types/is-ci': 2.0.0
       '@types/is-windows': 1.0.0
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/ncp': 2.0.3
       '@types/normalize-path': 3.0.0
       '@types/ramda': 0.27.4
@@ -2695,7 +2695,7 @@ importers:
       '@types/graceful-fs': ^4.1.3
       '@types/is-ci': ^2.0.0
       '@types/is-windows': ^1.0.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/ncp': ^2.0.3
       '@types/normalize-path': ^3.0.0
       '@types/ramda': ^0.27.4
@@ -2754,12 +2754,12 @@ importers:
       symlink-dir: 4.0.3
     devDependencies:
       '@pnpm/logger': 3.2.2
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
     specifiers:
       '@pnpm/core-loggers': 'workspace:4.0.2-alpha.0'
       '@pnpm/logger': 3.2.2
       '@pnpm/types': 'workspace:^6.0.0-alpha.0'
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       mz: ^2.7.0
       symlink-dir: ^4.0.3
   packages/tarball-fetcher:
@@ -2781,7 +2781,7 @@ importers:
       '@pnpm/read-package-json': 'link:../read-package-json'
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': 4.1.3
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       '@types/retry': 0.12.0
       '@types/rimraf': 3.0.0
       '@types/ssri': 6.0.2
@@ -2796,7 +2796,7 @@ importers:
       '@pnpm/read-package-json': 'workspace:3.1.1-alpha.0'
       '@pnpm/tarball-fetcher': 'link:'
       '@types/graceful-fs': ^4.1.3
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/retry': ^0.12.0
       '@types/rimraf': ^3.0.0
       '@types/ssri': ^6.0.2
@@ -2845,7 +2845,7 @@ importers:
       '@pnpm/lockfile-types': 'link:../../packages/lockfile-types'
       '@pnpm/modules-yaml': 'link:../../packages/modules-yaml'
       '@pnpm/types': 'link:../../packages/types'
-      '@types/mz': 2.7.0
+      '@types/mz': 2.7.1
       is-windows: 1.0.2
       isexe: 2.0.0
       mz: 2.7.0
@@ -2866,7 +2866,7 @@ importers:
       '@pnpm/types': 'workspace:*'
       '@types/is-windows': ^1.0.0
       '@types/isexe': 2.0.0
-      '@types/mz': ^2.7.0
+      '@types/mz': ^2.7.1
       '@types/node': ^12.12.39
       is-windows: 1.0.2
       isexe: 2.0.0
@@ -3639,11 +3639,11 @@ packages:
     dev: true
     resolution:
       integrity: sha1-aaI6OtKcrwCX8G7aWbNh7i8GOfY=
-  /@types/mz/2.7.0:
+  /@types/mz/2.7.1:
     dependencies:
       '@types/node': 14.0.1
     resolution:
-      integrity: sha512-Q5TZYMKnH0hdV5fNstmMWL2LLw5eRRtTd73KNtsZxoQ2gtCQyET5X79uERUEwGneuxPglg441I7OSY00+9CkSw==
+      integrity: sha512-H86h7KmRDVs9UeSiQvtUeVhS+WYpJSYSsZrRvNYpGWGiytEqxwEtvgRnINESQtCgnojIH2wS2WgaMTJP0firBw==
   /@types/ncp/2.0.3:
     dependencies:
       '@types/node': 14.0.1
