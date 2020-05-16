@@ -32,6 +32,7 @@
     "@pnpm/package-is-installable",
     "@pnpm/package-requester",
     "@pnpm/package-store",
+    "@pnpm/pkgid-to-filename",
     "@pnpm/prune-lockfile",
     "@pnpm/read-projects-context",
     "@pnpm/read-project-manifest",
