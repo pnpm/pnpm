@@ -871,4 +871,3 @@ test('local tarball dependency with peer dependency', async (t: tape.Test) => {
 
   t.deepEqual(await fs.readdir('node_modules/.pnpm/local'), localPkgDirs)
 })
-
