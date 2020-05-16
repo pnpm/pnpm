@@ -37,7 +37,7 @@
     "@pnpm/normalize-registries": "workspace:1.0.1-alpha.0",
     "@pnpm/package-requester": "workspace:12.0.0-alpha.4",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
-    "@pnpm/pkgid-to-filename": "3.0.0-1",
+    "@pnpm/pkgid-to-filename": "3.0.0-2",
     "@pnpm/prune-lockfile": "workspace:2.0.8-alpha.1",
     "@pnpm/read-modules-dir": "workspace:2.0.1",
     "@pnpm/read-package-json": "workspace:3.1.1-alpha.0",
