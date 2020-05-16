@@ -88,7 +88,7 @@
     "@pnpm/modules-cleaner": "workspace:9.0.0-alpha.4",
     "@pnpm/modules-yaml": "workspace:7.0.0-alpha.0",
     "@pnpm/package-requester": "workspace:12.0.0-alpha.4",
-    "@pnpm/pkgid-to-filename": "3.0.0-0",
+    "@pnpm/pkgid-to-filename": "3.0.0-1",
     "@pnpm/read-package-json": "workspace:3.1.1-alpha.0",
     "@pnpm/read-project-manifest": "workspace:1.0.6-alpha.0",
     "@pnpm/store-controller-types": "workspace:8.0.0-alpha.3",
