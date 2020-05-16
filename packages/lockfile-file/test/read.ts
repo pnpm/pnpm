@@ -1,4 +1,4 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   existsWantedLockfile,
   readCurrentLockfile,
@@ -190,7 +190,7 @@ test('writeLockfiles()', async t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -234,7 +234,7 @@ test('writeLockfiles() when no specifiers but dependencies present', async t => 
         specifiers: {},
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
   }
   await writeLockfiles({
     currentLockfile: wantedLockfile,
@@ -262,7 +262,7 @@ test('write does not use yaml anchors/aliases', async t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: yaml`
       /react-dnd/2.5.4/react@15.6.1:
         dependencies:

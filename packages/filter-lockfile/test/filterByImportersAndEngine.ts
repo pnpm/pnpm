@@ -1,3 +1,4 @@
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import { filterLockfileByImportersAndEngine } from '@pnpm/filter-lockfile'
 import test = require('tape')
 
@@ -33,7 +34,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
           },
         },
       },
-      lockfileVersion: 5.1,
+      lockfileVersion: LOCKFILE_VERSION,
       packages: {
         '/bar/1.0.0': {
           resolution: { integrity: '' },
@@ -128,7 +129,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/bar/1.0.0': {
         resolution: { integrity: '' },

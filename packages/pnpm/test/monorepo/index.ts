@@ -1,4 +1,4 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import findWorkspacePackages from '@pnpm/find-workspace-packages'
 import { Lockfile } from '@pnpm/lockfile-types'
 import { read as readModulesManifest } from '@pnpm/modules-yaml'
@@ -708,7 +708,7 @@ test('shared-workspace-lockfile: create shared lockfile format when installation
   const lockfile = await readYamlFile<Lockfile>(WANTED_LOCKFILE)
 
   t.ok(lockfile['importers'] && lockfile['importers']['.'], `correct ${WANTED_LOCKFILE} format`)
-  t.equal(lockfile['lockfileVersion'], 5.1, `correct ${WANTED_LOCKFILE} version`)
+  t.equal(lockfile['lockfileVersion'], LOCKFILE_VERSION, `correct ${WANTED_LOCKFILE} version`)
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1451
@@ -765,7 +765,7 @@ test("shared-workspace-lockfile: don't install dependencies in projects that are
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -860,7 +860,7 @@ test('shared-workspace-lockfile: install dependencies in projects that are relat
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,

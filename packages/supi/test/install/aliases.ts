@@ -1,4 +1,4 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { getIntegrity } from '@pnpm/registry-mock'
 import { addDependenciesToPackage } from 'supi'
@@ -24,7 +24,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
       negative: '/is-negative/1.0.0',
       positive: '/is-positive/3.1.0',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -78,7 +78,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
     dependencies: {
       'pkg-with-1-aliased-dep': '100.0.0',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/dep-of-pkg-with-1-dep/100.1.0': {
         dev: false,

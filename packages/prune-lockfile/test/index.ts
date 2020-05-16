@@ -1,5 +1,5 @@
 ///<reference path="../../../typings/local.d.ts"/>
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   pruneLockfile,
   pruneSharedLockfile,
@@ -25,7 +25,7 @@ test('remove one redundant package', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -58,7 +58,7 @@ test('remove one redundant package', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -84,7 +84,7 @@ test('remove redundant linked package', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {},
   }, {
     name: 'foo',
@@ -97,7 +97,7 @@ test('remove redundant linked package', t => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
   })
 
   t.end()
@@ -117,7 +117,7 @@ test('keep all', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -162,7 +162,7 @@ test('keep all', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dependencies: {
@@ -209,7 +209,7 @@ test('optional dependency should have optional = true', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/foo-child/1.0.0': {
         optional: true,
@@ -280,7 +280,7 @@ test('optional dependency should have optional = true', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/foo-child/1.0.0': {
         dev: false,
@@ -343,7 +343,7 @@ test('optional dependency should not have optional = true if used not only as op
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -382,7 +382,7 @@ test('optional dependency should not have optional = true if used not only as op
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -421,7 +421,7 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
@@ -460,7 +460,7 @@ test('dev dependency should have dev = true', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: true,
@@ -496,7 +496,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
@@ -538,7 +538,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         resolution: {
@@ -572,7 +572,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/a/1.0.0': {
         resolution: {
@@ -598,7 +598,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/a/1.0.0': {
         dev: false,
@@ -855,7 +855,7 @@ test('remove dependencies that are not in the package', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/fsevents/1.0.0': {
         resolution: {
@@ -882,7 +882,7 @@ test('remove dependencies that are not in the package', t => {
         specifiers: {},
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
   })
 
   t.end()
@@ -900,7 +900,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -928,7 +928,7 @@ test(`ignore dependencies that are in package.json but are not in ${WANTED_LOCKF
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -1009,7 +1009,7 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1037,7 +1037,7 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1071,7 +1071,7 @@ test("prune: don't remove package used by another importer", t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1116,7 +1116,7 @@ test("prune: don't remove package used by another importer", t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-negative/1.0.0': {
         dev: false,
@@ -1148,7 +1148,7 @@ test('pruneSharedLockfile: remove one redundant package', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,
@@ -1174,7 +1174,7 @@ test('pruneSharedLockfile: remove one redundant package', t => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/is-positive/1.0.0': {
         dev: false,

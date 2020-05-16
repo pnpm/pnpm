@@ -1,9 +1,8 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { addDistTag } from '@pnpm/registry-mock'
 import { copyFixture, pathToLocalPkg } from '@pnpm/test-fixtures'
 import rimraf = require('@zkochan/rimraf')
-import { copy } from 'fs-extra'
 import fs = require('mz/fs')
 import normalizePath = require('normalize-path')
 import path = require('path')
@@ -47,7 +46,7 @@ test('local file', async (t: tape.Test) => {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     specifiers: expectedSpecs,
   })
 })
@@ -71,7 +70,7 @@ test('local file via link:', async (t: tape.Test) => {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     specifiers: expectedSpecs,
   })
 })
@@ -97,7 +96,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     specifiers: expectedSpecs,
   })
 })

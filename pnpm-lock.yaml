@@ -50,10 +50,12 @@ importers:
       '@pnpm/types': 'link:../types'
     devDependencies:
       '@pnpm/audit': 'link:'
+      '@pnpm/constants': 3.0.0
       '@pnpm/lockfile-file': 'link:../lockfile-file'
       nock: 12.0.3
     specifiers:
       '@pnpm/audit': 'link:'
+      '@pnpm/constants': ^3.0.0
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/fetch': 'workspace:1.0.3'
       '@pnpm/lockfile-file': 'workspace:3.0.9-alpha.1'
@@ -3410,6 +3412,12 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-GTsO3rA0vKVx9w3IrB6rrxFfhguAqJxSl0Bg0DG/GxlzKYEe9YlSBImZgR/UxTrSDQICodpCJ/lYC1Vo4+K3eA==
+  /@pnpm/constants/3.0.0:
+    dev: true
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-N+FCVHl3V8vlqeCH3k2qVoVrxGCmgWMYKjgG2yfS69lJlW2PNXpQ408gP00gctOCllFEFOmlHoRnrICVJ57ENw==
   /@pnpm/file-reporter/0.1.0:
     dependencies:
       graceful-fs: 4.2.1

@@ -1,5 +1,6 @@
 import audit from '@pnpm/audit'
 import lockfileToAuditTree from '@pnpm/audit/lib/lockfileToAuditTree'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
 import PnpmError from '@pnpm/error'
 import nock = require('nock')
 import test = require('tape')
@@ -16,7 +17,7 @@ test('lockfileToAuditTree()', (t) => {
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/bar/1.0.0': {
         resolution: {

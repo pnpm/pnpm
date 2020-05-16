@@ -1,5 +1,5 @@
 import assertProject from '@pnpm/assert-project'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { readCurrentLockfile } from '@pnpm/lockfile-file'
 import { prepareEmpty, preparePackages } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
@@ -490,7 +490,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/dep-of-pkg-with-1-dep/100.0.0': {
         dev: false,
@@ -583,7 +583,7 @@ test('partial installation in a monorepo does not remove dependencies of other w
         },
       },
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/dep-of-pkg-with-1-dep/100.0.0': {
         dev: false,

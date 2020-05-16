@@ -1,4 +1,4 @@
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageManifestLog,
   ProgressLog,
@@ -931,7 +931,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
     dependencies: {
       foobarqar: '1.0.1',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/bar/100.0.0': {
         dev: false,
@@ -1027,7 +1027,7 @@ test('subdep symlinks are updated if the lockfile has new subdep versions specif
     dependencies: {
       'parent-of-pkg-with-1-dep': '1.0.0',
     },
-    lockfileVersion: 5.1,
+    lockfileVersion: LOCKFILE_VERSION,
     packages: {
       '/dep-of-pkg-with-1-dep/100.1.0': {
         dev: false,
