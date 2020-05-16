@@ -109,6 +109,7 @@ export default async function recursive (
     : {}
   const targetDependenciesField = getSaveType(opts)
   const installOpts = Object.assign(opts, {
+    linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     ownLifecycleHooksStdio: 'pipe',
     peer: opts.savePeer,
     pruneLockfileImporters: (!opts.ignoredPackages || opts.ignoredPackages.size === 0)

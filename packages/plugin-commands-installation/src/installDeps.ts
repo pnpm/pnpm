@@ -138,6 +138,7 @@ export default async function handler (
     // The dependencies should be built first,
     // so ignoring scripts for now
     ignoreScripts: !!workspacePackages || opts.ignoreScripts,
+    linkWorkspacePackagesDepth: opts.linkWorkspacePackages === 'deep' ? Infinity : opts.linkWorkspacePackages ? 0 : -1,
     sideEffectsCacheRead: opts.sideEffectsCache || opts.sideEffectsCacheReadonly,
     sideEffectsCacheWrite: opts.sideEffectsCache,
     storeController: store.ctrl,

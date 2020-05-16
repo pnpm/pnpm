@@ -17,6 +17,7 @@ import resolveDependencies, {
   LinkedDependency,
   PendingNode,
   PkgAddress,
+  ResolvedPackage,
   ResolvedPackagesByPackageId,
 } from './resolveDependencies'
 
@@ -28,7 +29,7 @@ export type ResolvedDirectDependency = {
   optional: boolean,
   dev: boolean,
   resolution: Resolution,
-  id: string,
+  pkgId: string,
   version: string,
   name: string,
   normalizedPref?: string,
@@ -45,7 +46,6 @@ export interface Importer {
 export default async function (
   importers: Importer[],
   opts: {
-    alwaysTryWorkspacePackages?: boolean,
     currentLockfile: Lockfile,
     dryRun: boolean,
     engineStrict: boolean,
@@ -58,6 +58,7 @@ export default async function (
     resolutionStrategy?: 'fast' | 'fewer-dependencies',
     pnpmVersion: string,
     sideEffectsCache: boolean,
+    linkWorkspacePackagesDepth?: number,
     lockfileDir: string,
     storeController: StoreController,
     tag: string,
@@ -78,6 +79,7 @@ export default async function (
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
+    linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
     nodeVersion: opts.nodeVersion,
     outdatedDependencies: {} as {[pkgId: string]: string},
@@ -107,7 +109,7 @@ export default async function (
       resolutionStrategy: opts.resolutionStrategy || 'fast',
     }
     const resolveOpts = {
-      alwaysTryWorkspacePackages: opts.alwaysTryWorkspacePackages,
+      alwaysTryWorkspacePackages: (opts.linkWorkspacePackagesDepth ?? -1) >= 0,
       currentDepth: 0,
       parentDependsOnPeers: true,
       parentNodeId: `>${importer.id}>`,
@@ -158,12 +160,18 @@ export default async function (
           if (dep.isLinkedDependency === true) {
             return dep
           }
+          const resolvedPackage = ctx.dependenciesTree[dep.nodeId].resolvedPackage as ResolvedPackage
           return {
-            ...ctx.dependenciesTree[dep.nodeId].resolvedPackage,
             alias: dep.alias,
+            dev: resolvedPackage.dev,
+            name: resolvedPackage.name,
             normalizedPref: dep.normalizedPref,
+            optional: resolvedPackage.optional,
+            pkgId: resolvedPackage.id,
+            resolution: resolvedPackage.resolution,
+            version: resolvedPackage.version,
           }
-        }) as ResolvedDirectDependency[],
+        }),
       directNodeIdsByAlias: directNonLinkedDeps
         .reduce((acc, dependency) => {
           acc[dependency.alias] = dependency.nodeId
@@ -197,6 +205,10 @@ function buildTree (
 ) {
   const childrenNodeIds = {}
   for (const child of children) {
+    if (child.pkgId.startsWith('link:')) {
+      childrenNodeIds[child.alias] = child.pkgId
+      continue
+    }
     if (nodeIdContainsSequence(parentNodeId, parentId, child.pkgId)) {
       continue
     }
@@ -204,7 +216,13 @@ function buildTree (
     childrenNodeIds[child.alias] = childNodeId
     installable = installable && !ctx.skipped.has(child.pkgId)
     ctx.dependenciesTree[childNodeId] = {
-      children: () => buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable),
+      children: () => buildTree(ctx,
+        childNodeId,
+        child.pkgId,
+        ctx.childrenByParentId[child.pkgId],
+        depth + 1,
+        installable
+      ),
       depth,
       installable,
       resolvedPackage: ctx.resolvedPackagesByPackageId[child.pkgId],

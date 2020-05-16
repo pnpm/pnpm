@@ -505,6 +505,10 @@ async function linkAllModules (
         await Promise.all(
           Object.keys(childrenToLink)
             .map(async (childAlias) => {
+              if (childrenToLink[childAlias].startsWith('link:')) {
+                await limitLinking(() => symlinkDependency(path.resolve(opts.lockfileDir, childrenToLink[childAlias].substr(5)), modules, childAlias))
+                return
+              }
               const pkg = depGraph[childrenToLink[childAlias]]
               if (!pkg.installable && pkg.optional) return
               if (childAlias === name) {
