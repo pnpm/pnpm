@@ -24,7 +24,7 @@
     "@pnpm/config": "workspace:8.3.1-alpha.1",
     "@pnpm/core-loggers": "workspace:4.0.2-alpha.0",
     "@pnpm/default-reporter": "workspace:7.2.5-alpha.1",
-    "@pnpm/file-reporter": "0.1.0",
+    "@pnpm/file-reporter": "^1.0.0",
     "@pnpm/filter-workspace-packages": "workspace:2.0.15-alpha.1",
     "@pnpm/find-workspace-dir": "workspace:1.0.0",
     "@pnpm/logger": "3.2.2",

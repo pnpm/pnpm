@@ -42,14 +42,14 @@ test('bin files are found by lifecycle scripts', t => {
   t.end()
 })
 
-test('create a pnpm-debug.log file when the command fails', async function (t) {
+test('create a "node_modules/.pnpm-debug.log" file when the command fails', async function (t) {
   const project = prepare(t)
 
   const result = execPnpmSync(['install', '@zkochan/i-do-not-exist'])
 
   t.equal(result.status, 1, 'install failed')
 
-  t.ok(await exists('pnpm-debug.log'), 'log file created')
+  t.ok(await exists('node_modules/.pnpm-debug.log'), 'log file created')
 
   t.end()
 })

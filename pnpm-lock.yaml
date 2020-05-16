@@ -2089,7 +2089,7 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/default-reporter': 'link:../default-reporter'
-      '@pnpm/file-reporter': 0.1.0
+      '@pnpm/file-reporter': 1.0.0
       '@pnpm/filter-workspace-packages': 'link:../filter-workspace-packages'
       '@pnpm/find-workspace-dir': 'link:../find-workspace-dir'
       '@pnpm/logger': 3.2.2
@@ -2183,7 +2183,7 @@ importers:
       '@pnpm/constants': 'workspace:4.0.0-alpha.0'
       '@pnpm/core-loggers': 'workspace:4.0.2-alpha.0'
       '@pnpm/default-reporter': 'workspace:7.2.5-alpha.1'
-      '@pnpm/file-reporter': 0.1.0
+      '@pnpm/file-reporter': ^1.0.0
       '@pnpm/filter-workspace-packages': 'workspace:2.0.15-alpha.1'
       '@pnpm/find-workspace-dir': 'workspace:1.0.0'
       '@pnpm/find-workspace-packages': 'workspace:*'
@@ -3418,15 +3418,15 @@ packages:
       node: '>=10'
     resolution:
       integrity: sha512-N+FCVHl3V8vlqeCH3k2qVoVrxGCmgWMYKjgG2yfS69lJlW2PNXpQ408gP00gctOCllFEFOmlHoRnrICVJ57ENw==
-  /@pnpm/file-reporter/0.1.0:
+  /@pnpm/file-reporter/1.0.0:
     dependencies:
       graceful-fs: 4.2.1
       path-exists: 4.0.0
     dev: false
     engines:
-      node: '>=8.15'
+      node: '>=10.13'
     resolution:
-      integrity: sha512-CMPclTpDRqgT241w6yKt/e3Mer/L5wFCAKTG5rGlhRz7f3BGhbuj4nblIVB/BTXhJty34Y57gKg4gbu3FVeQIA==
+      integrity: sha512-SM5Flsm39dMhW5AKhXLBJ3oud2uOR4UIphoo6pLlhZeKEvRE9GGS8ewlPDlFVDgvvKP1xpKwHeO3okhiL2zy6g==
   /@pnpm/logger/3.2.2:
     dependencies:
       bole: 3.0.2
