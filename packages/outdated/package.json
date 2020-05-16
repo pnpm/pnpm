@@ -45,7 +45,7 @@
     "@pnpm/matcher": "workspace:1.0.2",
     "@pnpm/modules-yaml": "workspace:7.0.0-alpha.0",
     "@pnpm/pick-registry-for-package": "workspace:1.0.1-alpha.0",
-    "@pnpm/store-path": "^4.0.0-0",
+    "@pnpm/store-path": "^4.0.0",
     "@pnpm/types": "workspace:6.0.0-alpha.0",
     "dependency-path": "workspace:4.0.7-alpha.0",
     "lru-cache": "5.1.1",
