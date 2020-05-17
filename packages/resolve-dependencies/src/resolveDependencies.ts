@@ -481,11 +481,9 @@ function getInfoFromLockfile (
       })
     }
 
-    const depPath = dp.resolve(registries, relDepPath)
     return {
       currentResolution: pkgSnapshotToResolution(relDepPath, dependencyLockfile, registries),
       dependencyLockfile,
-      depPath,
       optionalDependencyNames: R.keys(dependencyLockfile.optionalDependencies),
       pkgId: packageIdFromSnapshot(relDepPath, dependencyLockfile, registries),
       relDepPath,
@@ -506,7 +504,6 @@ type ResolveDependencyOptions = {
   alwaysTryWorkspacePackages?: boolean,
   pkgId?: string,
   dependentId?: string,
-  depPath?: string,
   relDepPath?: string,
   parentDependsOnPeer: boolean,
   parentNodeId: string,
@@ -534,7 +531,7 @@ async function resolveDependency (
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages?.[options.relDepPath]) : undefined
-  const depIsLinked = Boolean(options.depPath &&
+  const depIsLinked = Boolean(
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
