@@ -224,7 +224,10 @@ export default async (opts: HeadlessOptions) => {
       lockfileDir,
       optional: opts.include.optionalDependencies,
     }),
-    linkAllPkgs(opts.storeController, depNodes, opts),
+    linkAllPkgs(opts.storeController, depNodes, {
+      force: opts.force,
+      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+    }),
   ])
 
   stageLogger.debug({
@@ -543,11 +546,11 @@ async function lockfileToDepGraph (
           children: {},
           depPath,
           fetchingFiles: fetchResponse.files,
+          filesIndexFile: fetchResponse.filesIndexFile,
           finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
           hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
           independent,
-          isBuilt: pkgLocation.isBuilt,
           modules,
           name: pkgName,
           optional: !!pkgSnapshot.optional,
@@ -659,10 +662,11 @@ export interface DependenciesGraphNode {
   optional: boolean,
   depPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
   packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
-  isBuilt: boolean,
+  isBuilt?: boolean,
   requiresBuild: boolean,
   prepare: boolean,
   hasBin: boolean,
+  filesIndexFile: string,
 }
 
 export interface DependenciesGraph {
@@ -676,16 +680,19 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
+    targetEngine?: string,
   }
 ) {
   return Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      return storeController.importPackage(depNode.peripheralLocation, {
+      const { isBuilt } = await storeController.importPackage(depNode.peripheralLocation, {
         filesResponse,
         force: opts.force,
+        targetEngine: opts.targetEngine,
       })
+      depNode.isBuilt = isBuilt
     })
   )
 }

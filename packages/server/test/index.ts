@@ -183,15 +183,15 @@ test('server upload', async t => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
-  const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
+  const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
 
   await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
     engine: fakeEngine,
-    packageId: fakePkgId,
+    filesIndexFile,
   })
 
-  const cacheIntegrity = await loadJsonFile(path.join(storeDir, fakePkgId, 'side_effects', fakeEngine, 'integrity.json'))
-  t.deepEqual(Object.keys(cacheIntegrity).sort(), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
+  const cacheIntegrity = await loadJsonFile(filesIndexFile)
+  t.deepEqual(Object.keys(cacheIntegrity['sideEffects'][fakeEngine]).sort(), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
 
   await server.close()
   await storeCtrl.close()
@@ -213,21 +213,21 @@ test('disable server upload', async t => {
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
-  const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
+  const storeDir = tempy.directory()
+  const filesIndexFile = path.join(storeDir, 'test.example.com/fake-pkg/1.0.0.json')
 
   let thrown = false
   try {
     await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
       engine: fakeEngine,
-      packageId: fakePkgId,
+      filesIndexFile,
     })
   } catch (e) {
     thrown = true
   }
   t.ok(thrown, 'error is thrown when trying to upload')
 
-  const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
-  t.notOk(await fs.exists(cachePath), 'cache directory not created')
+  t.notOk(await fs.exists(filesIndexFile), 'cache directory not created')
 
   await server.close()
   await storeCtrl.close()

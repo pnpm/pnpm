@@ -48,17 +48,17 @@ export default function (
         filesResponse: PackageFilesResponse,
         force: boolean,
       }) => {
-        await limitedFetch(`${remotePrefix}/importPackage`, {
+        return limitedFetch(`${remotePrefix}/importPackage`, {
           opts,
           to,
-        })
+        }) as Promise<{ isBuilt: boolean }>
       },
       prune: async () => {
         await limitedFetch(`${remotePrefix}/prune`, {})
       },
       requestPackage: requestPackage.bind(null, remotePrefix, limitedFetch),
       stop: async () => { await limitedFetch(`${remotePrefix}/stop`, {}) },
-      upload: async (builtPkgLocation: string, opts: {packageId: string, engine: string}) => {
+      upload: async (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) => {
         await limitedFetch(`${remotePrefix}/upload`, {
           builtPkgLocation,
           opts,
@@ -139,8 +139,9 @@ function fetchPackage (
   limitedFetch: (url: string, body: object) => any, // tslint:disable-line
   options: FetchPackageToStoreOptions
 ): {
-  files: () => Promise<PackageFilesResponse>,
   bundledManifest?: () => Promise<DependencyManifest>,
+  files: () => Promise<PackageFilesResponse>,
+  filesIndexFile: string,
   finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
@@ -150,7 +151,7 @@ function fetchPackage (
     msgId,
     options,
   })
-  .then((fetchResponseBody: object & {inStoreLocation: string}) => {
+  .then((fetchResponseBody: object & {filesIndexFile: string, inStoreLocation: string}) => {
     const fetchingBundledManifest = options.fetchRawManifest
       ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
       : undefined
@@ -161,6 +162,7 @@ function fetchPackage (
     return {
       bundledManifest: fetchingBundledManifest && pShare(fetchingBundledManifest),
       files: pShare(fetchingFiles),
+      filesIndexFile: fetchResponseBody.filesIndexFile,
       finishing: pShare(Promise.all([fetchingBundledManifest, fetchingFiles]).then(() => undefined)),
       inStoreLocation: fetchResponseBody.inStoreLocation,
     }

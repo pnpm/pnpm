@@ -1,4 +1,5 @@
 import { DeferredManifestPromise } from '@pnpm/fetcher-base'
+import { PackageFileInfo } from '@pnpm/store-controller-types'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
@@ -9,13 +10,10 @@ import { parseJsonBuffer } from './parseJson'
 const limit = pLimit(20)
 const MAX_BULK_SIZE = 1 * 1024 * 1024 // 1MB
 
-export type PackageFileInfo = {
-  integrity: string,
-  mode: number,
-  size: number,
+export type PackageFilesIndex = {
+  files: Record<string, PackageFileInfo>,
+  sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }
-
-export type PackageFilesIndex = { files: Record<string, PackageFileInfo> }
 
 export default async function (
   cafsDir: string,

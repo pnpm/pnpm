@@ -1,3 +1,4 @@
+import { PackageFileInfo } from '@pnpm/store-controller-types'
 import getStream = require('get-stream')
 import path = require('path')
 import exists = require('path-exists')
@@ -7,7 +8,6 @@ import ssri = require('ssri')
 import addFilesFromDir from './addFilesFromDir'
 import addFilesFromTarball from './addFilesFromTarball'
 import checkFilesIntegrity, {
-  PackageFileInfo,
   PackageFilesIndex,
 }from './checkFilesIntegrity'
 import getFilePathInCafs, {

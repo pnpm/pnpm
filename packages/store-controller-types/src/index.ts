@@ -42,13 +42,14 @@ export interface StoreController {
   importPackage: ImportPackageFunction,
   close (): Promise<void>,
   prune (): Promise<void>,
-  upload (builtPkgLocation: string, opts: {packageId: string, engine: string}): Promise<void>,
+  upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}): Promise<void>,
 }
 
 export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions
 ) => {
   bundledManifest?: () => Promise<BundledManifest>,
+  filesIndexFile: string,
   files: () => Promise<PackageFilesResponse>,
   finishing: () => Promise<void>,
   inStoreLocation: string,
@@ -65,14 +66,22 @@ export interface FetchPackageToStoreOptions {
 export type ImportPackageFunction = (
   to: string,
   opts: {
+    targetEngine?: string,
     filesResponse: PackageFilesResponse,
     force: boolean,
   }
-) => Promise<void>
+) => Promise<{ isBuilt: boolean }>
+
+export type PackageFileInfo = {
+  integrity: string,
+  mode: number,
+  size: number,
+}
 
 export interface PackageFilesResponse {
   fromStore: boolean,
-  filesIndex: Record<string, { mode: number, integrity: string }>,
+  filesIndex: Record<string, PackageFileInfo>,
+  sideEffects?: Record<string, Record<string, PackageFileInfo>>
 }
 
 export type RequestPackageFunction = (
@@ -99,6 +108,7 @@ export interface RequestPackageOptions {
 export type PackageResponse = {
   bundledManifest?: () => Promise<BundledManifest>,
   files?: () => Promise<PackageFilesResponse>,
+  filesIndexFile?: string,
   finishing?: () => Promise<void>, // a package request is finished once its integrity is generated and saved
   body: {
     isLocal: boolean,

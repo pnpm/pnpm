@@ -1,6 +1,6 @@
 ///<reference path="../../../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { ENGINE_NAME, WANTED_LOCKFILE } from '@pnpm/constants'
 import {
   PackageManifestLog,
   RootLog,
@@ -712,7 +712,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
 
 const ENGINE_DIR = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-test.skip('using side effects cache', async (t) => {
+test('using side effects cache', async (t) => {
   const prefix = path.join(fixtures, 'side-effects')
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -725,16 +725,25 @@ test.skip('using side effects cache', async (t) => {
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
 
-  const cacheIntegrityPath = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage@1.1.3/side_effects/${ENGINE_DIR}/integrity.json`)
+  t.comment(opts.storeDir)
+  const cacheIntegrityPath = path.join(opts.storeDir, 'files/10/0c9ac65f21cb83e1d3b9339731937e96d930d0000075d266d3443307659d27759e81f3bc0e87b202ade1f10c4af6845d060b4a985ee6b3ccc4de163a3d2171-index.json')
   const cacheIntegrity = await loadJsonFile(cacheIntegrityPath)
-  t.ok(cacheIntegrity['build/Makefile'])
-  delete cacheIntegrity['build/Makefile']
+  t.ok(cacheIntegrity['sideEffects'], 'files index has side effects')
+  t.ok(cacheIntegrity['sideEffects'][ENGINE_NAME]['build/Makefile'])
+  delete cacheIntegrity['sideEffects'][ENGINE_NAME]['build/Makefile']
 
-  t.ok(cacheIntegrity['build/binding.Makefile'])
+  t.ok(cacheIntegrity['sideEffects'][ENGINE_NAME]['build/binding.Makefile'])
   await writeJsonFile(cacheIntegrityPath, cacheIntegrity)
 
   await rimraf(path.join(prefix, 'node_modules'))
-  await headless(opts)
+  const opts2 = await testDefaults({
+    lockfileDir: prefix,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    storeDir: opts.storeDir,
+    verifyStoreIntegrity: false,
+  }, {}, {}, { packageImportMethod: 'copy' })
+  await headless(opts2)
 
   t.notOk(await exists(path.join(prefix, 'node_modules/diskusage/build/Makefile')), 'side effects cache correctly used')
   t.ok(await exists(path.join(prefix, 'node_modules/diskusage/build/binding.Makefile')), 'side effects cache correctly used')

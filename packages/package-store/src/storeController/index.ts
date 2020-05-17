@@ -1,4 +1,8 @@
-import { getFilePathByModeInCafs as _getFilePathByModeInCafs } from '@pnpm/cafs'
+import {
+  getFilePathByModeInCafs as _getFilePathByModeInCafs,
+  PackageFileInfo,
+  PackageFilesIndex,
+} from '@pnpm/cafs'
 import { FetchFunction } from '@pnpm/fetcher-base'
 import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
@@ -8,6 +12,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import rimraf = require('@zkochan/rimraf')
+import loadJsonFile = require('load-json-file')
 import pFilter = require('p-filter')
 import path = require('path')
 import exists = require('path-exists')
@@ -38,12 +43,22 @@ export default async function (
   const impPkg = createImportPackage(initOpts.packageImportMethod)
   const cafsDir = path.join(storeDir, 'files')
   const getFilePathByModeInCafs = _getFilePathByModeInCafs.bind(null, cafsDir)
-  const importPackage: ImportPackageFunction = (to, opts) => {
+  const importPackage: ImportPackageFunction = async (to, opts) => {
     const filesMap = {} as Record<string, string>
-    for (const [fileName, fileMeta] of Object.entries(opts.filesResponse.filesIndex)) {
+    let isBuilt!: boolean
+    let filesIndex!: Record<string, PackageFileInfo>
+    if (opts.targetEngine && opts.filesResponse.sideEffects?.[opts.targetEngine]) {
+      filesIndex = opts.filesResponse.sideEffects?.[opts.targetEngine]
+      isBuilt = true
+    } else {
+      filesIndex = opts.filesResponse.filesIndex
+      isBuilt = false
+    }
+    for (const [fileName, fileMeta] of Object.entries(filesIndex)) {
       filesMap[fileName] = getFilePathByModeInCafs(fileMeta.integrity, fileMeta.mode)
     }
-    return impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
+    await impPkg(to, { filesMap, fromStore: opts.filesResponse.fromStore, force: opts.force })
+    return { isBuilt }
   }
 
   return {
@@ -80,23 +95,30 @@ export default async function (
     }
   }
 
-  async function upload (builtPkgLocation: string, opts: {packageId: string, engine: string}) {
-    const filesIndex = await packageRequester.cafs.addFilesFromDir(builtPkgLocation)
+  async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) {
+    const sideEffectsIndex = await packageRequester.cafs.addFilesFromDir(builtPkgLocation)
     // TODO: move this to a function
     // This is duplicated in @pnpm/package-requester
     const integrity = {}
     await Promise.all(
-      Object.keys(filesIndex)
+      Object.keys(sideEffectsIndex)
         .map(async (filename) => {
-          const fileIntegrity = await filesIndex[filename].generatingIntegrity
+          const fileIntegrity = await sideEffectsIndex[filename].generatingIntegrity
           integrity[filename] = {
             integrity: fileIntegrity.toString(), // TODO: use the raw Integrity object
-            mode: filesIndex[filename].mode,
-            size: filesIndex[filename].size,
+            mode: sideEffectsIndex[filename].mode,
+            size: sideEffectsIndex[filename].size,
           }
         })
     )
-    const cachePath = path.join(storeDir, opts.packageId, 'side_effects', opts.engine)
-    await writeJsonFile(path.join(cachePath, 'integrity.json'), integrity, { indent: undefined })
+    let filesIndex!: PackageFilesIndex
+    try {
+      filesIndex = await loadJsonFile<PackageFilesIndex>(opts.filesIndexFile)
+    } catch (err) {
+      filesIndex = { files: integrity }
+    }
+    filesIndex.sideEffects = filesIndex.sideEffects ?? {}
+    filesIndex.sideEffects[opts.engine] = integrity
+    await writeJsonFile(opts.filesIndexFile, filesIndex, { indent: undefined })
   }
 }

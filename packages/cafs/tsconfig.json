@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../fetcher-base"
+    },
+    {
+      "path": "../store-controller-types"
     }
   ]
 }

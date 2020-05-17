@@ -15,6 +15,7 @@
   "license": "MIT",
   "dependencies": {
     "@pnpm/fetcher-base": "workspace:7.0.0-alpha.3",
+    "@pnpm/store-controller-types": "workspace:8.0.0-alpha.3",
     "@zkochan/rimraf": "1.0.0",
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",
