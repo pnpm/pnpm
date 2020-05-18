@@ -109,6 +109,7 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         },
         optionalDependencies: {
           'not-skipped-optional': '1.0.0',
+          'optional-dep': '1.0.0',
         },
         specifiers: {
           'dev-dep': '^1.0.0',
@@ -135,7 +136,22 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         dev: true,
         resolution: { integrity: '' },
       },
+      '/foo/1.0.0': {
+        optional: true,
+        resolution: { integrity: '' },
+      },
       '/not-skipped-optional/1.0.0': {
+        optional: true,
+        resolution: { integrity: '' },
+      },
+      '/optional-dep/1.0.0': {
+        dependencies: {
+          'bar': '1.0.0',
+          'foo': '1.0.0',
+        },
+        engines: {
+          node: '1000',
+        },
         optional: true,
         resolution: { integrity: '' },
       },

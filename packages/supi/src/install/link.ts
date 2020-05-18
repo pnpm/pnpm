@@ -176,6 +176,7 @@ export default async function linkPackages (
   const newCurrentLockfile = filterLockfileByImporters(newWantedLockfile, projectIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
+    skipped: new Set(),
   })
   const newDepPaths = await linkNewPackages(
     filterLockfileByImporters(opts.currentLockfile, projectIds, {
@@ -191,6 +192,7 @@ export default async function linkPackages (
       optional: opts.include.optionalDependencies,
       registries: opts.registries,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      skipped: opts.skipped,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
     }
@@ -367,11 +369,12 @@ async function linkNewPackages (
     registries: Registries,
     lockfileDir: string,
     sideEffectsCacheRead: boolean,
+    skipped: Set<string>,
     storeController: StoreController,
     virtualStoreDir: string,
   }
 ): Promise<string[]> {
-  const wantedRelDepPaths = R.keys(wantedLockfile.packages)
+  const wantedRelDepPaths = R.difference(R.keys(wantedLockfile.packages), Array.from(opts.skipped))
 
   let newDepPathsSet: Set<string>
   if (opts.force) {
