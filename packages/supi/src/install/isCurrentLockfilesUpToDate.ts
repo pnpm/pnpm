@@ -4,7 +4,7 @@ import R = require('ramda')
 export default function (
   currentLockfile: Lockfile,
   opts: {
-    skippedPkgIds: string[],
+    skipped: string[],
     wantedLockfile: Lockfile,
   }
 ) {
@@ -14,6 +14,6 @@ export default function (
     return false
   }
   const pkgs1 = R.keys(opts.wantedLockfile.packages)
-  const pkgs2 = R.keys(currentLockfile.packages).concat(opts.skippedPkgIds)
+  const pkgs2 = R.keys(currentLockfile.packages).concat(opts.skipped)
   return pkgs1.length === pkgs2.length && R.equals(pkgs1, pkgs2.sort())
 }

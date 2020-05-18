@@ -6,7 +6,7 @@ import {
 import { nameVerFromPkgSnapshot } from '@pnpm/lockfile-utils'
 import pnpmLogger from '@pnpm/logger'
 import packageIsInstallable from '@pnpm/package-is-installable'
-import { DependenciesField, Registries } from '@pnpm/types'
+import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
 import filterImporter from './filterImporter'
@@ -23,7 +23,6 @@ export default function filterByImportersAndEngine (
       pnpmVersion: string,
     },
     engineStrict: boolean,
-    registries: Registries,
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages?: boolean,
     failOnMissingDependencies: boolean,
@@ -51,7 +50,6 @@ export default function filterByImportersAndEngine (
       include: opts.include,
       includeIncompatiblePackages: opts.includeIncompatiblePackages === true,
       lockfileDir: opts.lockfileDir,
-      registries: opts.registries,
       skipped: opts.skipped,
     }) || {}
 
@@ -88,7 +86,6 @@ function pickPkgsWithAllDeps (
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages: boolean,
     lockfileDir: string,
-    registries: Registries,
     skipped: Set<string>,
   }
 ) {
@@ -114,7 +111,6 @@ function pkgAllDeps (
     include: { [dependenciesField in DependenciesField]: boolean },
     includeIncompatiblePackages: boolean,
     lockfileDir: string,
-    registries: Registries,
     skipped: Set<string>,
   }
 ) {

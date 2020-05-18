@@ -19,7 +19,6 @@ import {
   Registries,
 } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
-import * as dp from 'dependency-path'
 import path = require('path')
 import R = require('ramda')
 import removeDirectDependency from './removeDirectDependency'
@@ -50,7 +49,6 @@ export default async function prune (
 ): Promise<Set<string>> {
   const wantedLockfile = filterLockfile(opts.wantedLockfile, {
     include: opts.include,
-    registries: opts.registries,
     skipped: opts.skipped,
   })
   await Promise.all(importers.map(async ({ binsDir, id, modulesDir, pruneDirectDependencies, removePackages, rootDir }) => {
@@ -185,7 +183,6 @@ function getPkgsDepPathsOwnedOnlyByImporters (
     {
       failOnMissingDependencies: false,
       include,
-      registries,
       skipped,
     })
   const other = filterLockfileByImporters(lockfile,
@@ -193,7 +190,6 @@ function getPkgsDepPathsOwnedOnlyByImporters (
     {
       failOnMissingDependencies: false,
       include,
-      registries,
       skipped,
     })
   const packagesOfSelectedOnly = R.pickAll(R.difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots

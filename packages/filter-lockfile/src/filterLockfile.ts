@@ -1,5 +1,5 @@
 import { Lockfile } from '@pnpm/lockfile-types'
-import { DependenciesField, Registries } from '@pnpm/types'
+import { DependenciesField } from '@pnpm/types'
 import R = require('ramda')
 import filterImporter from './filterImporter'
 
@@ -7,7 +7,6 @@ export default function filterLockfile (
   lockfile: Lockfile,
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean },
-    registries: Registries,
     skipped: Set<string>,
   }
 ): Lockfile {

@@ -393,7 +393,7 @@ export async function mutateModules (
     const currentLockfileIsUpToDate = isCurrentLockfileUpToDate(
       ctx.currentLockfile,
       {
-        skippedPkgIds: Array.from(ctx.skipped),
+        skipped: Array.from(ctx.skipped),
         wantedLockfile: ctx.wantedLockfile,
       }
     )
@@ -785,7 +785,7 @@ async function installInContext (
 
   // waiting till the skipped packages are downloaded to the store
   await Promise.all(
-    R.props<string, ResolvedPackage>(Array.from(ctx.skipped), resolvedPackagesByPackageId)
+    R.props<string, ResolvedPackage>(Array.from(wantedToBeSkippedPackageIds), resolvedPackagesByPackageId)
       // skipped packages might have not been reanalized on a repeat install
       // so lets just ignore those by excluding nulls
       .filter(Boolean)

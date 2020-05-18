@@ -5,7 +5,7 @@ import {
 } from '@pnpm/lockfile-types'
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import pnpmLogger from '@pnpm/logger'
-import { DependenciesField, Registries } from '@pnpm/types'
+import { DependenciesField } from '@pnpm/types'
 import R = require('ramda')
 import filterImporter from './filterImporter'
 import LockfileMissingDependencyError from './LockfileMissingDependencyError'
@@ -17,7 +17,6 @@ export default function filterByImporters (
   importerIds: string[],
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean },
-    registries: Registries,
     skipped: Set<string>,
     failOnMissingDependencies: boolean,
   }

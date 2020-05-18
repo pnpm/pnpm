@@ -94,9 +94,6 @@ test('filterByImportersAndEngine(): skip packages that are not installable', (t)
         optionalDependencies: true,
       },
       lockfileDir: process.cwd(),
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
       skipped: skippedPackages,
     }
   )

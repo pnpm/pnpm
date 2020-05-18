@@ -66,9 +66,6 @@ test('filterByImporters(): only prod dependencies of one importer', (t) => {
         devDependencies: false,
         optionalDependencies: false,
       },
-      registries: {
-        default: 'https://registry.npmjs.org/',
-      },
       skipped: new Set<string>(),
     }
   )
@@ -154,9 +151,6 @@ test('filterByImporters(): fail on missing packages when failOnMissingDependenci
           devDependencies: false,
           optionalDependencies: false,
         },
-        registries: {
-          default: 'https://registry.npmjs.org/',
-        },
         skipped: new Set<string>(),
       }
     )
@@ -203,9 +197,6 @@ test('filterByImporters(): do not fail on missing packages when failOnMissingDep
         dependencies: true,
         devDependencies: false,
         optionalDependencies: false,
-      },
-      registries: {
-        default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(),
     }
@@ -304,9 +295,6 @@ test('filterByImporters(): do not include skipped packages', (t) => {
         dependencies: true,
         devDependencies: true,
         optionalDependencies: true,
-      },
-      registries: {
-        default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(['/optional-dep/1.0.0']),
     }
@@ -409,9 +397,6 @@ test('filterByImporters(): exclude orphan packages', (t) => {
         dependencies: true,
         devDependencies: true,
         optionalDependencies: true,
-      },
-      registries: {
-        default: 'https://registry.npmjs.org/',
       },
       skipped: new Set<string>(),
     }
