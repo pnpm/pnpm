@@ -78,7 +78,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   const currentLockfile = await project.readCurrentLockfile()
 
-  t.ok(R.isEmpty(currentLockfile.packages || {}), 'current lockfile does not contain skipped packages')
+  t.deepEqual(currentLockfile.packages, lockfile.packages, 'current lockfile contains skipped packages')
 
   const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
   t.deepEquals(modulesInfo.skipped, [
@@ -203,7 +203,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
 })
 
 test('optional subdependency is skipped', async (t: tape.Test) => {
-  prepareEmpty(t)
+  const project = prepareEmpty(t)
   const reporter = sinon.spy()
 
   const manifest = await addDependenciesToPackage({}, ['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
@@ -226,6 +226,30 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
+
+  t.comment('recreate the lockfile with optional dependencies present')
+
+  t.ok(await exists('pnpm-lock.yaml'))
+  await rimraf('pnpm-lock.yaml')
+
+  await mutateModules(
+    [
+      {
+        buildIndex: 0,
+        manifest,
+        mutation: 'install',
+        rootDir: process.cwd(),
+      },
+    ],
+    await testDefaults()
+  )
+
+  const lockfile = await project.readLockfile()
+
+  t.equal(Object.keys(lockfile.packages).length, 3)
+  t.ok(lockfile.packages['/not-compatible-with-any-os/1.0.0'])
+
+  t.comment('forced headless install should install non-compatible optional deps')
 
   // TODO: move next case to @pnpm/headless tests
   await mutateModules(
@@ -252,7 +276,11 @@ test('only that package is skipped which is an optional dependency only and not 
   prepareEmpty(t)
   const reporter = sinon.spy()
 
-  const manifest = await addDependenciesToPackage({}, ['peer-c@1.0.1', 'has-optional-dep-with-peer', 'not-compatible-with-any-os-and-has-peer'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage({}, [
+    'peer-c@1.0.1',
+    'has-optional-dep-with-peer',
+    'not-compatible-with-any-os-and-has-peer',
+  ], await testDefaults({ reporter }))
 
   {
     const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))

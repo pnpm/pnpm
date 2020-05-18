@@ -491,6 +491,7 @@ async function lockfileToDepGraph (
     const pkgSnapshotByLocation = {}
     await Promise.all(
       Object.keys(lockfile.packages).map(async (depPath) => {
+        if (opts.skipped.has(depPath)) return
         const pkgSnapshot = lockfile.packages![depPath]
         // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
         const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name

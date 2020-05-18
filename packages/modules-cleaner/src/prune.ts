@@ -97,9 +97,9 @@ export default async function prune (
   // we may only prune dependencies that are used only by that subset of importers.
   // Otherwise, we would break the node_modules.
   const currentPkgIdsByDepPaths = R.equals(selectedImporterIds, Object.keys(opts.wantedLockfile.importers))
-    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages ?? {})
+    ? getPkgsDepPaths(opts.registries, opts.currentLockfile.packages ?? {}, opts.skipped)
     : getPkgsDepPathsOwnedOnlyByImporters(selectedImporterIds, opts.registries, opts.currentLockfile, opts.include, opts.skipped)
-  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages || {})
+  const wantedPkgIdsByDepPaths = getPkgsDepPaths(opts.registries, wantedLockfile.packages || {}, opts.skipped)
 
   const oldDepPaths = Object.keys(currentPkgIdsByDepPaths)
   const newDepPaths = Object.keys(wantedPkgIdsByDepPaths)
@@ -162,10 +162,12 @@ function mergeDependencies (projectSnapshot: ProjectSnapshot): { [depName: strin
 
 function getPkgsDepPaths (
   registries: Registries,
-  packages: PackageSnapshots
+  packages: PackageSnapshots,
+  skipped: Set<string>
 ): {[relDepPath: string]: string} {
   const pkgIdsByDepPath = {}
   for (const relDepPath of Object.keys(packages)) {
+    if (skipped.has(relDepPath)) continue
     pkgIdsByDepPath[relDepPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
   }
   return pkgIdsByDepPath
@@ -193,5 +195,5 @@ function getPkgsDepPathsOwnedOnlyByImporters (
       skipped,
     })
   const packagesOfSelectedOnly = R.pickAll(R.difference(Object.keys(selected.packages!), Object.keys(other.packages!)), selected.packages!) as PackageSnapshots
-  return getPkgsDepPaths(registries, packagesOfSelectedOnly)
+  return getPkgsDepPaths(registries, packagesOfSelectedOnly, skipped)
 }

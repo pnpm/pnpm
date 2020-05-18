@@ -343,10 +343,5 @@ test(`rebuild should not fail on incomplete ${WANTED_LOCKFILE}`, async (t) => {
     storeDir,
   }, [])
 
-  t.ok(reporter.calledWithMatch({
-    level: 'debug',
-    message: `No entry for "/not-compatible-with-any-os/1.0.0" in ${WANTED_LOCKFILE}`,
-    name: 'pnpm',
-  }), 'missing package reported')
   t.end()
 })
