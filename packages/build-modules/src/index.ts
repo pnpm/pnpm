@@ -90,7 +90,7 @@ async function buildDependency (
       try {
         await opts.storeController.upload(depNode.peripheralLocation, {
           engine: ENGINE_NAME,
-          packageId: depNode.packageId,
+          filesIndexFile: depNode.filesIndexFile,
         })
       } catch (err) {
         if (err.statusCode === 403) {
@@ -153,6 +153,7 @@ function getSubgraphToBuild (
 
 export interface DependenciesGraphNode {
   fetchingBundledManifest?: () => Promise<PackageManifest>,
+  filesIndexFile: string,
   hasBundledDependencies: boolean,
   peripheralLocation: string,
   children: {[alias: string]: string},

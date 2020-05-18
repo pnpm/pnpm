@@ -1,12 +1,15 @@
+import { ENGINE_NAME } from '@pnpm/constants'
 import { prepareEmpty } from '@pnpm/prepare'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
+import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import writeJsonFile = require('write-json-file')
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
@@ -67,7 +70,7 @@ test.skip('caching side effects of native package when hoisting is used', async 
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 })
 
-test.skip('using side effects cache', async (t) => {
+test('using side effects cache', async (t) => {
   prepareEmpty(t)
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -80,13 +83,26 @@ test.skip('using side effects cache', async (t) => {
   }, {}, {}, { packageImportMethod: 'copy' })
   const manifest = await addDependenciesToPackage({}, ['diskusage@1.1.3'], opts)
 
-  const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage/1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
+  const filesIndexFile = path.join(opts.storeDir, 'files/10/0c9ac65f21cb83e1d3b9339731937e96d930d0000075d266d3443307659d27759e81f3bc0e87b202ade1f10c4af6845d060b4a985ee6b3ccc4de163a3d2171-index.json')
+  const filesIndex = await loadJsonFile(filesIndexFile)
+  t.ok(filesIndex['sideEffects'], 'files index has side effects')
+  t.ok(filesIndex['sideEffects'][ENGINE_NAME]['build/Makefile'])
+  delete filesIndex['sideEffects'][ENGINE_NAME]['build/Makefile']
+  await writeJsonFile(filesIndexFile, filesIndex)
 
   await rimraf('node_modules')
-  await addDependenciesToPackage(manifest, ['diskusage@1.1.3'], opts)
+  await rimraf('pnpm-lock.yaml') // to avoid headless install
+  const opts2 = await testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    storeDir: opts.storeDir,
+    verifyStoreIntegrity: false,
+  }, {}, {}, { packageImportMethod: 'copy' })
+  await addDependenciesToPackage(manifest, ['diskusage@1.1.3'], opts2)
 
-  t.ok(await exists('node_modules/diskusage/build/new-file.txt'), 'side effects cache correctly used')
+  t.notOk(await exists(path.resolve('node_modules/diskusage/build/Makefile')), 'side effects cache correctly used')
+  t.ok(await exists(path.resolve('node_modules/diskusage/build/binding.Makefile')), 'side effects cache correctly used')
 })
 
 test.skip('readonly side effects cache', async (t) => {

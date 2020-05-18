@@ -234,17 +234,19 @@ async function resolveAndFetch (
       },
       bundledManifest: fetchResult.bundledManifest,
       files: fetchResult.files,
+      filesIndexFile: fetchResult.filesIndexFile,
       finishing: fetchResult.finishing,
-    } as PackageResponse
+    }
   } catch (err) {
     throw err
   }
 }
 
 type FetchLock = {
-  finishing: Promise<void>,
-  files: Promise<PackageFilesResponse>,
   bundledManifest?: Promise<BundledManifest>,
+  files: Promise<PackageFilesResponse>,
+  filesIndexFile: string,
+  finishing: Promise<void>,
   inStoreLocation: string,
 }
 
@@ -274,8 +276,9 @@ function fetchToStore (
     resolution: Resolution,
   }
 ): {
-  files: () => Promise<PackageFilesResponse>,
   bundledManifest?: () => Promise<BundledManifest>,
+  filesIndexFile: string,
+  files: () => Promise<PackageFilesResponse>,
   finishing: () => Promise<void>,
   inStoreLocation: string,
 } {
@@ -286,19 +289,24 @@ function fetchToStore (
     const bundledManifest = pDefer<BundledManifest>()
     const files = pDefer<PackageFilesResponse>()
     const finishing = pDefer<void>()
+    const filesIndexFile = opts.resolution['integrity']
+      ? ctx.getFilePathInCafs(opts.resolution['integrity'], 'index')
+      : path.join(target, 'integrity.json')
 
-    doFetchToStore(bundledManifest, files, finishing) // tslint:disable-line
+    doFetchToStore(filesIndexFile, bundledManifest, files, finishing) // tslint:disable-line
 
     if (opts.fetchRawManifest) {
       ctx.fetchingLocker.set(opts.pkgId, {
         bundledManifest: removeKeyOnFail(bundledManifest.promise),
         files: removeKeyOnFail(files.promise),
+        filesIndexFile,
         finishing: removeKeyOnFail(finishing.promise),
         inStoreLocation: target,
       })
     } else {
       ctx.fetchingLocker.set(opts.pkgId, {
         files: removeKeyOnFail(files.promise),
+        filesIndexFile,
         finishing: removeKeyOnFail(finishing.promise),
         inStoreLocation: target,
       })
@@ -310,9 +318,9 @@ function fetchToStore (
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
     // Otherwise, if a package was not in store when the server started, it will be always
     // reported as "downloaded" instead of "reused".
-    files.promise.then(({ filesIndex, fromStore }) => { // tslint:disable-line
+    files.promise.then((cache) => { // tslint:disable-line
       // If it's already in the store, we don't need to update the cache
-      if (fromStore) {
+      if (cache.fromStore) {
         return
       }
 
@@ -323,13 +331,11 @@ function fetchToStore (
       if (!tmp) return
 
       ctx.fetchingLocker.set(opts.pkgId, {
-        bundledManifest: tmp.bundledManifest,
+        ...tmp,
         files: Promise.resolve({
-          filesIndex,
+          ...cache,
           fromStore: true,
         }),
-        finishing: tmp.finishing,
-        inStoreLocation: tmp.inStoreLocation,
       })
     })
     .catch(() => {
@@ -352,6 +358,7 @@ function fetchToStore (
   return {
     bundledManifest: result.bundledManifest ? pShare(result.bundledManifest) : undefined,
     files: pShare(result.files),
+    filesIndexFile: result.filesIndexFile,
     finishing: pShare(result.finishing),
     inStoreLocation: result.inStoreLocation,
   }
@@ -366,15 +373,13 @@ function fetchToStore (
   }
 
   async function doFetchToStore (
+    filesIndexFile: string,
     bundledManifest: pDefer.DeferredPromise<BundledManifest>,
     files: pDefer.DeferredPromise<PackageFilesResponse>,
     finishing: pDefer.DeferredPromise<void>
   ) {
     try {
       const isLocalTarballDep = opts.pkgId.startsWith('file:')
-      const pkgIndexFilePath = opts.resolution['integrity']
-        ? ctx.getFilePathInCafs(opts.resolution['integrity'], 'index')
-        : path.join(target, 'integrity.json')
 
       if (
         !opts.force &&
@@ -385,7 +390,7 @@ function fetchToStore (
       ) {
         let pkgFilesIndex
         try {
-          pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(pkgIndexFilePath)
+          pkgFilesIndex = await loadJsonFile<PackageFilesIndex>(filesIndexFile)
         } catch (err) {
           // ignoring. It is fine if the integrity file is not present. Just refetch the package
         }
@@ -400,6 +405,7 @@ function fetchToStore (
             files.resolve({
               filesIndex: pkgFilesIndex.files,
               fromStore: true,
+              sideEffects: pkgFilesIndex.sideEffects,
             })
             if (manifest) {
               manifest()
@@ -475,7 +481,7 @@ function fetchToStore (
             }
           })
       )
-      await writeJsonFile(pkgIndexFilePath, { files: integrity }, { indent: undefined })
+      await writeJsonFile(filesIndexFile, { files: integrity }, { indent: undefined })
       finishing.resolve(undefined)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal

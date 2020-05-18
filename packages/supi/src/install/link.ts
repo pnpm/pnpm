@@ -190,6 +190,7 @@ export default async function linkPackages (
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       registries: opts.registries,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
     }
@@ -365,6 +366,7 @@ async function linkNewPackages (
     optional: boolean,
     registries: Registries,
     lockfileDir: string,
+    sideEffectsCacheRead: boolean,
     storeController: StoreController,
     virtualStoreDir: string,
   }
@@ -423,7 +425,10 @@ async function linkNewPackages (
       lockfileDir: opts.lockfileDir,
       optional: opts.optional,
     }),
-    linkAllPkgs(opts.storeController, newPkgs, opts),
+    linkAllPkgs(opts.storeController, newPkgs, {
+      force: opts.force,
+      targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
+    }),
   ])
 
   return newDepPaths
@@ -466,16 +471,19 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
+    targetEngine?: string,
   }
 ) {
   return Promise.all(
-    depNodes.map(async ({ fetchingFiles, independent, peripheralLocation }) => {
-      const filesResponse = await fetchingFiles()
+    depNodes.map(async (depNode) => {
+      const filesResponse = await depNode.fetchingFiles()
 
-      return storeController.importPackage(peripheralLocation, {
+      const { isBuilt } = await storeController.importPackage(depNode.peripheralLocation, {
         filesResponse,
         force: opts.force,
+        targetEngine: opts.targetEngine,
       })
+      depNode.isBuilt = isBuilt
     })
   )
 }

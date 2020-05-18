@@ -97,6 +97,7 @@ importers:
   packages/cafs:
     dependencies:
       '@pnpm/fetcher-base': 'link:../fetcher-base'
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@zkochan/rimraf': 1.0.0
       concat-stream: 2.0.0
       decompress-maybe: 1.0.0
@@ -117,6 +118,7 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/fetcher-base': 'workspace:7.0.0-alpha.3'
+      '@pnpm/store-controller-types': 'workspace:8.0.0-alpha.3'
       '@types/concat-stream': ^1.6.0
       '@types/mz': ^2.7.1
       '@types/node': ^13.13.6

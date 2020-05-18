@@ -1,6 +1,6 @@
 import { importingLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
-import { ImportPackageFunction } from '@pnpm/store-controller-types'
+import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
@@ -11,7 +11,16 @@ import importIndexedDir from '../fs/importIndexedDir'
 
 const limitLinking = pLimit(16)
 
-export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'): (to: string, opts: { filesMap: Record<string, string>, fromStore: boolean, force: boolean }) => ReturnType<ImportPackageFunction> => {
+export default (
+  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone'
+): (
+  to: string,
+  opts: {
+    filesMap: Record<string, string>,
+    fromStore: boolean,
+    force: boolean
+  }
+) => ReturnType<(to: string, opts: { filesResponse: PackageFilesResponse, force: boolean }) => Promise<void>> => {
   const importPackage = createImportPackage(packageImportMethod)
   return (to, opts) => limitLinking(() => importPackage(to, opts))
 }
