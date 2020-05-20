@@ -1,5 +1,32 @@
 # pnpm
 
+## 5.0.0-alpha.7
+
+### Major Changes
+
+- 7b88dcfd7: In case of a fatal error, write the logs to `node_modules/.pnpm-debug.log` (not to `pnpm-debug.log`).
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [083d78968]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [45fdcfde2]
+  - @pnpm/config@9.0.0-alpha.2
+  - @pnpm/plugin-commands-installation@2.0.0-alpha.7
+  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.5
+  - @pnpm/plugin-commands-store@2.0.0-alpha.5
+  - @pnpm/cli-utils@0.4.5-alpha.2
+  - @pnpm/default-reporter@7.2.5-alpha.2
+  - @pnpm/plugin-commands-audit@1.0.9-alpha.2
+  - @pnpm/plugin-commands-listing@1.0.10-alpha.2
+  - @pnpm/plugin-commands-outdated@1.0.10-alpha.3
+  - @pnpm/plugin-commands-publishing@1.0.12-alpha.4
+  - @pnpm/plugin-commands-script-runners@1.0.9-alpha.3
+  - @pnpm/plugin-commands-server@1.0.11-alpha.5
+  - @pnpm/plugin-commands-import@1.0.12-alpha.7
+  - @pnpm/filter-workspace-packages@2.0.15-alpha.2
+
 ## 5.0.0-alpha.6
 
 ### Major Changes

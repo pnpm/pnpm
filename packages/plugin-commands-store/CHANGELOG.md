@@ -1,5 +1,25 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.0-alpha.5
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [242cf8737]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/config@9.0.0-alpha.2
+  - @pnpm/store-controller-types@8.0.0-alpha.4
+  - @pnpm/cafs@1.0.0-alpha.5
+  - @pnpm/store-connection-manager@0.3.0-alpha.5
+  - @pnpm/cli-utils@0.4.5-alpha.2
+  - @pnpm/get-context@1.2.2-alpha.2
+  - @pnpm/lockfile-utils@2.0.12-alpha.1
+
 ## 2.0.0-alpha.4
 
 ### Major Changes

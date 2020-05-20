@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/assert-store",
   "description": "Utils for testing pnpm store",
-  "version": "1.0.1-alpha.1",
+  "version": "1.0.1-alpha.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -39,7 +39,7 @@
     "test": "pnpm run compile && ts-node test"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:^1.0.0-alpha.4",
+    "@pnpm/cafs": "workspace:^1.0.0-alpha.5",
     "path-exists": "4.0.0"
   },
   "devDependencies": {

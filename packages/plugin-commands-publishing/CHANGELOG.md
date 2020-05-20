@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.0.0-alpha.4
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [45fdcfde2]
+  - @pnpm/config@9.0.0-alpha.2
+  - @pnpm/cli-utils@0.4.5-alpha.2
+  - @pnpm/sort-packages@1.0.10-alpha.2
+
 ## 2.0.0-alpha.3
 
 ### Patch Changes

@@ -1,5 +1,20 @@
 # @pnpm/cafs
 
+## 1.0.0-alpha.5
+
+### Minor Changes
+
+- a5febb913: sideEffects property added to files index file.
+
+### Patch Changes
+
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/store-controller-types@8.0.0-alpha.4
+
 ## 1.0.0-alpha.4
 
 ### Major Changes

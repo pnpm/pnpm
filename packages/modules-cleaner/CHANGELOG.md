@@ -1,5 +1,23 @@
 # @pnpm/modules-cleaner
 
+## 9.0.0-alpha.5
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [c25cccdad]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [2485eaf60]
+- Updated dependencies [a5febb913]
+- Updated dependencies [6a8a97eee]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/filter-lockfile@4.0.0-alpha.2
+  - @pnpm/store-controller-types@8.0.0-alpha.4
+  - @pnpm/lockfile-types@2.0.1-alpha.0
+  - @pnpm/lockfile-utils@2.0.12-alpha.1
+
 ## 9.0.0-alpha.4
 
 ### Major Changes

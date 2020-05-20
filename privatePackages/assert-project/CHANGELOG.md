@@ -1,5 +1,15 @@
 # @pnpm/assert-project
 
+## 2.1.0-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [ca9f50844]
+- Updated dependencies [6a8a97eee]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/lockfile-types@2.0.1-alpha.0
+  - @pnpm/assert-store@1.0.1-alpha.2
+
 ## 2.1.0-alpha.1
 
 ### Minor Changes

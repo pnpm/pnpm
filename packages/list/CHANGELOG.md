@@ -1,5 +1,11 @@
 # @pnpm/list
 
+## 4.0.27-alpha.2
+
+### Patch Changes
+
+- dependencies-hierarchy@8.0.21-alpha.2
+
 ## 4.0.27-alpha.1
 
 ### Patch Changes

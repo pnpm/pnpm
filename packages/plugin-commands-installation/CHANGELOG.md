@@ -1,5 +1,40 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.0-alpha.7
+
+### Major Changes
+
+- 45fdcfde2: Locking is removed.
+
+### Minor Changes
+
+- 242cf8737: The `link-workspace-packages` setting may be set to `deep`. When using `deep`,
+  workspace packages are linked into subdependencies, not only to direct dependencies of projects.
+
+### Patch Changes
+
+- 083d78968: Allow referencing packages not under the directory containing `pnpm-workspace.yaml`.
+- Updated dependencies [242cf8737]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [cc8a3bd31]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [242cf8737]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [c25cccdad]
+  - @pnpm/config@9.0.0-alpha.2
+  - @pnpm/constants@4.0.0-alpha.1
+  - supi@0.39.0-alpha.7
+  - @pnpm/package-store@9.0.0-alpha.5
+  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.5
+  - @pnpm/store-connection-manager@0.3.0-alpha.5
+  - @pnpm/cli-utils@0.4.5-alpha.2
+  - @pnpm/find-workspace-packages@2.2.2-alpha.2
+  - @pnpm/outdated@7.0.23-alpha.3
+  - @pnpm/sort-packages@1.0.10-alpha.2
+  - @pnpm/filter-workspace-packages@2.0.15-alpha.2
+
 ## 2.0.0-alpha.6
 
 ### Major Changes

@@ -1,5 +1,12 @@
 # @pnpm/lockfile-utils
 
+## 2.0.12-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [6a8a97eee]
+  - @pnpm/lockfile-types@2.0.1-alpha.0
+
 ## 2.0.12-alpha.0
 
 ### Patch Changes

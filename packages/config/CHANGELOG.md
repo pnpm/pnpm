@@ -1,5 +1,21 @@
 # @pnpm/config
 
+## 9.0.0-alpha.2
+
+### Major Changes
+
+- 45fdcfde2: Locking is removed.
+
+### Minor Changes
+
+- 242cf8737: The `link-workspace-packages` setting may be set to `deep`. When using `deep`,
+  workspace packages are linked into subdependencies, not only to direct dependencies of projects.
+
+### Patch Changes
+
+- Updated dependencies [ca9f50844]
+  - @pnpm/constants@4.0.0-alpha.1
+
 ## 8.3.1-alpha.1
 
 ### Patch Changes

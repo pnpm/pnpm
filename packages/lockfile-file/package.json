@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile-file",
-  "version": "3.0.9-alpha.1",
+  "version": "3.0.9-alpha.2",
   "description": "Read/write pnpm-lock.yaml files",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -46,9 +46,9 @@
     "yaml-tag": "^1.1.0"
   },
   "dependencies": {
-    "@pnpm/constants": "workspace:4.0.0-alpha.0",
+    "@pnpm/constants": "workspace:4.0.0-alpha.1",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/lockfile-types": "workspace:2.0.0",
+    "@pnpm/lockfile-types": "workspace:2.0.1-alpha.0",
     "@pnpm/types": "workspace:6.0.0-alpha.0",
     "@zkochan/rimraf": "^1.0.0",
     "js-yaml": "^3.13.1",

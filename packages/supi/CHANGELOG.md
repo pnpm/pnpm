@@ -1,5 +1,53 @@
 # supi
 
+## 0.39.0-alpha.7
+
+### Minor Changes
+
+- 242cf8737: The `linkWorkspacePackages` option is removed. A new option called `linkWorkspacePackagesDepth` is added.
+  When `linkWorkspacePackageDepth` is `0`, workspace packages are linked to direct dependencies even if these direct
+  dependencies are not using workspace ranges (so this is similar to the old `linkWorkspacePackages=true`).
+  `linkWorkspacePackageDepth` also allows to link workspace packages to subdependencies by setting the max depth.
+  Setting it to `Infinity` will make the resolution algorithm always prefer packages from the workspace over packages
+  from the registry.
+- 45fdcfde2: Locking is removed.
+- a5febb913: The importPackage function of the store controller is importing packages directly from the side-effects cache.
+
+### Patch Changes
+
+- cc8a3bd31: Installation on a non-up-to-date `node_modules`.
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- c25cccdad: The lockfile should be recreated correctly when an up-to-date `node_modules` is present.
+  The recreated lockfile should contain all the skipped optional dependencies.
+- Updated dependencies [ca9f50844]
+- Updated dependencies [c25cccdad]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [242cf8737]
+- Updated dependencies [cc8a3bd31]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [2485eaf60]
+- Updated dependencies [a5febb913]
+- Updated dependencies [b47f9737a]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [c25cccdad]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/filter-lockfile@4.0.0-alpha.2
+  - @pnpm/package-requester@12.0.0-alpha.5
+  - @pnpm/store-controller-types@8.0.0-alpha.4
+  - @pnpm/resolve-dependencies@15.0.0-alpha.6
+  - @pnpm/headless@13.0.0-alpha.5
+  - @pnpm/hoist@3.0.0-alpha.2
+  - @pnpm/modules-cleaner@9.0.0-alpha.5
+  - @pnpm/build-modules@5.0.0-alpha.5
+  - @pnpm/get-context@1.2.2-alpha.2
+  - @pnpm/lockfile-file@3.0.9-alpha.2
+  - @pnpm/prune-lockfile@2.0.8-alpha.2
+  - @pnpm/lockfile-utils@2.0.12-alpha.1
+  - @pnpm/lockfile-walker@2.0.3-alpha.1
+
 ## 0.39.0-alpha.6
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @pnpm/hoist
 
+## 3.0.0-alpha.2
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [ca9f50844]
+- Updated dependencies [6a8a97eee]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/lockfile-types@2.0.1-alpha.0
+  - @pnpm/lockfile-utils@2.0.12-alpha.1
+  - @pnpm/lockfile-walker@2.0.3-alpha.1
+
 ## 3.0.0-alpha.1
 
 ### Major Changes

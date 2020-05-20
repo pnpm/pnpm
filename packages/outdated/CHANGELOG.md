@@ -1,5 +1,17 @@
 # @pnpm/outdated
 
+## 7.0.23-alpha.3
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [45fdcfde2]
+  - @pnpm/config@9.0.0-alpha.2
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/lockfile-file@3.0.9-alpha.2
+  - @pnpm/lockfile-utils@2.0.12-alpha.1
+
 ## 7.0.23-alpha.2
 
 ### Patch Changes

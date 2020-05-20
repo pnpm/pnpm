@@ -1,5 +1,14 @@
 # @pnpm/get-context
 
+## 2.0.0-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [ca9f50844]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/lockfile-file@3.0.9-alpha.2
+  - @pnpm/read-projects-context@2.0.2-alpha.2
+
 ## 2.0.0-alpha.1
 
 ### Major Changes

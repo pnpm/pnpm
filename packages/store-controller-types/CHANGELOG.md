@@ -1,5 +1,18 @@
 # @pnpm/store-controller-types
 
+## 8.0.0-alpha.4
+
+### Major Changes
+
+- 16d1ac0fd: `body.cacheByEngine` removed from `PackageResponse`.
+- a5febb913: The importPackage function of the store controller is importing packages directly from the side-effects cache.
+- a5febb913: The upload function of the store controller accepts `opts.filesIndexFile` instead of `opts.packageId`.
+
+### Minor Changes
+
+- a5febb913: Package request response contains the path to the files index file.
+- a5febb913: sideEffects property added to files index file.
+
 ## 8.0.0-alpha.3
 
 ### Major Changes

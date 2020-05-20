@@ -1,5 +1,23 @@
 # @pnpm/store-connection-manager
 
+## 0.3.0-alpha.5
+
+### Minor Changes
+
+- 45fdcfde2: Locking is removed.
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/config@9.0.0-alpha.2
+  - @pnpm/package-store@9.0.0-alpha.5
+  - @pnpm/server@8.0.0-alpha.5
+  - @pnpm/default-fetcher@5.1.19-alpha.5
+
 ## 0.3.0-alpha.4
 
 ### Minor Changes

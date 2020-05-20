@@ -1,5 +1,22 @@
 # @pnpm/build-modules
 
+## 5.0.0-alpha.5
+
+### Major Changes
+
+- a5febb913: The upload function of the store controller accepts `opts.filesIndexFile` instead of `opts.packageId`.
+
+### Patch Changes
+
+- Updated dependencies [ca9f50844]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/store-controller-types@8.0.0-alpha.4
+
 ## 5.0.0-alpha.4
 
 ### Major Changes

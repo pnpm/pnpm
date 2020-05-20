@@ -1,5 +1,25 @@
 # @pnpm/package-store
 
+## 9.0.0-alpha.5
+
+### Major Changes
+
+- a5febb913: The importPackage function of the store controller is importing packages directly from the side-effects cache.
+- a5febb913: The upload function of the store controller accepts `opts.filesIndexFile` instead of `opts.packageId`.
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/package-requester@12.0.0-alpha.5
+  - @pnpm/store-controller-types@8.0.0-alpha.4
+  - @pnpm/cafs@1.0.0-alpha.5
+
 ## 9.0.0-alpha.4
 
 ### Major Changes

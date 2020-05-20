@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/plugin-commands-listing",
-  "version": "1.0.10-alpha.1",
+  "version": "1.0.10-alpha.2",
   "description": "The list and why commands of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/plugin-commands-listing#readme",
   "devDependencies": {
-    "@pnpm/constants": "workspace:4.0.0-alpha.0",
+    "@pnpm/constants": "workspace:4.0.0-alpha.1",
     "@pnpm/filter-workspace-packages": "workspace:*",
     "@pnpm/logger": "^3.2.2",
     "@pnpm/plugin-commands-installation": "workspace:*",
@@ -47,11 +47,11 @@
     "write-yaml-file": "^4.1.0"
   },
   "dependencies": {
-    "@pnpm/cli-utils": "workspace:0.4.5-alpha.1",
+    "@pnpm/cli-utils": "workspace:0.4.5-alpha.2",
     "@pnpm/common-cli-options-help": "workspace:0.1.5",
-    "@pnpm/config": "workspace:8.3.1-alpha.1",
+    "@pnpm/config": "workspace:9.0.0-alpha.2",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/list": "workspace:4.0.27-alpha.1",
+    "@pnpm/list": "workspace:4.0.27-alpha.2",
     "@pnpm/types": "workspace:6.0.0-alpha.0",
     "common-tags": "1.8.0",
     "ramda": "0.27.0",

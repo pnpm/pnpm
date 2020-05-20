@@ -1,5 +1,12 @@
 # dependencies-hierarchy
 
+## 8.0.21-alpha.2
+
+### Patch Changes
+
+- @pnpm/lockfile-file@3.0.9-alpha.2
+- @pnpm/lockfile-utils@2.0.12-alpha.1
+
 ## 8.0.21-alpha.1
 
 ### Patch Changes

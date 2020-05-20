@@ -1,5 +1,21 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.12-alpha.7
+
+### Patch Changes
+
+- Updated dependencies [ca9f50844]
+- Updated dependencies [cc8a3bd31]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [242cf8737]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [c25cccdad]
+  - @pnpm/constants@4.0.0-alpha.1
+  - supi@0.39.0-alpha.7
+  - @pnpm/store-connection-manager@0.3.0-alpha.5
+  - @pnpm/cli-utils@0.4.5-alpha.2
+
 ## 1.0.12-alpha.6
 
 ### Patch Changes

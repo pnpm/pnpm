@@ -1,5 +1,33 @@
 # @pnpm/headless
 
+## 13.0.0-alpha.5
+
+### Major Changes
+
+- a5febb913: The importPackage function of the store controller is importing packages directly from the side-effects cache.
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [ca9f50844]
+- Updated dependencies [c25cccdad]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [2485eaf60]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/filter-lockfile@4.0.0-alpha.2
+  - @pnpm/package-requester@12.0.0-alpha.5
+  - @pnpm/store-controller-types@8.0.0-alpha.4
+  - @pnpm/hoist@3.0.0-alpha.2
+  - @pnpm/modules-cleaner@9.0.0-alpha.5
+  - @pnpm/build-modules@5.0.0-alpha.5
+  - @pnpm/lockfile-file@3.0.9-alpha.2
+  - @pnpm/lockfile-utils@2.0.12-alpha.1
+
 ## 13.0.0-alpha.4
 
 ### Major Changes

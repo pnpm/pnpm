@@ -1,6 +1,14 @@
 # @pnpm/lockfile-walker
 
+## 2.0.3-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [6a8a97eee]
+  - @pnpm/lockfile-types@2.0.1-alpha.0
+
 ## 2.0.3-alpha.0
+
 ### Patch Changes
 
 - Updated dependencies [da091c71]

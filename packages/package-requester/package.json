@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "12.0.0-alpha.4",
+  "version": "12.0.0-alpha.5",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,13 +35,13 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/cafs": "workspace:1.0.0-alpha.4",
+    "@pnpm/cafs": "workspace:1.0.0-alpha.5",
     "@pnpm/core-loggers": "workspace:4.0.2-alpha.0",
     "@pnpm/fetcher-base": "workspace:7.0.0-alpha.3",
     "@pnpm/pkgid-to-filename": "3.0.0",
     "@pnpm/read-package-json": "workspace:3.1.1-alpha.0",
     "@pnpm/resolver-base": "workspace:7.0.1-alpha.0",
-    "@pnpm/store-controller-types": "workspace:8.0.0-alpha.3",
+    "@pnpm/store-controller-types": "workspace:8.0.0-alpha.4",
     "@pnpm/types": "workspace:6.0.0-alpha.0",
     "load-json-file": "6.2.0",
     "mz": "2.7.0",
