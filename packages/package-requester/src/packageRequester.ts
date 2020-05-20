@@ -197,7 +197,6 @@ async function resolveAndFetch (
     if (options.skipFetch && manifest) {
       return {
         body: {
-          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storeDir, id) : new Map(),
           id,
           inStoreLocation: path.join(ctx.storeDir, pkgIdToFilename(id, options.lockfileDir)),
           isLocal: false as const,
@@ -221,7 +220,6 @@ async function resolveAndFetch (
 
     return {
       body: {
-        cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storeDir, id) : new Map(),
         id,
         inStoreLocation: fetchResult.inStoreLocation,
         isLocal: false as const,

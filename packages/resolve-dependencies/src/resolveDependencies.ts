@@ -130,7 +130,6 @@ export interface ResolutionContext {
   currentLockfile: Lockfile,
   linkWorkspacePackagesDepth: number,
   lockfileDir: string,
-  sideEffectsCache: boolean,
   storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
@@ -146,8 +145,6 @@ export interface ResolutionContext {
   virtualStoreDir: string,
   resolutionStrategy: 'fast' | 'fewer-dependencies',
 }
-
-const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
 export type PkgAddress = {
   alias: string,
@@ -203,7 +200,6 @@ export interface ResolvedPackage {
     cpu?: string[],
     os?: string[],
   },
-  engineCache?: string,
 }
 
 export default async function resolveDependencies (
@@ -555,7 +551,6 @@ async function resolveDependency (
       preferredVersions: options.preferredVersions,
       projectDir: options.currentDepth > 0 ? ctx.lockfileDir : ctx.prefix,
       registry: wantedDependency.alias && pickRegistryForPackage(ctx.registries, wantedDependency.alias) || ctx.registries.default,
-      sideEffectsCache: ctx.sideEffectsCache,
       // Unfortunately, even when run with --lockfile-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
@@ -785,7 +780,6 @@ function getResolvedPackage (
     },
     depPath: options.depPath,
     dev: options.wantedDependency.dev,
-    engineCache: !options.force && options.pkgResponse.body.cacheByEngine?.[ENGINE_NAME],
     fetchingBundledManifest: options.pkgResponse.bundledManifest,
     fetchingFiles: options.pkgResponse.files!,
     filesIndexFile: options.pkgResponse.filesIndexFile!,

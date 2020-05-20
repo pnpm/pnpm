@@ -217,7 +217,7 @@ function resolvePeersOfNode (
   ctx.pathsByNodeId[nodeId] = depPath
   if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
     const independent = ctx.independentLeaves && resolvedPackage.independent
-    const centralLocation = resolvedPackage.engineCache || path.join(resolvedPackage.path, 'node_modules', resolvedPackage.name)
+    const centralLocation = path.join(resolvedPackage.path, 'node_modules', resolvedPackage.name)
     const peripheralLocation = !independent
       ? path.join(modules, resolvedPackage.name)
       : centralLocation
@@ -246,7 +246,6 @@ function resolvePeersOfNode (
       hasBundledDependencies: resolvedPackage.hasBundledDependencies,
       independent,
       installable: node.installable,
-      isBuilt: !!resolvedPackage.engineCache,
       isPure,
       modules,
       name: resolvedPackage.name,

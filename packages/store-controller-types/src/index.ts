@@ -119,7 +119,6 @@ export type PackageResponse = {
     updated: boolean,
     resolvedVia?: string,
     inStoreLocation?: string,
-    cacheByEngine?: Map<string, string>,
     // This is useful for recommending updates.
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.
