@@ -14,7 +14,7 @@
 
 Features:
 
-* **Fast.** As fast as npm and Yarn.
+* **Fast.** As fast as `npm` and `Yarn`.
 * **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
 * **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
@@ -34,12 +34,12 @@ Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
 
 ## Background
 
-pnpm uses a content-addressable filesystem to store all files from all module directories on a disk.
-When using npm or Yarn, if you have 100 projects using lodash, you will have 100 copies of lodash on disk.
-With pnpm, lodash will be stored in a content-addressable storage, so:
+`pnpm` uses a content-addressable filesystem to store all files from all module directories on a disk.
+When using `npm` or `Yarn`, if you have 100 projects using `lodash`, you will have 100 copies of `lodash` on disk.
+With `pnpm`, `lodash` will be stored in a content-addressable storage, so:
 
-1. If you depend on different versions of lodash, only the files that differ are added to the store.
-  If lodash has 100 files, and a new version has a change only in one of those files,
+1. If you depend on different versions of `lodash`, only the files that differ are added to the store.
+  If `lodash` has 100 files, and a new version has a change only in one of those files,
   `pnpm update` will only add 1 new file to the storage.
 1. All the files are saved in a single place on the disk. When packages are installed, their files are hard-linked
   from that single place consuming no additional disk space.
@@ -63,13 +63,13 @@ On Windows (PowerShell):
 ```
 
 
-Via npx:
+Via `npx`:
 
 ```
 npx pnpm add -g pnpm
 ```
 
-Once you first installed pnpm, you can upgrade it using pnpm:
+Once you have installed `pnpm`, you can upgrade it using `pnpm`:
 
 ```
 pnpm add -g pnpm
@@ -81,7 +81,7 @@ pnpm add -g pnpm
 
 ### pnpm CLI
 
-Just use pnpm in place of npm. For instance, to install run:
+Just use `pnpm` in place of `npm`. For instance, to install, run:
 
 ```
 pnpm install
@@ -89,12 +89,12 @@ pnpm install
 
 For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website.
 
-For using the programmatic API, use pnpm's engine: [supi](packages/supi).
+For using the programmatic API, use `pnpm`'s engine: [supi](packages/supi).
 
 ### pnpx CLI
 
-npm has a great package runner called [npx](https://medium.com/@maybekatz/introducing-npx-an-npm-package-runner-55f7d4bd282b).
-pnpm offers the same tool via the `pnpx` command. The only difference is that `pnpx` uses pnpm for installing packages.
+`npm` has a great package runner called [npx](https://medium.com/@maybekatz/introducing-npx-an-npm-package-runner-55f7d4bd282b).
+`pnpm` offers the same tool via the `pnpx` command. The only difference is that `pnpx` uses `pnpm` for installing packages.
 
 The following command installs a temporary create-react-app and calls it,
 without polluting global installs or requiring more than one step!
@@ -105,7 +105,7 @@ pnpx create-react-app my-cool-new-app
 
 ## Benchmark
 
-pnpm is as fast as npm and Yarn. See all benchmarks [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers).
+`pnpm` is as fast as `npm` and `Yarn`. See all benchmarks [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers).
 
 Benchmarks on a React app:
 
