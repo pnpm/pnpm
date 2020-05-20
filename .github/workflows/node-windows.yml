@@ -31,7 +31,7 @@ jobs:
         npm install pnpm@alpha -g
         pnpm --version
     - name: pnpm install
-      run: pnpm recursive install --no-lock
+      run: pnpm recursive install
     - name: run tests (master)
       if: github.ref == 'refs/heads/master'
       run: pnpm run test-master
