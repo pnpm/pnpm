@@ -126,7 +126,6 @@ export interface ResolutionContext {
   childrenByParentId: ChildrenByParentId,
   pendingNodes: PendingNode[],
   wantedLockfile: Lockfile,
-  updateLockfile: boolean,
   currentLockfile: Lockfile,
   linkWorkspacePackagesDepth: number,
   lockfileDir: string,
@@ -231,7 +230,6 @@ export default async function resolveDependencies (
     proceed: options.proceed,
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
-    updateLockfile: ctx.updateLockfile,
   })
   const resolveDepOpts = {
     alwaysTryWorkspacePackages: options.alwaysTryWorkspacePackages,
@@ -366,7 +364,6 @@ function getDepsToResolve (
     proceed: boolean,
     registries: Registries,
     resolvedDependencies?: ResolvedDependencies,
-    updateLockfile: boolean,
   }
 ) {
   const resolvedDependencies = options.resolvedDependencies ?? {}
@@ -375,7 +372,7 @@ function getDepsToResolve (
   // The only reason we resolve children in case the package depends on peers
   // is to get information about the existing dependencies, so that they can
   // be merged with the resolved peers.
-  const proceedAll = options.proceed || options.parentDependsOnPeers || options.updateLockfile
+  const proceedAll = options.proceed || options.parentDependsOnPeers
   let allPeers = new Set<string>()
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]

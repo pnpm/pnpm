@@ -590,24 +590,26 @@ async function installInContext (
     stage: 'resolution_started',
   })
 
-  const defaultUpdateDepth = (() => {
-    if (opts.force) return Infinity
-    if (opts.update) {
-      return opts.depth
-    }
-    return -1
-  })()
   const preferredVersions = opts.preferredVersions ?? (
     !opts.update &&
     ctx.wantedLockfile.packages &&
     !R.isEmpty(ctx.wantedLockfile.packages) &&
     getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages!) || undefined
   )
+  const updateLockfile = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION || !opts.currentLockfileIsUpToDate
+  const defaultUpdateDepth = (() => {
+    if (opts.force || updateLockfile) return Infinity
+    if (opts.update) {
+      return opts.depth
+    }
+    return -1
+  })()
   const _toResolveImporter = toResolveImporter.bind(null, {
     defaultUpdateDepth,
     lockfileOnly: opts.lockfileOnly,
     preferredVersions,
     storeDir: ctx.storeDir,
+    updateLockfile,
     virtualStoreDir: ctx.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
@@ -634,7 +636,6 @@ async function installInContext (
       resolutionStrategy: opts.resolutionStrategy,
       storeController: opts.storeController,
       tag: opts.tag,
-      updateLockfile: ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION || !opts.currentLockfileIsUpToDate,
       virtualStoreDir: ctx.virtualStoreDir,
       wantedLockfile: ctx.wantedLockfile,
       workspacePackages: opts.workspacePackages,
@@ -842,9 +843,10 @@ async function toResolveImporter (
   opts: {
     defaultUpdateDepth: number,
     lockfileOnly: boolean,
-    storeDir: string,
-    virtualStoreDir: string,
     preferredVersions?: PreferredVersions,
+    storeDir: string,
+    updateLockfile: boolean,
+    virtualStoreDir: string,
     workspacePackages: WorkspacePackages,
   },
   project: ImporterToUpdate
@@ -861,7 +863,7 @@ async function toResolveImporter (
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
-  if (!project.manifest) {
+  if (!project.manifest || opts.updateLockfile) {
     wantedDependencies = [
       ...project.wantedDependencies,
       ...existingDeps,

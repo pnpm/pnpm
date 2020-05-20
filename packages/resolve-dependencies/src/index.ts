@@ -63,7 +63,6 @@ export default async function (
     tag: string,
     virtualStoreDir: string,
     wantedLockfile: Lockfile,
-    updateLockfile: boolean,
     workspacePackages: WorkspacePackages,
   }
 ) {
@@ -89,7 +88,6 @@ export default async function (
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
     skipped: wantedToBeSkippedPackageIds,
     storeController: opts.storeController,
-    updateLockfile: opts.updateLockfile,
     virtualStoreDir: opts.virtualStoreDir,
     wantedLockfile: opts.wantedLockfile,
   }
