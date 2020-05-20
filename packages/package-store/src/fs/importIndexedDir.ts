@@ -44,14 +44,14 @@ async function tryImportIndexedDir (importFile: ImportFile, newDir: string, file
   const alldirs = new Set<string>()
   Object.keys(filenames)
     .forEach((f) => {
-      const dir = path.join(newDir, path.dirname(f))
+      const dir = path.dirname(f)
       if (dir === '.') return
       alldirs.add(dir)
     })
   await Promise.all(
     Array.from(alldirs)
-      .sort((d1, d2) => d1.length - d2.length)
-      .map((dir) => fs.mkdir(dir, { recursive: true }))
+      .sort((d1, d2) => d1.length - d2.length) // from shortest to longest
+      .map((dir) => fs.mkdir(path.join(newDir, dir), { recursive: true }))
   )
   await Promise.all(
     Object.entries(filenames)
