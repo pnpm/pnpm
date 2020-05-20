@@ -69,7 +69,7 @@ Via npx:
 npx pnpm add -g pnpm
 ```
 
-Once you first installed pnpm, you can upgrade it using pnpm:
+Once you have installed pnpm, you can upgrade it using pnpm:
 
 ```
 pnpm add -g pnpm
@@ -81,7 +81,7 @@ pnpm add -g pnpm
 
 ### pnpm CLI
 
-Just use pnpm in place of npm. For instance, to install run:
+Just use pnpm in place of npm. For instance, to install, run:
 
 ```
 pnpm install
