@@ -880,6 +880,7 @@ async function toResolveImporter (
   }
   return {
     ...project,
+    hasRemovedDependencies: Boolean(project.removePackages?.length),
     preferredVersions: opts.preferredVersions ?? (project.manifest && getPreferredVersionsFromPackage(project.manifest)) ?? {},
     wantedDependencies: wantedDependencies
       .filter(({ alias, updateDepth }) => updateDepth >= 0 || !linkedAliases.has(alias)),

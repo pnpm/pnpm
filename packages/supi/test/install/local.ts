@@ -164,7 +164,7 @@ test('tarball local package from project directory', async (t: tape.Test) => {
   }, `a snapshot of the local dep tarball added to ${WANTED_LOCKFILE}`)
 })
 
-test('update tarball local package when its integrity changes', async (t) => {
+test.skip('update tarball local package when its integrity changes', async (t) => {
   const project = prepareEmpty(t)
 
   await copyFixture('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz', path.resolve('..', 'tar.tgz'))

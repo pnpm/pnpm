@@ -37,6 +37,7 @@ export type ResolvedDirectDependency = {
 
 export interface Importer {
   id: string,
+  hasRemovedDependencies?: boolean,
   modulesDir: string,
   preferredVersions?: PreferredVersions,
   rootDir: string,
@@ -104,13 +105,17 @@ export default async function (
       prefix: importer.rootDir,
       resolutionStrategy: opts.resolutionStrategy || 'fast',
     }
+    // This may be optimized.
+    // We only need to proceed resolving every dependency
+    // if the newly added dependency has peer dependencies.
+    const proceed = importer.hasRemovedDependencies || importer.wantedDependencies.some((wantedDep) => wantedDep['isNew'])
     const resolveOpts = {
       alwaysTryWorkspacePackages: (opts.linkWorkspacePackagesDepth ?? -1) >= 0,
       currentDepth: 0,
-      parentDependsOnPeers: true,
+      parentDependsOnPeers: proceed,
       parentNodeId: `>${importer.id}>`,
       preferredVersions: importer.preferredVersions || {},
-      proceed: true,
+      proceed,
       resolvedDependencies: {
         ...projectSnapshot.dependencies,
         ...projectSnapshot.devDependencies,
