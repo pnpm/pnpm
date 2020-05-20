@@ -47,7 +47,7 @@
   "devDependencies": {
     "@pnpm/logger": "3.2.2",
     "@pnpm/resolve-dependencies": "link:",
-    "@types/ramda": "^0.27.5",
+    "@types/ramda": "^0.27.6",
     "@types/semver": "^7.2.0"
   },
   "bugs": {
