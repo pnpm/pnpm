@@ -70,7 +70,6 @@ export async function handler (
     | 'allProjects'
     | 'dir'
     | 'engineStrict'
-    | 'independentLeaves'
     | 'rawLocalConfig'
     | 'registries'
     | 'selectedProjectsGraph'

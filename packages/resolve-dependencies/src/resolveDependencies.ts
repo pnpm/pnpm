@@ -175,14 +175,12 @@ export interface ResolvedPackage {
   fetchingBundledManifest?: () => Promise<DependencyManifest>,
   filesIndexFile: string,
   finishing: () => Promise<void>,
-  path: string,
   name: string,
   version: string,
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBin: boolean,
   hasBundledDependencies: boolean,
-  independent: boolean,
   prepare: boolean,
   depPath: string,
   requiresBuild: boolean | undefined, // added to fix issue #1201
@@ -784,13 +782,9 @@ function getResolvedPackage (
     hasBin: options.hasBin,
     hasBundledDependencies: !!(options.pkg.bundledDependencies || options.pkg.bundleDependencies),
     id: options.pkgResponse.body.id,
-    independent: (options.pkg.dependencies === undefined || R.isEmpty(options.pkg.dependencies)) &&
-      (options.pkg.optionalDependencies === undefined || R.isEmpty(options.pkg.optionalDependencies)) &&
-      (options.pkg.peerDependencies === undefined || R.isEmpty(options.pkg.peerDependencies)),
     name: options.pkg.name,
     optional: options.wantedDependency.optional,
     optionalDependencies: new Set(R.keys(options.pkg.optionalDependencies)),
-    path: options.pkgResponse.body.inStoreLocation!,
     peerDependencies: peerDependencies ?? {},
     prepare: options.prepare,
     prod: !options.wantedDependency.dev && !options.wantedDependency.optional,

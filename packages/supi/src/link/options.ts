@@ -28,9 +28,6 @@ interface StrictLinkOptions {
 
   shamefullyHoist: boolean,
   forceShamefullyHoist: boolean,
-
-  independentLeaves: boolean,
-  forceIndependentLeaves: boolean,
 }
 
 export type LinkOptions = Partial<StrictLinkOptions> &
@@ -58,7 +55,6 @@ async function defaults (opts: LinkOptions) {
     force: false,
     forceSharedLockfile: false,
     hoistPattern: undefined,
-    independentLeaves: false,
     lockfileDir: opts.lockfileDir || dir,
     registries: DEFAULT_REGISTRIES,
     shamefullyHoist: false,

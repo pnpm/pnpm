@@ -3,7 +3,6 @@ import linkBins, { WarnFunction } from '@pnpm/link-bins'
 import {
   Lockfile,
   nameVerFromPkgSnapshot,
-  packageIsIndependent,
 } from '@pnpm/lockfile-utils'
 import lockfileWalker, { LockfileWalkerStep } from '@pnpm/lockfile-walker'
 import logger from '@pnpm/logger'
@@ -17,7 +16,6 @@ import R = require('ramda')
 export default async function hoistByLockfile (
   match: (dependencyName: string) => boolean,
   opts: {
-    getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     lockfile: Lockfile,
     lockfileDir: string,
     modulesDir: string,
@@ -48,7 +46,6 @@ export default async function hoistByLockfile (
       step,
       0,
       {
-        getIndependentPackageLocation: opts.getIndependentPackageLocation,
         lockfileDir: opts.lockfileDir,
         registries: opts.registries,
         virtualStoreDir: opts.virtualStoreDir,
@@ -83,7 +80,6 @@ async function getDependencies (
   step: LockfileWalkerStep,
   depth: number,
   opts: {
-    getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     registries: Registries,
     lockfileDir: string,
     virtualStoreDir: string,
@@ -92,10 +88,8 @@ async function getDependencies (
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
   for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
-    const absolutePath = dp.resolve(opts.registries, relDepPath)
     const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
     const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
-    const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
@@ -107,9 +101,7 @@ async function getDependencies (
       }, {}),
       depPath: relDepPath,
       depth,
-      location: !independent
-        ? path.join(modules, pkgName)
-        : await opts.getIndependentPackageLocation!(pkgSnapshot.id || absolutePath, pkgName),
+      location: path.join(modules, pkgName),
     })
 
     nextSteps.push(next())

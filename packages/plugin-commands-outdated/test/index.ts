@@ -27,7 +27,6 @@ const OUTDATED_OPTIONS = {
   fetchRetryMaxtimeout: 60,
   fetchRetryMintimeout: 10,
   global: false,
-  independentLeaves: false,
   networkConcurrency: 16,
   offline: false,
   rawConfig: { registry: REGISTRY_URL },

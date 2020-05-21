@@ -29,14 +29,6 @@ export type BundledManifest = Pick<
 >
 
 export interface StoreController {
-  getPackageLocation (
-    packageId: string,
-    packageName: string,
-    opts: {
-      lockfileDir: string,
-      targetEngine?: string,
-    }
-  ): Promise<{ dir: string, isBuilt: boolean }>,
   requestPackage: RequestPackageFunction,
   fetchPackage: FetchPackageToStoreFunction,
   importPackage: ImportPackageFunction,
@@ -52,7 +44,6 @@ export type FetchPackageToStoreFunction = (
   filesIndexFile: string,
   files: () => Promise<PackageFilesResponse>,
   finishing: () => Promise<void>,
-  inStoreLocation: string,
 }
 
 export interface FetchPackageToStoreOptions {
@@ -118,7 +109,6 @@ export type PackageResponse = {
     normalizedPref?: string,
     updated: boolean,
     resolvedVia?: string,
-    inStoreLocation?: string,
     // This is useful for recommending updates.
     // If latest does not equal the version of the
     // resolved package, it is out-of-date.

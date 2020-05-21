@@ -25,7 +25,6 @@ export default async function <T>(
     id: string,
   } & T & Required<ProjectOptions>>,
   include: Record<DependenciesField, boolean>,
-  independentLeaves: boolean | undefined,
   modules: Modules | null,
   pendingBuilds: string[],
   registries: Registries | null | undefined,
@@ -41,7 +40,6 @@ export default async function <T>(
     hoist: !modules ? undefined : Boolean(modules.hoistPattern),
     hoistedAliases: modules?.hoistedAliases || {},
     include: modules?.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
-    independentLeaves: modules?.independentLeaves || undefined,
     modules,
     pendingBuilds: modules?.pendingBuilds || [],
     projects: await Promise.all(

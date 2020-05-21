@@ -52,7 +52,7 @@ test("don't fail on non-compatible node_modules when forced in a workspace", asy
 
   process.chdir('..')
 
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nindependentLeaves: false\nlayoutVersion: 1`)
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${3}\nstore: ${opts.storeDir}\nlayoutVersion: 1`)
 
   await install(manifest, { ...opts, dir: path.resolve('pkg'), lockfileDir: process.cwd() })
 
@@ -108,7 +108,7 @@ test('do not fail on non-compatible store when forced during named installation'
 
 async function saveModulesYaml (pnpmVersion: string, storeDir: string) {
   await fs.mkdir('node_modules')
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}\nindependentLeaves: false`)
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstoreDir: ${storeDir}`)
 }
 
 test(`fail on non-compatible ${WANTED_LOCKFILE}`, async (t: tape.Test) => {

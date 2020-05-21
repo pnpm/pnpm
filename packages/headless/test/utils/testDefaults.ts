@@ -65,7 +65,6 @@ export default async function testDefaults (
     engineStrict: false,
     force: false,
     include,
-    independentLeaves: false,
     lockfileDir,
     packageManager: {
       name: 'pnpm',

@@ -42,8 +42,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
-  // test that independent leaves is false by default
-  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`)
 
   await project.isExecutable('.bin/rimraf')
 
@@ -241,70 +240,6 @@ test('not installing optional deps', async (t) => {
   const project = assertProject(t, prefix)
   await project.hasNot('is-positive')
   await project.has('pkg-with-good-optional')
-
-  t.end()
-})
-
-// Covers https://github.com/pnpm/pnpm/issues/1547
-test('installing with independent-leaves and hoistPattern=*', async (t) => {
-  const lockfileDir = path.join(fixtures, 'with-1-dep')
-  await rimraf(path.join(lockfileDir, 'node_modules'))
-
-  const { projects } = await readprojectsContext(
-    [
-      {
-        rootDir: lockfileDir,
-      },
-    ],
-    { lockfileDir }
-  )
-
-  await headless(await testDefaults({
-    hoistPattern: '*',
-    independentLeaves: true,
-    lockfileDir: lockfileDir,
-    projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-    ),
-  }))
-
-  const project = assertProject(t, lockfileDir)
-  await project.has('rimraf')
-  await project.has('.pnpm/node_modules/glob')
-  await project.has('.pnpm/node_modules/path-is-absolute')
-
-  // wrappy is linked directly from the store
-  await project.hasNot(`.pnpm/wrappy@1.0.2`)
-  await project.storeHas('wrappy', '1.0.2')
-
-  await project.has(`.pnpm/rimraf@2.5.1`)
-
-  await project.isExecutable('.bin/rimraf')
-
-  t.end()
-})
-
-test('installing with independent-leaves when an optional subdep is skipped', async (t) => {
-  const prefix = path.join(fixtures, 'has-incompatible-optional-subdep')
-  await rimraf(path.join(prefix, 'node_modules'))
-
-  await headless(await testDefaults({
-    independentLeaves: true,
-    lockfileDir: prefix,
-  }))
-
-  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join(prefix, 'node_modules', '.modules.yaml'))
-  t.deepEqual(
-    modulesInfo.skipped,
-    [
-      '/dep-of-optional-pkg/1.0.0',
-      '/not-compatible-with-any-os/1.0.0',
-    ],
-    'optional subdeps skipped'
-  )
-
-  const project = assertProject(t, prefix)
-  await project.has('pkg-with-optional')
 
   t.end()
 })
@@ -544,53 +479,6 @@ test('installation of a dependency that has a resolved peer in subdeps', async (
   t.end()
 })
 
-test('independent-leaves: installing a simple project', async (t) => {
-  const prefix = path.join(fixtures, 'simple')
-  await rimraf(path.join(prefix, 'node_modules'))
-  const reporter = sinon.spy()
-
-  await headless(await testDefaults({ lockfileDir: prefix, reporter, independentLeaves: true }))
-
-  const project = assertProject(t, prefix)
-  t.ok(project.requireModule('is-positive'), 'prod dep installed')
-  t.ok(project.requireModule('rimraf'), 'prod dep installed')
-  t.ok(project.requireModule('is-negative'), 'dev dep installed')
-  t.ok(project.requireModule('colors'), 'optional dep installed')
-  await project.has(`.pnpm/rimraf@2.7.1`) // rimraf is not symlinked from the store
-  await project.hasNot(`.pnpm/colors@1.2.0`) // colors is symlinked from the store
-
-  await project.isExecutable('.bin/rimraf')
-
-  t.ok(await project.readCurrentLockfile())
-  t.ok(await project.readModulesManifest())
-
-  t.ok(reporter.calledWithMatch({
-    level: 'debug',
-    name: 'pnpm:package-manifest',
-    updated: require(path.join(prefix, 'package.json')),
-  } as PackageManifestLog), 'updated package.json logged')
-  t.ok(reporter.calledWithMatch({
-    added: 15,
-    level: 'debug',
-    name: 'pnpm:stats',
-    prefix,
-  } as StatsLog), 'added stat')
-  t.ok(reporter.calledWithMatch({
-    level: 'debug',
-    name: 'pnpm:stats',
-    prefix,
-    removed: 0,
-  } as StatsLog), 'removed stat')
-  t.ok(reporter.calledWithMatch({
-    level: 'debug',
-    name: 'pnpm:stage',
-    prefix,
-    stage: 'importing_done',
-  } as StageLog), 'importing stage done logged')
-
-  t.end()
-})
-
 test('installing with hoistPattern=*', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   const reporter = sinon.spy()
@@ -604,8 +492,7 @@ test('installing with hoistPattern=*', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
-  // test that independent leaves is false by default
-  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`)
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.pnpm/node_modules/.bin/hello-world-js-bin')
@@ -664,8 +551,7 @@ test('installing with hoistPattern=* and shamefullyHoist=true', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
-  // test that independent leaves is false by default
-  await project.has(`.pnpm/colors@1.2.0`) // colors is not symlinked from the store
+  await project.has(`.pnpm/colors@1.2.0`)
 
   await project.isExecutable('.bin/rimraf')
   await project.isExecutable('.bin/hello-world-js-bin')
@@ -832,37 +718,6 @@ test('installing in a workspace', async (t) => {
     '/is-negative/1.0.0',
     '/is-positive/1.0.0',
   ], `packages of project that was not selected by last installation are not removed from current ${WANTED_LOCKFILE}`)
-
-  t.end()
-})
-
-test('independent-leaves: installing in a workspace', async (t) => {
-  const workspaceFixture = path.join(__dirname, 'workspace-fixture2')
-
-  const { projects } = await readprojectsContext(
-    [
-      {
-        rootDir: path.join(workspaceFixture, 'foo'),
-      },
-      {
-        rootDir: path.join(workspaceFixture, 'bar'),
-      },
-    ],
-    { lockfileDir: workspaceFixture }
-  )
-
-  await headless(await testDefaults({
-    independentLeaves: true,
-    lockfileDir: workspaceFixture,
-    projects: await Promise.all(
-      projects.map(async (project) => ({ ...project, manifest: await readPackageJsonFromDir(project.rootDir) }))
-    ),
-  }))
-
-  const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
-
-  await projectBar.has('foo')
-  t.ok(await exists(path.join(workspaceFixture, `node_modules/.pnpm/express@4.16.4/node_modules/array-flatten`)), 'independent package linked')
 
   t.end()
 })

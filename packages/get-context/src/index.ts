@@ -28,7 +28,6 @@ export interface PnpmContext<T> {
   extraBinPaths: string[],
   hoistedAliases: {[depPath: string]: string[]}
   include: IncludedDependencies,
-  independentLeaves: boolean,
   modulesFile: Modules | null,
   pendingBuilds: string[],
   projects: Array<{
@@ -72,9 +71,6 @@ export default async function getContext<T> (
     useLockfile: boolean,
     virtualStoreDir?: string,
 
-    independentLeaves?: boolean,
-    forceIndependentLeaves?: boolean,
-
     hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
@@ -96,9 +92,6 @@ export default async function getContext<T> (
       registries: opts.registries,
       storeDir: opts.storeDir,
       virtualStoreDir,
-
-      forceIndependentLeaves: opts.forceIndependentLeaves,
-      independentLeaves: opts.independentLeaves,
 
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
@@ -144,7 +137,6 @@ export default async function getContext<T> (
     hoistedModulesDir,
     hoistPattern: opts.hoistPattern,
     include: opts.include || importersContext.include,
-    independentLeaves: Boolean(typeof importersContext.independentLeaves === 'undefined' ? opts.independentLeaves : importersContext.independentLeaves),
     lockfileDir: opts.lockfileDir,
     modulesFile: importersContext.modules,
     pendingBuilds: importersContext.pendingBuilds,
@@ -189,9 +181,6 @@ async function validateModules (
     storeDir: string,
     virtualStoreDir: string,
 
-    independentLeaves?: boolean,
-    forceIndependentLeaves?: boolean,
-
     hoistPattern?: string[] | undefined,
     forceHoistPattern?: boolean,
 
@@ -215,30 +204,6 @@ async function validateModules (
     throw new PnpmError(
       'SHAMEFULLY_HOIST_NOT_WANTED',
       'This modules directory was created without the --shamefully-hoist option.'
-      + ' You must remove that option, or else "pnpm install" to recreate the modules directory.'
-    )
-  }
-  if (opts.forceIndependentLeaves && Boolean(modules.independentLeaves) !== opts.independentLeaves) {
-    if (opts.forceNewModules) {
-      await Promise.all(projects.map(purgeModulesDirsOfImporter))
-      if (!rootProject) {
-        await purgeModulesDirsOfImporter({
-          modulesDir: path.join(opts.lockfileDir, opts.modulesDir),
-          rootDir: opts.lockfileDir,
-        })
-      }
-      return { purged: true }
-    }
-    if (modules.independentLeaves) {
-      throw new PnpmError(
-        'INDEPENDENT_LEAVES_WANTED',
-        'This modules directory was created using the --independent-leaves option.'
-        + ' You must add that option, or else run "pnpm install" to recreate the modules directory.'
-      )
-    }
-    throw new PnpmError(
-      'INDEPENDENT_LEAVES_NOT_WANTED',
-      'This modules directory was created without the --independent-leaves option.'
       + ' You must remove that option, or else "pnpm install" to recreate the modules directory.'
     )
   }
@@ -338,7 +303,6 @@ export interface PnpmSingleContext {
   importerId: string,
   prefix: string,
   include: IncludedDependencies,
-  independentLeaves: boolean,
   modulesFile: Modules | null,
   pendingBuilds: string[],
   registries: Registries,
@@ -375,9 +339,6 @@ export async function getContextForSingleImporter (
 
     shamefullyHoist?: boolean,
     forceShamefullyHoist?: boolean,
-
-    independentLeaves?: boolean,
-    forceIndependentLeaves?: boolean,
   },
   alreadyPurged: boolean = false
 ): Promise<PnpmSingleContext> {
@@ -386,7 +347,6 @@ export async function getContextForSingleImporter (
     hoistedAliases,
     projects,
     include,
-    independentLeaves,
     modules,
     pendingBuilds,
     registries,
@@ -426,9 +386,6 @@ export async function getContextForSingleImporter (
       forceHoistPattern: opts.forceHoistPattern,
       hoistPattern: opts.hoistPattern,
 
-      forceIndependentLeaves: opts.forceIndependentLeaves,
-      independentLeaves: opts.independentLeaves,
-
       forceShamefullyHoist: opts.forceShamefullyHoist,
       shamefullyHoist: opts.shamefullyHoist,
     })
@@ -454,7 +411,6 @@ export async function getContextForSingleImporter (
     hoistPattern: opts.hoistPattern,
     importerId,
     include: opts.include || include,
-    independentLeaves: Boolean(typeof independentLeaves === 'undefined' ? opts.independentLeaves : independentLeaves),
     lockfileDir: opts.lockfileDir,
     manifest: opts.hooks?.readPackage?.(manifest) ?? manifest,
     modulesDir,

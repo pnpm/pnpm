@@ -194,7 +194,6 @@ export async function mutateModules (
             hoistPattern: ctx.hoistPattern,
             ignoreScripts: opts.ignoreScripts,
             include: opts.include,
-            independentLeaves: opts.independentLeaves,
             lockfileDir: ctx.lockfileDir,
             modulesDir: opts.modulesDir,
             ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
@@ -428,9 +427,7 @@ export async function mutateModules (
 async function isExternalLink (storeDir: string, modules: string, pkgName: string) {
   const link = await isInnerLink(modules, pkgName)
 
-  // checking whether the link is pointing to the store is needed
-  // because packages are linked to store when independent-leaves = true
-  return !link.isInner && !isSubdir(storeDir, link.target)
+  return !link.isInner
 }
 
 function pkgHasDependencies (manifest: ProjectManifest) {
@@ -712,7 +709,6 @@ async function installInContext (
       hoistedModulesDir: ctx.hoistedModulesDir,
       hoistPattern: ctx.hoistPattern,
       include: opts.include,
-      independentLeaves: opts.independentLeaves,
       lockfileDir: opts.lockfileDir,
       makePartialCurrentLockfile: opts.makePartialCurrentLockfile,
       outdatedDependencies,
@@ -818,7 +814,6 @@ async function installInContext (
           hoistedAliases: result.newHoistedAliases,
           hoistPattern: ctx.hoistPattern,
           included: ctx.include,
-          independentLeaves: ctx.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,

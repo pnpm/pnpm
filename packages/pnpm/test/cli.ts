@@ -94,18 +94,6 @@ test('command fails when an unsupported flag is used', async (t) => {
   t.ok(stderr.toString().includes("Unknown option 'save-dev'"))
 })
 
-test('adding new dep does not fail if node_modules was created with --no-hoist and --independent-leaves', async (t: tape.Test) => {
-  const project = prepare(t)
-
-  await execPnpm(['add', 'is-positive', '--no-hoist', '--independent-leaves'])
-
-  t.equal(execPnpmSync(['add', 'is-negative', '--hoist']).status, 1)
-  t.equal(execPnpmSync(['add', 'is-negative', '--no-independent-leaves']).status, 1)
-  t.equal(execPnpmSync(['add', 'is-negative']).status, 0)
-
-  await project.has('is-negative')
-})
-
 test('adding new dep does not fail if node_modules was created with --hoist-pattern=eslint-* and --shamefully-hoist', async (t: tape.Test) => {
   const project = prepare(t)
 

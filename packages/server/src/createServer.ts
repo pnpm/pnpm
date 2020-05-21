@@ -103,7 +103,7 @@ export default function (
             if (pkgResponse['files']) { // tslint:disable-line
               filesPromises[body.msgId] = pkgResponse['files'] // tslint:disable-line
             }
-            res.end(JSON.stringify({ inStoreLocation: pkgResponse.inStoreLocation }))
+            res.end(JSON.stringify({ filesIndexFile: pkgResponse.filesIndexFile }))
           } catch (err) {
             res.end(JSON.stringify({
               error: {
@@ -158,12 +158,6 @@ export default function (
           res.end(JSON.stringify('OK'))
           globalInfo('Server stopped')
           break
-        case '/getPackageLocation': {
-          const { packageId, packageName, opts } = (await bodyPromise) as any // tslint:disable-line:no-any
-          const pkgLocation = await store.getPackageLocation(packageId, packageName, opts)
-          res.end(JSON.stringify(pkgLocation))
-          break
-        }
         default:
           res.statusCode = 404
           const error = { error: `${req.url} does not match any route` }

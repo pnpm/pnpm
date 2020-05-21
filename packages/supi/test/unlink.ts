@@ -282,28 +282,3 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
     message: 'is-positive is not an external link',
   }), 'reported warning')
 })
-
-test("don't unlink package that is not a link when independent-leaves = true", async (t: tape.Test) => {
-  prepareEmpty(t)
-
-  const reporter = sinon.spy()
-
-  const manifest = await addDependenciesToPackage({}, ['is-positive'], await testDefaults({ independentLeaves: true }))
-
-  await mutateModules(
-    [
-      {
-        dependencyNames: ['is-positive'],
-        manifest,
-        mutation: 'unlinkSome',
-        rootDir: process.cwd(),
-      },
-    ],
-    await testDefaults({ independentLeaves: true, reporter })
-  )
-
-  t.ok(reporter.calledWithMatch({
-    level: 'warn',
-    message: 'is-positive is not an external link',
-  }), 'reported warning')
-})

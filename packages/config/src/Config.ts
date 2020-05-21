@@ -96,7 +96,6 @@ export interface Config {
   repeatInstallDepth?: number,
   ignorePnpmfile?: boolean,
   pnpmfile: string,
-  independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone',
   hoistPattern?: string[],
   useStoreServer?: boolean,

@@ -30,7 +30,6 @@ import {
 import {
   nameVerFromPkgSnapshot,
   packageIdFromSnapshot,
-  packageIsIndependent,
   pkgSnapshotToResolution,
   satisfiesPackageManifest,
 } from '@pnpm/lockfile-utils'
@@ -76,7 +75,6 @@ export interface HeadlessOptions {
   extraBinPaths?: string[],
   ignoreScripts: boolean,
   include: IncludedDependencies,
-  independentLeaves: boolean,
   projects: Array<{
     binsDir: string,
     buildIndex: number,
@@ -246,15 +244,6 @@ export default async (opts: HeadlessOptions) => {
   let newHoistedAliases!: {[depPath: string]: string[]}
   if (rootImporterWithFlatModules) {
     newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
-      getIndependentPackageLocation: opts.independentLeaves
-        ? async (packageId: string, packageName: string) => {
-          const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            lockfileDir,
-            targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
-          })
-          return dir
-        }
-        : undefined,
       lockfile: filteredLockfile,
       lockfileDir,
       modulesDir: hoistedModulesDir,
@@ -341,7 +330,6 @@ export default async (opts: HeadlessOptions) => {
     hoistedAliases: newHoistedAliases,
     hoistPattern: opts.hoistPattern,
     included: opts.include,
-    independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
@@ -468,7 +456,6 @@ async function linkRootPackages (
 interface LockfileToDepGraphOptions {
   force: boolean,
   include: IncludedDependencies,
-  independentLeaves: boolean,
   importerIds: string[],
   lockfileDir: string,
   skipped: Set<string>,
@@ -497,15 +484,8 @@ async function lockfileToDepGraph (
         const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
         const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
-        const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-          lockfileDir: opts.lockfileDir,
-          targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
-        })
 
-        const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
-        const peripheralLocation = !independent
-          ? path.join(modules, pkgName)
-          : pkgLocation.dir
+        const peripheralLocation = path.join(modules, pkgName)
         if (
           currentPackages[depPath] && R.equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
           R.equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
@@ -551,7 +531,6 @@ async function lockfileToDepGraph (
           finishing: fetchResponse.finishing,
           hasBin: pkgSnapshot.hasBin === true,
           hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
-          independent,
           modules,
           name: pkgName,
           optional: !!pkgSnapshot.optional,
@@ -567,7 +546,6 @@ async function lockfileToDepGraph (
     const ctx = {
       force: opts.force,
       graph,
-      independentLeaves: opts.independentLeaves,
       lockfileDir: opts.lockfileDir,
       pkgSnapshotsByDepPaths: lockfile.packages,
       registries: opts.registries,
@@ -605,7 +583,6 @@ async function getChildrenPaths (
     force: boolean,
     registries: Registries,
     virtualStoreDir: string,
-    independentLeaves: boolean,
     storeDir: string,
     skipped: Set<string>,
     pkgSnapshotsByDepPaths: Record<string, PackageSnapshot>,
@@ -627,18 +604,8 @@ async function getChildrenPaths (
     if (ctx.graph[childRelDepPath]) {
       children[alias] = ctx.graph[childRelDepPath].peripheralLocation
     } else if (childPkgSnapshot) {
-      if (ctx.independentLeaves && packageIsIndependent(childPkgSnapshot)) {
-        const pkgId = childPkgSnapshot.id || childDepPath
-        const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-          lockfileDir: ctx.lockfileDir,
-          targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
-        })
-        children[alias] = pkgLocation.dir
-      } else {
-        const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-        children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
-      }
+      const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
+      children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.lockfileDir, allDeps[alias].substr(5))
     } else if (!ctx.skipped.has(childRelDepPath)) {
@@ -656,9 +623,6 @@ export interface DependenciesGraphNode {
   finishing: () => Promise<void>,
   peripheralLocation: string,
   children: {[alias: string]: string},
-  // an independent package is a package that
-  // has neither regular nor peer dependencies
-  independent: boolean,
   optionalDependencies: Set<string>,
   optional: boolean,
   depPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
@@ -754,7 +718,6 @@ async function linkAllModules (
 ) {
   return Promise.all(
     depNodes
-      .filter(({ independent }) => !independent)
       .map(async (depNode) => {
         const childrenToLink = opts.optional
           ? depNode.children

@@ -29,7 +29,7 @@ export function help () {
         ],
       },
     ],
-    usages: ['pnpm root [-g [--independent-leaves]]'],
+    usages: ['pnpm root [-g]'],
   })
 }
 

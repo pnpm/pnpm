@@ -64,7 +64,6 @@ export default async function linkPackages (
     hoistedModulesDir: string,
     hoistPattern?: string[],
     include: IncludedDependencies,
-    independentLeaves: boolean,
     lockfileDir: string,
     makePartialCurrentLockfile: boolean,
     outdatedDependencies: {[pkgId: string]: string},
@@ -94,7 +93,6 @@ export default async function linkPackages (
   // logger.info(`Creating dependency graph`)
   const { depGraph, projectsDirectPathsByAlias } = resolvePeers({
     dependenciesTree,
-    independentLeaves: opts.independentLeaves,
     lockfileDir: opts.lockfileDir,
     projects,
     strictPeerDependencies: opts.strictPeerDependencies,
@@ -308,15 +306,6 @@ export default async function linkPackages (
   let newHoistedAliases: Record<string, string[]> = {}
   if (opts.hoistPattern && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
     newHoistedAliases = await hoist(matcher(opts.hoistPattern!), {
-      getIndependentPackageLocation: opts.independentLeaves
-        ? async (packageId: string, packageName: string) => {
-          const { dir } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            lockfileDir: opts.lockfileDir,
-            targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
-          })
-          return dir
-        }
-        : undefined,
       lockfile: currentLockfile,
       lockfileDir: opts.lockfileDir,
       modulesDir: opts.hoistedModulesDir,
@@ -501,7 +490,6 @@ async function linkAllModules (
 ) {
   return Promise.all(
     depNodes
-      .filter(({ independent }) => !independent)
       .map(async ({ children, optionalDependencies, name, modules }) => {
         const childrenToLink = opts.optional
           ? children

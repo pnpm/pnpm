@@ -81,40 +81,6 @@ test('listing packages', async (t) => {
   t.end()
 })
 
-test('independent-leaves=true: pnpm list --long', async (t) => {
-  prepare(t, {
-    dependencies: {
-      'is-positive': '1.0.0',
-    },
-    devDependencies: {
-      'is-negative': '1.0.0',
-    },
-  })
-
-  await execa('node', [pnpmBin, 'install', '--independent-leaves', '--no-hoist'])
-
-  const output = await list.handler({
-    dir: process.cwd(),
-    long: true,
-  }, [])
-
-  // TODO: the --long flag should work with --independent-leaves
-  t.equal(stripAnsi(output), stripIndent`
-    Legend: production dependency, optional only, dev only
-
-    project@0.0.0 ${process.cwd()}
-
-    dependencies:
-    is-positive 1.0.0
-      [Could not find additional info about this dependency]
-
-    devDependencies:
-    is-negative 1.0.0
-      [Could not find additional info about this dependency]
-  `)
-  t.end()
-})
-
 test(`listing packages of a project that has an external ${WANTED_LOCKFILE}`, async (t) => {
   preparePackages(t, [
     {

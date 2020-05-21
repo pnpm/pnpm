@@ -31,9 +31,6 @@ export interface DependenciesGraphNode {
   resolution: Resolution,
   peripheralLocation: string,
   children: {[alias: string]: string},
-  // an independent package is a package that
-  // has neither regular nor peer dependencies
-  independent: boolean,
   optionalDependencies: Set<string>,
   depth: number,
   depPath: string,
@@ -75,7 +72,6 @@ export default function (
       id: string,
     }>,
     dependenciesTree: DependenciesTree,
-    independentLeaves: boolean,
     virtualStoreDir: string,
     lockfileDir: string,
     strictPeerDependencies: boolean,
@@ -112,7 +108,6 @@ export default function (
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       dependenciesTree: opts.dependenciesTree,
       depGraph,
-      independentLeaves: opts.independentLeaves,
       lockfileDir: opts.lockfileDir,
       pathsByNodeId,
       purePkgs: new Set(),
@@ -149,7 +144,6 @@ function resolvePeersOfNode (
     dependenciesTree: DependenciesTree,
     pathsByNodeId: {[nodeId: string]: string},
     depGraph: DependenciesGraph,
-    independentLeaves: boolean,
     virtualStoreDir: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
     rootDir: string,
@@ -216,11 +210,7 @@ function resolvePeersOfNode (
 
   ctx.pathsByNodeId[nodeId] = depPath
   if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
-    const independent = ctx.independentLeaves && resolvedPackage.independent
-    const centralLocation = path.join(resolvedPackage.path, 'node_modules', resolvedPackage.name)
-    const peripheralLocation = !independent
-      ? path.join(modules, resolvedPackage.name)
-      : centralLocation
+    const peripheralLocation = path.join(modules, resolvedPackage.name)
 
     const unknownPeers = Object.keys(unknownResolvedPeersOfChildren)
     if (unknownPeers.length) {
@@ -244,7 +234,6 @@ function resolvePeersOfNode (
       filesIndexFile: resolvedPackage.filesIndexFile,
       hasBin: resolvedPackage.hasBin,
       hasBundledDependencies: resolvedPackage.hasBundledDependencies,
-      independent,
       installable: node.installable,
       isPure,
       modules,
@@ -270,7 +259,6 @@ function resolvePeersOfChildren (
   parentPkgs: ParentRefs,
   ctx: {
     pathsByNodeId: {[nodeId: string]: string},
-    independentLeaves: boolean,
     virtualStoreDir: string,
     purePkgs: Set<string>,
     depGraph: DependenciesGraph,

@@ -22,7 +22,6 @@ export function rcOptionsTypes () {
     'hoist-pattern',
     'ignore-pnpmfile',
     'ignore-scripts',
-    'independent-leaves',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',
@@ -159,10 +158,6 @@ export function help () {
             name: '--ignore-pnpmfile',
           },
           {
-            description: 'Symlinks leaf dependencies directly from the global store',
-            name: '--independent-leaves',
-          },
-          {
             description: "If false, doesn't check whether packages in the store were mutated",
             name: '--[no-]verify-store-integrity',
           },
@@ -260,7 +255,6 @@ export type InstallCommandOptions = Pick<Config,
   | 'globalPnpmfile'
   | 'ignorePnpmfile'
   | 'ignoreScripts'
-  | 'independentLeaves'
   | 'linkWorkspacePackages'
   | 'rawLocalConfig'
   | 'lockfileDir'

@@ -14,9 +14,7 @@ export default async function getPkgInfo (
   try {
     manifest = await readPkg(path.join(pkg.path, 'node_modules', pkg.name, 'package.json'))
   } catch (err) {
-    // This is a temporary workaround.
-    // If the package.json is not found inside node_modules, it should be read from the store.
-    // This frequently happens when the independent-leaves config is true.
+    // This will probably never happen
     manifest = {
       description: '[Could not find additional info about this dependency]',
     }

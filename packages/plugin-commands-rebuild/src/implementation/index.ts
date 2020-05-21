@@ -175,7 +175,6 @@ export async function rebuild (
     hoistedAliases: ctx.hoistedAliases,
     hoistPattern: ctx.hoistPattern,
     included: ctx.include,
-    independentLeaves: ctx.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
@@ -224,7 +223,6 @@ async function _rebuild (
     rootModulesDir: string,
     currentLockfile: Lockfile,
     projects: Array<{ id: string, rootDir: string }>,
-    independentLeaves: boolean,
     extraBinPaths: string[],
   },
   opts: StrictRebuildOptions
@@ -268,24 +266,11 @@ async function _rebuild (
       const pkgSnapshot = pkgSnapshots[relDepPath]
       const depPath = dp.resolve(opts.registries, relDepPath)
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-      const independent = ctx.independentLeaves && packageIsIndependent(pkgSnapshot)
-      const pkgRoot = !independent
-        ? path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
-        : await (
-          async () => {
-            const { dir } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
-              lockfileDir: opts.lockfileDir,
-              targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
-            })
-            return dir
-          }
-        )()
+      const pkgRoot = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
       try {
-        if (!independent) {
-          const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
-          const binPath = path.join(pkgRoot, 'node_modules', '.bin')
-          await linkBins(modules, binPath, { warn })
-        }
+        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
+        const binPath = path.join(pkgRoot, 'node_modules', '.bin')
+        await linkBins(modules, binPath, { warn })
         await runPostinstallHooks({
           depPath,
           extraBinPaths: ctx.extraBinPaths,
@@ -325,7 +310,6 @@ async function _rebuild (
       .keys(pkgSnapshots)
       .filter((relDepPath) => !packageIsIndependent(pkgSnapshots[relDepPath]))
       .map((relDepPath) => limitLinking(() => {
-        const depPath = dp.resolve(opts.registries, relDepPath)
         const pkgSnapshot = pkgSnapshots[relDepPath]
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
         const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')

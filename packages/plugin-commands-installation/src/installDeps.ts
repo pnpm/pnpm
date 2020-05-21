@@ -38,7 +38,6 @@ export type InstallDepsOptions = Pick<Config,
   | 'globalPnpmfile'
   | 'ignorePnpmfile'
   | 'ignoreScripts'
-  | 'independentLeaves'
   | 'linkWorkspacePackages'
   | 'lockfileDir'
   | 'lockfileOnly'
@@ -146,7 +145,6 @@ export default async function handler (
     workspacePackages,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
-    forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
     forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
   }
   if (!opts.ignorePnpmfile) {

@@ -21,7 +21,6 @@ export function rcOptionsTypes () {
     'ignore-pnpmfile',
     'ignore-scripts',
     'ignore-workspace-root-check',
-    'independent-leaves',
     'link-workspace-packages',
     'lockfile-dir',
     'lockfile-directory',

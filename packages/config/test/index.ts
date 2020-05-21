@@ -11,7 +11,6 @@ import './findBestGlobalPrefixOnWindows'
 // To override any local settings,
 // we force the default values of config
 delete process.env['npm_config_depth']
-process.env['npm_config_independent_leaves'] = 'false'
 process.env['npm_config_hoist'] = 'true'
 delete process.env['npm_config_registry']
 delete process.env['npm_config_virtual_store_dir']
@@ -86,25 +85,6 @@ test('throw error if --lockfile-dir is used with --global', async (t) => {
   } catch (err) {
     t.equal(err.message, 'Configuration conflict. "lockfile-dir" may not be used with "global"')
     t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_DIR_WITH_GLOBAL')
-    t.end()
-  }
-})
-
-test('throw error if --independent-leaves is used with --global', async (t) => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'global': true,
-        'independent-leaves': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err) {
-    t.equal(err.message, 'Configuration conflict. "independent-leaves" may not be used with "global"')
-    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_INDEPENDENT_LEAVES_WITH_GLOBAL')
     t.end()
   }
 })
@@ -442,47 +422,13 @@ test('throw error if --no-hoist is used with --hoist-pattern', async (t) => {
   }
 })
 
-test('throw error if --independent-leaves is used without --no-hoist', async (t) => {
-  try {
-    await getConfig({
-      cliOptions: {
-        'independent-leaves': true,
-      },
-      packageManager: {
-        name: 'pnpm',
-        version: '1.0.0',
-      },
-    })
-  } catch (err) {
-    t.equal(err.message, '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
-    t.equal((err as PnpmError).code, 'ERR_PNPM_CONFIG_CONFLICT_INDEPENDENT_LEAVES_AND_HOIST')
-    t.end()
-  }
-})
-
-test('do not throw error if --independent-leaves is used with --no-hoist', async (t) => {
-  const { config } = await getConfig({
-    cliOptions: {
-      'hoist': false,
-      'independent-leaves': true,
-    },
-    packageManager: {
-      name: 'pnpm',
-      version: '1.0.0',
-    },
-  })
-  t.ok(config.independentLeaves)
-  t.notOk(config.hoistPattern)
-  t.end()
-})
-
 test('rawLocalConfig in a workspace', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)
 
   process.chdir(tmp)
   const workspaceDir = process.cwd()
-  await fs.writeFile('.npmrc', 'independent-leaves=true\nhoist-pattern=*', 'utf8')
+  await fs.writeFile('.npmrc', 'hoist-pattern=*', 'utf8')
   await fs.mkdir('package')
   process.chdir('package')
   await fs.writeFile('.npmrc', 'hoist-pattern=eslint-*', 'utf8')
@@ -501,7 +447,6 @@ test('rawLocalConfig in a workspace', async (t) => {
 
     t.deepEqual(config.rawLocalConfig, {
       'hoist-pattern': 'eslint-*',
-      'independent-leaves': true,
       'save-exact': true,
     })
   }
@@ -523,7 +468,6 @@ test('rawLocalConfig in a workspace', async (t) => {
 
     t.deepEqual(config.rawLocalConfig, {
       'hoist-pattern': '*',
-      'independent-leaves': true,
       'save-exact': true,
     })
   }
@@ -535,7 +479,7 @@ test('rawLocalConfig', async (t) => {
   t.comment(`temp dir created: ${tmp}`)
 
   process.chdir(tmp)
-  await fs.writeFile('.npmrc', 'independent-leaves=true', 'utf8')
+  await fs.writeFile('.npmrc', 'modules-dir=modules', 'utf8')
 
   const { config } = await getConfig({
     cliOptions: {
@@ -548,7 +492,7 @@ test('rawLocalConfig', async (t) => {
   })
 
   t.deepEqual(config.rawLocalConfig, {
-    'independent-leaves': true,
+    'modules-dir': 'modules',
     'save-exact': true,
   })
   t.end()
