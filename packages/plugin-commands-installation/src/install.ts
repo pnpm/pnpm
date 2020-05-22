@@ -36,7 +36,6 @@ export function rcOptionsTypes () {
     'production',
     'registry',
     'reporter',
-    'resolution-strategy',
     'shamefully-flatten',
     'shamefully-hoist',
     'shared-workspace-lockfile',
@@ -188,14 +187,6 @@ export function help () {
           {
             description: 'Clone (aka copy-on-write) packages from the store',
             name: '--package-import-method clone',
-          },
-          {
-            description: 'The default resolution strategy. Speed is preferred over deduplication',
-            name: '--resolution-strategy fast',
-          },
-          {
-            description: 'Already installed dependencies are preferred even if newer versions satisfy a range',
-            name: '--resolution-strategy fewer-dependencies',
           },
           ...UNIVERSAL_OPTIONS,
         ],

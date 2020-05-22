@@ -35,7 +35,6 @@ export function rcOptionsTypes () {
     'production',
     'registry',
     'reporter',
-    'resolution-strategy',
     'save-dev',
     'save-exact',
     'save-optional',

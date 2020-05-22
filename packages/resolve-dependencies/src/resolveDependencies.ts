@@ -142,7 +142,6 @@ export interface ResolutionContext {
   pnpmVersion: string,
   registries: Registries,
   virtualStoreDir: string,
-  resolutionStrategy: 'fast' | 'fewer-dependencies',
 }
 
 export type PkgAddress = {
@@ -240,8 +239,7 @@ export default async function resolveDependencies (
     readPackageHook: options.readPackageHook,
     workspacePackages: options.workspacePackages,
   }
-  const postponedResolutionsQueue = ctx.resolutionStrategy === 'fewer-dependencies'
-    ? [] as Array<(preferredVersions: PreferredVersions) => Promise<void>> : undefined
+  const postponedResolutionsQueue = [] as Array<(preferredVersions: PreferredVersions) => Promise<void>>
   const pkgAddresses = (
     await Promise.all(
       extendedWantedDeps
@@ -322,11 +320,7 @@ export default async function resolveDependencies (
             }
           }
 
-          if (postponedResolutionsQueue) {
-            postponedResolutionsQueue.push(resolveChildren)
-          } else {
-            await resolveChildren(options.preferredVersions)
-          }
+          postponedResolutionsQueue.push(resolveChildren)
 
           return resolveDependencyResult
         })
@@ -334,20 +328,18 @@ export default async function resolveDependencies (
   )
   .filter(Boolean) as PkgAddress[]
 
-  if (postponedResolutionsQueue) {
-    const newPreferredVersions = {
-      ...options.preferredVersions,
-    }
-    for (const { pkgId } of pkgAddresses) {
-      const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
-      if (!resolvedPackage) continue // This will happen only with linked dependencies
-      if (!newPreferredVersions[resolvedPackage.name]) {
-        newPreferredVersions[resolvedPackage.name] = {}
-      }
-      newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
-    }
-    await Promise.all(postponedResolutionsQueue.map((postponedResolution) => postponedResolution(newPreferredVersions)))
+  const newPreferredVersions = {
+    ...options.preferredVersions,
   }
+  for (const { pkgId } of pkgAddresses) {
+    const resolvedPackage = ctx.resolvedPackagesByPackageId[pkgId]
+    if (!resolvedPackage) continue // This will happen only with linked dependencies
+    if (!newPreferredVersions[resolvedPackage.name]) {
+      newPreferredVersions[resolvedPackage.name] = {}
+    }
+    newPreferredVersions[resolvedPackage.name][resolvedPackage.version] = 'version'
+  }
+  await Promise.all(postponedResolutionsQueue.map((postponedResolution) => postponedResolution(newPreferredVersions)))
 
   return pkgAddresses
 }

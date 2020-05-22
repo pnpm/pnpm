@@ -630,7 +630,6 @@ async function installInContext (
       nodeVersion: opts.nodeVersion,
       pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
       registries: opts.registries,
-      resolutionStrategy: opts.resolutionStrategy,
       storeController: opts.storeController,
       tag: opts.tag,
       virtualStoreDir: ctx.virtualStoreDir,

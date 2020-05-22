@@ -110,7 +110,6 @@ export interface Config {
   modulesDir?: string,
   sharedWorkspaceLockfile?: boolean,
   useLockfile: boolean,
-  resolutionStrategy: 'fast' | 'fewer-dependencies',
   globalPnpmfile?: string,
   npmPath?: string,
   gitChecks?: boolean,

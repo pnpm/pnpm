@@ -39,7 +39,6 @@ export function cliOptionsTypes () {
     'production',
     'registry',
     'reporter',
-    'resolution-strategy',
     'save-dev',
     'save-exact',
     'save-optional',

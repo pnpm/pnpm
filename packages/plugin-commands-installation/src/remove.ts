@@ -57,7 +57,6 @@ export function rcOptionsTypes () {
     'package-import-method',
     'pnpmfile',
     'reporter',
-    'resolution-strategy',
     'save-dev',
     'save-optional',
     'save-prod',

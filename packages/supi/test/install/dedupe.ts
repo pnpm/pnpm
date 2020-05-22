@@ -158,14 +158,14 @@ test('prefer version ranges passed in via opts.preferredVersions', async (t: tap
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1187
-test('resolution-strategy=fewer-dependencies: prefer version of package that also satisfies the range of the same package higher in the dependency graph', async (t: tape.Test) => {
+test('prefer version of package that also satisfies the range of the same package higher in the dependency graph', async (t: tape.Test) => {
   const project = prepareEmpty(t)
   await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
 
   await addDependenciesToPackage(
     {},
     ['has-foo-as-dep-and-subdep'],
-    await testDefaults({ resolutionStrategy: 'fewer-dependencies' })
+    await testDefaults()
   )
 
   const lockfile = await project.readLockfile()
@@ -174,29 +174,6 @@ test('resolution-strategy=fewer-dependencies: prefer version of package that als
     Object.keys(lockfile.packages),
     [
       '/foo/100.0.0',
-      '/has-foo-as-dep-and-subdep/1.0.0',
-      '/requires-any-foo/1.0.0',
-    ]
-  )
-})
-
-test('resolution-strategy=fast: always prefer the latest version', async (t: tape.Test) => {
-  const project = prepareEmpty(t)
-  await addDistTag({ package: 'foo', version: '100.1.0', distTag: 'latest' })
-
-  await addDependenciesToPackage(
-    {},
-    ['has-foo-as-dep-and-subdep'],
-    await testDefaults({ resolutionStrategy: 'fast' })
-  )
-
-  const lockfile = await project.readLockfile()
-
-  t.deepEqual(
-    Object.keys(lockfile.packages),
-    [
-      '/foo/100.0.0',
-      '/foo/100.1.0',
       '/has-foo-as-dep-and-subdep/1.0.0',
       '/requires-any-foo/1.0.0',
     ]

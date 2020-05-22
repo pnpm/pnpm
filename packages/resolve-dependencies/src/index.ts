@@ -56,7 +56,6 @@ export default async function (
     },
     nodeVersion: string,
     registries: Registries,
-    resolutionStrategy?: 'fast' | 'fewer-dependencies',
     pnpmVersion: string,
     linkWorkspacePackagesDepth?: number,
     lockfileDir: string,
@@ -103,7 +102,6 @@ export default async function (
       linkedDependencies,
       modulesDir: importer.modulesDir,
       prefix: importer.rootDir,
-      resolutionStrategy: opts.resolutionStrategy || 'fast',
     }
     // This may be optimized.
     // We only need to proceed resolving every dependency
