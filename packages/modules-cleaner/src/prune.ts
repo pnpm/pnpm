@@ -164,11 +164,11 @@ function getPkgsDepPaths (
   registries: Registries,
   packages: PackageSnapshots,
   skipped: Set<string>
-): {[relDepPath: string]: string} {
+): {[depPath: string]: string} {
   const pkgIdsByDepPath = {}
-  for (const relDepPath of Object.keys(packages)) {
-    if (skipped.has(relDepPath)) continue
-    pkgIdsByDepPath[relDepPath] = packageIdFromSnapshot(relDepPath, packages[relDepPath], registries)
+  for (const depPath of Object.keys(packages)) {
+    if (skipped.has(depPath)) continue
+    pkgIdsByDepPath[depPath] = packageIdFromSnapshot(depPath, packages[depPath], registries)
   }
   return pkgIdsByDepPath
 }

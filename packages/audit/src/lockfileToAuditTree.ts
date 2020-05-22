@@ -51,8 +51,8 @@ export default function lockfileToAuditTree (
 
 function lockfileToAuditNode (step: LockfileWalkerStep) {
   const dependencies = {}
-  for (const { relDepPath, pkgSnapshot, next } of step.dependencies) {
-    const { name, version } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+  for (const { depPath, pkgSnapshot, next } of step.dependencies) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const subdeps = lockfileToAuditNode(next())
     const dep: AuditNode = {
       dev: pkgSnapshot.dev === true,

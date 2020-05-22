@@ -55,14 +55,14 @@ function pkgAllDeps (
     failOnMissingDependencies: boolean,
   }
 ) {
-  for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
-    pickedPackages[relDepPath] = pkgSnapshot
+  for (const { pkgSnapshot, depPath, next } of step.dependencies) {
+    pickedPackages[depPath] = pkgSnapshot
     pkgAllDeps(next(), pickedPackages, opts)
   }
-  for (const relDepPath of step.missing) {
+  for (const depPath of step.missing) {
     if (opts.failOnMissingDependencies) {
-      throw new LockfileMissingDependencyError(relDepPath)
+      throw new LockfileMissingDependencyError(depPath)
     }
-    logger.debug(`No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`)
+    logger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
   }
 }

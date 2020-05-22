@@ -7,7 +7,7 @@ import url = require('url')
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 
 export default (
-  relDepPath: string,
+  depPath: string,
   pkgSnapshot: PackageSnapshot,
   registries: Registries
 ): Resolution => {
@@ -16,7 +16,7 @@ export default (
     return pkgSnapshot.resolution as Resolution
   }
   if (!pkgSnapshot.resolution['tarball']) {
-    const { name } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+    const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
     const registry = name[0] === '@' && registries[name.split('/')[0]] || registries.default
     return {
       ...pkgSnapshot.resolution,
@@ -27,7 +27,7 @@ export default (
   if (pkgSnapshot.resolution['tarball'].startsWith('file:')) {
     return pkgSnapshot.resolution as Resolution
   }
-  const { name } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+  const { name } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   const registry = name[0] === '@' && registries[name.split('/')[0]] || registries.default
   return {
     ...pkgSnapshot.resolution,
@@ -36,9 +36,9 @@ export default (
   } as Resolution
 
   function getTarball (registry: string) {
-    const { name, version } = dp.parse(relDepPath)
+    const { name, version } = dp.parse(depPath)
     if (!name || !version) {
-      throw new Error(`Couldn't get tarball URL from dependency path ${relDepPath}`)
+      throw new Error(`Couldn't get tarball URL from dependency path ${depPath}`)
     }
     return getNpmTarballUrl(name, version, { registry })
   }

@@ -31,24 +31,24 @@ export default async function (maybeOpts: StoreStatusOptions) {
   if (!wantedLockfile) return []
 
   const pkgs = Object.keys(wantedLockfile.packages || {})
-    .filter((relDepPath) => !skipped.has(relDepPath))
-    .map((relDepPath) => {
-      const pkg = wantedLockfile.packages![relDepPath]
+    .filter((depPath) => !skipped.has(depPath))
+    .map((depPath) => {
+      const pkg = wantedLockfile.packages![depPath]
       return {
+        depPath,
         integrity: pkg.resolution['integrity'],
-        pkgPath: dp.resolve(registries, relDepPath),
-        relDepPath,
-        ...nameVerFromPkgSnapshot(relDepPath, pkg),
+        pkgPath: dp.resolve(registries, depPath),
+        ...nameVerFromPkgSnapshot(depPath, pkg),
       }
     })
 
   const cafsDir = path.join(storeDir, 'files')
-  const modified = await pFilter(pkgs, async ({ integrity, pkgPath, relDepPath, name }) => {
+  const modified = await pFilter(pkgs, async ({ integrity, pkgPath, depPath, name }) => {
     const pkgIndexFilePath = integrity
       ? getFilePathInCafs(cafsDir, integrity, 'index')
       : path.join(storeDir, pkgPath, 'integrity.json')
     const { files } = await loadJsonFile(pkgIndexFilePath)
-    return (await dint.check(path.join(virtualStoreDir, pkgIdToFilename(relDepPath, opts.dir), 'node_modules', name), files)) === false
+    return (await dint.check(path.join(virtualStoreDir, pkgIdToFilename(depPath, opts.dir), 'node_modules', name), files)) === false
   })
 
   if (reporter) {

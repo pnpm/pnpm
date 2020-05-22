@@ -36,8 +36,8 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
 
 export function getPreferredVersionsFromLockfile (snapshots: PackageSnapshots): PreferredVersions {
   const preferredVersions: PreferredVersions = {}
-  for (const [relDepPath, snapshot] of Object.entries(snapshots)) {
-    const { name, version } = nameVerFromPkgSnapshot(relDepPath, snapshot)
+  for (const [depPath, snapshot] of Object.entries(snapshots)) {
+    const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
     if (!preferredVersions[name]) {
       preferredVersions[name] = { [version]: 'version' }
     } else {

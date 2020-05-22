@@ -4,7 +4,7 @@ import * as dp from 'dependency-path'
 import R = require('ramda')
 
 export type LockedDependency = {
-  relDepPath: string,
+  depPath: string,
   pkgSnapshot: PackageSnapshot,
   next: () => LockfileWalkerStep,
 }
@@ -55,7 +55,7 @@ export default function lockfileWalker (
 ) {
   const walked = new Set<string>(opts?.skipped ? Array.from(opts?.skipped) : [])
   const entryNodes = [] as string[]
-  const directDeps = [] as Array<{ alias: string, relDepPath: string }>
+  const directDeps = [] as Array<{ alias: string, depPath: string }>
 
   importerIds.forEach((importerId) => {
     const projectSnapshot = lockfile.importers[importerId]
@@ -65,10 +65,10 @@ export default function lockfileWalker (
       ...(opts?.include?.optionalDependencies === false ? {} : projectSnapshot.optionalDependencies),
     })
     .forEach(([ pkgName, reference ]) => {
-      const relDepPath = dp.refToRelative(reference, pkgName)
-      if (relDepPath === null) return
-      entryNodes.push(relDepPath as string)
-      directDeps.push({ alias: pkgName, relDepPath })
+      const depPath = dp.refToRelative(reference, pkgName)
+      if (depPath === null) return
+      entryNodes.push(depPath as string)
+      directDeps.push({ alias: pkgName, depPath })
     })
   })
   return {
@@ -87,29 +87,29 @@ function step (
     lockfile: Lockfile,
     walked: Set<string>,
   },
-  nextRelDepPaths: string[]
+  nextDepPaths: string[]
 ) {
   const result: LockfileWalkerStep = {
     dependencies: [],
     links: [],
     missing: [],
   }
-  for (let relDepPath of nextRelDepPaths) {
-    if (ctx.walked.has(relDepPath)) continue
-    ctx.walked.add(relDepPath)
-    const pkgSnapshot = ctx.lockfile.packages?.[relDepPath]
+  for (let depPath of nextDepPaths) {
+    if (ctx.walked.has(depPath)) continue
+    ctx.walked.add(depPath)
+    const pkgSnapshot = ctx.lockfile.packages?.[depPath]
     if (!pkgSnapshot) {
-      if (relDepPath.startsWith('link:')) {
-        result.links.push(relDepPath)
+      if (depPath.startsWith('link:')) {
+        result.links.push(depPath)
         continue
       }
-      result.missing.push(relDepPath)
+      result.missing.push(depPath)
       continue
     }
     result.dependencies.push({
+      depPath,
       next: () => step(ctx, next({ includeOptionalDependencies: ctx.includeOptionalDependencies }, pkgSnapshot)),
       pkgSnapshot,
-      relDepPath,
     })
   }
   return result

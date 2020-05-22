@@ -151,7 +151,7 @@ export async function rebuild (
     opts
   )
 
-  ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
+  ctx.pendingBuilds = ctx.pendingBuilds.filter((depPath) => !pkgsThatWereRebuilt.has(depPath))
 
   const scriptsOpts = {
     extraBinPaths: ctx.extraBinPaths,
@@ -194,22 +194,22 @@ function getSubgraphToBuild (
   }
 ) {
   let currentShouldBeBuilt = false
-  for (const { relDepPath, next } of step.dependencies) {
-    if (nodesToBuildAndTransitive.has(relDepPath)) {
+  for (const { depPath, next } of step.dependencies) {
+    if (nodesToBuildAndTransitive.has(depPath)) {
       currentShouldBeBuilt = true
     }
 
     const childShouldBeBuilt = getSubgraphToBuild(next(), nodesToBuildAndTransitive, opts)
-      || opts.pkgsToRebuild.has(relDepPath)
+      || opts.pkgsToRebuild.has(depPath)
     if (childShouldBeBuilt) {
-      nodesToBuildAndTransitive.add(relDepPath)
+      nodesToBuildAndTransitive.add(depPath)
       currentShouldBeBuilt = true
     }
   }
-  for (const relDepPath of step.missing) {
+  for (const depPath of step.missing) {
     // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
     // However, the skipped list currently contains package IDs, not dep paths.
-    logger.debug({ message: `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}` })
+    logger.debug({ message: `No entry for "${depPath}" in ${WANTED_LOCKFILE}` })
   }
   return currentShouldBeBuilt
 }
@@ -249,9 +249,9 @@ async function _rebuild (
   )
   const nodesToBuildAndTransitiveArray = Array.from(nodesToBuildAndTransitive)
 
-  for (const relDepPath of nodesToBuildAndTransitiveArray) {
-    const pkgSnapshot = pkgSnapshots[relDepPath]
-    graph.set(relDepPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
+  for (const depPath of nodesToBuildAndTransitiveArray) {
+    const pkgSnapshot = pkgSnapshots[depPath]
+    graph.set(depPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
       .map(([ pkgName, reference ]) => dp.refToRelative(reference, pkgName))
       .filter((childRelDepPath) => childRelDepPath && nodesToBuildAndTransitive.has(childRelDepPath)))
   }
@@ -261,14 +261,13 @@ async function _rebuild (
   })
   const chunks = graphSequencerResult.chunks as string[][]
   const warn = (message: string) => logger.warn({ message, prefix: opts.dir })
-  const groups = chunks.map((chunk) => chunk.filter((relDepPath) => ctx.pkgsToRebuild.has(relDepPath)).map((relDepPath) =>
+  const groups = chunks.map((chunk) => chunk.filter((depPath) => ctx.pkgsToRebuild.has(depPath)).map((depPath) =>
     async () => {
-      const pkgSnapshot = pkgSnapshots[relDepPath]
-      const depPath = dp.resolve(opts.registries, relDepPath)
-      const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-      const pkgRoot = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
+      const pkgSnapshot = pkgSnapshots[depPath]
+      const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const pkgRoot = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules', pkgInfo.name)
       try {
-        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
+        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const binPath = path.join(pkgRoot, 'node_modules', '.bin')
         await linkBins(modules, binPath, { warn })
         await runPostinstallHooks({
@@ -281,7 +280,7 @@ async function _rebuild (
           rootModulesDir: ctx.rootModulesDir,
           unsafePerm: opts.unsafePerm || false,
         })
-        pkgsThatWereRebuilt.add(relDepPath)
+        pkgsThatWereRebuilt.add(depPath)
       } catch (err) {
         if (pkgSnapshot.optional) {
           // TODO: add parents field to the log
@@ -308,11 +307,11 @@ async function _rebuild (
   await Promise.all(
     Object
       .keys(pkgSnapshots)
-      .filter((relDepPath) => !packageIsIndependent(pkgSnapshots[relDepPath]))
-      .map((relDepPath) => limitLinking(() => {
-        const pkgSnapshot = pkgSnapshots[relDepPath]
-        const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
+      .filter((depPath) => !packageIsIndependent(pkgSnapshots[depPath]))
+      .map((depPath) => limitLinking(() => {
+        const pkgSnapshot = pkgSnapshots[depPath]
+        const pkgInfo = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+        const modules = path.join(ctx.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const binPath = path.join(modules, pkgInfo.name, 'node_modules', '.bin')
         return linkBins(modules, binPath, { warn })
       }))

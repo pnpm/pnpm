@@ -57,8 +57,8 @@ export default function filterByImportersAndEngine (
     acc[importerId] = filterImporter(lockfile.importers[importerId], opts.include)
     if (acc[importerId].optionalDependencies) {
       for (const depName of Object.keys(acc[importerId].optionalDependencies || {})) {
-        const relDepPath = dp.refToRelative(acc[importerId].optionalDependencies![depName], depName)
-        if (relDepPath && !packages[relDepPath]) {
+        const depPath = dp.refToRelative(acc[importerId].optionalDependencies![depName], depName)
+        if (depPath && !packages[depPath]) {
           delete acc[importerId].optionalDependencies![depName]
         }
       }
@@ -75,7 +75,7 @@ export default function filterByImportersAndEngine (
 
 function pickPkgsWithAllDeps (
   pkgSnapshots: PackageSnapshots,
-  relDepPaths: string[],
+  depPaths: string[],
   opts: {
     currentEngine: {
       nodeVersion: string,
@@ -90,7 +90,7 @@ function pickPkgsWithAllDeps (
   }
 ) {
   const pickedPackages = {} as PackageSnapshots
-  pkgAllDeps({ pkgSnapshots, pickedPackages }, relDepPaths, true, opts)
+  pkgAllDeps({ pkgSnapshots, pickedPackages }, depPaths, true, opts)
   return pickedPackages
 }
 
@@ -99,7 +99,7 @@ function pkgAllDeps (
     pkgSnapshots: PackageSnapshots,
     pickedPackages: PackageSnapshots,
   },
-  relDepPaths: string[],
+  depPaths: string[],
   parentIsInstallable: boolean,
   opts: {
     currentEngine: {
@@ -114,31 +114,31 @@ function pkgAllDeps (
     skipped: Set<string>,
   }
 ) {
-  for (const relDepPath of relDepPaths) {
-    if (ctx.pickedPackages[relDepPath]) continue
-    const pkgSnapshot = ctx.pkgSnapshots[relDepPath]
-    if (!pkgSnapshot && !relDepPath.startsWith('link:')) {
+  for (const depPath of depPaths) {
+    if (ctx.pickedPackages[depPath]) continue
+    const pkgSnapshot = ctx.pkgSnapshots[depPath]
+    if (!pkgSnapshot && !depPath.startsWith('link:')) {
       if (opts.failOnMissingDependencies) {
-        throw new LockfileMissingDependencyError(relDepPath)
+        throw new LockfileMissingDependencyError(depPath)
       }
-      logger.debug(`No entry for "${relDepPath}" in ${WANTED_LOCKFILE}`)
+      logger.debug(`No entry for "${depPath}" in ${WANTED_LOCKFILE}`)
       continue
     }
     let installable!: boolean
     if (!parentIsInstallable) {
       installable = false
-      if (!ctx.pickedPackages[relDepPath] && pkgSnapshot.optional === true) {
-        opts.skipped.add(relDepPath)
+      if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
+        opts.skipped.add(depPath)
       }
     } else {
       const pkg = {
-        ...nameVerFromPkgSnapshot(relDepPath, pkgSnapshot),
+        ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
         cpu: pkgSnapshot.cpu,
         engines: pkgSnapshot.engines,
         os: pkgSnapshot.os,
       }
-      // TODO: relDepPath is not the package ID. Should be fixed
-      installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id || relDepPath, pkg, {
+      // TODO: depPath is not the package ID. Should be fixed
+      installable = opts.includeIncompatiblePackages || packageIsInstallable(pkgSnapshot.id || depPath, pkg, {
         engineStrict: opts.engineStrict,
         lockfileDir: opts.lockfileDir,
         nodeVersion: opts.currentEngine.nodeVersion,
@@ -146,14 +146,14 @@ function pkgAllDeps (
         pnpmVersion: opts.currentEngine.pnpmVersion,
       }) !== false
       if (!installable) {
-        if (!ctx.pickedPackages[relDepPath] && pkgSnapshot.optional === true) {
-          opts.skipped.add(relDepPath)
+        if (!ctx.pickedPackages[depPath] && pkgSnapshot.optional === true) {
+          opts.skipped.add(depPath)
         }
       } else {
-        opts.skipped.delete(relDepPath)
+        opts.skipped.delete(depPath)
       }
     }
-    ctx.pickedPackages[relDepPath] = pkgSnapshot
+    ctx.pickedPackages[depPath] = pkgSnapshot
     const nextRelDepPaths = R.toPairs(
       {
         ...pkgSnapshot.dependencies,

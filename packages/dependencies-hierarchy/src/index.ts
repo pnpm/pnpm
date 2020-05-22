@@ -353,18 +353,18 @@ function getPkgInfo (
   let optional: true | undefined = undefined
   let isSkipped: boolean = false
   let isMissing: boolean = false
-  const relDepPath = refToRelative(opts.ref, opts.alias)
-  if (relDepPath) {
+  const depPath = refToRelative(opts.ref, opts.alias)
+  if (depPath) {
     let pkgSnapshot!: PackageSnapshot
-    if (opts.currentPackages[relDepPath]) {
-      pkgSnapshot = opts.currentPackages[relDepPath]
-      const parsed = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+    if (opts.currentPackages[depPath]) {
+      pkgSnapshot = opts.currentPackages[depPath]
+      const parsed = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
       name = parsed.name
       version = parsed.version
     } else {
-      pkgSnapshot = opts.wantedPackages[relDepPath]
+      pkgSnapshot = opts.wantedPackages[depPath]
       if (pkgSnapshot) {
-        const parsed = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+        const parsed = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
         name = parsed.name
         version = parsed.version
       } else {
@@ -372,9 +372,9 @@ function getPkgInfo (
         version = opts.ref
       }
       isMissing = true
-      isSkipped = opts.skipped.has(relDepPath)
+      isSkipped = opts.skipped.has(depPath)
     }
-    resolved = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.registries)['tarball']
+    resolved = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)['tarball']
     dev = pkgSnapshot.dev
     optional = pkgSnapshot.optional
   } else {

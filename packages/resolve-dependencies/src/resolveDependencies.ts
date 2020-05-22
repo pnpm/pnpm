@@ -430,17 +430,17 @@ function preferedSatisfiesWanted (
     prefix: string,
   }
 ) {
-  const relDepPath = dp.refToRelative(preferredRef, wantedDep.alias)
-  if (relDepPath === null) return false
-  const pkgSnapshot = lockfile.packages?.[relDepPath]
+  const depPath = dp.refToRelative(preferredRef, wantedDep.alias)
+  if (depPath === null) return false
+  const pkgSnapshot = lockfile.packages?.[depPath]
   if (!pkgSnapshot) {
     logger.warn({
-      message: `Could not find preferred package ${relDepPath} in lockfile`,
+      message: `Could not find preferred package ${depPath} in lockfile`,
       prefix: opts.prefix,
     })
     return false
   }
-  const { version } = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+  const { version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
   return semver.satisfies(version, wantedDep.pref, true)
 }
 
@@ -454,13 +454,13 @@ function getInfoFromLockfile (
     return null
   }
 
-  const relDepPath = dp.refToRelative(reference, pkgName)
+  const depPath = dp.refToRelative(reference, pkgName)
 
-  if (!relDepPath) {
+  if (!depPath) {
     return null
   }
 
-  const dependencyLockfile = lockfile.packages?.[relDepPath]
+  const dependencyLockfile = lockfile.packages?.[depPath]
 
   if (dependencyLockfile) {
     if (dependencyLockfile.peerDependencies && dependencyLockfile.dependencies) {
@@ -473,11 +473,11 @@ function getInfoFromLockfile (
     }
 
     return {
-      currentResolution: pkgSnapshotToResolution(relDepPath, dependencyLockfile, registries),
+      currentResolution: pkgSnapshotToResolution(depPath, dependencyLockfile, registries),
       dependencyLockfile,
+      depPath,
       optionalDependencyNames: R.keys(dependencyLockfile.optionalDependencies),
-      pkgId: packageIdFromSnapshot(relDepPath, dependencyLockfile, registries),
-      relDepPath,
+      pkgId: packageIdFromSnapshot(depPath, dependencyLockfile, registries),
       resolvedDependencies: {
         ...dependencyLockfile.dependencies,
         ...dependencyLockfile.optionalDependencies,
@@ -485,8 +485,8 @@ function getInfoFromLockfile (
     }
   } else {
     return {
-      pkgId: dp.tryGetPackageId(registries, relDepPath) || relDepPath, // Does it make sense to set pkgId when we're not sure?
-      relDepPath,
+      depPath,
+      pkgId: dp.tryGetPackageId(registries, depPath) || depPath, // Does it make sense to set pkgId when we're not sure?
     }
   }
 }
@@ -495,7 +495,7 @@ type ResolveDependencyOptions = {
   alwaysTryWorkspacePackages?: boolean,
   pkgId?: string,
   dependentId?: string,
-  relDepPath?: string,
+  depPath?: string,
   parentDependsOnPeer: boolean,
   parentNodeId: string,
   currentDepth: number,
@@ -521,13 +521,13 @@ async function resolveDependency (
   const proceed = update || options.proceed || !options.currentResolution
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  const currentLockfileContainsTheDep = options.relDepPath ? Boolean(ctx.currentLockfile.packages?.[options.relDepPath]) : undefined
+  const currentLockfileContainsTheDep = options.depPath ? Boolean(ctx.currentLockfile.packages?.[options.depPath]) : undefined
   const depIsLinked = Boolean(
     // if package is not in `node_modules/.pnpm-lock.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     currentLockfileContainsTheDep &&
-    options.relDepPath && options.dependencyLockfile &&
-    await exists(path.join(ctx.virtualStoreDir, `${pkgIdToFilename(options.relDepPath, ctx.prefix)}/node_modules/${nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile).name}/package.json`)) &&
+    options.depPath && options.dependencyLockfile &&
+    await exists(path.join(ctx.virtualStoreDir, `${pkgIdToFilename(options.depPath, ctx.prefix)}/node_modules/${nameVerFromPkgSnapshot(options.depPath, options.dependencyLockfile).name}/package.json`)) &&
     (options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.modulesDir, wantedDependency.alias))))
 
   if (!proceed && depIsLinked) {
@@ -616,7 +616,7 @@ async function resolveDependency (
   let prepare!: boolean
   let hasBin!: boolean
   if (
-    !options.update && options.dependencyLockfile && options.relDepPath &&
+    !options.update && options.dependencyLockfile && options.depPath &&
     !pkgResponse.body.updated &&
     // peerDependencies field is also used for transitive peer dependencies which should not be linked
     // That's why we cannot omit reading package.json of such dependencies.
@@ -627,7 +627,7 @@ async function resolveDependency (
     prepare = options.dependencyLockfile.prepare === true
     hasBin = options.dependencyLockfile.hasBin === true
     pkg = Object.assign(
-      nameVerFromPkgSnapshot(options.relDepPath, options.dependencyLockfile),
+      nameVerFromPkgSnapshot(options.depPath, options.dependencyLockfile),
       options.dependencyLockfile
     )
   } else {

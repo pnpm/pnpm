@@ -32,9 +32,9 @@ export default async function hoistByLockfile (
   const deps = [
     {
       children: directDeps
-        .reduce((acc, { alias, relDepPath }) => {
+        .reduce((acc, { alias, depPath }) => {
           if (!acc[alias]) {
-            acc[alias] = relDepPath
+            acc[alias] = depPath
           }
           return acc
         }, {}),
@@ -87,9 +87,9 @@ async function getDependencies (
 ): Promise<Dependency[]> {
   const deps: Dependency[] = []
   const nextSteps: LockfileWalkerStep[] = []
-  for (const { pkgSnapshot, relDepPath, next } of step.dependencies) {
-    const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(relDepPath, opts.lockfileDir), 'node_modules')
+  for (const { pkgSnapshot, depPath, next } of step.dependencies) {
+    const pkgName = nameVerFromPkgSnapshot(depPath, pkgSnapshot).name
+    const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
@@ -99,7 +99,7 @@ async function getDependencies (
         children[alias] = dp.refToRelative(allDeps[alias], alias)
         return children
       }, {}),
-      depPath: relDepPath,
+      depPath,
       depth,
       location: path.join(modules, pkgName),
     })
@@ -107,10 +107,10 @@ async function getDependencies (
     nextSteps.push(next())
   }
 
-  for (const relDepPath of step.missing) {
+  for (const depPath of step.missing) {
     // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
     // However, the skipped list currently contains package IDs, not dep paths.
-    logger.debug({ message: `No entry for "${relDepPath}" in ${WANTED_LOCKFILE}` })
+    logger.debug({ message: `No entry for "${depPath}" in ${WANTED_LOCKFILE}` })
   }
 
   return (
