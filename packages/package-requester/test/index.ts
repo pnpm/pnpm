@@ -61,7 +61,6 @@ test('request package', async t => {
 
   t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
   t.equal(pkgResponse.body.resolvedVia, 'npm-registry', 'responded with correct resolvedVia')
-  t.equal(pkgResponse.body.inStoreLocation, path.join(storeDir, 'registry.npmjs.org', 'is-positive@1.0.0'), 'package location in store returned')
   t.equal(pkgResponse.body.isLocal, false, 'package is not local')
   t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
   t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
@@ -104,7 +103,6 @@ test('request package but skip fetching', async t => {
   t.ok(pkgResponse.body, 'response has body')
 
   t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
-  t.equal(pkgResponse.body.inStoreLocation, path.join('.store', 'registry.npmjs.org', 'is-positive@1.0.0'), 'package location in store returned')
   t.equal(pkgResponse.body.isLocal, false, 'package is not local')
   t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
   t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
@@ -146,7 +144,6 @@ test('request package but skip fetching, when resolution is already available', 
     update: false,
   }) as PackageResponse & {
     body: {
-      inStoreLocation: string,
       latest: string,
       manifest: {name: string},
     },
@@ -158,7 +155,6 @@ test('request package but skip fetching, when resolution is already available', 
   t.ok(pkgResponse.body, 'response has body')
 
   t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
-  t.equal(pkgResponse.body.inStoreLocation, path.join('.store', 'registry.npmjs.org', 'is-positive@1.0.0'), 'package location in store returned')
   t.equal(pkgResponse.body.isLocal, false, 'package is not local')
   t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
   t.equal(pkgResponse.body.manifest.name, 'is-positive', 'package manifest returned')
