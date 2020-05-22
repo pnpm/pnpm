@@ -217,7 +217,7 @@ export default async function linkPackages (
         .map(async ({ rootAlias, depGraphNode }) => {
           if (
             !opts.dryRun &&
-            (await symlinkDependency(depGraphNode.peripheralLocation, modulesDir, rootAlias)).reused
+            (await symlinkDependency(depGraphNode.dir, modulesDir, rootAlias)).reused
           ) return
 
           const isDev = manifest.devDependencies?.[depGraphNode.name]
@@ -442,11 +442,11 @@ async function selectNewFromWantedDeps (
         const depNode = depGraph[depPath]
         if (!depNode) return
         if (prevRelDepPaths.has(depPath)) {
-          if (await fs.exists(depNode.peripheralLocation)) {
+          if (await fs.exists(depNode.dir)) {
             return
           }
           brokenModulesLogger.debug({
-            missing: depNode.peripheralLocation,
+            missing: depNode.dir,
           })
         }
         newDeps.add(depPath)
@@ -470,7 +470,7 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      const { isBuilt } = await storeController.importPackage(depNode.peripheralLocation, {
+      const { isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
         targetEngine: opts.targetEngine,
@@ -517,7 +517,7 @@ async function linkAllModules (
                 })
                 return
               }
-              await limitLinking(() => symlinkDependency(pkg.peripheralLocation, modules, childAlias))
+              await limitLinking(() => symlinkDependency(pkg.dir, modules, childAlias))
             })
         )
       })

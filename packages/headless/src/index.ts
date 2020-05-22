@@ -421,12 +421,12 @@ async function linkRootPackages (
           })
           return
         }
-        const peripheralLocation = opts.rootDependencies[alias]
+        const dir = opts.rootDependencies[alias]
         // Skipping linked packages
-        if (!peripheralLocation) {
+        if (!dir) {
           return
         }
-        if ((await symlinkDependency(peripheralLocation, opts.importerModulesDir, alias)).reused) {
+        if ((await symlinkDependency(dir, opts.importerModulesDir, alias)).reused) {
           return
         }
         const isDev = projectSnapshot.devDependencies?.[alias]
@@ -485,17 +485,17 @@ async function lockfileToDepGraph (
         const modules = path.join(opts.virtualStoreDir, pkgIdToFilename(depPath, opts.lockfileDir), 'node_modules')
         const packageId = packageIdFromSnapshot(depPath, pkgSnapshot, opts.registries)
 
-        const peripheralLocation = path.join(modules, pkgName)
+        const dir = path.join(modules, pkgName)
         if (
           currentPackages[depPath] && R.equals(currentPackages[depPath].dependencies, lockfile.packages![depPath].dependencies) &&
           R.equals(currentPackages[depPath].optionalDependencies, lockfile.packages![depPath].optionalDependencies)
         ) {
-          if (await fs.exists(peripheralLocation)) {
+          if (await fs.exists(dir)) {
             return
           }
 
           brokenModulesLogger.debug({
-            missing: peripheralLocation,
+            missing: dir,
           })
         }
         const resolution = pkgSnapshotToResolution(depPath, pkgSnapshot, opts.registries)
@@ -523,9 +523,10 @@ async function lockfileToDepGraph (
           .catch(() => {
             // ignore
           })
-        graph[peripheralLocation] = {
+        graph[dir] = {
           children: {},
           depPath,
+          dir,
           fetchingFiles: fetchResponse.files,
           filesIndexFile: fetchResponse.filesIndexFile,
           finishing: fetchResponse.finishing,
@@ -536,11 +537,10 @@ async function lockfileToDepGraph (
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
           packageId,
-          peripheralLocation,
           prepare: pkgSnapshot.prepare === true,
           requiresBuild: pkgSnapshot.requiresBuild === true,
         }
-        pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
+        pkgSnapshotByLocation[dir] = pkgSnapshot
       })
     )
     const ctx = {
@@ -555,14 +555,14 @@ async function lockfileToDepGraph (
       storeDir: opts.storeDir,
       virtualStoreDir: opts.virtualStoreDir,
     }
-    for (const peripheralLocation of R.keys(graph)) {
-      const pkgSnapshot = pkgSnapshotByLocation[peripheralLocation]
+    for (const dir of R.keys(graph)) {
+      const pkgSnapshot = pkgSnapshotByLocation[dir]
       const allDeps = {
         ...pkgSnapshot.dependencies,
         ...(opts.include.optionalDependencies ? pkgSnapshot.optionalDependencies : {}),
       }
 
-      graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
+      graph[dir].children = await getChildrenPaths(ctx, allDeps)
     }
     for (const importerId of opts.importerIds) {
       const projectSnapshot = lockfile.importers[importerId]
@@ -602,7 +602,7 @@ async function getChildrenPaths (
     const childRelDepPath = dp.refToRelative(allDeps[alias], alias) as string
     const childPkgSnapshot = ctx.pkgSnapshotsByDepPaths[childRelDepPath]
     if (ctx.graph[childRelDepPath]) {
-      children[alias] = ctx.graph[childRelDepPath].peripheralLocation
+      children[alias] = ctx.graph[childRelDepPath].dir
     } else if (childPkgSnapshot) {
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.virtualStoreDir, pkgIdToFilename(childRelDepPath, ctx.lockfileDir), 'node_modules', pkgName)
@@ -621,7 +621,7 @@ export interface DependenciesGraphNode {
   name: string,
   fetchingFiles: () => Promise<PackageFilesResponse>,
   finishing: () => Promise<void>,
-  peripheralLocation: string,
+  dir: string,
   children: {[alias: string]: string},
   optionalDependencies: Set<string>,
   optional: boolean,
@@ -652,7 +652,7 @@ async function linkAllPkgs (
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles()
 
-      const { isBuilt } = await storeController.importPackage(depNode.peripheralLocation, {
+      const { isBuilt } = await storeController.importPackage(depNode.dir, {
         filesResponse,
         force: opts.force,
         targetEngine: opts.targetEngine,
@@ -682,7 +682,7 @@ async function linkAllBins (
               return nonOptionalChildren
             }, {})
 
-        const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+        const binPath = path.join(depNode.dir, 'node_modules/.bin')
         const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.includes(undefined as any)) { // tslint:disable-line
@@ -691,9 +691,9 @@ async function linkAllBins (
           const pkgs = await Promise.all(
             pkgSnapshots
               .filter(({ hasBin }) => hasBin)
-              .map(async ({ peripheralLocation }) => ({
-                location: peripheralLocation,
-                manifest: await readPackageFromDir(peripheralLocation) as DependencyManifest,
+              .map(async ({ dir }) => ({
+                location: dir,
+                manifest: await readPackageFromDir(dir) as DependencyManifest,
               }))
           )
 
@@ -702,7 +702,7 @@ async function linkAllBins (
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
-          const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
+          const bundledModules = path.join(depNode.dir, 'node_modules')
           await linkBins(bundledModules, binPath, { warn: opts.warn })
         }
       }))

@@ -29,7 +29,7 @@ export interface DependenciesGraphNode {
   fetchingFiles: () => Promise<PackageFilesResponse>,
   filesIndexFile: string,
   resolution: Resolution,
-  peripheralLocation: string,
+  dir: string,
   children: {[alias: string]: string},
   optionalDependencies: Set<string>,
   depth: number,
@@ -210,7 +210,7 @@ function resolvePeersOfNode (
 
   ctx.pathsByNodeId[nodeId] = depPath
   if (!ctx.depGraph[depPath] || ctx.depGraph[depPath].depth > node.depth) {
-    const peripheralLocation = path.join(modules, resolvedPackage.name)
+    const dir = path.join(modules, resolvedPackage.name)
 
     const unknownPeers = Object.keys(unknownResolvedPeersOfChildren)
     if (unknownPeers.length) {
@@ -229,6 +229,7 @@ function resolvePeersOfNode (
       depPath,
       depth: node.depth,
       dev: resolvedPackage.dev,
+      dir,
       fetchingBundledManifest: resolvedPackage.fetchingBundledManifest,
       fetchingFiles: resolvedPackage.fetchingFiles,
       filesIndexFile: resolvedPackage.filesIndexFile,
@@ -241,7 +242,6 @@ function resolvePeersOfNode (
       optional: resolvedPackage.optional,
       optionalDependencies: resolvedPackage.optionalDependencies,
       packageId: resolvedPackage.id,
-      peripheralLocation,
       prepare: resolvedPackage.prepare,
       prod: resolvedPackage.prod,
       requiresBuild: resolvedPackage.requiresBuild,
