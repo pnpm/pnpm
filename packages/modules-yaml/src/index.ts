@@ -16,7 +16,6 @@ export interface Modules {
   hoistedAliases: {[depPath: string]: string[]}
   hoistPattern?: string[]
   included: IncludedDependencies,
-  independentLeaves: boolean,
   layoutVersion: number,
   packageManager: string,
   pendingBuilds: string[],

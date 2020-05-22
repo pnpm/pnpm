@@ -120,7 +120,6 @@ export default async function recursive (
     workspacePackages,
 
     forceHoistPattern: typeof opts.rawLocalConfig['hoist-pattern'] !== 'undefined' || typeof opts.rawLocalConfig['hoist'] !== 'undefined',
-    forceIndependentLeaves: typeof opts.rawLocalConfig['independent-leaves'] !== 'undefined',
     forceShamefullyHoist: typeof opts.rawLocalConfig['shamefully-hoist'] !== 'undefined',
   }) as InstallOptions
 

@@ -23,7 +23,6 @@ export const DEFAULT_OPTS = {
     devDependencies: true,
     optionalDependencies: true,
   },
-  independentLeaves: false,
   key: undefined,
   linkWorkspacePackages: true,
   localAddress: undefined,

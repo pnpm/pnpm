@@ -86,7 +86,6 @@ function createEnv (opts?: {storeDir?: string}): NodeJS.ProcessEnv {
   const env = {
     npm_config_fetch_retries: '4',
     npm_config_hoist: 'true',
-    npm_config_independent_leaves: 'false',
     npm_config_registry: `http://localhost:${REGISTRY_MOCK_PORT}/`,
     npm_config_silent: 'true',
     npm_config_store_dir: opts && opts.storeDir || '../store',

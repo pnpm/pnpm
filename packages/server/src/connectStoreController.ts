@@ -30,20 +30,6 @@ export default function (
     resolve({
       close: async () => { return },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      getPackageLocation: async (
-        packageId: string,
-        packageName: string,
-        opts: {
-          lockfileDir: string,
-          targetEngine?: string,
-        }
-      ): Promise<{ dir: string, isBuilt: boolean }> => {
-        return await limitedFetch(`${remotePrefix}/getPackageLocation`, {
-          opts,
-          packageId,
-          packageName,
-        }) as { dir: string, isBuilt: boolean }
-      },
       importPackage: async (to: string, opts: {
         filesResponse: PackageFilesResponse,
         force: boolean,

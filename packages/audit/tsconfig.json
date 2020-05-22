@@ -25,6 +25,9 @@
       "path": "../types"
     },
     {
+      "path": "../constants"
+    },
+    {
       "path": "../lockfile-file"
     }
   ]

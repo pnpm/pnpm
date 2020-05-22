@@ -138,7 +138,6 @@ export type OutdatedCommandOptions = {
   | 'fetchRetryMintimeout'
   | 'global'
   | 'httpsProxy'
-  | 'independentLeaves'
   | 'key'
   | 'localAddress'
   | 'lockfileDir'

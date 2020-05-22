@@ -19,13 +19,12 @@ import {write, read} from '@pnpm/modules-yaml'
 
 await write('node_modules', {
   hoistedAliases: {}
-  independentLeaves: false,
   layoutVersion: 1,
   packageManager: 'pnpm@1.0.0',
   pendingBuilds: [],
   shamefullyFlatten: false,
   skipped: [],
-  store: '/home/user/.pnpm-store',
+  storeDir: '/home/user/.pnpm-store',
 })
 
 const modulesYaml = await read(`node_modules`)

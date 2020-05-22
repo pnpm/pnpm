@@ -198,7 +198,6 @@ async function resolveAndFetch (
       return {
         body: {
           id,
-          inStoreLocation: path.join(ctx.storeDir, pkgIdToFilename(id, options.lockfileDir)),
           isLocal: false as const,
           latest,
           manifest,
@@ -221,7 +220,6 @@ async function resolveAndFetch (
     return {
       body: {
         id,
-        inStoreLocation: fetchResult.inStoreLocation,
         isLocal: false as const,
         latest,
         manifest,
@@ -245,7 +243,6 @@ type FetchLock = {
   files: Promise<PackageFilesResponse>,
   filesIndexFile: string,
   finishing: Promise<void>,
-  inStoreLocation: string,
 }
 
 function fetchToStore (
@@ -278,7 +275,6 @@ function fetchToStore (
   filesIndexFile: string,
   files: () => Promise<PackageFilesResponse>,
   finishing: () => Promise<void>,
-  inStoreLocation: string,
 } {
   const targetRelative = pkgIdToFilename(opts.pkgId, opts.lockfileDir)
   const target = path.join(ctx.storeDir, targetRelative)
@@ -299,14 +295,12 @@ function fetchToStore (
         files: removeKeyOnFail(files.promise),
         filesIndexFile,
         finishing: removeKeyOnFail(finishing.promise),
-        inStoreLocation: target,
       })
     } else {
       ctx.fetchingLocker.set(opts.pkgId, {
         files: removeKeyOnFail(files.promise),
         filesIndexFile,
         finishing: removeKeyOnFail(finishing.promise),
-        inStoreLocation: target,
       })
     }
 
@@ -358,7 +352,6 @@ function fetchToStore (
     files: pShare(result.files),
     filesIndexFile: result.filesIndexFile,
     finishing: pShare(result.finishing),
-    inStoreLocation: result.inStoreLocation,
   }
 
   async function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
@@ -550,25 +543,4 @@ async function fetcher (
     })
     throw err
   }
-}
-
-// TODO: cover with tests
-export async function getCacheByEngine (storeDir: string, id: string): Promise<Map<string, string>> {
-  const map = new Map<string, string>()
-
-  const cacheRoot = path.join(storeDir, id, 'side_effects')
-  if (!await fs.exists(cacheRoot)) {
-    return map
-  }
-
-  const dirContents = (await fs.readdir(cacheRoot)).map((content: string) => path.join(cacheRoot, content))
-  await Promise.all(dirContents.map(async (dir: string) => {
-    if (!(await fs.lstat(dir)).isDirectory()) {
-      return
-    }
-    const engineName = path.basename(dir)
-    map[engineName] = path.join(dir, 'package')
-  }))
-
-  return map
 }

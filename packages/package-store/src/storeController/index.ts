@@ -4,8 +4,7 @@ import {
   PackageFilesIndex,
 } from '@pnpm/cafs'
 import { FetchFunction } from '@pnpm/fetcher-base'
-import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import createPackageRequester from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
   ImportPackageFunction,
@@ -64,35 +63,10 @@ export default async function (
   return {
     close: async () => {}, // tslint:disable-line:no-empty
     fetchPackage: packageRequester.fetchPackageToStore,
-    getPackageLocation,
     importPackage,
     prune: prune.bind(null, storeDir),
     requestPackage: packageRequester.requestPackage,
     upload,
-  }
-
-  async function getPackageLocation (
-    packageId: string,
-    packageName: string,
-    opts: {
-      lockfileDir: string,
-      targetEngine?: string,
-    }
-  ) {
-    if (opts.targetEngine) {
-      const sideEffectsCacheLocation = (await getCacheByEngine(initOpts.storeDir, packageId))[opts.targetEngine]
-      if (sideEffectsCacheLocation) {
-        return {
-          dir: sideEffectsCacheLocation,
-          isBuilt: true,
-        }
-      }
-    }
-
-    return {
-      dir: path.join(initOpts.storeDir, pkgIdToFilename(packageId, opts.lockfileDir), 'node_modules', packageName),
-      isBuilt: false,
-    }
   }
 
   async function upload (builtPkgLocation: string, opts: {filesIndexFile: string, engine: string}) {

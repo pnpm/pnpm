@@ -71,9 +71,6 @@ export interface StrictInstallOptions {
   shamefullyHoist: boolean,
   forceShamefullyHoist: boolean,
 
-  independentLeaves: boolean,
-  forceIndependentLeaves: boolean,
-
   global: boolean,
 }
 
@@ -106,7 +103,6 @@ const defaults = async (opts: InstallOptions) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    independentLeaves: false,
     lockfileDir: opts.lockfileDir || opts.dir || process.cwd(),
     lockfileOnly: false,
     nodeVersion: process.version,

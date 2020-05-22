@@ -103,7 +103,7 @@ test('fetchPackage', async t => {
     },
   })
 
-  t.equal(typeof response.inStoreLocation, 'string', 'location in store returned')
+  t.equal(typeof response.filesIndexFile, 'string', 'index file location in store returned')
 
   t.ok(await response.bundledManifest!())
 
@@ -115,16 +115,6 @@ test('fetchPackage', async t => {
   await response['finishing']()
 
   t.comment('getPackageLocation()')
-
-  t.deepEqual(
-    await storeCtrl.getPackageLocation(pkgId, 'is-positive', {
-      lockfileDir: process.cwd(),
-    }),
-    {
-      dir: path.join(storeDir, 'registry.npmjs.org/is-positive@1.0.0/node_modules/is-positive'),
-      isBuilt: false,
-    }
-  )
 
   await server.close()
   await storeCtrl.close()

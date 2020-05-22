@@ -44,7 +44,6 @@ export const types = Object.assign({
   'hoist-pattern': Array,
   'ignore-pnpmfile': Boolean,
   'ignore-workspace-root-check': Boolean,
-  'independent-leaves': Boolean,
   'link-workspace-packages': [Boolean, 'deep'],
   'lockfile': Boolean,
   'lockfile-dir': String,
@@ -230,19 +229,11 @@ export default async (
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
-    if (pnpmConfig.independentLeaves) {
-      if (opts.cliOptions['independent-leaves']) {
-        throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_WITH_GLOBAL',
-          'Configuration conflict. "independent-leaves" may not be used with "global"')
-      }
-      pnpmConfig.independentLeaves = false
-    }
     if (pnpmConfig.hoistPattern && (pnpmConfig.hoistPattern.length > 1 || pnpmConfig.hoistPattern[0] !== '*')) {
       if (opts.cliOptions['hoist-pattern']) {
         throw new PnpmError('CONFIG_CONFLICT_HOIST_PATTERN_WITH_GLOBAL',
           'Configuration conflict. "hoist-pattern" may not be used with "global"')
       }
-      pnpmConfig.independentLeaves = false
     }
     if (pnpmConfig.linkWorkspacePackages) {
       if (opts.cliOptions['link-workspace-packages']) {
@@ -320,9 +311,6 @@ export default async (
   }
   if (pnpmConfig['hoist'] === false) {
     delete pnpmConfig.hoistPattern
-  } else if (pnpmConfig.independentLeaves === true) {
-    throw new PnpmError('CONFIG_CONFLICT_INDEPENDENT_LEAVES_AND_HOIST',
-      '"independent-leaves=true" can only be used when hoisting is off, so "hoist=false"')
   }
   if (typeof pnpmConfig['color'] === 'boolean') {
     switch (pnpmConfig['color']) {

@@ -15,7 +15,6 @@ test('write() and read()', async (t) => {
       devDependencies: true,
       optionalDependencies: true,
     },
-    independentLeaves: false,
     layoutVersion: 1,
     packageManager: 'pnpm@2',
     pendingBuilds: [],
