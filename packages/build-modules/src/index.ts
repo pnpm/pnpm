@@ -95,13 +95,13 @@ async function buildDependency (
       } catch (err) {
         if (err.statusCode === 403) {
           logger.warn({
-            message: `The store server disabled upload requests, could not upload ${depNode.packageId}`,
+            message: `The store server disabled upload requests, could not upload ${depNode.dir}`,
             prefix: opts.lockfileDir,
           })
         } else {
           logger.warn({
             error: err,
-            message: `An error occurred while uploading ${depNode.packageId}`,
+            message: `An error occurred while uploading ${depNode.dir}`,
             prefix: opts.lockfileDir,
           })
         }
@@ -114,7 +114,7 @@ async function buildDependency (
       skippedOptionalDependencyLogger.debug({
         details: err.toString(),
         package: {
-          id: depNode.packageId,
+          id: depNode.dir,
           name: pkg.name,
           version: pkg.version,
         },
@@ -162,7 +162,6 @@ export interface DependenciesGraphNode {
   isBuilt?: boolean,
   optional: boolean,
   optionalDependencies: Set<string>,
-  packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   prepare: boolean,
   requiresBuild?: boolean,
 }

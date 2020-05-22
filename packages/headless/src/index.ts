@@ -536,7 +536,6 @@ async function lockfileToDepGraph (
           name: pkgName,
           optional: !!pkgSnapshot.optional,
           optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
-          packageId,
           prepare: pkgSnapshot.prepare === true,
           requiresBuild: pkgSnapshot.requiresBuild === true,
         }
@@ -626,7 +625,6 @@ export interface DependenciesGraphNode {
   optionalDependencies: Set<string>,
   optional: boolean,
   depPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
-  packageId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt?: boolean,
   requiresBuild: boolean,
   prepare: boolean,
