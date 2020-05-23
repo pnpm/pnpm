@@ -1,5 +1,15 @@
 # pnpm
 
+## 4.14.4
+
+### Patch Changes
+
+- Updated dependencies [9212e0126]
+  - @pnpm/plugin-commands-installation@1.2.6
+  - @pnpm/plugin-commands-listing@1.0.9
+  - @pnpm/plugin-commands-outdated@1.0.9
+  - @pnpm/plugin-commands-import@1.0.12
+
 ## 4.14.3
 
 ### Patch Changes

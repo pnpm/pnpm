@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 1.2.6
+
+### Patch Changes
+
+- 9212e0126: The add and install commands should accept setting the `modules-dir` setting.
+  - supi@0.38.31
+
 ## 1.2.5
 
 ### Patch Changes
