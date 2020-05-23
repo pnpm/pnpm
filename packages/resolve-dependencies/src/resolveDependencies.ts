@@ -324,9 +324,9 @@ export default async function resolveDependencies (
 
           if (postponedResolutionsQueue) {
             postponedResolutionsQueue.push(resolveChildren)
+          } else {
+            await resolveChildren(options.preferredVersions)
           }
-
-          await resolveChildren(options.preferredVersions)
 
           return resolveDependencyResult
         })
