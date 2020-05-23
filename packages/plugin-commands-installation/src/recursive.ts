@@ -438,7 +438,7 @@ async function readLocalConfig (prefix: string) {
 
 function calculateRepositoryRoot (
   workspaceDir: string,
-  projectDirs: string[]
+  projectDirs: string[],
 ) {
   // assume repo root is workspace dir
   let relativeRepoRoot = '.'
