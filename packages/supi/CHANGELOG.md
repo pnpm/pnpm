@@ -1,5 +1,12 @@
 # supi
 
+## 0.39.1
+
+### Patch Changes
+
+- Updated dependencies [e2c4fdad5]
+  - @pnpm/resolve-dependencies@15.0.1
+
 ## 0.39.0
 
 ### Minor Changes

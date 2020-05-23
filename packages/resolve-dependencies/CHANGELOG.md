@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 15.0.1
+
+### Patch Changes
+
+- e2c4fdad5: Don't remove resolved peer dependencies from dependencies when lockfile is partially up-to-date.
+
 ## 15.0.0
 
 ### Major Changes
