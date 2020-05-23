@@ -1,5 +1,26 @@
 # @pnpm/assert-project
 
+## 2.1.0
+
+### Minor Changes
+
+- 3f73eaf0c: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [da091c711]
+- Updated dependencies [802d145fc]
+- Updated dependencies [6a8a97eee]
+- Updated dependencies [4f5801b1c]
+  - @pnpm/constants@4.0.0
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lockfile-types@2.0.1
+  - @pnpm/assert-store@1.0.1
+
 ## 2.1.0-alpha.2
 
 ### Patch Changes

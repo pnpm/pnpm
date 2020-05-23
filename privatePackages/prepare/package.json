@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/prepare",
-  "version": "0.0.2-alpha.1",
+  "version": "0.0.2",
   "private": true,
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -13,7 +13,7 @@
     "write-yaml-file": "^4.1.0"
   },
   "devDependencies": {
-    "@types/node": "^12.12.41",
+    "@types/node": "^12.12.42",
     "tslint-config-standard": "9.0.0",
     "tslint-eslint-rules": "5.4.0"
   },

@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-outdated
 
+## 2.0.0
+
+### Major Changes
+
+- 802d145fc: Remove `independent-leaves` support.
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [45fdcfde2]
+  - @pnpm/config@9.0.0
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/cli-utils@0.4.5
+  - @pnpm/command@1.0.1
+  - @pnpm/common-cli-options-help@0.1.6
+  - @pnpm/default-resolver@7.4.10
+  - @pnpm/error@1.2.1
+  - @pnpm/lockfile-file@3.0.9
+  - @pnpm/matcher@1.0.3
+  - @pnpm/outdated@7.0.23
+
 ## 1.0.10-alpha.3
 
 ### Patch Changes

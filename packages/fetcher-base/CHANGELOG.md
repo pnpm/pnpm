@@ -1,5 +1,22 @@
 # @pnpm/fetcher-base
 
+## 7.0.0
+
+### Major Changes
+
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+
+### Minor Changes
+
+- f516d266c: Executables are saved into a separate directory inside the content-addressable storage.
+- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
+
+### Patch Changes
+
+- Updated dependencies [da091c711]
+  - @pnpm/types@6.0.0
+  - @pnpm/resolver-base@7.0.1
+
 ## 7.0.0-alpha.3
 
 ### Patch Changes

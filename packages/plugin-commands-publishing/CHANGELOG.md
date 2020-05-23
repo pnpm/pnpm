@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.0.0
+
+### Major Changes
+
+- 4063f1bee: Git checks are on by default.
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [5bc033c43]
+- Updated dependencies [da091c711]
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [f453a5f46]
+- Updated dependencies [e3990787a]
+  - @pnpm/config@9.0.0
+  - @pnpm/npm-resolver@8.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lifecycle@9.0.0
+  - @pnpm/cli-utils@0.4.5
+  - @pnpm/error@1.2.1
+  - @pnpm/pick-registry-for-package@1.0.1
+  - @pnpm/read-project-manifest@1.0.6
+  - @pnpm/resolver-base@7.0.1
+  - @pnpm/run-npm@2.0.2
+  - @pnpm/sort-packages@1.0.10
+
 ## 2.0.0-alpha.4
 
 ### Patch Changes

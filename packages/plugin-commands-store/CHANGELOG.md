@@ -1,5 +1,58 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.0
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- 9596774f2: Store the package index files in the CAFS to reduce directory nesting.
+- da091c711: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+- 802d145fc: Remove `independent-leaves` support.
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+- 471149e66: Change the format of the package index file. Move all the files info into a "files" property.
+- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [242cf8737]
+- Updated dependencies [9596774f2]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [f516d266c]
+- Updated dependencies [7852deea3]
+- Updated dependencies [da091c711]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [e11019b89]
+- Updated dependencies [a5febb913]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [a5febb913]
+- Updated dependencies [c207d994f]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [471149e66]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [e3990787a]
+  - @pnpm/config@9.0.0
+  - @pnpm/cafs@1.0.0
+  - @pnpm/store-controller-types@8.0.0
+  - @pnpm/get-context@2.0.0
+  - @pnpm/store-connection-manager@0.3.0
+  - @pnpm/types@6.0.0
+  - @pnpm/cli-utils@0.4.5
+  - dependency-path@4.0.7
+  - @pnpm/error@1.2.1
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/normalize-registries@1.0.1
+  - @pnpm/parse-wanted-dependency@1.0.1
+  - @pnpm/pick-registry-for-package@1.0.1
+
 ## 2.0.0-alpha.5
 
 ### Patch Changes

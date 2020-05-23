@@ -28,7 +28,7 @@ jobs:
       run: git branch -f master origin/master
     - name: install pnpm
       run: |
-        npm install pnpm@alpha -g
+        npm install pnpm@next -g
         pnpm --version
     - name: pnpm install
       run: pnpm recursive install

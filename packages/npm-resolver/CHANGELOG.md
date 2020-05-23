@@ -1,5 +1,21 @@
 # @pnpm/npm-resolver
 
+## 8.0.0
+
+### Major Changes
+
+- 5bc033c43: Reduce the number of directories in the store by keeping all the metadata json files in the same directory.
+
+### Patch Changes
+
+- f453a5f46: Update version-selector-type to v3.
+- Updated dependencies [da091c711]
+  - @pnpm/types@6.0.0
+  - @pnpm/error@1.2.1
+  - fetch-from-npm-registry@4.0.3
+  - @pnpm/resolve-workspace-range@1.0.2
+  - @pnpm/resolver-base@7.0.1
+
 ## 8.0.0-alpha.2
 
 ### Patch Changes

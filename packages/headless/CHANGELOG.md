@@ -1,5 +1,72 @@
 # @pnpm/headless
 
+## 13.0.0
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- 3f73eaf0c: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+- 802d145fc: Remove `independent-leaves` support.
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+- a5febb913: The importPackage function of the store controller is importing packages directly from the side-effects cache.
+- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [9596774f2]
+- Updated dependencies [7179cc560]
+- Updated dependencies [c25cccdad]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [f516d266c]
+- Updated dependencies [da091c711]
+- Updated dependencies [9b1b520d9]
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [2485eaf60]
+- Updated dependencies [64bae33c4]
+- Updated dependencies [a5febb913]
+- Updated dependencies [bb59db642]
+- Updated dependencies [802d145fc]
+- Updated dependencies [f93583d52]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [a5febb913]
+- Updated dependencies [c207d994f]
+- Updated dependencies [a5febb913]
+- Updated dependencies [4f5801b1c]
+- Updated dependencies [a5febb913]
+- Updated dependencies [471149e66]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [9fbb74ecb]
+- Updated dependencies [e3990787a]
+  - @pnpm/constants@4.0.0
+  - @pnpm/hoist@3.0.0
+  - @pnpm/modules-cleaner@9.0.0
+  - @pnpm/package-requester@12.0.0
+  - @pnpm/filter-lockfile@4.0.0
+  - @pnpm/store-controller-types@8.0.0
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/build-modules@5.0.0
+  - @pnpm/lifecycle@9.0.0
+  - @pnpm/core-loggers@4.0.2
+  - dependency-path@4.0.7
+  - @pnpm/error@1.2.1
+  - @pnpm/link-bins@5.3.3
+  - @pnpm/lockfile-file@3.0.9
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/matcher@1.0.3
+  - @pnpm/read-package-json@3.1.1
+  - @pnpm/read-project-manifest@1.0.6
+  - @pnpm/symlink-dependency@3.0.5
+
 ## 13.0.0-alpha.5
 
 ### Major Changes

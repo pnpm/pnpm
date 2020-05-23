@@ -1,5 +1,31 @@
 # @pnpm/outdated
 
+## 7.0.23
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [242cf8737]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [da091c711]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [4f5801b1c]
+  - @pnpm/constants@4.0.0
+  - @pnpm/config@9.0.0
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/default-resolver@7.4.10
+  - dependency-path@4.0.7
+  - @pnpm/error@1.2.1
+  - @pnpm/lockfile-file@3.0.9
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/manifest-utils@1.0.1
+  - @pnpm/matcher@1.0.3
+  - @pnpm/pick-registry-for-package@1.0.1
+
 ## 7.0.23-alpha.3
 
 ### Patch Changes

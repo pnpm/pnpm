@@ -1,5 +1,42 @@
 # @pnpm/build-modules
 
+## 5.0.0
+
+### Major Changes
+
+- bb59db642: `peripheralLocation` in `DependenciesGraphNode` renamed to `dir`.
+- a5febb913: The upload function of the store controller accepts `opts.filesIndexFile` instead of `opts.packageId`.
+- e3990787a: Rename NodeModules to Modules in option names.
+
+### Minor Changes
+
+- 9b1b520d9: `packageId` removed from `DependenciesGraphNode`.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [f516d266c]
+- Updated dependencies [da091c711]
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [a5febb913]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [4f5801b1c]
+- Updated dependencies [a5febb913]
+- Updated dependencies [e3990787a]
+  - @pnpm/constants@4.0.0
+  - @pnpm/store-controller-types@8.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lifecycle@9.0.0
+  - @pnpm/core-loggers@4.0.2
+  - @pnpm/link-bins@5.3.3
+  - @pnpm/read-package-json@3.1.1
+
 ## 5.0.0-alpha.5
 
 ### Major Changes

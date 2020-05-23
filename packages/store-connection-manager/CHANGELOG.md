@@ -1,5 +1,39 @@
 # @pnpm/store-connection-manager
 
+## 0.3.0
+
+### Minor Changes
+
+- da091c711: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+- 45fdcfde2: Locking is removed.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [242cf8737]
+- Updated dependencies [cbc2192f1]
+- Updated dependencies [f516d266c]
+- Updated dependencies [ecf2c6b7d]
+- Updated dependencies [da091c711]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [c207d994f]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [919103471]
+  - @pnpm/package-store@9.0.0
+  - @pnpm/server@8.0.0
+  - @pnpm/config@9.0.0
+  - @pnpm/default-fetcher@6.0.0
+  - @pnpm/cli-meta@1.0.0
+  - @pnpm/default-resolver@7.4.10
+  - @pnpm/error@1.2.1
+
 ## 0.3.0-alpha.5
 
 ### Minor Changes

@@ -1,5 +1,14 @@
 # @pnpm/filter-workspace-packages
 
+## 2.0.15
+
+### Patch Changes
+
+- @pnpm/error@1.2.1
+- @pnpm/find-workspace-packages@2.2.2
+- @pnpm/matcher@1.0.3
+- pkgs-graph@5.1.6
+
 ## 2.0.15-alpha.2
 
 ### Patch Changes

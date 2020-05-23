@@ -1,5 +1,68 @@
 # pnpm
 
+## 5.0.0
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- 9e2a5b827: `pnpm r` is not an alias of `pnpm remove`.
+- 7b88dcfd7: In case of a fatal error, write the logs to `node_modules/.pnpm-debug.log` (not to `pnpm-debug.log`).
+- 802d145fc: Remove `independent-leaves` support.
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Minor Changes
+
+- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
+
+### Patch Changes
+
+- 26c34c4f3: Print a meaningful error on unsupported Node.js versions.
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [7300eba86]
+- Updated dependencies [242cf8737]
+- Updated dependencies [4063f1bee]
+- Updated dependencies [9596774f2]
+- Updated dependencies [083d78968]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [6cbf18676]
+- Updated dependencies [f516d266c]
+- Updated dependencies [da091c711]
+- Updated dependencies [9e2a5b827]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [471149e66]
+- Updated dependencies [f453a5f46]
+- Updated dependencies [9fbb74ecb]
+  - @pnpm/plugin-commands-rebuild@2.0.0
+  - @pnpm/plugin-commands-store@2.0.0
+  - @pnpm/plugin-commands-script-runners@1.1.0
+  - @pnpm/config@9.0.0
+  - @pnpm/plugin-commands-installation@2.0.0
+  - @pnpm/plugin-commands-publishing@2.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/plugin-commands-listing@2.0.0
+  - @pnpm/plugin-commands-outdated@2.0.0
+  - @pnpm/cli-meta@1.0.0
+  - @pnpm/cli-utils@0.4.5
+  - @pnpm/command@1.0.1
+  - @pnpm/common-cli-options-help@0.1.6
+  - @pnpm/core-loggers@4.0.2
+  - @pnpm/default-reporter@7.2.5
+  - @pnpm/filter-workspace-packages@2.0.15
+  - @pnpm/find-workspace-dir@1.0.1
+  - @pnpm/parse-cli-args@1.0.1
+  - pkgs-graph@5.1.6
+  - @pnpm/plugin-commands-audit@1.0.9
+  - @pnpm/plugin-commands-import@1.0.12
+  - @pnpm/plugin-commands-server@1.0.11
+  - @pnpm/run-npm@2.0.2
+
 ## 5.0.0-alpha.7
 
 ### Major Changes

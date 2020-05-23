@@ -1,5 +1,17 @@
 # @pnpm/link-bins
 
+## 5.3.3
+
+### Patch Changes
+
+- Updated dependencies [da091c711]
+  - @pnpm/types@6.0.0
+  - @pnpm/error@1.2.1
+  - @pnpm/package-bins@4.0.4
+  - @pnpm/read-modules-dir@2.0.2
+  - @pnpm/read-package-json@3.1.1
+  - @pnpm/read-project-manifest@1.0.6
+
 ## 5.3.3-alpha.0
 
 ### Patch Changes

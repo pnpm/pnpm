@@ -1,5 +1,21 @@
 # @pnpm/read-projects-context
 
+## 3.0.0
+
+### Major Changes
+
+- 802d145fc: Remove `independent-leaves` support.
+
+### Patch Changes
+
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [da091c711]
+- Updated dependencies [802d145fc]
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lockfile-file@3.0.9
+  - @pnpm/normalize-registries@1.0.1
+
 ## 2.0.2-alpha.2
 
 ### Patch Changes

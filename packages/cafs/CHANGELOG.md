@@ -1,5 +1,38 @@
 # @pnpm/cafs
 
+## 1.0.0
+
+### Major Changes
+
+- 9596774f2: Store the package index files in the CAFS to reduce directory nesting.
+- 7852deea3: Instead of creating a separate subdir for executables in the content-addressable storage, use the directory where all the files are stored but suffix the executable files with `-exec`. Also suffix the package index files with `-index.json`.
+- b6a82072e: Project created.
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+- 471149e66: Change the format of the package index file. Move all the files info into a "files" property.
+
+### Minor Changes
+
+- f516d266c: Executables are saved into a separate directory inside the content-addressable storage.
+- a5febb913: sideEffects property added to files index file.
+- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
+
+### Patch Changes
+
+- c207d994f: Update rename-overwrite to v3.
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [f516d266c]
+- Updated dependencies [da091c711]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [a5febb913]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [42e6490d1]
+  - @pnpm/store-controller-types@8.0.0
+  - @pnpm/fetcher-base@7.0.0
+
 ## 1.0.0-alpha.5
 
 ### Minor Changes

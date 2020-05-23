@@ -1,5 +1,23 @@
 # @pnpm/find-workspace-packages
 
+## 2.2.2
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [242cf8737]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [da091c711]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [4f5801b1c]
+  - @pnpm/constants@4.0.0
+  - @pnpm/config@9.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/cli-utils@0.4.5
+  - find-packages@7.0.8
+
 ## 2.2.2-alpha.2
 
 ### Patch Changes

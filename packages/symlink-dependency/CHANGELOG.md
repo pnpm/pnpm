@@ -1,5 +1,13 @@
 # @pnpm/symlink-dependency
 
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [da091c711]
+  - @pnpm/types@6.0.0
+  - @pnpm/core-loggers@4.0.2
+
 ## 3.0.5-alpha.0
 
 ### Patch Changes

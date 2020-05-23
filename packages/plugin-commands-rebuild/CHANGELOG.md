@@ -1,5 +1,59 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.0.0
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- 3f73eaf0c: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+- 802d145fc: Remove `independent-leaves` support.
+- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [242cf8737]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [f516d266c]
+- Updated dependencies [142f8caf7]
+- Updated dependencies [da091c711]
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [e11019b89]
+- Updated dependencies [a5febb913]
+- Updated dependencies [802d145fc]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [a5febb913]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [4f5801b1c]
+- Updated dependencies [a5febb913]
+- Updated dependencies [e3990787a]
+  - @pnpm/constants@4.0.0
+  - @pnpm/config@9.0.0
+  - @pnpm/store-controller-types@8.0.0
+  - @pnpm/get-context@2.0.0
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/lockfile-walker@3.0.0
+  - @pnpm/store-connection-manager@0.3.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lifecycle@9.0.0
+  - @pnpm/cli-utils@0.4.5
+  - @pnpm/common-cli-options-help@0.1.6
+  - @pnpm/core-loggers@4.0.2
+  - dependency-path@4.0.7
+  - @pnpm/find-workspace-packages@2.2.2
+  - @pnpm/link-bins@5.3.3
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/normalize-registries@1.0.1
+  - @pnpm/sort-packages@1.0.10
+
 ## 2.0.0-alpha.5
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @pnpm/default-fetcher
 
+## 6.0.0
+
+### Major Changes
+
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+
+### Patch Changes
+
+- Updated dependencies [c47babd52]
+- Updated dependencies [7db36dcb3]
+- Updated dependencies [f516d266c]
+- Updated dependencies [f93583d52]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [1ae66a0dc]
+- Updated dependencies [42e6490d1]
+  - @pnpm/tarball-fetcher@6.0.0
+  - @pnpm/git-fetcher@3.0.0
+  - @pnpm/resolver-base@7.0.1
+
 ## 6.0.0-alpha.5
 
 ## 6.0.0-alpha.4

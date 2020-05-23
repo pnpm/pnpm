@@ -1,5 +1,29 @@
 # @pnpm/filter-lockfile
 
+## 4.0.0
+
+### Major Changes
+
+- c25cccdad: `filterLockfileByImportersAndEngine()` does not remove the skipped packages from the filtered lockfile.
+- 2485eaf60: `opts.registries` is not needed. `opts.skipped` should be relative dependency paths.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [142f8caf7]
+- Updated dependencies [da091c711]
+- Updated dependencies [6a8a97eee]
+- Updated dependencies [4f5801b1c]
+  - @pnpm/constants@4.0.0
+  - @pnpm/lockfile-walker@3.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lockfile-types@2.0.1
+  - dependency-path@4.0.7
+  - @pnpm/error@1.2.1
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/package-is-installable@4.0.8
+
 ## 4.0.0-alpha.2
 
 ### Major Changes

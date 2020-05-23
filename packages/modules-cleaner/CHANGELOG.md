@@ -1,5 +1,46 @@
 # @pnpm/modules-cleaner
 
+## 9.0.0
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- da091c711: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Minor Changes
+
+- 7179cc560: Don't try to remove empty branches of a directory tree, when pruning `node_modules`.
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [c25cccdad]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [f516d266c]
+- Updated dependencies [da091c711]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [2485eaf60]
+- Updated dependencies [a5febb913]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [6a8a97eee]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+- Updated dependencies [a5febb913]
+  - @pnpm/filter-lockfile@4.0.0
+  - @pnpm/store-controller-types@8.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lockfile-types@2.0.1
+  - @pnpm/core-loggers@4.0.2
+  - dependency-path@4.0.7
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/package-bins@4.0.4
+  - @pnpm/read-modules-dir@2.0.2
+  - @pnpm/read-package-json@3.1.1
+
 ## 9.0.0-alpha.5
 
 ### Patch Changes

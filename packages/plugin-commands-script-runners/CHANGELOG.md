@@ -1,5 +1,29 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1.1.0
+
+### Minor Changes
+
+- 7300eba86: Support if-present flag for recursive run
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [da091c711]
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [e3990787a]
+  - @pnpm/config@9.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lifecycle@9.0.0
+  - @pnpm/cli-utils@0.4.5
+  - @pnpm/command@1.0.1
+  - @pnpm/common-cli-options-help@0.1.6
+  - @pnpm/error@1.2.1
+  - @pnpm/sort-packages@1.0.10
+
 ## 1.1.0-alpha.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config",
-  "version": "9.0.0-alpha.2",
+  "version": "9.0.0",
   "description": "Gets configuration options for pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -31,9 +31,9 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/config#readme",
   "dependencies": {
-    "@pnpm/constants": "workspace:4.0.0-alpha.1",
+    "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/error": "workspace:1.2.0",
-    "@pnpm/types": "workspace:6.0.0-alpha.0",
+    "@pnpm/types": "workspace:6.0.0",
     "@zkochan/npm-conf": "2.0.0",
     "camelcase": "6.0.0",
     "is-subdir": "1.1.1",

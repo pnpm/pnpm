@@ -1,5 +1,22 @@
 # @pnpm/lifecycle
 
+## 9.0.0
+
+### Major Changes
+
+- e3990787a: Rename NodeModules to Modules in option names.
+
+### Minor Changes
+
+- f35a3ec1c: Don't execute lifecycle scripts that are meant to prevent the usage of npm or Yarn.
+
+### Patch Changes
+
+- Updated dependencies [da091c711]
+  - @pnpm/types@6.0.0
+  - @pnpm/core-loggers@4.0.2
+  - @pnpm/read-package-json@3.1.1
+
 ## 9.0.0-alpha.1
 
 ### Major Changes

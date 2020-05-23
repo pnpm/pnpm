@@ -1,5 +1,107 @@
 # supi
 
+## 0.39.0
+
+### Minor Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- 3f73eaf0c: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+- f516d266c: Executables are saved into a separate directory inside the content-addressable storage.
+- da091c711: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+- e11019b89: Deprecate the resolution strategy setting. The fewer dependencies strategy is used always.
+- 802d145fc: Remove `independent-leaves` support.
+- 242cf8737: The `linkWorkspacePackages` option is removed. A new option called `linkWorkspacePackagesDepth` is added.
+  When `linkWorkspacePackageDepth` is `0`, workspace packages are linked to direct dependencies even if these direct
+  dependencies are not using workspace ranges (so this is similar to the old `linkWorkspacePackages=true`).
+  `linkWorkspacePackageDepth` also allows to link workspace packages to subdependencies by setting the max depth.
+  Setting it to `Infinity` will make the resolution algorithm always prefer packages from the workspace over packages
+  from the registry.
+- b6a82072e: Using a content-addressable filesystem for storing packages.
+- 45fdcfde2: Locking is removed.
+- a5febb913: The importPackage function of the store controller is importing packages directly from the side-effects cache.
+- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- 2e8ebabb2: Headless installation should be preferred when local dependencies that use aliases are up-to-date.
+- cc8a3bd31: Installation on a non-up-to-date `node_modules`.
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- c25cccdad: The lockfile should be recreated correctly when an up-to-date `node_modules` is present.
+  The recreated lockfile should contain all the skipped optional dependencies.
+- f453a5f46: Update version-selector-type to v3.
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [0730bb938]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [9596774f2]
+- Updated dependencies [7179cc560]
+- Updated dependencies [77bc9b510]
+- Updated dependencies [c25cccdad]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [242cf8737]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [f516d266c]
+- Updated dependencies [cc8a3bd31]
+- Updated dependencies [142f8caf7]
+- Updated dependencies [da091c711]
+- Updated dependencies [9b1b520d9]
+- Updated dependencies [f35a3ec1c]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [16d1ac0fd]
+- Updated dependencies [2485eaf60]
+- Updated dependencies [64bae33c4]
+- Updated dependencies [e11019b89]
+- Updated dependencies [a5febb913]
+- Updated dependencies [bb59db642]
+- Updated dependencies [b47f9737a]
+- Updated dependencies [802d145fc]
+- Updated dependencies [f93583d52]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [a5febb913]
+- Updated dependencies [c207d994f]
+- Updated dependencies [a5febb913]
+- Updated dependencies [4f5801b1c]
+- Updated dependencies [a5febb913]
+- Updated dependencies [4cc0ead24]
+- Updated dependencies [471149e66]
+- Updated dependencies [c25cccdad]
+- Updated dependencies [42e6490d1]
+- Updated dependencies [9fbb74ecb]
+- Updated dependencies [e3990787a]
+  - @pnpm/constants@4.0.0
+  - @pnpm/headless@13.0.0
+  - @pnpm/hoist@3.0.0
+  - @pnpm/modules-cleaner@9.0.0
+  - @pnpm/package-requester@12.0.0
+  - @pnpm/resolve-dependencies@15.0.0
+  - @pnpm/filter-lockfile@4.0.0
+  - @pnpm/store-controller-types@8.0.0
+  - @pnpm/get-context@2.0.0
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/lockfile-walker@3.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/build-modules@5.0.0
+  - @pnpm/lifecycle@9.0.0
+  - @pnpm/core-loggers@4.0.2
+  - dependency-path@4.0.7
+  - @pnpm/error@1.2.1
+  - @pnpm/link-bins@5.3.3
+  - @pnpm/lockfile-file@3.0.9
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/manifest-utils@1.0.1
+  - @pnpm/matcher@1.0.3
+  - @pnpm/normalize-registries@1.0.1
+  - @pnpm/parse-wanted-dependency@1.0.1
+  - @pnpm/prune-lockfile@2.0.8
+  - @pnpm/read-modules-dir@2.0.2
+  - @pnpm/read-package-json@3.1.1
+  - @pnpm/read-project-manifest@1.0.6
+  - @pnpm/resolver-base@7.0.1
+  - @pnpm/symlink-dependency@3.0.5
+
 ## 0.39.0-alpha.7
 
 ### Minor Changes

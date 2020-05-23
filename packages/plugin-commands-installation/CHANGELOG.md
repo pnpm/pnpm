@@ -1,5 +1,71 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.0
+
+### Major Changes
+
+- da091c711: Remove state from store. The store should not store the information about what projects on the computer use what dependencies. This information was needed for pruning in pnpm v4. Also, without this information, we cannot have the `pnpm store usages` command. So `pnpm store usages` is deprecated.
+- 9e2a5b827: `pnpm r` is not an alias of `pnpm remove`.
+- e11019b89: Deprecate the resolution strategy setting. The fewer dependencies strategy is used always.
+- 802d145fc: Remove `independent-leaves` support.
+- 45fdcfde2: Locking is removed.
+
+### Minor Changes
+
+- 242cf8737: The `link-workspace-packages` setting may be set to `deep`. When using `deep`,
+  workspace packages are linked into subdependencies, not only to direct dependencies of projects.
+- f516d266c: Executables are saved into a separate directory inside the content-addressable storage.
+
+### Patch Changes
+
+- 083d78968: Allow referencing packages not under the directory containing `pnpm-workspace.yaml`.
+- 6cbf18676: The add and install commands should accept setting the `modules-dir` setting.
+- f453a5f46: Update version-selector-type to v3.
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [2e8ebabb2]
+- Updated dependencies [242cf8737]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [cc8a3bd31]
+- Updated dependencies [cbc2192f1]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [f516d266c]
+- Updated dependencies [ecf2c6b7d]
+- Updated dependencies [da091c711]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [242cf8737]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [802d145fc]
+- Updated dependencies [c207d994f]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [4f5801b1c]
+- Updated dependencies [a5febb913]
+- Updated dependencies [c25cccdad]
+- Updated dependencies [f453a5f46]
+- Updated dependencies [9fbb74ecb]
+  - @pnpm/constants@4.0.0
+  - @pnpm/package-store@9.0.0
+  - @pnpm/plugin-commands-rebuild@2.0.0
+  - supi@0.39.0
+  - @pnpm/config@9.0.0
+  - @pnpm/store-connection-manager@0.3.0
+  - @pnpm/types@6.0.0
+  - @pnpm/cli-utils@0.4.5
+  - @pnpm/command@1.0.1
+  - @pnpm/common-cli-options-help@0.1.6
+  - @pnpm/error@1.2.1
+  - @pnpm/filter-workspace-packages@2.0.15
+  - @pnpm/find-workspace-dir@1.0.1
+  - @pnpm/find-workspace-packages@2.2.2
+  - @pnpm/manifest-utils@1.0.1
+  - @pnpm/outdated@7.0.23
+  - @pnpm/parse-wanted-dependency@1.0.1
+  - @pnpm/pnpmfile@0.1.9
+  - @pnpm/resolver-base@7.0.1
+  - @pnpm/sort-packages@1.0.10
+
 ## 2.0.0-alpha.7
 
 ### Major Changes

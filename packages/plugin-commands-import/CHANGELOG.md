@@ -1,5 +1,34 @@
 # @pnpm/plugin-commands-import
 
+## 1.0.13
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [2e8ebabb2]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [cc8a3bd31]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [f516d266c]
+- Updated dependencies [da091c711]
+- Updated dependencies [a7d20d927]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [242cf8737]
+- Updated dependencies [b6a82072e]
+- Updated dependencies [45fdcfde2]
+- Updated dependencies [a5febb913]
+- Updated dependencies [4f5801b1c]
+- Updated dependencies [c25cccdad]
+- Updated dependencies [f453a5f46]
+- Updated dependencies [9fbb74ecb]
+  - @pnpm/constants@4.0.0
+  - supi@0.39.0
+  - @pnpm/store-connection-manager@0.3.0
+  - @pnpm/cli-utils@0.4.5
+  - @pnpm/error@1.2.1
+  - @pnpm/read-project-manifest@1.0.6
+
 ## 1.0.12-alpha.7
 
 ### Patch Changes

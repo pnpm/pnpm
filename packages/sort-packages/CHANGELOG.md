@@ -1,5 +1,15 @@
 # @pnpm/sort-packages
 
+## 1.0.10
+
+### Patch Changes
+
+- Updated dependencies [242cf8737]
+- Updated dependencies [e11019b89]
+- Updated dependencies [802d145fc]
+- Updated dependencies [45fdcfde2]
+  - @pnpm/config@9.0.0
+
 ## 1.0.10-alpha.2
 
 ### Patch Changes
