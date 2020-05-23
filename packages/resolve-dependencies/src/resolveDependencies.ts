@@ -452,16 +452,22 @@ function getInfoFromLockfile (
     return null
   }
 
-  const dependencyLockfile = lockfile.packages?.[depPath]
+  let dependencyLockfile = lockfile.packages?.[depPath]
 
   if (dependencyLockfile) {
     if (dependencyLockfile.peerDependencies && dependencyLockfile.dependencies) {
       // This is done to guarantee that the dependency will be relinked with the
       // up-to-date peer dependencies
       // Covered by test: "peer dependency is grouped with dependency when peer is resolved not from a top dependency"
-      R.keys(dependencyLockfile.peerDependencies).forEach((peer) => {
-        delete dependencyLockfile.dependencies![peer]
-      })
+      const dependencies: Record<string, string> = {}
+      for (const [depName, ref] of Object.entries(dependencyLockfile.dependencies ?? {})) {
+        if (dependencyLockfile.peerDependencies[depName]) continue
+        dependencies[depName] = ref
+      }
+      dependencyLockfile = {
+        ...dependencyLockfile,
+        dependencies,
+      }
     }
 
     return {

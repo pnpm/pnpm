@@ -81,17 +81,29 @@ test('nothing is needlessly removed from node_modules', async (t: tape.Test) => 
 })
 
 test('peer dependency is grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
-  prepareEmpty(t)
+  const project = prepareEmpty(t)
 
   const reporter = sinon.spy()
 
-  await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter }))
+  const manifest = await addDependenciesToPackage({}, ['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   t.notOk(reporter.calledWithMatch({
     message: `localhost+${REGISTRY_MOCK_PORT}/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.`,
   }), 'no warning is logged about unresolved peer dep')
 
   t.ok(await exists(path.resolve(`node_modules/.pnpm/ajv-keywords@1.5.0_ajv@4.10.4/node_modules/ajv-keywords`)), 'dependent is grouped with top peer dep')
+
+  await mutateModules([
+    {
+      buildIndex: 0,
+      manifest,
+      mutation: 'install',
+      rootDir: process.cwd(),
+    },
+  ], await testDefaults({ preferFrozenLockfile: false }))
+
+  const lockfile = await project.readLockfile()
+  t.ok(lockfile.packages['/ajv-keywords/1.5.0_ajv@4.10.4'].dependencies['ajv'], 'peer dep is still linked after repeat install')
 })
 
 test('the right peer dependency is used in every workspace package', async (t: tape.Test) => {
