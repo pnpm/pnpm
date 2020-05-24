@@ -23,39 +23,49 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Install all dependencies for a project',
             name: 'install',
             shortAlias: 'i',
           },
           {
+            description: 'Installs a package and any packages that it depends on. By default, any new package is installed as a prod dependency',
             name: 'add',
           },
           {
+            description: 'Updates packages to their latest version based on the specified range',
             name: 'update',
             shortAlias: 'up',
           },
           {
+            description: 'Removes packages from node_modules and from the project\'s package.json',
             name: 'remove',
             shortAlias: 'rm',
           },
           {
+            description: 'Connect the local project to another one',
             name: 'link',
             shortAlias: 'ln',
           },
           {
+            description: 'Unlinks a package. Like yarn unlink but pnpm re-installs the dependency after removing the external link',
             name: 'unlink',
           },
           {
+            description: 'Generates a pnpm-lock.yaml from an npm package-lock.json (or npm-shrinkwrap.json) file',
             name: 'import',
           },
           {
+            description: 'Runs a pnpm install followed immediately by a pnpm test',
             name: 'install-test',
             shortAlias: 'it',
           },
           {
+            description: 'Rebuild a package',
             name: 'rebuild',
             shortAlias: 'rb',
           },
           {
+            description: 'Removes extraneous packages',
             name: 'prune',
           },
         ],
@@ -65,10 +75,12 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Print all the versions of packages that are installed, as well as their dependencies, in a tree-structure',
             name: 'list',
             shortAlias: 'ls',
           },
           {
+            description: 'Check for outdated packages',
             name: 'outdated',
           },
         ],
@@ -78,19 +90,24 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Runs a defined package script',
             name: 'run',
           },
           {
+            description: 'Runs a package\'s "test" script, if one was provided',
             name: 'test',
             shortAlias: 't',
           },
           {
+            description: 'Runs an arbitrary command specified in the package\'s "start" property of its "scripts" object',
             name: 'start',
           },
           {
+            description: 'Runs a package\'s "restart" script, if one was provided',
             name: 'restart',
           },
           {
+            description: 'Runs a package\'s "stop" script, if one was provided',
             name: 'stop',
           },
         ],
@@ -103,12 +120,14 @@ function getHelpText () {
             name: 'pack',
           },
           {
+            description: 'Publishes a package to the registry',
             name: 'publish',
           },
           {
             name: 'root',
           },
           {
+            description: 'Checks for known security issues with the installed packages',
             name: 'audit',
           },
         ],
@@ -118,9 +137,11 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Runs a command in each package of the monorepo',
             name: 'recursive exec',
           },
           {
+            description: 'Runs installation for every package in every subfolder',
             name: 'recursive install',
           },
           {
@@ -160,12 +181,15 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Starts a server that does all interactions with the store. Other commands will delegate any store-related tasks to this server',
             name: 'server start',
           },
           {
+            description: 'Stops the store server',
             name: 'server status',
           },
           {
+            description: 'Prints information about the running server',
             name: 'server stop',
           },
         ],
@@ -175,12 +199,15 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Adds new packages to the pnpm store directly. Does not modify any projects or files outside the store',
             name: 'store add',
           },
           {
+            description: 'Removes unreferenced (extraneous, orphan) packages from the store',
             name: 'store prune',
           },
           {
+            description: 'Checks for modified packages in the store',
             name: 'store status',
           },
         ],
