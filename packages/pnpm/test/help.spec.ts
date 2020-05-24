@@ -8,11 +8,3 @@ test('print an error when help not found', (t) => {
   )
   t.end()
 })
-
-test('print help', (t) => {
-  t.equal(
-    createHelp({})({}, ['foo']).split('\n')[1],
-    '',
-  )
-  t.end()
-})
