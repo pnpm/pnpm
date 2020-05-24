@@ -75,6 +75,10 @@ function getHelpText () {
 
         list: [
           {
+            description: 'Checks for known security issues with the installed packages',
+            name: 'audit',
+          },
+          {
             description: 'Print all the versions of packages that are installed, as well as their dependencies, in a tree-structure',
             name: 'list',
             shortAlias: 'ls',
@@ -125,72 +129,6 @@ function getHelpText () {
           },
           {
             name: 'root',
-          },
-          {
-            description: 'Checks for known security issues with the installed packages',
-            name: 'audit',
-          },
-        ],
-      },
-      {
-        title: 'Manage your monorepo',
-
-        list: [
-          {
-            description: 'Runs a command in each package of the monorepo',
-            name: 'recursive exec',
-          },
-          {
-            description: 'Runs installation for every package in every subfolder',
-            name: 'recursive install',
-          },
-          {
-            name: 'recursive add',
-          },
-          {
-            name: 'recursive list',
-          },
-          {
-            name: 'recursive why',
-          },
-          {
-            name: 'recursive outdated',
-          },
-          {
-            name: 'recursive rebuild',
-          },
-          {
-            name: 'recursive run',
-          },
-          {
-            name: 'recursive test',
-          },
-          {
-            name: 'recursive remove',
-          },
-          {
-            name: 'recursive unlink',
-          },
-          {
-            name: 'recursive update',
-          },
-        ],
-      },
-      {
-        title: 'Use a store server',
-
-        list: [
-          {
-            description: 'Starts a server that does all interactions with the store. Other commands will delegate any store-related tasks to this server',
-            name: 'server start',
-          },
-          {
-            description: 'Stops the store server',
-            name: 'server status',
-          },
-          {
-            description: 'Prints information about the running server',
-            name: 'server stop',
           },
         ],
       },
