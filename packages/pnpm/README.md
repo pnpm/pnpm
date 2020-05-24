@@ -14,7 +14,7 @@
 
 Features:
 
-* **Fast.** As fast as npm and Yarn.
+* **Fast.** Almost always under 20s with cold cache and under 10s with hot cache ([benchmarks](https://github.com/pnpm/benchmarks-of-javascript-package-managers)).
 * **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
 * **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
