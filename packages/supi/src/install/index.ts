@@ -64,7 +64,6 @@ import getWantedDependencies, {
   PinnedVersion,
   WantedDependency,
 } from './getWantedDependencies'
-import isCurrentLockfileUpToDate from './isCurrentLockfilesUpToDate'
 import linkPackages, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -389,24 +388,15 @@ export async function mutateModules (
       })
     }
 
-    const currentLockfileIsUpToDate = isCurrentLockfileUpToDate(
-      ctx.currentLockfile,
-      {
-        skipped: Array.from(ctx.skipped),
-        wantedLockfile: ctx.wantedLockfile,
-      }
-    )
     // Unfortunately, the private lockfile may differ from the public one.
     // A user might run named installations on a project that has a pnpm-lock.yaml file before running a noop install
     const makePartialCurrentLockfile = !installsOnly && (
       ctx.existsWantedLockfile && !ctx.existsCurrentLockfile ||
-      // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
-      // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-      !currentLockfileIsUpToDate
+      !ctx.currentLockfileIsUpToDate
     )
     const result = await installInContext(projectsToInstall, ctx, {
       ...opts,
-      currentLockfileIsUpToDate: !ctx.existsWantedLockfile || currentLockfileIsUpToDate,
+      currentLockfileIsUpToDate: !ctx.existsWantedLockfile || ctx.currentLockfileIsUpToDate,
       makePartialCurrentLockfile,
       update: opts.update || !installsOnly,
       updateLockfileMinorVersion: true,

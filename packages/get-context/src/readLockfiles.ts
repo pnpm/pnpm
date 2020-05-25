@@ -35,6 +35,7 @@ export default async function (
   }
 ): Promise<{
   currentLockfile: Lockfile,
+  currentLockfileIsUpToDate: boolean,
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   wantedLockfile: Lockfile,
@@ -76,6 +77,7 @@ export default async function (
   }
   return {
     currentLockfile,
+    currentLockfileIsUpToDate: R.equals(currentLockfile, wantedLockfile),
     existsCurrentLockfile: !!files[1],
     existsWantedLockfile: !!files[0],
     wantedLockfile,

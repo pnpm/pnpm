@@ -23,6 +23,7 @@ import readLockfileFile from './readLockfiles'
 
 export interface PnpmContext<T> {
   currentLockfile: Lockfile,
+  currentLockfileIsUpToDate: boolean,
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   extraBinPaths: string[],
@@ -292,6 +293,7 @@ function stringifyIncludedDeps (included: IncludedDependencies) {
 
 export interface PnpmSingleContext {
   currentLockfile: Lockfile,
+  currentLockfileIsUpToDate: boolean,
   existsCurrentLockfile: boolean,
   existsWantedLockfile: boolean,
   extraBinPaths: string[],
