@@ -105,11 +105,11 @@ pnpx create-react-app my-cool-new-app
 
 ## Benchmark
 
-pnpm is as fast as npm and Yarn. See all benchmarks [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers).
+pnpm is up to 2x faster than npm and Yarn classic. See all benchmarks [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers).
 
-Benchmarks on a React app:
+Benchmarks on an app with lots of dependencies:
 
-![](https://cdn.rawgit.com/pnpm/benchmarks-of-javascript-package-managers/b14c3e8/results/imgs/react-app.svg)
+![](https://cdn.rawgit.com/pnpm/benchmarks-of-javascript-package-managers/5328f01/results/imgs/alotta-files.svg)
 
 ## Support
 
