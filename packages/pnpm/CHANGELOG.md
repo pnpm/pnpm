@@ -1,5 +1,20 @@
 # pnpm
 
+## 5.0.0-rc.3
+
+### Minor Changes
+
+- e28b4e877: Add descriptions to the commands in the generic help. Remove some rarely use commands from generic help.
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@2.0.1
+- @pnpm/plugin-commands-store@2.0.1
+- @pnpm/plugin-commands-import@1.0.15
+- @pnpm/plugin-commands-installation@2.0.2
+- @pnpm/plugin-commands-listing@2.0.0
+- @pnpm/plugin-commands-outdated@2.0.0
+
 ## 5.0.0-rc.2
 
 ### Patch Changes

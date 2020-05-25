@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-rebuild
 
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [327bfbf02]
+  - @pnpm/get-context@2.1.0
+
 ## 2.0.0
 
 ### Major Changes

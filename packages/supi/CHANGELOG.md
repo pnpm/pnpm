@@ -1,5 +1,13 @@
 # supi
 
+## 0.39.2
+
+### Patch Changes
+
+- 327bfbf02: Fix current lockfile (the one at `node_modules/.pnpm/lock.yaml`) up-to-date check.
+- Updated dependencies [327bfbf02]
+  - @pnpm/get-context@2.1.0
+
 ## 0.39.1
 
 ### Patch Changes

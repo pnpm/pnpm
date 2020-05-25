@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 2.1.0
+
+### Minor Changes
+
+- 327bfbf02: Add `currentLockfileIsUpToDate` to the context.
+
 ## 2.0.0
 
 ### Major Changes
