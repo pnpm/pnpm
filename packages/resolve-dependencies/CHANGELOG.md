@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 15.1.0
+
+### Minor Changes
+
+- 71b0cb8fd: A new option added: `forceFullResolution`. When `true`, the whole dependency graph will be walked through during resolution.
+
 ## 15.0.1
 
 ### Patch Changes

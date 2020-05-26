@@ -1,5 +1,16 @@
 # supi
 
+## 0.39.3
+
+### Patch Changes
+
+- 71b0cb8fd: Subdependencies are not needlessly updated.
+
+  Fixes a regression introduced by [cc8a3bd312ea1405a6c79b1d157f0f9ae1be07aa](https://github.com/pnpm/pnpm/commit/cc8a3bd312ea1405a6c79b1d157f0f9ae1be07aa).
+
+- Updated dependencies [71b0cb8fd]
+  - @pnpm/resolve-dependencies@15.1.0
+
 ## 0.39.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @pnpm/plugin-commands-installation
 
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [71b0cb8fd]
+  - supi@0.39.3
+
 ## 2.0.2
 
 ### Patch Changes
