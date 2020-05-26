@@ -1,8 +1,22 @@
 ![](https://i.imgur.com/qlW1eEG.png)
 
-# pnpm
+Fast, disk space efficient package manager:
 
-> Fast, disk space efficient package manager
+* **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
+* **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
+* **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
+* **Strict.** A package can access only dependencies that are specified in its `package.json`.
+* **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
+* **Works everywhere.** Supports Windows, Linux, and macOS.
+* **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.js.org/en/users.html) since 2016.
+  
+  To quote the [Rush](https://rushjs.io/) team:
+  
+  > Microsoft uses PNPM in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
+  
+  Need we say more?
+
+Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
 [![Status](https://travis-ci.com/pnpm/pnpm.svg?branch=master)](https://travis-ci.com/pnpm/pnpm "See test builds")
@@ -11,26 +25,6 @@
 [![OpenCollective](https://opencollective.com/pnpm/backers/badge.svg)](#backers)
 [![OpenCollective](https://opencollective.com/pnpm/sponsors/badge.svg)](#sponsors)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
-
-Features:
-
-* **Fast.** Up to 2x faster than the alternatives (see [benchmark](#benchmark)).
-* **Efficient.** Files inside `node_modules` are linked from a single content-addressable storage.
-* **[Great for monorepos](https://pnpm.js.org/en/workspaces).**
-* **Strict.** A package can access only dependencies that are specified in its `package.json`.
-* **Deterministic.** Has a lockfile called `pnpm-lock.yaml`.
-* **Works everywhere.** Works on Windows, Linux, and OS X.
-
-Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
-
-## Table of Contents
-
-* [Background](#background)
-* [Install](#install)
-* [Usage](#usage)
-* [Benchmark](#benchmark)
-* [Support](#support)
-* [Contributors](#contributors)
 
 ## Background
 
@@ -48,7 +42,7 @@ As a result, you save gigabytes of space on your disk and you have a lot faster 
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
 why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://medium.com/pnpm/flat-node-modules-is-not-the-only-way-d2e40f7296a3).
 
-## Install
+## Installation
 
 Using a [standalone script](https://github.com/pnpm/self-installer#readme):
 
