@@ -42,32 +42,11 @@ why it works fine with the Node.js ecosystem, read this small article: [Flat nod
 
 ## Installation
 
-Using a [standalone script](https://github.com/pnpm/self-installer#readme):
-
 ```
-curl -L https://raw.githubusercontent.com/pnpm/self-installer/master/install.js | node
+npm install -g pnpm
 ```
 
-On Windows (PowerShell):
-
-```powershell
-(Invoke-WebRequest 'https://raw.githubusercontent.com/pnpm/self-installer/master/install.js').Content | node
-```
-
-
-Via npx:
-
-```
-npx pnpm add -g pnpm
-```
-
-Once you have installed pnpm, you can upgrade it using pnpm:
-
-```
-pnpm add -g pnpm
-```
-
-> Do you wanna use pnpm on CI servers? See: [Continuous Integration](https://pnpm.js.org/en/continuous-integration).
+For other installation options [visit our website](https://pnpm.js.org/en/installation).
 
 ## Usage
 
