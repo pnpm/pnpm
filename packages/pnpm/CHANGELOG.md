@@ -1,5 +1,16 @@
 # pnpm
 
+## 5.0.0-rc.5
+
+### Patch Changes
+
+- @pnpm/plugin-commands-rebuild@2.0.2
+- @pnpm/plugin-commands-store@2.0.2
+- @pnpm/plugin-commands-installation@2.0.4
+- @pnpm/plugin-commands-import@1.0.17
+- @pnpm/plugin-commands-listing@2.0.0
+- @pnpm/plugin-commands-outdated@2.0.0
+
 ## 5.0.0-rc.4
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/get-context
 
+## 2.1.1
+
+### Patch Changes
+
+- 58c02009f: When checking compatibility of the existing modules directory, start with the layout version. Otherwise, it may happen that some of the fields were renamed and other checks will fail.
+
 ## 2.1.0
 
 ### Minor Changes

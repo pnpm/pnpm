@@ -1,5 +1,12 @@
 # supi
 
+## 0.39.4
+
+### Patch Changes
+
+- Updated dependencies [58c02009f]
+  - @pnpm/get-context@2.1.1
+
 ## 0.39.3
 
 ### Patch Changes
