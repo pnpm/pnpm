@@ -51,6 +51,7 @@ export default async function (
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
+    forceFullResolution: boolean,
     hooks: {
       readPackage?: ReadPackageHook,
     },
@@ -77,6 +78,7 @@ export default async function (
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
+    forceFullResolution: opts.forceFullResolution,
     linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? -1,
     lockfileDir: opts.lockfileDir,
     nodeVersion: opts.nodeVersion,

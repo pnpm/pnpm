@@ -583,20 +583,14 @@ async function installInContext (
     !R.isEmpty(ctx.wantedLockfile.packages) &&
     getPreferredVersionsFromLockfile(ctx.wantedLockfile.packages!) || undefined
   )
-  const updateLockfile = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION || !opts.currentLockfileIsUpToDate
-  const defaultUpdateDepth = (() => {
-    if (opts.force || updateLockfile) return Infinity
-    if (opts.update) {
-      return opts.depth
-    }
-    return -1
-  })()
+  const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION
+    || !opts.currentLockfileIsUpToDate
+    || opts.force
   const _toResolveImporter = toResolveImporter.bind(null, {
-    defaultUpdateDepth,
+    defaultUpdateDepth: opts.update ? opts.depth : -1,
     lockfileOnly: opts.lockfileOnly,
     preferredVersions,
     storeDir: ctx.storeDir,
-    updateLockfile,
     virtualStoreDir: ctx.virtualStoreDir,
     workspacePackages: opts.workspacePackages,
   })
@@ -614,6 +608,7 @@ async function installInContext (
       dryRun: opts.lockfileOnly,
       engineStrict: opts.engineStrict,
       force: opts.force,
+      forceFullResolution,
       hooks: opts.hooks,
       linkWorkspacePackagesDepth: opts.linkWorkspacePackagesDepth ?? (opts.saveWorkspaceProtocol ? 0 : -1),
       lockfileDir: opts.lockfileDir,
@@ -829,7 +824,6 @@ async function toResolveImporter (
     lockfileOnly: boolean,
     preferredVersions?: PreferredVersions,
     storeDir: string,
-    updateLockfile: boolean,
     virtualStoreDir: string,
     workspacePackages: WorkspacePackages,
   },
@@ -847,7 +841,7 @@ async function toResolveImporter (
   const existingDeps = nonLinkedDependencies
     .filter(({ alias }) => !project.wantedDependencies.some((wantedDep) => wantedDep.alias === alias))
   let wantedDependencies!: Array<WantedDependency & { isNew?: boolean, updateDepth: number }>
-  if (!project.manifest || opts.updateLockfile) {
+  if (!project.manifest) {
     wantedDependencies = [
       ...project.wantedDependencies,
       ...existingDeps,

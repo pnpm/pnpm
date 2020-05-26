@@ -990,7 +990,7 @@ test('all the subdeps of dependencies are linked when a node_modules is partiall
       'bar',
       'foo',
       'foobarqar',
-      'qar',
+      'is-positive',
     ]
   )
 })

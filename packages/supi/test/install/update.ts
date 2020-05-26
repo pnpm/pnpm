@@ -49,6 +49,42 @@ test('preserve subdeps on update', async (t: tape.Test) => {
   })
 })
 
+test('preserve subdeps on update when no node_modules is present', async (t: tape.Test) => {
+  const project = prepareEmpty(t)
+
+  await Promise.all([
+    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
+    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
+    addDistTag('bar', '100.0.0', 'latest'),
+    addDistTag('foo', '100.0.0', 'latest'),
+    addDistTag('foobarqar', '1.0.0', 'latest'),
+    addDistTag('peer-c', '1.0.0', 'latest'),
+  ])
+
+  const manifest = await addDependenciesToPackage({}, ['foobarqar', 'abc-grand-parent-with-c'], await testDefaults({ lockfileOnly: true }))
+
+  await Promise.all([
+    addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
+    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('foo', '100.1.0', 'latest'),
+    addDistTag('foobarqar', '1.0.1', 'latest'),
+  ])
+
+  await install(manifest, await testDefaults({ update: true, depth: 0 }))
+
+  const lockfile = await project.readLockfile()
+
+  t.ok(lockfile.packages)
+  t.ok(lockfile.packages['/abc-parent-with-ab/1.0.0_peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
+  t.ok(lockfile.packages['/foobarqar/1.0.1'])
+  t.deepEqual(lockfile.packages['/foobarqar/1.0.1'].dependencies, {
+    bar: '100.0.0',
+    foo: '100.0.0',
+    qar: '100.0.0',
+  })
+})
+
 test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
   prepareEmpty(t)
 

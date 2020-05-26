@@ -121,6 +121,7 @@ export interface ChildrenByParentId {
 export interface ResolutionContext {
   defaultTag: string,
   dryRun: boolean,
+  forceFullResolution: boolean,
   resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
   outdatedDependencies: {[pkgId: string]: string},
   childrenByParentId: ChildrenByParentId,
@@ -224,7 +225,7 @@ export default async function resolveDependencies (
     parentDependsOnPeers: options.parentDependsOnPeers,
     preferredDependencies: options.preferredDependencies,
     prefix: ctx.prefix,
-    proceed: options.proceed,
+    proceed: options.proceed || ctx.forceFullResolution,
     registries: ctx.registries,
     resolvedDependencies: options.resolvedDependencies,
   })
@@ -583,7 +584,7 @@ async function resolveDependency (
   if (
     !options.parentDependsOnPeer && !pkgResponse.body.updated &&
     options.currentDepth === Math.max(0, options.updateDepth) &&
-    depIsLinked && !ctx.force
+    depIsLinked && !ctx.force && !options.proceed
   ) {
     return null
   }
