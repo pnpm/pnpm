@@ -13,11 +13,16 @@ export default function checkCompatibility (
     virtualStoreDir: string,
   }
 ) {
+  if (!modules.layoutVersion || modules.layoutVersion !== LAYOUT_VERSION) {
+    throw new ModulesBreakingChangeError({
+      modulesPath: opts.modulesDir,
+    })
+  }
   // Important: comparing paths with path.relative()
   // is the only way to compare paths correctly on Windows
   // as of Node.js 4-9
   // See related issue: https://github.com/pnpm/pnpm/issues/996
-  if (path.relative(modules.storeDir, opts.storeDir) !== '') {
+  if (!modules.storeDir || path.relative(modules.storeDir, opts.storeDir) !== '') {
     throw new UnexpectedStoreError({
       actualStorePath: opts.storeDir,
       expectedStorePath: modules.storeDir,
@@ -29,11 +34,6 @@ export default function checkCompatibility (
       actual: opts.virtualStoreDir,
       expected: modules.virtualStoreDir,
       modulesDir: opts.modulesDir,
-    })
-  }
-  if (!modules.layoutVersion || modules.layoutVersion !== LAYOUT_VERSION) {
-    throw new ModulesBreakingChangeError({
-      modulesPath: opts.modulesDir,
     })
   }
 }
