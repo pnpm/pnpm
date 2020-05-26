@@ -10,13 +10,11 @@ Fast, disk space efficient package manager:
 * **Works everywhere.** Supports Windows, Linux, and macOS.
 * **Battle-tested.** Used in production by teams of [all sizes](https://pnpm.js.org/en/users.html) since 2016.
   
-  To quote the [Rush](https://rushjs.io/) team:
-  
-  > Microsoft uses PNPM in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
-  
-  Need we say more?
+To quote the [Rush](https://rushjs.io/) team:
 
-Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
+> Microsoft uses PNPM in Rush repos with hundreds of projects and hundreds of PRs per day, and we’ve found it to be very fast and reliable.
+
+Need we say more?
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
 [![Status](https://travis-ci.com/pnpm/pnpm.svg?branch=master)](https://travis-ci.com/pnpm/pnpm "See test builds")
@@ -142,3 +140,7 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
+
+***
+
+Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
