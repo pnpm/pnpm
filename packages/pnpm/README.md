@@ -60,7 +60,7 @@ Also, pnpx instead of npx:
 pnpx create-react-app my-cool-new-app
 ```
 
-For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website.
+For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website, or run `pnpm help`.
 
 ## Benchmark
 
