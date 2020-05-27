@@ -1,299 +1,67 @@
 # pnpm
 
-## 5.0.0-rc.5
+## 5.0.0
 
-### Patch Changes
+### Major Changes
 
-- @pnpm/plugin-commands-rebuild@2.0.2
-- @pnpm/plugin-commands-store@2.0.2
-- @pnpm/plugin-commands-installation@2.0.4
-- @pnpm/plugin-commands-import@1.0.17
-- @pnpm/plugin-commands-listing@2.0.0
-- @pnpm/plugin-commands-outdated@2.0.0
+- 🚀 33% faster installation times vs pnpm v4.
 
-## 5.0.0-rc.4
+  In some cases, 2 times faster than Yarn v1! ([performance diff of pnpm v4 vs v5](https://github.com/pnpm/benchmarks-of-javascript-package-managers/commit/5328f0165628b0ee5e22a8a433357d65bee75d64))
 
-### Patch Changes
+  | action  | cache | lockfile | node_modules| npm | pnpm | Yarn | Yarn PnP |
+  | ---     | ---   | ---      | ---         | --- | --- | --- | --- |
+  | install |       |          |             | 43.3s | 17.5s | 36.7s | 28.6s |
+  | install | ✔     | ✔        | ✔           | 7s | 1.5s | 735ms | n/a |
+  | install | ✔     | ✔        |             | 18.3s | 7.8s | 10.5s | 1.8s |
+  | install | ✔     |          |             | 24.8s | 10.9s | 22.2s | 12.1s |
+  | install |       | ✔        |             | 23.2s | 15.2s | 22.4s | 13.4s |
+  | install | ✔     |          | ✔           | 6.4s | 1.8s | 17.1s | n/a |
+  | install |       | ✔        | ✔           | 7.3s | 1.5s | 735ms | n/a |
+  | install |       |          | ✔           | 6.4s | 3.1s | 33.2s | n/a |
+  | update  | n/a   | n/a      | n/a         | 7s | 14.5s | 42.6s | 27.6s |
 
-- @pnpm/plugin-commands-import@1.0.16
-- @pnpm/plugin-commands-installation@2.0.3
-- @pnpm/plugin-commands-listing@2.0.0
-- @pnpm/plugin-commands-outdated@2.0.0
+  All the benchmarks are [here](https://github.com/pnpm/benchmarks-of-javascript-package-managers/tree/5328f0165628b0ee5e22a8a433357d65bee75d64).
 
-## 5.0.0-rc.3
+- A content-addressable filesystem is used to store packages on the disk.
+
+  pnpm v5 uses a content-addressable filesystem to store all files from all module directories on a disk. If you depend on different versions of lodash, only the files that differ are added to the store. If lodash has 100 files, and a new version has a change only in one of those files, pnpm update will only add 1 new file to the storage.
+
+  For more info about the structure of this new store, you can check the [GitHub issue about it](https://github.com/pnpm/pnpm/issues/2470).
+
+  This change was inspired by [dupe-krill](https://github.com/kornelski/dupe-krill) and the content-addressable storage of Git.
+- Reduced directory nesting in the virtual store directory.
+
+  In pnpm v4, if you installed `foo@1.0.0`, it was hard-linked into `node_modules/.pnpm/registry.npmjs.org/foo/1.0.0/`.
+
+  In pnpm v5, it will be hard-linked into `node_modules/.pnpm/foo@1.0.0/`. This new structure of the virtual store directory drastically reduces the number of directories pnpm has to create. Hence, there are fewer filesystem operations, which improves speed.
+- `pnpm store usages` removed.
+
+  This command was using information from the `store.json` files, which is not present in the new content-addressable storage anymore.
+- The `independent-leaves` setting has been removed.
+
+  When hoisting was off, it was possible to set the `independent-leaves` setting to `true`. When `true`, leaf dependencies were symlinked directly from the global store. However, we turned hoisting on by default for pnpm v4, so this feature has no future at the moment.
+- The `resolution-strategy` setting has been removed.
+
+  By default, the `fewer-dependencies` resolution strategy is used. It was possible to select a `fast` resolution strategy. This setting is deprecated to simplify future improvements to the resolution algorithm.
+- The store and the modules directory are not locked.
+
+  We are not using directory locks anymore. So the `--no-lock` option will throw an error. Some users had [issues](https://github.com/pnpm/pnpm/issues/594) with locking. We have confidence that pnpm will never leave either node_modules or the store in a broken state,
+  so we removed locking.
+- `git-checks` is `true` by default.
+
+  By default, `pnpm publish` will make some checks before actually publishing a new version of your package.
+
+  The next checks will happen:
+  
+  - The current branch is your publish branch. The publish branch is `master` by default. This is configurable through the `publish-branch` setting.
+  - Your working directory is clean (there are no uncommitted changes).
+  - The branch is up-to-date.
+
+  If you don't want this checks, run `pnpm publish --no-git-checks` or set this setting to `false` via a `.npmrc` file.
+- In case of a crash, the debug file will be written to `node_modules/.pnpm-debug.log` (not to `pnpm-debug.log` as in v4 and earlier).
 
 ### Minor Changes
 
-- e28b4e877: Add descriptions to the commands in the generic help. Remove some rarely use commands from generic help.
+- The `link-workspace-packages` setting may now be set to `deep`.
 
-### Patch Changes
-
-- @pnpm/plugin-commands-rebuild@2.0.1
-- @pnpm/plugin-commands-store@2.0.1
-- @pnpm/plugin-commands-import@1.0.15
-- @pnpm/plugin-commands-installation@2.0.2
-- @pnpm/plugin-commands-listing@2.0.0
-- @pnpm/plugin-commands-outdated@2.0.0
-
-## 5.0.0-rc.2
-
-### Patch Changes
-
-- @pnpm/plugin-commands-import@1.0.14
-- @pnpm/plugin-commands-installation@2.0.1
-- @pnpm/plugin-commands-listing@2.0.0
-- @pnpm/plugin-commands-outdated@2.0.0
-
-## 5.0.0-rc.1
-
-### Major Changes
-
-- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
-- 9e2a5b827: `pnpm r` is not an alias of `pnpm remove`.
-- 7b88dcfd7: In case of a fatal error, write the logs to `node_modules/.pnpm-debug.log` (not to `pnpm-debug.log`).
-- 802d145fc: Remove `independent-leaves` support.
-- b6a82072e: Using a content-addressable filesystem for storing packages.
-- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
-  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
-  inside `node_modules/.pnpm/<pkg>`.
-
-### Minor Changes
-
-- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
-
-### Patch Changes
-
-- 26c34c4f3: Print a meaningful error on unsupported Node.js versions.
-- Updated dependencies [b5f66c0f2]
-- Updated dependencies [7300eba86]
-- Updated dependencies [242cf8737]
-- Updated dependencies [4063f1bee]
-- Updated dependencies [9596774f2]
-- Updated dependencies [083d78968]
-- Updated dependencies [3f73eaf0c]
-- Updated dependencies [6cbf18676]
-- Updated dependencies [f516d266c]
-- Updated dependencies [da091c711]
-- Updated dependencies [9e2a5b827]
-- Updated dependencies [a7d20d927]
-- Updated dependencies [e11019b89]
-- Updated dependencies [802d145fc]
-- Updated dependencies [b6a82072e]
-- Updated dependencies [45fdcfde2]
-- Updated dependencies [471149e66]
-- Updated dependencies [f453a5f46]
-- Updated dependencies [9fbb74ecb]
-  - @pnpm/plugin-commands-rebuild@2.0.0
-  - @pnpm/plugin-commands-store@2.0.0
-  - @pnpm/plugin-commands-script-runners@1.1.0
-  - @pnpm/config@9.0.0
-  - @pnpm/plugin-commands-installation@2.0.0
-  - @pnpm/plugin-commands-publishing@2.0.0
-  - @pnpm/types@6.0.0
-  - @pnpm/plugin-commands-listing@2.0.0
-  - @pnpm/plugin-commands-outdated@2.0.0
-  - @pnpm/cli-meta@1.0.0
-  - @pnpm/cli-utils@0.4.5
-  - @pnpm/command@1.0.1
-  - @pnpm/common-cli-options-help@0.1.6
-  - @pnpm/core-loggers@4.0.2
-  - @pnpm/default-reporter@7.2.5
-  - @pnpm/filter-workspace-packages@2.0.15
-  - @pnpm/find-workspace-dir@1.0.1
-  - @pnpm/parse-cli-args@1.0.1
-  - pkgs-graph@5.1.6
-  - @pnpm/plugin-commands-audit@1.0.9
-  - @pnpm/plugin-commands-import@1.0.12
-  - @pnpm/plugin-commands-server@1.0.11
-  - @pnpm/run-npm@2.0.2
-
-## 5.0.0-alpha.7
-
-### Major Changes
-
-- 7b88dcfd7: In case of a fatal error, write the logs to `node_modules/.pnpm-debug.log` (not to `pnpm-debug.log`).
-
-### Patch Changes
-
-- Updated dependencies [242cf8737]
-- Updated dependencies [083d78968]
-- Updated dependencies [a7d20d927]
-- Updated dependencies [45fdcfde2]
-  - @pnpm/config@9.0.0-alpha.2
-  - @pnpm/plugin-commands-installation@2.0.0-alpha.7
-  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.5
-  - @pnpm/plugin-commands-store@2.0.0-alpha.5
-  - @pnpm/cli-utils@0.4.5-alpha.2
-  - @pnpm/default-reporter@7.2.5-alpha.2
-  - @pnpm/plugin-commands-audit@1.0.9-alpha.2
-  - @pnpm/plugin-commands-listing@1.0.10-alpha.2
-  - @pnpm/plugin-commands-outdated@1.0.10-alpha.3
-  - @pnpm/plugin-commands-publishing@1.0.12-alpha.4
-  - @pnpm/plugin-commands-script-runners@1.0.9-alpha.3
-  - @pnpm/plugin-commands-server@1.0.11-alpha.5
-  - @pnpm/plugin-commands-import@1.0.12-alpha.7
-  - @pnpm/filter-workspace-packages@2.0.15-alpha.2
-
-## 5.0.0-alpha.6
-
-### Major Changes
-
-- 9fbb74ec: The structure of virtual store directory changed. No subdirectory created with the registry name.
-  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
-  inside `node_modules/.pnpm/<pkg>`.
-
-### Patch Changes
-
-- Updated dependencies [3f73eaf0]
-- Updated dependencies [da091c71]
-- Updated dependencies [471149e6]
-- Updated dependencies [9fbb74ec]
-  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.4
-  - @pnpm/plugin-commands-installation@2.0.0-alpha.6
-  - @pnpm/plugin-commands-store@2.0.0-alpha.4
-  - @pnpm/types@6.0.0-alpha.0
-  - @pnpm/plugin-commands-outdated@1.0.10-alpha.2
-  - @pnpm/plugin-commands-import@1.0.12-alpha.6
-  - @pnpm/plugin-commands-server@1.0.11-alpha.4
-  - @pnpm/cli-meta@1.0.0-alpha.0
-  - @pnpm/cli-utils@0.4.5-alpha.1
-  - @pnpm/config@8.3.1-alpha.1
-  - @pnpm/core-loggers@4.0.2-alpha.0
-  - @pnpm/default-reporter@7.2.5-alpha.1
-  - @pnpm/plugin-commands-audit@1.0.9-alpha.1
-  - @pnpm/plugin-commands-listing@1.0.10-alpha.1
-  - @pnpm/plugin-commands-publishing@1.0.12-alpha.3
-  - @pnpm/plugin-commands-script-runners@1.0.9-alpha.2
-  - @pnpm/filter-workspace-packages@2.0.15-alpha.1
-
-## 5.0.0-alpha.5
-
-### Patch Changes
-
-- @pnpm/plugin-commands-import@1.0.12-alpha.5
-- @pnpm/plugin-commands-installation@1.2.4-alpha.5
-
-## 5.0.0-alpha.4
-
-### Major Changes
-
-- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
-
-### Patch Changes
-
-- Updated dependencies [b5f66c0f2]
-- Updated dependencies [9596774f2]
-  - @pnpm/plugin-commands-rebuild@2.0.0-alpha.3
-  - @pnpm/plugin-commands-store@2.0.0-alpha.3
-  - @pnpm/config@8.3.1-alpha.0
-  - @pnpm/plugin-commands-audit@1.0.9-alpha.0
-  - @pnpm/plugin-commands-import@1.0.12-alpha.4
-  - @pnpm/plugin-commands-installation@1.2.4-alpha.4
-  - @pnpm/plugin-commands-listing@1.0.10-alpha.0
-  - @pnpm/plugin-commands-outdated@1.0.10-alpha.1
-  - @pnpm/plugin-commands-server@1.0.11-alpha.3
-  - @pnpm/plugin-commands-publishing@1.0.12-alpha.2
-  - @pnpm/cli-utils@0.4.5-alpha.0
-  - @pnpm/default-reporter@7.2.5-alpha.0
-  - @pnpm/plugin-commands-script-runners@1.0.9-alpha.1
-  - @pnpm/filter-workspace-packages@2.0.15-alpha.0
-
-## 5.0.0-alpha.3
-
-### Minor Changes
-
-- 42e6490d1: When a new package is being added to the store, its manifest is streamed in the memory. So instead of reading the manifest from the filesystem, we can parse the stream from the memory.
-
-### Patch Changes
-
-- 26c34c4f3: Print a meaningful error on unsupported Node.js versions.
-- Updated dependencies [7300eba86]
-- Updated dependencies [f453a5f46]
-  - @pnpm/plugin-commands-script-runners@1.1.0-alpha.0
-  - @pnpm/plugin-commands-installation@2.0.0-alpha.3
-  - @pnpm/plugin-commands-publishing@1.0.12-alpha.1
-  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.2
-  - @pnpm/plugin-commands-store@1.0.11-alpha.2
-  - @pnpm/plugin-commands-server@1.0.11-alpha.2
-  - @pnpm/plugin-commands-import@1.0.11-alpha.3
-  - @pnpm/plugin-commands-outdated@1.0.10-alpha.0
-
-## 5.0.0-alpha.2
-
-### Major Changes
-
-- 9e2a5b827: `pnpm r` is not an alias of `pnpm remove`.
-
-### Patch Changes
-
-- Updated dependencies [4063f1bee]
-- Updated dependencies [9e2a5b827]
-  - @pnpm/plugin-commands-publishing@2.0.0-alpha.0
-  - @pnpm/plugin-commands-installation@2.0.0-alpha.2
-  - @pnpm/plugin-commands-import@1.0.11-alpha.2
-
-## 5.0.0-alpha.1
-
-### Patch Changes
-
-- Updated dependencies [4f62d0383]
-  - @pnpm/plugin-commands-installation@1.3.0-alpha.1
-  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.1
-  - @pnpm/plugin-commands-store@1.0.11-alpha.1
-  - @pnpm/plugin-commands-import@1.0.11-alpha.1
-  - @pnpm/plugin-commands-server@1.0.11-alpha.1
-
-## 5.0.0-alpha.0
-
-### Major Changes
-
-- 91c4b5954: Using a content-addressable filesystem for storing packages.
-
-### Patch Changes
-
-- Updated dependencies [91c4b5954]
-  - @pnpm/plugin-commands-store@2.0.0-alpha.0
-  - @pnpm/plugin-commands-installation@1.2.4-alpha.0
-  - @pnpm/plugin-commands-server@1.0.11-alpha.0
-  - @pnpm/plugin-commands-rebuild@1.0.11-alpha.0
-  - @pnpm/plugin-commands-import@1.0.11-alpha.0
-  - @pnpm/plugin-commands-listing@1.0.9-alpha.0
-  - @pnpm/plugin-commands-outdated@1.0.9-alpha.0
-
-## 4.14.2
-
-### Patch Changes
-
-- f8d6a07fe: Print a meaningful error on unsupported Node.js versions.
-- Updated dependencies [c80d4ba3c]
-  - @pnpm/plugin-commands-script-runners@1.1.0
-  - @pnpm/plugin-commands-import@1.0.11
-  - @pnpm/plugin-commands-installation@1.2.4
-  - @pnpm/plugin-commands-publishing@1.0.12
-  - @pnpm/plugin-commands-rebuild@1.0.11
-  - @pnpm/plugin-commands-listing@1.0.9
-  - @pnpm/plugin-commands-outdated@1.0.9
-
-## 4.14.1
-
-### Patch Changes
-
-- 907c63a48: Update symlink-dir to v4.
-- Updated dependencies [907c63a48]
-- Updated dependencies [907c63a48]
-- Updated dependencies [907c63a48]
-- Updated dependencies [907c63a48]
-- Updated dependencies [907c63a48]
-  - @pnpm/plugin-commands-outdated@1.0.9
-  - @pnpm/plugin-commands-publishing@1.0.11
-  - @pnpm/plugin-commands-server@1.0.10
-  - @pnpm/plugin-commands-store@1.0.10
-  - @pnpm/plugin-commands-installation@1.2.3
-  - @pnpm/plugin-commands-listing@1.0.9
-  - @pnpm/plugin-commands-rebuild@1.0.10
-  - @pnpm/plugin-commands-script-runners@1.0.8
-  - @pnpm/default-reporter@7.2.4
-  - @pnpm/plugin-commands-import@1.0.10
-  - @pnpm/plugin-commands-audit@1.0.8
-  - @pnpm/filter-workspace-packages@2.0.14
-  - @pnpm/cli-utils@0.4.4
+  When `link-workspace-packages` is set to `deep`, packages from the workspace will be linked even to subdependencies.
