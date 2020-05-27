@@ -48,9 +48,7 @@ For other installation options [visit our website](https://pnpm.js.org/en/instal
 
 ## Usage
 
-### pnpm CLI
-
-Just use pnpm in place of npm. E.g., install dependencies via:
+Just use pnpm in place of npm/Yarn. E.g., install dependencies via:
 
 ```
 pnpm install
