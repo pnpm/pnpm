@@ -50,27 +50,19 @@ For other installation options [visit our website](https://pnpm.js.org/en/instal
 
 ### pnpm CLI
 
-Just use pnpm in place of npm. For instance, to install, run:
+Just use pnpm in place of npm. E.g., install dependencies via:
 
 ```
 pnpm install
 ```
 
-For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website.
-
-For using the programmatic API, use pnpm's engine: [supi](packages/supi).
-
-### pnpx CLI
-
-npm has a great package runner called [npx](https://medium.com/@maybekatz/introducing-npx-an-npm-package-runner-55f7d4bd282b).
-pnpm offers the same tool via the `pnpx` command. The only difference is that `pnpx` uses pnpm for installing packages.
-
-The following command installs a temporary create-react-app and calls it,
-without polluting global installs or requiring more than one step!
+Also, pnpx instead of npx:
 
 ```
 pnpx create-react-app my-cool-new-app
 ```
+
+For more advanced usage, read [pnpm CLI](https://pnpm.js.org/en/pnpm-cli) on our website.
 
 ## Benchmark
 
