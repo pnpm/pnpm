@@ -32,6 +32,12 @@ import './logging/fileLogger'
 import parseCliArgs from './parseCliArgs'
 import initReporter, { ReporterType } from './reporter'
 
+const DEPRECATED_OPTIONS = new Set([
+  'independent-leaves',
+  'lock',
+  'resolution-strategy',
+])
+
 export default async function run (inputArgv: string[]) {
   const {
     argv,
@@ -48,15 +54,25 @@ export default async function run (inputArgv: string[]) {
   }
 
   if (unknownOptions.length > 0) {
-    let errorMsg = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
-    if (unknownOptions.length === 1) {
-      errorMsg += ` ${chalk.red(`Unknown option '${unknownOptions[0]}'`)}`
+    if (unknownOptions.every((option) => DEPRECATED_OPTIONS.has(option))) {
+      let deprecationMsg = `${chalk.bgYellow.black('\u2009WARN\u2009')}`
+      if (unknownOptions.length === 1) {
+        deprecationMsg += ` ${chalk.yellow(`Deprecated option: '${unknownOptions[0]}'`)}`
+      } else {
+        deprecationMsg += ` ${chalk.yellow(`Deprecated options: ${unknownOptions.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+      }
+      console.log(deprecationMsg)
     } else {
-      errorMsg += ` ${chalk.red(`Unknown options ${unknownOptions.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+      let errorMsg = `${chalk.bgRed.black('\u2009ERROR\u2009')}`
+      if (unknownOptions.length === 1) {
+        errorMsg += ` ${chalk.red(`Unknown option: '${unknownOptions[0]}'`)}`
+      } else {
+        errorMsg += ` ${chalk.red(`Unknown options: ${unknownOptions.map(unknownOption => `'${unknownOption}'`).join(', ')}`)}`
+      }
+      console.error(errorMsg)
+      console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+      process.exit(1)
     }
-    console.error(errorMsg)
-    console.log(`For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
-    process.exit(1)
   }
   process.env['npm_config_argv'] = JSON.stringify(argv)
 
