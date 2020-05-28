@@ -7,7 +7,9 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import { ProjectManifest } from '@pnpm/types'
 import rimraf = require('@zkochan/rimraf')
+import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
+import nock = require('nock')
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
@@ -1127,4 +1129,59 @@ test('broken lockfile is fixed even if it seems like up-to-date at first. Unless
   project.has('pkg-with-1-dep')
   const lockfile = await project.readLockfile()
   t.ok(lockfile.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+})
+
+const REGISTRY_MIRROR_DIR = path.join(__dirname, '../../../registry-mirror')
+
+// tslint:disable:no-any
+const isPositiveMeta = loadJsonFile.sync<any>(path.join(REGISTRY_MIRROR_DIR, 'is-positive.json'))
+// tslint:enable:no-any
+const tarballPath = path.join(REGISTRY_MIRROR_DIR, 'is-positive-3.1.0.tgz')
+
+test('tarball domain differs from registry domain', async (t: tape.Test) => {
+  nock('https://registry.example.com', { allowUnmocked: true })
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  nock('https://registry.npmjs.org', { allowUnmocked: true })
+    .get('/is-positive/-/is-positive-3.1.0.tgz')
+    .replyWithFile(200, tarballPath)
+
+  const project = prepareEmpty(t)
+
+  await addDependenciesToPackage({},
+    [
+      'is-positive',
+    ], await testDefaults({
+      fastUnpack: false,
+      lockfileOnly: true,
+      registries: {
+        default: 'https://registry.example.com',
+      },
+      save: true,
+    })
+  )
+
+  const lockfile = await project.readLockfile()
+
+  t.deepEqual(lockfile, {
+    dependencies: {
+      'is-positive': 'registry.npmjs.org/is-positive/3.1.0',
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'registry.npmjs.org/is-positive/3.1.0': {
+        dev: false,
+        engines: { node: '>=0.10.0' },
+        name: 'is-positive',
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          registry: 'https://registry.example.com/',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+        },
+        version: '3.1.0',
+      },
+    },
+    specifiers: { 'is-positive': '^3.1.0' },
+  })
 })

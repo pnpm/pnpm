@@ -18,7 +18,7 @@ export function depPathToRef (
   if (depPath.startsWith(`${registryName}/`) && !depPath.includes('/-/')) {
     depPath = depPath.replace(`${registryName}/`, '/')
   }
-  if (opts.alias === opts.realName) {
+  if (depPath[0] === '/' && opts.alias === opts.realName) {
     const ref = depPath.replace(`/${opts.realName}/`, '')
     if (!ref.includes('/')) return ref
   }

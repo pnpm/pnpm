@@ -1,0 +1,78 @@
+{
+  "versions": {
+      "1.0.0": {
+          "name": "is-positive",
+          "version": "1.0.0",
+          "devDependencies": {
+              "ava": "^0.0.4"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "integrity": "sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==",
+              "shasum": "88009856b64a2f1eb7d8bb0179418424ae0452cb",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
+      },
+      "2.0.0": {
+          "name": "is-positive",
+          "version": "2.0.0",
+          "devDependencies": {
+              "ava": "^0.0.4"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "integrity": "sha512-K+obMwRFQAMZb54Jia82SjPdOyBQ4UX8DSowwWCVhzwJOnAxZZ7UsAEI8sH2R6GhFI9efNeH3VGgOLPdzkMTaA==",
+              "shasum": "b14f06bd2db810ae6c8b12741d136bfaef0d87bd",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
+      },
+      "3.0.0": {
+          "name": "is-positive",
+          "version": "3.0.0",
+          "devDependencies": {
+              "ava": "^0.0.4"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "integrity": "sha512-k1fsSAMxK5AjqPB45vXZrojz/UvY+BMSut1nrFBv5MM7uBIrncljDKEElsem5yEkFGxIiRpbCwgaMvny+85DsQ==",
+              "shasum": "8ef0ee22f7ce24f7633f8908030ec48b62acf4a3",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-3.0.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
+      },
+      "3.1.0": {
+          "name": "is-positive",
+          "version": "3.1.0",
+          "devDependencies": {
+              "ava": "*",
+              "xo": "*"
+          },
+          "_hasShrinkwrap": false,
+          "directories": {},
+          "dist": {
+              "shasum": "857db584a1ba5d1cb2980527fc3b6c435d37b0fd",
+              "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz"
+          },
+          "engines": {
+              "node": ">=0.10.0"
+          }
+      }
+  },
+  "name": "is-positive",
+  "dist-tags": {
+      "stable": "3.0.0",
+      "latest": "3.1.0"
+  },
+  "modified": "2017-08-17T19:26:00.508Z"
+}
