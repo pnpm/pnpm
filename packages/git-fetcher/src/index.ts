@@ -7,12 +7,13 @@ import tempy = require('tempy')
 export default () => {
   return {
     git: async function fetchFromGit (
+      cafs: Cafs,
       resolution: {
-        repo: string,
         commit: string,
+        repo: string,
+        type: 'git',
       },
       opts: {
-        cafs: Cafs,
         manifest?: DeferredManifestPromise,
       }
     ) {
@@ -22,7 +23,7 @@ export default () => {
       // removing /.git to make directory integrity calculation faster
       await rimraf(path.join(tempLocation, '.git'))
       return {
-        filesIndex: await opts.cafs.addFilesFromDir(tempLocation, opts.manifest),
+        filesIndex: await cafs.addFilesFromDir(tempLocation, opts.manifest),
       }
     },
   }

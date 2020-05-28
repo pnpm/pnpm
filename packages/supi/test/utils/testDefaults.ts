@@ -54,7 +54,7 @@ export default async function testDefaults<T> (
       registry,
       ...retryOpts,
       ...fetchOpts,
-    }) as {},
+    }),
     {
       ignoreFile: opts?.fastUnpack === false ? undefined : (filename) => filename !== 'package.json',
       storeDir,
