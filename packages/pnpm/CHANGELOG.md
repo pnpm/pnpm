@@ -1,5 +1,13 @@
 # pnpm
 
+## 5.0.2
+
+### Patch Changes
+
+- 2f9c7ca85: Fix a regression introduced in pnpm v5.0.0.
+  Create correct lockfile when the package tarball is hosted not under the registry domain.
+- 160975d62: This fixes a regression introduced in pnpm v5.0.0. Direct local tarball dependencies should always be reanalized on install.
+
 ## 5.0.1
 
 ### Patch Changes
