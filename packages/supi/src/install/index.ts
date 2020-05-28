@@ -851,9 +851,18 @@ async function toResolveImporter (
       updateDepth: opts.defaultUpdateDepth,
     }))
   } else {
+    // Direct local tarballs are always checked,
+    // so their update depth should be at least 0
+    const updateLocalTarballs = (dep: WantedDependency) => ({
+      ...dep,
+      updateDepth: prefIsLocalTarball(dep.pref) ? 0 : -1,
+    })
     wantedDependencies = [
-      ...project.wantedDependencies.map((dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
-      ...existingDeps.map((dep) => ({ ...dep, updateDepth: -1 })),
+      ...project.wantedDependencies.map(
+        opts.defaultUpdateDepth < 0
+          ? updateLocalTarballs
+          : (dep) => ({ ...dep, updateDepth: opts.defaultUpdateDepth })),
+      ...existingDeps.map(updateLocalTarballs),
     ]
   }
   return {
@@ -863,6 +872,10 @@ async function toResolveImporter (
     wantedDependencies: wantedDependencies
       .filter(({ alias, updateDepth }) => updateDepth >= 0 || !linkedAliases.has(alias)),
   }
+}
+
+function prefIsLocalTarball (pref: string) {
+  return pref.startsWith('file:') && pref.endsWith('.tgz')
 }
 
 const limitLinking = pLimit(16)
