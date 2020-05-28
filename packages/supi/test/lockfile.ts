@@ -1138,7 +1138,7 @@ const isPositiveMeta = loadJsonFile.sync<any>(path.join(REGISTRY_MIRROR_DIR, 'is
 // tslint:enable:no-any
 const tarballPath = path.join(REGISTRY_MIRROR_DIR, 'is-positive-3.1.0.tgz')
 
-test('tarball URL differs from registry', async (t: tape.Test) => {
+test('tarball domain differs from registry domain', async (t: tape.Test) => {
   nock('https://registry.example.com', { allowUnmocked: true })
     .get('/is-positive')
     .reply(200, isPositiveMeta)
@@ -1164,5 +1164,24 @@ test('tarball URL differs from registry', async (t: tape.Test) => {
 
   const lockfile = await project.readLockfile()
 
-  t.ok(lockfile.packages['registry.npmjs.org/is-positive/3.1.0'])
+  t.deepEqual(lockfile, {
+    dependencies: {
+      'is-positive': 'registry.npmjs.org/is-positive/3.1.0',
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      'registry.npmjs.org/is-positive/3.1.0': {
+        dev: false,
+        engines: { node: '>=0.10.0' },
+        name: 'is-positive',
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          registry: 'https://registry.example.com/',
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+        },
+        version: '3.1.0',
+      },
+    },
+    specifiers: { 'is-positive': '^3.1.0' },
+  })
 })
