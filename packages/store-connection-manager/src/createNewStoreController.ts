@@ -25,7 +25,7 @@ export default async (
   await fs.mkdir(sopts.storeDir, { recursive: true })
   const fetchers = createFetcher(sopts)
   return {
-    ctrl: await createStore(resolve, fetchers as {}, {
+    ctrl: await createStore(resolve, fetchers, {
       ignoreFile: sopts.ignoreFile,
       networkConcurrency: sopts.networkConcurrency,
       packageImportMethod: sopts.packageImportMethod,

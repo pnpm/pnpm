@@ -51,7 +51,7 @@ export default async function testDefaults (
       registry,
       ...retryOpts,
       ...fetchOpts,
-    }) as {},
+    }),
     {
       storeDir,
       ...storeOpts,
