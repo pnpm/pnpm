@@ -1,5 +1,11 @@
 # @pnpm/git-fetcher
 
+## 3.0.1
+
+### Patch Changes
+
+- 187615f87: Adhere to the new FetchFunction API. cafs should be the first argument of the a fetch function.
+
 ## 3.0.0
 
 ### Major Changes
