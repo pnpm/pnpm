@@ -94,6 +94,24 @@ test('command fails when an unsupported flag is used', async (t) => {
   t.ok(stderr.toString().includes("Unknown option 'save-dev'"))
 })
 
+test('command does not fail when a deprecated option is used', async (t) => {
+  const project = prepare(t)
+
+  const { status, stdout } = execPnpmSync(['install', '--no-lock'])
+
+  t.equal(status, 0, 'command did not fail')
+  t.ok(stdout.toString().includes("Deprecated option 'lock'"))
+})
+
+test('command does not fail when deprecated options are used', async (t) => {
+  const project = prepare(t)
+
+  const { status, stdout } = execPnpmSync(['install', '--no-lock', '--independent-leaves'])
+
+  t.equal(status, 0, 'command did not fail')
+  t.ok(stdout.toString().includes("Deprecated options 'lock', 'independent-leaves'"))
+})
+
 test('adding new dep does not fail if node_modules was created with --hoist-pattern=eslint-* and --shamefully-hoist', async (t: tape.Test) => {
   const project = prepare(t)
 
