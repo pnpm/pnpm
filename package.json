@@ -15,7 +15,7 @@
     "update-manifests": "ts-node utils/updater/src/index.ts"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.7.2",
+    "@changesets/cli": "^2.8.0",
     "@pnpm/registry-mock": "^2.0.1",
     "@pnpm/tsconfig": "workspace:*",
     "@pnpm/tslint-config": "workspace:*",
@@ -29,8 +29,8 @@
     "npm-run-all": "^4.1.5",
     "publish-packed": "^3.0.1",
     "rimraf": "^3.0.2",
-    "tape": "^4.13.2",
-    "ts-node": "^8.10.1",
+    "tape": "^4.13.3",
+    "ts-node": "^8.10.2",
     "tslint": "^6.1.2",
     "typescript": "^3.9.3",
     "verdaccio": "^4.6.2"

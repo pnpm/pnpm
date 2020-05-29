@@ -85,7 +85,7 @@
     "@zkochan/rimraf": "1.0.0",
     "anonymous-npm-registry-client": "0.1.2",
     "byline": "5.0.0",
-    "cross-spawn": "7.0.2",
+    "cross-spawn": "^7.0.3",
     "deep-require-cwd": "1.0.0",
     "delay": "4.3.0",
     "dir-is-case-sensitive": "1.0.2",

@@ -94,7 +94,7 @@
     "@types/sinon": "^9.0.4",
     "@types/tape-promise": "^4.0.1",
     "anonymous-npm-registry-client": "0.1.2",
-    "cross-spawn": "7.0.2",
+    "cross-spawn": "^7.0.3",
     "deep-require-cwd": "1.0.0",
     "dir-is-case-sensitive": "1.0.2",
     "execa": "^4.0.2",
