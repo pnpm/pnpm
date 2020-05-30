@@ -217,6 +217,70 @@ test("don't fail when integrity check of local file succeeds", async (t) => {
   t.end()
 })
 
+test("don't fail when fetching a local tarball in offline mode", async (t) => {
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const resolution = {
+    integrity: await getFileIntegrity(tarballAbsoluteLocation),
+    tarball: `file:${tarballAbsoluteLocation}`,
+  }
+
+  const fetch = createFetcher({
+    fetchRetries: 1,
+    fetchRetryMaxtimeout: 100,
+    fetchRetryMintimeout: 0,
+    offline: true,
+    rawConfig: {
+      registry,
+    },
+    registry,
+  })
+  const { filesIndex } = await fetch.tarball(cafs, resolution, {
+    lockfileDir: process.cwd(),
+  })
+
+  t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
+
+  t.end()
+})
+
+test('fail when trying to fetch a non-local tarball in offline mode', async (t) => {
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const resolution = {
+    integrity: await getFileIntegrity(tarballAbsoluteLocation),
+    tarball: `${registry}foo.tgz`,
+  }
+
+  let err!: Error
+  try {
+    const fetch = createFetcher({
+      fetchRetries: 1,
+      fetchRetryMaxtimeout: 100,
+      fetchRetryMintimeout: 0,
+      offline: true,
+      rawConfig: {
+        registry,
+      },
+      registry,
+    })
+    await fetch.tarball(cafs, resolution, {
+      lockfileDir: process.cwd(),
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err)
+  t.equal(err['code'], 'ERR_PNPM_NO_OFFLINE_TARBALL')
+
+  t.end()
+})
+
 test('retry on server error', async t => {
   const scope = nock(registry)
     .get('/foo.tgz')

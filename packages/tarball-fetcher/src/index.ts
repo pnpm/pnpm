@@ -89,7 +89,7 @@ function fetchFromTarball (
     })
   }
   if (ctx.offline) {
-    throw new PnpmError('NO_OFFLINE_PKG',
+    throw new PnpmError('NO_OFFLINE_TARBALL',
       `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`)
   }
   const auth = resolution.registry ? ctx.getCredentialsByURI(resolution.registry) : undefined
