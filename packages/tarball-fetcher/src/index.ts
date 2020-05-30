@@ -6,7 +6,6 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import { globalWarn } from '@pnpm/logger'
 import getCredentialsByURI = require('credentials-by-uri')
 import mem = require('mem')
 import fs = require('mz/fs')
@@ -61,8 +60,8 @@ export default function (
       fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
         download,
         getCredentialsByURI: mem((registry: string) => getCreds(registry)),
-        offline: opts.offline,
       }),
+      offline: opts.offline,
     }) as FetchFunction,
   }
 }
@@ -78,6 +77,7 @@ function fetchFromTarball (
       },
       opts: FetchOptions
     ) => Promise<FetchResult>,
+    offline?: boolean,
   },
   cafs: Cafs,
   resolution: {
@@ -94,6 +94,10 @@ function fetchFromTarball (
       manifest: opts.manifest,
     })
   }
+  if (ctx.offline) {
+    throw new PnpmError('NO_OFFLINE_PKG',
+      `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`)
+  }
   return ctx.fetchFromRemoteTarball(cafs, resolution, opts)
 }
 
@@ -106,7 +110,6 @@ function resolvePath (where: string, spec: string) {
 
 async function fetchFromRemoteTarball (
   ctx: {
-    offline?: boolean,
     download: DownloadFunction,
     getCredentialsByURI: (registry: string) => {
       authHeaderValue: string | undefined,
@@ -121,52 +124,16 @@ async function fetchFromRemoteTarball (
   },
   opts: FetchOptions
 ) {
-  try {
-    return await fetchFromLocalTarball(cafs, opts.cachedTarballLocation, {
-      integrity: dist.integrity,
-      manifest: opts.manifest,
-    })
-  } catch (err) {
-    // ignore errors for missing files or broken/partial archives
-    switch (err.code) {
-      case 'Z_BUF_ERROR':
-        if (ctx.offline) {
-          throw new PnpmError(
-            'CORRUPTED_TARBALL',
-            `The cached tarball at "${opts.cachedTarballLocation}" is corrupted. Cannot redownload it as offline mode was requested.`
-          )
-        }
-        globalWarn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`)
-        break
-      case 'EINTEGRITY':
-        if (ctx.offline) {
-          throw new PnpmError(
-            'BAD_TARBALL_CHECKSUM',
-            `The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Cannot redownload it as offline mode was requested.`
-          )
-        }
-        globalWarn(`The cached tarball at "${opts.cachedTarballLocation}" did not pass the integrity check. Redownloading.`)
-        break
-      case 'ENOENT':
-        if (ctx.offline) {
-          throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
-        }
-        break
-      default:
-        throw err
-    }
-
-    const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
-    return ctx.download(dist.tarball, {
-      auth,
-      cafs,
-      integrity: dist.integrity,
-      manifest: opts.manifest,
-      onProgress: opts.onProgress,
-      onStart: opts.onStart,
-      registry: dist.registry,
-    })
-  }
+  const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
+  return ctx.download(dist.tarball, {
+    auth,
+    cafs,
+    integrity: dist.integrity,
+    manifest: opts.manifest,
+    onProgress: opts.onProgress,
+    onStart: opts.onStart,
+    registry: dist.registry,
+  })
 }
 
 async function fetchFromLocalTarball (
