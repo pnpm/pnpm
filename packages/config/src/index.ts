@@ -75,6 +75,7 @@ export const types = Object.assign({
   'sort': Boolean,
   'store': String, // TODO: deprecate
   'store-dir': String,
+  'stream': Boolean,
   'strict-peer-dependencies': Boolean,
   'use-beta-cli': Boolean,
   'use-running-store-server': Boolean,

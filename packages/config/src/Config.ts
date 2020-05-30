@@ -39,6 +39,7 @@ export interface Config {
   saveOptional?: boolean,
   savePeer?: boolean,
   saveWorkspaceProtocol?: boolean,
+  stream?: boolean,
   production?: boolean,
   fetchRetries?: number,
   fetchRetryFactor?: number,

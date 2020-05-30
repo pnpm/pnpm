@@ -1,6 +1,6 @@
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli-utils'
 import { CompletionFunc } from '@pnpm/command'
-import { FILTERING } from '@pnpm/common-cli-options-help'
+import { FILTERING, UNIVERSAL_OPTIONS } from '@pnpm/common-cli-options-help'
 import { Config, types as allTypes } from '@pnpm/config'
 import PnpmError from '@pnpm/error'
 import runLifecycleHooks from '@pnpm/lifecycle'
@@ -69,6 +69,7 @@ export function help () {
             shortAlias: '-r',
           },
           IF_PRESENT_OPTION_HELP,
+          ...UNIVERSAL_OPTIONS,
         ],
       },
       FILTERING,

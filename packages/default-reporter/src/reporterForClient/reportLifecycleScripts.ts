@@ -26,10 +26,8 @@ export default (
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
-    return most.of(
-      log$.lifecycle
-        .map((log: LifecycleLog) => ({ msg: formatLifecycleHideOverflowForAppendOnly(opts.cwd, log) }))
-    )
+    return log$.lifecycle
+      .map((log: LifecycleLog) => most.of({ msg: formatLifecycleHideOverflowForAppendOnly(opts.cwd, log) }))
   }
   const lifecycleMessages: {
     [depPath: string]: {
