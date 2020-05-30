@@ -259,6 +259,125 @@ test('groups lifecycle output when append-only is used', t => {
   })
 })
 
+test('groups lifecycle output when streamLifecycleOutput is used', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: {
+      outputMaxWidth: 79,
+      streamLifecycleOutput: true,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
+    stage: 'preinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 1,
+    optional: true,
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    optional: false,
+    script: 'node bar',
+    stage: 'postinstall',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    line: 'bar I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo II',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo III',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    optional: false,
+    script: 'node qar',
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    exitCode: 0,
+    optional: false,
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 0,
+    optional: false,
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+
+  t.plan(1)
+
+  output$.skip(11).take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: (output: string) => {
+      t.equal(output, stripIndents`
+        packages/foo ${PREINSTALL}$ node foo
+        packages/foo ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+        packages/foo ${PREINSTALL}: Failed
+        packages/foo ${POSTINSTALL}$ node foo
+        packages/foo ${POSTINSTALL}: foo I
+        packages/bar ${POSTINSTALL}$ node bar
+        packages/bar ${POSTINSTALL}: bar I
+        packages/foo ${POSTINSTALL}: foo II
+        packages/foo ${POSTINSTALL}: foo III
+        packages/qar ${INSTALL}$ node qar
+        packages/qar ${INSTALL}: Done
+        packages/foo ${POSTINSTALL}: Done
+      `)
+    },
+  })
+})
+
 test('collapse lifecycle output when it has too many lines', t => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
