@@ -48,6 +48,7 @@ export default async function runLifecycleHook (
     config: opts.rawConfig,
     dir: opts.rootModulesDir,
     extraBinPaths: opts.extraBinPaths || [],
+    extraEnv: { PNPM_SCRIPT_SRC_DIR: opts.pkgRoot },
     log: {
       clearProgress: noop,
       info: noop,
