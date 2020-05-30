@@ -11,6 +11,8 @@ import test = require('tape')
 import writeYamlFile = require('write-yaml-file')
 import { DEFAULT_OPTS, REGISTRY } from './utils'
 
+const pnpmBin = path.join(__dirname, '../../pnpm/bin/pnpm.js')
+
 test('pnpm recursive run', async (t) => {
   const projects = preparePackages(t, [
     {
@@ -590,5 +592,65 @@ test('`pnpm recursive run` should always trust the scripts', async (t) => {
   const outputs = await import(path.resolve('output.json')) as string[]
 
   t.deepEqual(outputs, ['project'])
+  t.end()
+})
+
+test('`pnpm run -r` should avoid infinite recursion', async (t) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node ${pnpmBin} run -r build`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+      },
+    },
+  ])
+  await writeYamlFile('pnpm-workspace.yaml', {})
+
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  const { allProjects, selectedProjectsGraph } = await readProjects(process.cwd(), [{ namePattern: 'project-1' }])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: path.resolve('project-1'),
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  const outputs1 = await import(path.resolve('output1.json')) as string[]
+  const outputs2 = await import(path.resolve('output2.json')) as string[]
+
+  t.deepEqual(outputs1, ['project-2'])
+  t.deepEqual(outputs2, ['project-3'])
   t.end()
 })

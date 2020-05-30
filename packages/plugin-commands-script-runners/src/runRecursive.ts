@@ -46,7 +46,11 @@ export default async (
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         const pkg = opts.selectedProjectsGraph[prefix]
-        if (!pkg.package.manifest.scripts || !pkg.package.manifest.scripts[scriptName]) {
+        if (
+          !pkg.package.manifest.scripts?.[scriptName] ||
+          process.env.npm_lifecycle_event === scriptName &&
+          process.env.PNPM_SCRIPT_SRC_DIR === prefix
+        ) {
           return
         }
         hasCommand++
