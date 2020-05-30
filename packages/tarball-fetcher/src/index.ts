@@ -57,10 +57,8 @@ export default function (
   const getCreds = getCredentialsByURI.bind(null, opts.rawConfig)
   return {
     tarball: fetchFromTarball.bind(null, {
-      fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
-        download,
-        getCredentialsByURI: mem((registry: string) => getCreds(registry)),
-      }),
+      download,
+      getCredentialsByURI: mem((registry: string) => getCreds(registry)),
       offline: opts.offline,
     }) as FetchFunction,
   }
@@ -68,15 +66,11 @@ export default function (
 
 function fetchFromTarball (
   ctx: {
-    fetchFromRemoteTarball: (
-      cafs: Cafs,
-      dist: {
-        integrity?: string,
-        registry?: string,
-        tarball: string,
-      },
-      opts: FetchOptions
-    ) => Promise<FetchResult>,
+    download: DownloadFunction,
+    getCredentialsByURI: (registry: string) => {
+      authHeaderValue: string | undefined,
+      alwaysAuth: boolean | undefined,
+    },
     offline?: boolean,
   },
   cafs: Cafs,
@@ -98,7 +92,16 @@ function fetchFromTarball (
     throw new PnpmError('NO_OFFLINE_PKG',
       `A package is missing from the store but cannot download it in offline mode. The missing package may be downloaded from ${resolution.tarball}.`)
   }
-  return ctx.fetchFromRemoteTarball(cafs, resolution, opts)
+  const auth = resolution.registry ? ctx.getCredentialsByURI(resolution.registry) : undefined
+  return ctx.download(resolution.tarball, {
+    auth,
+    cafs,
+    integrity: resolution.integrity,
+    manifest: opts.manifest,
+    onProgress: opts.onProgress,
+    onStart: opts.onStart,
+    registry: resolution.registry,
+  })
 }
 
 const isAbsolutePath = /^[/]|^[A-Za-z]:/
@@ -106,34 +109,6 @@ const isAbsolutePath = /^[/]|^[A-Za-z]:/
 function resolvePath (where: string, spec: string) {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)
-}
-
-async function fetchFromRemoteTarball (
-  ctx: {
-    download: DownloadFunction,
-    getCredentialsByURI: (registry: string) => {
-      authHeaderValue: string | undefined,
-      alwaysAuth: boolean | undefined,
-    },
-  },
-  cafs: Cafs,
-  dist: {
-    integrity?: string,
-    registry?: string,
-    tarball: string,
-  },
-  opts: FetchOptions
-) {
-  const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
-  return ctx.download(dist.tarball, {
-    auth,
-    cafs,
-    integrity: dist.integrity,
-    manifest: opts.manifest,
-    onProgress: opts.onProgress,
-    onStart: opts.onStart,
-    registry: dist.registry,
-  })
 }
 
 async function fetchFromLocalTarball (
