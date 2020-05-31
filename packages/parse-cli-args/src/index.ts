@@ -22,9 +22,9 @@ export default async function parseCliArgs (
     getCommandLongName: (commandName: string) => string | null,
     getTypesByCommandName: (commandName: string) => object,
     renamedOptions?: Record<string, string>,
-    shorthandsByCommandName: Record<string, Record<string, string>>,
+    shorthandsByCommandName: Record<string, Record<string, string | string[]>>,
     universalOptionsTypes: Record<string, unknown>,
-    universalShorthands: Record<string, string>,
+    universalShorthands: Record<string, string | string[]>,
   },
   inputArgv: string[]
 ): Promise<ParsedCliArgs> {

@@ -50,7 +50,7 @@ const commands: Array<{
   handler: Function,
   help: () => string,
   rcOptionsTypes: () => Record<string, unknown>,
-  shorthands?: Record<string, string>,
+  shorthands?: Record<string, string | string[]>,
 }> = [
   add,
   audit,
@@ -86,7 +86,7 @@ const cliOptionsTypesByCommandName: Record<string, () => Object> = {}
 const rcOptionsTypesByCommandName: Record<string, () => Record<string, unknown>> = {}
 const aliasToFullName: Map<string, string> = new Map()
 const completionByCommandName: Record<string, CompletionFunc> = {}
-const shorthandsByCommandName: Record<string, Record<string, string>> = {}
+const shorthandsByCommandName: Record<string, Record<string, string | string[]>> = {}
 
 for (let i = 0; i < commands.length; i++) {
   const {
