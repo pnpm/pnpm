@@ -22,6 +22,7 @@ export default (
         reportingOptions: {
           appendOnly: false,
           logLevel: opts.config.loglevel as LogLevel,
+          streamLifecycleOutput: opts.config.stream,
           throttleProgress: 200,
         },
         streamParser,

@@ -39,6 +39,7 @@ export default function (
     isRecursive: boolean,
     logLevel?: LogLevel,
     pnpmConfig?: Config,
+    streamLifecycleOutput?: boolean,
     throttleProgress?: number,
     width?: number,
   }
@@ -52,7 +53,7 @@ export default function (
       throttleProgress: opts.throttleProgress,
     }),
     reportLifecycleScripts(log$, {
-      appendOnly: opts.appendOnly,
+      appendOnly: opts.appendOnly || opts.streamLifecycleOutput,
       cwd,
       width,
     }),

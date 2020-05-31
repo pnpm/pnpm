@@ -15,6 +15,7 @@ export default function (
     reportingOptions?: {
       appendOnly?: boolean,
       logLevel?: LogLevel,
+      streamLifecycleOutput?: boolean,
       throttleProgress?: number,
       outputMaxWidth?: number,
     },
@@ -66,6 +67,7 @@ export function toOutput$ (
       appendOnly?: boolean,
       logLevel?: LogLevel,
       outputMaxWidth?: number,
+      streamLifecycleOutput?: boolean,
       throttleProgress?: number,
     },
     context: {
@@ -174,6 +176,7 @@ export function toOutput$ (
       isRecursive: opts.context.config?.['recursive'] === true,
       logLevel: opts.reportingOptions?.logLevel,
       pnpmConfig: opts.context.config,
+      streamLifecycleOutput: opts.reportingOptions?.streamLifecycleOutput,
       throttleProgress: opts.reportingOptions?.throttleProgress,
       width: opts.reportingOptions?.outputMaxWidth,
     }

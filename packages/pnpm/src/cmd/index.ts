@@ -34,6 +34,7 @@ export const GLOBAL_OPTIONS = R.pick([
   'parseable',
   'prefix',
   'reporter',
+  'stream',
   'workspace-packages',
 ], allTypes)
 

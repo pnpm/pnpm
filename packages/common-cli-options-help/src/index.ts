@@ -44,6 +44,10 @@ export const UNIVERSAL_OPTIONS = [
     description: 'What level of logs to report. Any logs at or higher than the given level will be shown. Levels (lowest to highest): debug, info, warn, error. Or use "--silent" to turn off all logging.',
     name: '--loglevel <level>',
   },
+  {
+    description: 'Stream output from child processes immediately, prefixed with the originating package directory. This allows output from different packages to be interleaved.',
+    name: '--stream',
+  },
 ]
 export const FILTERING = {
   list: [
