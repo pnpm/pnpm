@@ -35,10 +35,10 @@ export default (
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
-    const streamLifecycleOutput = createStreamLifecycleOutput()
+    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd)
     return log$.lifecycle
       .map((log: LifecycleLog) => most.of({
-        msg: streamLifecycleOutput(opts.cwd, log),
+        msg: streamLifecycleOutput(log),
       }))
   }
   const lifecycleMessages: {
@@ -199,10 +199,10 @@ function highlightLastFolder (p: string) {
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function createStreamLifecycleOutput () {
+function createStreamLifecycleOutput (cwd: string) {
   currentColor = 0
   const colorByPrefix: ColorByPkg = new Map()
-  return streamLifecycleOutput.bind(null, colorByPrefix)
+  return streamLifecycleOutput.bind(null, colorByPrefix, cwd)
 }
 
 function streamLifecycleOutput (
