@@ -434,7 +434,6 @@ function fetchToStore (
         opts.pkgId,
         opts.resolution,
         {
-          cachedTarballLocation: path.join(ctx.storeDir, opts.pkgId, 'packed.tgz'),
           lockfileDir: opts.lockfileDir,
           manifest: fetchManifest,
           onProgress: (downloaded) => {

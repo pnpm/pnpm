@@ -8,7 +8,6 @@ export type Cafs = {
 }
 
 export interface FetchOptions {
-  cachedTarballLocation: string,
   manifest?: DeferredManifestPromise,
   lockfileDir: string,
   onStart?: (totalSize: number | null, attempt: number) => void,
