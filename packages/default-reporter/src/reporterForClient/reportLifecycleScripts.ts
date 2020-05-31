@@ -17,7 +17,7 @@ const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 const colorWheel = ['cyan', 'magenta', 'blue', 'yellow', 'green', 'red']
 const NUM_COLORS = colorWheel.length
 
-// ever-increasing index ensures colors are always sequential
+// Ever-increasing index ensures colors are always sequential
 let currentColor = 0
 
 type ColorByPkg = Map<string, (txt: string) => string>
@@ -35,11 +35,10 @@ export default (
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
-    currentColor = 0
-    const colorByPrefix: ColorByPkg = new Map()
+    const streamLifecycleOutput = createStreamLifecycleOutput()
     return log$.lifecycle
       .map((log: LifecycleLog) => most.of({
-        msg: formatLifecycleHideOverflowForAppendOnly(colorByPrefix, opts.cwd, log),
+        msg: streamLifecycleOutput(opts.cwd, log),
       }))
   }
   const lifecycleMessages: {
@@ -200,7 +199,13 @@ function highlightLastFolder (p: string) {
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function formatLifecycleHideOverflowForAppendOnly (
+function createStreamLifecycleOutput () {
+  currentColor = 0
+  const colorByPrefix: ColorByPkg = new Map()
+  return streamLifecycleOutput.bind(null, colorByPrefix)
+}
+
+function streamLifecycleOutput (
   colorByPkg: ColorByPkg,
   cwd: string,
   logObj: LifecycleLog
