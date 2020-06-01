@@ -1,5 +1,31 @@
 # pnpm
 
+## 5.1.0
+
+### Minor Changes
+
+- ffddf34a8: Add new global option called `--stream`. (#2595)
+
+  When used, the output from child processes is streamed to the console immediately, prefixed with the originating package directory. This allows output from different packages to be interleaved.
+
+- The `run` and `exec` commands may use the `--parallel` option.
+
+  `--parallel` completely disregards concurrency and topological sorting,
+  running a given script immediately in all matching packages
+  with prefixed streaming output. This is the preferred flag
+  for long-running processes such as watch run over many packages.
+
+  For example: `pnpm run --parallel watch`
+
+  PR #2599
+
+- Color the child output prefixes (#2598)
+
+### Patch Changes
+
+- A recursive run should not rerun the same package script which started the lifecycle event (#2528).
+- Fixing a regression on Windows. Fall back to copying if linking fails (429c5a560b7a32b0261e471ece349ec136ab7f4d)
+
 ## 5.0.2
 
 ### Patch Changes

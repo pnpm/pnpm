@@ -1,5 +1,13 @@
 # @pnpm/package-requester
 
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [bcd4aa1aa]
+  - @pnpm/fetcher-base@8.0.0
+  - @pnpm/cafs@1.0.1
+
 ## 12.0.0
 
 ### Major Changes

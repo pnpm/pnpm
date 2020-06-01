@@ -1,5 +1,14 @@
 # @pnpm/headless
 
+## 13.0.1
+
+### Patch Changes
+
+- Updated dependencies [8094b2a62]
+  - @pnpm/lifecycle@9.1.0
+  - @pnpm/package-requester@12.0.1
+  - @pnpm/build-modules@5.0.1
+
 ## 13.0.0
 
 ### Major Changes

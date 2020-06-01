@@ -1,5 +1,12 @@
 # @pnpm/outdated
 
+## 7.0.24
+
+### Patch Changes
+
+- Updated dependencies [ffddf34a8]
+  - @pnpm/config@9.1.0
+
 ## 7.0.23
 
 ### Patch Changes

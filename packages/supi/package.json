@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.39.6",
+  "version": "0.39.7",
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -16,16 +16,16 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
-    "@pnpm/build-modules": "workspace:5.0.0",
+    "@pnpm/build-modules": "workspace:5.0.1",
     "@pnpm/check-package": "3.0.1",
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/core-loggers": "workspace:4.0.2",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/filter-lockfile": "workspace:4.0.0",
     "@pnpm/get-context": "workspace:2.1.1",
-    "@pnpm/headless": "workspace:13.0.0",
+    "@pnpm/headless": "workspace:13.0.1",
     "@pnpm/hoist": "workspace:3.0.0",
-    "@pnpm/lifecycle": "workspace:9.0.0",
+    "@pnpm/lifecycle": "workspace:9.1.0",
     "@pnpm/link-bins": "workspace:5.3.3",
     "@pnpm/lockfile-file": "workspace:3.0.9",
     "@pnpm/lockfile-utils": "workspace:2.0.12",
@@ -35,7 +35,7 @@
     "@pnpm/modules-cleaner": "workspace:9.0.0",
     "@pnpm/modules-yaml": "workspace:7.0.0",
     "@pnpm/normalize-registries": "workspace:1.0.1",
-    "@pnpm/package-requester": "workspace:12.0.0",
+    "@pnpm/package-requester": "workspace:12.0.1",
     "@pnpm/parse-wanted-dependency": "workspace:1.0.0",
     "@pnpm/pkgid-to-filename": "3.0.0",
     "@pnpm/prune-lockfile": "workspace:2.0.8",
@@ -78,7 +78,7 @@
     "@pnpm/default-resolver": "workspace:*",
     "@pnpm/logger": "3.2.2",
     "@pnpm/package-store": "workspace:*",
-    "@pnpm/prepare": "workspace:0.0.2",
+    "@pnpm/prepare": "workspace:0.0.3",
     "@pnpm/store-path": "^4.0.0",
     "@pnpm/test-fixtures": "workspace:*",
     "@types/common-tags": "^1.8.0",

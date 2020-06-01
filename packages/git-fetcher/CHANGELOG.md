@@ -1,5 +1,12 @@
 # @pnpm/git-fetcher
 
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [bcd4aa1aa]
+  - @pnpm/fetcher-base@8.0.0
+
 ## 3.0.1
 
 ### Patch Changes

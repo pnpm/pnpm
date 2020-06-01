@@ -1,5 +1,15 @@
 # @pnpm/plugin-commands-store
 
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [ffddf34a8]
+  - @pnpm/config@9.1.0
+  - @pnpm/cli-utils@0.4.6
+  - @pnpm/store-connection-manager@0.3.2
+  - @pnpm/cafs@1.0.1
+
 ## 2.0.3
 
 ### Patch Changes

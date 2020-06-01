@@ -1,5 +1,16 @@
 # @pnpm/tarball-fetcher
 
+## 7.0.0
+
+### Major Changes
+
+- bcd4aa1aa: Remove `cachedTarballLocation` from `FetchOptions`. pnpm v5 doesn't store the package tarball files in the cache anymore.
+
+### Patch Changes
+
+- Updated dependencies [bcd4aa1aa]
+  - @pnpm/fetcher-base@8.0.0
+
 ## 6.0.0
 
 ### Major Changes

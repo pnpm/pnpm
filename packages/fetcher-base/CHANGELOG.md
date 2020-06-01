@@ -1,5 +1,11 @@
 # @pnpm/fetcher-base
 
+## 8.0.0
+
+### Major Changes
+
+- bcd4aa1aa: Remove `cachedTarballLocation` from `FetchOptions`.
+
 ## 7.0.0
 
 ### Major Changes

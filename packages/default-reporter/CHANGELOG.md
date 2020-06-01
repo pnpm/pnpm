@@ -1,5 +1,17 @@
 # @pnpm/default-reporter
 
+## 7.3.0
+
+### Minor Changes
+
+- eb82084e1: Color the different output prefixes differently.
+- ffddf34a8: Add new reporting option: `streamLifecycleOutput`. When `true`, the output from child processes is printed immediately and is never collapsed.
+
+### Patch Changes
+
+- Updated dependencies [ffddf34a8]
+  - @pnpm/config@9.1.0
+
 ## 7.2.5
 
 ### Patch Changes

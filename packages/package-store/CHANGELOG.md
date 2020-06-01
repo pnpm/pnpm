@@ -1,5 +1,15 @@
 # @pnpm/package-store
 
+## 9.0.1
+
+### Patch Changes
+
+- 429c5a560: If creating a hard-link to a file from the store fails, fall back to copying the file.
+- Updated dependencies [bcd4aa1aa]
+  - @pnpm/fetcher-base@8.0.0
+  - @pnpm/package-requester@12.0.1
+  - @pnpm/cafs@1.0.1
+
 ## 9.0.0
 
 ### Major Changes
