@@ -21,6 +21,23 @@ export const IF_PRESENT_OPTION_HELP = {
   name: '--if-present',
 }
 
+export const PARALLEL_OPTION_HELP = {
+  description: oneLine`Completely disregard concurrency and topological sorting,
+    running a given script immediately in all matching packages
+    with prefixed streaming output. This is the preferred flag
+    for long-running processes such as watch run over many packages.`,
+  name: '--parallel',
+}
+
+export const shorthands = {
+  'parallel': [
+    '--workspace-concurrency=Infinity',
+    '--no-sort',
+    '--stream',
+    '--recursive',
+  ],
+}
+
 export function rcOptionsTypes () {
   return {
     ...R.pick([
@@ -69,6 +86,7 @@ export function help () {
             shortAlias: '-r',
           },
           IF_PRESENT_OPTION_HELP,
+          PARALLEL_OPTION_HELP,
           ...UNIVERSAL_OPTIONS,
         ],
       },
@@ -79,15 +97,16 @@ export function help () {
   })
 }
 
-export type RunOpts = Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'> & {
-  recursive?: boolean,
-} & Pick<Config, 'dir' | 'engineStrict'> & (
-  { recursive?: false } &
-  Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
-  |
-  { recursive: true } &
-  Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
-)
+export type RunOpts =
+  & Omit<RecursiveRunOpts, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>
+  & { recursive?: boolean }
+  & Pick<Config, 'dir' | 'engineStrict'>
+  & (
+    & { recursive?: false }
+    & Partial<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+    | { recursive: true }
+    & Required<Pick<Config, 'allProjects' | 'selectedProjectsGraph' | 'workspaceDir'>>
+  )
 
 export async function handler (
   opts: RunOpts,

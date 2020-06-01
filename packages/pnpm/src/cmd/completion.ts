@@ -13,7 +13,7 @@ export default function (
     cliOptionsTypesByCommandName: Record<string, () => Object>,
     completionByCommandName: Record<string, CompletionFunc>,
     initialCompletion: () => Completion[],
-    shorthandsByCommandName: Record<string, Record<string, string>>,
+    shorthandsByCommandName: Record<string, Record<string, string | string[]>>,
     universalOptionsTypes: Record<string, Object>,
   }
 ) {

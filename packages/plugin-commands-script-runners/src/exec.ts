@@ -7,6 +7,14 @@ import execa = require('execa')
 import pLimit from 'p-limit'
 import R = require('ramda')
 import renderHelp = require('render-help')
+import {
+  PARALLEL_OPTION_HELP,
+  shorthands as runShorthands,
+} from './run'
+
+export const shorthands = {
+  parallel: runShorthands.parallel,
+}
 
 export const commandNames = ['exec']
 
@@ -27,6 +35,15 @@ export const cliOptionsTypes = () => ({
 export function help () {
   return renderHelp({
     description: 'Run a command in each package.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          PARALLEL_OPTION_HELP,
+        ],
+      },
+    ],
     usages: ['-r exec -- <command> [args...]'],
   })
 }
