@@ -5,8 +5,6 @@ import fs = require('mz/fs')
 import pLimit from 'p-limit'
 import path = require('path')
 import exists = require('path-exists')
-import pathTemp = require('path-temp')
-import renameOverwrite = require('rename-overwrite')
 import importIndexedDir from '../fs/importIndexedDir'
 
 const limitLinking = pLimit(16)
@@ -112,7 +110,18 @@ async function hardlinkPkg (
 
   if (!opts.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, opts.filesMap['package.json'], to)) {
     importingLogger.debug({ to, method: 'hardlink' })
-    await importIndexedDir(fs.link, to, opts.filesMap)
+    await importIndexedDir(linkOrCopy, to, opts.filesMap)
+  }
+}
+
+async function linkOrCopy (existingPath: string, newPath: string) {
+  try {
+    await fs.link(existingPath, newPath)
+  } catch (err) {
+    // In some VERY rare cases (1 in a thousand), hard-link creation fails on Windows.
+    // In that case, we just fall back to copying.
+    // This issue is reproducible with "pnpm add @material-ui/icons@4.9.1"
+    await fs.copyFile(existingPath, newPath)
   }
 }
 
