@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.1.1
+
+### Patch Changes
+
+- 86d21759d: Print a meaningful error when pnpm is executed with Node.js v13.0-v13.6
+
 ## 5.1.0
 
 ### Minor Changes
