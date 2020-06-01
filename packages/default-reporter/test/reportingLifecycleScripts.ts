@@ -240,17 +240,17 @@ test('groups lifecycle output when append-only is used', t => {
   output$.take(11).map(normalizeNewline).subscribe({
     complete: () => {
       t.equal(allOutputs.join(EOL), stripIndents`
-        packages/foo ${PREINSTALL}$ node foo
-        packages/foo ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
-        packages/foo ${PREINSTALL}: Failed
-        packages/foo ${POSTINSTALL}$ node foo
-        packages/foo ${POSTINSTALL}: foo I
-        packages/bar ${POSTINSTALL}$ node bar
-        packages/bar ${POSTINSTALL}: bar I
-        packages/foo ${POSTINSTALL}: foo II
-        packages/foo ${POSTINSTALL}: foo III
-        packages/qar ${INSTALL}$ node qar
-        packages/qar ${INSTALL}: Done
+        ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
+        ${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+        ${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
+        ${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
+        ${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
+        ${chalk.blue('packages/qar')} ${INSTALL}$ node qar
+        ${chalk.blue('packages/qar')} ${INSTALL}: Done
       `)
       t.end()
     },
@@ -361,18 +361,18 @@ test('groups lifecycle output when streamLifecycleOutput is used', t => {
     error: t.end,
     next: (output: string) => {
       t.equal(output, stripIndents`
-        packages/foo ${PREINSTALL}$ node foo
-        packages/foo ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
-        packages/foo ${PREINSTALL}: Failed
-        packages/foo ${POSTINSTALL}$ node foo
-        packages/foo ${POSTINSTALL}: foo I
-        packages/bar ${POSTINSTALL}$ node bar
-        packages/bar ${POSTINSTALL}: bar I
-        packages/foo ${POSTINSTALL}: foo II
-        packages/foo ${POSTINSTALL}: foo III
-        packages/qar ${INSTALL}$ node qar
-        packages/qar ${INSTALL}: Done
-        packages/foo ${POSTINSTALL}: Done
+        ${chalk.cyan('packages/foo')} ${PREINSTALL}$ node foo
+        ${chalk.cyan('packages/foo')} ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+        ${chalk.cyan('packages/foo')} ${PREINSTALL}: Failed
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}$ node foo
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo I
+        ${chalk.magenta('packages/bar')} ${POSTINSTALL}$ node bar
+        ${chalk.magenta('packages/bar')} ${POSTINSTALL}: bar I
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo II
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: foo III
+        ${chalk.blue('packages/qar')} ${INSTALL}$ node qar
+        ${chalk.blue('packages/qar')} ${INSTALL}: Done
+        ${chalk.cyan('packages/foo')} ${POSTINSTALL}: Done
       `)
     },
   })

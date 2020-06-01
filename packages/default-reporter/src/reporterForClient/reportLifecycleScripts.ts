@@ -13,6 +13,15 @@ import formatPrefix, { formatPrefixNoTrim } from './utils/formatPrefix'
 
 const NODE_MODULES = `${path.sep}node_modules${path.sep}`
 
+// When streaming processes are spawned, use this color for prefix
+const colorWheel = ['cyan', 'magenta', 'blue', 'yellow', 'green', 'red']
+const NUM_COLORS = colorWheel.length
+
+// Ever-increasing index ensures colors are always sequential
+let currentColor = 0
+
+type ColorByPkg = Map<string, (txt: string) => string>
+
 export default (
   log$: {
     lifecycle: most.Stream<LifecycleLog>,
@@ -26,8 +35,11 @@ export default (
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
   if (opts.appendOnly) {
+    const streamLifecycleOutput = createStreamLifecycleOutput(opts.cwd)
     return log$.lifecycle
-      .map((log: LifecycleLog) => most.of({ msg: formatLifecycleHideOverflowForAppendOnly(opts.cwd, log) }))
+      .map((log: LifecycleLog) => most.of({
+        msg: streamLifecycleOutput(log),
+      }))
   }
   const lifecycleMessages: {
     [depPath: string]: {
@@ -161,7 +173,7 @@ function updateMessageCache (
   }
 ) {
   if (log['script']) {
-    const prefix = formatLifecycleScriptPrefix(opts.cwd, log.wd, log.stage)
+    const prefix = `${formatPrefix(opts.cwd, log.wd)} ${hlValue(log.stage)}`
     const maxLineWidth = opts.maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
     messageCache.script = `${prefix}$ ${cutLine(log['script'], maxLineWidth)}`
   } else if (opts.exit) {
@@ -187,11 +199,18 @@ function highlightLastFolder (p: string) {
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
-function formatLifecycleHideOverflowForAppendOnly (
+function createStreamLifecycleOutput (cwd: string) {
+  currentColor = 0
+  const colorByPrefix: ColorByPkg = new Map()
+  return streamLifecycleOutput.bind(null, colorByPrefix, cwd)
+}
+
+function streamLifecycleOutput (
+  colorByPkg: ColorByPkg,
   cwd: string,
   logObj: LifecycleLog
 ) {
-  const prefix = formatLifecycleScriptPrefix(cwd, logObj.wd, logObj.stage)
+  const prefix = formatLifecycleScriptPrefix(colorByPkg, cwd, logObj.wd, logObj.stage)
   if (typeof logObj['exitCode'] === 'number') {
     if (logObj['exitCode'] === 0) {
       return `${prefix}: Done`
@@ -210,8 +229,20 @@ function formatIndentedOutput (maxWidth: number, logObj: LifecycleLog) {
   return `${chalk.magentaBright('│')} ${formatLine(maxWidth - 2, logObj)}`
 }
 
-function formatLifecycleScriptPrefix (cwd: string, wd: string, stage: string) {
-  return `${formatPrefix(cwd, wd)} ${hlValue(stage)}`
+function formatLifecycleScriptPrefix (
+  colorByPkg: ColorByPkg,
+  cwd: string,
+  wd: string,
+  stage: string
+) {
+  if (!colorByPkg.has(wd)) {
+    const colorName = colorWheel[currentColor % NUM_COLORS]
+    colorByPkg.set(wd, chalk[colorName])
+    currentColor += 1
+  }
+
+  const color = colorByPkg.get(wd)!
+  return `${color(formatPrefix(cwd, wd))} ${hlValue(stage)}`
 }
 
 function formatLine (maxWidth: number, logObj: LifecycleLog) {
