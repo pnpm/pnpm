@@ -1,5 +1,11 @@
 # @pnpm/resolve-dependencies
 
+## 15.1.1
+
+### Patch Changes
+
+- @pnpm/npm-resolver@8.0.1
+
 ## 15.1.0
 
 ### Minor Changes

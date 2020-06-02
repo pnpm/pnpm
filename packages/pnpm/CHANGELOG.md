@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.1.3
+
+### Patch Changes
+
+- Don't remove authorization headers when redirecting requests to the same host (#2602).
+
 ## 5.1.2
 
 ### Patch Changes

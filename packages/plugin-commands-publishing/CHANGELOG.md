@@ -1,5 +1,11 @@
 # @pnpm/plugin-commands-publishing
 
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/npm-resolver@8.0.1
+
 ## 2.0.1
 
 ### Patch Changes

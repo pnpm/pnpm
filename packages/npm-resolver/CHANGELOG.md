@@ -1,5 +1,12 @@
 # @pnpm/npm-resolver
 
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [872f81ca1]
+  - fetch-from-npm-registry@4.0.3
+
 ## 8.0.0
 
 ### Major Changes

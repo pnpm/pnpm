@@ -1,5 +1,11 @@
 # @pnpm/default-resolver
 
+## 8.0.1
+
+### Patch Changes
+
+- @pnpm/npm-resolver@8.0.1
+
 ## 8.0.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @pnpm/package-store
 
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/package-requester@12.0.1
+
 ## 9.0.1
 
 ### Patch Changes
