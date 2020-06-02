@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.1.2
+
+### Patch Changes
+
+- fix an issue with node-gyp failure. Downgrade uuid.
+
 ## 5.1.1
 
 ### Patch Changes
