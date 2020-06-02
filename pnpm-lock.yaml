@@ -2458,7 +2458,7 @@ importers:
       '@pnpm/types': 'link:../types'
       p-limit: 2.3.0
       promise-share: 1.0.0
-      uuid: 8.1.0
+      uuid: 3.4.0
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@pnpm/npm-resolver': 'link:../npm-resolver'
@@ -2496,7 +2496,7 @@ importers:
       p-limit: 2.3.0
       promise-share: 1.0.0
       tempy: 0.5.0
-      uuid: ^8.1.0
+      uuid: ^3.4.0
   packages/sort-packages:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -12273,11 +12273,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==
-  /uuid/8.1.0:
-    dev: false
-    hasBin: true
-    resolution:
-      integrity: sha512-CI18flHDznR0lq54xBycOVmphdCYnQLKn8abKn7PXUiKUGdEd+/l9LWNJmugXel4hXq7S+RMNl34ecyC9TntWg==
   /v8-to-istanbul/4.1.4:
     dependencies:
       '@types/istanbul-lib-coverage': 2.0.2

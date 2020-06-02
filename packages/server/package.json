@@ -55,7 +55,7 @@
     "@pnpm/types": "workspace:6.0.0",
     "p-limit": "2.3.0",
     "promise-share": "1.0.0",
-    "uuid": "^8.1.0"
+    "uuid": "^3.4.0"
   },
   "funding": "https://opencollective.com/pnpm"
 }
