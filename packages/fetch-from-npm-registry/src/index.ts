@@ -43,8 +43,10 @@ export default function (
     }
 
     let redirects = 0
+    let urlObject = new URL(url)
+    const originalHost = urlObject.host
     while (true) {
-      const agent = npmRegistryAgent(url, {
+      const agent = npmRegistryAgent(urlObject.href, {
         ...defaultOpts,
         ...opts,
       } as any) // tslint:disable-line
@@ -52,7 +54,6 @@ export default function (
 
       // We should pass a URL object to node-fetch till this is not resolved:
       // https://github.com/bitinn/node-fetch/issues/245
-      const urlObject = new URL(url)
       let response = await fetch(urlObject, {
         agent,
         // if verifying integrity, node-fetch must not decompress
@@ -68,7 +69,8 @@ export default function (
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       redirects++
-      url = response.headers.get('location')!
+      urlObject = new URL(response.headers.get('location')!)
+      if (!headers['authorization'] || originalHost === urlObject.host) continue
       delete headers['authorization']
     }
   }
