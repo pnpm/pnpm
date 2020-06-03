@@ -1,5 +1,11 @@
 # @pnpm/package-requester
 
+## 12.0.2
+
+### Patch Changes
+
+- a203bc138: The temporary file name to which the package index is written should not be longer than the target file name.
+
 ## 12.0.1
 
 ### Patch Changes

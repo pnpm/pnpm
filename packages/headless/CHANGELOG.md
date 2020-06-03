@@ -1,5 +1,12 @@
 # @pnpm/headless
 
+## 13.0.3
+
+### Patch Changes
+
+- Updated dependencies [a203bc138]
+  - @pnpm/package-requester@12.0.2
+
 ## 13.0.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # pnpm
 
+## 5.1.4
+
+### Patch Changes
+
+- Fix too long file name issue during write to the content-addressable store (#2605).
+
 ## 5.1.3
 
 ### Patch Changes
