@@ -38,10 +38,11 @@ import * as fs from 'mz/fs'
 import pDefer = require('p-defer')
 import PQueue from 'p-queue'
 import path = require('path')
+import pathTemp = require('path-temp')
 import pShare = require('promise-share')
 import R = require('ramda')
+import renameOverwrite = require('rename-overwrite')
 import ssri = require('ssri')
-import writeJsonFile = require('write-json-file')
 import safeDeferredPromise from './safeDeferredPromise'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
@@ -471,7 +472,7 @@ function fetchToStore (
             }
           })
       )
-      await writeJsonFile(filesIndexFile, { files: integrity }, { indent: undefined })
+      await writeJsonFile(filesIndexFile, { files: integrity })
       finishing.resolve(undefined)
 
       if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
@@ -490,6 +491,17 @@ function fetchToStore (
       }
     }
   }
+}
+
+async function writeJsonFile (filePath: string, data: Object) {
+  const targetDir = path.dirname(filePath)
+  // TODO: use the API of @pnpm/cafs to write this file
+  // There is actually no need to create the directory in 99% of cases.
+  // So by using cafs API, we'll improve performance.
+  await fs.mkdir(targetDir, { recursive: true })
+  const temp = pathTemp(targetDir)
+  await fs.writeFile(temp, JSON.stringify(data))
+  await renameOverwrite(temp, filePath)
 }
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest> {
