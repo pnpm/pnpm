@@ -1089,17 +1089,20 @@ importers:
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       load-json-file: 6.2.0
       mem: 6.1.0
+      mz: 2.7.0
       normalize-path: 3.0.0
       p-limit: 2.3.0
       p-memoize: 4.0.0
       parse-npm-tarball-url: 3.0.0
+      path-temp: 2.0.0
+      rename-overwrite: 3.0.0
       semver: 7.3.2
       ssri: 6.0.1
       version-selector-type: 3.0.0
-      write-json-file: 4.0.0
     devDependencies:
       '@pnpm/logger': 3.2.2
       '@pnpm/npm-resolver': 'link:'
+      '@types/mz': 2.7.1
       '@types/normalize-path': 3.0.0
       '@types/semver': 7.2.0
       '@types/ssri': 6.0.3
@@ -1113,6 +1116,7 @@ importers:
       '@pnpm/resolve-workspace-range': 'workspace:1.0.1'
       '@pnpm/resolver-base': 'workspace:7.0.1'
       '@pnpm/types': 'workspace:6.0.0'
+      '@types/mz': ^2.7.1
       '@types/normalize-path': ^3.0.0
       '@types/semver': ^7.2.0
       '@types/ssri': ^6.0.3
@@ -1121,17 +1125,19 @@ importers:
       fetch-from-npm-registry: 'workspace:4.0.3'
       load-json-file: 6.2.0
       mem: ^6.1.0
+      mz: ^2.7.0
       nock: 12.0.3
       normalize-path: 3.0.0
       p-limit: 2.3.0
       p-memoize: 4.0.0
       parse-npm-tarball-url: 3.0.0
       path-exists: 4.0.0
+      path-temp: ^2.0.0
+      rename-overwrite: ^3.0.0
       semver: ^7.3.2
       ssri: 6.0.1
       tempy: 0.5.0
       version-selector-type: ^3.0.0
-      write-json-file: 4.0.0
   packages/outdated:
     dependencies:
       '@pnpm/config': 'link:../config'
@@ -3645,7 +3651,7 @@ packages:
       integrity: sha1-aaI6OtKcrwCX8G7aWbNh7i8GOfY=
   /@types/mz/2.7.1:
     dependencies:
-      '@types/node': 14.0.6
+      '@types/node': 14.0.9
     resolution:
       integrity: sha512-H86h7KmRDVs9UeSiQvtUeVhS+WYpJSYSsZrRvNYpGWGiytEqxwEtvgRnINESQtCgnojIH2wS2WgaMTJP0firBw==
   /@types/ncp/2.0.4:
@@ -3671,6 +3677,9 @@ packages:
   /@types/node/14.0.6:
     resolution:
       integrity: sha512-FbNmu4F67d3oZMWBV6Y4MaPER+0EpE9eIYf2yaHhCWovc1dlXCZkqGX4NLHfVVr6umt20TNBdRzrNJIzIKfdbw==
+  /@types/node/14.0.9:
+    resolution:
+      integrity: sha512-0sCTiXKXELOBxvZLN4krQ0FPOAA7ij+6WwvD0k/PHd9/KAkr4dXel5J9fh6F4x1FwAQILqAWkmpeuS6mjf1iKA==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=

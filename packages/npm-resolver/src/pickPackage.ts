@@ -4,9 +4,11 @@ import { VersionSelectors } from '@pnpm/resolver-base'
 import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
 import pLimit, { Limit } from 'p-limit'
 import path = require('path')
-import writeJsonFile = require('write-json-file')
+import pathTemp = require('path-temp')
+import renameOverwrite = require('rename-overwrite')
 import { RegistryPackageSpec } from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
@@ -119,7 +121,13 @@ export default async (
     ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
       // tslint:disable-next-line:no-floating-promises
-      limit(() => saveMeta(pkgMirror, meta))
+      limit(async () => {
+        try {
+          await saveMeta(pkgMirror, meta)
+        } catch (err) {
+          // We don't care if this file was not written to the cache
+        }
+      })
     }
     return {
       meta,
@@ -145,8 +153,17 @@ async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   }
 }
 
-function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
-  return writeJsonFile(pkgMirror, meta)
+const createdDirs = new Set<string>()
+
+async function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
+  const dir = path.dirname(pkgMirror)
+  if (!createdDirs.has(dir)) {
+    await fs.mkdir(dir, { recursive: true })
+    createdDirs.add(dir)
+  }
+  const temp = pathTemp(dir)
+  await fs.writeFile(temp, JSON.stringify(meta))
+  await renameOverwrite(temp, pkgMirror)
 }
 
 function validatePackageName (pkgName: string) {

@@ -43,18 +43,21 @@
     "fetch-from-npm-registry": "workspace:4.0.3",
     "load-json-file": "6.2.0",
     "mem": "^6.1.0",
+    "mz": "^2.7.0",
     "normalize-path": "3.0.0",
     "p-limit": "2.3.0",
     "p-memoize": "4.0.0",
     "parse-npm-tarball-url": "3.0.0",
+    "path-temp": "^2.0.0",
+    "rename-overwrite": "^3.0.0",
     "semver": "^7.3.2",
     "ssri": "6.0.1",
-    "version-selector-type": "^3.0.0",
-    "write-json-file": "4.0.0"
+    "version-selector-type": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "3.2.2",
     "@pnpm/npm-resolver": "link:",
+    "@types/mz": "^2.7.1",
     "@types/normalize-path": "^3.0.0",
     "@types/semver": "^7.2.0",
     "@types/ssri": "^6.0.3",
