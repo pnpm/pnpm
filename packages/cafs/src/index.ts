@@ -2,6 +2,7 @@ import { promises as fs, Stats } from 'fs'
 import path from 'path'
 import { PackageFileInfo } from '@pnpm/store-controller-types'
 import { FileWriteResult } from '@pnpm/fetcher-base'
+import base32Encode from 'base32-encode'
 import getStream from 'get-stream'
 import pathTemp from 'path-temp'
 import renameOverwrite from 'rename-overwrite'
@@ -58,7 +59,7 @@ async function addBufferToCafs (
 ): Promise<FileWriteResult> {
   const integrity = ssri.fromData(buffer)
   const isExecutable = modeIsExecutable(mode)
-  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', integrity.hexDigest())
+  const fileDest = contentPathFromHex(isExecutable ? 'exec' : 'nonexec', base32Encode(Buffer.from(integrity.sha512[0].digest, 'base64'), 'Crockford', { padding: false }))
   const checkedAt = await writeBufferToCafs(
     buffer,
     fileDest,

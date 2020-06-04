@@ -18,6 +18,7 @@
     "@pnpm/fetcher-base": "workspace:9.0.4",
     "@pnpm/store-controller-types": "workspace:9.2.1",
     "@zkochan/rimraf": "^1.0.0",
+    "base32-encode": "^1.1.1",
     "concat-stream": "^2.0.0",
     "decompress-maybe": "^1.0.0",
     "get-stream": "^6.0.0",

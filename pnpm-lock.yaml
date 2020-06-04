@@ -113,6 +113,7 @@ importers:
       '@pnpm/fetcher-base': link:../fetcher-base
       '@pnpm/store-controller-types': link:../store-controller-types
       '@zkochan/rimraf': 1.0.0
+      base32-encode: 1.1.1
       concat-stream: 2.0.0
       decompress-maybe: 1.0.0
       get-stream: 6.0.0
@@ -138,6 +139,7 @@ importers:
       '@types/ssri': ^7.1.0
       '@types/tar-stream': ^2.1.0
       '@zkochan/rimraf': ^1.0.0
+      base32-encode: ^1.1.1
       concat-stream: ^2.0.0
       decompress-maybe: ^1.0.0
       get-stream: ^6.0.0
@@ -5741,6 +5743,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-5T6P4xPgpp0YDFvSWwEZ4NoE3aM4QBQXDzmVbraCkFj8zHM+mba8SyqB5DbZWyR7mYHo6Y7BdQo3MoA4m0TeQg==
+  /base32-encode/1.1.1:
+    dev: false
+    resolution:
+      integrity: sha512-eqa0BeGghj3guezlasdHJhr3+J5ZbbQvxeprkcDMbRQrjlqOT832IUDT4Al4ofAwekFYMqkkM9KMUHs9Cu0HKA==
   /base64-js/1.5.1:
     resolution:
       integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==
