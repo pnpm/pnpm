@@ -103,7 +103,11 @@
     },
     {
       "packageNames": ["uuid"],
-      "allowedVersions": "^8.0.0"
+      "allowedVersions": "^3.4.0"
+    },
+    {
+      "packageNames": ["tape"],
+      "allowedVersions": "^4.13.3"
     }
   ],
   "pinVersions": false,
