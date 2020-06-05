@@ -18,7 +18,7 @@ const repoRoot = path.join(__dirname, '../../..')
     if (isSubdir(pkgsDir, dir)) {
       await writeProjectManifest(await updateManifest(dir, manifest))
     }
-    if (manifest.name === '@pnpm/fetch' || manifest.name === '@pnpm/tsconfig') continue
+    if (manifest.name === '@pnpm/tsconfig') continue
     const relative = path.relative(repoRoot, dir)
     const importer = lockfile.importers[relative]
     if (!importer) continue
@@ -30,7 +30,7 @@ const repoRoot = path.join(__dirname, '../../..')
     }
     const references = [] as Array<{ path: string }>
     for (const spec of Object.values(deps)) {
-      if (!spec.startsWith('link:') || spec.length === 5 || spec === 'link:../fetch') continue
+      if (!spec.startsWith('link:') || spec.length === 5) continue
       references.push({ path: spec.substr(5) })
     }
     const tsConfig = await loadJsonFile<Object>(tsconfigLoc)
@@ -94,11 +94,7 @@ async function updateManifest (dir: string, manifest: ProjectManifest) {
       }
       break
   }
-  if (manifest.name === '@pnpm/fetch') {
-    scripts.compile = 'rimraf lib && tsc && cpy src/**/*.d.ts lib'
-  } else {
-    scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build'
-  }
+  scripts.compile = 'rimraf lib tsconfig.tsbuildinfo && tsc --build'
   delete scripts.tsc
   let homepage: string
   let repository: string | { type: 'git', url: string }

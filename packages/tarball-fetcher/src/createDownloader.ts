@@ -5,6 +5,7 @@ import {
   FetchResult,
   FilesIndex,
 } from '@pnpm/fetcher-base'
+import { globalWarn } from '@pnpm/logger'
 import createFetcher from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
 import fs = require('mz/fs')
@@ -97,7 +98,7 @@ export default (
     userAgent?: string,
   }
 ): DownloadFunction => {
-  const fetchFromNpmRegistry = createFetcher(gotOpts)
+  const fetchFromNpmRegistry = createFetcher({ retry: { retries: 0 } })
 
   const retryOpts = {
     factor: 10,
@@ -130,19 +131,18 @@ export default (
     const op = retry.operation(retryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
-      op.attempt((currentAttempt) => {
-        fetch(currentAttempt)
-          .then(resolve)
-          .catch((err) => {
-            if (err.httpStatusCode === 403) {
-              reject(err)
-              return
-            }
-            if (op.retry(err)) {
-              return
-            }
+      op.attempt(async (currentAttempt) => {
+        try {
+          resolve(await fetch(currentAttempt))
+        } catch (err) {
+          if (err.httpStatusCode === 403) {
+            reject(err)
+          } else if (!op.retry(err)) {
             reject(op.mainError())
-          })
+          }
+          const attempt = currentAttempt > 1 ? `Attempt #${currentAttempt}: ` : ''
+          globalWarn(`${attempt}Request to ${url} failed: ${err.message}`)
+        }
       })
     })
 

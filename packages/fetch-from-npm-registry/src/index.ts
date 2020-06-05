@@ -1,4 +1,4 @@
-import fetch, { Response } from '@pnpm/fetch'
+import fetch, { isRedirect, Response } from '@pnpm/fetch'
 import npmRegistryAgent from '@pnpm/npm-registry-agent'
 import { URL } from 'url'
 
@@ -62,7 +62,7 @@ export default function (
         redirect: 'manual',
         retry: defaultOpts.retry,
       })
-      if (!fetch.isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
+      if (!isRedirect(response.status) || redirects >= MAX_FOLLOWED_REDIRECTS) {
         return response
       }
 

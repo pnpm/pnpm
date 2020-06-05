@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../store-controller-types"
     },
     {

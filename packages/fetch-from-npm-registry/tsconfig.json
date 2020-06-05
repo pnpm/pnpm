@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../fetch"
+    },
+    {
       "path": "../npm-registry-agent"
     }
   ]
