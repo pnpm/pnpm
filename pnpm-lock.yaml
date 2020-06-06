@@ -368,7 +368,6 @@ importers:
     specifiers: {}
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 5.0.0_node-fetch@2.6.0
       async-retry: 1.3.1
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
@@ -381,7 +380,6 @@ importers:
       '@pnpm/logger': ^3.2.2
       '@types/async-retry': ^1.4.2
       '@types/node-fetch': ^2.5.7
-      '@zeit/fetch-retry': 5.0.0
       async-retry: ^1.3.1
       cpy-cli: ^3.1.1
       node-fetch: 2.6.0
@@ -3852,16 +3850,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==
-  /@zeit/fetch-retry/5.0.0_node-fetch@2.6.0:
-    dependencies:
-      async-retry: 1.3.1
-      debug: 3.2.6
-      node-fetch: 2.6.0
-    dev: false
-    peerDependencies:
-      node-fetch: '*'
-    resolution:
-      integrity: sha512-48tgGYYNX4AGyR8LZa5nMGdr3j4VXYxAA7BX6RWSKIWZkdh1bbkUB6M9ZLfmxsED0CEGpJmP7svN8qnolwZ45w==
   /@zkochan/cmd-shim/4.3.0:
     dependencies:
       is-windows: 1.0.2
