@@ -145,7 +145,7 @@ export default (
             return
           }
           const retriesLeft = retryOpts.retries - currentAttempt + 1
-          globalWarn(`Request to ${url} failed: ${err.message}. ` +
+          globalWarn(`Fetch ${url} error (${err.httpStatusCode || err.code}). ` +
             `Will retry in ${prettyMilliseconds(timeout, { verbose: true })}. ` +
             `${retriesLeft} retries left.`
           )
