@@ -95,7 +95,7 @@
     "@pnpm/symlink-dependency": "workspace:3.0.5",
     "@pnpm/types": "workspace:6.0.0",
     "dependency-path": "workspace:4.0.7",
-    "p-limit": "2.3.0",
+    "p-limit": "^3.0.0",
     "path-absolute": "1.0.1",
     "path-exists": "4.0.0",
     "ramda": "0.27.0",

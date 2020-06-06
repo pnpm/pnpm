@@ -63,10 +63,10 @@
     "normalize-path": "3.0.0",
     "p-every": "2.0.0",
     "p-filter": "2.1.0",
-    "p-limit": "2.3.0",
+    "p-limit": "^3.0.0",
     "path-absolute": "1.0.1",
     "ramda": "0.27.0",
-    "run-groups": "2.0.3",
+    "run-groups": "^3.0.0",
     "semver": "^7.3.2",
     "semver-utils": "1.1.4",
     "version-selector-type": "^3.0.0"
