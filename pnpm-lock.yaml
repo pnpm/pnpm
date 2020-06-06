@@ -636,7 +636,6 @@ importers:
       '@types/sinon': 9.0.4
       '@types/tape-promise': 4.0.1
       '@zkochan/rimraf': 1.0.0
-      fs-extra: 9.0.0
       is-windows: 1.0.2
       isexe: 2.0.0
       load-json-file: 6.2.0
@@ -684,7 +683,6 @@ importers:
       '@types/tape-promise': ^4.0.1
       '@zkochan/rimraf': 1.0.0
       dependency-path: 'workspace:4.0.7'
-      fs-extra: 9.0.0
       is-windows: 1.0.2
       isexe: 2.0.0
       load-json-file: 6.2.0
@@ -2637,7 +2635,6 @@ importers:
       dir-is-case-sensitive: 1.0.2
       execa: 4.0.2
       exists-link: 2.0.0
-      fs-extra: 9.0.0
       is-ci: 2.0.0
       is-windows: 1.0.2
       ncp: 2.0.0
@@ -2716,7 +2713,6 @@ importers:
       encode-registry: 2.0.2
       execa: ^4.0.2
       exists-link: 2.0.0
-      fs-extra: 9.0.0
       get-npm-tarball-url: 2.0.1
       graceful-fs: 4.2.1
       graph-sequencer: 2.0.0
@@ -6709,17 +6705,6 @@ packages:
       node: '>=6 <7 || >=8'
     resolution:
       integrity: sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g==
-  /fs-extra/9.0.0:
-    dependencies:
-      at-least-node: 1.0.0
-      graceful-fs: 4.2.4
-      jsonfile: 6.0.1
-      universalify: 1.0.0
-    dev: true
-    engines:
-      node: '>=10'
-    resolution:
-      integrity: sha512-pmEYSk3vYsG/bF651KPUXZ+hvjpgWYw/Gc7W9NFUe3ZVLczKKWIij3IKpOrQcdw4TILtibFslZ0UmR8Vvzig4g==
   /fs-extra/9.0.1:
     dependencies:
       at-least-node: 1.0.0

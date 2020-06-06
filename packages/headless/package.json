@@ -31,7 +31,6 @@
     "@types/sinon": "^9.0.4",
     "@types/tape-promise": "^4.0.1",
     "@zkochan/rimraf": "1.0.0",
-    "fs-extra": "9.0.0",
     "is-windows": "1.0.2",
     "isexe": "2.0.0",
     "load-json-file": "6.2.0",

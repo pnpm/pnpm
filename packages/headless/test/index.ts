@@ -14,8 +14,8 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import readprojectsContext from '@pnpm/read-projects-context'
 import { REGISTRY_MOCK_PORT } from '@pnpm/registry-mock'
 import rimraf = require('@zkochan/rimraf')
-import fse = require('fs-extra')
 import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import readYamlFile from 'read-yaml-file'
@@ -287,15 +287,15 @@ test('orphan packages are removed', async (t) => {
 
   const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
   const simpleDir = path.join(fixtures, 'simple')
-  fse.copySync(path.join(simpleWithMoreDepsDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  await fs.copyFile(path.join(simpleWithMoreDepsDir, 'package.json'), destPackageJsonPath)
+  await fs.copyFile(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({
     lockfileDir: projectDir,
   }))
 
-  fse.copySync(path.join(simpleDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(simpleDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  await fs.copyFile(path.join(simpleDir, 'package.json'), destPackageJsonPath)
+  await fs.copyFile(path.join(simpleDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({
@@ -328,13 +328,13 @@ test('available packages are used when node_modules is not clean', async (t) => 
 
   const hasGlobDir = path.join(fixtures, 'has-glob')
   const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
-  fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  await fs.copyFile(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
+  await fs.copyFile(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({ lockfileDir: projectDir }))
 
-  fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  await fs.copyFile(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
+  await fs.copyFile(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({ lockfileDir: projectDir, reporter }))
@@ -368,13 +368,13 @@ test('available packages are relinked during forced install', async (t) => {
 
   const hasGlobDir = path.join(fixtures, 'has-glob')
   const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
-  fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  await fs.copyFile(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
+  await fs.copyFile(path.join(hasGlobDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   await headless(await testDefaults({ lockfileDir: projectDir }))
 
-  fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
-  fse.copySync(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
+  await fs.copyFile(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
+  await fs.copyFile(path.join(hasGlobAndRimrafDir, WANTED_LOCKFILE), destLockfileYamlPath)
 
   const reporter = sinon.spy()
   await headless(await testDefaults({ lockfileDir: projectDir, reporter, force: true }))
@@ -404,10 +404,10 @@ test(`fail when ${WANTED_LOCKFILE} is not up-to-date with package.json`, async (
   t.comment(projectDir)
 
   const simpleDir = path.join(fixtures, 'simple')
-  fse.copySync(path.join(simpleDir, 'package.json'), path.join(projectDir, 'package.json'))
+  await fs.copyFile(path.join(simpleDir, 'package.json'), path.join(projectDir, 'package.json'))
 
   const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
-  fse.copySync(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), path.join(projectDir, WANTED_LOCKFILE))
+  await fs.copyFile(path.join(simpleWithMoreDepsDir, WANTED_LOCKFILE), path.join(projectDir, WANTED_LOCKFILE))
 
   try {
     await headless(await testDefaults({ lockfileDir: projectDir }))
@@ -448,8 +448,8 @@ test('installing using passed in lockfile files', async (t) => {
   t.comment(prefix)
 
   const simplePkgPath = path.join(fixtures, 'simple')
-  fse.copySync(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
-  fse.copySync(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
+  await fs.copyFile(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
+  await fs.copyFile(path.join(simplePkgPath, WANTED_LOCKFILE), path.join(prefix, WANTED_LOCKFILE))
 
   const wantedLockfile = await readWantedLockfile(simplePkgPath, { ignoreIncompatible: false })
 
@@ -667,7 +667,7 @@ test.skip('using side effects cache and hoistPattern=*', async (t) => {
   await project.has('.pnpm/node_modules/es6-promise') // verifying that a flat node_modules was created
 
   const cacheBuildDir = path.join(opts.storeDir, `localhost+${REGISTRY_MOCK_PORT}/diskusage@1.1.3/side_effects/${ENGINE_DIR}/package/build`)
-  fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
+  fs.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf(path.join(lockfileDir, 'node_modules'))
   await headless(opts)
