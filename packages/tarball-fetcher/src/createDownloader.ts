@@ -6,7 +6,7 @@ import {
   FilesIndex,
 } from '@pnpm/fetcher-base'
 import { globalWarn } from '@pnpm/logger'
-import retry = require('@zkochan/retry')
+import * as retry from '@zkochan/retry'
 import createFetcher from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
 import fs = require('mz/fs')
@@ -132,7 +132,7 @@ export default (
     const op = retry.operation(retryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
-      op.attempt(async (currentAttempt: number) => {
+      op.attempt(async (currentAttempt) => {
         try {
           resolve(await fetch(currentAttempt))
         } catch (err) {

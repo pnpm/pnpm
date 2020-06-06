@@ -368,7 +368,7 @@ importers:
     specifiers: {}
   packages/fetch:
     dependencies:
-      '@zkochan/retry': 0.1.1
+      '@zkochan/retry': 0.2.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
       pretty-ms: 7.0.0
@@ -381,7 +381,7 @@ importers:
       '@pnpm/logger': ^3.2.2
       '@types/async-retry': ^1.4.2
       '@types/node-fetch': ^2.5.7
-      '@zkochan/retry': ^0.1.1
+      '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
@@ -2772,7 +2772,7 @@ importers:
     dependencies:
       '@pnpm/error': 'link:../error'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
-      '@zkochan/retry': 0.1.1
+      '@zkochan/retry': 0.2.0
       credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       graceful-fs: 4.2.1
@@ -2807,7 +2807,7 @@ importers:
       '@types/retry': ^0.12.0
       '@types/rimraf': ^3.0.0
       '@types/ssri': ^6.0.3
-      '@zkochan/retry': ^0.1.1
+      '@zkochan/retry': ^0.2.0
       cp-file: 9.0.0
       credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'workspace:4.0.3'
@@ -3917,12 +3917,12 @@ packages:
     dev: false
     resolution:
       integrity: sha512-9hHFHZTOexP/oge2GMQzPlhdi9IJ+Zgnobh7sNfSdIZepULMM/lNQE4hmkFDC2zk8+OBibtfHbUPulNZI18TQA==
-  /@zkochan/retry/0.1.1:
+  /@zkochan/retry/0.2.0:
     dev: false
     engines:
-      node: '>= 4'
+      node: '>=10'
     resolution:
-      integrity: sha512-YalcyvNVrhwFmxzQBrCbXgpQsZnUVdgWnpWOeihE93qMt+Jxp/DZ7gb2aDh3wRqMefK4ltERpQ4HMY500gfyNA==
+      integrity: sha512-WhB+2B/ZPlW2Xy/kMJBrMbqecWXcbDDgn0K0wKBAgO2OlBTz1iLJrRWduo+DGGn0Akvz1Lu4Xvls7dJojximWw==
   /@zkochan/rimraf/1.0.0:
     dependencies:
       '@types/glob': 7.1.2

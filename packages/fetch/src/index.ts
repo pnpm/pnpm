@@ -1,5 +1,5 @@
 import { globalWarn } from '@pnpm/logger'
-import retry = require('@zkochan/retry')
+import * as retry from '@zkochan/retry'
 import { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 import fetch = require('node-fetch-unix')
 import prettyMilliseconds = require('pretty-ms')
@@ -54,7 +54,7 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
   const op = retry.operation(retryOpts)
 
   try {
-    return await new Promise((resolve, reject) => op.attempt(async (currentAttempt: number) => {
+    return await new Promise((resolve, reject) => op.attempt(async (currentAttempt) => {
       const { method = 'GET' } = opts
       try {
         // this will be retried

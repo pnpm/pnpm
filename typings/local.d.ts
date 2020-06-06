@@ -33,11 +33,6 @@ declare module '@zkochan/npm-package-arg' {
   export = anything;
 }
 
-declare module '@zkochan/retry' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'anonymous-npm-registry-client' {
   const anything: any;
   export = anything;

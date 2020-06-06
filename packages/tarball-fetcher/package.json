@@ -36,7 +36,7 @@
   "dependencies": {
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/fetcher-base": "workspace:8.0.0",
-    "@zkochan/retry": "^0.1.1",
+    "@zkochan/retry": "^0.2.0",
     "credentials-by-uri": "2.0.0",
     "fetch-from-npm-registry": "workspace:4.0.3",
     "graceful-fs": "4.2.1",
