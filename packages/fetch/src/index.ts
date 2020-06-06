@@ -1,7 +1,8 @@
 import { globalWarn } from '@pnpm/logger'
-import retry = require('async-retry')
+import retry = require('@zkochan/retry')
 import { Request, RequestInit as NodeRequestInit, Response } from 'node-fetch'
 import fetch = require('node-fetch-unix')
+import prettyMilliseconds = require('pretty-ms')
 
 // retry settings
 const MIN_TIMEOUT = 10
@@ -32,7 +33,7 @@ export interface RequestInit extends NodeRequestInit {
 
 export const isRedirect = fetch.isRedirect
 
-export default async function fetchRetry (url: RequestInfo, opts: RequestInit = {}) {
+export default async function fetchRetry (url: RequestInfo, opts: RequestInit = {}): Promise<Response> {
   const retryOpts = Object.assign({
     factor: FACTOR,
     // timeouts will be [10, 60, 360, 2160, 12960]
@@ -50,9 +51,10 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
       }
     }
   }
+  const op = retry.operation(retryOpts)
 
   try {
-    return await retry(async (bail, attempt) => {
+    return await new Promise((resolve, reject) => op.attempt(async (currentAttempt: number) => {
       const { method = 'GET' } = opts
       try {
         // this will be retried
@@ -62,23 +64,30 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
           const retryAfter = parseInt(res.headers.get('retry-after'), 10)
           if (retryAfter) {
             if (retryAfter > retryOpts.maxRetryAfter) {
-              return res
+              resolve(res)
+              return
             } else {
               await new Promise(r => setTimeout(r, retryAfter * 1e3))
             }
           }
           throw new ResponseError(res)
         } else {
-          return res
+          resolve(res)
+          return
         }
       } catch (err) {
-        const isRetry = attempt <= retryOpts.retries
-        if (isRetry) {
-          globalWarn(`${method} ${url} error (${err.status ?? err.errno}). retrying (${attempt}/${retryOpts.retries})`)
+        const timeout = op.retry(err)
+        if (timeout === false) {
+          reject(op.mainError())
+          return
         }
-        throw err
+        const retriesLeft = retryOpts.retries - currentAttempt + 1
+        globalWarn(`${method} ${url} error (${err.status ?? err.errno}). ` +
+          `Will retry in ${prettyMilliseconds(timeout, { verbose: true })}. ` +
+          `${retriesLeft} retries left.`
+        )
       }
-    }, retryOpts)
+    }))
   } catch (err) {
     if (err instanceof ResponseError) {
       return err.res
