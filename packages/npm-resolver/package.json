@@ -45,7 +45,7 @@
     "mem": "^6.1.0",
     "mz": "^2.7.0",
     "normalize-path": "3.0.0",
-    "p-limit": "^3.0.0",
+    "p-limit": "^3.0.1",
     "p-memoize": "4.0.0",
     "parse-npm-tarball-url": "3.0.0",
     "path-temp": "^2.0.0",

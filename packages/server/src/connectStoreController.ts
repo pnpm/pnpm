@@ -9,7 +9,7 @@ import {
 } from '@pnpm/store-controller-types'
 import { DependencyManifest } from '@pnpm/types'
 
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import pShare = require('promise-share')
 import uuid = require('uuid')
 

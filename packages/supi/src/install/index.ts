@@ -46,7 +46,7 @@ import rimraf = require('@zkochan/rimraf')
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import pFilter = require('p-filter')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import getSpecFromPackageManifest from '../getSpecFromPackageManifest'

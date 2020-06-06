@@ -53,7 +53,7 @@
     "@pnpm/fetch": "workspace:1.0.3",
     "@pnpm/store-controller-types": "workspace:8.0.0",
     "@pnpm/types": "workspace:6.0.0",
-    "p-limit": "^3.0.0",
+    "p-limit": "^3.0.1",
     "promise-share": "1.0.0",
     "uuid": "^3.4.0"
   },

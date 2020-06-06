@@ -11,7 +11,7 @@ import findWorkspaceDir from '@pnpm/find-workspace-dir'
 import findWorkspacePackages, { arrayOfWorkspacePackagesToMap } from '@pnpm/find-workspace-packages'
 import { StoreController } from '@pnpm/package-store'
 import { createOrConnectStoreControllerCached, CreateStoreControllerOptions } from '@pnpm/store-connection-manager'
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')

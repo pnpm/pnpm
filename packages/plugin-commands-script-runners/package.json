@@ -55,7 +55,7 @@
     "@pnpm/sort-packages": "workspace:1.0.11",
     "@pnpm/types": "workspace:6.0.0",
     "common-tags": "1.8.0",
-    "p-limit": "^3.0.0",
+    "p-limit": "^3.0.1",
     "ramda": "0.27.0",
     "realpath-missing": "1.0.0",
     "render-help": "1.0.0"

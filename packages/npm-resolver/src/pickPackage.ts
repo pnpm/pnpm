@@ -5,7 +5,7 @@ import { PackageManifest } from '@pnpm/types'
 import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
-import pLimit, { Limit } from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
@@ -40,7 +40,7 @@ export type PackageInRegistry = PackageManifest & {
  * otherwise it would cause EPERM exceptions
  */
 const metafileOperationLimits = {} as {
-  [pkgMirror: string]: Limit,
+  [pkgMirror: string]: pLimit.Limit,
 }
 
 export type PickPackageOptions = {

@@ -1,6 +1,6 @@
 import { DeferredManifestPromise, FilesIndex } from '@pnpm/fetcher-base'
 import fs = require('mz/fs')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import ssri = require('ssri')
 import { parseJsonBuffer } from './parseJson'

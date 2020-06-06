@@ -28,7 +28,7 @@
     "make-empty-dir": "^1.0.0",
     "mz": "2.7.0",
     "p-filter": "2.1.0",
-    "p-limit": "^3.0.0",
+    "p-limit": "^3.0.1",
     "path-exists": "4.0.0",
     "path-temp": "2.0.0",
     "ramda": "0.27.0",

@@ -4,7 +4,7 @@ import PnpmError from '@pnpm/error'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import execa = require('execa')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import R = require('ramda')
 import renderHelp = require('render-help')
 import {

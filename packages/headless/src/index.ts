@@ -54,7 +54,7 @@ import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-de
 import { DependencyManifest, ProjectManifest, Registries } from '@pnpm/types'
 import dp = require('dependency-path')
 import fs = require('mz/fs')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')

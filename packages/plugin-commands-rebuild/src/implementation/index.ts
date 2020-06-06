@@ -24,7 +24,7 @@ import { ProjectManifest } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import runGroups from 'run-groups'

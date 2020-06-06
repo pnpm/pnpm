@@ -2,7 +2,7 @@ import { DeferredManifestPromise } from '@pnpm/fetcher-base'
 import { PackageFileInfo } from '@pnpm/store-controller-types'
 import rimraf = require('@zkochan/rimraf')
 import fs = require('mz/fs')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import ssri = require('ssri')
 import { getFilePathByModeInCafs } from './getFilePathInCafs'
 import { parseJsonBuffer } from './parseJson'

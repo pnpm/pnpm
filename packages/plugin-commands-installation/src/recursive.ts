@@ -22,7 +22,7 @@ import isSubdir = require('is-subdir')
 import mem = require('mem')
 import fs = require('mz/fs')
 import pFilter = require('p-filter')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import readIniFile = require('read-ini-file')

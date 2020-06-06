@@ -5,7 +5,7 @@ import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import sortPackages from '@pnpm/sort-packages'
 import { PackageManifest } from '@pnpm/types'
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import realpathMissing = require('realpath-missing')
 

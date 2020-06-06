@@ -2,7 +2,7 @@ import { importingLogger } from '@pnpm/core-loggers'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import fs = require('mz/fs')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import exists = require('path-exists')
 import importIndexedDir from '../fs/importIndexedDir'

@@ -15,7 +15,7 @@ import { createOrConnectStoreController, CreateStoreControllerOptions } from '@p
 import { PackageManifest, ProjectManifest } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import mem = require('mem')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import readIniFile = require('read-ini-file')
 import { rebuild as rebuildAll, RebuildOptions, rebuildPkgs } from './implementation'

@@ -73,11 +73,11 @@
     "graph-sequencer": "2.0.0",
     "load-json-file": "6.2.0",
     "mem": "^6.1.0",
-    "p-limit": "^3.0.0",
+    "p-limit": "^3.0.1",
     "ramda": "0.27.0",
     "read-ini-file": "3.0.0",
     "render-help": "1.0.0",
-    "run-groups": "^3.0.0",
+    "run-groups": "^3.0.1",
     "semver": "^7.3.2"
   },
   "peerDependencies": {

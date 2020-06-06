@@ -22,7 +22,7 @@ import { StoreController } from '@pnpm/store-controller-types'
 import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { ProjectManifest, Registries } from '@pnpm/types'
 import fs = require('mz/fs')
-import pLimit from 'p-limit'
+import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import { depPathToRef } from './lockfile'
