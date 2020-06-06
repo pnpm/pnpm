@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@pnpm/build-modules": "workspace:5.0.1",
-    "@pnpm/check-package": "3.0.1",
     "@pnpm/constants": "workspace:4.0.0",
     "@pnpm/core-loggers": "workspace:4.0.2",
     "@pnpm/error": "workspace:1.2.0",

@@ -2005,7 +2005,6 @@ importers:
   packages/plugin-commands-store:
     dependencies:
       '@pnpm/cafs': 'link:../cafs'
-      '@pnpm/check-package': 3.0.1
       '@pnpm/cli-utils': 'link:../cli-utils'
       '@pnpm/config': 'link:../config'
       '@pnpm/error': 'link:../error'
@@ -2047,7 +2046,6 @@ importers:
     specifiers:
       '@pnpm/assert-store': 'workspace:1.0.2'
       '@pnpm/cafs': 'workspace:^1.0.1'
-      '@pnpm/check-package': 3.0.1
       '@pnpm/cli-utils': 'workspace:0.4.6'
       '@pnpm/config': 'workspace:9.1.0'
       '@pnpm/error': 'workspace:1.2.0'
@@ -2559,7 +2557,6 @@ importers:
   packages/supi:
     dependencies:
       '@pnpm/build-modules': 'link:../build-modules'
-      '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'link:../constants'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
@@ -2660,7 +2657,6 @@ importers:
       '@pnpm/assert-project': 'workspace:*'
       '@pnpm/assert-store': 'workspace:*'
       '@pnpm/build-modules': 'workspace:5.0.1'
-      '@pnpm/check-package': 3.0.1
       '@pnpm/constants': 'workspace:4.0.0'
       '@pnpm/core-loggers': 'workspace:4.0.2'
       '@pnpm/default-fetcher': 'workspace:*'
@@ -3401,15 +3397,6 @@ packages:
       node: '>= 8'
     resolution:
       integrity: sha512-1V9XOY4rDW0rehzbrcqAmHnz8e7SKvX27gh8Gt2WgB0+pdzdiLV83p72kZPU+jvMbS1qU5mauP2iOvO8rhmurQ==
-  /@pnpm/check-package/3.0.1:
-    dependencies:
-      dint: 4.0.0
-      load-json-file: 6.2.0
-    dev: false
-    engines:
-      node: '>=8.15'
-    resolution:
-      integrity: sha512-+m1O/rFyR0h60IrfoOKVuzwsZCYx4vYF5NFTMFzDNJ34D4EH8Y+nT/EIncAHQ6Awavz2I5FlhRbiYvWA2DZFbw==
   /@pnpm/colorize-semver-diff/1.0.0:
     dependencies:
       chalk: 3.0.0
@@ -5968,18 +5955,6 @@ packages:
       node: '>=0.3.1'
     resolution:
       integrity: sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A==
-  /dint/4.0.0:
-    dependencies:
-      graceful-fs: 4.2.4
-      mz: 2.7.0
-      p-every: 2.0.0
-      p-limit: 2.3.0
-      ssri: 6.0.1
-    dev: false
-    engines:
-      node: '>=8'
-    resolution:
-      integrity: sha512-CISZwy/n83/l+I1K9eDxVkixe4OZLjgB/zq4eGJekmKxbNThpmY4QqzReGpe0csJ+eiMToOosoL3McZF2NHgjA==
   /dint/5.0.0:
     dependencies:
       graceful-fs: 4.2.4

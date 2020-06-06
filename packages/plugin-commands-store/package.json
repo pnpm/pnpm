@@ -53,7 +53,6 @@
   },
   "dependencies": {
     "@pnpm/cafs": "workspace:^1.0.1",
-    "@pnpm/check-package": "3.0.1",
     "@pnpm/cli-utils": "workspace:0.4.6",
     "@pnpm/config": "workspace:9.1.0",
     "@pnpm/error": "workspace:1.2.0",
