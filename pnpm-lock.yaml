@@ -376,13 +376,11 @@ importers:
       node-fetch-unix: 2.3.0
     devDependencies:
       '@pnpm/logger': 3.2.2
-      '@types/async-retry': 1.4.2
       '@types/node-fetch': 2.5.7
       cpy-cli: 3.1.1
     specifiers:
       '@pnpm/core-loggers': 'workspace:^4.0.2'
       '@pnpm/logger': ^3.2.2
-      '@types/async-retry': ^1.4.2
       '@types/node-fetch': ^2.5.7
       '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
@@ -3536,12 +3534,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
-  /@types/async-retry/1.4.2:
-    dependencies:
-      '@types/retry': 0.12.0
-    dev: true
-    resolution:
-      integrity: sha512-GUDuJURF0YiJZ+CBjNQA0+vbP/VHlJbB0sFqkzsV7EcOPRfurVonXpXKAt3w8qIjM1TEzpz6hc6POocPvHOS3w==
   /@types/byline/4.2.32:
     dependencies:
       '@types/node': 14.0.11
