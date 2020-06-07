@@ -41,6 +41,7 @@
     "most": "^1.8.1",
     "normalize-path": "3.0.0",
     "pretty-bytes": "5.3.0",
+    "pretty-ms": "^7.0.0",
     "pretty-time": "1.1.0",
     "ramda": "0.27.0",
     "right-pad": "1.0.1",

@@ -34,6 +34,7 @@
     "@pnpm/logger": "^3.1.0"
   },
   "dependencies": {
+    "@pnpm/core-loggers": "workspace:^4.0.2",
     "@pnpm/error": "workspace:1.2.0",
     "@pnpm/fetcher-base": "workspace:8.0.0",
     "@zkochan/retry": "^0.2.0",
@@ -43,7 +44,6 @@
     "mem": "^6.1.0",
     "mz": "2.7.0",
     "path-temp": "2.0.0",
-    "pretty-ms": "^7.0.0",
     "rimraf": "3.0.2",
     "ssri": "6.0.1"
   },

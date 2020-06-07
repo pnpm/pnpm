@@ -11,6 +11,7 @@ import {
   PackageManifestLog,
   ProgressLog,
   RegistryLog,
+  RequestRetryLog,
   RootLog,
   ScopeLog,
   SkippedOptionalDependencyLog,
@@ -19,7 +20,8 @@ import {
   SummaryLog,
 } from './all'
 
-export type Log = DeprecationLog
+export type Log =
+  | DeprecationLog
   | FetchingProgressLog
   | HookLog
   | ImportingLog
@@ -29,6 +31,7 @@ export type Log = DeprecationLog
   | PackageManifestLog
   | ProgressLog
   | RegistryLog
+  | RequestRetryLog
   | RootLog
   | ScopeLog
   | SkippedOptionalDependencyLog

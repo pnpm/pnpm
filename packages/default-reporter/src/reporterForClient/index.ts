@@ -9,6 +9,7 @@ import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
 import reportMisc from './reportMisc'
 import reportProgress from './reportProgress'
+import reportRequestRetry from './reportRequestRetry'
 import reportScope from './reportScope'
 import reportSkippedOptionalDependencies from './reportSkippedOptionalDependencies'
 import reportStats from './reportStats'
@@ -27,6 +28,7 @@ export default function (
     registry: most.Stream<logs.RegistryLog>,
     root: most.Stream<logs.RootLog>,
     packageManifest: most.Stream<logs.PackageManifestLog>,
+    requestRetry: most.Stream<logs.RequestRetryLog>,
     link: most.Stream<logs.LinkLog>,
     other: most.Stream<logs.Log>,
     hook: most.Stream<logs.HookLog>,
@@ -73,6 +75,7 @@ export default function (
       width,
     }),
     reportInstallChecks(log$.installCheck, { cwd }),
+    reportRequestRetry(log$.requestRetry),
     reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),

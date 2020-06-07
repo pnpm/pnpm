@@ -1,3 +1,4 @@
+import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import {
   Cafs,
@@ -5,14 +6,12 @@ import {
   FetchResult,
   FilesIndex,
 } from '@pnpm/fetcher-base'
-import { globalWarn } from '@pnpm/logger'
 import * as retry from '@zkochan/retry'
 import createFetcher from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
-import prettyMilliseconds = require('pretty-ms')
 import rimraf = require('rimraf')
 import ssri = require('ssri')
 import urlLib = require('url')
@@ -137,23 +136,26 @@ export default (
     const op = retry.operation(retryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
-      op.attempt(async (currentAttempt) => {
+      op.attempt(async (attempt) => {
         try {
-          resolve(await fetch(currentAttempt))
-        } catch (err) {
-          if (err.httpStatusCode === 403) {
-            reject(err)
+          resolve(await fetch(attempt))
+        } catch (error) {
+          if (error.httpStatusCode === 403) {
+            reject(error)
           }
-          const timeout = op.retry(err)
+          const timeout = op.retry(error)
           if (timeout === false) {
             reject(op.mainError())
             return
           }
-          const retriesLeft = retryOpts.retries - currentAttempt + 1
-          globalWarn(`Fetch ${url} error (${err.httpStatusCode || err.code}). ` +
-            `Will retry in ${prettyMilliseconds(timeout, { verbose: true })}. ` +
-            `${retriesLeft} retries left.`
-          )
+          requestRetryLogger.debug({
+            attempt,
+            error,
+            maxRetries: retryOpts.retries,
+            method: 'GET',
+            timeout,
+            url,
+          })
         }
       })
     })
