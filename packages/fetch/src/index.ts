@@ -50,16 +50,6 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
         // this will be retried
         const res = await fetch(url, opts)
         if ((res.status >= 500 && res.status < 600) || res.status === 429) {
-          // NOTE: doesn't support http-date format
-          const retryAfter = parseInt(res.headers.get('retry-after'), 10)
-          if (retryAfter) {
-            if (retryAfter > retryOpts.maxRetryAfter) {
-              resolve(res)
-              return
-            } else {
-              await new Promise(r => setTimeout(r, retryAfter * 1e3))
-            }
-          }
           throw new ResponseError(res)
         } else {
           resolve(res)
