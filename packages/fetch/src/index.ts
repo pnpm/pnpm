@@ -16,7 +16,6 @@ export interface RetryOpts {
   factor?: number
   maxTimeout?: number
   minTimeout?: number
-  onRetry? (error: unknown): void
   retries?: number
 }
 
@@ -28,7 +27,6 @@ export type RequestInfo = string | URLLike | Request
 
 export interface RequestInit extends NodeRequestInit {
   retry?: RetryOpts
-  onRetry? (error: unknown, opts: RequestInit): void
 }
 
 export const isRedirect = fetch.isRedirect
@@ -43,14 +41,6 @@ export default async function fetchRetry (url: RequestInfo, opts: RequestInit = 
     retries: MAX_RETRIES,
   }, opts.retry)
 
-  if (opts.onRetry) {
-    retryOpts.onRetry = error => {
-      opts.onRetry!(error, opts)
-      if (opts.retry && opts.retry.onRetry) {
-        opts.retry.onRetry(error)
-      }
-    }
-  }
   const op = retry.operation(retryOpts)
 
   try {
