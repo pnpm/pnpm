@@ -93,6 +93,7 @@ export function toOutput$ (
   const hookPushStream = new PushStream()
   const skippedOptionalDependencyPushStream = new PushStream()
   const scopePushStream = new PushStream()
+  const requestRetryPushStream = new PushStream()
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
@@ -141,6 +142,9 @@ export function toOutput$ (
         case 'pnpm:scope':
           scopePushStream.next(log)
           break
+        case 'pnpm:request-retry':
+          requestRetryPushStream.next(log)
+          break
         case 'pnpm' as any: // tslint:disable-line
         case 'pnpm:global' as any: // tslint:disable-line
         case 'pnpm:store' as any: // tslint:disable-line
@@ -161,6 +165,7 @@ export function toOutput$ (
     packageManifest: most.from<logs.PackageManifestLog>(packageManifestPushStream.observable),
     progress: most.from<logs.ProgressLog>(progressPushStream.observable),
     registry: most.from<logs.RegistryLog>(registryPushStream.observable),
+    requestRetry: most.from<logs.RequestRetryLog>(requestRetryPushStream.observable),
     root: most.from<logs.RootLog>(rootPushStream.observable),
     scope: most.from<logs.ScopeLog>(scopePushStream.observable),
     skippedOptionalDependency: most.from<logs.SkippedOptionalDependencyLog>(skippedOptionalDependencyPushStream.observable),

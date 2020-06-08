@@ -24,6 +24,7 @@ import test = require('tape')
 import './reportingErrors'
 import './reportingLifecycleScripts'
 import './reportingProgress'
+import './reportingRequestRetry'
 import './reportingScope'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')

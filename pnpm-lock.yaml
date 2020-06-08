@@ -247,6 +247,7 @@ importers:
       most: 1.8.1_most@1.8.1
       normalize-path: 3.0.0
       pretty-bytes: 5.3.0
+      pretty-ms: 7.0.0
       pretty-time: 1.1.0
       ramda: 0.27.0
       right-pad: 1.0.1
@@ -289,6 +290,7 @@ importers:
       normalize-newline: 3.0.0
       normalize-path: 3.0.0
       pretty-bytes: 5.3.0
+      pretty-ms: ^7.0.0
       pretty-time: 1.1.0
       ramda: 0.27.0
       right-pad: 1.0.1
@@ -368,15 +370,19 @@ importers:
     specifiers: {}
   packages/fetch:
     dependencies:
-      '@zeit/fetch-retry': 5.0.0_node-fetch@2.6.0
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@zkochan/retry': 0.2.0
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
     devDependencies:
+      '@pnpm/logger': 3.2.2
       '@types/node-fetch': 2.5.7
       cpy-cli: 3.1.1
     specifiers:
+      '@pnpm/core-loggers': 'workspace:^4.0.2'
+      '@pnpm/logger': ^3.2.2
       '@types/node-fetch': ^2.5.7
-      '@zeit/fetch-retry': 5.0.0
+      '@zkochan/retry': ^0.2.0
       cpy-cli: ^3.1.1
       node-fetch: 2.6.0
       node-fetch-unix: 2.3.0
@@ -2140,12 +2146,12 @@ importers:
       '@types/mz': 2.7.1
       '@types/ncp': 2.0.4
       '@types/ramda': 0.27.6
-      '@types/retry': 0.12.0
       '@types/semver': 7.2.0
       '@types/table': 5.0.0
       '@types/tape-promise': 4.0.1
       '@types/update-notifier': 4.1.0
       '@types/which': 1.3.2
+      '@zkochan/retry': 0.2.0
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
@@ -2165,7 +2171,6 @@ importers:
       path-exists: 4.0.0
       pnpm: 'link:'
       read-yaml-file: 2.0.0
-      retry: 0.12.0
       semver: 7.3.2
       symlink-dir: 4.1.0
       tape-promise: 4.0.0
@@ -2218,13 +2223,13 @@ importers:
       '@types/ncp': ^2.0.4
       '@types/nopt': ^3.0.29
       '@types/ramda': ^0.27.6
-      '@types/retry': ^0.12.0
       '@types/semver': ^7.2.0
       '@types/table': ^5.0.0
       '@types/tape-promise': ^4.0.1
       '@types/update-notifier': ^4.1.0
       '@types/which': ^1.3.2
       '@zkochan/libnpx': 11.0.3
+      '@zkochan/retry': ^0.2.0
       '@zkochan/rimraf': 1.0.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
@@ -2253,7 +2258,6 @@ importers:
       ramda: 0.27.0
       read-yaml-file: 2.0.0
       render-help: 1.0.0
-      retry: 0.12.0
       semver: ^7.3.2
       split-cmd: 1.0.1
       symlink-dir: ^4.1.0
@@ -2764,15 +2768,16 @@ importers:
       symlink-dir: ^4.1.0
   packages/tarball-fetcher:
     dependencies:
+      '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/error': 'link:../error'
       '@pnpm/fetcher-base': 'link:../fetcher-base'
+      '@zkochan/retry': 0.2.0
       credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'link:../fetch-from-npm-registry'
       graceful-fs: 4.2.1
       mem: 6.1.0
       mz: 2.7.0
       path-temp: 2.0.0
-      retry: 0.12.0
       rimraf: 3.0.2
       ssri: 6.0.1
     devDependencies:
@@ -2790,6 +2795,7 @@ importers:
       tempy: 0.5.0
     specifiers:
       '@pnpm/cafs': 'workspace:1.0.1'
+      '@pnpm/core-loggers': 'workspace:^4.0.2'
       '@pnpm/error': 'workspace:1.2.0'
       '@pnpm/fetcher-base': 'workspace:8.0.0'
       '@pnpm/logger': 3.2.2
@@ -2800,6 +2806,7 @@ importers:
       '@types/retry': ^0.12.0
       '@types/rimraf': ^3.0.0
       '@types/ssri': ^6.0.3
+      '@zkochan/retry': ^0.2.0
       cp-file: 9.0.0
       credentials-by-uri: 2.0.0
       fetch-from-npm-registry: 'workspace:4.0.3'
@@ -2808,7 +2815,6 @@ importers:
       mz: 2.7.0
       nock: 12.0.3
       path-temp: 2.0.0
-      retry: 0.12.0
       rimraf: 3.0.2
       ssri: 6.0.1
       tempy: 0.5.0
@@ -3840,16 +3846,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-GpSwvyXOcOOlV70vbnzjj4fW5xW/FdUF6nQEt1ENy7m4ZCczi1+/buVUPAqmGfqznsORNFzUMjctTIp8a9tuCQ==
-  /@zeit/fetch-retry/5.0.0_node-fetch@2.6.0:
-    dependencies:
-      async-retry: 1.3.1
-      debug: 3.2.6
-      node-fetch: 2.6.0
-    dev: false
-    peerDependencies:
-      node-fetch: '*'
-    resolution:
-      integrity: sha512-48tgGYYNX4AGyR8LZa5nMGdr3j4VXYxAA7BX6RWSKIWZkdh1bbkUB6M9ZLfmxsED0CEGpJmP7svN8qnolwZ45w==
   /@zkochan/cmd-shim/4.3.0:
     dependencies:
       is-windows: 1.0.2
@@ -3913,6 +3909,11 @@ packages:
     dev: false
     resolution:
       integrity: sha512-9hHFHZTOexP/oge2GMQzPlhdi9IJ+Zgnobh7sNfSdIZepULMM/lNQE4hmkFDC2zk8+OBibtfHbUPulNZI18TQA==
+  /@zkochan/retry/0.2.0:
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-WhB+2B/ZPlW2Xy/kMJBrMbqecWXcbDDgn0K0wKBAgO2OlBTz1iLJrRWduo+DGGn0Akvz1Lu4Xvls7dJojximWw==
   /@zkochan/rimraf/1.0.0:
     dependencies:
       '@types/glob': 7.1.2
@@ -4593,12 +4594,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-+Ryf6g3BKoRc7jfp7ad8tM4TtMiaWvbF/1/sQcZPkkS7ag3D5nMBCe2UfOTONtAkaG0tO0ij3C5Lwmf1EiyjHg==
-  /async-retry/1.3.1:
-    dependencies:
-      retry: 0.12.0
-    dev: false
-    resolution:
-      integrity: sha512-aiieFW/7h3hY0Bq5d+ktDBejxuwR78vRu9hDUdR8rNhSaQ29VzPL4AoIRG7D/c7tdenwOcKvgPM6tIxB3cB6HA==
   /async/3.2.0:
     dev: true
     resolution:
@@ -9751,6 +9746,12 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-OOY5b7PAEFV0E2Fir1KOkxchnZNCdowAJgQ5NuxjpBKTRP3pQhwkrkxqQjeoKJ+fO7bCpmIZaogI4eZGDMEGOw==
+  /parse-ms/2.1.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-kHt7kzLoS9VBZfUsiKjv43mr91ea+U05EyKkEtqp7vNbHxmaVuEqN7XxeEVnGrMtYOAxGrDElSi96K7EgO1zCA==
   /parse-npm-tarball-url/3.0.0:
     dependencies:
       semver: 6.3.0
@@ -9999,6 +10000,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-hjGrh+P926p4R4WbaB6OckyRtO0F0/lQBiT+0gnxjV+5kjPBrfVBFCsCLbMqVQeydvIoouYTCmmEURiH3R1Bdg==
+  /pretty-ms/7.0.0:
+    dependencies:
+      parse-ms: 2.1.0
+    dev: false
+    engines:
+      node: '>=10'
+    resolution:
+      integrity: sha512-J3aPWiC5e9ZeZFuSeBraGxSkGMOvulSWsxDByOcbD1Pr75YL3LSNIKIb52WXbCLE1sS5s4inBBbryjF4Y05Ceg==
   /pretty-time/1.1.0:
     dev: false
     engines:
@@ -10788,6 +10797,7 @@ packages:
     resolution:
       integrity: sha1-52OI0heZLCUnUCQdPTlW/tmNj/Q=
   /retry/0.12.0:
+    dev: false
     engines:
       node: '>= 4'
     resolution:

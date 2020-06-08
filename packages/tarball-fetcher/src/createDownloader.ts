@@ -1,3 +1,4 @@
+import { requestRetryLogger } from '@pnpm/core-loggers'
 import PnpmError from '@pnpm/error'
 import {
   Cafs,
@@ -5,12 +6,12 @@ import {
   FetchResult,
   FilesIndex,
 } from '@pnpm/fetcher-base'
+import * as retry from '@zkochan/retry'
 import createFetcher from 'fetch-from-npm-registry'
 import { IncomingMessage } from 'http'
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
-import retry = require('retry')
 import rimraf = require('rimraf')
 import ssri = require('ssri')
 import urlLib = require('url')
@@ -97,7 +98,12 @@ export default (
     userAgent?: string,
   }
 ): DownloadFunction => {
-  const fetchFromNpmRegistry = createFetcher(gotOpts)
+  // The fetch library can retry requests on bad HTTP responses.
+  // However, it is not enough to retry on bad HTTP responses only.
+  // Requests should also be retried when the tarball's integrity check fails.
+  // Hence, we tell fetch to not retry,
+  // and we perform the retries from this function instead.
+  const fetchFromNpmRegistry = createFetcher({ retry: { retries: 0 } })
 
   const retryOpts = {
     factor: 10,
@@ -130,19 +136,27 @@ export default (
     const op = retry.operation(retryOpts)
 
     return new Promise<FetchResult>((resolve, reject) => {
-      op.attempt((currentAttempt) => {
-        fetch(currentAttempt)
-          .then(resolve)
-          .catch((err) => {
-            if (err.httpStatusCode === 403) {
-              reject(err)
-              return
-            }
-            if (op.retry(err)) {
-              return
-            }
+      op.attempt(async (attempt) => {
+        try {
+          resolve(await fetch(attempt))
+        } catch (error) {
+          if (error.httpStatusCode === 403) {
+            reject(error)
+          }
+          const timeout = op.retry(error)
+          if (timeout === false) {
             reject(op.mainError())
+            return
+          }
+          requestRetryLogger.debug({
+            attempt,
+            error,
+            maxRetries: retryOpts.retries,
+            method: 'GET',
+            timeout,
+            url,
           })
+        }
       })
     })
 
